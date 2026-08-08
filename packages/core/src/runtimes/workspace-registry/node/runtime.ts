@@ -26,6 +26,7 @@ import type {
   DeleteWorktreeInput,
   RefreshWorkspacesInput,
   RetryStepInput,
+  WorkspaceGitSetup,
   WorkspaceLifecycleStep,
   WorkspaceLifecycleStepId,
   WorkspaceRecord,
@@ -375,7 +376,8 @@ export class WorkspaceRegistryRuntime {
         repositoryPath: repository.path,
         worktreePath: path.resolve(input.path),
         branch: input.branch,
-        baseRef: input.baseRef,
+        baseRef: input.baseRef ?? null,
+        gitSetup: input.gitSetup,
         onStage: (stage) => {
           stageStarts.push({ stage, at: Date.now() });
           this.updateOverlay(input.id, (overlay) => ({
@@ -669,7 +671,8 @@ export class WorkspaceRegistryRuntime {
       const matches =
         spec !== null &&
         spec.branch === input.branch &&
-        spec.baseRef === input.baseRef &&
+        spec.baseRef === (input.baseRef ?? null) &&
+        sameGitSetup(spec.gitSetup, input.gitSetup) &&
         spec.requestedPath === input.path &&
         existing.parentId === input.repositoryId;
       if (!matches) {
@@ -713,7 +716,12 @@ export class WorkspaceRegistryRuntime {
       // Not on disk yet: 'missing' + outcome 'started' + no overlay reads as
       // "interrupted" after a daemon crash — exactly the diagnostic the spec wants.
       observedStatus: 'missing',
-      creation: { branch: input.branch, baseRef: input.baseRef, requestedPath: input.path },
+      creation: {
+        branch: input.branch,
+        baseRef: input.baseRef ?? null,
+        requestedPath: input.path,
+        ...(input.gitSetup !== undefined ? { gitSetup: input.gitSetup } : {}),
+      },
       lastCreateOutcome: { status: 'started', at: now },
       lifecycle: null,
       lastRemovalAttempt: null,
@@ -1517,7 +1525,7 @@ export class WorkspaceRegistryRuntime {
         params: record.creation
           ? {
               branch: record.creation.branch,
-              base: record.creation.baseRef,
+              ...(record.creation.baseRef !== null ? { base: record.creation.baseRef } : {}),
               path: record.creation.requestedPath,
             }
           : {},
@@ -1555,6 +1563,28 @@ function toStepState(outcome: {
   if (outcome.status === 'failed') return { status: 'failed', message: outcome.message };
   if (outcome.status === 'skipped') return { status: 'skipped', message: outcome.reason };
   return { status: 'succeeded' };
+}
+
+/**
+ * Replay-identity comparison of two gitSetup blocks, key-order independent: durable
+ * records round-trip through JSON, so a field-by-field canonical form is compared
+ * instead of the raw objects.
+ */
+function sameGitSetup(a?: WorkspaceGitSetup, b?: WorkspaceGitSetup): boolean {
+  const canonical = (setup?: WorkspaceGitSetup) =>
+    setup === undefined
+      ? null
+      : {
+          fetchBranch: setup.fetchBranch
+            ? { remote: setup.fetchBranch.remote, sourceRef: setup.fetchBranch.sourceRef }
+            : null,
+          upstream: setup.upstream
+            ? { remote: setup.upstream.remote, mergeRef: setup.upstream.mergeRef }
+            : null,
+          breadcrumb: setup.breadcrumb ? { prUrl: setup.breadcrumb.prUrl } : null,
+          followRef: setup.followRef ?? null,
+        };
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
 /** The change-detection view of a record: everything except the bookkeeping stamps. */

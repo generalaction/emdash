@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceGitObservations, WorkspaceLifecycle } from '../../api/schemas';
+import type {
+  WorkspaceCreation,
+  WorkspaceGitObservations,
+  WorkspaceLifecycle,
+} from '../../api/schemas';
 import {
+  parseCreationPayload,
   parseGitObservationsPayload,
   parseLifecyclePayload,
+  serializeCreationPayload,
   serializeGitObservationsPayload,
   serializeLifecyclePayload,
 } from './payload-codecs';
@@ -48,6 +54,36 @@ describe('git observations payload codec', () => {
   it('degrades corrupt payloads to null instead of throwing', () => {
     expect(parseGitObservationsPayload('not-json')).toBeNull();
     expect(parseGitObservationsPayload(JSON.stringify({ version: '2', value: 42 }))).toBeNull();
+  });
+});
+
+describe('creation payload codec', () => {
+  it('round-trips a creation section carrying gitSetup and a null baseRef', () => {
+    const creation: WorkspaceCreation = {
+      branch: 'pr/7/fix',
+      baseRef: null,
+      requestedPath: '/tmp/pr-wt',
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+        upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+        breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+        followRef: true,
+      },
+    };
+    expect(parseCreationPayload(serializeCreationPayload(creation))).toEqual(creation);
+  });
+
+  it('parses a pre-gitSetup v1 creation payload unchanged', () => {
+    // The exact JSON an old row stored: required baseRef, no gitSetup field.
+    const v1 = JSON.stringify({
+      version: '1',
+      value: { branch: 'feature/x', baseRef: 'main', requestedPath: '/tmp/wt' },
+    });
+    expect(parseCreationPayload(v1)).toEqual({
+      branch: 'feature/x',
+      baseRef: 'main',
+      requestedPath: '/tmp/wt',
+    });
   });
 });
 

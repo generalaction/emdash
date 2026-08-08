@@ -12,8 +12,10 @@ import type { CreateWorktreeExecutionResult } from './create-worktree';
  */
 export const LIFECYCLE_STEP_ORDER: readonly WorkspaceLifecycleStepId[] = [
   'adopt-worktree',
+  'fetch-branch',
   'fetch-remote-base',
   'create-worktree',
+  'configure-branch',
   'copy-artifacts',
   'push-branch',
   'fetch-refs',
@@ -65,10 +67,11 @@ export function isIncompleteStep(step: WorkspaceLifecycleStep | null): boolean {
 
 /**
  * Maps a foreground pipeline stage onto the lifecycle step it belongs to. Inspect,
- * add-worktree, and verify are all part of materializing the worktree; only an actual
- * base fetch surfaces as its own step.
+ * add-worktree, and verify are all part of materializing the worktree; base fetches
+ * and the gitSetup stages surface as their own steps.
  */
 export function stepIdForStage(stage: string): WorkspaceLifecycleStepId {
+  if (stage === 'fetch-branch' || stage === 'configure-branch') return stage;
   return stage === 'resolve-base' || stage === 'fetch-base'
     ? 'fetch-remote-base'
     : 'create-worktree';
@@ -91,33 +94,69 @@ export function buildCreationLifecycle(
 ): WorkspaceLifecycle {
   const stageAt = (stage: string): number | null =>
     stages.find((entry) => entry.stage === stage)?.at ?? null;
+  // When the next stage began — the closest durable fact to "this stage finished".
+  const stageEndAt = (stage: string): number | null => {
+    const index = stages.findIndex((entry) => entry.stage === stage);
+    return index >= 0 ? (stages[index + 1]?.at ?? null) : null;
+  };
+  const fetchBranch = input.gitSetup?.fetchBranch;
+  const fetchedBranch = stageAt('fetch-branch') !== null;
   const fetchedBase = stageAt('fetch-base') !== null;
+  const fetchBranchParams: WorkspaceLifecycleStep['params'] = fetchBranch
+    ? { branch: input.branch, remote: fetchBranch.remote, source: fetchBranch.sourceRef }
+    : {};
+  const baseParams: WorkspaceLifecycleStep['params'] =
+    input.baseRef !== undefined ? { base: input.baseRef } : {};
   const steps: WorkspaceLifecycleStep[] = [];
+
+  // The gitSetup fetch, planned whenever fetchBranch was requested: succeeded when it
+  // actually ran, skipped when an existing refs/heads/<branch> was reused (replay rule).
+  const fetchBranchStep = (): WorkspaceLifecycleStep =>
+    fetchedBranch
+      ? {
+          id: 'fetch-branch',
+          status: 'succeeded',
+          startedAt: stageAt('fetch-branch'),
+          finishedAt: stageEndAt('fetch-branch') ?? now,
+          params: fetchBranchParams,
+        }
+      : {
+          id: 'fetch-branch',
+          status: 'skipped',
+          startedAt: null,
+          finishedAt: now,
+          message: `Branch ${input.branch} already exists; reused without fetching`,
+          params: fetchBranchParams,
+        };
 
   if (result.status === 'failed') {
     const failedStepId = stepIdForStage(result.stage);
+    if (fetchedBranch && failedStepId !== 'fetch-branch') {
+      steps.push(fetchBranchStep());
+    }
     if (fetchedBase && failedStepId !== 'fetch-remote-base') {
       steps.push({
         id: 'fetch-remote-base',
         status: 'succeeded',
         startedAt: stageAt('fetch-base'),
         finishedAt: stageAt('add-worktree') ?? now,
-        params: { base: input.baseRef },
+        params: baseParams,
       });
     }
     steps.push({
       id: failedStepId,
       status: 'failed',
-      startedAt:
-        failedStepId === 'fetch-remote-base'
-          ? (stageAt('resolve-base') ?? stageAt('inspect'))
-          : (stageAt('inspect') ?? now),
+      startedAt: failedStepStartAt(failedStepId, stageAt) ?? now,
       finishedAt: now,
       message: result.message,
       params:
-        failedStepId === 'fetch-remote-base'
-          ? { base: input.baseRef }
-          : { path: input.path, branch: input.branch },
+        failedStepId === 'fetch-branch'
+          ? fetchBranchParams
+          : failedStepId === 'configure-branch'
+            ? { branch: input.branch }
+            : failedStepId === 'fetch-remote-base'
+              ? baseParams
+              : { path: input.path, branch: input.branch },
     });
     return { steps, preservePatterns: input.preservePatterns };
   }
@@ -130,14 +169,17 @@ export function buildCreationLifecycle(
       finishedAt: now,
       params: { branch: input.branch, path: result.finalPath },
     });
+    // An existing worktree means an existing branch: the planned fetch never ran.
+    if (fetchBranch) steps.push(fetchBranchStep());
   } else {
+    if (fetchBranch) steps.push(fetchBranchStep());
     if (fetchedBase) {
       steps.push({
         id: 'fetch-remote-base',
         status: 'succeeded',
         startedAt: stageAt('fetch-base'),
         finishedAt: stageAt('add-worktree') ?? now,
-        params: { base: input.baseRef },
+        params: baseParams,
       });
     }
     steps.push({
@@ -151,17 +193,30 @@ export function buildCreationLifecycle(
         branchCreated: result.createdBranch,
       },
     });
-    // The copy step exists only when the project deliberately names artifacts to
-    // preserve — no patterns, no step (spec: preserved-artifact copy).
-    if (input.preservePatterns.length > 0) {
-      steps.push({
-        id: 'copy-artifacts',
-        status: 'pending',
-        startedAt: null,
-        finishedAt: null,
-        params: {},
-      });
-    }
+  }
+
+  // The gitSetup config writes: idempotent, so they run on fresh and reused paths
+  // alike — a stage entry is the fact that they ran.
+  if (stageAt('configure-branch') !== null) {
+    steps.push({
+      id: 'configure-branch',
+      status: 'succeeded',
+      startedAt: stageAt('configure-branch'),
+      finishedAt: stageEndAt('configure-branch') ?? now,
+      params: { branch: input.branch },
+    });
+  }
+
+  // The copy step exists only when the project deliberately names artifacts to
+  // preserve — no patterns, no step (spec: preserved-artifact copy).
+  if (result.createdWorktree && input.preservePatterns.length > 0) {
+    steps.push({
+      id: 'copy-artifacts',
+      status: 'pending',
+      startedAt: null,
+      finishedAt: null,
+      params: {},
+    });
   }
 
   if (input.pushBranch) {
@@ -173,13 +228,27 @@ export function buildCreationLifecycle(
       params: { branch: input.branch },
     });
   }
-  steps.push({
-    id: 'fetch-refs',
-    status: 'pending',
-    startedAt: null,
-    finishedAt: null,
-    params: { base: input.baseRef },
-  });
+  // No base ref, nothing to freshen: the advisory fetch step never applies.
+  if (input.baseRef !== undefined) {
+    steps.push({
+      id: 'fetch-refs',
+      status: 'pending',
+      startedAt: null,
+      finishedAt: null,
+      params: { base: input.baseRef },
+    });
+  }
 
   return { steps, preservePatterns: input.preservePatterns };
+}
+
+/** Where a failed foreground step began, from the stage timeline. */
+function failedStepStartAt(
+  stepId: WorkspaceLifecycleStepId,
+  stageAt: (stage: string) => number | null
+): number | null {
+  if (stepId === 'fetch-branch') return stageAt('fetch-branch');
+  if (stepId === 'configure-branch') return stageAt('configure-branch');
+  if (stepId === 'fetch-remote-base') return stageAt('resolve-base') ?? stageAt('inspect');
+  return stageAt('inspect');
 }

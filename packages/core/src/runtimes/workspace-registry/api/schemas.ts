@@ -50,14 +50,17 @@ export type WorkspaceRemovalAttempt = z.infer<typeof workspaceRemovalAttemptSche
 
 /**
  * Identity of one workspace lifecycle step. Creation-class steps (adopt-worktree |
- * fetch-remote-base | create-worktree) settle in the foreground pipeline; background-
- * class steps (copy-artifacts | push-branch | fetch-refs) run after the verb returns;
- * script-class steps (prepare | setup | run) track the current activation.
+ * fetch-branch | fetch-remote-base | create-worktree | configure-branch) settle in the
+ * foreground pipeline; background-class steps (copy-artifacts | push-branch |
+ * fetch-refs) run after the verb returns; script-class steps (prepare | setup | run)
+ * track the current activation.
  */
 export const workspaceLifecycleStepIdSchema = z.enum([
   'adopt-worktree',
+  'fetch-branch',
   'fetch-remote-base',
   'create-worktree',
+  'configure-branch',
   'copy-artifacts',
   'push-branch',
   'fetch-refs',
@@ -231,14 +234,36 @@ export const workspaceRuntimeOverlaySchema = z.object({
 export type WorkspaceRuntimeOverlay = z.infer<typeof workspaceRuntimeOverlaySchema>;
 
 /**
+ * Structured, host-validated git setup executed inside the foreground creation
+ * pipeline (spec: pr-workspace-model provisioning). No raw refspecs or config keys
+ * cross the contract: the host constructs the fetch destination from the verb's own
+ * `branch` (a plain, never-force refspec guarded by a branch-exists check) and owns
+ * the exact config keys the upstream and breadcrumb become.
+ */
+export const workspaceGitSetupSchema = z.object({
+  /** Materialize the branch: fetch sourceRef from remote into refs/heads/<branch>. */
+  fetchBranch: z.object({ remote: z.string().min(1), sourceRef: z.string().min(1) }).optional(),
+  /** Upstream tracking, written as `branch.<branch>.remote` / `branch.<branch>.merge`. */
+  upstream: z.object({ remote: z.string().min(1), mergeRef: z.string().min(1) }).optional(),
+  /** PR breadcrumb, written as `branch.<branch>.emdash-pr-url`. */
+  breadcrumb: z.object({ prUrl: z.string().min(1) }).optional(),
+  /** Host-local ref-follow policy, recorded durably (consumed by the follow loop). */
+  followRef: z.boolean().optional(),
+});
+export type WorkspaceGitSetup = z.infer<typeof workspaceGitSetupSchema>;
+
+/**
  * Minimal immutable creation fields — what replay identity is enforced against and what
  * failure diagnosis needs. NOT rich provenance (that stays a desktop annotation). Null
  * for registered-existing and adopted records.
  */
 export const workspaceCreationSchema = z.object({
   branch: z.string(),
-  baseRef: z.string(),
+  /** Null when gitSetup.fetchBranch materialized the branch instead of a base ref. */
+  baseRef: z.string().nullable(),
   requestedPath: z.string(),
+  /** The verb's gitSetup block, verbatim; the host's ref-follow loop reads it later. */
+  gitSetup: workspaceGitSetupSchema.optional(),
 });
 export type WorkspaceCreation = z.infer<typeof workspaceCreationSchema>;
 
@@ -298,17 +323,29 @@ export const deleteWorktreeInputSchema = z.object({
 });
 export type DeleteWorktreeInput = z.infer<typeof deleteWorktreeInputSchema>;
 
-export const createWorktreeInputSchema = z.object({
-  /** Desktop-minted UUID for the new worktree record. */
-  id: z.string().min(1),
-  /** The registered repository record to create from. */
-  repositoryId: z.string().min(1),
-  branch: z.string().min(1),
-  baseRef: z.string().min(1),
-  path: z.string().min(1),
-  preservePatterns: z.array(z.string()).default([]),
-  pushBranch: z.boolean().default(false),
-});
+export const createWorktreeInputSchema = z
+  .object({
+    /** Desktop-minted UUID for the new worktree record. */
+    id: z.string().min(1),
+    /** The registered repository record to create from. */
+    repositoryId: z.string().min(1),
+    branch: z.string().min(1),
+    /** Optional when gitSetup.fetchBranch materializes the branch instead. */
+    baseRef: z.string().min(1).optional(),
+    path: z.string().min(1),
+    preservePatterns: z.array(z.string()).default([]),
+    pushBranch: z.boolean().default(false),
+    gitSetup: workspaceGitSetupSchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.baseRef === undefined && input.gitSetup?.fetchBranch === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['baseRef'],
+        message: 'baseRef is required unless gitSetup.fetchBranch materializes the branch',
+      });
+    }
+  });
 export type CreateWorktreeInput = z.infer<typeof createWorktreeInputSchema>;
 
 /** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
