@@ -29,7 +29,7 @@ export function createSessionKiller(
 
     for (const session of Object.values(acpSnapshot.data)) {
       if (!cwdUnder(root, session.cwd)) continue;
-      const result = await clients.acp.killSession({ conversationId: session.conversationId });
+      const result = await clients.acp.kill({ conversationId: session.conversationId });
       if (!result.success) {
         logger?.warn?.(`failed to kill ACP session ${session.conversationId}`, {
           error: result.error,
@@ -39,8 +39,7 @@ export function createSessionKiller(
 
     for (const session of Object.values(tuiSnapshot.data)) {
       if (!cwdUnder(root, session.cwd)) continue;
-      const result = await clients.tuiAgents.deleteSession({
-        conversationId: session.conversationId,
+      const result = await clients.tuiAgents.delete({        conversationId: session.conversationId,
       });
       if (!result.success) {
         logger?.warn?.(`failed to delete TUI session ${session.conversationId}`, {

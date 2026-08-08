@@ -318,13 +318,13 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     workspacePath: string,
     retried = false
   ): Promise<Result<void, ProvisionWorkspaceError>> {
-    const activated = await registry.activateWorkspace({ id: workspaceId });
+    const activated = await registry.activateWorkspace({ workspaceId });
     if (activated.success) return ok(undefined);
     if (activated.error.type === 'workspace-missing') {
       return err({ type: 'missing-workspace' });
     }
     if (activated.error.type === 'workspace-not-found' && !retried) {
-      const registered = await registry.createWorkspace({ id: workspaceId, path: workspacePath });
+      const registered = await registry.createWorkspace({ workspaceId, path: workspacePath });
       if (registered.success || registered.error.type === 'already-registered') {
         return this.activateOnRegistry(registry, workspaceId, workspacePath, true);
       }
@@ -408,7 +408,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         return err({ type: 'host-unreachable', message: client.error.message });
       }
       const removed = await client.data.workspaceRegistry.deleteWorktree({
-        id: workspaceId,
+        workspaceId,
         deleteBranch: false,
       });
       if (!removed.success) {

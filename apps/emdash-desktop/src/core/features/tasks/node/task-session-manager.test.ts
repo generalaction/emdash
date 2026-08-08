@@ -81,7 +81,7 @@ describe('executeTeardown', () => {
 
     await Promise.all([manager.teardownTask('task-1'), manager.teardownTask('task-2')]);
     expect(deactivateParticipants).toHaveBeenCalledOnce();
-    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ id: 'workspace-1' });
+    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace-1' });
   });
 
   it('leaves the workspace active on the host when detaching', async () => {
@@ -108,6 +108,6 @@ describe('executeTeardown', () => {
     );
 
     await manager.teardownTask('task-1', 'archive');
-    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ id: 'workspace-1' });
+    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace-1' });
   });
 });

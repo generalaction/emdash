@@ -1,9 +1,9 @@
 import { defineContract, liveJob } from '@emdash/wire/rpc';
 import {
   runScriptWorkflowInputSchema,
+  scriptWorkflowErrorSchema,
   scriptWorkflowProgressSchema,
   scriptWorkflowResultSchema,
-  terminalErrorSchema,
 } from './schemas';
 
 export const scriptWorkflowsDefinitions = {
@@ -11,7 +11,7 @@ export const scriptWorkflowsDefinitions = {
     input: runScriptWorkflowInputSchema,
     progress: scriptWorkflowProgressSchema,
     result: scriptWorkflowResultSchema,
-    error: terminalErrorSchema,
+    error: scriptWorkflowErrorSchema,
   }),
 };
 

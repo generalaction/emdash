@@ -74,7 +74,7 @@ export class ResourceUsageRuntime {
         totalBytes: diskTotalBytes,
         path: diskPath,
       },
-      collectedAt: new Date().toISOString(),
+      collectedAt: Date.now(),
     };
   }
 }

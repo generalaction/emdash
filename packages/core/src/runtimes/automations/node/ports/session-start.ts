@@ -71,7 +71,7 @@ export function createSessionPortFromDependencies(dependencies: {
         );
         if (!workspaceId.success) return workspaceId;
         const activated = await dependencies.workspaceRegistry.activateWorkspace(
-          { id: workspaceId.data },
+          { workspaceId: workspaceId.data },
           { signal: input.signal }
         );
         if (!activated.success) {
@@ -81,14 +81,12 @@ export function createSessionPortFromDependencies(dependencies: {
           });
         }
         if (input.agent.type === 'acp') {
-          const result = await dependencies.acp.startSession(
+          const result = await dependencies.acp.start(
             {
-              input: {
-                conversationId: input.conversationId,
-                cwd,
-                sessionId: null,
-                ...input.agent.start,
-              },
+              conversationId: input.conversationId,
+              cwd,
+              sessionId: null,
+              ...input.agent.start,
             },
             { signal: input.signal }
           );
@@ -97,16 +95,14 @@ export function createSessionPortFromDependencies(dependencies: {
             : err({ code: result.error.type, message: result.error.message });
         }
 
-        const result = await dependencies.tui.startSession(
+        const result = await dependencies.tui.start(
           {
-            input: {
-              conversationId: input.conversationId,
-              cwd,
-              sessionId: null,
-              cols: HEADLESS_TERMINAL_COLS,
-              rows: HEADLESS_TERMINAL_ROWS,
-              ...input.agent.start,
-            },
+            conversationId: input.conversationId,
+            cwd,
+            sessionId: null,
+            cols: HEADLESS_TERMINAL_COLS,
+            rows: HEADLESS_TERMINAL_ROWS,
+            ...input.agent.start,
           },
           { signal: input.signal }
         );
@@ -134,7 +130,7 @@ async function registerWorkspace(
   path: string,
   signal: AbortSignal
 ): Promise<Result<string, AutomationPortError>> {
-  const result = await client.createWorkspace({ id: randomUUID(), path }, { signal });
+  const result = await client.createWorkspace({ workspaceId: randomUUID(), path }, { signal });
   if (result.success) return ok(result.data.id);
   if (result.error.type === 'already-registered') return ok(result.error.record.id);
   return err({
@@ -191,7 +187,7 @@ function compileConversationIndexRecord(
           initialPrompt: agent.start.initialPrompt,
         };
   return {
-    id: conversationId,
+    conversationId,
     provider: agent.start.providerId,
     type: agent.type === 'acp' ? 'acp' : 'pty',
     cwd,

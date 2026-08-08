@@ -20,7 +20,7 @@ export function useAgentMcps(
     queryKey,
     queryFn: async () => {
       const result = await (await getMcpClient()).listForAgent({ host, providerId: agentId });
-      if (result.success) return result.data;
+      if (result.success) return result.data.servers;
       throw new Error(configErrorMessage(result.error));
     },
   });

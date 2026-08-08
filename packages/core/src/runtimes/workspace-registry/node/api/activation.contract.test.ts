@@ -82,7 +82,7 @@ describe('workspace registry activation lifecycle', () => {
     const workspacePath = path.join(root, name);
     await fs.mkdir(workspacePath, { recursive: true });
     await fs.writeFile(path.join(workspacePath, '.emdash.json'), JSON.stringify({ scripts }));
-    const created = await wire.client.createWorkspace({ id: `ws-${name}`, path: workspacePath });
+    const created = await wire.client.createWorkspace({ workspaceId: `ws-${name}`, path: workspacePath });
     expect(created.success).toBe(true);
     return workspacePath;
   }
@@ -94,7 +94,7 @@ describe('workspace registry activation lifecycle', () => {
       run: 'echo ran > run-marker',
     });
 
-    const activated = await wire.client.activateWorkspace({ id: 'ws-staged' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-staged' });
     if (!activated.success) throw new Error('activate failed');
 
     // The verb returned at the session-gating point: prepare is done, setup is not.
@@ -128,7 +128,7 @@ describe('workspace registry activation lifecycle', () => {
   it('a failing prepare script yields a notice, never a verb error', async () => {
     await makeWorkspace('broken', { prepare: 'echo broken >&2; exit 7' });
 
-    const activated = await wire.client.activateWorkspace({ id: 'ws-broken' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-broken' });
     if (!activated.success) throw new Error('activate failed');
 
     expect(activated.data.runtime?.activation).toMatchObject({
@@ -146,7 +146,7 @@ describe('workspace registry activation lifecycle', () => {
       run: 'echo ran > run-marker',
     });
 
-    const activated = await wire.client.activateWorkspace({ id: 'ws-half' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-half' });
     expect(activated.success).toBe(true);
 
     await eventually(async () => {
@@ -165,10 +165,10 @@ describe('workspace registry activation lifecycle', () => {
       teardown: 'echo teardown >> teardown-log',
     });
 
-    const activated = await wire.client.activateWorkspace({ id: 'ws-lifecycle' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-lifecycle' });
     expect(activated.success).toBe(true);
 
-    const deactivated = await wire.client.deactivateWorkspace({ id: 'ws-lifecycle' });
+    const deactivated = await wire.client.deactivateWorkspace({ workspaceId: 'ws-lifecycle' });
     expect(deactivated).toEqual({ success: true, data: undefined });
     expect(killedPaths).toEqual([workspacePath]);
     await expect(fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).resolves.toBe(
@@ -178,7 +178,7 @@ describe('workspace registry activation lifecycle', () => {
     expect(records['ws-lifecycle']?.runtime?.activation ?? null).toBeNull();
 
     // Idempotent on inactive workspaces: sessions are swept again, teardown is not re-run.
-    const again = await wire.client.deactivateWorkspace({ id: 'ws-lifecycle' });
+    const again = await wire.client.deactivateWorkspace({ workspaceId: 'ws-lifecycle' });
     expect(again.success).toBe(true);
     await expect(fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).resolves.toBe(
       'teardown\n'
@@ -187,11 +187,11 @@ describe('workspace registry activation lifecycle', () => {
 
   it('a hanging teardown is cut off at the time-box and deactivation still succeeds', async () => {
     await makeWorkspace('hanging', { teardown: 'sleep 30' });
-    const activated = await wire.client.activateWorkspace({ id: 'ws-hanging' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-hanging' });
     expect(activated.success).toBe(true);
 
     const startedAt = Date.now();
-    const deactivated = await wire.client.deactivateWorkspace({ id: 'ws-hanging' });
+    const deactivated = await wire.client.deactivateWorkspace({ workspaceId: 'ws-hanging' });
     expect(deactivated.success).toBe(true);
     expect(Date.now() - startedAt).toBeLessThan(10_000);
 
@@ -209,7 +209,7 @@ describe('workspace registry activation lifecycle', () => {
       run: 'echo ran',
     });
 
-    expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(true);
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
@@ -241,7 +241,7 @@ describe('workspace registry activation lifecycle', () => {
     // Reactivating overwrites the script steps wholesale — no history accumulates.
     await fs.writeFile(path.join(workspacePath, 'fixed'), '');
     await clock.advanceBy(7_000);
-    expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(true);
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
@@ -254,7 +254,7 @@ describe('workspace registry activation lifecycle', () => {
 
   it('workspaces without configured scripts get no script steps', async () => {
     await makeWorkspace('scriptless', { prepare: 'echo prepared' });
-    expect((await wire.client.activateWorkspace({ id: 'ws-scriptless' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-scriptless' })).success).toBe(true);
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-scriptless']?.runtime?.lifecycle?.map((step) => step.id)).toEqual([
@@ -265,7 +265,7 @@ describe('workspace registry activation lifecycle', () => {
 
   it('a daemon restart leaves no activation state and preserves lastActivatedAt', async () => {
     await makeWorkspace('restarted', {});
-    const activated = await wire.client.activateWorkspace({ id: 'ws-restarted' });
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-restarted' });
     expect(activated.success).toBe(true);
 
     wire.dispose();
@@ -286,9 +286,9 @@ describe('workspace registry activation lifecycle', () => {
       teardown: 'echo teardown >> order-log',
     });
 
-    const activating = wire.client.activateWorkspace({ id: 'ws-contended' });
+    const activating = wire.client.activateWorkspace({ workspaceId: 'ws-contended' });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const deactivating = wire.client.deactivateWorkspace({ id: 'ws-contended' });
+    const deactivating = wire.client.deactivateWorkspace({ workspaceId: 'ws-contended' });
 
     const [activated, deactivated] = await Promise.all([activating, deactivating]);
     expect(activated.success).toBe(true);
@@ -301,20 +301,20 @@ describe('workspace registry activation lifecycle', () => {
   });
 
   it('activate errors on unknown ids and missing workspaces; deactivate errors on unknown ids', async () => {
-    expect(await wire.client.activateWorkspace({ id: 'ws-nope' })).toEqual({
+    expect(await wire.client.activateWorkspace({ workspaceId: 'ws-nope' })).toEqual({
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'ws-nope' },
     });
-    expect(await wire.client.deactivateWorkspace({ id: 'ws-nope' })).toEqual({
+    expect(await wire.client.deactivateWorkspace({ workspaceId: 'ws-nope' })).toEqual({
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'ws-nope' },
     });
 
     const workspacePath = await makeWorkspace('gone', {});
     await fs.rm(workspacePath, { recursive: true, force: true });
-    const refreshed = await wire.client.refresh({ id: 'ws-gone' });
+    const refreshed = await wire.client.refresh({ workspaceId: 'ws-gone' });
     expect(refreshed.success).toBe(true);
-    expect(await wire.client.activateWorkspace({ id: 'ws-gone' })).toEqual({
+    expect(await wire.client.activateWorkspace({ workspaceId: 'ws-gone' })).toEqual({
       success: false,
       error: { type: 'workspace-missing', workspaceId: 'ws-gone' },
     });

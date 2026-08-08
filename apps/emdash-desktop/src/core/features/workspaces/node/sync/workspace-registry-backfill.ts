@@ -67,7 +67,7 @@ export class WorkspaceRegistryBackfillService {
 
     for (const row of this.loadBackfillRows(host)) {
       if (row.path === null) continue; // No path, nothing to register; stays a stale row.
-      const created = await registry.createWorkspace({ id: row.id, path: row.path });
+      const created = await registry.createWorkspace({ workspaceId: row.id, path: row.path });
       if (!created.success) {
         // Vanished path or a host record already owning the path/id: the row stays
         // mirror-side (missing or replaced by the sync sweep); never fought.

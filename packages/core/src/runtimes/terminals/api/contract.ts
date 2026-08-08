@@ -3,32 +3,35 @@ import { z } from 'zod';
 import { terminalShellAvailabilityListSchema } from '#primitives/terminal-shell/api';
 import {
   scriptWorkflowsDefinitions,
-  terminalErrorSchema,
   terminalScopeInputSchema,
 } from '#services/script-workflows/api';
 import {
   startTerminalInputSchema,
   scriptWorkflowStateSchema,
   killTmuxSessionsInputSchema,
+  shellAvailabilityFailedErrorSchema,
   terminalControlInputSchema,
   terminalDataInputSchema,
   terminalDevServerListSchema,
   terminalKeySchema,
+  terminalNotFoundErrorSchema,
   terminalResizeInputSchema,
+  terminalRuntimeErrorSchema,
   terminalSessionListSchema,
+  terminalStartFailedErrorSchema,
 } from './schemas';
 
 export const terminalsContract = defineContract({
   ...scriptWorkflowsDefinitions,
-  startTerminal: fallible({
+  start: fallible({
     input: startTerminalInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalStartFailedErrorSchema,
   }),
   getShellAvailability: fallible({
     input: z.void().optional(),
     data: terminalShellAvailabilityListSchema,
-    error: terminalErrorSchema,
+    error: shellAvailabilityFailedErrorSchema,
   }),
   workflows: liveModel({
     key: terminalScopeInputSchema,
@@ -54,22 +57,22 @@ export const terminalsContract = defineContract({
   sendInput: fallible({
     input: terminalDataInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalNotFoundErrorSchema,
   }),
   resize: fallible({
     input: terminalResizeInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalNotFoundErrorSchema,
   }),
   kill: fallible({
     input: terminalControlInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalNotFoundErrorSchema,
   }),
   killTmuxSessions: fallible({
     input: killTmuxSessionsInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalRuntimeErrorSchema,
   }),
 });
 

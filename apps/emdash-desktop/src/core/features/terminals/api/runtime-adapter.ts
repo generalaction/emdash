@@ -1,6 +1,7 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
   terminalsContract as terminalsRuntimeContract,
+  type TerminalError,
   type TerminalKey,
 } from '@emdash/core/runtimes/terminals/api';
 import {
@@ -12,9 +13,9 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import type {
   RunScriptWorkflowInput,
+  ScriptWorkflowError,
   ScriptWorkflowProgress,
   ScriptWorkflowResult,
-  TerminalError,
 } from '@emdash/core/services/script-workflows/api';
 
 export { terminalsRuntimeContract };
@@ -25,7 +26,7 @@ export type TerminalsRuntimeKey = TerminalKey;
 export type TerminalsRunScriptWorkflowInput = RunScriptWorkflowInput;
 export type TerminalsScriptWorkflowProgress = ScriptWorkflowProgress;
 export type TerminalsScriptWorkflowResult = ScriptWorkflowResult;
-export type TerminalsRuntimeError = TerminalError;
+export type TerminalsRuntimeError = TerminalError | ScriptWorkflowError;
 export type TerminalsRuntimeResolveError = RuntimeResolveError;
 
 export function isTerminalsRuntimeResolveError(

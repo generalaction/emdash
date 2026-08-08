@@ -93,11 +93,11 @@ describe('deleteProject', () => {
 
   function makeRuntimes() {
     const registry = {
-      deleteWorktree: vi.fn(async (_input: { id: string; deleteBranch: boolean }) => ({
+      deleteWorktree: vi.fn(async (_input: { workspaceId: string; deleteBranch: boolean }) => ({
         success: true as const,
         data: undefined,
       })),
-      deleteWorkspace: vi.fn(async (_input: { id: string }) => ({
+      deleteWorkspace: vi.fn(async (_input: { workspaceId: string }) => ({
         success: true as const,
         data: undefined,
       })),
@@ -178,7 +178,7 @@ describe('deleteProject', () => {
     // repository root untrack without a host call.
     expect(registry.deleteWorktree).toHaveBeenCalledTimes(1);
     expect(registry.deleteWorktree).toHaveBeenCalledWith({
-      id: 'workspace-1',
+      workspaceId: 'workspace-1',
       deleteBranch: false,
     });
     const workspaceRegistry = createWorkspaceRegistry(fixture.db);

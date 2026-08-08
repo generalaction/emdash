@@ -17,7 +17,8 @@ export const resourceUsageSampleSchema = z.object({
     totalBytes: z.number().nonnegative(),
     path: z.string().min(1),
   }),
-  collectedAt: z.string().datetime(),
+  /** Epoch milliseconds at which the sample was collected. */
+  collectedAt: z.number().int().nonnegative(),
 });
 
 export type ResourceUsageSample = z.infer<typeof resourceUsageSampleSchema>;

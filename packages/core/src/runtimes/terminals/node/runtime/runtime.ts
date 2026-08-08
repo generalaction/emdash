@@ -26,6 +26,7 @@ import type {
 import {
   createWorkflow,
   type Workflow,
+  type WorkflowCompileError,
   type WorkflowError,
   type WorkflowNodeDefinition,
   type WorkflowState,
@@ -35,11 +36,15 @@ import {
   type KillTmuxSessionsInput,
   type ScriptNodeState,
   type ScriptWorkflowState,
+  type ShellAvailabilityFailedError,
   type StartTerminalInput,
   type StartTerminalSpec,
   type TerminalDevServer,
   type TerminalKey,
+  type TerminalNotFoundError,
+  type TerminalRuntimeError,
   type TerminalSessionState,
+  type TerminalStartFailedError,
 } from '#runtimes/terminals/api';
 import {
   wireTerminalUrlDetector,
@@ -56,11 +61,12 @@ import {
   type PtySpawner,
 } from '#services/pty/api';
 import {
+  scriptWorkflowErrorSchema,
   type RunScriptWorkflowInput,
   type ScriptNode,
+  type ScriptWorkflowError,
   type ScriptWorkflowProgress,
   type ScriptWorkflowResult,
-  type TerminalError,
   type TerminalExit,
 } from '#services/script-workflows/api';
 
@@ -76,7 +82,7 @@ type ActiveWorkflow = {
   scopeKey: string;
   kind: string;
   workflowId: string;
-  result: Promise<Result<ScriptWorkflowResult, TerminalError>>;
+  result: Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>>;
 };
 
 type WorkflowRunContext = {
@@ -205,7 +211,7 @@ export class TerminalsRuntime {
     this.scope.add(() => this.dispose());
   }
 
-  async startTerminal(input: StartTerminalInput): Promise<Result<void, TerminalError>> {
+  async start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
     const sessionKey = sessionKeyFor(input.key);
     const existing = this.registry.get(sessionKey);
     if (existing && !existing.exited) return ok(undefined);
@@ -225,7 +231,9 @@ export class TerminalsRuntime {
     }
   }
 
-  async getShellAvailability(): Promise<Result<TerminalShellAvailability[], TerminalError>> {
+  async getShellAvailability(): Promise<
+    Result<TerminalShellAvailability[], ShellAvailabilityFailedError>
+  > {
     if (!this.shellResolver) {
       return err({
         type: 'shell-availability-failed',
@@ -245,7 +253,7 @@ export class TerminalsRuntime {
   async runWorkflow(
     input: RunScriptWorkflowInput,
     ctx: LiveJobContext<ScriptWorkflowProgress>
-  ): Promise<Result<ScriptWorkflowResult, TerminalError>> {
+  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
     const scopeKey = scopeKeyFor(input.workspace);
     const active = this.activeWorkflows.get(scopeKey);
     if (active) {
@@ -289,7 +297,7 @@ export class TerminalsRuntime {
     };
   }
 
-  sendInput(key: TerminalKey, data: string): Result<void, TerminalError> {
+  sendInput(key: TerminalKey, data: string): Result<void, TerminalNotFoundError> {
     const sessionKey = sessionKeyFor(key);
     if (!this.registry.write(sessionKey, data)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
@@ -298,7 +306,7 @@ export class TerminalsRuntime {
     return ok(undefined);
   }
 
-  resize(key: TerminalKey, cols: number, rows: number): Result<void, TerminalError> {
+  resize(key: TerminalKey, cols: number, rows: number): Result<void, TerminalNotFoundError> {
     const sessionKey = sessionKeyFor(key);
     if (!this.registry.resize(sessionKey, cols, rows)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
@@ -314,7 +322,7 @@ export class TerminalsRuntime {
     return ok(undefined);
   }
 
-  async kill(key: TerminalKey): Promise<Result<void, TerminalError>> {
+  async kill(key: TerminalKey): Promise<Result<void, TerminalNotFoundError>> {
     const sessionKey = sessionKeyFor(key);
     if (!this.registry.kill(sessionKey)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
@@ -324,7 +332,9 @@ export class TerminalsRuntime {
     return ok(undefined);
   }
 
-  async killTmuxSessions(input: KillTmuxSessionsInput): Promise<Result<void, TerminalError>> {
+  async killTmuxSessions(
+    input: KillTmuxSessionsInput
+  ): Promise<Result<void, TerminalRuntimeError>> {
     if (process.platform === 'win32' || !this.exec) return ok(undefined);
     for (const name of input.sessionNames) {
       await killTmuxSession(this.exec, name);
@@ -430,7 +440,7 @@ export class TerminalsRuntime {
     input: RunScriptWorkflowInput,
     ctx: LiveJobContext<ScriptWorkflowProgress>,
     scopeKey: string
-  ): Promise<Result<ScriptWorkflowResult, TerminalError>> {
+  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
     const runScope = this.scope.child(`workflow:${scopeKey}`);
     const inputNodes = new Map(input.nodes.map((node) => [node.id, node]));
     const run: WorkflowRunContext = {
@@ -452,7 +462,7 @@ export class TerminalsRuntime {
         this.logFor({ workspace: input.workspace, id: nodeId }).append(chunk),
     });
     if (!workflow.success) {
-      const error = workflowCompileErrorToTerminalError(workflow.error);
+      const error = workflowCompileErrorToScriptWorkflowError(workflow.error);
       this.publishFailedWorkflow(input, run, error);
       return Promise.resolve(err(error));
     }
@@ -495,7 +505,7 @@ export class TerminalsRuntime {
     input: RunScriptWorkflowInput,
     signal: AbortSignal | undefined,
     run: WorkflowRunContext
-  ): Promise<Result<TerminalExit, TerminalError>> {
+  ): Promise<Result<TerminalExit, ScriptWorkflowError>> {
     const key = { workspace, id: node.id };
     const sessionKey = sessionKeyFor(key);
     const log = this.logFor(key);
@@ -564,12 +574,12 @@ export class TerminalsRuntime {
     ctx: LiveJobContext<ScriptWorkflowProgress>,
     runScope: Scope,
     run: WorkflowRunContext
-  ): Promise<Result<ScriptWorkflowResult, TerminalError>> {
+  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
     try {
       const result = await workflow.run();
       run.finishedAt = this.now();
       this.bindingFor(ctx.jobId)?.sync();
-      if (!result.success) return err(workflowErrorToTerminalError(result.error));
+      if (!result.success) return err(workflowErrorToScriptWorkflowError(result.error));
       return ok({
         workflowId: ctx.jobId,
         kind: input.kind,
@@ -609,7 +619,7 @@ export class TerminalsRuntime {
   private publishFailedWorkflow(
     input: RunScriptWorkflowInput,
     run: WorkflowRunContext,
-    error: TerminalError
+    error: ScriptWorkflowError
   ): void {
     run.finishedAt = this.now();
     this.ensureWorkflowCell(input.workspace).set({
@@ -816,7 +826,7 @@ function projectWorkflowState(state: WorkflowState, run: WorkflowRunContext): Sc
           pid: run.nodePids.get(id),
           progress: node.progress,
           exit: exitWithoutTail(run.nodeExits.get(id)),
-          error: node.error ? workflowErrorToTerminalError(node.error) : undefined,
+          error: node.error ? workflowErrorToScriptWorkflowError(node.error) : undefined,
         };
         if (!projected.label && input?.label) projected.label = input.label;
         return [id, projected];
@@ -825,7 +835,7 @@ function projectWorkflowState(state: WorkflowState, run: WorkflowRunContext): Sc
     order: Object.keys(state.nodes),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
-    error: state.error ? workflowErrorToTerminalError(state.error) : undefined,
+    error: state.error ? workflowErrorToScriptWorkflowError(state.error) : undefined,
   };
 }
 
@@ -901,32 +911,45 @@ function appendOutputTail(current: string, chunk: string): string {
   return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
 }
 
-function workflowCompileErrorToTerminalError(error: unknown): TerminalError {
+function workflowCompileErrorToScriptWorkflowError(error: WorkflowCompileError): ScriptWorkflowError {
   return {
     type: 'workflow-compile-failed',
-    message: error instanceof Error ? error.message : JSON.stringify(error),
-  };
-}
-
-function workflowErrorToTerminalError(error: WorkflowError): TerminalError {
-  return {
-    type: error.type,
     message: error.message,
-    resolutions: error.resolutions,
   };
 }
 
-export function terminalJobError(error: unknown): TerminalError {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    typeof (error as { type?: unknown }).type === 'string' &&
-    typeof (error as { message?: unknown }).message === 'string'
-  ) {
-    return error as TerminalError;
+/**
+ * Maps the workflow primitive's open error `type` into the closed wire union: node
+ * failures produced by this runtime are always 'script-failed', cancellation is
+ * 'cancelled', and everything else (unexpected node throws, illegal machine
+ * transitions) lands in the 'workflow-runtime-error' passthrough variant with the
+ * original discriminant preserved.
+ */
+function workflowErrorToScriptWorkflowError(error: WorkflowError): ScriptWorkflowError {
+  if (error.type === 'script-failed') {
+    const nodeId = (error as { nodeId?: unknown }).nodeId;
+    return {
+      type: 'script-failed',
+      message: error.message,
+      ...(typeof nodeId === 'string' ? { nodeId } : {}),
+    };
+  }
+  if (error.type === 'cancelled') {
+    return { type: 'cancelled', message: error.message };
   }
   return {
-    type: 'terminal-runtime-error',
+    type: 'workflow-runtime-error',
+    workflowErrorType: error.type,
+    message: error.message,
+    ...(error.resolutions ? { resolutions: error.resolutions } : {}),
+  };
+}
+
+export function scriptWorkflowJobError(error: unknown): ScriptWorkflowError {
+  const parsed = scriptWorkflowErrorSchema.safeParse(error);
+  if (parsed.success) return parsed.data;
+  return {
+    type: 'workflow-runtime-error',
     message: error instanceof Error ? error.message : String(error),
   };
 }

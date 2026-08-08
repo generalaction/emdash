@@ -78,7 +78,9 @@ describe('WorkspaceRegistryBackfillService', () => {
   }
 
   function replayedIds(): string[] {
-    return createWorkspace.mock.calls.map(([input]) => (input as { id: string }).id);
+    return createWorkspace.mock.calls.map(
+      ([input]) => (input as { workspaceId: string }).workspaceId
+    );
   }
 
   it('replays annotated rows with preserved ids, repositories before worktrees, exactly once', async () => {
@@ -102,7 +104,7 @@ describe('WorkspaceRegistryBackfillService', () => {
     await run();
 
     expect(replayedIds()).toEqual(['repo-1', 'wt-1', 'wt-2']);
-    expect(createWorkspace).toHaveBeenCalledWith({ id: 'repo-1', path: '/work/repo' });
+    expect(createWorkspace).toHaveBeenCalledWith({ workspaceId: 'repo-1', path: '/work/repo' });
 
     // The per-host flag prevents re-runs.
     createWorkspace.mockClear();

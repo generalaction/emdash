@@ -269,8 +269,8 @@ export class WorkspaceRegistryRuntime {
    * before the error returns, so the delete stays visible and retryable (ADR 0006).
    */
   deleteWorkspace(input: DeleteWorkspaceInput): Promise<Result<void, DeleteWorkspaceError>> {
-    return this.workspaceClaims.runExclusive(input.id, async () => {
-      const record = this.store.get(input.id);
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
       if (record) {
         const teardownFailure = await this.deactivateForRemoval(record);
         if (teardownFailure) return err(teardownFailure);
@@ -288,17 +288,17 @@ export class WorkspaceRegistryRuntime {
    * A removal failure leaves the record registered so the delete stays retryable.
    */
   async deleteWorktree(input: DeleteWorktreeInput): Promise<Result<void, DeleteWorktreeError>> {
-    const record = this.store.get(input.id);
+    const record = this.store.get(input.workspaceId);
     if (!record) return ok(undefined);
     if (record.kind !== 'worktree') {
-      return err({ type: 'not-a-worktree', workspaceId: input.id });
+      return err({ type: 'not-a-worktree', workspaceId: input.workspaceId });
     }
     const parent = record.parentId === null ? null : this.store.get(record.parentId);
     const repositoryPath = await this.resolveRepositoryPath(record, parent);
 
     if (repositoryPath === null) {
-      return this.workspaceClaims.runExclusive(input.id, async () => {
-        const current = this.store.get(input.id);
+      return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+        const current = this.store.get(input.workspaceId);
         if (!current) return ok(undefined);
         const teardownFailure = await this.deactivateForRemoval(current);
         if (teardownFailure) return err(teardownFailure);
@@ -306,7 +306,7 @@ export class WorkspaceRegistryRuntime {
           // Structural: the artifact remains but no repository can prune it — an
           // identical retry cannot converge without user intervention.
           return err(
-            await this.recordRemovalFailure(input.id, {
+            await this.recordRemovalFailure(input.workspaceId, {
               stage: 'remove',
               class: 'terminal',
               message: `Cannot resolve the owning repository of '${current.path}'`,
@@ -315,13 +315,13 @@ export class WorkspaceRegistryRuntime {
         }
         // Artifact already gone and no repository left to prune: just unregister.
         return await this.enqueue(() =>
-          Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+          Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
         );
       });
     }
 
-    return this.workspaceClaims.runExclusive(input.id, async () => {
-      const current = this.store.get(input.id);
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const current = this.store.get(input.workspaceId);
       if (!current) return ok(undefined);
       const teardownFailure = await this.deactivateForRemoval(current);
       if (teardownFailure) return err(teardownFailure);
@@ -333,7 +333,7 @@ export class WorkspaceRegistryRuntime {
       });
       if (result.status === 'failed') {
         return err(
-          await this.recordRemovalFailure(input.id, {
+          await this.recordRemovalFailure(input.workspaceId, {
             stage: 'remove',
             class: result.class,
             message: result.message,
@@ -341,7 +341,7 @@ export class WorkspaceRegistryRuntime {
         );
       }
       return await this.enqueue(() =>
-        Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+        Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
       );
     });
   }
@@ -368,7 +368,7 @@ export class WorkspaceRegistryRuntime {
     const created = await hostGitSchedule.withRepoHold(repository.path, async () => {
       const startedAt = this.clock.now();
       const stageStarts: CreationStageTimeline = [];
-      this.updateOverlay(input.id, (overlay) => ({
+      this.updateOverlay(input.workspaceId, (overlay) => ({
         ...overlay,
         creation: { stage: 'inspect', startedAt },
       }));
@@ -381,13 +381,13 @@ export class WorkspaceRegistryRuntime {
         baseRef: input.baseRef,
         onStage: (stage) => {
           stageStarts.push({ stage, at: Date.now() });
-          this.updateOverlay(input.id, (overlay) => ({
+          this.updateOverlay(input.workspaceId, (overlay) => ({
             ...overlay,
             creation: { stage, startedAt },
           }));
         },
       });
-      this.logStageTimings(input.id, stageStarts, result.status);
+      this.logStageTimings(input.workspaceId, stageStarts, result.status);
 
       return await this.enqueue(() =>
         Promise.resolve(this.finalizeWorktreeCreation(input, result, stageStarts))
@@ -396,7 +396,7 @@ export class WorkspaceRegistryRuntime {
 
     // The verb returns at agent-spawnable; artifact cloning, branch pushing, and ref
     // freshening continue as durable background steps outside the repository claim.
-    if (created.success) void this.runBackgroundSteps(input.id);
+    if (created.success) void this.runBackgroundSteps(input.workspaceId);
     return created;
   }
 
@@ -428,19 +428,19 @@ export class WorkspaceRegistryRuntime {
   activateWorkspace(
     input: ActivateWorkspaceInput
   ): Promise<Result<WorkspaceRecord, ActivateWorkspaceError>> {
-    return this.workspaceClaims.runExclusive(input.id, async () => {
-      const record = this.store.get(input.id);
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
       if (!record) {
-        return err({ type: 'workspace-not-found', workspaceId: input.id });
+        return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
       }
       if (record.observedStatus === 'missing') {
-        return err({ type: 'workspace-missing', workspaceId: input.id });
+        return err({ type: 'workspace-missing', workspaceId: input.workspaceId });
       }
       // Activation replays incomplete background steps (ticket semantics); the
       // activation manager's artifact gate awaits the copy only where scripts need it.
-      if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(input.id);
-      await this.activationManager.activate(input.id, record.path);
-      const current = this.store.get(input.id) ?? record;
+      if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(input.workspaceId);
+      await this.activationManager.activate(input.workspaceId, record.path);
+      const current = this.store.get(input.workspaceId) ?? record;
       return ok(this.toWire(current));
     });
   }
@@ -454,10 +454,10 @@ export class WorkspaceRegistryRuntime {
   deactivateWorkspace(
     input: DeactivateWorkspaceInput
   ): Promise<Result<void, WorkspaceNotFoundError>> {
-    return this.workspaceClaims.runExclusive(input.id, async () => {
-      const record = this.store.get(input.id);
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
       if (!record) {
-        return err({ type: 'workspace-not-found', workspaceId: input.id });
+        return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
       }
       await this.deactivateLocked(record);
       return ok(undefined);
@@ -600,7 +600,7 @@ export class WorkspaceRegistryRuntime {
       return err({ type: 'path-not-found', path: input.path });
     }
 
-    const existing = this.store.get(input.id);
+    const existing = this.store.get(input.workspaceId);
     if (existing) {
       if (existing.path === canonical) {
         // Idempotent replay: same id, same path — no-op success.
@@ -608,8 +608,8 @@ export class WorkspaceRegistryRuntime {
       }
       return err({
         type: 'immutable-field-mismatch',
-        workspaceId: input.id,
-        message: `Workspace '${input.id}' is registered at '${existing.path}', not '${canonical}'`,
+        workspaceId: input.workspaceId,
+        message: `Workspace '${input.workspaceId}' is registered at '${existing.path}', not '${canonical}'`,
       });
     }
 
@@ -633,7 +633,7 @@ export class WorkspaceRegistryRuntime {
     }
 
     const record: DurableWorkspaceRecord = {
-      id: input.id,
+      id: input.workspaceId,
       kind: inspection.kind,
       path: canonical,
       parentId,
@@ -682,7 +682,7 @@ export class WorkspaceRegistryRuntime {
     }
 
     const now = this.clock.now();
-    const existing = this.store.get(input.id);
+    const existing = this.store.get(input.workspaceId);
     if (existing) {
       const spec = existing.creation;
       const matches =
@@ -694,8 +694,8 @@ export class WorkspaceRegistryRuntime {
       if (!matches) {
         return err({
           type: 'immutable-field-mismatch',
-          workspaceId: input.id,
-          message: `Workspace '${input.id}' exists with a different creation spec`,
+          workspaceId: input.workspaceId,
+          message: `Workspace '${input.workspaceId}' exists with a different creation spec`,
         });
       }
       if (existing.lastCreateOutcome?.status === 'succeeded') {
@@ -723,7 +723,7 @@ export class WorkspaceRegistryRuntime {
     }
 
     const record: DurableWorkspaceRecord = {
-      id: input.id,
+      id: input.workspaceId,
       kind: 'worktree',
       path: resolvedPath,
       parentId: repository.id,
@@ -753,7 +753,7 @@ export class WorkspaceRegistryRuntime {
     result: Awaited<ReturnType<typeof executeCreateWorktree>>,
     stages: CreationStageTimeline
   ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
-    const id = input.id;
+    const id = input.workspaceId;
     this.updateOverlay(id, (overlay) => ({ ...overlay, creation: null }));
     const record = this.store.get(id);
     const now = this.clock.now();
@@ -1005,9 +1005,9 @@ export class WorkspaceRegistryRuntime {
    * no-op returning the current record.
    */
   async retryStep(input: RetryStepInput): Promise<Result<WorkspaceRecord, WorkspaceNotFoundError>> {
-    const record = this.store.get(input.id);
+    const record = this.store.get(input.workspaceId);
     if (!record) {
-      return err({ type: 'workspace-not-found', workspaceId: input.id });
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
     const step = getLifecycleStep(record.lifecycle, input.step);
     const parent = record.parentId === null ? null : this.store.get(record.parentId);
@@ -1015,13 +1015,13 @@ export class WorkspaceRegistryRuntime {
       if (input.step === 'push-branch') {
         const branch = record.creation?.branch ?? null;
         if (branch !== null) {
-          await this.executePushStep(input.id, parent.id, parent.path, branch);
+          await this.executePushStep(input.workspaceId, parent.id, parent.path, branch);
         }
       } else {
-        await this.executeCopyStep(input.id, parent.path, record.path);
+        await this.executeCopyStep(input.workspaceId, parent.path, record.path);
       }
     }
-    const current = this.store.get(input.id) ?? record;
+    const current = this.store.get(input.workspaceId) ?? record;
     return ok(this.toWire(current));
   }
 
@@ -1095,19 +1095,19 @@ export class WorkspaceRegistryRuntime {
   }
 
   private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {
-    const deleted = this.store.delete(input.id);
+    const deleted = this.store.delete(input.workspaceId);
     if (deleted) {
-      this.overlays.delete(input.id);
-      this.untrackedCaches.delete(input.id);
-      this.configs.delete(input.id);
+      this.overlays.delete(input.workspaceId);
+      this.untrackedCaches.delete(input.workspaceId);
+      this.configs.delete(input.workspaceId);
       this.recordsCell.update((previous) => {
         const next = { ...previous };
-        delete next[input.id];
+        delete next[input.workspaceId];
         return next;
       });
       this.onRecordsChanged?.();
     } else {
-      this.logger.debug?.(`delete of absent workspace '${input.id}' — idempotent no-op`);
+      this.logger.debug?.(`delete of absent workspace '${input.workspaceId}' — idempotent no-op`);
     }
     return ok(undefined);
   }
@@ -1121,10 +1121,10 @@ export class WorkspaceRegistryRuntime {
   private async executeRefresh(
     input: RefreshWorkspacesInput
   ): Promise<Result<void, WorkspaceNotFoundError>> {
-    if (input.id !== undefined) {
-      const record = this.store.get(input.id);
+    if (input.workspaceId !== undefined) {
+      const record = this.store.get(input.workspaceId);
       if (!record) {
-        return err({ type: 'workspace-not-found', workspaceId: input.id });
+        return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
       }
       await this.scanRecord(record);
       return ok(undefined);
@@ -1373,7 +1373,7 @@ export class WorkspaceRegistryRuntime {
     this.untrackedCaches.delete(record.id);
     this.configs.delete(record.id);
     if (record.origin === 'adopted') {
-      this.deleteWorkspaceLocked({ id: record.id });
+      this.deleteWorkspaceLocked({ workspaceId: record.id });
       return;
     }
     this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);

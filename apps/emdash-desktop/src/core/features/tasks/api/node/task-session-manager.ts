@@ -351,7 +351,7 @@ export class TaskSessionManager {
       return;
     }
     const deactivated = await client.data.workspaceRegistry
-      .deactivateWorkspace({ id: identity.workspaceId })
+      .deactivateWorkspace({ workspaceId: identity.workspaceId })
       .catch((error) => ({ success: false as const, error }));
     if (!deactivated.success) {
       log.warn('TaskManager: host workspace deactivation failed', {

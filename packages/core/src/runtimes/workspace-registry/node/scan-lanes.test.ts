@@ -76,7 +76,7 @@ describe('workspace registry scan lanes', () => {
     const repoPath = path.join(root, name);
     await fs.mkdir(repoPath, { recursive: true });
     execFileSync('git', ['init', '--initial-branch=main'], { cwd: repoPath });
-    const created = await runtime.createWorkspace({ id, path: repoPath });
+    const created = await runtime.createWorkspace({ workspaceId: id, path: repoPath });
     expect(created.success).toBe(true);
     return repoPath;
   }
@@ -97,7 +97,7 @@ describe('workspace registry scan lanes', () => {
     // The scan is wedged inside its git observation; a creation verb still lands.
     const workspacePath = path.join(root, 'fresh');
     await fs.mkdir(workspacePath, { recursive: true });
-    const created = await runtime.createWorkspace({ id: 'ws-fresh', path: workspacePath });
+    const created = await runtime.createWorkspace({ workspaceId: 'ws-fresh', path: workspacePath });
     expect(created.success).toBe(true);
 
     releaseObservations();
@@ -117,7 +117,7 @@ describe('workspace registry scan lanes', () => {
       expect(observeGate.started.length).toBeGreaterThan(0);
     });
 
-    const deleted = await runtime.deleteWorkspace({ id: 'ws-doomed' });
+    const deleted = await runtime.deleteWorkspace({ workspaceId: 'ws-doomed' });
     expect(deleted.success).toBe(true);
 
     releaseObservations();

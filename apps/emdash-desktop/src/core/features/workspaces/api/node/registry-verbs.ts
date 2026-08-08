@@ -75,7 +75,7 @@ export async function createWorktreeThroughRegistry(
 
   let repositoryId = spec.repositoryWorkspaceId ?? crypto.randomUUID();
   const repository = await registry.createWorkspace({
-    id: repositoryId,
+    workspaceId: repositoryId,
     path: spec.repositoryPath,
   });
   if (!repository.success) {
@@ -91,7 +91,7 @@ export async function createWorktreeThroughRegistry(
   }
 
   const created = await registry.createWorktree({
-    id: spec.workspaceId,
+    workspaceId: spec.workspaceId,
     repositoryId,
     branch: spec.branch,
     baseRef: spec.baseRef,

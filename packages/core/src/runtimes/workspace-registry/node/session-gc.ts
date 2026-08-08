@@ -114,7 +114,7 @@ export async function killSessionsUnderPath(
   const targets = await resolveSessionTargets(clients, path);
 
   for (const conversationId of targets.acpConversationIds) {
-    const result = await clients.acp.killSession({ conversationId });
+    const result = await clients.acp.kill({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
       return sessionError(
         `Failed to kill ACP session ${conversationId}: ${errorMessage(result.error)}`
@@ -123,7 +123,7 @@ export async function killSessionsUnderPath(
   }
 
   for (const conversationId of targets.tuiConversationIds) {
-    const result = await clients.tuiAgents.deleteSession({ conversationId });
+    const result = await clients.tuiAgents.delete({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
       return sessionError(
         `Failed to delete TUI session ${conversationId}: ${errorMessage(result.error)}`

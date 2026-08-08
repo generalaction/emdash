@@ -261,18 +261,18 @@ export const workspaceRecordsSchema = z.record(z.string(), workspaceRecordSchema
 export type WorkspaceRecords = z.infer<typeof workspaceRecordsSchema>;
 
 export const createWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   path: z.string().min(1),
 });
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>;
 
 export const deleteWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInputSchema>;
 
 export const deleteWorktreeInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   /** The branch is deletable independently of its worktree. */
   deleteBranch: z.boolean().default(false),
 });
@@ -280,7 +280,7 @@ export type DeleteWorktreeInput = z.infer<typeof deleteWorktreeInputSchema>;
 
 export const createWorktreeInputSchema = z.object({
   /** Desktop-minted UUID for the new worktree record. */
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   /** The registered repository record to create from. */
   repositoryId: z.string().min(1),
   branch: z.string().min(1),
@@ -291,19 +291,22 @@ export const createWorktreeInputSchema = z.object({
 });
 export type CreateWorktreeInput = z.infer<typeof createWorktreeInputSchema>;
 
-/** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
+/**
+ * Explicit "refresh now": rescans one workspace, or the whole host when workspaceId is
+ * omitted.
+ */
 export const refreshWorkspacesInputSchema = z.object({
-  id: z.string().min(1).optional(),
+  workspaceId: z.string().min(1).optional(),
 });
 export type RefreshWorkspacesInput = z.infer<typeof refreshWorkspacesInputSchema>;
 
 export const activateWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type ActivateWorkspaceInput = z.infer<typeof activateWorkspaceInputSchema>;
 
 export const deactivateWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type DeactivateWorkspaceInput = z.infer<typeof deactivateWorkspaceInputSchema>;
 
@@ -343,7 +346,7 @@ export type RetryableLifecycleStep = z.infer<typeof retryableLifecycleStepSchema
  * current record.
  */
 export const retryStepInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   step: retryableLifecycleStepSchema,
 });
 export type RetryStepInput = z.infer<typeof retryStepInputSchema>;

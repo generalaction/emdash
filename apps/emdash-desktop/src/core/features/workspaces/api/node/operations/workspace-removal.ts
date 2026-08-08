@@ -49,10 +49,10 @@ export type WorkspaceRemovalBroker = {
       {
         workspaceRegistry: {
           deleteWorktree(input: {
-            id: string;
+            workspaceId: string;
             deleteBranch: boolean;
           }): Promise<Result<void, DeleteVerbError>>;
-          deleteWorkspace(input: { id: string }): Promise<Result<void, DeleteVerbError>>;
+          deleteWorkspace(input: { workspaceId: string }): Promise<Result<void, DeleteVerbError>>;
         };
       },
       { type: string; message: string }
@@ -197,8 +197,8 @@ async function removeWorkspaceThroughRegistry(
     const verb = client.data.workspaceRegistry;
     const removed =
       params.workspace.kind === 'worktree'
-        ? await verb.deleteWorktree({ id: workspaceId, deleteBranch: params.deleteBranch ?? false })
-        : await verb.deleteWorkspace({ id: workspaceId });
+        ? await verb.deleteWorktree({ workspaceId, deleteBranch: params.deleteBranch ?? false })
+        : await verb.deleteWorkspace({ workspaceId });
     if (!removed.success) {
       if (removed.error.type === 'host-unreachable') {
         return tombstoneUnreachableRemoval(db, workspace, params, createdAt, params.host);
@@ -315,7 +315,7 @@ export async function removeProjectWorkspace(
   const client = await runtimes.client(host);
   if (!client.success) return tombstone();
   const removed = await client.data.workspaceRegistry
-    .deleteWorktree({ id: workspace.id, deleteBranch: false })
+    .deleteWorktree({ workspaceId: workspace.id, deleteBranch: false })
     .catch(() => ({ success: false as const, error: { type: 'remove-failed' as const } }));
   if (!removed.success) return tombstone();
   registry.untrack([workspace.id], new Date(createdAt).toISOString());

@@ -76,10 +76,10 @@ export function createWorkspaceDeletionSweepKind(options: {
       const removed =
         row.kind === 'worktree'
           ? await verbs.deleteWorktree({
-              id: tombstone.targetRecordId,
+              workspaceId: tombstone.targetRecordId,
               deleteBranch: tombstone.options.deleteBranch,
             })
-          : await verbs.deleteWorkspace({ id: tombstone.targetRecordId });
+          : await verbs.deleteWorkspace({ workspaceId: tombstone.targetRecordId });
       if (!removed.success) {
         if (removed.error.type === 'host-unreachable') return 'unreachable';
         return { failed: deleteVerbFailure(removed.error) };

@@ -256,7 +256,7 @@ describe('TerminalsRuntime', () => {
     });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
-    await runtime.startTerminal({ key, spec: { cwd: '/repo', env: {} } });
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
     const unsubscribe = await runtime.outputLog(key).subscribe(() => {});
     unsubscribe();
 
@@ -371,7 +371,7 @@ describe('TerminalsRuntime', () => {
     const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
     const workspace = testWorkspace();
 
-    await runtime.startTerminal({
+    await runtime.start({
       key: { workspace, id: 'terminal-1' },
       spec: { cwd: '/repo', env: {}, shellIntent: 'zsh' },
     });
@@ -389,7 +389,7 @@ describe('TerminalsRuntime', () => {
     const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
     const workspace = testWorkspace();
 
-    await runtime.startTerminal({
+    await runtime.start({
       key: { workspace, id: 'terminal-1' },
       spec: { cwd: '/repo', env: {} },
     });
@@ -414,7 +414,7 @@ describe('TerminalsRuntime', () => {
     });
     const workspace = testWorkspace();
 
-    await runtime.startTerminal({
+    await runtime.start({
       key: { workspace, id: 'terminal-1' },
       spec: { cwd: '/repo', env: {}, shellIntent: 'fish' },
     });

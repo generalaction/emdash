@@ -89,11 +89,11 @@ describe('background steps suppress their own scans', () => {
     git(repoPath, 'remote', 'add', 'origin', originPath);
     git(repoPath, 'push', '-u', 'origin', 'main');
 
-    const registered = await runtime.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const registered = await runtime.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     expect(registered.success).toBe(true);
 
     const created = await runtime.createWorktree({
-      id: 'ws-new',
+      workspaceId: 'ws-new',
       repositoryId: 'ws-repo',
       branch: 'feature/suppress',
       baseRef: 'main',

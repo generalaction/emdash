@@ -76,7 +76,7 @@ export function createWorkspacePortFromDependency(
 
         const created = await client.createWorktree(
           {
-            id: input.runId,
+            workspaceId: input.runId,
             repositoryId: repository.data,
             branch: compiled.branchName,
             baseRef: compiled.baseRef,
@@ -156,7 +156,7 @@ async function registerRepository(
   signal: AbortSignal
 ): Promise<Result<string, AutomationPortError>> {
   const result = await client.createWorkspace(
-    { id: randomUUID(), path: repositoryPath },
+    { workspaceId: randomUUID(), path: repositoryPath },
     { signal }
   );
   if (result.success) return ok(result.data.id);

@@ -93,7 +93,7 @@ export const agentConfigContract = defineContract({
   }),
   listMcpForAgent: fallible({
     input: providerCommandSchema,
-    data: mcpServerListSchema,
+    data: z.object({ servers: mcpServerListSchema }),
     error: agentConfigMcpErrorSchema,
   }),
 
@@ -105,17 +105,17 @@ export const agentConfigContract = defineContract({
   }),
   installSkill: fallible({
     input: z.object({ skill: skillInstallPayloadSchema }),
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: agentConfigSkillsErrorSchema,
   }),
   removeSkill: fallible({
     input: z.object({ name: z.string() }),
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: agentConfigSkillsErrorSchema,
   }),
   createSkill: fallible({
     input: createSkillInputSchema,
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: agentConfigSkillsErrorSchema,
   }),
 });

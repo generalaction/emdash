@@ -2,11 +2,48 @@ import { z } from 'zod';
 import { hostFileRefSchema } from '#primitives/path/api';
 import { terminalShellIdSchema } from '#primitives/terminal-shell/api';
 import {
+  scriptWorkflowErrorSchema,
   scriptWorkflowKindSchema,
-  terminalErrorSchema,
   terminalExitSchema,
   terminalSizeSchema,
 } from '#services/script-workflows/api';
+
+/** Starting the interactive terminal failed (spawn, shell resolution, tmux…). */
+export const terminalStartFailedErrorSchema = z.object({
+  type: z.literal('terminal-start-failed'),
+  message: z.string().min(1),
+});
+
+/** Shell availability could not be resolved on this host. */
+export const shellAvailabilityFailedErrorSchema = z.object({
+  type: z.literal('shell-availability-failed'),
+  message: z.string().min(1),
+});
+
+/** The addressed terminal session is not running. */
+export const terminalNotFoundErrorSchema = z.object({
+  type: z.literal('not-found'),
+  message: z.string().min(1),
+});
+
+/** An unexpected terminals-runtime failure not covered by a more specific variant. */
+export const terminalRuntimeErrorSchema = z.object({
+  type: z.literal('terminal-runtime-error'),
+  message: z.string().min(1),
+});
+
+export const terminalErrorSchema = z.discriminatedUnion('type', [
+  terminalStartFailedErrorSchema,
+  shellAvailabilityFailedErrorSchema,
+  terminalNotFoundErrorSchema,
+  terminalRuntimeErrorSchema,
+]);
+
+export type TerminalError = z.infer<typeof terminalErrorSchema>;
+export type TerminalStartFailedError = z.infer<typeof terminalStartFailedErrorSchema>;
+export type ShellAvailabilityFailedError = z.infer<typeof shellAvailabilityFailedErrorSchema>;
+export type TerminalNotFoundError = z.infer<typeof terminalNotFoundErrorSchema>;
+export type TerminalRuntimeError = z.infer<typeof terminalRuntimeErrorSchema>;
 
 export const terminalKeySchema = z.object({
   workspace: hostFileRefSchema,
@@ -65,7 +102,7 @@ export const scriptNodeStateSchema = z.object({
     })
     .optional(),
   exit: terminalExitSchema.omit({ outputTail: true }).optional(),
-  error: terminalErrorSchema.optional(),
+  error: scriptWorkflowErrorSchema.optional(),
 });
 
 export type ScriptNodeState = z.infer<typeof scriptNodeStateSchema>;
@@ -86,7 +123,7 @@ export const scriptWorkflowStateSchema = z.object({
   order: z.array(z.string().min(1)),
   startedAt: z.number().int(),
   finishedAt: z.number().int().optional(),
-  error: terminalErrorSchema.optional(),
+  error: scriptWorkflowErrorSchema.optional(),
 });
 
 export type ScriptWorkflowState = z.infer<typeof scriptWorkflowStateSchema>;
