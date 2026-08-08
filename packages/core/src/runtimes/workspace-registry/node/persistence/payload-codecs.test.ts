@@ -1,6 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceLifecycle } from '../../api/schemas';
-import { parseLifecyclePayload, serializeLifecyclePayload } from './payload-codecs';
+import type { WorkspaceCreation, WorkspaceLifecycle } from '../../api/schemas';
+import {
+  parseCreationPayload,
+  parseLifecyclePayload,
+  serializeCreationPayload,
+  serializeLifecyclePayload,
+} from './payload-codecs';
+
+describe('creation payload codec', () => {
+  it('round-trips a creation section carrying gitSetup and a null baseRef', () => {
+    const creation: WorkspaceCreation = {
+      branch: 'pr/7/fix',
+      baseRef: null,
+      requestedPath: '/tmp/pr-wt',
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+        upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+        breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+        followRef: true,
+      },
+    };
+    expect(parseCreationPayload(serializeCreationPayload(creation))).toEqual(creation);
+  });
+
+  it('parses a pre-gitSetup v1 creation payload unchanged', () => {
+    // The exact JSON an old row stored: required baseRef, no gitSetup field.
+    const v1 = JSON.stringify({
+      version: '1',
+      value: { branch: 'feature/x', baseRef: 'main', requestedPath: '/tmp/wt' },
+    });
+    expect(parseCreationPayload(v1)).toEqual({
+      branch: 'feature/x',
+      baseRef: 'main',
+      requestedPath: '/tmp/wt',
+    });
+  });
+});
 
 describe('lifecycle payload codec', () => {
   it('round-trips the current lifecycle shape', () => {

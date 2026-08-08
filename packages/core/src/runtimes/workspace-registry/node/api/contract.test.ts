@@ -574,6 +574,182 @@ describe('workspace registry contract', () => {
     });
   });
 
+  it('createWorktree with gitSetup materializes the PR head branch and persists the block', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    // A local "remote" carrying a PR-style ref whose commit is not on main.
+    const seed = await makeRepo(root, 'seed');
+    git(seed, 'checkout', '-b', 'pr-source');
+    await fs.writeFile(path.join(seed, 'pr-change.txt'), 'from the PR\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'pr change');
+    const prHeadOid = git(seed, 'rev-parse', 'HEAD');
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(seed, 'push', originPath, 'main', 'HEAD:refs/pull/7/head');
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const worktreePath = path.join(root, 'pr-wt');
+    const gitSetup = {
+      fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+      upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+      breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+      followRef: true,
+    };
+    // baseRef omitted: fetchBranch materializes the branch instead.
+    const created = await wire.client.createWorktree({
+      id: 'ws-pr',
+      repositoryId: 'ws-repo',
+      branch: 'pr/7/fix',
+      path: worktreePath,
+      preservePatterns: [],
+      pushBranch: false,
+      gitSetup,
+    });
+
+    expect(created).toMatchObject({
+      success: true,
+      data: {
+        observedStatus: 'present',
+        creation: {
+          branch: 'pr/7/fix',
+          baseRef: null,
+          requestedPath: worktreePath,
+          gitSetup,
+        },
+        lastCreateOutcome: { status: 'succeeded' },
+        git: { branch: 'pr/7/fix' },
+      },
+    });
+    if (!created.success) throw new Error('expected success');
+    // The branch sits at the fetched OID with the worktree checked out on it.
+    expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(prHeadOid);
+    expect(git(created.data.path, 'branch', '--show-current')).toBe('pr/7/fix');
+    // Upstream tracking and the PR breadcrumb landed as branch-scoped config.
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.merge')).toBe('refs/pull/7/head');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+      'https://github.com/acme/repo/pull/7'
+    );
+    // Both new step ids appear in the lifecycle projection.
+    expect(lifecycleStep(created.data, 'fetch-branch')).toMatchObject({ status: 'succeeded' });
+    expect(lifecycleStep(created.data, 'configure-branch')).toMatchObject({
+      status: 'succeeded',
+    });
+    // No baseRef, nothing to freshen: the advisory fetch-refs step never applies.
+    expect(lifecycleStep(created.data, 'fetch-refs')).toBeUndefined();
+  });
+
+  it('createWorktree gitSetup fetch failure is a stage-tagged fetch-branch failure', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const created = await wire.client.createWorktree({
+      id: 'ws-doomed',
+      repositoryId: 'ws-repo',
+      branch: 'pr/9/missing',
+      path: path.join(root, 'doomed-wt'),
+      preservePatterns: [],
+      pushBranch: false,
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/9/head' },
+        breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/9' },
+      },
+    });
+    expect(created).toMatchObject({
+      success: false,
+      error: { type: 'stage-failed', stage: 'fetch-branch' },
+    });
+
+    const records = await listRecords();
+    expect(records['ws-doomed']).toMatchObject({
+      observedStatus: 'missing',
+      lastCreateOutcome: { status: 'failed', stage: 'fetch-branch' },
+    });
+    expect(lifecycleStep(records['ws-doomed'], 'fetch-branch')).toMatchObject({
+      status: 'failed',
+    });
+    // Rollback left no debris branch from this attempt.
+    expect(git(repoPath, 'branch', '--list', 'pr/9/missing')).toBe('');
+  });
+
+  it('replaying a gitSetup creation interrupted mid-pipeline reuses the branch and configures', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const seed = await makeRepo(root, 'seed2');
+    git(seed, 'checkout', '-b', 'pr-source');
+    await fs.writeFile(path.join(seed, 'pr-change.txt'), 'from the PR\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-m', 'pr change');
+    const prHeadOid = git(seed, 'rev-parse', 'HEAD');
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(seed, 'push', originPath, 'main', 'HEAD:refs/pull/7/head');
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    // Simulated crash after fetch-branch, before add-worktree: the branch exists,
+    // the record says 'started', and the rebuilt runtime has no overlay.
+    git(repoPath, 'fetch', 'origin', 'refs/pull/7/head:refs/heads/pr/7/fix');
+    const worktreePath = path.join(root, 'replayed-wt');
+    const gitSetup = {
+      fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+      upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+      breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+      followRef: true,
+    };
+    const store = new WorkspaceRecordStore(handle);
+    store.insert({
+      id: 'ws-replayed',
+      kind: 'worktree',
+      path: worktreePath,
+      parentId: 'ws-repo',
+      origin: 'registered',
+      gitAdminName: null,
+      observedStatus: 'missing',
+      creation: { branch: 'pr/7/fix', baseRef: null, requestedPath: worktreePath, gitSetup },
+      lastCreateOutcome: { status: 'started', at: 9_000 },
+      lifecycle: null,
+      lastRemovalAttempt: null,
+      git: null,
+      lastActivatedAt: null,
+      createdAt: 9_000,
+      updatedAt: 9_000,
+      lastObservedAt: 9_000,
+    });
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const replayed = await wire.client.createWorktree({
+      id: 'ws-replayed',
+      repositoryId: 'ws-repo',
+      branch: 'pr/7/fix',
+      path: worktreePath,
+      preservePatterns: [],
+      pushBranch: false,
+      gitSetup,
+    });
+    expect(replayed).toMatchObject({
+      success: true,
+      data: { observedStatus: 'present', lastCreateOutcome: { status: 'succeeded' } },
+    });
+    if (!replayed.success) throw new Error('expected success');
+    // The fetched branch was reused untouched; configure-branch still applied.
+    expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(prHeadOid);
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+      'https://github.com/acme/repo/pull/7'
+    );
+    expect(lifecycleStep(replayed.data, 'fetch-branch')).toMatchObject({ status: 'skipped' });
+    expect(lifecycleStep(replayed.data, 'configure-branch')).toMatchObject({
+      status: 'succeeded',
+    });
+  });
+
   it('concurrent same-repository creations serialize and both succeed', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });

@@ -70,8 +70,10 @@ export type WorkspaceScriptOutcomes = typeof workspaceScriptOutcomes.Type;
 const lifecycleStepV1 = z.object({
   id: z.enum([
     'adopt-worktree',
+    'fetch-branch',
     'fetch-remote-base',
     'create-worktree',
+    'configure-branch',
     'copy-artifacts',
     'push-branch',
     'fetch-refs',

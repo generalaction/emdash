@@ -47,8 +47,10 @@ const STATUS_ICONS: Record<
 
 const STEP_TITLES: Record<WorkspaceLifecycleStepInfo['id'], string> = {
   'adopt-worktree': 'Adopt worktree',
+  'fetch-branch': 'Fetch branch',
   'fetch-remote-base': 'Fetch remote base',
   'create-worktree': 'Create worktree',
+  'configure-branch': 'Configure branch',
   'copy-artifacts': 'Copy artifacts',
   'push-branch': 'Push branch',
   'fetch-refs': 'Fetch refs',
@@ -62,8 +64,12 @@ function stepDescription(step: WorkspaceLifecycleStepInfo): string {
   switch (step.id) {
     case 'adopt-worktree':
       return `Worktree with ${params.branch} already exists at ${params.path}`;
+    case 'fetch-branch':
+      return `Fetching ${params.source} into ${params.branch}`;
     case 'fetch-remote-base':
       return `Fetch remote base ${params.base}`;
+    case 'configure-branch':
+      return `Configuring upstream tracking for ${params.branch}`;
     case 'create-worktree': {
       // While the step is still running, whether the branch is new is unknown.
       const branchKind =

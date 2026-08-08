@@ -99,8 +99,10 @@ export type TaskListData = {
 export type WorkspaceLifecycleStepInfo = {
   id:
     | 'adopt-worktree'
+    | 'fetch-branch'
     | 'fetch-remote-base'
     | 'create-worktree'
+    | 'configure-branch'
     | 'copy-artifacts'
     | 'push-branch'
     | 'fetch-refs'

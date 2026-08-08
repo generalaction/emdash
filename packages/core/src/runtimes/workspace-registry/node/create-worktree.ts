@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BoundExec } from '#services/exec/api';
+import type { WorkspaceGitSetup } from '../api/schemas';
 import { retryTransientLock } from './git-schedule';
 import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
@@ -10,7 +11,10 @@ export type CreateWorktreeExecution = {
   /** Resolved target path; may not exist yet. */
   worktreePath: string;
   branch: string;
-  baseRef: string;
+  /** Null when gitSetup.fetchBranch materializes the branch instead. */
+  baseRef: string | null;
+  /** Structured branch setup (spec: pr-workspace-model provisioning). */
+  gitSetup?: WorkspaceGitSetup;
   /** Overlay feeder: called as each stage begins. */
   onStage: (stage: string) => void;
 };
@@ -89,34 +93,58 @@ export async function executeCreateWorktree(
   }
 
   if (!existing) {
+    // Branch materialization from an arbitrary source ref (spec: pr-workspace-model
+    // provisioning). Replay rule: an existing refs/heads/<branch> is never touched —
+    // the fetch is skipped entirely and the branch reused. The destination is always
+    // host-constructed from the verb's own branch, with a plain (never force) refspec.
+    const fetchBranch = execution.gitSetup?.fetchBranch;
+    if (fetchBranch && !(await branchExists(exec, execution.branch))) {
+      execution.onStage('fetch-branch');
+      try {
+        // Same hygiene as fetch-base: no tags, no FETCH_HEAD write, no auto maintenance.
+        await exec.exec([
+          'fetch',
+          fetchBranch.remote,
+          `${fetchBranch.sourceRef}:refs/heads/${execution.branch}`,
+          '--no-tags',
+          '--no-write-fetch-head',
+          '--no-auto-maintenance',
+        ]);
+        // The fetched branch belongs to this attempt: rollback deletes it on failure.
+        createdBranch = true;
+      } catch (error) {
+        return await fail('fetch-branch', error);
+      }
+    }
+
     // Stale-is-fine: creation never fetches when the base ref resolves locally. Only an
     // unresolvable remote-shaped ref triggers a targeted single-ref fetch — no --all,
     // no --prune, no tags. Failure surfaces git's own error; no emdash timeout or retry.
-    execution.onStage('resolve-base');
-    try {
-      if (
-        !(await branchExists(exec, execution.branch)) &&
-        !(await refResolves(exec, execution.baseRef))
-      ) {
-        const remoteRef = await parseRemoteRef(exec, execution.baseRef);
-        if (remoteRef) {
-          execution.onStage('fetch-base');
-          // Hygiene (spec: git concurrency model): no FETCH_HEAD write, no auto
-          // maintenance kicked off on the creation path.
-          await exec.exec([
-            'fetch',
-            remoteRef.remote,
-            `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
-            '--no-tags',
-            '--no-write-fetch-head',
-            '--no-auto-maintenance',
-          ]);
+    if (execution.baseRef !== null) {
+      const baseRef = execution.baseRef;
+      execution.onStage('resolve-base');
+      try {
+        if (!(await branchExists(exec, execution.branch)) && !(await refResolves(exec, baseRef))) {
+          const remoteRef = await parseRemoteRef(exec, baseRef);
+          if (remoteRef) {
+            execution.onStage('fetch-base');
+            // Hygiene (spec: git concurrency model): no FETCH_HEAD write, no auto
+            // maintenance kicked off on the creation path.
+            await exec.exec([
+              'fetch',
+              remoteRef.remote,
+              `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
+              '--no-tags',
+              '--no-write-fetch-head',
+              '--no-auto-maintenance',
+            ]);
+          }
+          // Non-remote-shaped unresolvable refs fall through: add-worktree fails with
+          // git's own "invalid reference" error, exactly as it would have after a fetch.
         }
-        // Non-remote-shaped unresolvable refs fall through: add-worktree fails with
-        // git's own "invalid reference" error, exactly as it would have after a fetch.
+      } catch (error) {
+        return await fail('resolve-base', error);
       }
-    } catch (error) {
-      return await fail('resolve-base', error);
     }
 
     execution.onStage('add-worktree');
@@ -127,22 +155,43 @@ export async function executeCreateWorktree(
         await retryTransientLock(() =>
           exec.exec(['worktree', 'add', execution.worktreePath, execution.branch])
         );
-      } else {
+      } else if (execution.baseRef !== null) {
+        const baseRef = execution.baseRef;
         await retryTransientLock(() =>
-          exec.exec([
-            'worktree',
-            'add',
-            '-b',
-            execution.branch,
-            execution.worktreePath,
-            execution.baseRef,
-          ])
+          exec.exec(['worktree', 'add', '-b', execution.branch, execution.worktreePath, baseRef])
         );
         createdBranch = true;
+      } else {
+        // Structurally unreachable: input validation requires baseRef or fetchBranch,
+        // and a settled fetch-branch guarantees the branch exists.
+        throw new Error(`Branch ${execution.branch} does not exist and no base ref was given`);
       }
       createdWorktree = true;
     } catch (error) {
       return await fail('add-worktree', error);
+    }
+  }
+
+  // Unconditionally idempotent plain config sets, running on the fresh and the
+  // reused-branch/replay path alike. Branch-scoped keys land in the repository's
+  // common config — the same place branch.<name>.remote/.merge always live.
+  const { upstream, breadcrumb } = execution.gitSetup ?? {};
+  if (upstream || breadcrumb) {
+    execution.onStage('configure-branch');
+    try {
+      const entries: Array<[string, string]> = [];
+      if (upstream) {
+        entries.push([`branch.${execution.branch}.remote`, upstream.remote]);
+        entries.push([`branch.${execution.branch}.merge`, upstream.mergeRef]);
+      }
+      if (breadcrumb) {
+        entries.push([`branch.${execution.branch}.emdash-pr-url`, breadcrumb.prUrl]);
+      }
+      for (const [key, value] of entries) {
+        await exec.exec(['config', key, value]);
+      }
+    } catch (error) {
+      return await fail('configure-branch', error);
     }
   }
 
