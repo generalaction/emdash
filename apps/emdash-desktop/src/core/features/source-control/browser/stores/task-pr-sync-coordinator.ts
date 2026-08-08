@@ -1,14 +1,19 @@
+import { isDeepEqual } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, type RemoteModel } from '@emdash/wire/state';
-import { reaction, runInAction } from 'mobx';
+import { reaction, runInAction, toJS } from 'mobx';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import type { Task } from '@core/primitives/tasks/api';
+import type { Task, WorkspaceObservedPrFacts } from '@core/primitives/tasks/api';
 import { pullRequestsContract } from '@core/services/pull-requests/api';
-import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
+import {
+  getPullRequestsRuntimeClient,
+  type PullRequestsRuntimeClient,
+} from '@core/services/pull-requests/api/client';
+import { derivePrAssociation } from './derive-pr-association';
 
 export class TaskPrSyncCoordinator {
   private readonly scope = createScope({ label: 'task-pr-sync-coordinator' });
@@ -23,11 +28,23 @@ export class TaskPrSyncCoordinator {
     private readonly tasks: TaskManagerStore,
     private readonly repository: GitRepositoryStore
   ) {
+    // Association inputs: the checkout store's live head plus the mirror's observed
+    // facts (breadcrumb, upstream, branch) — observation changes must re-derive even
+    // when the local checkout never moved (e.g. the host scan delivers a breadcrumb).
     this.disposeGitHeadReaction = reaction(
       () =>
         [...tasks.tasks.values()].filter(isRegistered).map((store) => {
           const git = getTaskGitCheckoutStore(store);
-          return `${store.workspaceId}:${git?.branchName ?? ''}:${git?.headOid ?? ''}`;
+          const observed = store.workspaceObservedPr;
+          return [
+            store.workspaceId,
+            git?.branchName ?? '',
+            git?.headOid ?? '',
+            observed?.branch ?? '',
+            observed?.prBreadcrumb ?? '',
+            observed?.upstream?.mergeRef ?? '',
+            observed?.upstream?.remoteUrl ?? '',
+          ].join(':');
         }),
       () => this.reloadAll()
     );
@@ -56,26 +73,37 @@ export class TaskPrSyncCoordinator {
     }
   }
 
+  /**
+   * Re-derives the task's PR association from observed facts, validated against the
+   * PR cache on this read (pr-workspace-model spec, Association): breadcrumb, then
+   * gh-convention recognition, then head-branch matching. Cache lookup failures keep
+   * the current association; the next observation or sync re-derives.
+   */
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
     const repositoryUrl = this.repository.pullRequestRepositoryUrl;
-    const branch = getTaskGitCheckoutStore(store)?.branchName;
-    if (!repositoryUrl || !branch) return;
-    const result = await (
-      await getPullRequestsRuntimeClient()
-    ).getPullRequestsForBranch({
-      repositoryUrl,
-      branch,
-    });
-    if (!result.success) return;
-    if (
-      this.repository.pullRequestRepositoryUrl !== repositoryUrl ||
-      getTaskGitCheckoutStore(store)?.branchName !== branch
-    ) {
+    if (!repositoryUrl) return;
+    const inputs = associationInputs(store);
+    // Nothing observed and no checkout yet: leave the association alone rather than
+    // clearing it on a transiently input-less read (startup, store teardown).
+    if (inputs.observed === null && inputs.checkoutBranch === null) return;
+
+    let prs: Task['prs'];
+    try {
+      const client = await getPullRequestsRuntimeClient();
+      prs = await derivePrAssociation({
+        observed: inputs.observed,
+        checkoutBranch: inputs.checkoutBranch,
+        lookups: cacheLookups(client, repositoryUrl),
+      });
+    } catch {
       return;
     }
+    // Drop stale results: another reload owns the write when the inputs moved.
+    if (this.repository.pullRequestRepositoryUrl !== repositoryUrl) return;
+    if (!isDeepEqual(associationInputs(store), inputs)) return;
     runInAction(() => {
-      if (isRegistered(store)) (store.data as Task).prs = result.data.prs;
+      if (isRegistered(store)) (store.data as Task).prs = prs;
     });
   }
 
@@ -128,4 +156,32 @@ function getTaskGitCheckoutStore(store: TaskStore) {
 
 function isRegistered(store: TaskStore): boolean {
   return store.state !== 'unregistered';
+}
+
+type AssociationInputs = {
+  observed: WorkspaceObservedPrFacts | null;
+  checkoutBranch: string | null;
+};
+
+function associationInputs(store: TaskStore): AssociationInputs {
+  return {
+    observed: toJS(store.workspaceObservedPr),
+    checkoutBranch: getTaskGitCheckoutStore(store)?.branchName ?? null,
+  };
+}
+
+/** Cache reads for the derivation; failed lookups reject so the reload aborts. */
+function cacheLookups(client: PullRequestsRuntimeClient, repositoryUrl: string) {
+  return {
+    async byUrl(url: string) {
+      const result = await client.getPullRequestByUrl({ repositoryUrl, url });
+      if (!result.success) throw new Error(`PR cache lookup failed: ${result.error.type}`);
+      return result.data.pr;
+    },
+    async byBranch(branch: string) {
+      const result = await client.getPullRequestsForBranch({ repositoryUrl, branch });
+      if (!result.success) throw new Error(`PR cache lookup failed: ${result.error.type}`);
+      return result.data.prs;
+    },
+  };
 }

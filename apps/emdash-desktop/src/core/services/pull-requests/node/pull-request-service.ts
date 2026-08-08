@@ -150,6 +150,30 @@ export class PullRequestService {
     }
   }
 
+  /**
+   * Breadcrumb validation read: the synced PR with that canonical URL belonging to
+   * this repository, or null — an unknown URL is an ordinary miss, never an error,
+   * so stale breadcrumbs self-correct at the association layer.
+   */
+  getPullRequestByUrl(
+    repositoryUrl: string,
+    url: string
+  ): Result<{ pr: PullRequest | null }, PullRequestError> {
+    const normalized = normalizeRepositoryUrl(repositoryUrl);
+    if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
+    try {
+      const registered = this.options.store.getRegisteredRepository(normalized);
+      if (!registered) return ok({ pr: null });
+      const pr = this.options.store.getPullRequestByUrl(url);
+      return ok({ pr: pr && pr.repositoryUrl === normalized ? pr : null });
+    } catch (error) {
+      return err({
+        type: 'task_pull_requests_failed',
+        message: error instanceof Error ? error.message : 'Unable to load pull request',
+      });
+    }
+  }
+
   registerRepository(repositoryUrl: string, accountId?: string): Result<void, PullRequestError> {
     const normalized = normalizeRepositoryUrl(repositoryUrl);
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });

@@ -159,6 +159,10 @@ export const pullRequestNumberInputSchema = repositoryInputSchema.extend({
   number: z.number().int().positive(),
 });
 
+export const pullRequestUrlInputSchema = repositoryInputSchema.extend({
+  url: z.string(),
+});
+
 export const syncChecksInputSchema = repositoryInputSchema.extend({
   pullRequestUrl: z.string(),
   headRefOid: z.string(),
