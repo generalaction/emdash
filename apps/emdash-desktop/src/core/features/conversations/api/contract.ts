@@ -49,10 +49,6 @@ const desktopTuiSessions = liveModel({
 const conversationsAcpContract = defineContract({
   startSession: runtimeFallibleProcedure(conversationKey, acpApiContract.startSession.output),
   resumeSession: runtimeFallibleProcedure(conversationKey, acpApiContract.resumeSession.output),
-  stopSession: runtimeFallibleProcedure(
-    acpApiContract.stopSession.input,
-    acpApiContract.stopSession.output
-  ),
   killSession: runtimeFallibleProcedure(
     acpApiContract.killSession.input,
     acpApiContract.killSession.output
@@ -60,10 +56,6 @@ const conversationsAcpContract = defineContract({
   sendPrompt: runtimeFallibleProcedure(
     acpApiContract.sendPrompt.input,
     acpApiContract.sendPrompt.output
-  ),
-  queuePrompt: runtimeFallibleProcedure(
-    acpApiContract.queuePrompt.input,
-    acpApiContract.queuePrompt.output
   ),
   editQueuedPrompt: runtimeFallibleProcedure(
     acpApiContract.editQueuedPrompt.input,

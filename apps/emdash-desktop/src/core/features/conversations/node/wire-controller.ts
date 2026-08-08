@@ -163,14 +163,10 @@ export function createConversationsWireController(
           client.acp.resumeSession({ input: { ...input, sessionId } }, callOptions(meta))
         );
       },
-      stopSession: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.stopSession(input, callOptions(meta))),
       killSession: (input, meta) =>
         run(input.conversationId, (client) => client.acp.killSession(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
         run(input.conversationId, (client) => client.acp.sendPrompt(input, callOptions(meta))),
-      queuePrompt: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.queuePrompt(input, callOptions(meta))),
       editQueuedPrompt: (input, meta) =>
         run(input.conversationId, (client) =>
           client.acp.editQueuedPrompt(input, callOptions(meta))

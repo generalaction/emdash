@@ -1,7 +1,12 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { IdlePolicyConfig } from '#primitives/io-activity/api';
-import type { AcpStartInputWire, PromptAttachment, PromptInput } from '#runtimes/acp/api';
+import type {
+  AcpStartInputWire,
+  PromptAttachment,
+  PromptInput,
+  PromptPlacement,
+} from '#runtimes/acp/api';
 import type { AcpProcessHost } from '#runtimes/acp/api/transport';
 import type { AgentPluginHost, ResolvedAcpProvider } from '#services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
@@ -43,4 +48,6 @@ export interface AcpRuntimeDeps {
 export interface SendPromptInput {
   conversationId: string;
   prompt: PromptInput;
+  /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
+  placement?: PromptPlacement;
 }

@@ -13,6 +13,7 @@ import {
   type HistoryPage,
   type PromptDraftUpdate,
   type PromptInput,
+  type PromptPlacement,
   type SessionState,
   type TerminalState,
 } from '@emdash/core/runtimes/acp/api/client';
@@ -225,12 +226,11 @@ export class AcpLiveSession {
     return this.client.deleteAttachment({ conversationId: this.conversationId, id });
   }
 
-  sendPrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt({ conversationId: this.conversationId, prompt });
-  }
-
-  queuePrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.queuePrompt({ conversationId: this.conversationId, prompt });
+  sendPrompt(
+    prompt: PromptInput,
+    placement?: PromptPlacement
+  ): Promise<Result<{ queued: boolean }, unknown>> {
+    return this.client.sendPrompt({ conversationId: this.conversationId, prompt, placement });
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {

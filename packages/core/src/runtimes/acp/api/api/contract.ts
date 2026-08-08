@@ -33,7 +33,6 @@ import {
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   killSessionCommandSchema,
-  queuePromptCommandSchema,
   resolvePermissionCommandSchema,
   resumeSessionCommandSchema,
   sendPromptCommandSchema,
@@ -42,7 +41,6 @@ import {
   setModelOptionCommandSchema,
   setPromptDraftCommandSchema,
   startSessionCommandSchema,
-  stopSessionCommandSchema,
   uploadAttachmentCommandSchema,
   uploadAttachmentResponseSchema,
 } from './commands';
@@ -55,7 +53,6 @@ import {
   acpExportRawLogErrorSchema,
   acpExportTranscriptErrorSchema,
   acpGetHistoryErrorSchema,
-  acpQueuePromptErrorSchema,
   acpResolvePermissionErrorSchema,
   acpResumeSessionErrorSchema,
   acpSendPromptErrorSchema,
@@ -82,10 +79,6 @@ export const acpApiContract = defineContract({
     data: resumeResultSchema,
     error: acpResumeSessionErrorSchema,
   }),
-  stopSession: fallible({
-    input: stopSessionCommandSchema,
-    error: acpStopSessionErrorSchema,
-  }),
   killSession: fallible({
     input: killSessionCommandSchema,
     error: acpStopSessionErrorSchema,
@@ -94,11 +87,6 @@ export const acpApiContract = defineContract({
     input: sendPromptCommandSchema,
     data: sendPromptResponseSchema,
     error: acpSendPromptErrorSchema,
-  }),
-  queuePrompt: fallible({
-    input: queuePromptCommandSchema,
-    data: sendPromptResponseSchema,
-    error: acpQueuePromptErrorSchema,
   }),
   editQueuedPrompt: fallible({
     input: editQueuedPromptCommandSchema,

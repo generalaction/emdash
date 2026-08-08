@@ -9,7 +9,6 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
-  AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpResumeSessionError,
   AcpSendPromptError,
@@ -24,6 +23,7 @@ import type {
   HistoryPage,
   PromptDraftUpdate,
   PromptInput,
+  PromptPlacement,
   ResumeResult,
 } from '#runtimes/acp/api';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
@@ -42,23 +42,15 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Promise<Result<ResumeResult, AcpResumeSessionError>> {
       return runtime.resumeSession(input.input);
     },
-    stopSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
-      return runtime.stopSession(input.conversationId);
-    },
     killSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
       return runtime.killSession(input.conversationId);
     },
     sendPrompt(input: {
       conversationId: string;
       prompt: PromptInput;
+      placement?: PromptPlacement;
     }): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-      return runtime.sendPrompt(input.conversationId, input.prompt);
-    },
-    queuePrompt(input: {
-      conversationId: string;
-      prompt: PromptInput;
-    }): Result<{ queued: boolean }, AcpQueuePromptError> {
-      return runtime.queuePrompt(input.conversationId, input.prompt);
+      return runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
     },
     editQueuedPrompt(input: {
       conversationId: string;

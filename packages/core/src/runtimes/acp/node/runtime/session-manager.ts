@@ -28,7 +28,6 @@ import type {
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
-  AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetModeOptionError,
@@ -305,16 +304,12 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     this.recordInputActivity(input.conversationId);
+    if (input.placement === 'queue') {
+      const result = record.cell.queuePrompt(input.prompt);
+      if (!result.success) return result;
+      return ok({ queued: true });
+    }
     return record.cell.prompt(input.prompt);
-  }
-
-  queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpQueuePromptError> {
-    const record = this.cells.get(input.conversationId);
-    if (!record) return acpErr.conversationNotFound(input.conversationId);
-    this.recordInputActivity(input.conversationId);
-    const result = record.cell.queuePrompt(input.prompt);
-    if (!result.success) return result;
-    return ok({ queued: true });
   }
 
   editQueuedPrompt(

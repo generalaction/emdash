@@ -25,13 +25,15 @@ export const startSessionCommandSchema = z.object({ input: acpStartInputSchema }
 export const resumeSessionCommandSchema = z.object({
   input: acpStartInputSchema.extend({ sessionId: z.string() }),
 });
-export const stopSessionCommandSchema = z.object({ conversationId: z.string() });
-export const killSessionCommandSchema = stopSessionCommandSchema;
+export const killSessionCommandSchema = z.object({ conversationId: z.string() });
+export const promptPlacementSchema = z.enum(['auto', 'queue']);
+export type PromptPlacement = z.infer<typeof promptPlacementSchema>;
 export const sendPromptCommandSchema = z.object({
   conversationId: z.string(),
   prompt: promptInputSchema,
+  /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
+  placement: promptPlacementSchema.optional(),
 });
-export const queuePromptCommandSchema = sendPromptCommandSchema;
 export const editQueuedPromptCommandSchema = z.object({
   conversationId: z.string(),
   id: z.string(),

@@ -10,7 +10,6 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
-  AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpResumeSessionError,
   AcpSendPromptError,
@@ -23,6 +22,7 @@ import type {
   AttachmentRef,
   PromptDraftUpdate,
   PromptInput,
+  PromptPlacement,
   ResumeResult,
   SessionState,
   TerminalState,
@@ -90,6 +90,7 @@ export class AcpRuntime {
     return ok({ sessionId: result.data.sessionId, ...page });
   }
 
+  /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
   stopSession(conversationId: string): Result<void, AcpStopSessionError> {
     return this.manager.stop(conversationId);
   }
@@ -104,16 +105,10 @@ export class AcpRuntime {
 
   sendPrompt(
     conversationId: string,
-    prompt: PromptInput
+    prompt: PromptInput,
+    placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-    return this.manager.prompt({ conversationId, prompt });
-  }
-
-  queuePrompt(
-    conversationId: string,
-    prompt: PromptInput
-  ): Result<{ queued: boolean }, AcpQueuePromptError> {
-    return this.manager.queuePrompt({ conversationId, prompt });
+    return this.manager.prompt({ conversationId, prompt, placement });
   }
 
   editQueuedPrompt(

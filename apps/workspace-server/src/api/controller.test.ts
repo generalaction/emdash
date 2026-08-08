@@ -78,10 +78,8 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
   return {
     startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
     resumeSession: vi.fn(),
-    stopSession: vi.fn(),
     killSession: vi.fn(),
     sendPrompt: vi.fn(),
-    queuePrompt: vi.fn(),
     editQueuedPrompt: vi.fn(),
     deleteQueuedPrompt: vi.fn(),
     changeQueuePromptOrder: vi.fn(),
