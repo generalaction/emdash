@@ -333,7 +333,7 @@ export class MonacoModelRegistry {
       this.modelStatus.set(diskUri, 'error');
       throw new Error(`registerModel(disk): binary content for ${filePath}`);
     }
-    if (content.truncated) {
+    if (content.kind === 'too-large') {
       await contentScope.dispose();
       runInAction(() => {
         this.modelStatus.set(diskUri, 'too-large');
@@ -1105,7 +1105,7 @@ export class MonacoModelRegistry {
       }
       return;
     }
-    if (content.truncated) {
+    if (content.kind === 'too-large') {
       runInAction(() => {
         this.modelStatus.set(diskUri, 'too-large');
         this.modelTotalSizes.set(diskUri, content.byteSize);
