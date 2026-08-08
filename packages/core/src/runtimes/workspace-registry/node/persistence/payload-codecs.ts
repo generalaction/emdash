@@ -22,8 +22,14 @@ const storedCreateOutcome = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceCreateOutcomeSchema }))
   .build();
 
+/**
+ * v2 added headOid, upstream identity, and the PR breadcrumb with NO v1 upcast:
+ * observations are re-derivable facts, so a stored v1 payload reads as null
+ * (not-yet-observed — the unknown version short-circuits before any schema
+ * validation) and the next scan writes v2.
+ */
 const storedGitObservations = defineVersionedSchema()
-  .initial('1', z.object({ version: z.literal('1'), value: workspaceGitObservationsSchema }))
+  .initial('2', z.object({ version: z.literal('2'), value: workspaceGitObservationsSchema }))
   .build();
 
 const storedRemovalAttempt = defineVersionedSchema()
@@ -102,11 +108,23 @@ export function parseCreateOutcomePayload(payload: string): WorkspaceCreateOutco
 }
 
 export function serializeGitObservationsPayload(git: WorkspaceGitObservations): string {
-  return storedGitObservations.serialize({ version: '1', value: git });
+  return storedGitObservations.serialize({ version: '2', value: git });
 }
 
-export function parseGitObservationsPayload(payload: string): WorkspaceGitObservations {
-  return parseVersioned(storedGitObservations, payload, 'git observations');
+/**
+ * Unlike the other payloads, git observations are pure scan output: a payload that no
+ * longer parses (an old version, corrupt JSON) degrades to null — not-yet-observed —
+ * and the next scan rewrites it. Never a crash.
+ */
+export function parseGitObservationsPayload(payload: string): WorkspaceGitObservations | null {
+  let json: unknown;
+  try {
+    json = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  const result = storedGitObservations.safeParse(json);
+  return result.status === 'ok' ? result.data.value : null;
 }
 
 export function serializeRemovalAttemptPayload(attempt: WorkspaceRemovalAttempt): string {

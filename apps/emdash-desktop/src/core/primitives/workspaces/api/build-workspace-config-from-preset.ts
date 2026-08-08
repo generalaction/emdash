@@ -81,6 +81,7 @@ export function buildWorkspaceConfigFromPreset(
         version: '2',
         git: {
           kind: 'pr-branch',
+          prUrl: pr.url,
           prNumber,
           headBranch: pr.headRefName,
           headRepositoryUrl: pr.headRepositoryUrl,
@@ -98,6 +99,7 @@ export function buildWorkspaceConfigFromPreset(
         version: '2',
         git: {
           kind: 'pr-branch',
+          prUrl: pr.url,
           prNumber,
           headBranch: pr.headRefName,
           headRepositoryUrl: pr.headRepositoryUrl,

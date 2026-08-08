@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
+import type { PullRequest } from '@core/services/pull-requests/api';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -15,14 +16,21 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => undefined,
 }));
+// The real module transitively imports monaco, which cannot load in the node project.
+// The mocked project defines preservePatterns, so previews include copy-artifacts.
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
+  getProjectSettingsStore: () => ({ settings: { preservePatterns: ['.env'] } }),
+}));
 
 vi.mock('@core/features/tasks/browser/task-config/existing-workspace-picker', () => ({
   useProjectWorkspaces: () => ({ data: [] }),
 }));
 
+const branchNameMock = vi.hoisted(() => ({ current: 'generated-task-branch' }));
+
 vi.mock('./use-branch-name', () => ({
   useBranchName: () => ({
-    branchName: 'generated-task-branch',
+    branchName: branchNameMock.current,
     setBranchName: vi.fn(),
     branchAlreadyExists: false,
   }),
@@ -31,16 +39,50 @@ vi.mock('./use-branch-name', () => ({
 const { useWorkspaceConfig } =
   await import('../../api/browser/create-task-modal/use-workspace-config');
 
+function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
+  return {
+    url: 'https://github.com/acme/repo/pull/7',
+    provider: 'github',
+    repositoryUrl: 'https://github.com/acme/repo',
+    baseRefName: 'main',
+    baseRefOid: 'base-oid',
+    headRepositoryUrl: 'https://github.com/contributor/repo',
+    headRefName: 'fix/thing',
+    headRefOid: 'head-oid',
+    identifier: '#7',
+    title: 'Fork PR',
+    description: null,
+    status: 'open',
+    isDraft: false,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
+    commitCount: null,
+    mergeableStatus: null,
+    mergeStateStatus: null,
+    reviewDecision: null,
+    createdAt: '2026-05-30T00:00:00.000Z',
+    updatedAt: '2026-05-30T00:00:00.000Z',
+    author: null,
+    labels: [],
+    assignees: [],
+    checks: [],
+    ...overrides,
+  };
+}
+
 let latestState: WorkspaceConfigState | undefined;
 
 function Probe({
   initial,
   isUnborn = false,
   hasRepository = true,
+  pr = null,
 }: {
   initial: Parameters<typeof useWorkspaceConfig>[0]['initial'];
   isUnborn?: boolean;
   hasRepository?: boolean;
+  pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
 }) {
   latestState = useWorkspaceConfig({
     projectId: 'project-1',
@@ -49,7 +91,7 @@ function Probe({
     hasRepository,
     currentBranch: 'current-branch',
     repositoryWorkspaceId: 'repo-workspace-1',
-    pr: null,
+    pr,
     taskName: 'Generated task branch',
     linkedIssue: null,
     createBranchAndWorktreeDefault: true,
@@ -66,6 +108,7 @@ describe('useWorkspaceConfig branch selection', () => {
 
   beforeEach(() => {
     latestState = undefined;
+    branchNameMock.current = 'generated-task-branch';
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
@@ -83,7 +126,11 @@ describe('useWorkspaceConfig branch selection', () => {
 
   async function renderProbe(
     initial: Parameters<typeof useWorkspaceConfig>[0]['initial'],
-    options: { isUnborn?: boolean; hasRepository?: boolean } = {}
+    options: {
+      isUnborn?: boolean;
+      hasRepository?: boolean;
+      pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
+    } = {}
   ) {
     await act(async () => {
       root.render(React.createElement(Probe, { initial, ...options }));
@@ -180,6 +227,49 @@ describe('useWorkspaceConfig branch selection', () => {
       workspace: { kind: 'repository-instance', workspaceId: 'repo-workspace-1' },
     });
     expect(latestState?.setupSteps).toEqual([]);
+  });
+
+  it('previews the compiled plan for a new pushed branch', async () => {
+    await renderProbe({ mode: 'new-worktree', presetId: 'new-worktree' });
+
+    expect(latestState?.setupSteps.map((step) => step.id)).toEqual([
+      'create-worktree',
+      'copy-artifacts',
+      'push-branch',
+    ]);
+    expect(latestState?.setupSteps[0]?.description).toBe(
+      'Create a worktree on new branch generated-task-branch based on main'
+    );
+  });
+
+  it('previews the fork PR checkout with the namespaced branch and PR-ref fetch', async () => {
+    await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' }, { pr: makePr() });
+
+    expect(latestState?.setupSteps.map((step) => step.id)).toEqual([
+      'fetch-branch',
+      'create-worktree',
+      'configure-branch',
+      'copy-artifacts',
+    ]);
+    expect(latestState?.setupSteps[0]?.description).toBe(
+      'Fetch refs/pull/7/head from origin into pr/7/fix/thing'
+    );
+  });
+
+  it('renders an empty preview when the PR preset has no PR selected yet', async () => {
+    await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' });
+
+    expect(latestState?.resolvedConfig.git).toEqual({ kind: 'none' });
+    expect(latestState?.setupSteps).toEqual([]);
+    expect(latestState?.isValid).toBe(false);
+  });
+
+  it('renders an empty preview while the branch name is still empty', async () => {
+    branchNameMock.current = '';
+    await renderProbe({ mode: 'new-worktree', presetId: 'new-worktree' });
+
+    expect(latestState?.setupSteps).toEqual([]);
+    expect(latestState?.isValid).toBe(false);
   });
 
   it('defaults non-git projects to the repository root workspace', async () => {

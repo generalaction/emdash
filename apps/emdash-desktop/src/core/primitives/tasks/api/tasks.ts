@@ -36,15 +36,6 @@ export type GitSetup =
       pushBranch?: boolean;
     };
 
-/**
- * Describes the physical location of a workspace.
- * `path` is set when reusing an existing directory; omitted when a new worktree
- * must be created.
- */
-export type WorkspaceLocation =
-  | { host: 'local'; path?: string }
-  | { host: 'project-ssh'; path?: string };
-
 export const taskLifecycleStatuses = z.enum([
   'todo',
   'in_progress',
@@ -99,8 +90,10 @@ export type TaskListData = {
 export type WorkspaceLifecycleStepInfo = {
   id:
     | 'adopt-worktree'
+    | 'fetch-branch'
     | 'fetch-remote-base'
     | 'create-worktree'
+    | 'configure-branch'
     | 'copy-artifacts'
     | 'push-branch'
     | 'fetch-refs'
@@ -112,6 +105,25 @@ export type WorkspaceLifecycleStepInfo = {
   finishedAt: number | null;
   message?: string;
   params: Record<string, string | number | boolean>;
+};
+
+/**
+ * Raw observed git facts (mirror observedGit v2) that PR association and
+ * checkout-drift derive from desktop-side. Null means not-yet-observed — old
+ * hosts and v1 payloads — which degrades association to branch matching only
+ * and drift to unknown.
+ */
+export type WorkspaceObservedPrFacts = {
+  branch: string | null;
+  /** Raw `branch.<b>.emdash-pr-url` config value (a canonical PR URL). */
+  prBreadcrumb: string | null;
+  /** Verbatim `branch.<b>.merge` plus the upstream remote's resolved URL. */
+  upstream: { mergeRef: string; remoteUrl: string | null } | null;
+  /** Full OID of the observed HEAD; null on unborn HEAD or probe failure. */
+  headOid: string | null;
+  /** Commits ahead of / behind `@{u}`; null when the tracking ref doesn't resolve. */
+  ahead: number | null;
+  behind: number | null;
 };
 
 export type TaskStatsData = {
@@ -131,6 +143,8 @@ export type TaskStatsData = {
       } | null;
       /** Lifecycle steps in canonical order (creation, background, and script steps). */
       lifecycle?: WorkspaceLifecycleStepInfo[] | null;
+      /** Observed PR-association facts; null while the host has not observed v2 yet. */
+      observedPr?: WorkspaceObservedPrFacts | null;
     }
   >;
 };

@@ -40,10 +40,28 @@ export function createUntrackedLinesCache(): UntrackedLinesCache {
   return new Map();
 }
 
+/**
+ * Remote-name → URL cache scoped to one repository's scan pass (spec: probe budget —
+ * the remote URL resolves at most once per repository per scan cycle). Worktrees share
+ * their repository's config, so the remote name alone is a sufficient key. `null`
+ * caches a failed resolution for the rest of the cycle.
+ */
+export type RemoteUrlCache = Map<string, string | null>;
+
+export function createRemoteUrlCache(): RemoteUrlCache {
+  return new Map();
+}
+
 export type ObserveWorkspaceGitOptions = {
   /** Per-workspace cache; the scan runtime owns it and evicts it with the record. */
   untrackedCache?: UntrackedLinesCache;
   untrackedByteBudget?: number;
+  /** Per-scan-cycle cache; absent = resolve per workspace (single-workspace scans). */
+  remoteUrlCache?: RemoteUrlCache;
+};
+
+export type ObserveWorkspaceGitRefsOptions = {
+  remoteUrlCache?: RemoteUrlCache;
 };
 
 export type RegistryGitExecOptions = {
@@ -159,11 +177,13 @@ export async function observeWorkspaceGit(
   await worktreeWriteLocks.whenUnlocked(workspacePath);
   const exec = createRegistryGitExec(workspacePath);
   try {
-    const [branch, status, divergence] = await Promise.all([
+    const [branch, headOid, status, divergence] = await Promise.all([
       readBranch(exec),
+      readHeadOid(exec),
       readStatus(exec),
       readDivergence(exec),
     ]);
+    const identity = await readBranchIdentity(exec, branch, options.remoteUrlCache);
     const untrackedAdded = await countUntrackedLines(workspacePath, status.untracked, options);
     const tracked = await readTrackedDiffStats(exec);
     const diffStats =
@@ -181,6 +201,9 @@ export async function observeWorkspaceGit(
       behind: divergence?.behind ?? null,
       locked: listing?.locked ?? false,
       prunable: listing?.prunable ?? false,
+      headOid,
+      upstream: identity.upstream,
+      prBreadcrumb: identity.prBreadcrumb,
     };
   } catch {
     return null;
@@ -189,17 +212,24 @@ export async function observeWorkspaceGit(
 
 /**
  * The cheap scan path for ref-only changes (commit, branch switch, fetch): re-reads
- * branch and divergence, carrying dirty/diff/lock state from the previous observation —
+ * branch, divergence, head OID, upstream identity, and breadcrumb (a branch switch
+ * changes all of them), carrying dirty/diff/lock state from the previous observation —
  * no `git status`, no untracked line counting.
  */
 export async function observeWorkspaceGitRefs(
   workspacePath: string,
-  previous: WorkspaceGitObservations | null
+  previous: WorkspaceGitObservations | null,
+  options: ObserveWorkspaceGitRefsOptions = {}
 ): Promise<WorkspaceGitObservations | null> {
   await worktreeWriteLocks.whenUnlocked(workspacePath);
   const exec = createRegistryGitExec(workspacePath);
   try {
-    const [branch, divergence] = await Promise.all([readBranch(exec), readDivergence(exec)]);
+    const [branch, headOid, divergence] = await Promise.all([
+      readBranch(exec),
+      readHeadOid(exec),
+      readDivergence(exec),
+    ]);
+    const identity = await readBranchIdentity(exec, branch, options.remoteUrlCache);
     return {
       branch,
       dirty: previous?.dirty ?? false,
@@ -208,6 +238,9 @@ export async function observeWorkspaceGitRefs(
       behind: divergence?.behind ?? null,
       locked: previous?.locked ?? false,
       prunable: previous?.prunable ?? false,
+      headOid,
+      upstream: identity.upstream,
+      prBreadcrumb: identity.prBreadcrumb,
     };
   } catch {
     return previous;
@@ -232,6 +265,90 @@ async function readBranch(exec: BoundExec): Promise<string | null> {
       return null;
     }
   }
+}
+
+/** Full OID of HEAD; null on unborn HEAD or probe failure — never fails the record. */
+async function readHeadOid(exec: BoundExec): Promise<string | null> {
+  try {
+    const result = await exec.exec(['rev-parse', 'HEAD'], { timeoutMs: EXEC_TIMEOUT_MS });
+    return result.stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+type BranchIdentity = {
+  upstream: { remote: string; mergeRef: string; remoteUrl: string | null } | null;
+  prBreadcrumb: string | null;
+};
+
+/**
+ * Upstream identity and PR breadcrumb from ONE branch-scoped config probe (spec: probe
+ * budget): `config --get-regexp '^branch\.<branch>\.'` covers remote, merge, and the
+ * breadcrumb together. Values are reported verbatim — the host never interprets the
+ * breadcrumb or ref patterns. Detached HEAD (null branch) yields nulls; a failed probe
+ * degrades these fields to null without touching the rest of the record.
+ */
+async function readBranchIdentity(
+  exec: BoundExec,
+  branch: string | null,
+  remoteUrlCache: RemoteUrlCache | undefined
+): Promise<BranchIdentity> {
+  if (branch === null) return { upstream: null, prBreadcrumb: null };
+  let stdout: string;
+  try {
+    // Exit code 1 (no matching config at all) lands in the catch: all fields null.
+    ({ stdout } = await exec.exec(
+      ['config', '-z', '--get-regexp', `^branch\\.${escapeConfigRegexp(branch)}\\.`],
+      { timeoutMs: EXEC_TIMEOUT_MS }
+    ));
+  } catch {
+    return { upstream: null, prBreadcrumb: null };
+  }
+  const prefix = `branch.${branch}.`;
+  let remote: string | null = null;
+  let mergeRef: string | null = null;
+  let prBreadcrumb: string | null = null;
+  for (const entry of stdout.split('\0')) {
+    if (entry === '') continue;
+    // `-z` entries are `key\nvalue`; a value-less key has no newline.
+    const separator = entry.indexOf('\n');
+    const key = separator === -1 ? entry : entry.slice(0, separator);
+    const value = separator === -1 ? '' : entry.slice(separator + 1);
+    if (!key.startsWith(prefix)) continue;
+    const name = key.slice(prefix.length);
+    if (name === 'remote') remote = value;
+    else if (name === 'merge') mergeRef = value;
+    else if (name === 'emdash-pr-url') prBreadcrumb = value;
+  }
+  const upstream =
+    remote !== null && mergeRef !== null
+      ? { remote, mergeRef, remoteUrl: await resolveRemoteUrl(exec, remote, remoteUrlCache) }
+      : null;
+  return { upstream, prBreadcrumb };
+}
+
+/** Escapes ERE metacharacters so the branch name matches literally in --get-regexp. */
+function escapeConfigRegexp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function resolveRemoteUrl(
+  exec: BoundExec,
+  remote: string,
+  cache: RemoteUrlCache | undefined
+): Promise<string | null> {
+  const hit = cache?.get(remote);
+  if (hit !== undefined) return hit;
+  let url: string | null;
+  try {
+    const result = await exec.exec(['remote', 'get-url', remote], { timeoutMs: EXEC_TIMEOUT_MS });
+    url = result.stdout.trim() || null;
+  } catch {
+    url = null;
+  }
+  cache?.set(remote, url);
+  return url;
 }
 
 async function readStatus(exec: BoundExec): Promise<{ dirty: boolean; untracked: string[] }> {

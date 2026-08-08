@@ -12,6 +12,7 @@ import {
   pullRequestFilterOptionsSchema,
   pullRequestNumberInputSchema,
   pullRequestSchema,
+  pullRequestUrlInputSchema,
   registerRepositoryInputSchema,
   repositoryInputSchema,
   repositoryListInputSchema,
@@ -36,6 +37,17 @@ export const pullRequestsContract = defineContract({
   getPullRequestsForBranch: fallible({
     input: branchPullRequestsInputSchema,
     data: z.object({ prs: z.array(pullRequestSchema) }),
+    error: pullRequestErrorSchema,
+  }),
+  /**
+   * Breadcrumb validation read (pr-workspace-model spec, Association): the cache's
+   * PR for a canonical PR URL, scoped to one registered repository. `pr` is null
+   * when the URL is unknown to the cache — never an error, so a stale breadcrumb
+   * degrades silently to the caller's fallback.
+   */
+  getPullRequestByUrl: fallible({
+    input: pullRequestUrlInputSchema,
+    data: z.object({ pr: pullRequestSchema.nullable() }),
     error: pullRequestErrorSchema,
   }),
   registerRepository: fallible({

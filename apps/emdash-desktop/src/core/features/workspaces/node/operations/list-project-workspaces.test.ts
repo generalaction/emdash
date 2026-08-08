@@ -322,7 +322,7 @@ async function list(runtimes: { client: ReturnType<typeof vi.fn> }, projectId = 
 
 function observedGit(overrides: Record<string, unknown>) {
   return {
-    version: '1',
+    version: '2',
     branch: null,
     dirty: false,
     diffStats: null,
@@ -330,6 +330,9 @@ function observedGit(overrides: Record<string, unknown>) {
     behind: null,
     locked: false,
     prunable: false,
+    headOid: null,
+    upstream: null,
+    prBreadcrumb: null,
     ...overrides,
   };
 }

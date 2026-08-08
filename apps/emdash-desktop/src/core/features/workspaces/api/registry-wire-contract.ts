@@ -6,6 +6,7 @@ import {
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
   retryableLifecycleStepSchema,
+  updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
   workspaceRecordSchema,
 } from '@emdash/core/runtimes/workspace-registry/api';
@@ -99,6 +100,22 @@ export const workspaceRegistryWireContract = defineContract({
     input: hostInput.extend({ workspaceId: z.string().min(1).optional() }),
     data: z.void(),
     error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  /**
+   * Manual "Update now" for a PR checkout: fast-forwards the worktree to the
+   * desktop-compiled `{ remote, sourceRef }` instruction (pr-workspace-model spec,
+   * Staleness). The host never reads record fields for this — pre-model workspaces
+   * update identically. Guard refusals (dirty, active sessions, diverged) come back
+   * as distinct typed errors.
+   */
+  updateWorktree: fallible({
+    input: workspaceKeyInput.extend({
+      remote: z.string().min(1),
+      sourceRef: z.string().min(1),
+    }),
+    data: z.void(),
+    error: z.union([updateWorktreeErrorSchema, runtimeResolveErrorSchema]),
   }),
 
   /** Manual retry of a durably failed lifecycle step (copy-artifacts | push-branch). */

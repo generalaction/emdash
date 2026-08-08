@@ -165,6 +165,171 @@ describe('buildCreationLifecycle', () => {
   });
 });
 
+describe('buildCreationLifecycle with gitSetup', () => {
+  const gitSetupInput: CreateWorktreeInput = {
+    workspaceId: 'ws-2',
+    repositoryId: 'repo-1',
+    branch: 'pr/7/fix',
+    path: '/tmp/pr-wt',
+    preservePatterns: [],
+    pushBranch: false,
+    gitSetup: {
+      fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+      upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+      breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+    },
+  };
+
+  it('a fresh gitSetup creation yields fetch-branch and configure-branch steps in order', () => {
+    const lifecycle = buildCreationLifecycle(
+      gitSetupInput,
+      {
+        status: 'succeeded',
+        finalPath: '/tmp/pr-wt',
+        createdWorktree: true,
+        createdBranch: true,
+      },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'fetch-branch', at: 120 },
+        { stage: 'add-worktree', at: 300 },
+        { stage: 'configure-branch', at: 400 },
+        { stage: 'verify', at: 450 },
+      ],
+      500
+    );
+    expect(lifecycle.steps).toEqual([
+      {
+        id: 'fetch-branch',
+        status: 'succeeded',
+        startedAt: 120,
+        finishedAt: 300,
+        params: { branch: 'pr/7/fix', remote: 'origin', source: 'refs/pull/7/head' },
+      },
+      {
+        id: 'create-worktree',
+        status: 'succeeded',
+        startedAt: 300,
+        finishedAt: 500,
+        params: { path: '/tmp/pr-wt', branch: 'pr/7/fix', branchCreated: true },
+      },
+      {
+        id: 'configure-branch',
+        status: 'succeeded',
+        startedAt: 400,
+        finishedAt: 450,
+        params: { branch: 'pr/7/fix' },
+      },
+    ]);
+    // No baseRef, nothing to freshen: fetch-refs never applies.
+    expect(lifecycle.steps.some((step) => step.id === 'fetch-refs')).toBe(false);
+  });
+
+  it('a reused branch yields a skipped fetch-branch step and configure-branch still runs', () => {
+    const lifecycle = buildCreationLifecycle(
+      gitSetupInput,
+      {
+        status: 'succeeded',
+        finalPath: '/tmp/pr-wt',
+        createdWorktree: true,
+        createdBranch: false,
+      },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'add-worktree', at: 150 },
+        { stage: 'configure-branch', at: 200 },
+        { stage: 'verify', at: 250 },
+      ],
+      300
+    );
+    expect(lifecycle.steps.map((step) => step.id)).toEqual([
+      'fetch-branch',
+      'create-worktree',
+      'configure-branch',
+    ]);
+    expect(lifecycle.steps[0]).toMatchObject({ status: 'skipped', startedAt: null });
+    expect(lifecycle.steps[0]!.message).toBeDefined();
+    expect(lifecycle.steps[2]).toMatchObject({ status: 'succeeded' });
+  });
+
+  it('an adopted worktree with gitSetup yields adopt, skipped fetch, and configure', () => {
+    const lifecycle = buildCreationLifecycle(
+      gitSetupInput,
+      {
+        status: 'succeeded',
+        finalPath: '/tmp/pr-wt',
+        createdWorktree: false,
+        createdBranch: false,
+      },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'configure-branch', at: 150 },
+        { stage: 'verify', at: 200 },
+      ],
+      250
+    );
+    expect(lifecycle.steps.map((step) => step.id)).toEqual([
+      'adopt-worktree',
+      'fetch-branch',
+      'configure-branch',
+    ]);
+    expect(lifecycle.steps[1]).toMatchObject({ status: 'skipped' });
+  });
+
+  it('a failed fetch lands as a failed fetch-branch step', () => {
+    const lifecycle = buildCreationLifecycle(
+      gitSetupInput,
+      { status: 'failed', stage: 'fetch-branch', message: 'couldn\u2019t find remote ref' },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'fetch-branch', at: 120 },
+      ],
+      200
+    );
+    expect(lifecycle.steps).toEqual([
+      {
+        id: 'fetch-branch',
+        status: 'failed',
+        startedAt: 120,
+        finishedAt: 200,
+        message: 'couldn\u2019t find remote ref',
+        params: { branch: 'pr/7/fix', remote: 'origin', source: 'refs/pull/7/head' },
+      },
+    ]);
+  });
+
+  it('a failed configure-branch keeps the succeeded fetch-branch step in the timeline', () => {
+    const lifecycle = buildCreationLifecycle(
+      gitSetupInput,
+      { status: 'failed', stage: 'configure-branch', message: 'could not lock config file' },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'fetch-branch', at: 120 },
+        { stage: 'add-worktree', at: 300 },
+        { stage: 'configure-branch', at: 400 },
+      ],
+      450
+    );
+    expect(lifecycle.steps).toEqual([
+      {
+        id: 'fetch-branch',
+        status: 'succeeded',
+        startedAt: 120,
+        finishedAt: 300,
+        params: { branch: 'pr/7/fix', remote: 'origin', source: 'refs/pull/7/head' },
+      },
+      {
+        id: 'configure-branch',
+        status: 'failed',
+        startedAt: 400,
+        finishedAt: 450,
+        message: 'could not lock config file',
+        params: { branch: 'pr/7/fix' },
+      },
+    ]);
+  });
+});
+
 describe('withLifecycleStep', () => {
   it('inserts new steps in canonical order and replaces existing ones in place', () => {
     const base = buildCreationLifecycle(

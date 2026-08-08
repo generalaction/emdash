@@ -99,6 +99,9 @@ export function createWorkspaceRegistryWireController(
         registry.refresh(workspaceId === undefined ? {} : { workspaceId })
       ),
 
+    updateWorktree: ({ host, workspaceId, remote, sourceRef }) =>
+      withRegistry(host, (registry) => registry.updateWorktree({ workspaceId, remote, sourceRef })),
+
     retryStep: ({ host, workspaceId, step }) =>
       withRegistry(host, async (registry) => {
         const result = await registry.retryStep({ workspaceId, step });

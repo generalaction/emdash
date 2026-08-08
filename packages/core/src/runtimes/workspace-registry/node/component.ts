@@ -7,9 +7,10 @@ import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { workspaceRegistryContract } from '../api';
 import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';
+import { RefFollowScheduler } from './ref-follow';
 import { WorkspaceRegistryRuntime } from './runtime';
 import { WorkspaceScanScheduler } from './scan/scheduler';
-import { createSessionKiller } from './session-cleanup';
+import { createSessionCounter, createSessionKiller } from './session-cleanup';
 import { WorkspaceSessionGc } from './session-gc';
 
 export const workspaceRegistryComponentConfigSchema = z.object({
@@ -24,6 +25,12 @@ export const workspaceRegistryComponentConfigSchema = z.object({
       debounceMs: z.number().positive().optional(),
       activeDebounceMs: z.number().positive().optional(),
       pollIntervalMs: z.number().positive().optional(),
+    })
+    .optional(),
+  refFollow: z
+    .object({
+      intervalMs: z.number().positive().optional(),
+      jitterMs: z.number().nonnegative().optional(),
     })
     .optional(),
   sessionGcIntervalMs: z.number().int().positive().optional(),
@@ -55,7 +62,12 @@ export const workspaceRegistryComponent = defineWireComponent({
       tuiAgents: dependencies.tuiAgents,
     };
     const killSessions = createSessionKiller(sessionClients, logger);
-    const runtime = new WorkspaceRegistryRuntime({ handle, logger, killSessions });
+    const runtime = new WorkspaceRegistryRuntime({
+      handle,
+      logger,
+      killSessions,
+      countSessions: createSessionCounter(sessionClients),
+    });
     // Sweeps sessions under vanished paths (moved from the retired workspace-host).
     const sessionGc = new WorkspaceSessionGc({
       clients: sessionClients,
@@ -84,6 +96,16 @@ export const workspaceRegistryComponent = defineWireComponent({
     runtime.setScanMuter((id) => scheduler.mute(id));
     scheduler.start();
     scope.add(() => scheduler.dispose());
+
+    // The autonomous ref-follow loop (spec: pr-workspace-model staleness): slow,
+    // jittered, decoupled from the scan — it fetches; the scan never does.
+    const refFollow = new RefFollowScheduler({
+      runPass: () => runtime.runRefFollowPass(),
+      logger,
+      ...config.refFollow,
+    });
+    refFollow.start();
+    scope.add(() => refFollow.dispose());
 
     // Boot reconciliation: catch up with whatever changed while the daemon was down.
     void runtime.scanHost().catch((error) => {

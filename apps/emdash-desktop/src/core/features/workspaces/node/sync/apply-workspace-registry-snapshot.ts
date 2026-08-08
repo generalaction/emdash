@@ -173,7 +173,7 @@ export function mirrorObservationFromRecord(
     parentId: record.parentId,
     origin: record.origin,
     observedStatus: record.observedStatus,
-    observedGit: record.git === null ? null : { version: '1' as const, ...record.git },
+    observedGit: record.git === null ? null : { version: '2' as const, ...record.git },
     lastCreateOutcome:
       record.lastCreateOutcome === null
         ? null

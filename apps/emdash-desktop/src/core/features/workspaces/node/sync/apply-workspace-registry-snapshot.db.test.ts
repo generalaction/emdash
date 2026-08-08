@@ -26,6 +26,13 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
       behind: 0,
       locked: false,
       prunable: false,
+      headOid: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      upstream: {
+        remote: 'origin',
+        mergeRef: 'refs/heads/feature/x',
+        remoteUrl: 'https://example.com/acme/app.git',
+      },
+      prBreadcrumb: 'https://github.com/acme/app/pull/7',
     },
     lastActivatedAt: null,
     createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
@@ -103,10 +110,17 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       config: null,
       observedStatus: 'present',
       observedGit: {
-        version: '1',
+        version: '2',
         branch: 'feature/x',
         dirty: true,
         diffStats: { added: 12, deleted: 3 },
+        headOid: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+        upstream: {
+          remote: 'origin',
+          mergeRef: 'refs/heads/feature/x',
+          remoteUrl: 'https://example.com/acme/app.git',
+        },
+        prBreadcrumb: 'https://github.com/acme/app/pull/7',
       },
       lastCreateOutcome: { version: '1', status: 'succeeded' },
       runtimeOverlay: null,
@@ -130,6 +144,47 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+    });
+  });
+
+  it('treats a stored v1 observedGit payload as not yet observed and rewrites it as v2', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.register({
+      id: 'wt-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/worktrees/wt-1',
+    });
+    // The exact JSON a pre-v2 desktop stored: version '1', none of the v2 fields.
+    // No upcast exists by design — observations are re-derived by the next scan.
+    fixture.sqlite.prepare(`UPDATE workspaces SET observed_git = ? WHERE id = 'wt-1'`).run(
+      JSON.stringify({
+        version: '1',
+        branch: 'feature/x',
+        dirty: true,
+        diffStats: null,
+        ahead: null,
+        behind: null,
+        locked: false,
+        prunable: false,
+      })
+    );
+
+    expect(registry.getLive('wt-1')?.observedGit).toBeNull();
+
+    // The next delivery persists the v2 payload wholesale.
+    await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { 'wt-1': hostRecord({ id: 'wt-1' }) },
+    });
+    expect(registry.getLive('wt-1')?.observedGit).toMatchObject({
+      version: '2',
+      branch: 'feature/x',
+      headOid: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      upstream: { remote: 'origin' },
+      prBreadcrumb: 'https://github.com/acme/app/pull/7',
     });
   });
 

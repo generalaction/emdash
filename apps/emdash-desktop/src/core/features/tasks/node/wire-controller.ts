@@ -227,6 +227,24 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
               }
             : null,
           lifecycle: row.runtimeOverlay?.lifecycle ?? null,
+          // Raw PR-association and drift facts; a null observedGit (old host /
+          // v1 payload) projects null, degrading association to branch matching
+          // only and checkout drift to unknown.
+          observedPr: row.observedGit
+            ? {
+                branch: row.observedGit.branch,
+                prBreadcrumb: row.observedGit.prBreadcrumb,
+                upstream: row.observedGit.upstream
+                  ? {
+                      mergeRef: row.observedGit.upstream.mergeRef,
+                      remoteUrl: row.observedGit.upstream.remoteUrl,
+                    }
+                  : null,
+                headOid: row.observedGit.headOid,
+                ahead: row.observedGit.ahead,
+                behind: row.observedGit.behind,
+              }
+            : null,
         },
       ])
     ),

@@ -134,7 +134,7 @@ function compileCreateWorktree(
 
 /**
  * The verb resolves an existing local branch itself, so the base ref only matters when
- * the branch is being created — mirrors the desktop's `compileRegistryGitSpec`.
+ * the branch is being created — mirrors the desktop's `compileWorktreeGitPlan`.
  */
 function compileBaseRef(
   git: Extract<AutomationWorkspaceConfig, { kind: 'worktree' }>['git']

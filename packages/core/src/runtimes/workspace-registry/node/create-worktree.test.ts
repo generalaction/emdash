@@ -34,6 +34,26 @@ async function makeRepo(root: string, name: string): Promise<string> {
   return repoPath;
 }
 
+/**
+ * Seeds a bare "remote" carrying a PR-style ref (refs/pull/7/head) whose commit is not
+ * on main, plus main itself. Returns the remote path and the PR head's OID.
+ */
+async function makePrRemote(
+  root: string,
+  name: string
+): Promise<{ originPath: string; prHeadOid: string }> {
+  const seed = await makeRepo(root, `${name}-seed`);
+  git(seed, 'checkout', '-b', 'pr-source');
+  await fs.writeFile(path.join(seed, 'pr-change.txt'), 'from the PR\n');
+  git(seed, 'add', '.');
+  git(seed, 'commit', '-m', 'pr change');
+  const prHeadOid = git(seed, 'rev-parse', 'HEAD');
+  const originPath = path.join(root, `${name}.git`);
+  git(root, 'init', '--bare', originPath);
+  git(seed, 'push', originPath, 'main', 'HEAD:refs/pull/7/head');
+  return { originPath, prHeadOid };
+}
+
 describe('executeCreateWorktree resolve-base', () => {
   let root: string;
 
@@ -109,5 +129,151 @@ describe('executeCreateWorktree resolve-base', () => {
     });
 
     expect(result).toMatchObject({ status: 'failed', stage: 'resolve-base' });
+  });
+});
+
+// Integration tests for the gitSetup stages (spec: pr-workspace-model provisioning):
+// fetch-branch materializes refs/heads/<branch> from an arbitrary source ref with a
+// plain (never force) refspec, configure-branch writes upstream tracking and the PR
+// breadcrumb idempotently, and failures stage-tag and roll back like every other stage.
+describe('executeCreateWorktree gitSetup', () => {
+  let root: string;
+  let repoPath: string;
+  let originPath: string;
+  let prHeadOid: string;
+
+  const gitSetup = {
+    fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+    upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+    breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/7' },
+  };
+
+  beforeEach(async () => {
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-gitsetup-')));
+    ({ originPath, prHeadOid } = await makePrRemote(root, 'origin'));
+    repoPath = await makeRepo(root, 'repo');
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it('fetches the source ref into the branch, checks it out, and configures it', async () => {
+    const stages: string[] = [];
+    const result = await executeCreateWorktree({
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'pr-wt'),
+      branch: 'pr/7/fix',
+      baseRef: null,
+      gitSetup,
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      createdWorktree: true,
+      createdBranch: true,
+    });
+    expect(stages).toEqual([
+      'inspect',
+      'fetch-branch',
+      'add-worktree',
+      'configure-branch',
+      'verify',
+    ]);
+    expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(prHeadOid);
+    expect(git(path.join(root, 'pr-wt'), 'branch', '--show-current')).toBe('pr/7/fix');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.merge')).toBe('refs/pull/7/head');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+      'https://github.com/acme/repo/pull/7'
+    );
+  });
+
+  it('reuses an existing branch untouched (fetch skipped) and still configures it', async () => {
+    git(repoPath, 'branch', 'pr/7/fix');
+    const localOid = git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix');
+    expect(localOid).not.toBe(prHeadOid);
+
+    const stages: string[] = [];
+    const result = await executeCreateWorktree({
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'reuse-wt'),
+      branch: 'pr/7/fix',
+      baseRef: null,
+      gitSetup,
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      createdWorktree: true,
+      createdBranch: false,
+    });
+    expect(stages).not.toContain('fetch-branch');
+    expect(stages).toContain('configure-branch');
+    // The replay rule: refs/heads/<branch> is never force-updated by the host.
+    expect(git(repoPath, 'rev-parse', 'refs/heads/pr/7/fix')).toBe(localOid);
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.remote')).toBe('origin');
+    expect(git(repoPath, 'config', 'branch.pr/7/fix.emdash-pr-url')).toBe(
+      'https://github.com/acme/repo/pull/7'
+    );
+  });
+
+  it('a fetchBranch without upstream or breadcrumb never runs configure-branch', async () => {
+    const stages: string[] = [];
+    const result = await executeCreateWorktree({
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'plain-wt'),
+      branch: 'pr/7/plain',
+      baseRef: null,
+      gitSetup: { fetchBranch: gitSetup.fetchBranch, followRef: true },
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(result).toMatchObject({ status: 'succeeded' });
+    expect(stages).toContain('fetch-branch');
+    expect(stages).not.toContain('configure-branch');
+  });
+
+  it('a failed fetch is a stage-tagged fetch-branch failure leaving no debris branch', async () => {
+    const result = await executeCreateWorktree({
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'doomed-wt'),
+      branch: 'pr/999/missing',
+      baseRef: null,
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/999/head' },
+        breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/999' },
+      },
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'failed', stage: 'fetch-branch' });
+    expect(git(repoPath, 'branch', '--list', 'pr/999/missing')).toBe('');
+    await expect(fs.access(path.join(root, 'doomed-wt'))).rejects.toThrow();
+  });
+
+  it('a failed configure-branch rolls back the worktree and the fetched branch', async () => {
+    // A stale config lock makes every `git config` write fail while fetch and
+    // worktree-add (which never touch the config file) still succeed.
+    await fs.writeFile(path.join(repoPath, '.git', 'config.lock'), '');
+
+    const result = await executeCreateWorktree({
+      repositoryPath: repoPath,
+      worktreePath: path.join(root, 'locked-wt'),
+      branch: 'pr/7/locked',
+      baseRef: null,
+      gitSetup: {
+        fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
+        upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
+      },
+      onStage: () => undefined,
+    });
+
+    expect(result).toMatchObject({ status: 'failed', stage: 'configure-branch' });
+    expect(git(repoPath, 'branch', '--list', 'pr/7/locked')).toBe('');
+    await expect(fs.access(path.join(root, 'locked-wt'))).rejects.toThrow();
   });
 });

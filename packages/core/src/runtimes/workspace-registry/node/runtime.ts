@@ -16,6 +16,7 @@ import type {
   DeleteWorkspaceError,
   DeleteWorktreeError,
   MeasureUsageError,
+  UpdateWorktreeError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
@@ -28,6 +29,8 @@ import type {
   MeasureUsageInput,
   RefreshWorkspacesInput,
   RetryStepInput,
+  UpdateWorktreeInput,
+  WorkspaceGitSetup,
   WorkspaceLifecycleStep,
   WorkspaceLifecycleStepId,
   WorkspaceRecord,
@@ -63,6 +66,7 @@ import { measureWorkspaceUsage } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
+  createRemoteUrlCache,
   createUntrackedLinesCache,
   listRepositoryWorktrees,
   observeWorkspaceGit,
@@ -72,7 +76,8 @@ import {
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
 import type { WorkspaceScriptRunner } from './script-runner';
-import type { SessionKiller } from './session-cleanup';
+import type { SessionCounter, SessionKiller } from './session-cleanup';
+import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -84,6 +89,8 @@ export type WorkspaceRegistryRuntimeOptions = {
   onRecordsChanged?: () => void;
   /** deactivateWorkspace's session-plane step; the component builds it from the session runtimes. */
   killSessions?: SessionKiller;
+  /** updateWorktree's "active" guard probe; the component builds it from the same runtimes. */
+  countSessions?: SessionCounter;
   activation?: {
     runner?: WorkspaceScriptRunner;
     teardownTimeoutMs?: number;
@@ -139,6 +146,7 @@ export class WorkspaceRegistryRuntime {
   private readonly configReads = new Map<string, Promise<WorkspaceConfigEntry>>();
   private disposed = false;
   private readonly killSessions: SessionKiller;
+  private readonly countSessions: SessionCounter;
   private readonly activationManager: WorkspaceActivationManager;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
 
@@ -149,6 +157,7 @@ export class WorkspaceRegistryRuntime {
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);
+    this.countSessions = options.countSessions ?? (async () => 0);
     this.activationManager = new WorkspaceActivationManager({
       publishActivation: (id, activation) =>
         this.updateOverlay(id, (overlay) => ({ ...overlay, activation })),
@@ -347,6 +356,151 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
+   * Fast-forwards one worktree's checkout to the desktop-compiled `{remote, sourceRef}`
+   * instruction (spec: pr-workspace-model staleness, manual update). The record's own
+   * `gitSetup` is deliberately never read — instruction-as-input is what makes
+   * pre-model workspaces updatable. Held under the per-workspace claim like the other
+   * mutators; the executor takes the per-worktree writer lock around guards + fetch +
+   * ff-only so scans never observe a torn checkout. "Active" means live sessions under
+   * the worktree path — exactly the set deactivateWorkspace would kill — consulted
+   * through the session-count seam. A success writes nothing durable; the trailing
+   * deliberate scan feeds the observation (and the desktop's drift state).
+   */
+  updateWorktree(input: UpdateWorktreeInput): Promise<Result<void, UpdateWorktreeError>> {
+    return this.workspaceClaims.runExclusive(input.workspaceId, async () => {
+      const record = this.store.get(input.workspaceId);
+      if (!record) return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+      if (record.kind !== 'worktree') {
+        return err({ type: 'not-a-worktree', workspaceId: input.workspaceId });
+      }
+      if (record.observedStatus === 'missing') {
+        return err({ type: 'workspace-missing', workspaceId: input.workspaceId });
+      }
+      const parent = record.parentId === null ? null : this.store.get(record.parentId);
+      // The update writes into the worktree (the ff checkout) and the shared git dir
+      // (the private fetch ref): mute both watchers, then scan once deliberately.
+      const releaseWorktree = this.muteScans(input.workspaceId);
+      const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
+      try {
+        const result = await executeUpdateWorktree({
+          repositoryPath: parent?.path ?? record.path,
+          worktreePath: record.path,
+          remote: input.remote,
+          sourceRef: input.sourceRef,
+          isActive: async () => (await this.countSessions(record.path)) > 0,
+        });
+        if (result.status === 'refused') {
+          return err(
+            result.reason === 'dirty'
+              ? { type: 'worktree-dirty', workspaceId: input.workspaceId }
+              : { type: 'workspace-active', workspaceId: input.workspaceId }
+          );
+        }
+        if (result.status === 'diverged') {
+          return err({ type: 'diverged', workspaceId: input.workspaceId, message: result.message });
+        }
+        if (result.status === 'failed') {
+          return err({ type: 'stage-failed', stage: result.stage, message: result.message });
+        }
+        return ok(undefined);
+      } finally {
+        releaseRepository?.();
+        releaseWorktree();
+        this.settleScan({ kind: 'workspace', id: input.workspaceId, mode: 'full' });
+      }
+    });
+  }
+
+  /**
+   * One autonomous ref-follow pass (spec: pr-workspace-model staleness, ref follow):
+   * every follow-flagged, present worktree record fast-forwards to its durably
+   * recorded fetch instruction — the ONE caller that reads `creation.gitSetup`, by
+   * design (the manual verb takes instruction-as-input so pre-model workspaces work).
+   * Every skip is a silent non-error retried on a later pass: dirty, active sessions,
+   * diverged, and fetch failures (a closed PR's `refs/pull/N/head` may simply be
+   * gone) all degrade to observation — nothing durable is written, no notice raised.
+   * Sequential by design: a slow-cadence background pass never needs parallel
+   * fetches, and one worktree at a time keeps the background-tier load trivial. A
+   * registry with no flagged records makes this a cheap no-op — no git subprocess is
+   * ever spawned. Returns pass counts for logging and structural test assertions.
+   */
+  async runRefFollowPass(): Promise<{ eligible: number; updated: number }> {
+    const candidates = this.store
+      .list()
+      .filter(
+        (record) =>
+          record.kind === 'worktree' &&
+          record.observedStatus === 'present' &&
+          record.creation?.gitSetup?.followRef === true &&
+          record.creation.gitSetup.fetchBranch !== undefined
+      );
+    let updated = 0;
+    for (const candidate of candidates) {
+      if (this.disposed) break;
+      if (await this.followWorktree(candidate.id)) updated += 1;
+    }
+    if (updated > 0) {
+      this.logger.info?.(`ref-follow pass moved ${updated} of ${candidates.length} checkouts`);
+    }
+    return { eligible: candidates.length, updated };
+  }
+
+  /**
+   * One worktree's follow attempt, invoked exactly like the manual verb: the same
+   * per-workspace claim (never two concurrent updates of one worktree), the same
+   * watcher muting, the same shared executor (guards + ff-only under the writer
+   * lock), the same trailing deliberate scan — a moved checkout surfaces only through
+   * the normal observation path. Runs at the 'background' budget tier so follow work
+   * never starves probes or creation. True only when the checkout actually moved.
+   */
+  private followWorktree(id: string): Promise<boolean> {
+    return this.workspaceClaims.runExclusive(id, async () => {
+      // Re-validated under the claim: the record may have changed since enumeration.
+      const record = this.store.get(id);
+      const instruction =
+        record?.creation?.gitSetup?.followRef === true
+          ? record.creation.gitSetup.fetchBranch
+          : undefined;
+      if (
+        !record ||
+        record.kind !== 'worktree' ||
+        record.observedStatus !== 'present' ||
+        instruction === undefined
+      ) {
+        return false;
+      }
+      const parent = record.parentId === null ? null : this.store.get(record.parentId);
+      const releaseWorktree = this.muteScans(id);
+      const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
+      try {
+        const result = await executeUpdateWorktree({
+          repositoryPath: parent?.path ?? record.path,
+          worktreePath: record.path,
+          remote: instruction.remote,
+          sourceRef: instruction.sourceRef,
+          tier: 'background',
+          isActive: async () => (await this.countSessions(record.path)) > 0,
+        });
+        if (result.status === 'updated') {
+          this.logger.info?.(
+            `ref-follow fast-forwarded '${id}' to ${instruction.sourceRef} (${result.toOid})`
+          );
+          return true;
+        }
+        if (result.status !== 'up-to-date') {
+          // Forensic breadcrumb only — skips are ordinary, the next pass retries.
+          this.logger.debug?.(`ref-follow skipped '${id}': ${describeSkip(result)}`);
+        }
+        return false;
+      } finally {
+        releaseRepository?.();
+        releaseWorktree();
+        this.settleScan({ kind: 'workspace', id, mode: 'full' });
+      }
+    });
+  }
+
+  /**
    * One plain RPC end-to-end: durable registration (outcome 'started') happens under
    * the writer queue; the long-running stage pipeline runs unserialized — concurrent
    * creations against one repository are safe (spec: git concurrency model) and the
@@ -378,7 +532,8 @@ export class WorkspaceRegistryRuntime {
         repositoryPath: repository.path,
         worktreePath: path.resolve(input.path),
         branch: input.branch,
-        baseRef: input.baseRef,
+        baseRef: input.baseRef ?? null,
+        gitSetup: input.gitSetup,
         onStage: (stage) => {
           stageStarts.push({ stage, at: Date.now() });
           this.updateOverlay(input.workspaceId, (overlay) => ({
@@ -688,7 +843,8 @@ export class WorkspaceRegistryRuntime {
       const matches =
         spec !== null &&
         spec.branch === input.branch &&
-        spec.baseRef === input.baseRef &&
+        spec.baseRef === (input.baseRef ?? null) &&
+        sameGitSetup(spec.gitSetup, input.gitSetup) &&
         spec.requestedPath === input.path &&
         existing.parentId === input.repositoryId;
       if (!matches) {
@@ -732,7 +888,12 @@ export class WorkspaceRegistryRuntime {
       // Not on disk yet: 'missing' + outcome 'started' + no overlay reads as
       // "interrupted" after a daemon crash — exactly the diagnostic the spec wants.
       observedStatus: 'missing',
-      creation: { branch: input.branch, baseRef: input.baseRef, requestedPath: input.path },
+      creation: {
+        branch: input.branch,
+        baseRef: input.baseRef ?? null,
+        requestedPath: input.path,
+        ...(input.gitSetup !== undefined ? { gitSetup: input.gitSetup } : {}),
+      },
       lastCreateOutcome: { status: 'started', at: now },
       lifecycle: null,
       lastRemovalAttempt: null,
@@ -1200,6 +1361,9 @@ export class WorkspaceRegistryRuntime {
       return settled;
     }
 
+    // One remote-URL resolution per repository per reconcile pass (spec: probe budget);
+    // worktrees share their repository's config, so the cache is safe across children.
+    const remoteUrlCache = createRemoteUrlCache();
     const children = records.filter(
       (record) => record.kind === 'worktree' && record.parentId === repository.id
     );
@@ -1230,6 +1394,7 @@ export class WorkspaceRegistryRuntime {
             observedStatus: 'present',
             git: await observeWorkspaceGit(canonicalPath, listing, {
               untrackedCache: this.untrackedCacheFor(child.id),
+              remoteUrlCache,
             }),
           },
           now
@@ -1254,6 +1419,7 @@ export class WorkspaceRegistryRuntime {
         lastRemovalAttempt: null,
         git: await observeWorkspaceGit(canonicalPath, listing, {
           untrackedCache: this.untrackedCacheFor(adoptedId),
+          remoteUrlCache,
         }),
         lastActivatedAt: null,
         createdAt: now,
@@ -1278,6 +1444,7 @@ export class WorkspaceRegistryRuntime {
             observedStatus: 'present',
             git: await observeWorkspaceGit(child.path, undefined, {
               untrackedCache: this.untrackedCacheFor(child.id),
+              remoteUrlCache,
             }),
           },
           now
@@ -1294,6 +1461,7 @@ export class WorkspaceRegistryRuntime {
         observedStatus: 'present',
         git: await observeWorkspaceGit(repository.path, undefined, {
           untrackedCache: this.untrackedCacheFor(repository.id),
+          remoteUrlCache,
         }),
       },
       now
@@ -1529,7 +1697,7 @@ export class WorkspaceRegistryRuntime {
         params: record.creation
           ? {
               branch: record.creation.branch,
-              base: record.creation.baseRef,
+              ...(record.creation.baseRef !== null ? { base: record.creation.baseRef } : {}),
               path: record.creation.requestedPath,
             }
           : {},
@@ -1567,6 +1735,42 @@ function toStepState(outcome: {
   if (outcome.status === 'failed') return { status: 'failed', message: outcome.message };
   if (outcome.status === 'skipped') return { status: 'skipped', message: outcome.reason };
   return { status: 'succeeded' };
+}
+
+/** The skip's one-line forensic description for the follow pass's debug log. */
+function describeSkip(result: UpdateWorktreeExecutionResult): string {
+  switch (result.status) {
+    case 'refused':
+      return result.reason;
+    case 'diverged':
+      return 'diverged';
+    case 'failed':
+      return `${result.stage} failed: ${result.message}`;
+    default:
+      return result.status;
+  }
+}
+
+/**
+ * Replay-identity comparison of two gitSetup blocks, key-order independent: durable
+ * records round-trip through JSON, so a field-by-field canonical form is compared
+ * instead of the raw objects.
+ */
+function sameGitSetup(a?: WorkspaceGitSetup, b?: WorkspaceGitSetup): boolean {
+  const canonical = (setup?: WorkspaceGitSetup) =>
+    setup === undefined
+      ? null
+      : {
+          fetchBranch: setup.fetchBranch
+            ? { remote: setup.fetchBranch.remote, sourceRef: setup.fetchBranch.sourceRef }
+            : null,
+          upstream: setup.upstream
+            ? { remote: setup.upstream.remote, mergeRef: setup.upstream.mergeRef }
+            : null,
+          breadcrumb: setup.breadcrumb ? { prUrl: setup.breadcrumb.prUrl } : null,
+          followRef: setup.followRef ?? null,
+        };
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
 /** The change-detection view of a record: everything except the bookkeeping stamps. */

@@ -1,5 +1,9 @@
 export * from './build-workspace-config-from-preset';
-export * from './describe-setup-steps';
+export * from './compile-pr-update-instruction';
+export * from './compile-worktree-git-plan';
+export * from './pr-source-refs';
+export * from './describe-worktree-git-plan';
+export * from './lifecycle-step-titles';
 export * from './project-workspace';
 export * from './project-workspaces';
 export * from './workspace-config';
@@ -7,5 +11,4 @@ export * from './workspace-deletion-tombstone';
 export * from './workspace-mirror';
 export * from './workspace-presets';
 export * from './workspace-registry-observations';
-export * from './workspace-setup-spec';
 export * from './workspaces';

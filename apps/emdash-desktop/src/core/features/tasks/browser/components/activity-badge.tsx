@@ -18,6 +18,7 @@ import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { WorkspaceLifecycleStepInfo } from '@core/primitives/tasks/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
+import { LIFECYCLE_STEP_TITLES } from '@core/primitives/workspaces/api';
 
 /**
  * The workspace lifecycle timeline (spec: workspace-lifecycle-v2, Activity badge):
@@ -45,25 +46,17 @@ const STATUS_ICONS: Record<
   failed: 'error',
 };
 
-const STEP_TITLES: Record<WorkspaceLifecycleStepInfo['id'], string> = {
-  'adopt-worktree': 'Adopt worktree',
-  'fetch-remote-base': 'Fetch remote base',
-  'create-worktree': 'Create worktree',
-  'copy-artifacts': 'Copy artifacts',
-  'push-branch': 'Push branch',
-  'fetch-refs': 'Fetch refs',
-  prepare: 'Prepare',
-  setup: 'Setup',
-  run: 'Run',
-};
-
 function stepDescription(step: WorkspaceLifecycleStepInfo): string {
   const params = step.params;
   switch (step.id) {
     case 'adopt-worktree':
       return `Worktree with ${params.branch} already exists at ${params.path}`;
+    case 'fetch-branch':
+      return `Fetching ${params.source} into ${params.branch}`;
     case 'fetch-remote-base':
       return `Fetch remote base ${params.base}`;
+    case 'configure-branch':
+      return `Configuring upstream tracking for ${params.branch}`;
     case 'create-worktree': {
       // While the step is still running, whether the branch is new is unknown.
       const branchKind =
@@ -160,7 +153,7 @@ export function ActivityBadgeView({
               <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                 <span className="flex w-full items-baseline justify-between gap-2">
                   <span className="text-xs font-medium text-foreground">
-                    {STEP_TITLES[step.id]}
+                    {LIFECYCLE_STEP_TITLES[step.id]}
                   </span>
                   {timestamp !== null && (
                     <span className="shrink-0 text-[11px] text-foreground-passive">

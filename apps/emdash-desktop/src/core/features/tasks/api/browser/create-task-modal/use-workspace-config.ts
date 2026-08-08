@@ -1,14 +1,16 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useMemo, useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useProjectWorkspaces } from '@core/features/tasks/browser/task-config/existing-workspace-picker';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { buildWorkspaceConfigFromPreset } from '@core/primitives/workspaces/api';
-import { describeSetupSteps } from '@core/primitives/workspaces/api';
+import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
+import { describeWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
-import { compileSetupSpec } from '@core/primitives/workspaces/api';
+import type { WorktreeSetupStep } from '@core/primitives/workspaces/api';
 import type { PullRequest } from '@core/services/pull-requests/api';
 import {
   useBranchName,
@@ -46,8 +48,12 @@ export type WorkspaceConfigState = {
   // ── Derived ────────────────────────────────────────────────────────────
   /** The resolved WorkspaceConfig to pass to createTask. */
   resolvedConfig: WorkspaceConfig;
-  /** Human-readable git steps that will run at provision time. */
-  setupSteps: string[];
+  /**
+   * The provision-time step preview: a projection of the exact compiled worktree git
+   * plan `createTask` executes, carrying real lifecycle step ids. Empty for
+   * repository-instance targets, git-less configs, and incomplete input.
+   */
+  setupSteps: WorktreeSetupStep[];
   /** Whether enough information is present to submit the form. */
   isValid: boolean;
   /**
@@ -304,18 +310,24 @@ export function useWorkspaceConfig(opts: {
 
   // ── Setup steps ───────────────────────────────────────────────────────────
 
-  const setupSteps = useMemo((): string[] => {
+  // Same source as execution: `createTask` reads the project settings' preservePatterns.
+  const preservePatterns = projectId
+    ? getProjectSettingsStore(projectId)?.settings?.preservePatterns
+    : undefined;
+  const setupSteps = useMemo((): WorktreeSetupStep[] => {
+    // One compiler for preview and execution: the same `compileWorktreeGitPlan` call
+    // `createTask` makes, so the preview describes exactly the bytes sent to the verb.
+    // Incomplete state is gated here: `resolvedConfig` already falls back to
+    // `git: 'none'` when the preset context is incomplete (e.g. no PR selected), and
+    // an empty branch name hides the preview instead of promising a nameless branch.
+    const git = resolvedConfig.git;
+    if (resolvedConfig.workspace.kind === 'repository-instance' || git.kind === 'none') return [];
     const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
     const baseRemote = repo?.baseRemote?.name ?? 'origin';
-    const pushRemote = repo?.pushRemote?.name ?? 'origin';
-    // compileSetupSpec still uses the legacy WorkspaceLocation format.
-    // For step-preview purposes: new-worktree → host:local, otherwise no steps.
-    const git = resolvedConfig.git;
-    const wsTarget = resolvedConfig.workspace;
-    if (wsTarget.kind === 'repository-instance' || git.kind === 'none') return [];
-    const spec = compileSetupSpec(git, { host: 'local' }, { baseRemote, pushRemote });
-    return describeSetupSteps(spec);
-  }, [resolvedConfig, projectId]);
+    const plan = compileWorktreeGitPlan(git, { baseRemote });
+    if (plan.branch.trim() === '') return [];
+    return describeWorktreeGitPlan(plan, { preservePatterns: preservePatterns ?? [] });
+  }, [resolvedConfig, projectId, preservePatterns]);
 
   // ── Branch conflict ───────────────────────────────────────────────────────
 

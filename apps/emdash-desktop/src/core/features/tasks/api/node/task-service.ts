@@ -19,7 +19,6 @@ import { operationHostRef } from '@core/features/workspaces/api/node/operation-h
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import {
-  compileRegistryGitSpec,
   createWorktreeThroughRegistry,
   type WorkspaceCreationOutcome,
   type WorkspaceCreations,
@@ -44,6 +43,7 @@ import type {
   Task,
 } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -363,10 +363,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     if (!project) {
       return err({ stage: 'replay', message: 'Workspace project was not found.' });
     }
-    const gitSpec = compileRegistryGitSpec(config.git);
-    if (!gitSpec.success) {
-      return err({ stage: 'replay', message: gitSpec.error.message });
+    if (config.git.kind === 'none') {
+      return err({
+        stage: 'replay',
+        message: 'A Git branch is required when creating a worktree.',
+      });
     }
+    const gitPlan = compileWorktreeGitPlan(config.git, {
+      baseRemote: await project.settings.getBaseRemote(),
+    });
     const settings = await project.settings.get();
     const workspacePath = workspaceRow.path;
     return this.dependencies.creations.run(workspaceRow.id, () =>
@@ -375,11 +380,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         repositoryWorkspaceId: workspaceRow.parentId,
         repositoryPath: project.repoPath,
         workspaceId: workspaceRow.id,
-        branch: gitSpec.data.branch,
-        baseRef: gitSpec.data.baseRef,
+        branch: gitPlan.branch,
+        ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
         path: workspacePath,
         preservePatterns: settings.preservePatterns ?? [],
-        pushBranch: gitSpec.data.pushBranch,
+        pushBranch: gitPlan.pushBranch,
+        ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
       })
     );
   }

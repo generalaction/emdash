@@ -139,6 +139,7 @@ describe('checkout-pr preset', () => {
     const cfg = buildWorkspaceConfigFromPreset('checkout-pr', { pr });
     expect(cfg.git).toMatchObject({
       kind: 'pr-branch',
+      prUrl: 'https://github.com/org/repo/pull/42',
       prNumber: 42,
       headBranch: 'feat/my-pr',
       headRepositoryUrl: 'https://github.com/org/repo',
@@ -173,6 +174,7 @@ describe('pr-new-branch preset', () => {
     const cfg = buildWorkspaceConfigFromPreset('pr-new-branch', { pr }, { taskBranch: 'task/42' });
     expect(cfg.git).toMatchObject({
       kind: 'pr-branch',
+      prUrl: 'https://github.com/org/repo/pull/42',
       prNumber: 42,
       taskBranch: 'task/42',
       pushBranch: true,
