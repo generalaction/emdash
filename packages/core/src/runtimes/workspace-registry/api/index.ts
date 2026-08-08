@@ -1,3 +1,8 @@
+export {
+  compileWorktreePayload,
+  type CompiledWorktreePayload,
+  type CompileWorktreePayloadInput,
+} from './compile-worktree-payload';
 export { workspaceRegistryContract, type WorkspaceRegistryContract } from './contract';
 export {
   activateWorkspaceErrorSchema,

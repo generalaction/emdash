@@ -27,22 +27,13 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.agentStates.id).toBe('tuiAgents.agentStates');
   });
 
-  it('mounts workspace-host initialization, scripts, and notices', () => {
-    expect('submitOperation' in workspaceWireContract.workspaceHost).toBe(false);
-    expect('operations' in workspaceWireContract.workspaceHost).toBe(false);
-    expect(workspaceWireContract.workspaceHost.initializeWorkspace.kind).toBe('procedure');
-    expect(workspaceWireContract.workspaceHost.runWorkspaceScript.kind).toBe('procedure');
-    expect(workspaceWireContract.workspaceHost.notices.kind).toBe('liveModel');
-    expect(workspaceWireContract.workspaceHost.notices.id).toBe('workspaceHost.notices');
-  });
-
-  it('serves disk-usage measurement from the registry, not workspace-host', () => {
-    expect('measureUsage' in workspaceWireContract.workspaceHost).toBe(false);
+  it('serves disk-usage measurement from the registry', () => {
     expect(workspaceWireContract.workspaceRegistry.measureUsage.kind).toBe('procedure');
   });
 
-  it('does not mount the retired legacy workspace runtime', () => {
+  it('does not mount the retired workspace runtimes', () => {
     expect('workspace' in workspaceWireContract).toBe(false);
+    expect('workspaceHost' in workspaceWireContract).toBe(false);
   });
 
   it('mounts port forwards under the portForwards domain', () => {

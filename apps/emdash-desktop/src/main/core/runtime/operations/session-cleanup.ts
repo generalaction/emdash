@@ -38,7 +38,7 @@ export type SessionCleanupDependencies = {
   getAcpRuntimeClient(): Promise<AcpRuntimeClient>;
   getProjectTerminals(
     projectId: string
-  ): Pick<TerminalsRuntimeClient, 'killTmuxSessions' | 'listTmuxSessions'> | undefined;
+  ): Pick<TerminalsRuntimeClient, 'killTmuxSessions'> | undefined;
   getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient>;
   getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient>;
 };

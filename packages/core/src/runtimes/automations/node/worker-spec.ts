@@ -18,9 +18,9 @@ export type AutomationsWorkerSpecInput = {
 
 /**
  * Spawn spec for the automations runtime worker. It spawns last: it drives the
- * workspace-host and workspace-registry planes and reports into the session
- * runtimes. The 3s shutdown grace lets in-flight run bookkeeping reach its
- * database before the host escalates.
+ * workspace-registry plane and reports into the session runtimes. The 3s
+ * shutdown grace lets in-flight run bookkeeping reach its database before the
+ * host escalates.
  */
 export function automationsWorkerSpec(
   input: AutomationsWorkerSpecInput

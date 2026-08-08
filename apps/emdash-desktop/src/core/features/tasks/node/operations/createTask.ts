@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { CreateConversationInput } from '@emdash/core/runtimes/conversations/api';
-import { compileWorktreePayload } from '@emdash/core/services/workspace-host-actions/api';
+import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-registry/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';

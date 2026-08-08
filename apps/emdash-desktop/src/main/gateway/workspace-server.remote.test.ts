@@ -94,12 +94,19 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
             path: smokeDirectory.data,
           })
         ).resolves.toMatchObject({ success: true });
+        const smokeBytes = Buffer.from('bundled-ripgrep-smoke\n');
         await expect(
-          resolved.data.files.mutations.createFile({
-            root: homeDirectory,
-            path: smokeFile.data,
-            content: 'bundled-ripgrep-smoke\n',
-          })
+          resolved.data.files.fs.upload(
+            { root: homeDirectory, path: smokeFile.data },
+            {
+              name: 'needle.txt',
+              mimeType: 'text/plain',
+              size: smokeBytes.byteLength,
+              source: (async function* () {
+                yield smokeBytes;
+              })(),
+            }
+          )
         ).resolves.toMatchObject({ success: true });
         await expect(
           resolved.data.fileSearch.registerRoot({ root: smokeRoot.data })

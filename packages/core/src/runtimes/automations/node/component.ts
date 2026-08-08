@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import { conversationIndexContract } from '#services/conversation-index/api';
 import { acpSessionStartContract, tuiSessionStartContract } from '#services/session-start/api';
-import { workspaceHostActionsContract } from '#services/workspace-host-actions/api';
 import { automationsContract } from '../api';
 import { workspaceCreationAdmissionContract } from '../api/creation-admission';
 import { createAutomationsController } from './api/controller';
@@ -24,7 +23,6 @@ export function createAutomationsComponent() {
     id: 'automations',
     contract: automationsContract,
     requirements: {
-      workspaceHost: requireContract(workspaceHostActionsContract),
       workspaceRegistry: requireContract(workspaceRegistryContract),
       // Creation admission is client-plane data (deletion tombstones live on the
       // embedding app's mirror, ADR 0006), so the app supplies the check.
@@ -45,7 +43,7 @@ export function createAutomationsComponent() {
           dependencies.creationAdmission
         ),
         sessionPort: createSessionPortFromDependencies({
-          workspaceHost: dependencies.workspaceHost,
+          workspaceRegistry: dependencies.workspaceRegistry,
           acp: dependencies.acpSessions,
           tui: dependencies.tuiSessions,
           conversationIndex: dependencies.conversationIndex,

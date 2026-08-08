@@ -70,10 +70,6 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
-    workspaceHost: forwardContractImpl(
-      workspaceWireContract.workspaceHost,
-      deps.runtimes.workspaceHost
-    ),
     workspaceRegistry: forwardContractImpl(
       workspaceWireContract.workspaceRegistry,
       deps.runtimes.workspaceRegistry

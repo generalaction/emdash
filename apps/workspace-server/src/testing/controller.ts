@@ -8,7 +8,6 @@ import { gitContract } from '@emdash/core/runtimes/git/api';
 import { resourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
-import { workspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
 import { client } from '@emdash/wire/rpc';
@@ -45,7 +44,6 @@ export function createTestRuntimeClients(
     resourceUsage: createDisconnectedClient(resourceUsageContract),
     terminals: createDisconnectedClient(terminalsContract),
     tuiAgents: createDisconnectedClient(tuiAgentsContract),
-    workspaceHost: createDisconnectedClient(workspaceHostContract),
     workspaceRegistry: createDisconnectedClient(workspaceRegistryContract),
     ...overrides,
   };

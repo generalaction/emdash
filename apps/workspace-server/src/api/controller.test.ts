@@ -168,13 +168,18 @@ describe('runtime domain forwarding', () => {
     );
 
     try {
+      const textBytes = Buffer.from('hello from the remote runtime');
       await expect(
-        workspace.client.files.mutations.createFile({
-          root: root.data,
-          path: textPath.data,
-          content: 'hello from the remote runtime',
-        })
-      ).resolves.toEqual(ok(undefined));
+        workspace.client.files.fs.upload(
+          { root: root.data, path: textPath.data },
+          {
+            name: 'remote.txt',
+            mimeType: 'text/plain',
+            size: textBytes.byteLength,
+            source: chunks(textBytes),
+          }
+        )
+      ).resolves.toEqual(ok({ bytesWritten: textBytes.byteLength }));
       await expect(
         workspace.client.files.fs.readText({ root: root.data, relative: textPath.data })
       ).resolves.toMatchObject({
