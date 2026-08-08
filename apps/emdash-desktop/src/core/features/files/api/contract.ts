@@ -5,6 +5,7 @@ import {
   MAX_FILE_UPLOAD_BYTES,
   readFileOptionsSchema,
 } from '@emdash/core/runtimes/files/api';
+import { diffModeSchema, gitObjectRefSchema } from '@emdash/core/runtimes/git/api';
 import { defineContract, downloadFile, liveModel, liveState, uploadFile } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
@@ -18,10 +19,14 @@ import {
 // at the renderer edge; no workspaceId reaches the wire.
 const uriKeySchema = z.object({ uri: resourceUriSchema });
 
-// The only implemented source today. A follow-up ticket widens this to
-// `z.union([z.literal('disk'), z.object({ ref: gitRefSchema })])`; existing
-// `{ uri, source: 'disk' }` keys stay valid under that union.
-const contentSourceSchema = z.literal('disk');
+// The wire form of the GitRef vocabulary (`DiffMode | GitObjectRef`, spec §6),
+// composed from the git runtime's schemas rather than duplicated here.
+const gitRefSchema = z.union([diffModeSchema, gitObjectRefSchema]);
+
+// Disk content is live-watched and writable; a git source serves the file's
+// read-only snapshot at that ref through the git runtime (spec §6/§8). The
+// checkout root is resolved at the seam and never part of the key.
+const contentSourceSchema = z.union([z.literal('disk'), z.object({ ref: gitRefSchema })]);
 
 const contentKeySchema = z.object({
   uri: resourceUriSchema,

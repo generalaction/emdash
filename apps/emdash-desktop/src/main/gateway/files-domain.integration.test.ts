@@ -1,6 +1,8 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import {
   encodeResourceUri,
@@ -10,13 +12,18 @@ import {
 } from '@emdash/core/primitives/path/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { createFilesController, FilesRuntime } from '@emdash/core/runtimes/files/node';
+import { gitContract } from '@emdash/core/runtimes/git/api';
+import { createGitController, GitRuntime } from '@emdash/core/runtimes/git/node';
 import type { IWatchService, WatchEvent, WatchOptions } from '@emdash/core/services/fs-watch/api';
 import { ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { client, connect, encodeTopic, memoryTransportPair, serve } from '@emdash/wire/rpc';
+import type { Controller } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { filesWireContract } from '@core/features/files/api';
 import { createFilesWireController } from '@core/features/files/node/wire-controller';
+
+const execFileAsync = promisify(execFile);
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -155,6 +162,126 @@ describe('files wire controller against a live files runtime', () => {
   });
 });
 
+// Exercises the git-source arm of the content model against a real git
+// runtime: the controller must resolve the containing checkout for the
+// decoded absolute path on its own — no checkout root ever enters a key.
+describe('files wire controller serving git-ref content', () => {
+  it('serves the same file at HEAD, staged, and a specific commit, read-only', async () => {
+    const { repo, controller } = await makeGitStack();
+    const filePath = path.join(repo, 'docs', 'notes.md');
+    await mkdir(path.join(repo, 'docs'));
+    await writeFile(filePath, 'first\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'first');
+    const firstCommit = (await git(repo, 'rev-parse', 'HEAD')).trim();
+    await writeFile(filePath, 'second\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'second');
+    await writeFile(filePath, 'staged\n');
+    await git(repo, 'add', '.');
+    await writeFile(filePath, 'working\n');
+
+    await expect(readGitContent(controller, filePath, { kind: 'head' })).resolves.toMatchObject({
+      kind: 'text',
+      content: 'second\n',
+      readonly: true,
+      path: 'docs/notes.md',
+    });
+    await expect(readGitContent(controller, filePath, { kind: 'staged' })).resolves.toMatchObject({
+      kind: 'text',
+      content: 'staged\n',
+      readonly: true,
+    });
+    await expect(
+      readGitContent(controller, filePath, { kind: 'commit', sha: firstCommit })
+    ).resolves.toMatchObject({ kind: 'text', content: 'first\n', readonly: true });
+    await expect(
+      readGitContent(controller, filePath, {
+        kind: 'branch',
+        branch: { type: 'local', branch: 'main' },
+      })
+    ).resolves.toMatchObject({ kind: 'text', content: 'second\n', readonly: true });
+
+    // The working tree stays untouched by ref reads.
+    await expect(readFile(filePath, 'utf8')).resolves.toBe('working\n');
+  });
+
+  it('still serves HEAD content for a file deleted from the working tree', async () => {
+    const { repo, controller } = await makeGitStack();
+    const filePath = path.join(repo, 'kept.txt');
+    await writeFile(filePath, 'kept\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'keep');
+    await unlink(filePath);
+
+    await expect(readGitContent(controller, filePath, { kind: 'head' })).resolves.toMatchObject({
+      kind: 'text',
+      content: 'kept\n',
+      readonly: true,
+    });
+  });
+
+  it('rejects the etag write mutation for git sources', async () => {
+    const { repo, controller } = await makeGitStack();
+    const filePath = path.join(repo, 'readonly.txt');
+    await writeFile(filePath, 'committed\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'commit');
+
+    await expect(
+      controller.call('content.write', {
+        key: { uri: localUri(filePath), source: { ref: { kind: 'head' } } },
+        input: { content: 'must not land\n', precondition: { kind: 'overwrite' } },
+        mutationId: 'mutation-git-write',
+      })
+    ).resolves.toMatchObject({ success: false, error: { type: 'permission-denied' } });
+    await expect(readFile(filePath, 'utf8')).resolves.toBe('committed\n');
+  });
+
+  it('classifies a path outside any checkout as an unavailable content state', async () => {
+    const { plainDir, controller } = await makeGitStack();
+    const filePath = path.join(plainDir, 'loose.txt');
+    await writeFile(filePath, 'loose\n');
+
+    await expect(readGitContent(controller, filePath, { kind: 'head' })).resolves.toMatchObject({
+      kind: 'unavailable',
+      error: { type: 'invalid-path' },
+    });
+  });
+
+  it('classifies a ref that does not contain the path as not-found', async () => {
+    const { repo, controller } = await makeGitStack();
+    await writeFile(path.join(repo, 'committed.txt'), 'committed\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'commit');
+    const untracked = path.join(repo, 'untracked.txt');
+    await writeFile(untracked, 'untracked\n');
+
+    await expect(readGitContent(controller, untracked, { kind: 'head' })).resolves.toMatchObject({
+      kind: 'unavailable',
+      error: { type: 'not-found' },
+    });
+    await expect(
+      readGitContent(controller, path.join(repo, 'committed.txt'), {
+        kind: 'branch',
+        branch: { type: 'local', branch: 'no-such-branch' },
+      })
+    ).resolves.toMatchObject({ kind: 'unavailable', error: { type: 'not-found' } });
+  });
+
+  it('classifies the unstaged ref as unavailable: the working tree is the disk source', async () => {
+    const { repo, controller } = await makeGitStack();
+    const filePath = path.join(repo, 'tree.txt');
+    await writeFile(filePath, 'tree\n');
+    await git(repo, 'add', '.');
+    await git(repo, 'commit', '-m', 'commit');
+
+    await expect(readGitContent(controller, filePath, { kind: 'unstaged' })).resolves.toMatchObject(
+      { kind: 'unavailable', error: { type: 'invalid-path' } }
+    );
+  });
+});
+
 async function makeStack() {
   const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-files-wire-')));
   const watcher = new ManualWatcher();
@@ -173,6 +300,65 @@ async function makeStack() {
     await rm(dir, { recursive: true, force: true });
   });
   return { dir, watcher, controller };
+}
+
+async function makeGitStack() {
+  const dir = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-files-wire-git-')));
+  const repo = path.join(dir, 'repo');
+  const plainDir = path.join(dir, 'plain');
+  await mkdir(repo);
+  await mkdir(plainDir);
+  await git(repo, 'init', '-b', 'main');
+  await git(repo, 'config', 'user.email', 'test@example.com');
+  await git(repo, 'config', 'user.name', 'Test User');
+
+  const filesRuntime = new FilesRuntime({ watcher: new ManualWatcher(), idleTtlMs: 10_000 });
+  const gitRuntime = new GitRuntime({ watcher: new ManualWatcher(), idleTtlMs: 10_000 });
+  const filesPair = memoryTransportPair();
+  const filesController = createFilesController(filesRuntime);
+  const stopFiles = serve(filesPair.right, filesController);
+  const gitPair = memoryTransportPair();
+  const gitController = createGitController(gitRuntime);
+  const stopGit = serve(gitPair.right, gitController);
+  const hostClient = {
+    files: client(filesContract, connect(filesPair.left)),
+    git: client(gitContract, connect(gitPair.left)),
+  };
+  const controller = createFilesWireController({
+    runtimes: { client: async () => ok(hostClient as never) },
+  });
+  cleanups.push(async () => {
+    stopFiles();
+    stopGit();
+    await filesController.dispose?.();
+    await gitController.dispose?.();
+    await filesRuntime.dispose();
+    await gitRuntime.dispose();
+    await rm(dir, { recursive: true, force: true });
+  });
+  return { repo, plainDir, controller };
+}
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, { cwd });
+  return stdout;
+}
+
+async function readGitContent(
+  controller: Controller,
+  nativePath: string,
+  ref: unknown
+): Promise<unknown> {
+  const key = { uri: localUri(nativePath), source: { ref } };
+  const topic = encodeTopic(filesWireContract.content.states.content.id, key);
+  const lease = controller.acquireLive(topic);
+  const source = await lease?.ready();
+  if (!source) throw new Error('Expected a live git content source');
+  try {
+    return (await source.snapshot()).data;
+  } finally {
+    await lease?.release();
+  }
 }
 
 function localUri(nativePath: string): ResourceUri {

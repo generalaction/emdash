@@ -150,6 +150,23 @@ describe('createFilesWireController', () => {
     }
   });
 
+  it('rejects content writes for git-ref sources without resolving any runtime', async () => {
+    const client = vi.fn();
+    const controller = createFilesWireController({ runtimes: { client } as never });
+
+    await expect(
+      controller.call('content.write', {
+        key: { uri: uriFor(LOCAL_HOST_REF, '/repo/a.txt'), source: { ref: { kind: 'head' } } },
+        input: { content: 'must not land', precondition: { kind: 'overwrite' } },
+        mutationId: 'mutation-git-1',
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: { type: 'permission-denied', path: '/repo/a.txt' },
+    });
+    expect(client).not.toHaveBeenCalled();
+  });
+
   it('returns RuntimeResolveError from fallible procedures and mutations', async () => {
     const resolveError: RuntimeResolveError = {
       type: 'host-unavailable',

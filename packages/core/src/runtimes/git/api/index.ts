@@ -99,8 +99,10 @@ export type {
 } from '#runtimes/git/api/checkout/schemas';
 export {
   denormalizeDiffTarget,
+  diffModeSchema,
   gitFilePathSchema,
   gitFileSourceSchema,
+  gitObjectRefSchema,
   normalizeDiffTarget,
   toRangeString,
   toRefString,

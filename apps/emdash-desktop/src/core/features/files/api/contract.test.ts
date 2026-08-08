@@ -49,6 +49,25 @@ describe('filesWireContract', () => {
     ).toThrow();
   });
 
+  it('accepts structured GitRef sources with no checkout root in the key', () => {
+    for (const ref of [
+      { kind: 'head' },
+      { kind: 'staged' },
+      { kind: 'unstaged' },
+      { kind: 'commit', sha: 'abc123' },
+      { kind: 'tag', name: 'v1.0.0' },
+      { kind: 'branch', branch: { type: 'local', branch: 'main' } },
+    ]) {
+      expect(filesWireContract.content.keySchema.parse({ uri, source: { ref } })).toEqual({
+        uri,
+        source: { ref },
+      });
+    }
+    expect(() =>
+      filesWireContract.content.keySchema.parse({ uri, source: { ref: { kind: 'unknown' } } })
+    ).toThrow();
+  });
+
   it('keys the tree by root ResourceUri, sessionId, and exclusions', () => {
     expect(
       filesWireContract.tree.model.keySchema.parse({
