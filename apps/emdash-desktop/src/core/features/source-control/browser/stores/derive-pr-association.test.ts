@@ -1,8 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { WorkspaceObservedPrFacts } from '@core/primitives/tasks/api';
 import type { PullRequest } from '@core/services/pull-requests/api';
 import { derivePrAssociation, type PrCacheLookups } from './derive-pr-association';
 
 const repositoryUrl = 'https://github.com/emdash/emdash';
+
+function observedFixture(
+  overrides: Partial<WorkspaceObservedPrFacts> = {}
+): WorkspaceObservedPrFacts {
+  return {
+    branch: null,
+    prBreadcrumb: null,
+    upstream: null,
+    headOid: null,
+    ahead: null,
+    behind: null,
+    ...overrides,
+  };
+}
 
 function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
   return {
@@ -49,11 +64,10 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'my-task-branch',
         prBreadcrumb: `${repositoryUrl}/pull/42`,
-        upstream: null,
-      },
+      }),
       checkoutBranch: 'my-task-branch',
       lookups,
     });
@@ -74,11 +88,10 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([breadcrumbPr, branchPr]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'shared-branch',
         prBreadcrumb: breadcrumbPr.url,
-        upstream: null,
-      },
+      }),
       checkoutBranch: 'shared-branch',
       lookups,
     });
@@ -92,11 +105,10 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'feature',
         prBreadcrumb: `${repositoryUrl}/pull/9999`,
-        upstream: null,
-      },
+      }),
       checkoutBranch: 'feature',
       lookups,
     });
@@ -109,14 +121,13 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'contrib',
-        prBreadcrumb: null,
         upstream: {
           mergeRef: 'refs/pull/7/head',
           remoteUrl: 'git@github.com:emdash/emdash.git',
         },
-      },
+      }),
       checkoutBranch: 'contrib',
       lookups,
     });
@@ -130,14 +141,13 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'feature',
-        prBreadcrumb: null,
         upstream: {
           mergeRef: 'refs/heads/feature',
           remoteUrl: 'https://github.com/emdash/emdash',
         },
-      },
+      }),
       checkoutBranch: 'feature',
       lookups,
     });
@@ -150,14 +160,14 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([]);
 
     const prs = await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'feature',
         prBreadcrumb: `${repositoryUrl}/pull/1`,
         upstream: {
           mergeRef: 'refs/pull/2/head',
           remoteUrl: 'https://github.com/emdash/emdash',
         },
-      },
+      }),
       checkoutBranch: 'feature',
       lookups,
     });
@@ -172,14 +182,14 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([]);
 
     await derivePrAssociation({
-      observed: {
+      observed: observedFixture({
         branch: 'feature',
         prBreadcrumb: `${repositoryUrl}/pull/5`,
         upstream: {
           mergeRef: 'refs/pull/5/head',
           remoteUrl: 'https://github.com/emdash/emdash',
         },
-      },
+      }),
       checkoutBranch: 'feature',
       lookups,
     });
@@ -206,7 +216,7 @@ describe('derivePrAssociation', () => {
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
-      observed: { branch: 'observed-branch', prBreadcrumb: null, upstream: null },
+      observed: observedFixture({ branch: 'observed-branch' }),
       checkoutBranch: null,
       lookups,
     });

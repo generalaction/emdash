@@ -11,6 +11,7 @@ import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/compo
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 import { PrUrlCopyButton } from '@root/src/core/services/pull-requests/browser/components/pr-url-copy-button';
+import { PrCheckoutDriftLine } from './checkout-drift-line';
 import { PrChecksList } from './checks-list';
 import { CommitRangeCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
@@ -119,6 +120,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           />
         </div>
         <PrMergeLine pr={pr} />
+        <PrCheckoutDriftLine drift={prStore.checkoutDrift} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-2.5">
         <ToggleGroup.Root

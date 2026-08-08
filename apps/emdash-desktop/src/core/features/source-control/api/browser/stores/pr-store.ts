@@ -16,6 +16,7 @@ import {
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
+  type PrCheckoutDrift,
   type PullRequest,
   type PullRequestMergeOptions,
 } from '@core/services/pull-requests/api';
@@ -47,6 +48,14 @@ export class PrStore {
 
   get currentPr(): PullRequest | undefined {
     return selectCurrentPr(this.pullRequests);
+  }
+
+  /**
+   * Checkout drift vs the current PR's cached head (pr-workspace-model spec,
+   * Staleness), derived by the task-PR sync coordinator; unknown until derived.
+   */
+  get checkoutDrift(): PrCheckoutDrift {
+    return this.taskStore.prCheckoutDrift ?? { kind: 'unknown' };
   }
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {

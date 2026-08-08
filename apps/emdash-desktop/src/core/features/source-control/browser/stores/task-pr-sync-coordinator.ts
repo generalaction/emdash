@@ -8,12 +8,13 @@ import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/t
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import type { Task, WorkspaceObservedPrFacts } from '@core/primitives/tasks/api';
-import { pullRequestsContract } from '@core/services/pull-requests/api';
+import { pullRequestsContract, selectCurrentPr } from '@core/services/pull-requests/api';
 import {
   getPullRequestsRuntimeClient,
   type PullRequestsRuntimeClient,
 } from '@core/services/pull-requests/api/client';
 import { derivePrAssociation } from './derive-pr-association';
+import { derivePrCheckoutDrift } from './derive-pr-checkout-drift';
 
 export class TaskPrSyncCoordinator {
   private readonly scope = createScope({ label: 'task-pr-sync-coordinator' });
@@ -21,6 +22,8 @@ export class TaskPrSyncCoordinator {
   private syncRemotePromise: Promise<RemoteModel<typeof pullRequestsContract.syncState>> | null =
     null;
   private generation = 0;
+  /** The PR cache's last-sync stamp for the watched repository ("as of last sync"). */
+  private lastSyncedAt: number | null = null;
   private readonly disposeGitHeadReaction: () => void;
   private readonly disposeRepositoryReaction: () => void;
 
@@ -28,9 +31,10 @@ export class TaskPrSyncCoordinator {
     private readonly tasks: TaskManagerStore,
     private readonly repository: GitRepositoryStore
   ) {
-    // Association inputs: the checkout store's live head plus the mirror's observed
-    // facts (breadcrumb, upstream, branch) — observation changes must re-derive even
-    // when the local checkout never moved (e.g. the host scan delivers a breadcrumb).
+    // Association and drift inputs: the checkout store's live head plus the mirror's
+    // observed facts (breadcrumb, upstream, branch, head OID, ahead/behind counts) —
+    // observation changes must re-derive even when the local checkout never moved
+    // (e.g. the host scan delivers a breadcrumb or sees the follow move the head).
     this.disposeGitHeadReaction = reaction(
       () =>
         [...tasks.tasks.values()].filter(isRegistered).map((store) => {
@@ -44,6 +48,9 @@ export class TaskPrSyncCoordinator {
             observed?.prBreadcrumb ?? '',
             observed?.upstream?.mergeRef ?? '',
             observed?.upstream?.remoteUrl ?? '',
+            observed?.headOid ?? '',
+            observed?.ahead ?? '',
+            observed?.behind ?? '',
           ].join(':');
         }),
       () => this.reloadAll()
@@ -78,6 +85,10 @@ export class TaskPrSyncCoordinator {
    * PR cache on this read (pr-workspace-model spec, Association): breadcrumb, then
    * gh-convention recognition, then head-branch matching. Cache lookup failures keep
    * the current association; the next observation or sync re-derives.
+   *
+   * The checkout-drift state (spec, Staleness) is derived on the same read: the
+   * observed head OID joined with the associated PR's cached head OID, stamped with
+   * the cache's last-sync time.
    */
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
@@ -102,8 +113,16 @@ export class TaskPrSyncCoordinator {
     // Drop stale results: another reload owns the write when the inputs moved.
     if (this.repository.pullRequestRepositoryUrl !== repositoryUrl) return;
     if (!isDeepEqual(associationInputs(store), inputs)) return;
+    // Drift is derived against the PR the panel renders (selectCurrentPr).
+    const drift = derivePrCheckoutDrift({
+      observed: inputs.observed,
+      pr: selectCurrentPr(prs) ?? null,
+      syncedAt: this.lastSyncedAt,
+    });
     runInAction(() => {
-      if (isRegistered(store)) (store.data as Task).prs = prs;
+      if (!isRegistered(store)) return;
+      (store.data as Task).prs = prs;
+      store.prCheckoutDrift = drift;
     });
   }
 
@@ -111,6 +130,7 @@ export class TaskPrSyncCoordinator {
     const generation = ++this.generation;
     void this.syncScope?.dispose();
     this.syncScope = null;
+    this.lastSyncedAt = null;
     if (!repositoryUrl) return;
 
     const syncRemote = await this.getSyncRemote();
@@ -123,6 +143,7 @@ export class TaskPrSyncCoordinator {
       member.states.state,
       (state) => {
         const value = state.value;
+        if (value?.lastSyncedAt !== undefined) this.lastSyncedAt = value.lastSyncedAt;
         if (
           value?.phase !== 'idle' ||
           value.lastSyncedAt === undefined ||

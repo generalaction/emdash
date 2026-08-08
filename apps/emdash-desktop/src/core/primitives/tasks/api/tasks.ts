@@ -108,9 +108,10 @@ export type WorkspaceLifecycleStepInfo = {
 };
 
 /**
- * Raw observed git facts (mirror observedGit v2) that PR association derives from
- * desktop-side. Null means not-yet-observed — old hosts and v1 payloads — which
- * degrades association to branch matching only.
+ * Raw observed git facts (mirror observedGit v2) that PR association and
+ * checkout-drift derive from desktop-side. Null means not-yet-observed — old
+ * hosts and v1 payloads — which degrades association to branch matching only
+ * and drift to unknown.
  */
 export type WorkspaceObservedPrFacts = {
   branch: string | null;
@@ -118,6 +119,11 @@ export type WorkspaceObservedPrFacts = {
   prBreadcrumb: string | null;
   /** Verbatim `branch.<b>.merge` plus the upstream remote's resolved URL. */
   upstream: { mergeRef: string; remoteUrl: string | null } | null;
+  /** Full OID of the observed HEAD; null on unborn HEAD or probe failure. */
+  headOid: string | null;
+  /** Commits ahead of / behind `@{u}`; null when the tracking ref doesn't resolve. */
+  ahead: number | null;
+  behind: number | null;
 };
 
 export type TaskStatsData = {

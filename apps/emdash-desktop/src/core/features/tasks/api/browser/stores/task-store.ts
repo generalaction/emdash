@@ -25,6 +25,7 @@ import type {
   WorkspaceLifecycleStepInfo,
   WorkspaceObservedPrFacts,
 } from '@core/primitives/tasks/api';
+import type { PrCheckoutDrift } from '@core/services/pull-requests/api';
 
 export type TaskStoreMutations = {
   rename(task: Task, name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>>;
@@ -57,6 +58,11 @@ export class TaskStore implements TaskState {
   workspaceLifecycle: WorkspaceLifecycleStepInfo[] | null = null;
   /** Observed PR-association facts (mirror observedGit v2); null when unobserved. */
   workspaceObservedPr: WorkspaceObservedPrFacts | null = null;
+  /**
+   * Derived checkout drift (observation × PR cache), written runtime-only by the
+   * task-PR sync coordinator alongside `Task.prs`; null reads as unknown.
+   */
+  prCheckoutDrift: PrCheckoutDrift | null = null;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -91,6 +97,7 @@ export class TaskStore implements TaskState {
       workspaceCreateOutcome: observable,
       workspaceLifecycle: observable,
       workspaceObservedPr: observable,
+      prCheckoutDrift: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
