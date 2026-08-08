@@ -1,5 +1,6 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useMemo, useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useProjectWorkspaces } from '@core/features/tasks/browser/task-config/existing-workspace-picker';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
@@ -309,6 +310,10 @@ export function useWorkspaceConfig(opts: {
 
   // ── Setup steps ───────────────────────────────────────────────────────────
 
+  // Same source as execution: `createTask` reads the project settings' preservePatterns.
+  const preservePatterns = projectId
+    ? getProjectSettingsStore(projectId)?.settings?.preservePatterns
+    : undefined;
   const setupSteps = useMemo((): WorktreeSetupStep[] => {
     // One compiler for preview and execution: the same `compileWorktreeGitPlan` call
     // `createTask` makes, so the preview describes exactly the bytes sent to the verb.
@@ -321,8 +326,8 @@ export function useWorkspaceConfig(opts: {
     const baseRemote = repo?.baseRemote?.name ?? 'origin';
     const plan = compileWorktreeGitPlan(git, { baseRemote });
     if (plan.branch.trim() === '') return [];
-    return describeWorktreeGitPlan(plan);
-  }, [resolvedConfig, projectId]);
+    return describeWorktreeGitPlan(plan, { preservePatterns: preservePatterns ?? [] });
+  }, [resolvedConfig, projectId, preservePatterns]);
 
   // ── Branch conflict ───────────────────────────────────────────────────────
 

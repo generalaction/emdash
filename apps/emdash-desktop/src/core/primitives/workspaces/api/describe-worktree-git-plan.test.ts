@@ -20,8 +20,8 @@ function prBranch(overrides: Partial<Extract<GitHalf, { kind: 'pr-branch' }>> = 
 }
 
 /** The preview steps for a config, exactly as the modal derives them. */
-function stepsFor(git: GitHalf, ctx = context) {
-  return describeWorktreeGitPlan(compileWorktreeGitPlan(git, ctx));
+function stepsFor(git: GitHalf, ctx = context, preservePatterns: readonly string[] = ['.env']) {
+  return describeWorktreeGitPlan(compileWorktreeGitPlan(git, ctx), { preservePatterns });
 }
 
 // ─── Plain new-branch (create-branch preset) ─────────────────────────────────
@@ -49,6 +49,20 @@ describe('describeWorktreeGitPlan — create-branch', () => {
       pushBranch: false,
     });
     expect(steps.map((step) => step.id)).toEqual(['create-worktree', 'copy-artifacts']);
+  });
+
+  it('omits copy-artifacts when the project defines no preservePatterns (pipeline guard)', () => {
+    const steps = stepsFor(
+      {
+        kind: 'create-branch',
+        branchName: 'feature/x',
+        fromBranch: { type: 'local', branch: 'main' },
+        pushBranch: false,
+      },
+      context,
+      []
+    );
+    expect(steps.map((step) => step.id)).toEqual(['create-worktree']);
   });
 
   it('describes the new branch and its base ref', () => {

@@ -1,5 +1,6 @@
 import type { WorkspaceLifecycleStepInfo } from '@core/primitives/tasks/api';
 import type { WorktreeGitPlan } from './compile-worktree-git-plan';
+import { LIFECYCLE_STEP_TITLES } from './lifecycle-step-titles';
 
 /**
  * The lifecycle steps a compiled plan can promise up front — a subset of the registry
@@ -18,17 +19,8 @@ export type WorktreeSetupStep = {
   description: string;
 };
 
-/** Titles shared with the Activity badge's step vocabulary (derived at render). */
-const STEP_TITLES: Record<WorktreeSetupStepId, string> = {
-  'fetch-branch': 'Fetch branch',
-  'create-worktree': 'Create worktree',
-  'configure-branch': 'Configure branch',
-  'copy-artifacts': 'Copy artifacts',
-  'push-branch': 'Push branch',
-};
-
 function step(id: WorktreeSetupStepId, description: string): WorktreeSetupStep {
-  return { id, title: STEP_TITLES[id], description };
+  return { id, title: LIFECYCLE_STEP_TITLES[id], description };
 }
 
 /**
@@ -37,11 +29,13 @@ function step(id: WorktreeSetupStepId, description: string): WorktreeSetupStep {
  * renderer-safe; because the input is the exact object `createTask` sends to the
  * `createWorktree` verb, the preview cannot drift from execution.
  *
- * Steps follow the registry pipeline's lifecycle order. `copy-artifacts` is always
- * listed (parity with the legacy preview); the host skips it when the project defines
- * no preservePatterns.
+ * Steps follow the registry pipeline's lifecycle order. `copy-artifacts` mirrors the
+ * pipeline's own guard: the host only plans the step when preservePatterns exist.
  */
-export function describeWorktreeGitPlan(plan: WorktreeGitPlan): WorktreeSetupStep[] {
+export function describeWorktreeGitPlan(
+  plan: WorktreeGitPlan,
+  context: { preservePatterns: readonly string[] }
+): WorktreeSetupStep[] {
   const steps: WorktreeSetupStep[] = [];
   const { fetchBranch, upstream, breadcrumb } = plan.gitSetup ?? {};
 
@@ -69,7 +63,9 @@ export function describeWorktreeGitPlan(plan: WorktreeGitPlan): WorktreeSetupSte
     steps.push(step('configure-branch', `Record the pull request association on ${plan.branch}`));
   }
 
-  steps.push(step('copy-artifacts', 'Copy preserved project files into the worktree'));
+  if (context.preservePatterns.length > 0) {
+    steps.push(step('copy-artifacts', 'Copy preserved project files into the worktree'));
+  }
 
   if (plan.pushBranch) {
     steps.push(step('push-branch', `Push ${plan.branch} to the remote and set upstream tracking`));

@@ -16,6 +16,11 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => undefined,
 }));
+// The real module transitively imports monaco, which cannot load in the node project.
+// The mocked project defines preservePatterns, so previews include copy-artifacts.
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
+  getProjectSettingsStore: () => ({ settings: { preservePatterns: ['.env'] } }),
+}));
 
 vi.mock('@core/features/tasks/browser/task-config/existing-workspace-picker', () => ({
   useProjectWorkspaces: () => ({ data: [] }),
