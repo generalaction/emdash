@@ -79,10 +79,12 @@ describe('createFilesController', () => {
       ).resolves.toMatchObject({ data: { kind: 'text', content: 'before\n' } });
 
       await expect(
-        connection.api.mutations.rename({
-          root: rootRef,
-          from: relativePath('src/foo/bar.ts'),
-          to: relativePath('src/foo/baar.ts'),
+        connection.api.tree.model.mutate('rename', {
+          key,
+          input: {
+            from: relativePath('src/foo/bar.ts'),
+            to: relativePath('src/foo/baar.ts'),
+          },
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
@@ -111,31 +113,6 @@ describe('createFilesController', () => {
           .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
           .snapshot()
       ).resolves.toMatchObject({ data: { kind: 'unavailable', error: { type: 'not-found' } } });
-
-      await expect(
-        connection.api.tree.model.mutate('collapse', {
-          key,
-          input: { path: relativePath('src/foo') },
-        })
-      ).resolves.toMatchObject({ success: true });
-      await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
-        data: {
-          entries: {
-            'src/foo': { childrenLoaded: false, children: [] },
-          },
-        },
-      });
-      expect(
-        (await connection.api.tree.model.state(key, 'tree').snapshot()).data.entries[
-          'src/foo/baar.ts'
-        ]
-      ).toBeUndefined();
-      await expect(
-        connection.api.tree.model.mutate('reveal', {
-          key,
-          input: { path: relativePath('src/foo/baar.ts') },
-        })
-      ).resolves.toMatchObject({ success: true });
 
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'external\n');
       watcher.emit(root, [{ kind: 'update', path: path.join(root, 'src/foo/baar.ts') }]);
@@ -194,10 +171,12 @@ describe('createFilesController', () => {
         connection.api.content.state(arrivedKey, 'content').snapshot()
       ).resolves.toMatchObject({ data: { kind: 'unavailable' } });
       await expect(
-        connection.api.mutations.move({
-          root: rootRef,
-          from: relativePath('incoming'),
-          to: relativePath('arrived'),
+        connection.api.tree.model.mutate('move', {
+          key,
+          input: {
+            from: relativePath('incoming'),
+            to: relativePath('arrived'),
+          },
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
@@ -355,7 +334,7 @@ describe('createFilesController', () => {
     }
   });
 
-  it('runs glob and enumeration as cancellable Wire jobs with relative paths', async () => {
+  it('runs enumeration as a cancellable Wire job with relative paths', async () => {
     const root = await makeRoot();
     const rootRef = runtimeRoot(root);
     await mkdir(path.join(root, 'src/nested'), { recursive: true });
@@ -364,24 +343,12 @@ describe('createFilesController', () => {
     await writeFile(path.join(root, 'src/nested/c.txt'), 'c');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeClient(runtime);
-    const globJobs = createLiveJobReplicaCache(filesContract.fs.glob, connection.api.fs.glob);
     const enumerateJobs = createLiveJobReplicaCache(
       filesContract.fs.enumerate,
       connection.api.fs.enumerate
     );
 
     try {
-      const globLease = await globJobs.start({
-        root: rootRef,
-        patterns: ['**/*.ts'],
-        options: { cwd: relativePath('src') },
-      });
-      const glob = await globLease.ready();
-      await expect(glob.result).resolves.toEqual({
-        paths: ['src/a.ts', 'src/nested/b.ts'],
-      });
-      await globLease.release();
-
       const enumerationLease = await enumerateJobs.start({
         root: rootRef,
         relative: relativePath('src'),
@@ -392,7 +359,6 @@ describe('createFilesController', () => {
       });
       await enumerationLease.release();
     } finally {
-      await globJobs.dispose();
       await enumerateJobs.dispose();
       connection.dispose();
       await runtime.dispose();

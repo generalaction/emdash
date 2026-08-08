@@ -61,23 +61,11 @@ const editorFsContract = defineContract({
 });
 
 const editorMutationsContract = defineContract({
-  createFile: runtimeFallibleProcedure(
-    filesContract.mutations.createFile.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.createFile.output
-  ),
   createDirectory: runtimeFallibleProcedure(
     filesContract.mutations.createDirectory.input
       .omit({ root: true })
       .extend(workspaceKeySchema.shape),
     filesContract.mutations.createDirectory.output
-  ),
-  rename: runtimeFallibleProcedure(
-    filesContract.mutations.rename.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.rename.output
-  ),
-  move: runtimeFallibleProcedure(
-    filesContract.mutations.move.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.move.output
   ),
   delete: runtimeFallibleProcedure(
     filesContract.mutations.delete.input.omit({ root: true }).extend(workspaceKeySchema.shape),

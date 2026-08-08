@@ -4,7 +4,6 @@ import type { CatalogSkill } from '#primitives/skills/api';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
-  AgentConfigRefreshError,
   AgentConfigSkillsError,
   HooksStatus,
 } from '#runtimes/agent-config/api';
@@ -15,12 +14,6 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {
     hooksStatus(input: { providerId: string }): Promise<HooksStatus> {
       return runtime.hooksStatus(input.providerId);
-    },
-    refreshAgents(input: {
-      providerId?: string;
-      refreshShellEnv?: boolean;
-    }): Promise<Result<void, AgentConfigRefreshError>> {
-      return runtime.refreshAgents(input);
     },
     startLogin(input: {
       providerId: string;

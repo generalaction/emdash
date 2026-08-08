@@ -52,16 +52,6 @@ export const tuiAgentsContract = defineContract({
   }),
 
   /**
-   * Deactivates a session so it disappears from active runtime state while
-   * remaining resumable from its persisted conversation/session id.
-   */
-  deactivateSession: fallible({
-    input: conv,
-    data: z.void(),
-    error: tuiSessionControlErrorSchema,
-  }),
-
-  /**
    * Terminates any process and purges retained output, session state, and agent state.
    */
   deleteSession: fallible({

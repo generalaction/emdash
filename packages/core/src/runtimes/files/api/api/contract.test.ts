@@ -8,8 +8,8 @@ describe('filesContract', () => {
     expect(filesContract.fs.stat.kind).toBe('procedure');
     expect(filesContract.fs.readBytes.kind).toBe('downloadFile');
     expect(filesContract.fs.readBytes.id).toBe('fs.readBytes');
-    expect(filesContract.fs.glob.kind).toBe('liveJob');
-    expect(filesContract.fs.glob.id).toBe('fs.glob');
+    expect(filesContract.fs.enumerate.kind).toBe('liveJob');
+    expect(filesContract.fs.enumerate.id).toBe('fs.enumerate');
     expect(filesContract.tree.model.kind).toBe('liveModel');
     expect(filesContract.tree.model.id).toBe('tree.model');
     expect(filesContract.tree.model.states.tree.id).toBe('tree.model.tree');

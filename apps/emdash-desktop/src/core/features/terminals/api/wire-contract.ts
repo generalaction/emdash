@@ -150,16 +150,6 @@ export const terminalsContract = defineContract({
     data: z.void(),
     error: terminalSliceErrorSchema,
   }),
-  killScope: fallible({
-    input: terminalWorkspaceInputSchema,
-    data: z.void(),
-    error: terminalSliceErrorSchema,
-  }),
-  detachScope: fallible({
-    input: terminalWorkspaceInputSchema,
-    data: z.void(),
-    error: terminalSliceErrorSchema,
-  }),
 });
 
 export type TerminalsContract = typeof terminalsContract;

@@ -16,24 +16,17 @@ import { fileTreeModelSchema } from '#runtimes/files/api/tree/state';
 import { fsErrorSchema } from './errors';
 import {
   contentKeySchema,
-  copyInputSchema,
   createDirectoryInputSchema,
-  createFileInputSchema,
   deleteInputSchema,
   fileEnumerationOptionsSchema,
-  fileGlobOptionsSchema,
   fileKeySchema,
   fileStatSchema,
-  fileUsageSchema,
-  moveInputSchema,
   pathBatchSchema,
   pathKeySchema,
   pathListSchema,
   readBytesMetaSchema,
   readFileKeySchema,
   readTextResultSchema,
-  renameInputSchema,
-  rootKeySchema,
   treeKeySchema,
   uploadFileInputSchema,
   uploadFileResultSchema,
@@ -50,7 +43,6 @@ export const filesContract = defineContract({
   }),
   fs: defineContract({
     stat: fallible({ input: pathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
-    measureUsage: fallible({ input: pathKeySchema, data: fileUsageSchema, error: fsErrorSchema }),
     exists: fallible({ input: fileKeySchema, data: z.boolean(), error: fsErrorSchema }),
     realPath: fallible({
       input: fileKeySchema,
@@ -73,15 +65,6 @@ export const filesContract = defineContract({
       result: uploadFileResultSchema,
       error: fsErrorSchema,
     }),
-    glob: liveJob({
-      input: rootKeySchema.extend({
-        patterns: z.array(z.string()),
-        options: fileGlobOptionsSchema,
-      }),
-      progress: pathBatchSchema,
-      result: pathListSchema,
-      error: fsErrorSchema,
-    }),
     enumerate: liveJob({
       input: pathKeySchema.extend({ options: fileEnumerationOptionsSchema.optional() }),
       progress: pathBatchSchema,
@@ -101,11 +84,6 @@ export const filesContract = defineContract({
             path: portableRelativePathSchema,
             depth: z.number().int().min(1).max(2).optional(),
           }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        collapse: mutation({
-          input: z.object({ path: portableRelativePathSchema }),
           data: z.void(),
           error: fsErrorSchema,
         }),
@@ -177,15 +155,11 @@ export const filesContract = defineContract({
     },
   }),
   mutations: defineContract({
-    createFile: fallible({ input: createFileInputSchema, data: z.void(), error: fsErrorSchema }),
     createDirectory: fallible({
       input: createDirectoryInputSchema,
       data: z.void(),
       error: fsErrorSchema,
     }),
-    rename: fallible({ input: renameInputSchema, data: z.void(), error: fsErrorSchema }),
-    move: fallible({ input: moveInputSchema, data: z.void(), error: fsErrorSchema }),
-    copy: fallible({ input: copyInputSchema, data: z.void(), error: fsErrorSchema }),
     delete: fallible({ input: deleteInputSchema, data: z.void(), error: fsErrorSchema }),
     writeFile: fallible({ input: writeFileInputSchema, data: z.void(), error: fsErrorSchema }),
   }),

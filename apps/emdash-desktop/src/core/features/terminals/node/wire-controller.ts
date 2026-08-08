@@ -103,14 +103,6 @@ export function createTerminalsWireController(
       ),
     kill: (input, meta) =>
       withTerminalRuntime(options, input, (client, key) => client.kill({ key }, callOptions(meta))),
-    killScope: (input, meta) =>
-      withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
-        client.terminals.killScope({ workspace: workspaceRef(identity) }, callOptions(meta))
-      ),
-    detachScope: (input, meta) =>
-      withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
-        client.terminals.detachScope({ workspace: workspaceRef(identity) }, callOptions(meta))
-      ),
   });
 }
 

@@ -10,7 +10,6 @@ import {
   startTerminalInputSchema,
   scriptWorkflowStateSchema,
   killTmuxSessionsInputSchema,
-  tmuxSessionListSchema,
   terminalControlInputSchema,
   terminalDataInputSchema,
   terminalDevServerListSchema,
@@ -70,11 +69,6 @@ export const terminalsContract = defineContract({
   killTmuxSessions: fallible({
     input: killTmuxSessionsInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
-  }),
-  listTmuxSessions: fallible({
-    input: z.void().optional(),
-    data: tmuxSessionListSchema,
     error: terminalErrorSchema,
   }),
 });

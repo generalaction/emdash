@@ -1,4 +1,4 @@
-import { hostRefEquals, type HostRef } from '@emdash/core/primitives/host/api';
+import { type HostRef } from '@emdash/core/primitives/host/api';
 import {
   absoluteBasename,
   absoluteDirname,
@@ -81,21 +81,9 @@ export function createFilesWireController(options: CreateFilesWireControllerOpti
     },
     content: createContentModelProvider(options),
     mutations: {
-      createFile: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.createFile({ path: ref.path, content: input.content }, callOptions(meta))
-        ),
       createDirectory: (input, meta) =>
         withFileRuntime(options, input.uri, (files, ref) =>
           files.mutations.createDirectory({ path: ref.path }, callOptions(meta))
-        ),
-      rename: (input, meta) =>
-        withFilePairRuntime(options, input.uri, input.to, (files, from, to) =>
-          files.mutations.rename({ from: from.path, to: to.path }, callOptions(meta))
-        ),
-      move: (input, meta) =>
-        withFilePairRuntime(options, input.uri, input.to, (files, from, to) =>
-          files.mutations.move({ from: from.path, to: to.path }, callOptions(meta))
         ),
       delete: (input, meta) =>
         withFileRuntime(options, input.uri, (files, ref) =>
@@ -352,30 +340,6 @@ async function withFileRuntime<T, E>(
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const ref = decodeUri(uri);
   return withHostRuntime(options, ref.host, (client) => work(client.files, ref));
-}
-
-async function withFilePairRuntime<T, E>(
-  options: CreateFilesWireControllerOptions,
-  uri: ResourceUri,
-  target: ResourceUri,
-  work: (
-    files: HostRuntimesClient['files'],
-    from: HostFileRef,
-    to: HostFileRef
-  ) => Promise<Result<T, E>>
-): Promise<
-  Result<T, E | RuntimeResolveError | { type: 'invalid-path'; path: string; message: string }>
-> {
-  const from = decodeUri(uri);
-  const to = decodeUri(target);
-  if (!hostRefEquals(from.host, to.host)) {
-    return err({
-      type: 'invalid-path' as const,
-      path: formatAbsolute(to.path),
-      message: 'The target must be on the same host as the source',
-    });
-  }
-  return withHostRuntime(options, from.host, (client) => work(client.files, from, to));
 }
 
 async function withHostRuntime<T, E>(

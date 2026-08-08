@@ -1,11 +1,9 @@
-import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
-import { z } from 'zod';
+import { defineContract, liveJob } from '@emdash/wire/rpc';
 import {
   runScriptWorkflowInputSchema,
   scriptWorkflowProgressSchema,
   scriptWorkflowResultSchema,
   terminalErrorSchema,
-  terminalScopeInputSchema,
 } from './schemas';
 
 export const scriptWorkflowsDefinitions = {
@@ -13,16 +11,6 @@ export const scriptWorkflowsDefinitions = {
     input: runScriptWorkflowInputSchema,
     progress: scriptWorkflowProgressSchema,
     result: scriptWorkflowResultSchema,
-    error: terminalErrorSchema,
-  }),
-  killScope: fallible({
-    input: terminalScopeInputSchema,
-    data: z.void(),
-    error: terminalErrorSchema,
-  }),
-  detachScope: fallible({
-    input: terminalScopeInputSchema,
-    data: z.void(),
     error: terminalErrorSchema,
   }),
 };

@@ -85,34 +85,6 @@ export class TreeResource {
     });
   }
 
-  collapse(context: TreeMutationContext<'collapse'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const validated = this.options.root.paths.resolveEntry(context.input.path);
-      if (!validated.success) return validated;
-      const model = this.current();
-      const entry = model.entries[validated.data.path];
-      if (!entry)
-        return { success: false, error: { type: 'not-found', path: validated.data.path } };
-      if (!isExpandableFileEntry(entry)) {
-        return {
-          success: false,
-          error: { type: 'not-a-directory', path: validated.data.path },
-        };
-      }
-      if (!entry.childrenLoaded && entry.children.length === 0) {
-        await context.observed('tree', revisionOf(this.state));
-        return ok<void>();
-      }
-      removeDescendants(model, entry.path);
-      entry.children = [];
-      entry.childrenLoaded = false;
-      entry.hasChildren = undefined;
-      const revision = this.state.set(model, { mutationIds: [context.mutationId] });
-      await context.observed('tree', revision);
-      return ok<void>();
-    });
-  }
-
   reveal(context: TreeMutationContext<'reveal'>): Promise<Result<void, FsError>> {
     return this.run(async () => {
       const validated = this.options.root.paths.resolveEntry(context.input.path);

@@ -241,34 +241,6 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
-  it('prunes detected dev servers when a scope is killed', async () => {
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({
-      spawner,
-      scope,
-      portProbe: async () => true,
-    });
-    const workspace = testWorkspace();
-    const run = runtime.runWorkflow(
-      {
-        workspace,
-        kind: 'manual:run',
-        nodes: [{ id: 'run', command: 'pnpm dev', cwd: '/repo', env: {} }],
-      },
-      liveJobContext('job-1')
-    );
-    await waitFor(() => spawner.processes.length === 1);
-    spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
-    await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
-
-    await runtime.killScope(workspace);
-
-    await waitFor(async () => Object.keys(await devServers(runtime)).length === 0);
-    await run;
-    await scope.dispose();
-  });
-
   it('kills detached interactive terminals after the configured grace period', async () => {
     const clock = createManualClock(0);
     const spawner = new FakePtySpawner();
@@ -336,62 +308,6 @@ describe('TerminalsRuntime', () => {
     });
 
     expect(result).toEqual({ success: true, data: undefined });
-    await scope.dispose();
-  });
-
-  it('listTmuxSessions returns parsed session activity', async () => {
-    const exec = fakeExec();
-    exec.exec.mockResolvedValue({
-      stdout: 'emdash-aaa\t1700000000\nemdash-bbb\t1700000100\n',
-      stderr: '',
-    });
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, exec, scope });
-
-    const result = await runtime.listTmuxSessions();
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toEqual([
-        { sessionName: 'emdash-aaa', activityMs: 1700000000_000 },
-        { sessionName: 'emdash-bbb', activityMs: 1700000100_000 },
-      ]);
-    }
-    await scope.dispose();
-  });
-
-  it('listTmuxSessions returns empty when no tmux server is running', async () => {
-    const exec = fakeExec();
-    const error = Object.assign(new Error('no server running on /tmp/tmux'), {
-      exitCode: 1,
-      stderr: 'no server running on /tmp/tmux',
-    });
-    exec.exec.mockRejectedValue(error);
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, exec, scope });
-
-    const result = await runtime.listTmuxSessions();
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toEqual([]);
-    }
-    await scope.dispose();
-  });
-
-  it('listTmuxSessions returns empty when no exec is injected', async () => {
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
-
-    const result = await runtime.listTmuxSessions();
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toEqual([]);
-    }
     await scope.dispose();
   });
 

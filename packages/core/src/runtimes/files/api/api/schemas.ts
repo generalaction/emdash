@@ -23,19 +23,6 @@ export const fileStatSchema = z.object({
   mode: z.number().int(),
 });
 
-export const fileUsageErrorSchema = z.object({
-  path: portableRelativePathSchema,
-  message: z.string(),
-});
-export const fileUsageSchema = z.object({
-  path: portableRelativePathSchema,
-  type: z.enum(['file', 'directory']),
-  apparentBytes: z.number().int().nonnegative(),
-  diskBytes: z.number().int().nonnegative(),
-  exclusiveDiskBytes: z.number().int().nonnegative(),
-  errors: z.array(fileUsageErrorSchema),
-});
-
 export const readFileOptionsSchema = z.object({
   maxBytes: z.number().int().nonnegative().optional(),
 });
@@ -60,11 +47,6 @@ export const readBytesMetaSchema = z.object({
   truncated: z.boolean(),
   totalSize: z.number().int().nonnegative(),
   etag: z.string(),
-});
-
-export const fileGlobOptionsSchema = z.object({
-  cwd: portableRelativePathSchema,
-  dot: z.boolean().optional(),
 });
 
 export const fileEnumerationOptionsSchema = z.object({
@@ -101,19 +83,9 @@ export const uploadFileResultSchema = z.object({
   bytesWritten: z.number().int().nonnegative(),
 });
 
-export const createFileInputSchema = mutationBaseSchema.extend({
-  path: mutationTargetSchema,
-  content: z.string().optional(),
-});
 export const createDirectoryInputSchema = mutationBaseSchema.extend({
   path: mutationTargetSchema,
 });
-export const renameInputSchema = mutationBaseSchema.extend({
-  from: mutationTargetSchema,
-  to: mutationTargetSchema,
-});
-export const moveInputSchema = renameInputSchema;
-export const copyInputSchema = renameInputSchema;
 export const deleteInputSchema = mutationBaseSchema.extend({
   path: mutationTargetSchema,
   recursive: z.boolean().optional(),
@@ -134,12 +106,9 @@ export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
 export type TreeKey = z.infer<typeof treeKeySchema>;
 export type ContentKey = z.infer<typeof contentKeySchema>;
 export type FileStat = z.infer<typeof fileStatSchema>;
-export type FileUsageError = z.infer<typeof fileUsageErrorSchema>;
-export type FileUsage = z.infer<typeof fileUsageSchema>;
 export type ReadFileOptions = z.infer<typeof readFileOptionsSchema>;
 export type ReadTextResult = z.infer<typeof readTextResultSchema>;
 export type ReadBytesMeta = z.infer<typeof readBytesMetaSchema>;
-export type FileGlobOptions = z.infer<typeof fileGlobOptionsSchema>;
 export type FileEnumerationOptions = z.infer<typeof fileEnumerationOptionsSchema>;
 export type PathBatch = z.infer<typeof pathBatchSchema>;
 export type PathList = z.infer<typeof pathListSchema>;
@@ -148,10 +117,6 @@ export type WritePrecondition = z.infer<typeof writePreconditionSchema>;
 export type WriteContentInput = z.infer<typeof writeContentInputSchema>;
 export type UploadFileInput = z.infer<typeof uploadFileInputSchema>;
 export type UploadFileResult = z.infer<typeof uploadFileResultSchema>;
-export type CreateFileInput = z.infer<typeof createFileInputSchema>;
 export type CreateDirectoryInput = z.infer<typeof createDirectoryInputSchema>;
-export type RenameInput = z.infer<typeof renameInputSchema>;
-export type MoveInput = z.infer<typeof moveInputSchema>;
-export type CopyInput = z.infer<typeof copyInputSchema>;
 export type DeleteInput = z.infer<typeof deleteInputSchema>;
 export type WriteFileInput = z.infer<typeof writeFileInputSchema>;

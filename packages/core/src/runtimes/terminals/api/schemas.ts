@@ -133,13 +133,3 @@ export const killTmuxSessionsInputSchema = z.object({
 });
 
 export type KillTmuxSessionsInput = z.infer<typeof killTmuxSessionsInputSchema>;
-
-export const tmuxSessionActivitySchema = z.object({
-  sessionName: z.string().min(1),
-  activityMs: z.number(),
-});
-
-export const tmuxSessionListSchema = z.array(tmuxSessionActivitySchema);
-
-export type TmuxSessionActivity = z.infer<typeof tmuxSessionActivitySchema>;
-export type TmuxSessionList = z.infer<typeof tmuxSessionListSchema>;

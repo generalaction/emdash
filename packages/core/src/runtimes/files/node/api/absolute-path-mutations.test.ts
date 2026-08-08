@@ -17,22 +17,11 @@ afterEach(async () => {
 });
 
 describe('files runtime absolute-path mutations', () => {
-  it('creates files and directories at bare absolute paths', async () => {
+  it('creates directories at bare absolute paths', async () => {
     const dir = await makeDir();
     const { connection, dispose } = await makeRuntime();
 
     try {
-      const filePath = runtimeRoot(path.join(dir, 'created.txt'));
-      await expect(
-        connection.api.mutations.createFile({ path: filePath, content: 'seeded\n' })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'created.txt'), 'utf8')).resolves.toBe('seeded\n');
-
-      await expect(connection.api.mutations.createFile({ path: filePath })).resolves.toMatchObject({
-        success: false,
-        error: { type: 'already-exists' },
-      });
-
       await expect(
         connection.api.mutations.createDirectory({
           path: runtimeRoot(path.join(dir, 'made-dir')),
@@ -63,99 +52,6 @@ describe('files runtime absolute-path mutations', () => {
         })
       ).resolves.toEqual({ success: true, data: undefined });
       await expect(stat(path.join(dir, 'nested'))).rejects.toMatchObject({ code: 'ENOENT' });
-    } finally {
-      await dispose();
-    }
-  });
-
-  it('renames within one parent directory and rejects cross-directory renames', async () => {
-    const dir = await makeDir();
-    await writeFile(path.join(dir, 'before.txt'), 'same bytes\n');
-    await mkdir(path.join(dir, 'elsewhere'));
-    const { connection, dispose } = await makeRuntime();
-
-    try {
-      await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'before.txt')),
-          to: runtimeRoot(path.join(dir, 'after.txt')),
-        })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'after.txt'), 'utf8')).resolves.toBe('same bytes\n');
-
-      await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'after.txt')),
-          to: runtimeRoot(path.join(dir, 'elsewhere/after.txt')),
-        })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-    } finally {
-      await dispose();
-    }
-  });
-
-  it('moves and copies across directories and pushes updates to live content models', async () => {
-    const dir = await makeDir();
-    await mkdir(path.join(dir, 'source'));
-    await mkdir(path.join(dir, 'target'));
-    await writeFile(path.join(dir, 'source/wandering.txt'), 'travels\n');
-    const { connection, dispose } = await makeRuntime();
-    const fromKey = { path: runtimeRoot(path.join(dir, 'source/wandering.txt')) };
-    const toKey = { path: runtimeRoot(path.join(dir, 'target/wandering.txt')) };
-
-    try {
-      // Live content models on both endpoints must observe the move through the
-      // published change notifications alone (the manual watcher never fires).
-      await expect(
-        connection.api.content.state(fromKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'text', content: 'travels\n' } });
-      await expect(
-        connection.api.content.state(toKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable', error: { type: 'not-found' } } });
-
-      await expect(
-        connection.api.mutations.move({ from: fromKey.path, to: toKey.path })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'target/wandering.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
-      );
-      await waitFor(async () => {
-        const gone = await connection.api.content.state(fromKey, 'content').snapshot();
-        const arrived = await connection.api.content.state(toKey, 'content').snapshot();
-        return gone.data.kind === 'unavailable' && arrived.data.kind === 'text';
-      });
-
-      await expect(
-        connection.api.mutations.copy({
-          from: toKey.path,
-          to: runtimeRoot(path.join(dir, 'source/copied.txt')),
-        })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'source/copied.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
-      );
-      await expect(readFile(path.join(dir, 'target/wandering.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
-      );
-    } finally {
-      await dispose();
-    }
-  });
-
-  it('refuses to move onto an existing entry', async () => {
-    const dir = await makeDir();
-    await writeFile(path.join(dir, 'a.txt'), 'a\n');
-    await writeFile(path.join(dir, 'b.txt'), 'b\n');
-    const { connection, dispose } = await makeRuntime();
-
-    try {
-      await expect(
-        connection.api.mutations.move({
-          from: runtimeRoot(path.join(dir, 'a.txt')),
-          to: runtimeRoot(path.join(dir, 'b.txt')),
-        })
-      ).resolves.toMatchObject({ success: false, error: { type: 'already-exists' } });
-      await expect(readFile(path.join(dir, 'b.txt'), 'utf8')).resolves.toBe('b\n');
     } finally {
       await dispose();
     }
@@ -213,13 +109,6 @@ describe('files runtime absolute-path mutations', () => {
       await expect(
         connection.api.mutations.delete({ path: relativePath('mixed.txt') })
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-      // Rename endpoints must agree on the addressing mode.
-      await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'mixed.txt')),
-          to: relativePath('renamed.txt'),
-        })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
       await expect(readFile(path.join(dir, 'mixed.txt'), 'utf8')).resolves.toBe('x\n');
     } finally {
       await dispose();
@@ -228,26 +117,25 @@ describe('files runtime absolute-path mutations', () => {
 
   it('keeps serving root-scoped mutations unchanged', async () => {
     const dir = await makeDir();
+    await writeFile(path.join(dir, 'scoped.txt'), 'in root\n');
     const { connection, dispose } = await makeRuntime();
 
     try {
       await expect(
-        connection.api.mutations.createFile({
+        connection.api.mutations.createDirectory({
           root: runtimeRoot(dir),
-          path: relativePath('scoped.txt'),
-          content: 'in root\n',
+          path: relativePath('scoped-dir'),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'scoped.txt'), 'utf8')).resolves.toBe('in root\n');
+      await expect(stat(path.join(dir, 'scoped-dir'))).resolves.toMatchObject({});
 
       await expect(
-        connection.api.mutations.move({
+        connection.api.mutations.delete({
           root: runtimeRoot(dir),
-          from: relativePath('scoped.txt'),
-          to: relativePath('moved.txt'),
+          path: relativePath('scoped.txt'),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'moved.txt'), 'utf8')).resolves.toBe('in root\n');
+      await expect(stat(path.join(dir, 'scoped.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await dispose();
     }

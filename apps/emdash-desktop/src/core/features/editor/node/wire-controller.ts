@@ -57,21 +57,9 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
     },
     content: createContentModelProvider(options),
     mutations: {
-      createFile: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.mutations.createFile(mapped, callOptions(meta))
-        ),
       createDirectory: (input, meta) =>
         withFilesRuntime(options, input, (files, mapped) =>
           files.mutations.createDirectory(mapped, callOptions(meta))
-        ),
-      rename: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.mutations.rename(mapped, callOptions(meta))
-        ),
-      move: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.mutations.move(mapped, callOptions(meta))
         ),
       delete: (input, meta) =>
         withFilesRuntime(options, input, (files, mapped) =>

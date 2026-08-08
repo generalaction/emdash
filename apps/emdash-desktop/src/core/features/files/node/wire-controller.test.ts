@@ -78,45 +78,30 @@ describe('createFilesWireController', () => {
   });
 
   it('forwards mutations with decoded absolute targets', async () => {
-    const createFile = vi.fn(async () => ok(undefined));
-    const move = vi.fn(async () => ok(undefined));
-    const client = vi.fn(async () => ok({ files: { mutations: { createFile, move } } }));
+    const createDirectory = vi.fn(async () => ok(undefined));
+    const deleteEntry = vi.fn(async () => ok(undefined));
+    const client = vi.fn(async () =>
+      ok({ files: { mutations: { createDirectory, delete: deleteEntry } } })
+    );
     const controller = createFilesWireController({ runtimes: { client } as never });
 
     await expect(
-      controller.call('mutations.createFile', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/new.txt'),
-        content: 'seed',
+      controller.call('mutations.createDirectory', {
+        uri: uriFor(LOCAL_HOST_REF, '/repo/new-dir'),
       })
     ).resolves.toEqual(ok(undefined));
-    expect(createFile).toHaveBeenCalledWith(
-      { path: absolute('/repo/new.txt'), content: 'seed' },
-      {}
-    );
+    expect(createDirectory).toHaveBeenCalledWith({ path: absolute('/repo/new-dir') }, {});
 
     await expect(
-      controller.call('mutations.move', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/new.txt'),
-        to: uriFor(LOCAL_HOST_REF, '/repo/sub/new.txt'),
+      controller.call('mutations.delete', {
+        uri: uriFor(LOCAL_HOST_REF, '/repo/new-dir'),
+        recursive: true,
       })
     ).resolves.toEqual(ok(undefined));
-    expect(move).toHaveBeenCalledWith(
-      { from: absolute('/repo/new.txt'), to: absolute('/repo/sub/new.txt') },
+    expect(deleteEntry).toHaveBeenCalledWith(
+      { path: absolute('/repo/new-dir'), recursive: true },
       {}
     );
-  });
-
-  it('rejects rename and move whose endpoints name different hosts', async () => {
-    const client = vi.fn();
-    const controller = createFilesWireController({ runtimes: { client } as never });
-
-    await expect(
-      controller.call('mutations.rename', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/a.txt'),
-        to: uriFor(remoteHost, '/repo/b.txt'),
-      })
-    ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-    expect(client).not.toHaveBeenCalled();
   });
 
   it('passes the downloaded byte stream through', async () => {

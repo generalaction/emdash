@@ -100,10 +100,6 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       ),
 
     auth: createAuthModelProvider(options.runtimes),
-    refreshAgents: (input, meta) =>
-      withAgentConfigResult(options.runtimes, input.host, (client) =>
-        client.refreshAgents(withoutHost(input), callOptions(meta))
-      ),
     hooksStatus: ({ host, providerId }, meta) =>
       withHostRuntime(options.runtimes, host, (runtime) =>
         runtime.agentConfig.hooksStatus({ providerId }, callOptions(meta))

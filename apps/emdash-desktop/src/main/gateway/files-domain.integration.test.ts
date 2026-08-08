@@ -132,33 +132,15 @@ describe('files wire controller against a live files runtime', () => {
     await expect(
       controller.call('mutations.createDirectory', { uri: localUri(path.join(dir, 'docs')) })
     ).resolves.toEqual(ok(undefined));
-    await expect(
-      controller.call('mutations.createFile', {
-        uri: localUri(path.join(dir, 'docs/note.md')),
-        content: 'note\n',
-      })
-    ).resolves.toEqual(ok(undefined));
-    await expect(readFile(path.join(dir, 'docs/note.md'), 'utf8')).resolves.toBe('note\n');
+    await expect(stat(path.join(dir, 'docs'))).resolves.toMatchObject({});
 
     await expect(
-      controller.call('mutations.rename', {
-        uri: localUri(path.join(dir, 'docs/note.md')),
-        to: localUri(path.join(dir, 'docs/renamed.md')),
+      controller.call('mutations.delete', {
+        uri: localUri(path.join(dir, 'docs')),
+        recursive: true,
       })
     ).resolves.toEqual(ok(undefined));
-
-    await expect(
-      controller.call('mutations.move', {
-        uri: localUri(path.join(dir, 'docs/renamed.md')),
-        to: localUri(path.join(dir, 'moved.md')),
-      })
-    ).resolves.toEqual(ok(undefined));
-    await expect(readFile(path.join(dir, 'moved.md'), 'utf8')).resolves.toBe('note\n');
-
-    await expect(
-      controller.call('mutations.delete', { uri: localUri(path.join(dir, 'moved.md')) })
-    ).resolves.toEqual(ok(undefined));
-    await expect(stat(path.join(dir, 'moved.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(path.join(dir, 'docs'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

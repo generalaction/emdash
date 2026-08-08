@@ -40,7 +40,6 @@ import {
   type TerminalDevServer,
   type TerminalKey,
   type TerminalSessionState,
-  type TmuxSessionActivity,
 } from '#runtimes/terminals/api';
 import {
   wireTerminalUrlDetector,
@@ -50,7 +49,6 @@ import {
 import {
   buildTerminalEnv,
   killTmuxSession,
-  listTmuxSessionActivity,
   makeTmuxSessionName,
   resolveLocalPtySpawn,
   PtyRegistry,
@@ -330,37 +328,6 @@ export class TerminalsRuntime {
     if (process.platform === 'win32' || !this.exec) return ok(undefined);
     for (const name of input.sessionNames) {
       await killTmuxSession(this.exec, name);
-    }
-    return ok(undefined);
-  }
-
-  async listTmuxSessions(): Promise<Result<TmuxSessionActivity[], TerminalError>> {
-    if (process.platform === 'win32' || !this.exec) return ok([]);
-    const activity = await listTmuxSessionActivity(this.exec);
-    const result: TmuxSessionActivity[] = [];
-    for (const [sessionName, activityMs] of activity) {
-      result.push({ sessionName, activityMs });
-    }
-    return ok(result);
-  }
-
-  async killScope(workspace: HostFileRef): Promise<Result<void, TerminalError>> {
-    const prefix = `${scopeKeyFor(workspace)}:`;
-    for (const [key] of Object.entries(peek(this.sessionsList))) {
-      if (!key.startsWith(prefix)) continue;
-      this.registry.kill(key);
-      this.closePreviewSource(key);
-      await this.killTmuxForSession(key);
-    }
-    return ok(undefined);
-  }
-
-  detachScope(workspace: HostFileRef): Result<void, TerminalError> {
-    const prefix = `${scopeKeyFor(workspace)}:`;
-    for (const [key] of Object.entries(peek(this.sessionsList))) {
-      if (!key.startsWith(prefix)) continue;
-      this.registry.kill(key);
-      this.closePreviewSource(key);
     }
     return ok(undefined);
   }

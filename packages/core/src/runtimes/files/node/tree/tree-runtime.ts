@@ -29,7 +29,6 @@ export class FileTreeRuntime {
       {
         mutations: {
           expand: (context) => this.run(context.key, (resource) => resource.expand(context)),
-          collapse: (context) => this.run(context.key, (resource) => resource.collapse(context)),
           reveal: (context) => this.run(context.key, (resource) => resource.reveal(context)),
           createFile: (context) =>
             this.run(context.key, (resource) => resource.createFile(context)),

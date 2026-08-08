@@ -5,7 +5,6 @@ import type { CatalogSkill } from '#primitives/skills/api';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
-  AgentConfigRefreshError,
   AgentConfigSkillsError,
   HooksStatus,
 } from '#runtimes/agent-config/api';
@@ -70,13 +69,6 @@ export class AgentConfigRuntime {
 
   skillsLiveHost(): AgentConfigSkillsLiveHost {
     return this.skillsHost;
-  }
-
-  refreshAgents(input: {
-    providerId?: string;
-    refreshShellEnv?: boolean;
-  }): Promise<Result<void, AgentConfigRefreshError>> {
-    return this.install.refresh(input);
   }
 
   async hooksStatus(providerId: string): Promise<HooksStatus> {

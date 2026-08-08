@@ -12,7 +12,6 @@ import {
   agentConfigAuthErrorSchema,
   agentConfigListSchema,
   agentConfigMcpErrorSchema,
-  agentConfigRefreshErrorSchema,
   agentConfigSkillsErrorSchema,
   createSkillInputSchema,
   installedSkillsSchema,
@@ -33,11 +32,6 @@ export const agentConfigContract = defineContract({
     states: {
       list: liveState({ data: agentConfigListSchema }),
     },
-  }),
-  refreshAgents: fallible({
-    input: z.object({ providerId: z.string().optional(), refreshShellEnv: z.boolean().optional() }),
-    data: z.void(),
-    error: agentConfigRefreshErrorSchema,
   }),
   hooksStatus: procedure({
     input: providerCommandSchema,

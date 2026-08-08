@@ -27,9 +27,6 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     stopSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.stopSession(input.conversationId);
     },
-    deactivateSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
-      return runtime.deactivateSession(input.conversationId, 'user');
-    },
     deleteSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.deleteSession(input.conversationId);
     },

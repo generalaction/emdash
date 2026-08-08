@@ -17,13 +17,7 @@ describe('filesWireContract', () => {
       'readBytes',
       'upload',
     ]);
-    expect(Object.keys(filesWireContract.mutations)).toEqual([
-      'createFile',
-      'createDirectory',
-      'rename',
-      'move',
-      'delete',
-    ]);
+    expect(Object.keys(filesWireContract.mutations)).toEqual(['createDirectory', 'delete']);
     expect(Object.keys(filesWireContract.tree.model.mutations)).toEqual(
       Object.keys(filesContract.tree.model.mutations)
     );
@@ -84,14 +78,6 @@ describe('filesWireContract', () => {
     ).toThrow();
   });
 
-  it('keys rename and move by source and target ResourceUri', () => {
-    const target = resourceUri('/repo/worktree/src/renamed.ts');
-    expect(filesWireContract.mutations.rename.input.parse({ uri, to: target })).toEqual({
-      uri,
-      to: target,
-    });
-    expect(() => filesWireContract.mutations.move.input.parse({ uri, to: 'renamed.ts' })).toThrow();
-  });
 });
 
 function resourceUri(path: string) {

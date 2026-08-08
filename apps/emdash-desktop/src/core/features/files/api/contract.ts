@@ -63,19 +63,11 @@ const filesFsContract = defineContract({
   }),
 });
 
-const renameKeySchema = z.object({ uri: resourceUriSchema, to: resourceUriSchema });
-
 const filesMutationsContract = defineContract({
-  createFile: runtimeFallibleProcedure(
-    uriKeySchema.extend({ content: z.string().optional() }),
-    filesContract.mutations.createFile.output
-  ),
   createDirectory: runtimeFallibleProcedure(
     uriKeySchema,
     filesContract.mutations.createDirectory.output
   ),
-  rename: runtimeFallibleProcedure(renameKeySchema, filesContract.mutations.rename.output),
-  move: runtimeFallibleProcedure(renameKeySchema, filesContract.mutations.move.output),
   delete: runtimeFallibleProcedure(
     uriKeySchema.extend({ recursive: z.boolean().optional() }),
     filesContract.mutations.delete.output
