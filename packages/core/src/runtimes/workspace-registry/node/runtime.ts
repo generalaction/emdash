@@ -15,6 +15,7 @@ import type {
   CreateWorktreeError,
   DeleteWorkspaceError,
   DeleteWorktreeError,
+  MeasureUsageError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
@@ -24,6 +25,7 @@ import type {
   DeactivateWorkspaceInput,
   DeleteWorkspaceInput,
   DeleteWorktreeInput,
+  MeasureUsageInput,
   RefreshWorkspacesInput,
   RetryStepInput,
   WorkspaceLifecycleStep,
@@ -32,6 +34,7 @@ import type {
   WorkspaceRecords,
   WorkspaceRemovalAttempt,
   WorkspaceRuntimeOverlay,
+  WorkspaceUsage,
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeFetchRefs, executePushBranch } from './background-steps';
@@ -56,6 +59,7 @@ import {
   withLifecycleStep,
   type CreationStageTimeline,
 } from './lifecycle';
+import { measureWorkspaceUsage } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
@@ -398,6 +402,22 @@ export class WorkspaceRegistryRuntime {
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
     return this.enqueueScan(() => this.executeRefresh(input));
+  }
+
+  /**
+   * On-demand git-aware disk observation; the path resolves from the registry's own
+   * record. Runs off both lanes deliberately — a slow `du` over a large workspace must
+   * never block mutations or scans, and it writes nothing.
+   */
+  async measureUsage(
+    input: MeasureUsageInput,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceUsage, MeasureUsageError>> {
+    const record = this.store.get(input.workspaceId);
+    if (!record) {
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+    }
+    return measureWorkspaceUsage({ workspacePath: record.path, signal });
   }
 
   /**

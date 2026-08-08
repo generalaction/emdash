@@ -14,7 +14,6 @@ export function createWorkspaceHostController(
   return createController(contract, {
     initializeWorkspace: (input, meta) => runtime.initializeWorkspace(input, meta.signal),
     runWorkspaceScript: (input, meta) => runtime.runWorkspaceScript(input, meta.signal),
-    measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
     notices: runtime.noticesHost,
   });
 }

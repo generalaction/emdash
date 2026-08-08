@@ -4,11 +4,9 @@ import {
   workspaceHostErrorSchema,
   workspaceHostInitializeRequestSchema,
   workspaceHostInitializeResultSchema,
-  workspaceHostMeasureUsageRequestSchema,
   workspaceHostNoticesListSchema,
   workspaceHostRunScriptRequestSchema,
   workspaceHostRunScriptResultSchema,
-  workspaceHostUsageSchema,
 } from './schemas';
 
 export const workspaceHostContract = defineContract({
@@ -20,11 +18,6 @@ export const workspaceHostContract = defineContract({
   runWorkspaceScript: fallible({
     input: workspaceHostRunScriptRequestSchema,
     data: workspaceHostRunScriptResultSchema,
-    error: workspaceHostErrorSchema,
-  }),
-  measureUsage: fallible({
-    input: workspaceHostMeasureUsageRequestSchema,
-    data: workspaceHostUsageSchema,
     error: workspaceHostErrorSchema,
   }),
   notices: liveModel({

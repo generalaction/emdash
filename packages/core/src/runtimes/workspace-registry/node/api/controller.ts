@@ -11,6 +11,7 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
     deactivateWorkspace: (input) => runtime.deactivateWorkspace(input),
     deleteWorkspace: (input) => runtime.deleteWorkspace(input),
     deleteWorktree: (input) => runtime.deleteWorktree(input),
+    measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
     refresh: (input) => runtime.refresh(input),
     retryStep: (input) => runtime.retryStep(input),
   });

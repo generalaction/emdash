@@ -58,26 +58,3 @@ export const workspaceHostRunScriptRequestSchema = z.object({
   script: z.enum(['prepare', 'setup', 'run', 'teardown']),
 });
 export type WorkspaceHostRunScriptRequest = z.infer<typeof workspaceHostRunScriptRequestSchema>;
-
-export const workspaceHostMeasureUsageRequestSchema = z.object({
-  workspacePath: hostAbsolutePathSchema,
-});
-export type WorkspaceHostMeasureUsageRequest = z.infer<
-  typeof workspaceHostMeasureUsageRequestSchema
->;
-
-export const workspaceHostUsageErrorSchema = z.object({
-  path: z.string(),
-  message: z.string(),
-});
-export type WorkspaceHostUsageError = z.infer<typeof workspaceHostUsageErrorSchema>;
-
-export const workspaceHostUsageSchema = z.object({
-  path: hostAbsolutePathSchema,
-  /** Exclusive disk bytes for the workspace tree. */
-  totalBytes: z.number().int().nonnegative(),
-  /** Disk bytes attributable to git-ignored artifacts (reclaimable). */
-  artifactBytes: z.number().int().nonnegative(),
-  errors: z.array(workspaceHostUsageErrorSchema),
-});
-export type WorkspaceHostUsage = z.infer<typeof workspaceHostUsageSchema>;

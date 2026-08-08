@@ -27,14 +27,18 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.agentStates.id).toBe('tuiAgents.agentStates');
   });
 
-  it('mounts workspace-host initialization, scripts, usage, and notices', () => {
+  it('mounts workspace-host initialization, scripts, and notices', () => {
     expect('submitOperation' in workspaceWireContract.workspaceHost).toBe(false);
     expect('operations' in workspaceWireContract.workspaceHost).toBe(false);
     expect(workspaceWireContract.workspaceHost.initializeWorkspace.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.runWorkspaceScript.kind).toBe('procedure');
-    expect(workspaceWireContract.workspaceHost.measureUsage.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.notices.kind).toBe('liveModel');
     expect(workspaceWireContract.workspaceHost.notices.id).toBe('workspaceHost.notices');
+  });
+
+  it('serves disk-usage measurement from the registry, not workspace-host', () => {
+    expect('measureUsage' in workspaceWireContract.workspaceHost).toBe(false);
+    expect(workspaceWireContract.workspaceRegistry.measureUsage.kind).toBe('procedure');
   });
 
   it('does not mount the retired legacy workspace runtime', () => {

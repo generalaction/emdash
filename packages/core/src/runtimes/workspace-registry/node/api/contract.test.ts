@@ -323,6 +323,30 @@ describe('workspace registry contract', () => {
     });
   });
 
+  it('measureUsage reports total and reclaimable git-ignored artifact bytes by workspace id', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await fs.writeFile(path.join(repoPath, '.gitignore'), 'dist/\n');
+    git(repoPath, 'add', '.gitignore');
+    git(repoPath, 'commit', '-m', 'ignore dist');
+    await fs.mkdir(path.join(repoPath, 'dist'));
+    await fs.writeFile(path.join(repoPath, 'dist', 'bundle.js'), 'x'.repeat(4_096));
+    await wire.client.createWorkspace({ id: 'ws-usage', path: repoPath });
+
+    const measured = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    expect(measured).toMatchObject({ success: true, data: { errors: [] } });
+    if (!measured.success) throw new Error('expected success');
+    expect(measured.data.artifactBytes).toBeGreaterThan(0);
+    expect(measured.data.totalBytes).toBeGreaterThanOrEqual(measured.data.artifactBytes);
+  });
+
+  it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {
+    const measured = await wire.client.measureUsage({ workspaceId: 'unknown' });
+    expect(measured).toEqual({
+      success: false,
+      error: { type: 'workspace-not-found', workspaceId: 'unknown' },
+    });
+  });
+
   it('refresh of an unknown id is a typed not-found error', async () => {
     const refreshed = await wire.client.refresh({ id: 'unknown' });
     expect(refreshed).toEqual({

@@ -1,12 +1,19 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { formatAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import { defaultGitExecFactory, type GitExecFactory } from '#services/exec/node/git-exec';
 import { measureAbsolutePathUsage } from '#services/fs-usage/node';
-import type { WorkspaceHostError, WorkspaceHostUsage } from '../api';
+import type { MeasureUsageError } from '../api/errors';
+import type { WorkspaceUsage } from '../api/schemas';
+
+/** Everything but the record-resolution variant, which the runtime handles itself. */
+export type MeasureWorkspaceUsageError = Exclude<
+  MeasureUsageError,
+  { type: 'workspace-not-found' }
+>;
 
 export type MeasureWorkspaceUsageOptions = {
-  workspacePath: HostAbsolutePath;
+  /** Absolute native path, as stored on the registry record. */
+  workspacePath: string;
   signal?: AbortSignal;
   createGitExec?: GitExecFactory;
 };
@@ -18,16 +25,14 @@ export type MeasureWorkspaceUsageOptions = {
  */
 export async function measureWorkspaceUsage(
   options: MeasureWorkspaceUsageOptions
-): Promise<Result<WorkspaceHostUsage, WorkspaceHostError>> {
-  const workspacePath = formatNativePath(options.workspacePath);
-  const artifactRoots = await listIgnoredArtifactRoots(workspacePath, options);
+): Promise<Result<WorkspaceUsage, MeasureWorkspaceUsageError>> {
+  const artifactRoots = await listIgnoredArtifactRoots(options.workspacePath, options);
   if (!artifactRoots.success) return artifactRoots;
   try {
-    const measured = await measureAbsolutePathUsage(workspacePath, '', {
+    const measured = await measureAbsolutePathUsage(options.workspacePath, '', {
       artifactRoots: artifactRoots.data,
     });
     return ok({
-      path: options.workspacePath,
       totalBytes: measured.exclusiveDiskBytes,
       artifactBytes: measured.artifactBytes,
       errors: measured.errors,
@@ -43,7 +48,7 @@ export async function measureWorkspaceUsage(
 async function listIgnoredArtifactRoots(
   workspacePath: string,
   options: Pick<MeasureWorkspaceUsageOptions, 'signal' | 'createGitExec'>
-): Promise<Result<string[], WorkspaceHostError>> {
+): Promise<Result<string[], MeasureWorkspaceUsageError>> {
   const createGitExec = options.createGitExec ?? defaultGitExecFactory;
   let stdout: string;
   try {
@@ -66,8 +71,7 @@ async function listIgnoredArtifactRoots(
     if (!relativePath) continue;
     if (!isContainedBy(root, path.resolve(root, relativePath))) {
       return err({
-        type: 'operation-rejected',
-        code: 'unsafe-artifact-path',
+        type: 'unsafe-artifact-path',
         message: `Ignored artifact escapes workspace: ${relativePath}`,
       });
     }
@@ -87,10 +91,4 @@ function parseGitCleanDryRunLine(line: string): string | undefined {
 function isContainedBy(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
-}
-
-function formatNativePath(absolutePath: HostAbsolutePath): string {
-  return formatAbsolute(absolutePath, {
-    separator: absolutePath.root.kind === 'posix' ? '/' : '\\',
-  });
 }
