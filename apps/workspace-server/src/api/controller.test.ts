@@ -300,7 +300,7 @@ describe('createWorkspaceWireController', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        code: 'protocol-incompatible',
+        type: 'protocol-incompatible',
         action: 'upgrade-client',
         clientProtocolVersion: '0.9.0',
         serverProtocolVersion: PROTOCOL_VERSION,
@@ -321,7 +321,7 @@ describe('createWorkspaceWireController', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        code: 'protocol-incompatible',
+        type: 'protocol-incompatible',
         action: 'upgrade-server',
         clientProtocolVersion: futureVersion,
         serverProtocolVersion: PROTOCOL_VERSION,

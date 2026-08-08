@@ -80,12 +80,13 @@ describe('negotiateProtocol', () => {
       expect(result.compatible).toBe(true);
     });
 
-    it('negotiates pre-workspace-init clients down below the 7.2 feature level', () => {
-      const result = negotiateProtocol('7.1.0');
+    it('rejects v7 clients against the v8 default with upgrade-client', () => {
+      const result = negotiateProtocol('7.6.0');
       expect(result).toEqual({
-        compatible: true,
-        agreedVersion: '7.1.0',
-        agreedMinor: 1,
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '7.6.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
       });
     });
 

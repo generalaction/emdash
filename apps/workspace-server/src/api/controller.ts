@@ -37,7 +37,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
       const result = negotiateProtocol(protocolVersion, PROTOCOL_VERSION);
       if (!result.compatible) {
         return err({
-          code: 'protocol-incompatible' as const,
+          type: 'protocol-incompatible' as const,
           action: result.action,
           clientProtocolVersion: result.clientProtocolVersion,
           serverProtocolVersion: result.serverProtocolVersion,
