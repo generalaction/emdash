@@ -92,9 +92,9 @@ export class EditorViewStore {
   }
 
   /** Opens the per-view file-tree projection. Idempotent. */
-  startFiles(workspacePath: string): void {
+  startFiles(workspacePath: string, sshConnectionId?: string): void {
     if (this.files) return;
-    const store = new FilesStore(this.projectId, this.workspaceId, workspacePath);
+    const store = new FilesStore(this.projectId, this.workspaceId, workspacePath, sshConnectionId);
     runInAction(() => {
       this.files = store;
     });

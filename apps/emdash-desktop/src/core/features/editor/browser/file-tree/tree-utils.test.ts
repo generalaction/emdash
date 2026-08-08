@@ -1,3 +1,4 @@
+import type { FileEntry } from '@emdash/core/runtimes/files/api';
 import { describe, expect, it } from 'vitest';
 import {
   buildFileTreeVisibleRows,
@@ -9,7 +10,6 @@ import {
   type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
-import type { EditorFileEntry as FileEntry } from '../../api';
 
 function attach(parent: NestedFileNode, child: NestedFileNode): NestedFileNode {
   parent.children.push(child);

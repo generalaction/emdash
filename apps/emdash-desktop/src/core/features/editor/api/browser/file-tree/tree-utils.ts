@@ -1,8 +1,4 @@
-import type {
-  EditorFileEntry as FileEntry,
-  EditorFileEntryKind as FileEntryKind,
-  EditorSymlinkTargetKind as SymlinkTargetKind,
-} from '../..';
+import type { FileEntry, FileEntryKind, SymlinkTargetKind } from '@emdash/core/runtimes/files/api';
 
 export type FileNodeId = string;
 

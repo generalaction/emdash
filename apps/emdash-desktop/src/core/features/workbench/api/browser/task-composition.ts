@@ -424,7 +424,7 @@ export class TaskComposition {
       )
     );
 
-    this.editorView.startFiles(workspace.path);
+    this.editorView.startFiles(workspace.path, workspace.sshConnectionId);
     this._sessionDisposers.push(
       reaction(
         () => {

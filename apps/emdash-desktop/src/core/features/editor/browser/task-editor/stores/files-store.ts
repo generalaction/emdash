@@ -1,5 +1,10 @@
 import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import {
+  encodeResourceUri,
+  type HostAbsolutePath,
+  type PortableRelativePath,
+  type ResourceUri,
+} from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import {
   reduceCopy,
@@ -21,7 +26,6 @@ import {
   type RemoteModel,
 } from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
   buildFileTreeVisibleRows,
   isExpandableFileTreeNode,
@@ -31,18 +35,20 @@ import {
   type FileNodeId,
   type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
+import { filesWireContract, type FilesTreeModel } from '@core/features/files/api';
+import { getFilesClient } from '@core/features/files/api/browser/client';
 import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import {
   absoluteRuntimePath,
+  hostFileRefFromNativePath,
   hostPathFromNative,
   nativePathFromHost,
   portablePath,
   relativePathWithin,
   resolveRelativePath,
 } from '@core/primitives/desktop-runtime/api';
-import { editorContract, type EditorFileTreeModel } from '../../../api';
 
-type TreeModel = typeof editorContract.tree.model;
+type TreeModel = typeof filesWireContract.tree.model;
 type TreeRemote = RemoteModel<TreeModel>;
 type TreeRemoteMember = ReturnType<TreeRemote>;
 export type TreeMutationError =
@@ -66,11 +72,12 @@ type ViewData = {
 
 export class FilesStore {
   private readonly root: HostAbsolutePath;
+  private readonly rootUri: ResourceUri;
   private treeRemote: TreeRemote | null = null;
   private treeModel: TreeRemoteMember | null = null;
   private treeScope: Scope | null = null;
-  private optimistic: OptimisticView<EditorFileTreeModel> | null = null;
-  private treeData: EditorFileTreeModel | null = null;
+  private optimistic: OptimisticView<FilesTreeModel> | null = null;
+  private treeData: FilesTreeModel | null = null;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
@@ -85,9 +92,14 @@ export class FilesStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    private readonly workspacePath: string
+    private readonly workspacePath: string,
+    sshConnectionId?: string
   ) {
-    this.root = hostPathFromNative(workspacePath);
+    // Workspace→root resolution happens here at the renderer edge (spec §2/§8):
+    // the tree is keyed by the root's ResourceUri, never by workspaceId.
+    const rootRef = hostFileRefFromNativePath(workspacePath, sshConnectionId);
+    this.root = rootRef.path;
+    this.rootUri = encodeResourceUri(rootRef);
     makeObservable<FilesStore, 'optimistic' | 'treeData' | 'syncError' | 'viewData'>(this, {
       optimistic: observable.ref,
       treeData: observable.ref,
@@ -322,7 +334,7 @@ export class FilesStore {
     if (id) runInAction(() => this.pendingUploadNodes.delete(id));
   }
 
-  private get tree(): EditorFileTreeModel | null {
+  private get tree(): FilesTreeModel | null {
     return this.treeData;
   }
 
@@ -398,15 +410,15 @@ export class FilesStore {
         if (!this.started || version !== this.bindVersion) return;
       }
 
-      const client = await getEditorClient();
+      const client = await getFilesClient();
       const runtimeScope = createScope({ label: `files-store:${this.workspaceId}` });
       scope = runtimeScope;
-      treeRemote = remote(editorContract.tree.model, client.tree.model, {
+      treeRemote = remote(filesWireContract.tree.model, client.tree.model, {
         scope: runtimeScope,
         lingerMs: 15_000,
       });
       const model = treeRemote({
-        workspaceId: this.workspaceId,
+        root: this.rootUri,
         sessionId: this.workspaceId,
         exclusions: this.exclusions,
       });
@@ -472,7 +484,7 @@ export class FilesStore {
       settled: Promise<void>;
     }>,
     input: Input,
-    recipe?: (draft: EditorFileTreeModel, input: Input) => void
+    recipe?: (draft: FilesTreeModel, input: Input) => void
   ): Promise<Result<void, TreeMutationError>> {
     try {
       const model = await this.requireModel();
