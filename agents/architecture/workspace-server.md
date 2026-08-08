@@ -27,10 +27,12 @@ The contract lives in `packages/core/src/workspace-server/`, shared by the serve
 
 The daemon is the Electron-free equivalent of the desktop runtime host. Every core runtime is a
 required supervised child worker in both socket and stdio modes: ACP, agent config, automations,
-file search, files, Git, terminals, TUI agents, and workspace. The filesystem watcher is also a
-worker because it is the shared dependency for files, Git, file search, and workspace. Server
-startup fails if any required worker cannot become ready; there are no unavailable-domain fallback
-implementations in the aggregate controller.
+conversations, file search, files, Git, resource usage, terminals, TUI agents, and workspace
+registry. The filesystem watcher is also a worker because it is the shared dependency for files,
+Git, file search, and the workspace registry. Automations starts last and depends on the workspace
+registry: automation workspace activation flows through the registry's `createWorkspace` and
+`activateWorkspace` verbs. Server startup fails if any required worker cannot become ready; there
+are no unavailable-domain fallback implementations in the aggregate controller.
 
 The parent mounts each complete runtime contract under `workspaceWireContract`. Aggregate
 forwarding rebinds live endpoint definitions to their namespaced contract ids while retaining the
@@ -60,7 +62,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '7.4.0';
+export const PROTOCOL_VERSION = '8.0.0';
 ```
 
 ### What each component means
@@ -84,7 +86,7 @@ export const PROTOCOL_VERSION = '7.4.0';
 
 ### When to bump major (breaking)
 
-- Removing or renaming a field, procedure, or error code.
+- Removing or renaming a field, procedure, or error variant.
 - Changing the type or semantics of an existing field.
 - Changing how requests are framed or how errors are encoded on the wire.
 - Adding an event kind that old clients **must** handle (rather than ignore).
@@ -154,7 +156,7 @@ When majors differ, the fallible `initialize` procedure returns a typed error:
 
 ```ts
 {
-  code: 'protocol-incompatible';
+  type: 'protocol-incompatible';
   action: 'upgrade-client' | 'upgrade-server';
   clientProtocolVersion: string;
   serverProtocolVersion: string;

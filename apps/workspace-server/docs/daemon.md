@@ -79,17 +79,18 @@ self-contained:
 ~/.emdash/workspace-server/state/acp-session-intents.json
 ~/.emdash/workspace-server/state/tui-agent-session-intents.json
 ~/.emdash/workspace-server/state/automations.db
+~/.emdash/workspace-server/state/conversations.db
 ~/.emdash/workspace-server/state/file-search.db
+~/.emdash/workspace-server/state/workspace-registry.db
 ~/.emdash/workspace-server/state/host-dependencies.json
-~/.emdash/workspace-server/state/worktrees/
 ```
 
 - `.sock` is the Unix domain socket accepted by the foreground daemon.
 - `.pid` records the daemon process id after socket serving starts.
 - `.lock` prevents competing `start` calls from spawning duplicate daemons.
 - `.log` receives stdout/stderr from the detached daemon process.
-- `state/` stores runtime-owned databases, intents, attachments, dependency selections, and the
-  worktree pool.
+- `state/` stores runtime-owned databases, intents, attachments, and dependency selections. ACP
+  attachments are laid out per conversation.
 
 The socket directory is created with mode `0700`, so the filesystem boundary is
 the local user account. Desktop clients reach the socket through SSH, not through
@@ -140,17 +141,19 @@ child entry initializes structured process logging and calls `runWireComponentWo
 
 The worker dependency graph mirrors the desktop host:
 
-- FS watch and terminals have no runtime-worker dependencies.
-- ACP, agent config, and TUI agents consume the parent-owned host-dependency resolver.
+- Conversations, FS watch, terminals, and resource usage have no runtime-worker dependencies.
+- ACP and TUI agents consume conversations and the parent-owned host-dependency resolver; agent
+  config consumes the resolver only.
 - Files and file search consume FS watch; Git consumes FS watch and host dependencies.
-- Workspace consumes terminals and FS watch.
-- Automations starts last and consumes workspace, ACP sessions, and TUI sessions.
+- The workspace registry consumes FS watch, ACP, terminals, and TUI agents.
+- Automations starts last and consumes the workspace registry, ACP sessions, TUI sessions, and
+  the conversation index.
 
 Every runtime is required. Failure to start any worker aborts server startup, while failures after
 readiness use the worker host's supervision policy. Runtime logs are emitted as structured stderr
 lines and forwarded by the parent process.
 
-`startSession` and `resumeSession` return `{ sessionId }` through the ACP API. The
+ACP `start` and `resume` return `{ sessionId }` through the ACP API. The
 connected desktop client owns persistence for those returned ids when remote ACP
 consumption is added.
 
@@ -195,7 +198,7 @@ whether the daemon is not running or unhealthy.
 - `src/gateway/worker-paths.ts` resolves packaged worker executable paths at runtime.
 - `src/gateway/entries/` contains the ACP, agent-config, and TUI-agent entries that inject the
   application plugin registry; all other workers reuse Core runtime entries directly.
-- `src/runtime/paths.ts` owns runtime database, intent, attachment, and worktree-pool paths.
+- `src/runtime/paths.ts` owns runtime database, intent, and attachment paths.
 
 ## Desktop Integration
 
