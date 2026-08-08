@@ -3,12 +3,16 @@ import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/
 
 export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
 export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });
+export const absolutePathKeySchema = z.object({ path: hostAbsolutePathSchema });
+// One file key shape for both operational modes: scoped to a registered root, or a
+// bare absolute host path with no root registered (spec §3/§5).
+export const fileKeySchema = z.union([pathKeySchema, absolutePathKeySchema]);
 export const exclusionPatternsSchema = z.array(z.string()).optional();
 export const treeKeySchema = rootKeySchema.extend({
   sessionId: z.string(),
   exclusions: exclusionPatternsSchema,
 });
-export const contentKeySchema = pathKeySchema;
+export const contentKeySchema = fileKeySchema;
 
 export const fileStatSchema = z.object({
   path: portableRelativePathSchema,
@@ -35,6 +39,11 @@ export const fileUsageSchema = z.object({
 export const readFileOptionsSchema = z.object({
   maxBytes: z.number().int().nonnegative().optional(),
 });
+
+export const readFileKeySchema = z.union([
+  pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
+  absolutePathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
+]);
 
 export const readTextResultSchema = z.object({
   content: z.string(),
@@ -110,6 +119,9 @@ export const writeFileInputSchema = rootKeySchema.extend({
 
 export type RootKey = z.infer<typeof rootKeySchema>;
 export type PathKey = z.infer<typeof pathKeySchema>;
+export type AbsolutePathKey = z.infer<typeof absolutePathKeySchema>;
+export type FileKey = z.infer<typeof fileKeySchema>;
+export type ReadFileKey = z.infer<typeof readFileKeySchema>;
 export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
 export type TreeKey = z.infer<typeof treeKeySchema>;
 export type ContentKey = z.infer<typeof contentKeySchema>;

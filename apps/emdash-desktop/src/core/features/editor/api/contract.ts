@@ -2,6 +2,8 @@ import {
   exclusionPatternsSchema,
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
+  pathKeySchema as filesPathKeySchema,
+  readFileOptionsSchema,
 } from '@emdash/core/runtimes/files/api';
 import {
   defineContract,
@@ -23,9 +25,9 @@ const treeKeySchema = workspaceKeySchema.extend({
   sessionId: z.string(),
   exclusions: exclusionPatternsSchema,
 });
-const pathKeySchema = filesContract.fs.exists.input
-  .omit({ root: true })
-  .extend(workspaceKeySchema.shape);
+// The files runtime addresses these by root-scoped or bare absolute keys; the
+// editor domain stays workspace-scoped, so it derives from the root-scoped shape.
+const pathKeySchema = filesPathKeySchema.omit({ root: true }).extend(workspaceKeySchema.shape);
 
 const editorTreeContract = defineContract({
   model: liveModel({
@@ -41,11 +43,11 @@ const editorFsContract = defineContract({
   exists: runtimeFallibleProcedure(pathKeySchema, filesContract.fs.exists.output),
   realPath: runtimeFallibleProcedure(pathKeySchema, filesContract.fs.realPath.output),
   readText: runtimeFallibleProcedure(
-    filesContract.fs.readText.input.omit({ root: true }).extend(workspaceKeySchema.shape),
+    pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
     filesContract.fs.readText.output
   ),
   readBytes: downloadFile({
-    input: filesContract.fs.readBytes.input.omit({ root: true }).extend(workspaceKeySchema.shape),
+    input: pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
     meta: filesContract.fs.readBytes.meta,
     error: runtimeResolveErrorUnion(filesContract.fs.readBytes.error),
   }),
@@ -94,7 +96,7 @@ export const editorContract = defineContract({
   fs: editorFsContract,
   tree: editorTreeContract,
   content: liveModel({
-    key: filesContract.content.keySchema.omit({ root: true }).extend(workspaceKeySchema.shape),
+    key: pathKeySchema,
     states: {
       content: liveState({ data: filesContract.content.states.content.dataSchema }),
     },

@@ -73,6 +73,34 @@ describe('FilesAllocationGraph', () => {
     await graph.dispose();
   });
 
+  it('pools one children-scoped parent watch for absolute-path content', async () => {
+    const root = await makeRoot();
+    const watched: { root: string; options: WatchOptions | undefined }[] = [];
+    const watcher: IWatchService = {
+      watch: (watchRoot, _onEvents, options) => {
+        watched.push({ root: watchRoot, options });
+        return {
+          ready: async () => {},
+          release: async () => {},
+        };
+      },
+      dispose: async () => {},
+    };
+    const graph = new FilesAllocationGraph({
+      watcher,
+      watchIgnoreGlobs: ['**/node_modules/**'],
+      idleTtlMs: 10_000,
+    });
+
+    const first = graph.acquireContent({ path: runtimeRoot(path.join(root, 'a.txt')) });
+    const second = graph.acquireContent({ path: runtimeRoot(path.join(root, 'b.txt')) });
+    expect(await first.ready()).not.toBe(await second.ready());
+    expect(watched).toEqual([{ root, options: expect.objectContaining({ ignore: ['*/**'] }) }]);
+
+    await Promise.all([first.release(), second.release()]);
+    await graph.dispose();
+  });
+
   it('passes configured watcher ignore globs to root watchers', async () => {
     const root = await makeRoot();
     let watchOptions: WatchOptions | undefined;

@@ -14,11 +14,17 @@ export const fileContentModelSchema = z.discriminatedUnion('kind', [
     kind: z.literal('text'),
     content: z.string(),
     eol: z.enum(['lf', 'crlf']),
-    truncated: z.boolean(),
   }),
   fileContentBaseSchema.extend({
     kind: z.literal('binary'),
     mimeType: z.string().optional(),
+  }),
+  // Over-limit files classify as too-large instead of truncating silently (spec §3).
+  z.object({
+    kind: z.literal('too-large'),
+    path: portableRelativePathSchema,
+    byteSize: z.number().int().nonnegative(),
+    limit: z.number().int().nonnegative(),
   }),
   z.object({
     kind: z.literal('unavailable'),

@@ -304,6 +304,5 @@ function textContent(content: string, etag: string): EditorFileContentModel {
     readonly: false,
     content,
     eol: 'lf',
-    truncated: false,
   };
 }

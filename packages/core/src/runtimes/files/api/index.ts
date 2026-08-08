@@ -5,6 +5,7 @@ export {
 } from '#runtimes/files/api/api/contract';
 export { fsErrorSchema, type FsError } from '#runtimes/files/api/api/errors';
 export {
+  absolutePathKeySchema,
   contentKeySchema,
   copyInputSchema,
   createDirectoryInputSchema,
@@ -13,6 +14,7 @@ export {
   exclusionPatternsSchema,
   fileEnumerationOptionsSchema,
   fileGlobOptionsSchema,
+  fileKeySchema,
   fileStatSchema,
   fileUsageErrorSchema,
   fileUsageSchema,
@@ -21,6 +23,7 @@ export {
   pathKeySchema,
   pathListSchema,
   readBytesMetaSchema,
+  readFileKeySchema,
   readFileOptionsSchema,
   readTextResultSchema,
   renameInputSchema,
@@ -31,6 +34,7 @@ export {
   writeFileInputSchema,
   writeContentInputSchema,
   writePreconditionSchema,
+  type AbsolutePathKey,
   type ContentKey,
   type CopyInput,
   type CreateDirectoryInput,
@@ -39,6 +43,7 @@ export {
   type ExclusionPatterns,
   type FileEnumerationOptions,
   type FileGlobOptions,
+  type FileKey,
   type FileStat,
   type FileUsage,
   type FileUsageError,
@@ -47,6 +52,7 @@ export {
   type PathKey,
   type PathList,
   type ReadBytesMeta,
+  type ReadFileKey,
   type ReadFileOptions,
   type ReadTextResult,
   type RenameInput,

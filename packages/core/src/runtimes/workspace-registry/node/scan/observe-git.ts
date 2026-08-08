@@ -2,12 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { createBoundExec, type BoundExec, type ExecOptions } from '#services/exec/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
-import {
-  hostGitSchedule,
-  worktreeWriteLocks,
-  type GitSchedule,
-  type GitWorkTier,
-} from '../git-schedule';
+import { hostGitSchedule, worktreeWriteLocks, type GitWorkTier } from '../git-schedule';
 
 const GIT_ENV = {
   ...process.env,

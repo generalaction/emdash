@@ -13,22 +13,25 @@ afterEach(async () => {
 });
 
 describe('ContentReader', () => {
-  it('classifies EOL, truncation, binary content, and unavailable files', async () => {
+  it('classifies EOL, over-limit, binary content, and unavailable files', async () => {
     const root = await makeRoot();
     await writeFile(path.join(root, 'text.txt'), 'a\r\nb\r\n');
     await writeFile(path.join(root, 'binary.bin'), new Uint8Array([1, 0, 2]));
     await writeFile(path.join(root, 'invalid-utf8.bin'), new Uint8Array([0xc3, 0x28]));
     const paths = new RootPathPolicy(root);
 
-    await expect(new ContentReader(paths, 4).read(relativePath('text.txt'))).resolves.toMatchObject(
-      {
-        kind: 'text',
-        content: 'a\r\nb',
-        eol: 'crlf',
-        truncated: true,
-        byteSize: 6,
-      }
-    );
+    await expect(new ContentReader(paths, 4).read(relativePath('text.txt'))).resolves.toEqual({
+      kind: 'too-large',
+      path: 'text.txt',
+      byteSize: 6,
+      limit: 4,
+    });
+    await expect(new ContentReader(paths).read(relativePath('text.txt'))).resolves.toMatchObject({
+      kind: 'text',
+      content: 'a\r\nb\r\n',
+      eol: 'crlf',
+      byteSize: 6,
+    });
     await expect(new ContentReader(paths).read(relativePath('binary.bin'))).resolves.toMatchObject({
       kind: 'binary',
       byteSize: 3,

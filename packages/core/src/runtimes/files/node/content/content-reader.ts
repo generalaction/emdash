@@ -42,8 +42,12 @@ export class ContentReader {
             });
           }
           const limit = normalizeMaxBytes(this.maxBytes);
-          const readSize = Math.min(before.size, limit);
-          const snapshot = await readStrongSnapshot(handle, before.size, readSize);
+          if (before.size > limit) {
+            // Never truncate silently: over-limit content is a classification,
+            // mirroring the binary classification below (spec §3).
+            return { kind: 'too-large', path: entryPath, byteSize: before.size, limit };
+          }
+          const snapshot = await readStrongSnapshot(handle, before.size, before.size);
           const bytes = snapshot.bytes;
           const after = await handle.stat();
           if (etagForStat(before) !== etagForStat(after) || before.ctimeMs !== after.ctimeMs) {
@@ -61,8 +65,7 @@ export class ContentReader {
             byteSize: after.size,
             readonly: !(await isWritable(resolved.data.realPath)),
           };
-          const truncated = after.size > bytes.length;
-          const content = decodeUtf8(bytes, truncated);
+          const content = decodeUtf8(bytes);
           if (isBinary(bytes.subarray(0, BINARY_SAMPLE_BYTES)) || content === null) {
             return {
               ...base,
@@ -75,7 +78,6 @@ export class ContentReader {
             kind: 'text',
             content,
             eol: content.includes('\r\n') ? 'crlf' : 'lf',
-            truncated,
           };
         } finally {
           await handle.close();
@@ -95,9 +97,9 @@ function isBinary(sample: Uint8Array): boolean {
   return sample.includes(0);
 }
 
-function decodeUtf8(bytes: Uint8Array, truncated: boolean): string | null {
+function decodeUtf8(bytes: Uint8Array): string | null {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes, { stream: truncated });
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     return null;
   }

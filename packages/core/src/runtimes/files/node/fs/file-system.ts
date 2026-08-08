@@ -17,6 +17,7 @@ import type {
   CreateFileInput,
   DeleteInput,
   FileGlobOptions,
+  FileKey,
   FileStat,
   FileUsage,
   FsError,
@@ -101,17 +102,21 @@ export class FileSystemRuntime {
     });
   }
 
-  exists(input: PathKey): Promise<Result<boolean, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.relative);
+  async exists(input: FileKey): Promise<Result<boolean, FsError>> {
+    const result = await this.runAt(input, async (root, relative) => {
+      const resolved = await root.paths.resolveFollowed(relative);
       if (resolved.success) return ok(true);
       return resolved.error.type === 'not-found' ? ok(false) : resolved;
     });
+    // For a bare absolute path, a missing parent directory means the file does
+    // not exist rather than an addressing failure.
+    if (!result.success && result.error.type === 'not-found' && 'path' in input) return ok(false);
+    return result;
   }
 
-  realPath(input: PathKey): Promise<Result<HostAbsolutePath, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.relative);
+  realPath(input: FileKey): Promise<Result<HostAbsolutePath, FsError>> {
+    return this.runAt(input, async (root, relative) => {
+      const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
       const parsed = parseAbsolute(resolved.data.realPath, {
         profile: {
@@ -121,15 +126,15 @@ export class FileSystemRuntime {
       });
       return parsed.success
         ? ok(parsed.data)
-        : err({ type: 'invalid-path', path: input.relative, message: parsed.error.message });
+        : err({ type: 'invalid-path', path: relative, message: parsed.error.message });
     });
   }
 
   readText(
-    input: PathKey & { options?: ReadFileOptions }
+    input: FileKey & { options?: ReadFileOptions }
   ): Promise<Result<ReadTextResult, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.relative);
+    return this.runAt(input, async (root, relative) => {
+      const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
@@ -139,14 +144,14 @@ export class FileSystemRuntime {
           );
           try {
             const before = await handle.stat();
-            if (before.isDirectory()) return err({ type: 'is-a-directory', path: input.relative });
-            if (!before.isFile()) return err(notRegularFile(input.relative));
+            if (before.isDirectory()) return err({ type: 'is-a-directory', path: relative });
+            if (!before.isFile()) return err(notRegularFile(relative));
             const readSize = Math.min(before.size, normalizeMaxBytes(input.options?.maxBytes));
             const snapshot = await readStrongSnapshot(handle, before.size, readSize);
             const after = await handle.stat();
             if (!sameFileVersion(before, after)) {
               if (attempt === 0) continue;
-              return err(changedWhileReading(input.relative));
+              return err(changedWhileReading(relative));
             }
             return ok({
               content: snapshot.bytes.toString('utf8'),
@@ -158,7 +163,7 @@ export class FileSystemRuntime {
             await handle.close();
           }
         } catch (error) {
-          return err(toFsError(error, input.relative));
+          return err(toFsError(error, relative));
         }
       }
       throw new Error('readText exhausted its read attempts');
@@ -166,10 +171,10 @@ export class FileSystemRuntime {
   }
 
   readBytes(
-    input: PathKey & { options?: ReadFileOptions }
+    input: FileKey & { options?: ReadFileOptions }
   ): Promise<Result<{ meta: ReadBytesMeta; source: BlobSource }, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.relative);
+    return this.runAt(input, async (root, relative) => {
+      const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
@@ -181,20 +186,20 @@ export class FileSystemRuntime {
           try {
             const before = await handle.stat();
             if (before.isDirectory()) {
-              return err({ type: 'is-a-directory', path: input.relative });
+              return err({ type: 'is-a-directory', path: relative });
             }
-            if (!before.isFile()) return err(notRegularFile(input.relative));
+            if (!before.isFile()) return err(notRegularFile(relative));
             const readSize = Math.min(before.size, normalizeMaxBytes(input.options?.maxBytes));
             const snapshot = await readStrongSnapshot(handle, before.size, readSize);
             const after = await handle.stat();
             if (!sameFileVersion(before, after)) {
               if (attempt === 0) continue;
-              return err(changedWhileReading(input.relative));
+              return err(changedWhileReading(relative));
             }
             result = {
               meta: {
-                name: path.basename(input.relative) || path.basename(resolved.data.realPath),
-                mimeType: mimeTypeForPath(input.relative) ?? 'application/octet-stream',
+                name: path.basename(relative) || path.basename(resolved.data.realPath),
+                mimeType: mimeTypeForPath(relative) ?? 'application/octet-stream',
                 size: snapshot.bytes.length,
                 lastModified: after.mtimeMs,
                 truncated: after.size > snapshot.bytes.length,
@@ -208,7 +213,7 @@ export class FileSystemRuntime {
           }
           if (result) return ok(result);
         } catch (error) {
-          return err(toFsError(error, input.relative));
+          return err(toFsError(error, relative));
         }
       }
       throw new Error('readBytes exhausted its read attempts');
@@ -407,6 +412,13 @@ export class FileSystemRuntime {
     operation: (root: RootResource) => Promise<Result<T, FsError>>
   ): Promise<Result<T, FsError>> {
     return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
+  }
+
+  private runAt<T>(
+    key: FileKey,
+    operation: (root: RootResource, relative: PortableRelativePath) => Promise<Result<T, FsError>>
+  ): Promise<Result<T, FsError>> {
+    return this.withExpectedErrors(() => this.allocations.useFileLocation(key, operation));
   }
 
   private mutate(

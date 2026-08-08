@@ -59,7 +59,6 @@ describe('createEditorWireController', () => {
       readonly: false,
       content: 'test',
       eol: 'lf',
-      truncated: false,
     });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
     const client = vi.fn(async () => ok({ files: { content: { state } } }));
