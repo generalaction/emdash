@@ -115,63 +115,12 @@ export const pullErrorSchema = z.union([
 ]);
 export type PullError = z.infer<typeof pullErrorSchema>;
 
-export const syncErrorSchema = z.union([pullErrorSchema, pushErrorSchema]);
-export type SyncError = z.infer<typeof syncErrorSchema>;
-
-export const createBranchErrorSchema = z.union([
-  z.object({ type: z.literal('already_exists'), branch: z.string(), message: z.string() }),
-  z.object({ type: z.literal('invalid_name'), branch: z.string(), message: z.string() }),
-  z.object({
-    type: z.literal('invalid_base'),
-    branch: z.string(),
-    from: z.string(),
-    message: z.string(),
-  }),
-  z.object({
-    type: z.literal('fetch_failed'),
-    remote: z.string(),
-    branch: z.string(),
-    error: fetchErrorSchema,
-  }),
-  gitCommandErrorSchema,
-]);
-export type CreateBranchError = z.infer<typeof createBranchErrorSchema>;
-
 export const fetchPrForReviewErrorSchema = z.union([
   z.object({ type: z.literal('not_found'), prNumber: z.number().int(), message: z.string() }),
   authRequiredErrorSchema,
   gitCommandErrorSchema,
 ]);
 export type FetchPrForReviewError = z.infer<typeof fetchPrForReviewErrorSchema>;
-
-export const deleteBranchErrorSchema = z.union([
-  z.object({ type: z.literal('not_found'), branch: z.string(), message: z.string() }),
-  z.object({ type: z.literal('not_merged'), branch: z.string(), message: z.string() }),
-  z.object({ type: z.literal('is_current'), branch: z.string(), message: z.string() }),
-  gitCommandErrorSchema,
-]);
-export type DeleteBranchError = z.infer<typeof deleteBranchErrorSchema>;
-
-export const mergeErrorSchema = z.union([
-  conflictErrorSchema,
-  messageError('already_up_to_date'),
-  gitCommandErrorSchema,
-]);
-export type MergeError = z.infer<typeof mergeErrorSchema>;
-
-export const rebaseErrorSchema = z.union([
-  conflictErrorSchema,
-  messageError('nothing_to_rebase'),
-  gitCommandErrorSchema,
-]);
-export type RebaseError = z.infer<typeof rebaseErrorSchema>;
-
-export const switchErrorSchema = z.union([
-  messageError('local_changes'),
-  z.object({ type: z.literal('not_found'), ref: z.string(), message: z.string() }),
-  gitCommandErrorSchema,
-]);
-export type SwitchError = z.infer<typeof switchErrorSchema>;
 
 export type GitOperationError =
   | CloneRepositoryError
@@ -180,12 +129,7 @@ export type GitOperationError =
   | CommitError
   | PushError
   | PullError
-  | CreateBranchError
-  | FetchPrForReviewError
-  | DeleteBranchError
-  | MergeError
-  | RebaseError
-  | SwitchError;
+  | FetchPrForReviewError;
 
 export const gitVoidResultSchema = result(z.void(), gitCommandErrorSchema);
 export const gitOutputResultSchema = result(z.object({ output: z.string() }), pushErrorSchema);

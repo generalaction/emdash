@@ -1,14 +1,10 @@
 import { err, type Err } from '@emdash/shared';
 import type { HostAbsolutePath, PortableRelativePath } from '#primitives/path/api';
 import type {
-  CreateBranchError,
-  DeleteBranchError,
-  FetchError,
   FetchPrForReviewError,
   GitExecError,
   GitOperationError,
   GitResolutionError,
-  SwitchError,
 } from '#runtimes/git/api/api/errors';
 
 type TaggedError<Type extends GitOperationError['type']> = Extract<
@@ -79,47 +75,11 @@ export const gitErr = {
   diverged(message: string): Err<TaggedError<'diverged'>> {
     return failure({ type: 'diverged', message });
   },
-  alreadyExists(branch: string, message: string): Err<TaggedError<'already_exists'>> {
-    return failure({ type: 'already_exists', branch, message });
-  },
-  invalidName(branch: string, message: string): Err<TaggedError<'invalid_name'>> {
-    return failure({ type: 'invalid_name', branch, message });
-  },
-  invalidBase(branch: string, from: string, message: string): Err<TaggedError<'invalid_base'>> {
-    return failure({ type: 'invalid_base', branch, from, message });
-  },
-  fetchFailed(remote: string, branch: string, error: FetchError): Err<CreateBranchError> {
-    return failure({ type: 'fetch_failed', remote, branch, error });
-  },
   prNotFound(
     prNumber: number,
     message: string
   ): Err<Extract<FetchPrForReviewError, { type: 'not_found' }>> {
     return failure({ type: 'not_found', prNumber, message });
-  },
-  branchNotFound(
-    branch: string,
-    message: string
-  ): Err<Extract<DeleteBranchError, { type: 'not_found' }>> {
-    return failure({ type: 'not_found', branch, message });
-  },
-  branchNotMerged(branch: string, message: string): Err<TaggedError<'not_merged'>> {
-    return failure({ type: 'not_merged', branch, message });
-  },
-  branchIsCurrent(branch: string, message: string): Err<TaggedError<'is_current'>> {
-    return failure({ type: 'is_current', branch, message });
-  },
-  alreadyUpToDate(message: string): Err<TaggedError<'already_up_to_date'>> {
-    return failure({ type: 'already_up_to_date', message });
-  },
-  nothingToRebase(message: string): Err<TaggedError<'nothing_to_rebase'>> {
-    return failure({ type: 'nothing_to_rebase', message });
-  },
-  localChanges(message: string): Err<TaggedError<'local_changes'>> {
-    return failure({ type: 'local_changes', message });
-  },
-  refNotFound(ref: string, message: string): Err<Extract<SwitchError, { type: 'not_found' }>> {
-    return failure({ type: 'not_found', ref, message });
   },
   notRepository(path: HostAbsolutePath): Err<TaggedError<'not-repository'>> {
     return failure({ type: 'not-repository', path });

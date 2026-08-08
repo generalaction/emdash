@@ -58,35 +58,6 @@ export const gitLogResultSchema = z.object({
 });
 export type GitLogResult = z.infer<typeof gitLogResultSchema>;
 
-export const diffLineSchema = z.object({
-  type: z.enum(['context', 'add', 'del', 'no-newline']),
-  content: z.string(),
-  oldLineNo: z.number().int().optional(),
-  newLineNo: z.number().int().optional(),
-});
-export type DiffLine = z.infer<typeof diffLineSchema>;
-
-export const diffHunkSchema = z.object({
-  header: z.string(),
-  oldStart: z.number().int(),
-  oldLines: z.number().int(),
-  newStart: z.number().int(),
-  newLines: z.number().int(),
-  lines: z.array(diffLineSchema),
-});
-export type DiffHunk = z.infer<typeof diffHunkSchema>;
-
-export const fileDiffSchema = z.object({
-  path: gitFilePathSchema,
-  oldOid: z.string().optional(),
-  newOid: z.string().optional(),
-  binary: z.boolean(),
-  additions: z.number().int(),
-  deletions: z.number().int(),
-  hunks: z.array(diffHunkSchema),
-});
-export type FileDiff = z.infer<typeof fileDiffSchema>;
-
 export const blameHunkSchema = z.object({
   oid: z.string(),
   author: z.string(),
@@ -102,18 +73,6 @@ export const blameResultSchema = z.object({
   hunks: z.array(blameHunkSchema),
 });
 export type BlameResult = z.infer<typeof blameResultSchema>;
-
-export const conflictVersionsSchema = z.object({
-  /** Common ancestor version. */
-  base: z.string().optional(),
-  /** Our (current HEAD) version. */
-  ours: z.string().optional(),
-  /** Theirs (incoming) version. */
-  theirs: z.string().optional(),
-  /** Current working-tree version (with conflict markers). */
-  working: z.string().optional(),
-});
-export type ConflictVersions = z.infer<typeof conflictVersionsSchema>;
 
 export const imageBlobSchema = z.object({
   dataUrl: z.string(),
@@ -235,50 +194,12 @@ export const commitOptionsSchema = z.object({
 });
 export type CommitOptions = z.infer<typeof commitOptionsSchema>;
 
-export const resetModeSchema = z.enum(['soft', 'mixed', 'hard']);
-export type ResetMode = z.infer<typeof resetModeSchema>;
-
-export const switchOptionsSchema = z.object({
-  /** Ref to switch to (branch name, tag, or commit SHA). */
-  ref: z.string(),
-  /** Create a new branch at this ref. */
-  newBranch: z.string().optional(),
-  /** Force switch even when local changes exist (discard). */
-  force: z.boolean().optional(),
-});
-export type SwitchOptions = z.infer<typeof switchOptionsSchema>;
-
-export const mergeOptionsSchema = z.object({
-  branch: z.string(),
-  /** Prevent fast-forward; always create a merge commit. */
-  noFf: z.boolean().optional(),
-  squash: z.boolean().optional(),
-  message: z.string().optional(),
-});
-export type MergeOptions = z.infer<typeof mergeOptionsSchema>;
-
-export const rebaseOptionsSchema = z.object({
-  /** Branch / ref to rebase onto. */
-  onto: z.string(),
-  /** Interactive (implies passing --interactive to git, not modelled further here). */
-  interactive: z.boolean().optional(),
-});
-export type RebaseOptions = z.infer<typeof rebaseOptionsSchema>;
-
 export const pushOptionsSchema = z.object({
   remote: z.string().optional(),
   force: z.boolean().optional(),
   setUpstream: z.boolean().optional(),
 });
 export type PushOptions = z.infer<typeof pushOptionsSchema>;
-
-export const stashPushOptionsSchema = z.object({
-  message: z.string().optional(),
-  includeUntracked: z.boolean().optional(),
-  keepIndex: z.boolean().optional(),
-  paths: z.array(gitFilePathSchema).optional(),
-});
-export type StashPushOptions = z.infer<typeof stashPushOptionsSchema>;
 
 // -- Job inputs --
 
@@ -289,6 +210,3 @@ export type PushJobInput = z.infer<typeof pushJobInputSchema>;
 
 export const pullJobInputSchema = checkoutSelectorSchema;
 export type PullJobInput = z.infer<typeof pullJobInputSchema>;
-
-export const syncJobInputSchema = checkoutSelectorSchema;
-export type SyncJobInput = z.infer<typeof syncJobInputSchema>;

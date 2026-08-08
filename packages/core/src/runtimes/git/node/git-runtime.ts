@@ -15,7 +15,6 @@ export type GitRuntimeOptions = Readonly<{
   exec?: BoundExec;
   idleTtlMs?: number;
   aliasTtlMs?: number;
-  maxFileDiffStates?: number;
   maxFileContentStates?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
@@ -45,7 +44,6 @@ export class GitRuntime {
       objectStoreMutex: new KeyedMutex(),
       idleTtlMs: options.idleTtlMs,
       aliasTtlMs: options.aliasTtlMs,
-      maxFileDiffStates: options.maxFileDiffStates,
       maxFileContentStates: options.maxFileContentStates,
       onError,
     });

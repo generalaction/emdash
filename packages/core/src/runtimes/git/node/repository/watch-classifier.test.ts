@@ -14,8 +14,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: true,
       remotes: true,
-      stashes: false,
-      worktrees: false,
     });
   });
 
@@ -30,8 +28,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: false,
       remotes: false,
-      stashes: false,
-      worktrees: false,
     });
   });
 
@@ -47,8 +43,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: true,
       remotes: false,
-      stashes: false,
-      worktrees: false,
     });
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
   });
@@ -65,8 +59,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: true,
       remotes: false,
-      stashes: false,
-      worktrees: false,
     });
     expect(classification.worktrees.size).toBe(0);
   });
@@ -86,8 +78,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: false,
       remotes: false,
-      stashes: false,
-      worktrees: false,
     });
     expect(classification.worktrees.size).toBe(0);
   });
@@ -104,7 +94,7 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
   });
 
-  it('treats common worktrees directory changes as checkout-list staleness', () => {
+  it('ignores common worktrees directory changes for repo facts', () => {
     const gitCommonDir = path.join(path.sep, 'repo', '.git');
 
     const classification = classifyGitWatchEvents(
@@ -115,8 +105,6 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.repo).toEqual({
       refs: false,
       remotes: false,
-      stashes: false,
-      worktrees: true,
     });
   });
 });

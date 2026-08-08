@@ -1,4 +1,4 @@
-import type { GitSyncProgress, GitTransferProgress } from '#runtimes/git/api';
+import type { GitTransferProgress } from '#runtimes/git/api';
 import type { BoundExec, ExecResult } from '#services/exec/api';
 import type { GitOperationContext } from './operation-context';
 
@@ -133,14 +133,6 @@ export function throwIfGitOpAborted(signal?: AbortSignal): void {
   const error = new Error('The operation was aborted');
   error.name = 'AbortError';
   throw error;
-}
-
-export function syncStepProgress(
-  step: GitSyncProgress['step'],
-  onProgress: GitOperationContext<GitSyncProgress>['onProgress']
-): GitOperationContext<GitTransferProgress>['onProgress'] {
-  if (!onProgress) return undefined;
-  return (progress) => onProgress({ ...progress, step });
 }
 
 function stripRemotePrefix(line: string): string {

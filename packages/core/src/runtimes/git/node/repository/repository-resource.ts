@@ -2,12 +2,10 @@ import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import type { KeyedMutex } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query } from '@emdash/wire/state';
-import type { PortableRelativePath } from '#primitives/path/api';
 import {
   type gitRepositoryContract,
   type GitRefsState,
   type GitRemotesState,
-  type GitStashesState,
   type GitWorktreesState,
 } from '#runtimes/git/api';
 import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
@@ -47,8 +45,6 @@ export class RepositoryResource {
   private readonly states: {
     refs: Query<GitRefsState>;
     remotes: Query<GitRemotesState>;
-    stashes: Query<GitStashesState>;
-    worktrees: Query<GitWorktreesState>;
   };
   private readonly checkouts = new Map<CheckoutId, CheckoutResource>();
   private readonly commonDirWatch: WatchHandle;
@@ -73,8 +69,6 @@ export class RepositoryResource {
     this.states = {
       refs: this.computed('refs', () => this.commands.getRefs()),
       remotes: this.computed('remotes', () => this.commands.getRemotes()),
-      stashes: this.computed('stashes', () => this.commands.getStashes()),
-      worktrees: this.computed('worktrees', () => this.commands.listWorktrees()),
     };
     this.commonDirWatch = options.watcher.watch(
       this.identity.gitCommonDir,
@@ -88,19 +82,12 @@ export class RepositoryResource {
 
   state(name: 'refs'): Query<GitRefsState>;
   state(name: 'remotes'): Query<GitRemotesState>;
-  state(name: 'stashes'): Query<GitStashesState>;
-  state(name: 'worktrees'): Query<GitWorktreesState>;
   state(name: RepositoryStateName) {
     return this.states[name];
   }
 
   invalidate(name: RepositoryStateName): void {
     this.states[name].invalidate();
-  }
-
-  readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null> {
-    this.assertActive();
-    return this.commands.readBlobAtRef(ref, filePath);
   }
 
   listWorktrees(): Promise<GitWorktreesState> {
@@ -113,62 +100,6 @@ export class RepositoryResource {
     return this.commands.getDefaultBranch(remote);
   }
 
-  getBranchBase(branch: string): Promise<string | null> {
-    this.assertActive();
-    return this.commands.getBranchBase(branch);
-  }
-
-  async createBranch(context: RepositoryMutationContext<'createBranch'>) {
-    const result = await this.execute(
-      () => this.commands.createBranch(context.input.options),
-      context.input.options.syncWithRemote === true
-    );
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
-  async deleteBranch(context: RepositoryMutationContext<'deleteBranch'>) {
-    const result = await this.execute(() =>
-      this.commands.deleteBranch(context.input.branch, context.input.force)
-    );
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
-  async renameBranch(context: RepositoryMutationContext<'renameBranch'>) {
-    const result = await this.execute(() =>
-      this.commands.renameBranch(context.input.oldName, context.input.newName)
-    );
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
-  async setUpstream(context: RepositoryMutationContext<'setUpstream'>) {
-    const result = await this.execute(() =>
-      this.commands.setUpstream(context.input.branch, context.input.upstream)
-    );
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
-  async setBranchBase(context: RepositoryMutationContext<'setBranchBase'>) {
-    return this.execute(() =>
-      this.commands.setBranchBase(context.input.branch, context.input.base)
-    );
-  }
-
-  async createTag(context: RepositoryMutationContext<'createTag'>) {
-    const result = await this.execute(() => this.commands.createTag(context.input.options));
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
-  async deleteTag(context: RepositoryMutationContext<'deleteTag'>) {
-    const result = await this.execute(() => this.commands.deleteTag(context.input.name));
-    if (result.success) this.refsChanged();
-    return result;
-  }
-
   async addRemote(context: RepositoryMutationContext<'addRemote'>) {
     const result = await this.execute(() =>
       this.commands.addRemote(context.input.name, context.input.url)
@@ -177,60 +108,6 @@ export class RepositoryResource {
       this.invalidate('remotes');
       this.invalidate('refs');
     }
-    return result;
-  }
-
-  async setRemoteUrl(context: RepositoryMutationContext<'setRemoteUrl'>) {
-    const result = await this.execute(() =>
-      this.commands.setRemoteUrl(context.input.name, context.input.url)
-    );
-    if (result.success) this.invalidate('remotes');
-    return result;
-  }
-
-  async removeRemote(context: RepositoryMutationContext<'removeRemote'>) {
-    const result = await this.execute(() => this.commands.removeRemote(context.input.name));
-    if (result.success) {
-      this.invalidate('remotes');
-      this.invalidate('refs');
-    }
-    return result;
-  }
-
-  async stashDrop(context: RepositoryMutationContext<'stashDrop'>) {
-    const result = await this.execute(() => this.commands.stashDrop(context.input.stashIndex));
-    if (result.success) this.invalidate('stashes');
-    return result;
-  }
-
-  async addWorktree(context: RepositoryMutationContext<'addWorktree'>) {
-    const result = await this.execute(() => this.commands.addWorktree(context.input.options));
-    if (result.success) {
-      this.invalidate('worktrees');
-      this.invalidate('refs');
-    }
-    return result;
-  }
-
-  async removeWorktree(context: RepositoryMutationContext<'removeWorktree'>) {
-    const result = await this.execute(() =>
-      this.commands.removeWorktree(context.input.worktreePath, context.input.force)
-    );
-    if (result.success) this.invalidate('worktrees');
-    return result;
-  }
-
-  async moveWorktree(context: RepositoryMutationContext<'moveWorktree'>) {
-    const result = await this.execute(() =>
-      this.commands.moveWorktree(context.input.from, context.input.to)
-    );
-    if (result.success) this.invalidate('worktrees');
-    return result;
-  }
-
-  async pruneWorktrees(_context: RepositoryMutationContext<'pruneWorktrees'>) {
-    const result = await this.execute(() => this.commands.pruneWorktrees());
-    if (result.success) this.invalidate('worktrees');
     return result;
   }
 
@@ -295,7 +172,6 @@ export class RepositoryResource {
     await this.lane.drain();
     await this.statesScope.dispose();
     this.checkouts.clear();
-    this.commands.dispose();
   }
 
   private refsChanged(): void {
@@ -311,8 +187,6 @@ export class RepositoryResource {
     const classification = classifyGitWatchEvents(events, this.layout());
     if (classification.repo.refs) this.refsChanged();
     if (classification.repo.remotes) this.invalidate('remotes');
-    if (classification.repo.stashes) this.invalidate('stashes');
-    if (classification.repo.worktrees) this.invalidate('worktrees');
     for (const [id, effects] of classification.worktrees) {
       this.applyWorktreeWatchEffects(id as CheckoutId, effects);
     }

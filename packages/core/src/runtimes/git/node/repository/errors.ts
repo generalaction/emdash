@@ -3,8 +3,6 @@ import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   gitErr,
   type CloneRepositoryError,
-  type CreateBranchError,
-  type DeleteBranchError,
   type FetchError,
   type FetchPrForReviewError,
 } from '#runtimes/git/api';
@@ -13,7 +11,6 @@ import {
   gitFailure,
   isAuthFailed,
   isAuthRequired,
-  isMissingObject,
   isNetworkFailure,
 } from '#runtimes/git/node/exec/errors';
 
@@ -76,40 +73,6 @@ export const repositoryFailures = {
       return gitErr.prNotFound(prNumber, failure.message);
     }
     return commandFailure(failure);
-  },
-
-  createBranch(error: unknown, branch: string, from: string): Err<CreateBranchError> {
-    const failure = gitFailure(error);
-    const message = failure.message.toLowerCase();
-    if (message.includes('already exists')) return gitErr.alreadyExists(branch, failure.message);
-    if (message.includes('not a valid object name') || message.includes('invalid reference')) {
-      return gitErr.invalidBase(branch, from, failure.message);
-    }
-    if (message.includes('not a valid branch name')) {
-      return gitErr.invalidName(branch, failure.message);
-    }
-    return commandFailure(failure);
-  },
-
-  deleteBranch(error: unknown, branch: string): Err<DeleteBranchError> {
-    const failure = gitFailure(error);
-    const message = failure.message.toLowerCase();
-    if (
-      message.includes('checked out') ||
-      message.includes('currently checked out') ||
-      message.includes('cannot delete branch')
-    ) {
-      return gitErr.branchIsCurrent(branch, failure.message);
-    }
-    if (message.includes('not found')) return gitErr.branchNotFound(branch, failure.message);
-    if (message.includes('not fully merged')) {
-      return gitErr.branchNotMerged(branch, failure.message);
-    }
-    return commandFailure(failure);
-  },
-
-  isMissingBlob(error: unknown): boolean {
-    return isMissingObject(gitFailure(error));
   },
 
   isNotRepository(error: unknown): boolean {

@@ -41,7 +41,6 @@ export function createSourceControlWireController(
 ): Controller {
   const repositoryModel = createRepositoryModelProvider(options);
   const checkoutModel = createCheckoutModelProvider(options);
-  const fileDiffModel = createFileDiffModelProvider(options);
   const contentModel = createContentModelProvider(options);
 
   return createController(sourceControlContract, {
@@ -54,14 +53,6 @@ export function createSourceControlWireController(
       getDefaultBranch: (input, meta) =>
         withRepositoryRuntime(options, input, (git, mapped) =>
           git.repository.getDefaultBranch(mapped, callOptions(meta))
-        ),
-      getBranchBase: (input, meta) =>
-        withRepositoryRuntime(options, input, (git, mapped) =>
-          git.repository.getBranchBase(mapped, callOptions(meta))
-        ),
-      readBlobAtRef: (input, meta) =>
-        withRepositoryRuntime(options, input, (git, mapped) =>
-          git.repository.readBlobAtRef(mapped, callOptions(meta))
         ),
       fetch: job<typeof sourceControlContract.repository.fetch>((input, context) =>
         runRepositoryJob(
@@ -94,27 +85,10 @@ export function createSourceControlWireController(
     },
     checkout: {
       model: checkoutModel,
-      fileDiff: fileDiffModel,
       content: contentModel,
-      getFileDiff: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileDiff(mapped, callOptions(meta))
-        ),
       getChangedFiles: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getChangedFiles(mapped, callOptions(meta))
-        ),
-      isFileTracked: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.isFileTracked(mapped, callOptions(meta))
-        ),
-      getConflictVersions: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getConflictVersions(mapped, callOptions(meta))
-        ),
-      getFileAtRef: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileAtRef(mapped, callOptions(meta))
         ),
       getFileAtIndex: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
@@ -160,15 +134,6 @@ export function createSourceControlWireController(
           input,
           context,
           (git) => git.checkout.pull
-        )
-      ),
-      sync: job<typeof sourceControlContract.checkout.sync>((input, context) =>
-        runCheckoutJob(
-          options,
-          gitContract.checkout.sync,
-          input,
-          context,
-          (git) => git.checkout.sync
         )
       ),
     },
@@ -245,27 +210,6 @@ function createCheckoutModelProvider({
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
-}
-
-function createFileDiffModelProvider({
-  runtimes,
-  workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LiveModelProvider<
-  typeof sourceControlContract.checkout.fileDiff
-> {
-  return forwardLiveModel(sourceControlContract.checkout.fileDiff, (key, name) =>
-    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
-      client.git.checkout.fileDiff
-        .state(
-          {
-            ...withoutWorkspaceId(key),
-            checkout: hostPathFromNative(identity.path),
-          },
-          name
-        )
-        .asLiveSource()
-    )
-  );
 }
 
 function createContentModelProvider({

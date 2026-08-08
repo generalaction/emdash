@@ -1,14 +1,6 @@
 import type { Err } from '@emdash/shared';
 import type { PortableRelativePath } from '#primitives/path/api';
-import {
-  gitErr,
-  type CommitError,
-  type GitCommandError,
-  type MergeError,
-  type PullError,
-  type RebaseError,
-  type SwitchError,
-} from '#runtimes/git/api';
+import { gitErr, type CommitError, type GitCommandError, type PullError } from '#runtimes/git/api';
 import {
   commandFailed,
   commandFailure,
@@ -40,54 +32,6 @@ export const checkoutFailures = {
     if (message.includes('nothing to commit')) return gitErr.nothingToCommit(failure.message);
     if (message.includes('empty commit message')) return gitErr.emptyMessage(failure.message);
     if (message.includes('hook')) return gitErr.hookFailed(failure.message);
-    return commandFailure(failure);
-  },
-
-  switch(error: unknown, ref: string): Err<SwitchError> {
-    const failure = gitFailure(error);
-    const message = failure.message.toLowerCase();
-    if (
-      message.includes('would be overwritten') ||
-      message.includes('local changes') ||
-      message.includes('commit your changes or stash them')
-    ) {
-      return gitErr.localChanges(failure.message);
-    }
-    if (
-      message.includes('invalid reference') ||
-      message.includes('did not match any') ||
-      message.includes('unknown revision') ||
-      message.includes('pathspec') ||
-      message.includes('not a valid object name')
-    ) {
-      return gitErr.refNotFound(ref, failure.message);
-    }
-    return commandFailure(failure);
-  },
-
-  merge(error: unknown, conflictedFiles?: PortableRelativePath[]): Err<MergeError> {
-    const failure = gitFailure(error);
-    const message = failure.message.toLowerCase();
-    if (message.includes('conflict')) return gitErr.conflict(failure.message, conflictedFiles);
-    if (message.includes('already up to date') || message.includes('already up-to-date')) {
-      return gitErr.alreadyUpToDate(failure.message);
-    }
-    return commandFailure(failure);
-  },
-
-  rebase(error: unknown, conflictedFiles?: PortableRelativePath[]): Err<RebaseError> {
-    const failure = gitFailure(error);
-    const message = failure.message.toLowerCase();
-    if (message.includes('conflict') || message.includes('could not apply')) {
-      return gitErr.conflict(failure.message, conflictedFiles);
-    }
-    if (
-      message.includes('nothing to rebase') ||
-      message.includes('no rebase in progress') ||
-      message.includes('is up to date')
-    ) {
-      return gitErr.nothingToRebase(failure.message);
-    }
     return commandFailure(failure);
   },
 
@@ -145,10 +89,6 @@ export const checkoutFailures = {
     );
   },
 
-  isUntrackedPath(error: unknown): boolean {
-    return gitFailure(error).exitCode === 1;
-  },
-
   isPathNotMatched(error: unknown): boolean {
     return gitFailure(error).message.includes('did not match any files');
   },
@@ -158,16 +98,6 @@ export const checkoutFailures = {
     return (
       failure.exitCode === 128 &&
       failure.message.toLowerCase().includes('does not exist (neither on disk nor in the index)')
-    );
-  },
-
-  isMissingConflictStage(error: unknown): boolean {
-    const failure = gitFailure(error);
-    if (failure.exitCode !== 128) return false;
-    const message = failure.message.toLowerCase();
-    return (
-      message.includes('not at stage') ||
-      message.includes('does not exist (neither on disk nor in the index)')
     );
   },
 } as const;

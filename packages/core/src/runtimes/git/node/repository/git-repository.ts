@@ -1,51 +1,29 @@
 import { ok, type Result } from '@emdash/shared';
 import {
-  parsePortableRelativePath,
-  type HostAbsolutePath,
-  type PortableRelativePath,
-} from '#primitives/path/api';
-import {
-  gitErr,
-  type AddWorktreeOptions,
-  type CreateBranchError,
-  type DeleteBranchError,
-  type ExplicitCreateBranchOptions,
-  type ExplicitTagOptions,
   type FetchError,
   type FetchPrForReviewError,
   type FetchPrForReviewOptions,
   type GitCommandError,
   type GitRefsState,
   type GitRemotesState,
-  type GitStashesState,
   type GitWorktreesState,
   type PushError,
-  type WorktreeSummary,
 } from '#runtimes/git/api';
 import type { RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
-import {
-  realpathOrResolve,
-  toHostAbsolutePath,
-  toNativeAbsolutePath,
-} from '#runtimes/git/node/allocation/paths';
+import { toHostAbsolutePath } from '#runtimes/git/node/allocation/paths';
 import { commandFailed, pushFailed } from '#runtimes/git/node/exec/errors';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
   execGitWithProgress,
   throwIfGitOpAborted,
 } from '#runtimes/git/node/exec/transfer-progress';
-import {
-  CatFileBatch,
-  CatFileBatchProcessError,
-} from '#runtimes/git/node/repository/ops/cat-file-batch';
 import { computeRefsState } from '#runtimes/git/node/repository/ops/refs';
 import {
   computeRemotesState,
   remoteNameForRepositoryUrl,
 } from '#runtimes/git/node/repository/ops/remotes';
-import { computeStashesState } from '#runtimes/git/node/repository/ops/stashes';
 import { parseWorktreeList } from '#runtimes/git/node/repository/ops/worktrees';
-import { ExecError, type BoundExec } from '#services/exec/api';
+import { type BoundExec } from '#services/exec/api';
 import { repositoryFailures } from './errors';
 
 type GitRepositoryOptions = {
@@ -60,7 +38,6 @@ type GitRepositoryOptions = {
 export class GitRepository {
   readonly identity: RepositoryIdentity;
   private readonly exec: BoundExec;
-  private catFile: CatFileBatch | null = null;
 
   constructor(options: GitRepositoryOptions) {
     this.identity = options.identity;
@@ -80,29 +57,6 @@ export class GitRepository {
     return computeRemotesState(this.exec);
   }
 
-  getStashes(): Promise<GitStashesState> {
-    return computeStashesState(this.exec);
-  }
-
-  dispose(): void {
-    this.catFile?.dispose();
-    this.catFile = null;
-  }
-
-  // -- Checkout integration -----------------------------------------------------
-
-  async readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null> {
-    const treePath = normalizeTreePath(filePath);
-    const spec = `${ref}:${treePath}`;
-    this.catFile ??= new CatFileBatch({ exec: this.exec });
-    try {
-      return await this.catFile.readText(spec);
-    } catch (error) {
-      if (error instanceof CatFileBatchProcessError) return this.readBlobOnce(spec);
-      throw error;
-    }
-  }
-
   // -- Checkouts (worktrees) ------------------------------------------------------
 
   async listWorktrees(): Promise<GitWorktreesState> {
@@ -110,154 +64,10 @@ export class GitRepository {
     return parseWorktreeList(stdout, toHostAbsolutePath);
   }
 
-  async addWorktree(
-    options: AddWorktreeOptions
-  ): Promise<Result<WorktreeSummary, GitCommandError>> {
-    try {
-      const targetPath = toNativeAbsolutePath(options.path);
-      await this.exec.exec([
-        'worktree',
-        'add',
-        ...(options.force ? ['--force'] : []),
-        ...(options.newBranch ? ['-b', options.newBranch] : []),
-        targetPath,
-        options.ref,
-      ]);
-      const target = realpathOrResolve(targetPath);
-      const worktrees = await this.listWorktrees();
-      const info = worktrees.find(
-        (worktree) => realpathOrResolve(toNativeAbsolutePath(worktree.worktreePath)) === target
-      );
-      if (!info) {
-        return gitErr.commandFailed(`worktree added but not listed: ${targetPath}`);
-      }
-      return ok(info);
-    } catch (error) {
-      return commandFailed(error);
-    }
-  }
-
-  async removeWorktree(
-    worktreePath: HostAbsolutePath,
-    force = false
-  ): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() =>
-      this.exec.exec([
-        'worktree',
-        'remove',
-        ...(force ? ['--force'] : []),
-        toNativeAbsolutePath(worktreePath),
-      ])
-    );
-  }
-
-  async moveWorktree(
-    from: HostAbsolutePath,
-    to: HostAbsolutePath
-  ): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() =>
-      this.exec.exec(['worktree', 'move', toNativeAbsolutePath(from), toNativeAbsolutePath(to)])
-    );
-  }
-
-  async pruneWorktrees(): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['worktree', 'prune']));
-  }
-
-  // -- Branches and tags ----------------------------------------------------------
-
-  async createBranch(
-    options: ExplicitCreateBranchOptions
-  ): Promise<Result<void, CreateBranchError>> {
-    const name = options.name;
-    const from = options.from;
-
-    if (options.syncWithRemote) {
-      const remote = options.remote ?? 'origin';
-      const fetchResult = await this.fetch(remote);
-      if (!fetchResult.success) {
-        return gitErr.fetchFailed(remote, from, fetchResult.error);
-      }
-    }
-
-    const base = options.syncWithRemote ? `${options.remote ?? 'origin'}/${from}` : from;
-    try {
-      await this.exec.exec(['branch', '--no-track', '--', name, base]);
-      await this.setBranchBaseConfig(name, base);
-      return ok(undefined);
-    } catch (error) {
-      return repositoryFailures.createBranch(error, name, from);
-    }
-  }
-
-  async deleteBranch(branch: string, force = false): Promise<Result<void, DeleteBranchError>> {
-    try {
-      await this.exec.exec(['branch', force ? '-D' : '-d', '--', branch]);
-      return ok(undefined);
-    } catch (error) {
-      return repositoryFailures.deleteBranch(error, branch);
-    }
-  }
-
-  async renameBranch(oldName: string, newName: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['branch', '-m', '--', oldName, newName]));
-  }
-
-  async setUpstream(
-    branch: string,
-    upstream: string | null
-  ): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() =>
-      this.exec.exec(
-        upstream === null
-          ? ['branch', '--unset-upstream', '--', branch]
-          : ['branch', `--set-upstream-to=${upstream}`, '--', branch]
-      )
-    );
-  }
-
-  async setBranchBase(branch: string, base: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.setBranchBaseConfig(branch, base));
-  }
-
-  async getBranchBase(branch: string): Promise<string | null> {
-    try {
-      const { stdout } = await this.exec.exec(['config', '--get', `branch.${branch}.base`]);
-      return stdout.trim() || null;
-    } catch (error) {
-      if (error instanceof ExecError && error.exitCode === 1) return null;
-      throw error;
-    }
-  }
-
-  async createTag(options: ExplicitTagOptions): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() =>
-      this.exec.exec([
-        'tag',
-        ...(options.force ? ['--force'] : []),
-        ...(options.message !== undefined ? ['-a', '-m', options.message] : []),
-        options.name,
-        options.ref,
-      ])
-    );
-  }
-
-  async deleteTag(name: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['tag', '-d', name]));
-  }
-
   // -- Remotes and network ----------------------------------------------------------
 
   async addRemote(name: string, url: string): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() => this.exec.exec(['remote', 'add', name, url]));
-  }
-
-  async setRemoteUrl(name: string, url: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['remote', 'set-url', name, url]));
-  }
-
-  async removeRemote(name: string): Promise<Result<void, GitCommandError>> {
-    return this.commandMutation(() => this.exec.exec(['remote', 'remove', name]));
   }
 
   async fetch(
@@ -420,17 +230,6 @@ export class GitRepository {
     }
   }
 
-  // -- Stashes ----------------------------------------------------------------------
-
-  async stashDrop(stashIndex: number): Promise<Result<void, GitCommandError>> {
-    try {
-      await this.exec.exec(['stash', 'drop', `stash@{${stashIndex}}`]);
-      return ok(undefined);
-    } catch (error) {
-      return commandFailed(error);
-    }
-  }
-
   // -- Internals ----------------------------------------------------------------------
 
   private async commandMutation(
@@ -444,16 +243,6 @@ export class GitRepository {
     }
   }
 
-  private async readBlobOnce(spec: string): Promise<string | null> {
-    try {
-      const { stdout } = await this.exec.exec(['cat-file', 'blob', spec]);
-      return stdout;
-    } catch (error) {
-      if (repositoryFailures.isMissingBlob(error)) return null;
-      throw error;
-    }
-  }
-
   private async branchExistsLocally(branch: string): Promise<boolean> {
     try {
       await this.exec.exec(['rev-parse', '--verify', `refs/heads/${branch}`]);
@@ -463,20 +252,4 @@ export class GitRepository {
       return false;
     }
   }
-
-  private async setBranchBaseConfig(branchName: string, baseRef: string): Promise<void> {
-    await this.exec.exec(['config', `branch.${branchName}.base`, baseRef]);
-  }
-}
-
-function normalizeTreePath(filePath: PortableRelativePath): PortableRelativePath {
-  const parsed = parsePortableRelativePath(filePath, { unicodeNormalization: 'preserve' });
-  if (
-    !parsed.success ||
-    !parsed.data ||
-    (process.platform === 'win32' && parsed.data.includes('\\'))
-  ) {
-    throw new Error(`Invalid repository file path: ${filePath}`);
-  }
-  return parsed.data;
 }

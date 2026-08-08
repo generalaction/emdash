@@ -8,7 +8,7 @@ import type { CheckoutStatusState } from '#runtimes/git/api';
 import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import { gitPath } from '#runtimes/git/node/testing/paths';
 import { createBoundExec } from '#services/exec/api';
-import { GitCheckout, type GitObjectReader } from './git-checkout';
+import { GitCheckout } from './git-checkout';
 
 const execFileAsync = promisify(execFile);
 
@@ -21,22 +21,6 @@ async function makeRepo(): Promise<string> {
   await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
   await execFileAsync('git', ['commit', '-m', 'init'], { cwd: repo });
   return realpath(repo);
-}
-
-class TestRepository implements GitObjectReader {
-  constructor(
-    repoPath: string,
-    private readonly exec = createBoundExec({ file: 'git', cwd: repoPath })
-  ) {}
-
-  async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
-    try {
-      const { stdout } = await this.exec.exec(['show', `${ref}:${filePath}`]);
-      return stdout;
-    } catch {
-      return null;
-    }
-  }
 }
 
 async function makeCheckout() {
@@ -53,7 +37,6 @@ async function makeCheckout() {
   } as CheckoutIdentity;
   const checkout = new GitCheckout({
     identity,
-    objectReader: new TestRepository(repo),
     exec: createBoundExec({ file: 'git', cwd: repo }),
   });
   const cleanup = async () => {
@@ -127,45 +110,6 @@ describe('GitCheckout', () => {
     }
   });
 
-  it('reports whether a path is tracked by the index', async () => {
-    const { repo, checkout, cleanup } = await makeCheckout();
-    try {
-      await writeFile(path.join(repo, 'fresh.txt'), 'fresh\n', 'utf8');
-      await expect(checkout.isFileTracked('tracked.txt')).resolves.toBe(true);
-      await expect(checkout.isFileTracked('fresh.txt')).resolves.toBe(false);
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it('produces structured file diffs for tracked and untracked files', async () => {
-    const { repo, checkout, cleanup } = await makeCheckout();
-    try {
-      await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
-      const diffResult = await checkout.getFileDiff('tracked.txt');
-      expect(diffResult.success).toBe(true);
-      if (!diffResult.success) throw new Error('diff failed');
-      expect(diffResult.data).toMatchObject({
-        path: gitPath('tracked.txt'),
-        binary: false,
-        additions: 1,
-        deletions: 1,
-      });
-      expect(diffResult.data.hunks[0]?.lines).toEqual([
-        expect.objectContaining({ type: 'del', content: 'before' }),
-        expect.objectContaining({ type: 'add', content: 'after' }),
-      ]);
-
-      await writeFile(path.join(repo, 'fresh.txt'), 'one\ntwo\n', 'utf8');
-      const untrackedDiff = await checkout.getFileDiff('fresh.txt');
-      expect(untrackedDiff.success).toBe(true);
-      if (!untrackedDiff.success) throw new Error('untracked diff failed');
-      expect(untrackedDiff.data).toMatchObject({ additions: 2, deletions: 0 });
-    } finally {
-      await cleanup();
-    }
-  });
-
   it('separates staged and unstaged changes', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
@@ -179,14 +123,6 @@ describe('GitCheckout', () => {
       await expect(checkout.getChangedFiles({ kind: 'unstaged' })).resolves.toEqual([
         expect.objectContaining({ path: gitPath('tracked.txt'), additions: 1, deletions: 1 }),
       ]);
-
-      const diffResult = await checkout.getFileDiff('tracked.txt', { kind: 'unstaged' });
-      expect(diffResult.success).toBe(true);
-      if (!diffResult.success) throw new Error('unstaged diff failed');
-      expect(diffResult.data.hunks[0]?.lines).toEqual([
-        expect.objectContaining({ type: 'del', content: 'staged' }),
-        expect.objectContaining({ type: 'add', content: 'unstaged' }),
-      ]);
     } finally {
       await cleanup();
     }
@@ -199,33 +135,6 @@ describe('GitCheckout', () => {
       await expect(checkout.stage(['../secret.txt'])).resolves.toMatchObject({
         success: false,
         error: { type: 'git_error', message: expect.stringContaining('outside checkout') },
-      });
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it('stages and unstages a single hunk', async () => {
-    const { repo, checkout, cleanup } = await makeCheckout();
-    try {
-      await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
-      const diffResult = await checkout.getFileDiff('tracked.txt');
-      if (!diffResult.success) throw new Error('diff failed');
-      const header = diffResult.data.hunks[0]?.header;
-      expect(header).toBeDefined();
-
-      const trackedPath = gitPath('tracked.txt');
-      const stageResult = await checkout.stageHunk('tracked.txt', header!);
-      expect(stageResult.success).toBe(true);
-      let model = okStatus(await checkout.getStatus());
-      expect(model.entries[trackedPath]?.index).toBe('modified');
-
-      const unstageResult = await checkout.unstageHunk('tracked.txt', header!);
-      expect(unstageResult.success).toBe(true);
-      model = okStatus(await checkout.getStatus());
-      expect(model.entries[trackedPath]).toMatchObject({
-        index: 'unmodified',
-        worktree: 'modified',
       });
     } finally {
       await cleanup();

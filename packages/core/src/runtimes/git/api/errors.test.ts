@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseAbsolute } from '#primitives/path/api';
 import {
-  createBranchErrorSchema,
-  deleteBranchErrorSchema,
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
   gitResolutionErrorSchema,
-  switchErrorSchema,
 } from '#runtimes/git/api/api/errors';
 import { gitErr } from './errors';
 
@@ -43,19 +40,8 @@ describe('gitErr', () => {
 
   it('constructs operation-specific not-found failures without conflating their shapes', () => {
     const pullRequest = gitErr.prNotFound(42, 'pull request not found').error;
-    const branch = gitErr.branchNotFound('topic', 'branch not found').error;
-    const ref = gitErr.refNotFound('missing', 'ref not found').error;
 
     expect(fetchPrForReviewErrorSchema.parse(pullRequest)).toEqual(pullRequest);
-    expect(deleteBranchErrorSchema.parse(branch)).toEqual(branch);
-    expect(switchErrorSchema.parse(ref)).toEqual(ref);
-  });
-
-  it('constructs nested operation failures accepted by the composed schema', () => {
-    const fetch = gitErr.networkError('offline').error;
-    const result = gitErr.fetchFailed('origin', 'main', fetch);
-
-    expect(createBranchErrorSchema.parse(result.error)).toEqual(result.error);
   });
 
   it('keeps selector resolution failures distinct from Git process failures', () => {

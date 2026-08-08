@@ -42,8 +42,3 @@ export const transferProgressSchema = z.object({
   detail: z.string().optional(),
 });
 export type GitTransferProgress = z.infer<typeof transferProgressSchema>;
-
-export const syncProgressSchema = transferProgressSchema.extend({
-  step: z.enum(['pull', 'push']),
-});
-export type GitSyncProgress = z.infer<typeof syncProgressSchema>;

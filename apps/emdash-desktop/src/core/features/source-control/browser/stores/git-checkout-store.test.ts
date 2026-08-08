@@ -94,15 +94,10 @@ function createSourceControlWire() {
   const repositoryProvider = expose(sourceControlContract.repository.model, {
     refs: cell({ branches: [], tags: [] }),
     remotes: cell({ remotes: [] }),
-    stashes: cell({ stashes: [] }),
-    worktrees: cell([]),
   });
   const checkoutProvider = expose(sourceControlContract.checkout.model, {
     status: statusState,
     head: headState,
-  });
-  const fileDiffProvider = expose(sourceControlContract.checkout.fileDiff, {
-    staleness: cell({ revision: 0 }),
   });
   const contentProvider = expose(sourceControlContract.checkout.content, {
     content: cell({
@@ -117,21 +112,14 @@ function createSourceControlWire() {
       model: repositoryProvider,
       listWorktrees: vi.fn(),
       getDefaultBranch: vi.fn(),
-      getBranchBase: vi.fn(),
-      readBlobAtRef: vi.fn(),
       fetch: { run: vi.fn() },
       publishBranch: { run: vi.fn() },
       fetchPrForReview: { run: vi.fn() },
     },
     checkout: {
       model: checkoutProvider,
-      fileDiff: fileDiffProvider,
       content: contentProvider,
       getChangedFiles: mocks.getChangedFiles,
-      getFileDiff: vi.fn(),
-      isFileTracked: vi.fn(),
-      getConflictVersions: vi.fn(),
-      getFileAtRef: vi.fn(),
       getFileAtIndex: vi.fn(),
       getImageAtRef: vi.fn(),
       getImageAtIndex: vi.fn(),
@@ -141,7 +129,6 @@ function createSourceControlWire() {
       blame: vi.fn(),
       push: { run: vi.fn() },
       pull: { run: vi.fn() },
-      sync: { run: vi.fn() },
     },
   } as never);
 }
