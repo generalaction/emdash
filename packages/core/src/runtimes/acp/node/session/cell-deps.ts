@@ -8,6 +8,7 @@ export interface ResolvedPromptAttachment {
 }
 
 export type ResolvePromptAttachment = (
+  conversationId: string,
   attachment: PromptAttachment
 ) => Promise<ResolvedPromptAttachment>;
 

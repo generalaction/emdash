@@ -68,10 +68,19 @@ export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.str
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 
 export const uploadAttachmentCommandSchema = z.object({
+  /** Attachments belong to their conversation (spec §3.6); a conversation exists at upload time. */
+  conversationId: z.string(),
   originalPath: z.string().optional(),
 });
 export const uploadAttachmentResponseSchema = attachmentRefSchema;
-export const downloadAttachmentCommandSchema = z.object({ id: z.string() });
-export const deleteAttachmentCommandSchema = z.object({ id: z.string() });
+export const attachmentKeySchema = z.object({
+  conversationId: z.string(),
+  attachmentId: z.string(),
+});
+export const downloadAttachmentCommandSchema = attachmentKeySchema;
+export const deleteAttachmentCommandSchema = attachmentKeySchema;
+export const deleteConversationAttachmentsCommandSchema = z.object({
+  conversationId: z.string(),
+});
 
 export { queuedPromptSchema };

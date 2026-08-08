@@ -204,6 +204,7 @@ export class AcpRuntime {
   }
 
   async uploadAttachment(input: {
+    conversationId: string;
     data?: Uint8Array;
     mimeType: AttachmentMimeType;
     name?: string;
@@ -213,16 +214,34 @@ export class AcpRuntime {
     return ok(await this.deps.attachmentStore.put(input));
   }
 
-  async downloadAttachment(id: string): Promise<Result<StoredAttachment, AcpAttachmentError>> {
+  async downloadAttachment(
+    conversationId: string,
+    attachmentId: string
+  ): Promise<Result<StoredAttachment, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    const stored = await this.deps.attachmentStore.get(id);
-    if (!stored) return acpErr.invalidState(`Attachment '${id}' not found`);
+    const stored = await this.deps.attachmentStore.get(conversationId, attachmentId);
+    if (!stored) return acpErr.invalidState(`Attachment '${attachmentId}' not found`);
     return ok(stored);
   }
 
-  async deleteAttachment(id: string): Promise<Result<void, AcpAttachmentError>> {
+  async deleteAttachment(
+    conversationId: string,
+    attachmentId: string
+  ): Promise<Result<void, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    await this.deps.attachmentStore.delete(id);
+    await this.deps.attachmentStore.delete(conversationId, attachmentId);
+    return ok();
+  }
+
+  /**
+   * Conversation-deletion cleanup (spec §3.6): removes the conversation's attachment
+   * directory. Idempotent; a runtime without attachment storage has nothing to clean.
+   */
+  async deleteConversationAttachments(
+    conversationId: string
+  ): Promise<Result<void, AcpAttachmentError>> {
+    if (!this.deps.attachmentStore) return ok();
+    await this.deps.attachmentStore.deleteConversation(conversationId);
     return ok();
   }
 

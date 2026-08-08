@@ -211,12 +211,19 @@ export function createConversationsWireController(
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
       uploadAttachment: ({ conversationId, originalPath }, file, meta) =>
         run(conversationId, (client) =>
-          client.acp.uploadAttachment({ originalPath }, file, callOptions(meta))
+          client.acp.uploadAttachment({ conversationId, originalPath }, file, callOptions(meta))
         ),
-      downloadAttachment: ({ conversationId, id }, meta) =>
-        openAttachmentDownload(options.runtimes, target(conversationId), id, callOptions(meta)),
-      deleteAttachment: ({ conversationId, id }, meta) =>
-        run(conversationId, (client) => client.acp.deleteAttachment({ id }, callOptions(meta))),
+      downloadAttachment: ({ conversationId, attachmentId }, meta) =>
+        openAttachmentDownload(
+          options.runtimes,
+          target(conversationId),
+          attachmentId,
+          callOptions(meta)
+        ),
+      deleteAttachment: ({ conversationId, attachmentId }, meta) =>
+        run(conversationId, (client) =>
+          client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
+        ),
       getHistory: (input, meta) =>
         run(input.conversationId, (client) => client.acp.getHistory(input, callOptions(meta))),
       sessions: acpSessions,
@@ -238,10 +245,6 @@ export function createConversationsWireController(
       stopSession: (input, meta) =>
         run(input.conversationId, (client) =>
           client.tuiAgents.stopSession(input, callOptions(meta))
-        ),
-      deactivateSession: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.tuiAgents.deactivateSession(input, callOptions(meta))
         ),
       deleteSession: (input, meta) =>
         run(input.conversationId, (client) =>
@@ -446,13 +449,16 @@ async function resolveRuntimeSource(
 async function openAttachmentDownload(
   runtimes: ConversationsRuntimeBroker,
   targetPromise: Promise<ConversationRuntimeTarget>,
-  id: string,
+  attachmentId: string,
   options: { signal?: AbortSignal }
 ) {
   const target = await targetPromise;
   const runtime = await runtimes.client(target.host);
   if (!runtime.success) return err(runtime.error);
-  const result = await runtime.data.acp.downloadAttachment({ id }, options);
+  const result = await runtime.data.acp.downloadAttachment(
+    { conversationId: target.conversationId, attachmentId },
+    options
+  );
   if (!result.success) return result;
   return {
     success: true as const,

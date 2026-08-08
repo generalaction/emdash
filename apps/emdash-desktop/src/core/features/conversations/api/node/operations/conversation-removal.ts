@@ -36,7 +36,10 @@ export type ConversationRemovalBroker = {
   client(host: HostRef): Promise<
     Result<
       {
-        acp: { killSession(input: { conversationId: string }): Promise<unknown> };
+        acp: {
+          killSession(input: { conversationId: string }): Promise<unknown>;
+          deleteConversationAttachments(input: { conversationId: string }): Promise<unknown>;
+        };
         tuiAgents: { deleteSession(input: { conversationId: string }): Promise<unknown> };
         conversations: {
           delete(input: { id: string }): Promise<Result<void, { type: string; message?: string }>>;
@@ -112,6 +115,15 @@ export async function executeConversationRemoval(
   if (!deleted.success) {
     if (deleted.error.type === 'host-unreachable') return 'unreachable';
     return { failed: deleteVerbFailure(deleted.error) };
+  }
+
+  // Attachment cleanup rides the removal verb (spec §3.6, §4.2): once the record is gone
+  // the acp runtime purges the conversation's attachment directory. Best effort — a failed
+  // purge leaves an inert orphaned directory, never a blocked deletion.
+  try {
+    await client.data.acp.deleteConversationAttachments({ conversationId });
+  } catch {
+    // Swallowed by design; see comment above.
   }
   return 'ok';
 }

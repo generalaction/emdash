@@ -5,13 +5,20 @@ export interface StoredAttachment {
   data: Uint8Array;
 }
 
+/**
+ * Attachments are conversation-scoped (spec §3.6): every operation carries the owning
+ * conversation id, and `deleteConversation` is the cleanup hook for conversation deletion.
+ */
 export interface AttachmentStore {
   put(input: {
+    conversationId: string;
     data?: Uint8Array;
     name?: string;
     mimeType: AttachmentMimeType;
     originalPath?: string;
   }): Promise<AttachmentRef>;
-  get(id: string): Promise<StoredAttachment | null>;
-  delete(id: string): Promise<void>;
+  get(conversationId: string, attachmentId: string): Promise<StoredAttachment | null>;
+  delete(conversationId: string, attachmentId: string): Promise<void>;
+  /** Removes every attachment stored for the conversation; a no-op for absent conversations. */
+  deleteConversation(conversationId: string): Promise<void>;
 }

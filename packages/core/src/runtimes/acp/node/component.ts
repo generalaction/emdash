@@ -77,9 +77,9 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
       const acp = new AcpRuntime({
         agentHost,
         host: childHost,
-        resolveAttachment: async (attachment) => {
+        resolveAttachment: async (conversationId, attachment) => {
           if (attachment.type === 'attachment') {
-            const stored = await attachmentStore.get(attachment.id);
+            const stored = await attachmentStore.get(conversationId, attachment.id);
             if (!stored) throw new Error(`Attachment '${attachment.id}' could not be resolved`);
             return {
               data: Buffer.from(stored.data).toString('base64'),

@@ -106,12 +106,20 @@ describe('createConversationsWireController', () => {
       { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
       { uploadFile: file }
     );
-    expect(uploadAttachment).toHaveBeenCalledWith({ originalPath: '/tmp/image.png' }, file, {});
+    expect(uploadAttachment).toHaveBeenCalledWith(
+      { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
+      file,
+      {}
+    );
 
     const result = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
-      id: 'attachment-1',
+      attachmentId: 'attachment-1',
     });
+    expect(downloadAttachment).toHaveBeenCalledWith(
+      { conversationId: target.conversationId, attachmentId: 'attachment-1' },
+      {}
+    );
     expect(isDownloadFileOpenResult(result)).toBe(true);
     if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download result');
     const chunks: Uint8Array[] = [];
@@ -122,7 +130,7 @@ describe('createConversationsWireController', () => {
 
     const cancelled = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
-      id: 'attachment-1',
+      attachmentId: 'attachment-1',
     });
     if (!isDownloadFileOpenResult(cancelled)) throw new Error('Expected a download result');
     const iterator = (cancelled.data.source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
@@ -219,7 +227,7 @@ describe('createConversationsWireController', () => {
     await expect(
       controller.call('acp.downloadAttachment', {
         conversationId: target.conversationId,
-        id: 'attachment-1',
+        attachmentId: 'attachment-1',
       })
     ).resolves.toEqual(err(resolveError));
   });

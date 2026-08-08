@@ -415,7 +415,7 @@ describe('AcpRuntime session manager', () => {
     });
 
     expect(isOk(sent)).toBe(true);
-    expect(resolveAttachment).toHaveBeenCalledWith({
+    expect(resolveAttachment).toHaveBeenCalledWith('conv-attachment', {
       type: 'attachment',
       id: 'attachment-1',
       name: 'image.png',

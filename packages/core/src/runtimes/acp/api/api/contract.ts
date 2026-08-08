@@ -27,6 +27,7 @@ import {
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
   deleteAttachmentCommandSchema,
+  deleteConversationAttachmentsCommandSchema,
   deleteQueuedPromptCommandSchema,
   downloadAttachmentCommandSchema,
   editQueuedPromptCommandSchema,
@@ -143,6 +144,15 @@ export const acpApiContract = defineContract({
   }),
   deleteAttachment: fallible({
     input: deleteAttachmentCommandSchema,
+    error: acpAttachmentErrorSchema,
+  }),
+  /**
+   * Maintenance verb for conversation deletion (spec §3.6, §4.2): removes every attachment
+   * stored for the conversation. Invoked by the conversation removal verb alongside
+   * `killSession`; idempotent for absent conversations.
+   */
+  deleteConversationAttachments: fallible({
+    input: deleteConversationAttachmentsCommandSchema,
     error: acpAttachmentErrorSchema,
   }),
   getHistory: fallible({

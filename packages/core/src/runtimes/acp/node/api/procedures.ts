@@ -110,12 +110,14 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     async uploadAttachment(
       input: {
+        conversationId: string;
         originalPath?: string;
       },
       file: WireFile
     ): Promise<Result<AttachmentRef, AcpAttachmentError>> {
       const data = input.originalPath ? undefined : await file.bytes();
       return runtime.uploadAttachment({
+        conversationId: input.conversationId,
         data,
         mimeType: file.mimeType as AttachmentMimeType,
         name: file.name,
@@ -123,19 +125,28 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       });
     },
     async downloadAttachment(input: {
-      id: string;
+      conversationId: string;
+      attachmentId: string;
     }): Promise<
       Result<{ meta: AttachmentRef; source: AsyncIterable<Uint8Array> }, AcpAttachmentError>
     > {
-      const result = await runtime.downloadAttachment(input.id);
+      const result = await runtime.downloadAttachment(input.conversationId, input.attachmentId);
       if (!result.success) return result;
       return ok({
         meta: result.data.ref,
         source: blobSourceFromBytes(result.data.data),
       });
     },
-    deleteAttachment(input: { id: string }): Promise<Result<void, AcpAttachmentError>> {
-      return runtime.deleteAttachment(input.id);
+    deleteAttachment(input: {
+      conversationId: string;
+      attachmentId: string;
+    }): Promise<Result<void, AcpAttachmentError>> {
+      return runtime.deleteAttachment(input.conversationId, input.attachmentId);
+    },
+    deleteConversationAttachments(input: {
+      conversationId: string;
+    }): Promise<Result<void, AcpAttachmentError>> {
+      return runtime.deleteConversationAttachments(input.conversationId);
     },
     getHistory(input: {
       conversationId: string;

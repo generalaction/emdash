@@ -29,7 +29,7 @@ const conversationLocation = z.object({
   taskId: z.string(),
   conversationId: z.string(),
 });
-const attachmentKey = conversationKey.extend({ id: z.string() });
+const attachmentKey = conversationKey.extend({ attachmentId: z.string() });
 const hostSessionsKey = z.object({ host: serializedHostRefSchema });
 
 const desktopAcpSessions = liveModel({
@@ -132,10 +132,6 @@ const conversationsTuiContract = defineContract({
   stopSession: runtimeFallibleProcedure(
     tuiAgentsContract.stopSession.input,
     tuiAgentsContract.stopSession.output
-  ),
-  deactivateSession: runtimeFallibleProcedure(
-    tuiAgentsContract.deactivateSession.input,
-    tuiAgentsContract.deactivateSession.output
   ),
   deleteSession: runtimeFallibleProcedure(
     tuiAgentsContract.deleteSession.input,

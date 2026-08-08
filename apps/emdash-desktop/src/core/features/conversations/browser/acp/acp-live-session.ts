@@ -209,7 +209,7 @@ export class AcpLiveSession {
     id: string
   ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
     return this.client
-      .downloadAttachment({ conversationId: this.conversationId, id })
+      .downloadAttachment({ conversationId: this.conversationId, attachmentId: id })
       .then(async (result) => {
         if (!result.success) return result;
         return {
@@ -223,7 +223,10 @@ export class AcpLiveSession {
   }
 
   deleteAttachment(id: string): Promise<Result<void, unknown>> {
-    return this.client.deleteAttachment({ conversationId: this.conversationId, id });
+    return this.client.deleteAttachment({
+      conversationId: this.conversationId,
+      attachmentId: id,
+    });
   }
 
   sendPrompt(
