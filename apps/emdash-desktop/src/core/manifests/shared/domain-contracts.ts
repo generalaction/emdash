@@ -6,6 +6,7 @@ import { catalogDomain, catalogWireContract } from '@core/features/catalog/api';
 import { conversationsContract, conversationsDomain } from '@core/features/conversations/api';
 import { devPerfContract, devPerfDomain } from '@core/features/dev-perf/api';
 import { editorContract, editorDomain } from '@core/features/editor/api';
+import { filesDomain, filesWireContract } from '@core/features/files/api';
 import { githubContract, githubDomain } from '@core/features/github/api';
 import { integrationsContract, integrationsDomain } from '@core/features/integrations/api';
 import { issuesContract, issuesDomain } from '@core/features/issues/api';
@@ -51,6 +52,7 @@ export const desktopDomainContracts = {
   [appSettingsDomain]: appSettingsContract,
   [devPerfDomain]: devPerfContract,
   [editorDomain]: editorContract,
+  [filesDomain]: filesWireContract,
   [legacyPortDomain]: legacyPortContract,
   [loggingDomain]: loggingWireContract,
   [machinesDomain]: machinesContract,

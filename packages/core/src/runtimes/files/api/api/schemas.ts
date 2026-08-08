@@ -84,8 +84,16 @@ export const writeContentInputSchema = z.object({
   precondition: writePreconditionSchema,
 });
 
-export const uploadFileInputSchema = rootKeySchema.extend({
-  path: portableRelativePathSchema,
+// A mutation target follows the fileKeySchema duality (spec §3/§5): root-relative
+// when the input carries a `root`, or a bare absolute host path with no root.
+// These stay plain objects (optional `root`, target union) rather than a union of
+// the two modes because downstream contracts derive from them with `.omit()`;
+// mode mismatches are rejected at the runtime seam as invalid-path errors.
+export const mutationTargetSchema = z.union([hostAbsolutePathSchema, portableRelativePathSchema]);
+const mutationBaseSchema = z.object({ root: hostAbsolutePathSchema.optional() });
+
+export const uploadFileInputSchema = mutationBaseSchema.extend({
+  path: mutationTargetSchema,
   overwrite: z.boolean().optional(),
 });
 
@@ -93,21 +101,21 @@ export const uploadFileResultSchema = z.object({
   bytesWritten: z.number().int().nonnegative(),
 });
 
-export const createFileInputSchema = rootKeySchema.extend({
-  path: portableRelativePathSchema,
+export const createFileInputSchema = mutationBaseSchema.extend({
+  path: mutationTargetSchema,
   content: z.string().optional(),
 });
-export const createDirectoryInputSchema = rootKeySchema.extend({
-  path: portableRelativePathSchema,
+export const createDirectoryInputSchema = mutationBaseSchema.extend({
+  path: mutationTargetSchema,
 });
-export const renameInputSchema = rootKeySchema.extend({
-  from: portableRelativePathSchema,
-  to: portableRelativePathSchema,
+export const renameInputSchema = mutationBaseSchema.extend({
+  from: mutationTargetSchema,
+  to: mutationTargetSchema,
 });
 export const moveInputSchema = renameInputSchema;
 export const copyInputSchema = renameInputSchema;
-export const deleteInputSchema = rootKeySchema.extend({
-  path: portableRelativePathSchema,
+export const deleteInputSchema = mutationBaseSchema.extend({
+  path: mutationTargetSchema,
   recursive: z.boolean().optional(),
 });
 export const writeFileInputSchema = rootKeySchema.extend({
@@ -135,6 +143,7 @@ export type FileGlobOptions = z.infer<typeof fileGlobOptionsSchema>;
 export type FileEnumerationOptions = z.infer<typeof fileEnumerationOptionsSchema>;
 export type PathBatch = z.infer<typeof pathBatchSchema>;
 export type PathList = z.infer<typeof pathListSchema>;
+export type MutationTarget = z.infer<typeof mutationTargetSchema>;
 export type WritePrecondition = z.infer<typeof writePreconditionSchema>;
 export type WriteContentInput = z.infer<typeof writeContentInputSchema>;
 export type UploadFileInput = z.infer<typeof uploadFileInputSchema>;

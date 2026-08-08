@@ -6,6 +6,9 @@ import type { LiveJobContext } from '@emdash/wire/live';
 import type { BlobSource, WireFile } from '@emdash/wire/rpc';
 import { glob } from 'glob';
 import {
+  absoluteDirname,
+  absoluteEquals,
+  formatAbsolute,
   joinPortableRelativePath,
   parseAbsolute,
   type HostAbsolutePath,
@@ -22,6 +25,7 @@ import type {
   FileUsage,
   FsError,
   MoveInput,
+  MutationTarget,
   PathBatch,
   PathKey,
   PathList,
@@ -36,17 +40,17 @@ import type {
 } from '#runtimes/files/api';
 import type { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
 import { expectedFsError, toFsError } from '#runtimes/files/node/api/errors';
-import type { RootResource } from '#runtimes/files/node/root/root-resource';
+import type { RootChange, RootResource } from '#runtimes/files/node/root/root-resource';
 import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { enumerateFiles } from './enumerate';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import {
-  copyInRoot,
+  copyBetweenRoots,
   createDirectoryInRoot,
   createFileInRoot,
   deleteInRoot,
-  moveInRoot,
-  renameInRoot,
+  moveBetweenRoots,
+  type RootLocation,
 } from './mutation-ops';
 import { writeFileContent } from './write-file';
 
@@ -221,15 +225,18 @@ export class FileSystemRuntime {
   }
 
   async upload(input: UploadFileInput, file: WireFile): Promise<Result<UploadFileResult, FsError>> {
+    const key = mutationFileKey(input.root, input.path);
+    if (!key.success) return key;
+
     let bytes: Uint8Array;
     try {
       bytes = await file.bytes();
     } catch (error) {
-      return err(toFsError(error, input.path));
+      return err(toFsError(error, formatMutationTarget(input.path)));
     }
 
-    return this.run(input.root, async (root) => {
-      const destination = await root.paths.resolveDestination(input.path);
+    return this.runAt(key.data, async (root, relative) => {
+      const destination = await root.paths.resolveDestination(relative);
       if (!destination.success) return destination;
 
       return root.runFileMutation(destination.data.absolutePath, async () => {
@@ -343,57 +350,46 @@ export class FileSystemRuntime {
   }
 
   createFile(input: CreateFileInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await createFileInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
-      return ok<void>();
-    });
+    return this.mutateEntry(input.root, input.path, (root, relative) =>
+      createFileInRoot(root, { path: relative, content: input.content })
+    );
   }
 
   createDirectory(input: CreateDirectoryInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await createDirectoryInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
-      return ok<void>();
-    });
+    return this.mutateEntry(input.root, input.path, (root, relative) =>
+      createDirectoryInRoot(root, { path: relative })
+    );
   }
 
   rename(input: RenameInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await renameInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
-      return ok<void>();
-    });
+    const guard = sameParentGuard(input);
+    if (guard) return Promise.resolve(err(guard));
+    return this.move(input);
   }
 
   move(input: MoveInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await moveInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
+    return this.mutatePair(input, async (from, to) => {
+      const moved = await moveBetweenRoots(from, to);
+      if (!moved.success) return moved;
+      this.allocations.notifyActiveRoot(from.root, moved.data.source);
+      this.allocations.notifyActiveRoot(to.root, moved.data.target);
       return ok<void>();
     });
   }
 
   copy(input: CopyInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await copyInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
+    return this.mutatePair(input, async (from, to) => {
+      const copied = await copyBetweenRoots(from, to);
+      if (!copied.success) return copied;
+      this.allocations.notifyActiveRoot(to.root, copied.data.target);
       return ok<void>();
     });
   }
 
   delete(input: DeleteInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      const result = await deleteInRoot(root, input);
-      if (!result.success) return result;
-      this.allocations.notifyActiveRoot(root, result.data);
-      return ok<void>();
-    });
+    return this.mutateEntry(input.root, input.path, (root, relative) =>
+      deleteInRoot(root, { path: relative, recursive: input.recursive })
+    );
   }
 
   writeFile(input: WriteFileInput): Promise<Result<void, FsError>> {
@@ -426,6 +422,51 @@ export class FileSystemRuntime {
     operation: (root: RootResource) => Promise<Result<void, FsError>>
   ): Promise<Result<void, FsError>> {
     return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
+  }
+
+  /**
+   * Runs a single-target mutation in the operational root the target resolves
+   * to — the given root for root-scoped targets, the entry's parent directory
+   * for bare absolute targets — and publishes the resulting changes to it.
+   */
+  private mutateEntry(
+    root: HostAbsolutePath | undefined,
+    target: MutationTarget,
+    operation: (
+      root: RootResource,
+      relative: PortableRelativePath
+    ) => Promise<Result<RootChange[], FsError>>
+  ): Promise<Result<void, FsError>> {
+    const key = mutationFileKey(root, target);
+    if (!key.success) return Promise.resolve(key);
+    return this.runAt(key.data, async (rootResource, relative) => {
+      const result = await operation(rootResource, relative);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(rootResource, result.data);
+      return ok<void>();
+    });
+  }
+
+  /**
+   * Runs a two-endpoint mutation with each endpoint resolved to its own
+   * operational root (both endpoints share the given root in root-scoped mode;
+   * bare absolute endpoints resolve to their parent directories).
+   */
+  private mutatePair(
+    input: { root?: HostAbsolutePath; from: MutationTarget; to: MutationTarget },
+    operation: (from: RootLocation, to: RootLocation) => Promise<Result<void, FsError>>
+  ): Promise<Result<void, FsError>> {
+    const fromKey = mutationFileKey(input.root, input.from);
+    if (!fromKey.success) return Promise.resolve(fromKey);
+    const toKey = mutationFileKey(input.root, input.to);
+    if (!toKey.success) return Promise.resolve(toKey);
+    return this.withExpectedErrors(() =>
+      this.allocations.useFileLocation(fromKey.data, (fromRoot, fromRelative) =>
+        this.allocations.useFileLocation(toKey.data, (toRoot, toRelative) =>
+          operation({ root: fromRoot, path: fromRelative }, { root: toRoot, path: toRelative })
+        )
+      )
+    );
   }
 
   private async withExpectedErrors<T>(
@@ -467,6 +508,66 @@ function sameFileVersion(
     before.mtimeMs === after.mtimeMs &&
     before.ctimeMs === after.ctimeMs
   );
+}
+
+function isAbsoluteTarget(target: MutationTarget): target is HostAbsolutePath {
+  return typeof target !== 'string';
+}
+
+function formatMutationTarget(target: MutationTarget): string {
+  return isAbsoluteTarget(target) ? formatAbsolute(target) : target;
+}
+
+/**
+ * Normalizes a mutation target into a file key: root-relative when the input
+ * carries an operational root, a bare absolute path otherwise. Mode mismatches
+ * (a root with an absolute target, or a bare relative target) are addressing
+ * errors, mirroring the fileKeySchema duality the read path already serves.
+ */
+function mutationFileKey(
+  root: HostAbsolutePath | undefined,
+  target: MutationTarget
+): Result<FileKey, FsError> {
+  if (root !== undefined) {
+    if (isAbsoluteTarget(target)) {
+      return err({
+        type: 'invalid-path',
+        path: formatAbsolute(target),
+        message: 'A root-scoped mutation target must be a root-relative path',
+      });
+    }
+    return ok({ root, relative: target });
+  }
+  if (!isAbsoluteTarget(target)) {
+    return err({
+      type: 'invalid-path',
+      path: target,
+      message: 'A mutation without a root must target an absolute path',
+    });
+  }
+  return ok({ path: target });
+}
+
+/** Rename keeps move semantics plus a same-parent invariant in both modes. */
+function sameParentGuard(input: {
+  root?: HostAbsolutePath;
+  from: MutationTarget;
+  to: MutationTarget;
+}): FsError | undefined {
+  if (input.root !== undefined) {
+    if (isAbsoluteTarget(input.from) || isAbsoluteTarget(input.to)) return undefined;
+    if (path.posix.dirname(input.from) === path.posix.dirname(input.to)) return undefined;
+    return { type: 'invalid-path', path: input.to, message: 'Rename requires the same parent' };
+  }
+  if (!isAbsoluteTarget(input.from) || !isAbsoluteTarget(input.to)) return undefined;
+  const fromParent = absoluteDirname(input.from);
+  const toParent = absoluteDirname(input.to);
+  if (fromParent && toParent && absoluteEquals(fromParent, toParent)) return undefined;
+  return {
+    type: 'invalid-path',
+    path: formatAbsolute(input.to),
+    message: 'Rename requires the same parent',
+  };
 }
 
 function changedWhileReading(entryPath: PortableRelativePath): FsError {

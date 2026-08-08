@@ -57,11 +57,32 @@ export async function renameInRoot(
   return moveInRoot(root, input);
 }
 
+/** A mutation endpoint addressed as an operational root plus a root-relative path. */
+export type RootLocation = {
+  root: RootResource;
+  path: PortableRelativePath;
+};
+
 export async function moveInRoot(
   root: RootResource,
   input: { from: PortableRelativePath; to: PortableRelativePath }
 ): Promise<Result<RootChange[], FsError>> {
-  const source = await root.paths.resolveExistingEntry(input.from);
+  const moved = await moveBetweenRoots({ root, path: input.from }, { root, path: input.to });
+  if (!moved.success) return moved;
+  return ok([...moved.data.source, ...moved.data.target]);
+}
+
+/**
+ * Moves an entry between two (possibly identical) operational roots, returning
+ * the change notifications each root should publish. Serves both the classic
+ * single-root move and the bare-absolute-path move whose endpoints resolve to
+ * two different parent-directory roots.
+ */
+export async function moveBetweenRoots(
+  from: RootLocation,
+  to: RootLocation
+): Promise<Result<{ source: RootChange[]; target: RootChange[] }, FsError>> {
+  const source = await from.root.paths.resolveExistingEntry(from.path);
   if (!source.success) return source;
   if (source.data.path === '') {
     return err({
@@ -70,20 +91,20 @@ export async function moveInRoot(
       message: 'The workspace root cannot be moved',
     });
   }
-  const destination = await root.paths.resolveDestination(input.to);
+  const destination = await to.root.paths.resolveDestination(to.path);
   if (!destination.success) return destination;
   const available = await destinationAvailable(
     destination.data.absolutePath,
     destination.data.path
   );
   if (!available.success) return available;
-  return root.runFileMutation(source.data.absolutePath, async () => {
+  return from.root.runFileMutation(source.data.absolutePath, async () => {
     try {
       await rename(source.data.absolutePath, destination.data.absolutePath);
-      return ok<RootChange[]>([
-        { kind: 'delete', path: source.data.path },
-        { kind: 'create', path: destination.data.path },
-      ]);
+      return ok({
+        source: [{ kind: 'delete', path: source.data.path } as const],
+        target: [{ kind: 'create', path: destination.data.path } as const],
+      });
     } catch (error) {
       return err(toFsError(error, source.data.path));
     }
@@ -94,14 +115,16 @@ export async function copyInRoot(
   root: RootResource,
   input: { from: PortableRelativePath; to: PortableRelativePath }
 ): Promise<Result<RootChange[], FsError>> {
-  if (input.to.startsWith(`${input.from}/`)) {
-    return err({
-      type: 'invalid-path',
-      path: input.to,
-      message: 'A directory cannot be copied into itself',
-    });
-  }
-  const source = await root.paths.resolveExistingEntry(input.from);
+  const copied = await copyBetweenRoots({ root, path: input.from }, { root, path: input.to });
+  return copied.success ? ok(copied.data.target) : copied;
+}
+
+/** Copies an entry between two (possibly identical) operational roots. */
+export async function copyBetweenRoots(
+  from: RootLocation,
+  to: RootLocation
+): Promise<Result<{ target: RootChange[] }, FsError>> {
+  const source = await from.root.paths.resolveExistingEntry(from.path);
   if (!source.success) return source;
   if (source.data.path === '') {
     return err({
@@ -110,14 +133,21 @@ export async function copyInRoot(
       message: 'The workspace root cannot be copied',
     });
   }
-  const destination = await root.paths.resolveDestination(input.to);
+  const destination = await to.root.paths.resolveDestination(to.path);
   if (!destination.success) return destination;
+  if (destination.data.absolutePath.startsWith(source.data.absolutePath + path.sep)) {
+    return err({
+      type: 'invalid-path',
+      path: destination.data.path,
+      message: 'A directory cannot be copied into itself',
+    });
+  }
   const available = await destinationAvailable(
     destination.data.absolutePath,
     destination.data.path
   );
   if (!available.success) return available;
-  return root.runFileMutation(source.data.absolutePath, async () => {
+  return from.root.runFileMutation(source.data.absolutePath, async () => {
     try {
       await cp(source.data.absolutePath, destination.data.absolutePath, {
         recursive: true,
@@ -125,7 +155,7 @@ export async function copyInRoot(
         errorOnExist: true,
         verbatimSymlinks: true,
       });
-      return ok<RootChange[]>([{ kind: 'create', path: destination.data.path }]);
+      return ok({ target: [{ kind: 'create', path: destination.data.path } as const] });
     } catch (error) {
       return err(toFsError(error, source.data.path));
     }

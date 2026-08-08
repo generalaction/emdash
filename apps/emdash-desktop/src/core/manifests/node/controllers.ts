@@ -28,6 +28,7 @@ import {
 } from '@core/features/dev-perf/node/wire-controller';
 import type { EditorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import { createEditorWireController } from '@core/features/editor/node/wire-controller';
+import { createFilesWireController } from '@core/features/files/node/wire-controller';
 import { createGithubWireController } from '@core/features/github/node/wire-controller';
 import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
 import type { IssueProviderRegistry } from '@core/features/issues/node/registry';
@@ -192,6 +193,9 @@ export const desktopNodeControllers = {
   editor: {
     create: ({ editorBuffer, runtimes, workspaceIdentity }) =>
       createEditorWireController({ editorBuffer, runtimes, workspaceIdentity }),
+  },
+  files: {
+    create: ({ runtimes }) => createFilesWireController({ runtimes }),
   },
   legacyPort: {
     create: ({ legacyPortOperations }) => createLegacyPortWireController(legacyPortOperations),
