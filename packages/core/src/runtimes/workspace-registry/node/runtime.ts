@@ -41,6 +41,7 @@ import type {
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeFetchRefs, executePushBranch } from './background-steps';
+import { ConfigModel } from '#services/config-model/node';
 import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
 import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
@@ -140,10 +141,13 @@ export class WorkspaceRegistryRuntime {
    * The `.emdash.json` live model (spec: workspace-lifecycle-v2): one parsed entry per
    * present record, filled at boot / creation / scans — never read from disk inside a
    * creation or activation verb. Worktrees carry their own entry (branches diverge).
+   * Cache discipline (coalescing, change detection) lives in the shared ConfigModel.
    */
-  private readonly configs = new Map<string, WorkspaceConfigEntry>();
-  /** Coalesces concurrent config reads per record id. */
-  private readonly configReads = new Map<string, Promise<WorkspaceConfigEntry>>();
+  private readonly configs = new ConfigModel<WorkspaceConfigEntry>({
+    read: (_id, workspacePath) => readWorkspaceConfig(workspacePath),
+    onChanged: (id, entry, previous, workspacePath) =>
+      this.onConfigChanged(id, entry, previous, workspacePath),
+  });
   private disposed = false;
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
@@ -262,6 +266,7 @@ export class WorkspaceRegistryRuntime {
 
   dispose(): void {
     this.disposed = true;
+    this.configs.dispose();
     this.activationManager.dispose();
     this.recordsHost.dispose();
   }
@@ -1555,44 +1560,37 @@ export class WorkspaceRegistryRuntime {
    * the record so the wire summary stays fresh.
    */
   private refreshConfig(id: string, workspacePath: string): Promise<WorkspaceConfigEntry> {
-    const inFlight = this.configReads.get(id);
-    if (inFlight) return inFlight;
-    const read = (async () => {
-      const entry = await readWorkspaceConfig(workspacePath);
-      // The read is often fire-and-forget; never touch a closed store after dispose.
-      if (this.disposed) return entry;
-      const previous = this.configs.get(id);
-      this.configs.set(id, entry);
-      const changed = !previous || JSON.stringify(previous) !== JSON.stringify(entry);
-      if (changed) {
-        if (entry.parseError !== (previous?.parseError ?? false)) {
-          this.updateOverlay(id, (overlay) => ({
-            ...overlay,
-            notices: [
-              ...overlay.notices.filter((notice) => notice.id !== 'config-invalid'),
-              ...(entry.parseError
-                ? [
-                    {
-                      id: 'config-invalid',
-                      kind: 'config-invalid' as const,
-                      message: `Could not parse .emdash.json in '${workspacePath}'; using defaults`,
-                      at: this.clock.now(),
-                    },
-                  ]
-                : []),
-            ],
-          }));
-        } else {
-          const record = this.store.get(id);
-          if (record) this.publish(record);
-        }
-      }
-      return entry;
-    })().finally(() => {
-      this.configReads.delete(id);
-    });
-    this.configReads.set(id, read);
-    return read;
+    return this.configs.refresh(id, workspacePath);
+  }
+
+  /** Side effects of a config change; cache discipline lives in the shared model. */
+  private onConfigChanged(
+    id: string,
+    entry: WorkspaceConfigEntry,
+    previous: WorkspaceConfigEntry | undefined,
+    workspacePath: string
+  ): void {
+    if (entry.parseError !== (previous?.parseError ?? false)) {
+      this.updateOverlay(id, (overlay) => ({
+        ...overlay,
+        notices: [
+          ...overlay.notices.filter((notice) => notice.id !== 'config-invalid'),
+          ...(entry.parseError
+            ? [
+                {
+                  id: 'config-invalid',
+                  kind: 'config-invalid' as const,
+                  message: `Could not parse .emdash.json in '${workspacePath}'; using defaults`,
+                  at: this.clock.now(),
+                },
+              ]
+            : []),
+        ],
+      }));
+    } else {
+      const record = this.store.get(id);
+      if (record) this.publish(record);
+    }
   }
 
   private untrackedCacheFor(id: string): UntrackedLinesCache {

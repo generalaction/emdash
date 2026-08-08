@@ -1,10 +1,10 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   EMDASH_CONFIG_FILE,
   parseEmdashConfig,
   type EmdashConfig,
 } from '#primitives/emdash-config/api';
+import { readConfigFile } from '#services/config-model/node';
 
 /**
  * One workspace's parsed `.emdash.json` in the registry's live config model
@@ -20,12 +20,9 @@ export type WorkspaceConfigEntry = {
 
 /** A missing file is the empty config — only a present-but-broken file is an error. */
 export async function readWorkspaceConfig(workspacePath: string): Promise<WorkspaceConfigEntry> {
-  let content: string;
-  try {
-    content = await readFile(path.join(workspacePath, EMDASH_CONFIG_FILE), 'utf8');
-  } catch {
-    return { config: {}, parseError: false };
-  }
-  const parsed = parseEmdashConfig(content);
-  return { config: parsed.data, parseError: !parsed.success };
+  const entry = await readConfigFile(
+    path.join(workspacePath, EMDASH_CONFIG_FILE),
+    parseEmdashConfig
+  );
+  return { config: entry.data, parseError: entry.parseError };
 }
