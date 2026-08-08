@@ -1,7 +1,9 @@
 import path from 'node:path';
-import { ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
+import { blobSourceFromBytes, type BlobSource } from '@emdash/wire/rpc';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
+  gitErr,
   type BlameResult,
   type CheckoutHeadState,
   type CheckoutStatusState,
@@ -10,13 +12,14 @@ import {
   type CommitFile,
   type CommitOptions,
   type DiffTarget,
+  type DownloadError,
+  type DownloadMeta,
   type GitChange,
   type GitCommandError,
   type BoundGitFileContentKey,
   type GitFileContentState,
   type GitLogOptions,
   type GitLogResult,
-  type ImageReadResult,
   type PullError,
   type PushError,
   type PushOptions,
@@ -25,8 +28,8 @@ import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import { blame as readBlame } from '#runtimes/git/node/checkout/ops/blame';
 import { readGitFileContent } from '#runtimes/git/node/checkout/ops/content';
 import { getChangedFiles as readChangedFiles } from '#runtimes/git/node/checkout/ops/diff';
+import { readGitBlobDownload } from '#runtimes/git/node/checkout/ops/download';
 import { computeHeadState } from '#runtimes/git/node/checkout/ops/head';
-import { getImageBlob } from '#runtimes/git/node/checkout/ops/images';
 import {
   getCommit as readCommit,
   getCommitFiles as readCommitFiles,
@@ -208,29 +211,34 @@ export class GitCheckout {
 
   // -- Content / history reads ----------------------------------------------------
 
-  async getFileAtIndex(filePath: string): Promise<string | null> {
-    const relativePath = this.toRelativePath(filePath);
-    try {
-      const { stdout } = await this.exec.exec(['show', `:${relativePath}`]);
-      return stdout;
-    } catch (error) {
-      if (!checkoutFailures.isMissingIndexEntry(error)) throw error;
-      return null;
-    }
-  }
-
   getFileContent(key: BoundGitFileContentKey): Promise<GitFileContentState> {
     return readGitFileContent(this.exec, this.toRelativePath(key.path), key.source);
   }
 
-  async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    const relativePath = this.toRelativePath(filePath);
-    return getImageBlob(this.exec, relativePath, `${ref}:${relativePath}`);
+  /** One-shot text read over the same machinery as the content live model. */
+  async getFile(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ content: string | null }, GitCommandError>> {
+    const state = await this.getFileContent(key);
+    switch (state.kind) {
+      case 'text':
+        return ok({ content: state.content });
+      case 'missing':
+        return ok({ content: null });
+      case 'binary':
+        return gitErr.commandFailed(`Not a text file: ${key.path}; use download for binary reads`);
+      case 'unavailable':
+        return err(state.error);
+    }
   }
 
-  async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    const relativePath = this.toRelativePath(filePath);
-    return getImageBlob(this.exec, relativePath, `:${relativePath}`);
+  /** One-shot binary read; bytes are handed off as a blob source for the wire blob channel. */
+  async download(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ meta: DownloadMeta; source: BlobSource }, DownloadError>> {
+    const result = await readGitBlobDownload(this.exec, this.toRelativePath(key.path), key.source);
+    if (!result.success) return result;
+    return ok({ meta: result.data.meta, source: blobSourceFromBytes(result.data.bytes) });
   }
 
   async getLog(options: GitLogOptions = {}): Promise<GitLogResult> {

@@ -1,4 +1,4 @@
-import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/runtimes/git/api';
+import type { GitFileSource } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -21,19 +21,19 @@ interface ImageDiffViewProps {
   activeFile: ActiveFile;
 }
 
+type UnavailableReason = 'too-large' | 'lfs-pointer' | 'git-error';
+
 type SideState =
   | { status: 'loading' }
   | { status: 'ready'; dataUrl: string; mimeType: string; size: number }
   | { status: 'missing' }
-  | { status: 'unavailable'; reason: ImageUnavailableReason }
+  | { status: 'unavailable'; reason: UnavailableReason }
   | { status: 'error'; message: string };
 
 type Side = 'original' | 'modified';
 
-function unavailableMessage(reason: ImageUnavailableReason): string {
+function unavailableMessage(reason: UnavailableReason): string {
   switch (reason) {
-    case 'unsupported':
-      return 'Preview unavailable for this format';
     case 'too-large':
       return 'Preview unavailable — file is too large';
     case 'lfs-pointer':
@@ -43,38 +43,66 @@ function unavailableMessage(reason: ImageUnavailableReason): string {
   }
 }
 
-function fromImageReadResult(result: ImageReadResult): SideState {
-  switch (result.kind) {
-    case 'image':
-      return {
-        status: 'ready',
-        dataUrl: result.image.dataUrl,
-        mimeType: result.image.mimeType,
-        size: result.image.size,
-      };
+// Working-tree ("unstaged") content lives on disk, not behind a git source.
+function gitSourceForRef(ref: GitRef): GitFileSource | null {
+  if (ref.kind === 'head') return { kind: 'head' };
+  if (ref.kind === 'staged') return { kind: 'index' };
+  if (ref.kind === 'unstaged') return null;
+  return { kind: 'revision', revision: ref };
+}
+
+function downloadErrorState(error: { type: string }): SideState {
+  switch (error.type) {
     case 'missing':
       return { status: 'missing' };
-    case 'unavailable':
-      return { status: 'unavailable', reason: result.reason };
+    case 'too-large':
+      return { status: 'unavailable', reason: 'too-large' };
+    case 'lfs-pointer':
+      return { status: 'unavailable', reason: 'lfs-pointer' };
+    case 'git_error':
+    case 'resolution_failed':
+      return { status: 'unavailable', reason: 'git-error' };
+    default:
+      return { status: 'error', message: 'Failed to load image' };
   }
 }
 
-async function loadGitImage(
-  call: () => Promise<{ success: true; data: ImageReadResult } | { success: false }>
+async function loadFromGit(
+  workspaceId: string,
+  filePath: string,
+  source: GitFileSource
 ): Promise<SideState> {
-  const res = await call();
-  if (!res.success) return { status: 'error', message: 'Failed to load image' };
-  return fromImageReadResult(res.data);
+  const client = await getSourceControlClient();
+  const result = await client.checkout.download({
+    ...checkoutSelector(workspaceId),
+    path: gitFilePath(filePath),
+    source,
+  });
+  if (!result.success) return downloadErrorState(result.error);
+  const bytes = await result.data.bytes();
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const mimeType = result.data.meta.mimeType;
+  const dataUrl = await blobToDataUrl(new Blob([buffer], { type: mimeType }));
+  return { status: 'ready', dataUrl, mimeType, size: result.data.meta.size };
 }
 
 function loadFromRef(workspaceId: string, filePath: string, ref: GitRef): Promise<SideState> {
-  return loadGitImage(async () => {
-    const client = await getSourceControlClient();
-    return client.checkout.getImageAtRef({
-      ...checkoutSelector(workspaceId),
-      filePath: gitFilePath(filePath),
-      ref: gitRefToString(ref),
+  const source = gitSourceForRef(ref);
+  if (!source) {
+    return Promise.resolve<SideState>({ status: 'unavailable', reason: 'git-error' });
+  }
+  return loadFromGit(workspaceId, filePath, source);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result)), { once: true });
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('Image read failed')), {
+      once: true,
     });
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -113,13 +141,7 @@ function loadModified(
     case 'disk':
       return loadFromDisk(workspaceId, workspacePath, activeFile.path);
     case 'staged':
-      return loadGitImage(async () => {
-        const client = await getSourceControlClient();
-        return client.checkout.getImageAtIndex({
-          ...checkoutSelector(workspaceId),
-          filePath: gitFilePath(activeFile.path),
-        });
-      });
+      return loadFromGit(workspaceId, activeFile.path, { kind: 'index' });
     case 'git':
     case 'pr':
       return loadFromRef(workspaceId, activeFile.path, activeFile.modifiedRef ?? HEAD_REF);

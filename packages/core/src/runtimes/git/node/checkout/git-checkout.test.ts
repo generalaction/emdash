@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import type { PortableRelativePath } from '#primitives/path/api';
 import type { CheckoutStatusState } from '#runtimes/git/api';
 import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import { gitPath } from '#runtimes/git/node/testing/paths';
@@ -131,11 +132,55 @@ describe('GitCheckout', () => {
   it('rejects paths outside its checkout root', async () => {
     const { checkout, cleanup } = await makeCheckout();
     try {
-      await expect(checkout.getFileAtIndex('../secret.txt')).rejects.toThrow('outside checkout');
+      await expect(
+        checkout.getFile({
+          path: '../secret.txt' as PortableRelativePath,
+          source: { kind: 'index' },
+        })
+      ).rejects.toThrow('outside checkout');
       await expect(checkout.stage(['../secret.txt'])).resolves.toMatchObject({
         success: false,
         error: { type: 'git_error', message: expect.stringContaining('outside checkout') },
       });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reads one-shot file content for head, index, and revision sources', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await writeFile(path.join(repo, 'tracked.txt'), 'staged\n', 'utf8');
+      await checkout.stage(['tracked.txt']);
+
+      await expect(
+        checkout.getFile({ path: gitPath('tracked.txt'), source: { kind: 'head' } })
+      ).resolves.toEqual({ success: true, data: { content: 'before\n' } });
+      await expect(
+        checkout.getFile({ path: gitPath('tracked.txt'), source: { kind: 'index' } })
+      ).resolves.toEqual({ success: true, data: { content: 'staged\n' } });
+      await expect(
+        checkout.getFile({
+          path: gitPath('tracked.txt'),
+          source: {
+            kind: 'revision',
+            revision: { kind: 'branch', branch: { type: 'local', branch: 'main' } },
+          },
+        })
+      ).resolves.toEqual({ success: true, data: { content: 'before\n' } });
+
+      await expect(
+        checkout.getFile({ path: gitPath('missing.txt'), source: { kind: 'head' } })
+      ).resolves.toEqual({ success: true, data: { content: null } });
+      await expect(
+        checkout.getFile({ path: gitPath('missing.txt'), source: { kind: 'index' } })
+      ).resolves.toEqual({ success: true, data: { content: null } });
+
+      await writeFile(path.join(repo, 'binary.bin'), Buffer.from([0, 1, 2]));
+      await checkout.stage(['binary.bin']);
+      await expect(
+        checkout.getFile({ path: gitPath('binary.bin'), source: { kind: 'index' } })
+      ).resolves.toMatchObject({ success: false, error: { type: 'git_error' } });
     } finally {
       await cleanup();
     }

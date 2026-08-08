@@ -74,27 +74,12 @@ export const blameResultSchema = z.object({
 });
 export type BlameResult = z.infer<typeof blameResultSchema>;
 
-export const imageBlobSchema = z.object({
-  dataUrl: z.string(),
+export const downloadMetaSchema = z.object({
+  name: z.string(),
   mimeType: z.string(),
-  size: z.number().int(),
+  size: z.number().int().nonnegative(),
 });
-export type ImageBlob = z.infer<typeof imageBlobSchema>;
-
-export const imageUnavailableReasonSchema = z.enum([
-  'unsupported',
-  'too-large',
-  'lfs-pointer',
-  'git-error',
-]);
-export type ImageUnavailableReason = z.infer<typeof imageUnavailableReasonSchema>;
-
-export const imageReadResultSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('image'), image: imageBlobSchema }),
-  z.object({ kind: z.literal('missing') }),
-  z.object({ kind: z.literal('unavailable'), reason: imageUnavailableReasonSchema }),
-]);
-export type ImageReadResult = z.infer<typeof imageReadResultSchema>;
+export type DownloadMeta = z.infer<typeof downloadMetaSchema>;
 
 export const diffModeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('head') }),

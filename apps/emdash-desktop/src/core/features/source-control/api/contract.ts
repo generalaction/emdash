@@ -1,5 +1,5 @@
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
+import { defineContract, downloadFile, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   runtimeFallibleMutations,
@@ -68,18 +68,15 @@ const sourceControlCheckoutContract = defineContract({
     checkout.getChangedFiles.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getChangedFiles.output
   ),
-  getFileAtIndex: runtimeFallibleProcedure(
-    checkout.getFileAtIndex.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getFileAtIndex.output
+  getFile: runtimeFallibleProcedure(
+    checkout.getFile.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    checkout.getFile.output
   ),
-  getImageAtRef: runtimeFallibleProcedure(
-    checkout.getImageAtRef.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getImageAtRef.output
-  ),
-  getImageAtIndex: runtimeFallibleProcedure(
-    checkout.getImageAtIndex.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getImageAtIndex.output
-  ),
+  download: downloadFile({
+    input: checkout.download.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    meta: checkout.download.meta,
+    error: runtimeResolveErrorUnion(checkout.download.error),
+  }),
   getLog: runtimeFallibleProcedure(
     checkout.getLog.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getLog.output

@@ -115,6 +115,14 @@ export const pullErrorSchema = z.union([
 ]);
 export type PullError = z.infer<typeof pullErrorSchema>;
 
+export const downloadErrorSchema = z.union([
+  z.object({ type: z.literal('missing') }),
+  z.object({ type: z.literal('too-large'), maxBytes: z.number().int() }),
+  z.object({ type: z.literal('lfs-pointer') }),
+  gitCommandErrorSchema,
+]);
+export type DownloadError = z.infer<typeof downloadErrorSchema>;
+
 export const fetchPrForReviewErrorSchema = z.union([
   z.object({ type: z.literal('not_found'), prNumber: z.number().int(), message: z.string() }),
   authRequiredErrorSchema,

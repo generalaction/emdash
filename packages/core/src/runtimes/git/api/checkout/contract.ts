@@ -1,5 +1,6 @@
 import {
   defineContract,
+  downloadFile,
   fallible,
   liveJob,
   liveModel,
@@ -9,6 +10,7 @@ import {
 import { z } from 'zod';
 import {
   commitErrorSchema,
+  downloadErrorSchema,
   gitCommandErrorSchema,
   pullErrorSchema,
   pushErrorSchema,
@@ -24,11 +26,11 @@ import {
   commitFileSchema,
   commitOptionsSchema,
   commitSchema,
+  downloadMetaSchema,
   gitChangeSchema,
   gitFilePathSchema,
   gitLogOptionsSchema,
   gitLogResultSchema,
-  imageReadResultSchema,
   normalizedDiffTargetSchema,
   pullJobInputSchema,
   pushJobInputSchema,
@@ -81,23 +83,15 @@ export const gitCheckoutContract = defineContract({
     data: z.array(gitChangeSchema),
     error: gitCommandErrorSchema,
   }),
-  getFileAtIndex: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: gitFilePathSchema }),
-    data: z.string().nullable(),
+  getFile: fallible({
+    input: gitFileContentKeySchema,
+    data: z.object({ content: z.string().nullable() }),
     error: gitCommandErrorSchema,
   }),
-  getImageAtRef: fallible({
-    input: checkoutSelectorSchema.extend({
-      filePath: gitFilePathSchema,
-      ref: z.string(),
-    }),
-    data: imageReadResultSchema,
-    error: gitCommandErrorSchema,
-  }),
-  getImageAtIndex: fallible({
-    input: checkoutSelectorSchema.extend({ filePath: gitFilePathSchema }),
-    data: imageReadResultSchema,
-    error: gitCommandErrorSchema,
+  download: downloadFile({
+    input: gitFileContentKeySchema,
+    meta: downloadMetaSchema,
+    error: downloadErrorSchema,
   }),
   getLog: fallible({
     input: checkoutSelectorSchema.extend({ options: gitLogOptionsSchema.optional() }),

@@ -1,5 +1,6 @@
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { BlobSource } from '@emdash/wire/rpc';
 import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire/state';
 import type { PortableRelativePath } from '#primitives/path/api';
 import {
@@ -11,11 +12,12 @@ import {
   type Commit,
   type CommitFile,
   type DiffTarget,
+  type DownloadError,
+  type DownloadMeta,
   type GitChange,
   type GitCommandError,
   type GitLogOptions,
   type GitLogResult,
-  type ImageReadResult,
 } from '#runtimes/git/api';
 import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
@@ -123,19 +125,18 @@ export class CheckoutResource {
     return this.commands.getChangedFiles(target);
   }
 
-  getFileAtIndex(filePath: string): Promise<string | null> {
+  getFile(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ content: string | null }, GitCommandError>> {
     this.assertActive();
-    return this.commands.getFileAtIndex(filePath);
+    return this.commands.getFile(key);
   }
 
-  getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+  download(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ meta: DownloadMeta; source: BlobSource }, DownloadError>> {
     this.assertActive();
-    return this.commands.getImageAtRef(filePath, ref);
-  }
-
-  getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    this.assertActive();
-    return this.commands.getImageAtIndex(filePath);
+    return this.commands.download(key);
   }
 
   getLog(options?: GitLogOptions): Promise<GitLogResult> {

@@ -7,9 +7,8 @@ type CheckoutImplementation = NonNullable<ContractImpl<GitContract>['checkout']>
 export function createCheckoutProcedures(runtime: GitCheckoutRuntime) {
   return {
     getChangedFiles: (input) => runtime.getChangedFiles(input),
-    getFileAtIndex: (input) => runtime.getFileAtIndex(input),
-    getImageAtRef: (input) => runtime.getImageAtRef(input),
-    getImageAtIndex: (input) => runtime.getImageAtIndex(input),
+    getFile: (input) => runtime.getFile(input),
+    download: (input) => runtime.download(input),
     getLog: (input) => runtime.getLog(input),
     getCommit: (input) => runtime.getCommit(input),
     getCommitFiles: (input) => runtime.getCommitFiles(input),

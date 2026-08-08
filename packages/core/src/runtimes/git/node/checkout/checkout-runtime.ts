@@ -12,6 +12,7 @@ import {
   type CheckoutHeadState,
   type CheckoutStatusState,
   type GitCommandError,
+  type GitFileContentKey,
   type GitLogOptions,
   type GitTransferProgress,
   type NormalizedDiffTarget,
@@ -85,16 +86,16 @@ export class GitCheckoutRuntime {
     );
   }
 
-  getFileAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
-    return this.read(input, (checkout) => checkout.getFileAtIndex(input.filePath));
+  getFile(input: GitFileContentKey) {
+    return this.run(input, (checkout) =>
+      checkout.getFile({ path: input.path, source: input.source })
+    );
   }
 
-  getImageAtRef(input: CheckoutSelector & { filePath: PortableRelativePath; ref: string }) {
-    return this.read(input, (checkout) => checkout.getImageAtRef(input.filePath, input.ref));
-  }
-
-  getImageAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
-    return this.read(input, (checkout) => checkout.getImageAtIndex(input.filePath));
+  download(input: GitFileContentKey) {
+    return this.run(input, (checkout) =>
+      checkout.download({ path: input.path, source: input.source })
+    );
   }
 
   getLog(input: CheckoutSelector & { options?: GitLogOptions }) {

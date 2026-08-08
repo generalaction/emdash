@@ -91,10 +91,12 @@ export async function createProvider(
         try {
           const relative = gitFilePath(relativeRuntimePath(checkout.checkout, filePath));
           const [index, status] = await Promise.all([
-            git.checkout.getFileAtIndex({ ...checkout, filePath: relative }),
+            git.checkout.getFile({ ...checkout, path: relative, source: { kind: 'index' } }),
             git.checkout.model.state(checkout, 'status').snapshot(),
           ]);
-          if (!index.success || index.data === null || status.data.kind !== 'ok') return false;
+          if (!index.success || index.data.content === null || status.data.kind !== 'ok') {
+            return false;
+          }
           const entry = status.data.entries[relative];
           return !entry || (entry.index === 'unmodified' && entry.worktree === 'unmodified');
         } catch {

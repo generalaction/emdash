@@ -90,18 +90,17 @@ export function createSourceControlWireController(
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getChangedFiles(mapped, callOptions(meta))
         ),
-      getFileAtIndex: (input, meta) =>
+      getFile: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileAtIndex(mapped, callOptions(meta))
+          git.checkout.getFile(mapped, callOptions(meta))
         ),
-      getImageAtRef: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getImageAtRef(mapped, callOptions(meta))
-        ),
-      getImageAtIndex: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getImageAtIndex(mapped, callOptions(meta))
-        ),
+      download: async (input, meta) => {
+        const result = await withCheckoutRuntime(options, input, (git, mapped) =>
+          git.checkout.download(mapped, callOptions(meta))
+        );
+        if (!result.success) return result;
+        return ok({ meta: result.data.meta, source: result.data.chunks() });
+      },
       getLog: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getLog(mapped, callOptions(meta))

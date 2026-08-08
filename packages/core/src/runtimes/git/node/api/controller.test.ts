@@ -300,6 +300,64 @@ describe('createGitController', () => {
     }
   });
 
+  it('streams binary blobs for head and index over the download blob channel', async () => {
+    const repo = await makeRepo();
+    const committedBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 255]);
+    const stagedBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 9, 8, 7]);
+    await writeFile(path.join(repo, 'blob.png'), committedBytes);
+    await execFileAsync('git', ['add', 'blob.png'], { cwd: repo });
+    await execFileAsync('git', ['commit', '-m', 'add binary'], { cwd: repo });
+    await writeFile(path.join(repo, 'blob.png'), stagedBytes);
+    await execFileAsync('git', ['add', 'blob.png'], { cwd: repo });
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = checkoutSelector(repo);
+
+    try {
+      const atHead = await git.checkout.download({
+        ...checkout,
+        path: gitPath('blob.png'),
+        source: { kind: 'head' },
+      });
+      expect(atHead.success).toBe(true);
+      if (atHead.success) {
+        expect(atHead.data.meta).toEqual({
+          name: 'blob.png',
+          mimeType: 'image/png',
+          size: committedBytes.length,
+        });
+        expect(Buffer.from(await atHead.data.bytes())).toEqual(committedBytes);
+      }
+
+      const atIndex = await git.checkout.download({
+        ...checkout,
+        path: gitPath('blob.png'),
+        source: { kind: 'index' },
+      });
+      expect(atIndex.success).toBe(true);
+      if (atIndex.success) {
+        expect(atIndex.data.meta).toEqual({
+          name: 'blob.png',
+          mimeType: 'image/png',
+          size: stagedBytes.length,
+        });
+        expect(Buffer.from(await atIndex.data.bytes())).toEqual(stagedBytes);
+      }
+
+      await expect(
+        git.checkout.download({
+          ...checkout,
+          path: gitPath('missing.png'),
+          source: { kind: 'head' },
+        })
+      ).resolves.toEqual({ success: false, error: { type: 'missing' } });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('delegates checkout queries', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
@@ -374,9 +432,10 @@ describe('createGitController', () => {
 
     try {
       await expect(
-        git.checkout.getFileAtIndex({
+        git.checkout.getFile({
           ...checkoutSelector(directory),
-          filePath: gitPath('missing.txt'),
+          path: gitPath('missing.txt'),
+          source: { kind: 'index' },
         })
       ).resolves.toMatchObject({
         success: false,
