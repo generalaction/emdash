@@ -392,7 +392,11 @@ export async function createTask(
     });
   } catch (error) {
     if (hostInput) {
-      await compensateHostConversationRecord(runtimes, prepared.data.host, hostInput.id);
+      await compensateHostConversationRecord(
+        runtimes,
+        prepared.data.host,
+        hostInput.conversationId
+      );
     }
     throw error;
   }

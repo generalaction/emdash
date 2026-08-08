@@ -388,7 +388,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     await runtime.startSession(startInput());
 
     expect(reports.started).toEqual([
-      { id: 'conversation-1', providerSessionId: null, resumeOutcome: null },
+      { conversationId: 'conversation-1', providerSessionId: null, resumeOutcome: null },
     ]);
     expect(reports.activities).toContain('conversation-1');
   });
@@ -400,7 +400,11 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     await runtime.startSession(startInput({ chosenSessionId: 'conversation-1' }));
 
     expect(reports.started).toEqual([
-      { id: 'conversation-1', providerSessionId: 'conversation-1', resumeOutcome: null },
+      {
+        conversationId: 'conversation-1',
+        providerSessionId: 'conversation-1',
+        resumeOutcome: null,
+      },
     ]);
   });
 
@@ -410,7 +414,11 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
 
     await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
     expect(reports.started).toEqual([
-      { id: 'conversation-1', providerSessionId: 'provider-session', resumeOutcome: 'loaded' },
+      {
+        conversationId: 'conversation-1',
+        providerSessionId: 'provider-session',
+        resumeOutcome: 'loaded',
+      },
     ]);
 
     spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
@@ -418,7 +426,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
       expect(reports.started).toHaveLength(2);
     });
     expect(reports.started[1]).toEqual({
-      id: 'conversation-1',
+      conversationId: 'conversation-1',
       providerSessionId: null,
       resumeOutcome: 'replaced-by-new',
     });
@@ -434,7 +442,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     runtime['agentStates'].setProviderSessionId('conversation-1', 'captured-session');
 
     expect(reports.providerIds).toEqual([
-      { id: 'conversation-1', providerSessionId: 'captured-session' },
+      { conversationId: 'conversation-1', providerSessionId: 'captured-session' },
     ]);
   });
 

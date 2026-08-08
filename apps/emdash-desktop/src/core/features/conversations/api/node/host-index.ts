@@ -32,7 +32,7 @@ export function buildHostConversationCreateInput(args: {
   createdAt: number;
 }): CreateConversationInput {
   return {
-    id: args.id,
+    conversationId: args.id,
     provider: args.provider,
     type: args.type,
     cwd: args.workspacePath,
@@ -78,7 +78,7 @@ export async function compensateHostConversationRecord(
   try {
     const client = await runtimes.client(host);
     if (!client.success) throw new Error(client.error.message);
-    await client.data.conversations.delete({ id: conversationId });
+    await client.data.conversations.delete({ conversationId });
   } catch (error) {
     log.error('conversation create compensation failed; host record orphans', {
       conversationId,

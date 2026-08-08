@@ -6,6 +6,7 @@ import {
   promptInputSchema,
   queuedPromptSchema,
 } from '#runtimes/acp/api/models/prompt';
+import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 
 export const acpStartInputSchema = z.object({
   conversationId: z.string(),
@@ -19,13 +20,11 @@ export const acpStartInputSchema = z.object({
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
 
+export const acpResumeInputSchema = acpStartInputSchema.extend({ sessionId: z.string() });
+
 export const sendPromptResponseSchema = z.object({ queued: z.boolean() });
 
-export const startSessionCommandSchema = z.object({ input: acpStartInputSchema });
-export const resumeSessionCommandSchema = z.object({
-  input: acpStartInputSchema.extend({ sessionId: z.string() }),
-});
-export const killSessionCommandSchema = z.object({ conversationId: z.string() });
+export const killCommandSchema = z.object({ conversationId: z.string() });
 export const promptPlacementSchema = z.enum(['auto', 'queue']);
 export type PromptPlacement = z.infer<typeof promptPlacementSchema>;
 export const sendPromptCommandSchema = z.object({
@@ -79,8 +78,25 @@ export const attachmentKeySchema = z.object({
 });
 export const downloadAttachmentCommandSchema = attachmentKeySchema;
 export const deleteAttachmentCommandSchema = attachmentKeySchema;
-export const deleteConversationAttachmentsCommandSchema = z.object({
+export const deleteAttachmentsCommandSchema = z.object({
   conversationId: z.string(),
 });
+
+export const historyPageInputSchema = z.object({
+  conversationId: z.string(),
+  before: z.number().int().optional(),
+  limit: z.number().int(),
+});
+
+export const historyPageSchema = z.object({
+  turns: z.array(transcriptTurnSchema),
+  nextCursor: z.number().int().nullable(),
+});
+export type HistoryPage = z.infer<typeof historyPageSchema>;
+
+export const resumeResultSchema = historyPageSchema.extend({
+  sessionId: z.string(),
+});
+export type ResumeResult = z.infer<typeof resumeResultSchema>;
 
 export { queuedPromptSchema };

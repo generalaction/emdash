@@ -54,7 +54,7 @@ describe('setConversationModeId', () => {
     });
     expect(hostCalls).toHaveLength(1);
     expect(hostCalls[0]).toEqual({
-      id: 'conversation-1',
+      conversationId: 'conversation-1',
       config: {
         version: '1',
         type: 'acp',
@@ -119,16 +119,18 @@ function acpRow(config: Partial<ConversationConfig> = {}): FakeRow {
 }
 
 function fakeDeps(row: FakeRow | undefined) {
-  const hostCalls: Array<{ id: string; config: Record<string, unknown> }> = [];
+  const hostCalls: Array<{ conversationId: string; config: Record<string, unknown> }> = [];
   const cacheWrites: Array<Record<string, unknown>> = [];
   const host = {
-    updateConfig: vi.fn(async (input: { id: string; config: Record<string, unknown> }) => {
-      hostCalls.push(input);
-      return {
-        success: true as const,
-        data: { ...input, updatedAt: Date.now() },
-      };
-    }),
+    updateConfig: vi.fn(
+      async (input: { conversationId: string; config: Record<string, unknown> }) => {
+        hostCalls.push(input);
+        return {
+          success: true as const,
+          data: { ...input, updatedAt: Date.now() },
+        };
+      }
+    ),
   };
   const database = {
     select: () => ({

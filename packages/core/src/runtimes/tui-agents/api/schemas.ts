@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { result } from '#workspace-server/shared/schemas';
 import { runtimeUnavailableErrorSchema } from '#workspace-server/shared/schemas';
 
 export const tuiAgentStartInputSchema = z.object({
@@ -171,13 +170,13 @@ export const tuiSpawnFailedErrorSchema = z.object({
   message: z.string(),
 });
 
-export const tuiStartSessionErrorSchema = z.discriminatedUnion('type', [
+export const tuiStartErrorSchema = z.discriminatedUnion('type', [
   tuiUnknownProviderErrorSchema,
   tuiNoCommandErrorSchema,
   tuiSpawnFailedErrorSchema,
   runtimeUnavailableErrorSchema,
 ]);
-export const tuiResumeSessionErrorSchema = tuiStartSessionErrorSchema;
+export const tuiResumeErrorSchema = tuiStartErrorSchema;
 export const tuiSessionControlErrorSchema = runtimeUnavailableErrorSchema;
 export const tuiInputErrorSchema = z.discriminatedUnion('type', [
   tuiNotFoundErrorSchema,
@@ -192,16 +191,7 @@ export const tuiAgentErrorSchema = z.discriminatedUnion('type', [
 ]);
 
 export type TuiAgentError = z.infer<typeof tuiAgentErrorSchema>;
-export type TuiStartSessionError = z.infer<typeof tuiStartSessionErrorSchema>;
-export type TuiResumeSessionError = z.infer<typeof tuiResumeSessionErrorSchema>;
+export type TuiStartError = z.infer<typeof tuiStartErrorSchema>;
+export type TuiResumeError = z.infer<typeof tuiResumeErrorSchema>;
 export type TuiSessionControlError = z.infer<typeof tuiSessionControlErrorSchema>;
 export type TuiInputError = z.infer<typeof tuiInputErrorSchema>;
-
-export const tuiStartResultSchema = result(
-  z.object({ outcome: tuiStartOutcomeSchema }),
-  tuiAgentErrorSchema
-);
-export const tuiResumeResultSchema = result(
-  z.object({ outcome: tuiResumeOutcomeSchema }),
-  tuiAgentErrorSchema
-);

@@ -4,12 +4,12 @@ import {
   tuiAgentStartInputSchema,
   tuiAgentStateListSchema,
   tuiInputErrorSchema,
+  tuiResumeErrorSchema,
   tuiResumeOutcomeSchema,
-  tuiResumeSessionErrorSchema,
   tuiSessionControlErrorSchema,
   tuiSessionListSchema,
+  tuiStartErrorSchema,
   tuiStartOutcomeSchema,
-  tuiStartSessionErrorSchema,
 } from './schemas';
 
 const conv = z.object({ conversationId: z.string() });
@@ -21,10 +21,10 @@ export const tuiAgentsContract = defineContract({
    * If the process is already running or another launch won the race, this call
    * returns `attached` without replacing the active config.
    */
-  startSession: fallible({
-    input: z.object({ input: tuiAgentStartInputSchema }),
+  start: fallible({
+    input: tuiAgentStartInputSchema,
     data: z.object({ outcome: tuiStartOutcomeSchema }),
-    error: tuiStartSessionErrorSchema,
+    error: tuiStartErrorSchema,
   }),
 
   /**
@@ -35,43 +35,46 @@ export const tuiAgentsContract = defineContract({
    * Missing provider session ids are downgraded to a fresh spawn and reported as
    * `fresh-fallback`.
    */
-  resumeSession: fallible({
-    input: z.object({ input: tuiAgentStartInputSchema }),
+  resume: fallible({
+    input: tuiAgentStartInputSchema,
     data: z.object({ outcome: tuiResumeOutcomeSchema }),
-    error: tuiResumeSessionErrorSchema,
+    error: tuiResumeErrorSchema,
   }),
 
   /**
-   * Terminates the process immediately and marks desired state as stopped.
-   * Retained output and last session state remain available.
+   * Terminates the process; the persisted active intent survives, so the session
+   * auto-resumes across daemon restarts. Retained output and last session state remain
+   * available.
    */
-  stopSession: fallible({
+  stop: fallible({
     input: conv,
     data: z.void(),
     error: tuiSessionControlErrorSchema,
   }),
 
   /**
-   * Terminates any process and purges retained output, session state, and agent state.
+   * Terminates any active process and removes the persisted active intent — no
+   * auto-resume across daemon restarts. The conversation row remains available as an
+   * inactive, manually resumable record.
    */
-  deleteSession: fallible({
+  kill: fallible({
     input: conv,
     data: z.void(),
     error: tuiSessionControlErrorSchema,
   }),
 
   /**
-   * Terminates any active process and removes the persisted active intent.
-   * The conversation row remains available as an inactive/resumable record.
+   * Kill plus purge: terminates any process, removes the persisted intent, and purges
+   * retained output, session state, and agent state.
    */
-  killSession: fallible({
+  delete: fallible({
     input: conv,
     data: z.void(),
     error: tuiSessionControlErrorSchema,
   }),
 
   /**
-   * Writes raw bytes into the PTY stdin (mirrors rpc.pty.sendInput).
+   * Writes raw bytes into the PTY stdin.
    */
   sendInput: fallible({
     input: conv.extend({ data: z.string() }),
@@ -96,7 +99,6 @@ export const tuiAgentsContract = defineContract({
   /**
    * Reactive global session list (keyed by conversationId).
    * No key argument — one global model for all active PTY agent sessions.
-   * Mirrors acp.sessionStateList pattern.
    */
   sessions: liveModel({
     key: z.void().optional(),

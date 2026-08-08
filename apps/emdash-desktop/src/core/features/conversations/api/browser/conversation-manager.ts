@@ -362,8 +362,8 @@ export class ConversationManagerStore implements Disposable {
     const client = await getConversationsClient();
     const result =
       conversation.data.type === 'acp'
-        ? await client.acp.killSession({ conversationId })
-        : await client.tui.killSession({ conversationId });
+        ? await client.acp.kill({ conversationId })
+        : await client.tui.kill({ conversationId });
     if (!result.success) {
       throw new Error(result.error.message ?? `Failed to kill session '${conversationId}'`);
     }

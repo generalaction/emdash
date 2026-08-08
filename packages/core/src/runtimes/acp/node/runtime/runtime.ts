@@ -11,13 +11,13 @@ import type {
   AcpExportTranscriptError,
   AcpGetHistoryError,
   AcpResolvePermissionError,
-  AcpResumeSessionError,
+  AcpResumeError,
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpSetPromptDraftError,
-  AcpStartSessionError,
-  AcpStopSessionError,
+  AcpStartError,
+  AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
   PromptDraftUpdate,
@@ -76,14 +76,14 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
+  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     return this.manager.start(input);
   }
 
   async resumeSession(
     input: AcpStartInput & { sessionId: string },
     limit = 50
-  ): Promise<Result<ResumeResult, AcpResumeSessionError>> {
+  ): Promise<Result<ResumeResult, AcpResumeError>> {
     const result = await this.manager.start(input);
     if (!result.success) return result;
     const page = this.manager.getHistory(input.conversationId, undefined, limit);
@@ -91,11 +91,11 @@ export class AcpRuntime {
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
-  stopSession(conversationId: string): Result<void, AcpStopSessionError> {
+  stopSession(conversationId: string): Result<void, AcpKillError> {
     return this.manager.stop(conversationId);
   }
 
-  killSession(conversationId: string): Result<void, AcpStopSessionError> {
+  killSession(conversationId: string): Result<void, AcpKillError> {
     return this.manager.kill(conversationId);
   }
 

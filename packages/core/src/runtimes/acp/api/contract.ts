@@ -24,28 +24,6 @@ import { promptDraftSchema } from '#runtimes/acp/api/models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
-  cancelTurnCommandSchema,
-  changeQueuePromptOrderCommandSchema,
-  deleteAttachmentCommandSchema,
-  deleteConversationAttachmentsCommandSchema,
-  deleteQueuedPromptCommandSchema,
-  downloadAttachmentCommandSchema,
-  editQueuedPromptCommandSchema,
-  exportAcpTranscriptCommandSchema,
-  exportRawAcpLogCommandSchema,
-  killSessionCommandSchema,
-  resolvePermissionCommandSchema,
-  resumeSessionCommandSchema,
-  sendPromptCommandSchema,
-  sendPromptResponseSchema,
-  setModeOptionCommandSchema,
-  setModelOptionCommandSchema,
-  setPromptDraftCommandSchema,
-  startSessionCommandSchema,
-  uploadAttachmentCommandSchema,
-  uploadAttachmentResponseSchema,
-} from './commands';
-import {
   acpAttachmentErrorSchema,
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
@@ -54,35 +32,64 @@ import {
   acpExportRawLogErrorSchema,
   acpExportTranscriptErrorSchema,
   acpGetHistoryErrorSchema,
+  acpKillErrorSchema,
   acpResolvePermissionErrorSchema,
-  acpResumeSessionErrorSchema,
+  acpResumeErrorSchema,
   acpSendPromptErrorSchema,
   acpSetModeOptionErrorSchema,
   acpSetModelOptionErrorSchema,
   acpSetPromptDraftErrorSchema,
-  acpStartSessionErrorSchema,
-  acpStopSessionErrorSchema,
+  acpStartErrorSchema,
 } from './errors';
-import { historyPageInputSchema, historyPageSchema, resumeResultSchema } from './queries';
+import {
+  acpResumeInputSchema,
+  acpStartInputSchema,
+  cancelTurnCommandSchema,
+  changeQueuePromptOrderCommandSchema,
+  deleteAttachmentCommandSchema,
+  deleteAttachmentsCommandSchema,
+  deleteQueuedPromptCommandSchema,
+  downloadAttachmentCommandSchema,
+  editQueuedPromptCommandSchema,
+  exportAcpTranscriptCommandSchema,
+  exportRawAcpLogCommandSchema,
+  historyPageInputSchema,
+  historyPageSchema,
+  killCommandSchema,
+  resolvePermissionCommandSchema,
+  resumeResultSchema,
+  sendPromptCommandSchema,
+  sendPromptResponseSchema,
+  setModeOptionCommandSchema,
+  setModelOptionCommandSchema,
+  setPromptDraftCommandSchema,
+  uploadAttachmentCommandSchema,
+  uploadAttachmentResponseSchema,
+} from './schemas';
 
-const startSessionResultSchema = z.object({ sessionId: z.string() });
+const startResultSchema = z.object({ sessionId: z.string() });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 
 export const acpApiContract = defineContract({
-  startSession: fallible({
-    input: startSessionCommandSchema,
-    data: startSessionResultSchema,
-    error: acpStartSessionErrorSchema,
+  start: fallible({
+    input: acpStartInputSchema,
+    data: startResultSchema,
+    error: acpStartErrorSchema,
   }),
-  resumeSession: fallible({
-    input: resumeSessionCommandSchema,
+  resume: fallible({
+    input: acpResumeInputSchema,
     data: resumeResultSchema,
-    error: acpResumeSessionErrorSchema,
+    error: acpResumeErrorSchema,
   }),
-  killSession: fallible({
-    input: killSessionCommandSchema,
-    error: acpStopSessionErrorSchema,
+  /**
+   * Terminates any active process and removes the persisted active intent — the session no
+   * longer auto-resumes across daemon restarts. The conversation record stays resumable
+   * manually.
+   */
+  kill: fallible({
+    input: killCommandSchema,
+    error: acpKillErrorSchema,
   }),
   sendPrompt: fallible({
     input: sendPromptCommandSchema,
@@ -121,14 +128,14 @@ export const acpApiContract = defineContract({
     input: setPromptDraftCommandSchema,
     error: acpSetPromptDraftErrorSchema,
   }),
-  exportACPTranscript: fallible({
+  exportAcpTranscript: fallible({
     input: exportAcpTranscriptCommandSchema,
-    data: z.string(),
+    data: z.object({ transcript: z.string() }),
     error: acpExportTranscriptErrorSchema,
   }),
   exportRawAcpLog: fallible({
     input: exportRawAcpLogCommandSchema,
-    data: z.string(),
+    data: z.object({ log: z.string() }),
     error: acpExportRawLogErrorSchema,
   }),
   uploadAttachment: uploadFile({
@@ -149,10 +156,10 @@ export const acpApiContract = defineContract({
   /**
    * Maintenance verb for conversation deletion (spec §3.6, §4.2): removes every attachment
    * stored for the conversation. Invoked by the conversation removal verb alongside
-   * `killSession`; idempotent for absent conversations.
+   * `kill`; idempotent for absent conversations.
    */
-  deleteConversationAttachments: fallible({
-    input: deleteConversationAttachmentsCommandSchema,
+  deleteAttachments: fallible({
+    input: deleteAttachmentsCommandSchema,
     error: acpAttachmentErrorSchema,
   }),
   getHistory: fallible({
@@ -161,7 +168,7 @@ export const acpApiContract = defineContract({
     error: acpGetHistoryErrorSchema,
   }),
   sessions: liveModel({
-    key: z.void(),
+    key: z.void().optional(),
     states: {
       list: liveState({ data: z.record(z.string(), sessionSummarySchema) }),
     },
@@ -184,4 +191,3 @@ export const acpApiContract = defineContract({
 });
 
 export type AcpApiContract = typeof acpApiContract;
-export type StartSessionInput = z.infer<typeof startSessionCommandSchema>['input'];

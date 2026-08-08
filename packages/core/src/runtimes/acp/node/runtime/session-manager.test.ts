@@ -634,7 +634,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     await rt.startSession(makeStartInput({ conversationId: 'conv-fresh' }));
 
     expect(reports.started).toEqual([
-      { id: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
+      { conversationId: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
     ]);
     expect(reports.activities).toContain('conv-fresh');
   });
@@ -651,7 +651,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     });
 
     expect(reports.started).toEqual([
-      { id: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
+      { conversationId: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
     ]);
   });
 
@@ -670,7 +670,11 @@ describe('AcpRuntime conversation lifecycle reports', () => {
 
     expect(isOk(result)).toBe(true);
     expect(reports.started).toEqual([
-      { id: 'conv-fallback', providerSessionId: 'session-1', resumeOutcome: 'replaced-by-new' },
+      {
+        conversationId: 'conv-fallback',
+        providerSessionId: 'session-1',
+        resumeOutcome: 'replaced-by-new',
+      },
     ]);
   });
 
@@ -697,7 +701,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     });
 
     expect(reports.providerIds).toEqual([
-      { id: 'conv-rebind', providerSessionId: 'session-rebound' },
+      { conversationId: 'conv-rebind', providerSessionId: 'session-rebound' },
     ]);
   });
 

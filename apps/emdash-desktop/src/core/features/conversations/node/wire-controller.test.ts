@@ -48,18 +48,18 @@ type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
   it('passes ACP session start through without a client session id write', async () => {
-    const startSession = vi.fn(async () => ok({ sessionId: 'session-1' }));
+    const start = vi.fn(async () => ok({ sessionId: 'session-1' }));
     const controller = setupController({
-      client: { acp: { startSession } },
+      client: { acp: { start } },
     });
 
     await expect(
-      controller.call('acp.startSession', { conversationId: target.conversationId })
+      controller.call('acp.start', { conversationId: target.conversationId })
     ).resolves.toEqual(ok({ sessionId: 'session-1' }));
 
     // The ACP runtime reports the session id into the conversation index (spec §3.3);
     // the desktop no longer persists it from the response.
-    expect(startSession).toHaveBeenCalledWith({ input: target.acpInput }, {});
+    expect(start).toHaveBeenCalledWith(target.acpInput, {});
   });
 
   it('records submitted TUI input only after a successful carriage return', async () => {
@@ -222,7 +222,7 @@ describe('createConversationsWireController', () => {
     });
 
     await expect(
-      controller.call('acp.startSession', { conversationId: target.conversationId })
+      controller.call('acp.start', { conversationId: target.conversationId })
     ).resolves.toEqual(err(resolveError));
     await expect(
       controller.call('acp.downloadAttachment', {

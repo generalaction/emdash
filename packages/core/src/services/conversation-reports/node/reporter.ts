@@ -63,11 +63,11 @@ export function createConversationLifecycleReporter(
       const last = lastActivityReportAt.get(conversationId);
       if (last !== undefined && now - last < debounceMs) return;
       lastActivityReportAt.set(conversationId, now);
-      deliver('session-activity', options.client.reports.sessionActivity({ id: conversationId }));
+      deliver('session-activity', options.client.reports.sessionActivity({ conversationId }));
     },
     sessionEnded(conversationId) {
       lastActivityReportAt.delete(conversationId);
-      deliver('session-ended', options.client.reports.sessionEnded({ id: conversationId }));
+      deliver('session-ended', options.client.reports.sessionEnded({ conversationId }));
     },
   };
 }

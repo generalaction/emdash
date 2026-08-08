@@ -133,9 +133,9 @@ describe('workspace registry config live model', () => {
   it('a worktree with a divergent config activates with its own scripts', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await writeConfig(repoPath, { scripts: { prepare: 'echo repo >> ../which' } });
-    expect((await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success).toBe(
-      true
-    );
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success
+    ).toBe(true);
 
     const worktreePath = path.join(root, 'diverged');
     const created = await wire.client.createWorktree({
@@ -153,7 +153,9 @@ describe('workspace registry config live model', () => {
     await writeConfig(worktreePath, { scripts: { prepare: 'echo worktree >> ../which' } });
     expect((await wire.client.refresh({ workspaceId: 'wt-diverged' })).success).toBe(true);
 
-    expect((await wire.client.activateWorkspace({ workspaceId: 'wt-diverged' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'wt-diverged' })).success).toBe(
+      true
+    );
     expect((await wire.client.activateWorkspace({ workspaceId: 'ws-repo' })).success).toBe(true);
     await expect(fs.readFile(path.join(root, 'which'), 'utf8')).resolves.toBe('worktree\nrepo\n');
   });
@@ -194,7 +196,8 @@ describe('workspace registry config live model', () => {
       scripts: { setup: 'true', run: 'true' },
     });
     expect(
-      (await wire.client.createWorkspace({ workspaceId: 'ws-summarized', path: workspacePath })).success
+      (await wire.client.createWorkspace({ workspaceId: 'ws-summarized', path: workspacePath }))
+        .success
     ).toBe(true);
 
     await eventually(async () => {
@@ -219,9 +222,9 @@ describe('workspace registry config live model', () => {
     git(repoPath, 'commit', '-m', 'ignore env');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
     await writeConfig(repoPath, { preservePatterns: ['.env'] });
-    expect((await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success).toBe(
-      true
-    );
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success
+    ).toBe(true);
 
     // The caller passes no patterns; the source repository's `.emdash.json` entry
     // still drives the copy (spec: patterns resolve against the source checkout).

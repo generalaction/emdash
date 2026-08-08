@@ -27,24 +27,24 @@ describe('conversation lifecycle reporter', () => {
     const reporter = createConversationLifecycleReporter({ client });
 
     reporter.sessionStarted({
-      id: 'conv-1',
+      conversationId: 'conv-1',
       providerSessionId: 'session-1',
       resumeOutcome: 'loaded',
     });
-    reporter.providerSessionId({ id: 'conv-1', providerSessionId: 'session-2' });
+    reporter.providerSessionId({ conversationId: 'conv-1', providerSessionId: 'session-2' });
     reporter.sessionEnded('conv-1');
 
     await vi.waitFor(() => {
       expect(client.reports.sessionStarted).toHaveBeenCalledWith({
-        id: 'conv-1',
+        conversationId: 'conv-1',
         providerSessionId: 'session-1',
         resumeOutcome: 'loaded',
       });
       expect(client.reports.providerSessionId).toHaveBeenCalledWith({
-        id: 'conv-1',
+        conversationId: 'conv-1',
         providerSessionId: 'session-2',
       });
-      expect(client.reports.sessionEnded).toHaveBeenCalledWith({ id: 'conv-1' });
+      expect(client.reports.sessionEnded).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     });
   });
 
@@ -94,7 +94,11 @@ describe('conversation lifecycle reporter', () => {
     });
 
     expect(() => {
-      reporter.sessionStarted({ id: 'conv-1', providerSessionId: null, resumeOutcome: null });
+      reporter.sessionStarted({
+        conversationId: 'conv-1',
+        providerSessionId: null,
+        resumeOutcome: null,
+      });
       reporter.sessionEnded('conv-1');
     }).not.toThrow();
 

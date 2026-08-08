@@ -70,11 +70,11 @@ hook, and asks the `SessionManager` to route the event to a cell. The cell folds
 the event through the reducer and publishes changed slices through live models.
 
 Provider `sessionId` persistence is owned by the host that consumes the ACP API.
-The runtime returns the session id from `startSession` and `resumeSession`; desktop
+The runtime returns the session id from `start` and `resume`; desktop
 persists that returned value at the client boundary instead of using a child-to-host
 callback.
 
-`editCurrentPrompt` and `exportACPTranscript` are intentionally contract-only
+`editCurrentPrompt` and `exportAcpTranscript` are intentionally contract-only
 placeholders for now. Workspace-server stubs should keep typechecking against
 the contract, but core does not serve implementations until those workflows are
 designed.

@@ -33,7 +33,7 @@ export type ConversationConfig = z.infer<typeof conversationConfigSchema>;
 /** One host conversation record (spec §3.2). */
 export const conversationRecordSchema = z.object({
   /** Emdash-minted UUID; primary key; client-supplied on create; never changes, never reused. */
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   provider: z.string().min(1),
   type: conversationTypeSchema,
   /** Frozen at creation; part of the resume key. Distinct from workspacePath even when equal. */
@@ -59,7 +59,7 @@ export const conversationRecordsSchema = z.record(z.string(), conversationRecord
 export type ConversationRecords = z.infer<typeof conversationRecordsSchema>;
 
 export const createConversationInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   provider: z.string().min(1),
   type: conversationTypeSchema,
   cwd: z.string().min(1),
@@ -72,19 +72,19 @@ export const createConversationInputSchema = z.object({
 export type CreateConversationInput = z.infer<typeof createConversationInputSchema>;
 
 export const renameConversationInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   title: z.string(),
 });
 export type RenameConversationInput = z.infer<typeof renameConversationInputSchema>;
 
 export const updateConversationConfigInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   config: conversationConfigSchema,
 });
 export type UpdateConversationConfigInput = z.infer<typeof updateConversationConfigInputSchema>;
 
 export const deleteConversationInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
 });
 export type DeleteConversationInput = z.infer<typeof deleteConversationInputSchema>;
 
@@ -94,7 +94,7 @@ export type DeleteConversationInput = z.infer<typeof deleteConversationInputSche
  * prior session; 'replaced-by-new' when resume fell back to a new session (spec §7.4).
  */
 export const reportSessionStartedInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   providerSessionId: z.string().nullable(),
   resumeOutcome: z.enum(['loaded', 'replaced-by-new']).nullable(),
 });
@@ -102,17 +102,17 @@ export type ReportSessionStartedInput = z.infer<typeof reportSessionStartedInput
 
 /** Mid-session provider-id rebind or late hook-driven capture. */
 export const reportProviderSessionIdInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   providerSessionId: z.string().min(1),
 });
 export type ReportProviderSessionIdInput = z.infer<typeof reportProviderSessionIdInputSchema>;
 
 export const reportSessionActivityInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
 });
 export type ReportSessionActivityInput = z.infer<typeof reportSessionActivityInputSchema>;
 
 export const reportSessionEndedInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
 });
 export type ReportSessionEndedInput = z.infer<typeof reportSessionEndedInputSchema>;

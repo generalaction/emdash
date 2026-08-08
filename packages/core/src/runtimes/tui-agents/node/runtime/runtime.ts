@@ -17,11 +17,11 @@ import type {
   TuiAgentStartInput,
   TuiInputError,
   TuiResumeOutcome,
-  TuiResumeSessionError,
+  TuiResumeError,
   TuiSessionControlError,
   TuiSessionState,
   TuiStartOutcome,
-  TuiStartSessionError,
+  TuiStartError,
 } from '#runtimes/tui-agents/api';
 import { persistedTuiAgentStartInputSchema } from '#runtimes/tui-agents/api';
 import { TuiHookPipeline } from '#runtimes/tui-agents/node/hooks/hook-pipeline';
@@ -107,7 +107,7 @@ export class TuiAgentsRuntime {
         const config = this.configs.get(conversationId);
         if (config) this.persistActiveIntent(config.input);
         // Hook-driven session-id capture reports through the same surface as ACP rebinds.
-        this.reports.providerSessionId({ id: conversationId, providerSessionId });
+        this.reports.providerSessionId({ conversationId, providerSessionId });
       },
       (conversationId) => {
         const config = this.configs.get(conversationId);
@@ -166,7 +166,7 @@ export class TuiAgentsRuntime {
 
   async startSession(
     input: TuiAgentStartInput
-  ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartSessionError>> {
+  ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -194,7 +194,7 @@ export class TuiAgentsRuntime {
 
   async resumeSession(
     input: TuiAgentStartInput
-  ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError>> {
+  ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -388,7 +388,7 @@ export class TuiAgentsRuntime {
     session: TuiAgentSession,
     config: TuiSessionConfig,
     generation: number
-  ): Promise<Result<void, TuiStartSessionError>> {
+  ): Promise<Result<void, TuiStartError>> {
     const providerResult = this.resolveProvider(config.input.providerId);
     if (!providerResult.success) return err(providerResult.error);
 
@@ -535,7 +535,7 @@ export class TuiAgentsRuntime {
     // 'replaced-by-new'); a fresh-fallback respawn means history was not restored; a plain
     // fresh start is not a resume attempt at all.
     this.reports.sessionStarted({
-      id: config.input.conversationId,
+      conversationId: config.input.conversationId,
       // A resume attempt (re)asserts the handle it spawned with. A fresh spawn's
       // provider-native id is unknown until hook capture, but the caller may declare an
       // emdash-chosen resume handle up front (spec §3.1) — report it so the index holds
@@ -596,7 +596,7 @@ export class TuiAgentsRuntime {
     return this.generations.get(conversationId) === generation;
   }
 
-  private cancelledSpawn(conversationId: string): Result<void, TuiStartSessionError> {
+  private cancelledSpawn(conversationId: string): Result<void, TuiStartError> {
     return err({
       type: 'spawn-failed',
       conversationId,
@@ -659,7 +659,7 @@ export class TuiAgentsRuntime {
     return log;
   }
 
-  private resolveProvider(providerId: string): Result<ResolvedTuiProvider, TuiStartSessionError> {
+  private resolveProvider(providerId: string): Result<ResolvedTuiProvider, TuiStartError> {
     const provider = this.deps.agentHost.resolveTuiProvider(providerId);
     if (provider) return ok(provider);
     return this.deps.agentHost.get(providerId)

@@ -33,8 +33,8 @@ import type {
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpSetPromptDraftError,
-  AcpStartSessionError,
-  AcpStopSessionError,
+  AcpStartError,
+  AcpKillError,
   AgentState,
   InvalidStateError,
   NormalizedEvent,
@@ -148,7 +148,7 @@ export class SessionManager implements InboundRouter {
     });
   }
 
-  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
+  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     const existing = this.cells.get(input.conversationId);
     if (existing) {
       this.persistActiveIntent(input, existing.cell.acpSessionId);
@@ -284,7 +284,7 @@ export class SessionManager implements InboundRouter {
       this.syncRecord(record);
       this.persistActiveIntent(input, record.cell.acpSessionId);
       this.reports.sessionStarted({
-        id: input.conversationId,
+        conversationId: input.conversationId,
         providerSessionId: record.cell.acpSessionId,
         resumeOutcome,
       });
@@ -352,7 +352,7 @@ export class SessionManager implements InboundRouter {
     return record.cell.setPromptDraft(draft);
   }
 
-  stop(conversationId: string, cause = 'user'): Result<void, AcpStopSessionError> {
+  stop(conversationId: string, cause = 'user'): Result<void, AcpKillError> {
     const record = this.cells.get(conversationId);
     if (record) {
       record.cell.closeSession().catch(() => {});
@@ -363,7 +363,7 @@ export class SessionManager implements InboundRouter {
     return ok();
   }
 
-  kill(conversationId: string): Result<void, AcpStopSessionError> {
+  kill(conversationId: string): Result<void, AcpKillError> {
     const result = this.stop(conversationId, 'user');
     if (!result.success) return result;
     this.removePersistedIntent(conversationId);
@@ -489,7 +489,7 @@ export class SessionManager implements InboundRouter {
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
-      this.reports.providerSessionId({ id: conversationId, providerSessionId: params.sessionId });
+      this.reports.providerSessionId({ conversationId, providerSessionId: params.sessionId });
     }
     record.cell.recordRaw({
       kind: 'session_update',

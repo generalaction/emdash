@@ -47,12 +47,9 @@ const desktopTuiSessions = liveModel({
 });
 
 const conversationsAcpContract = defineContract({
-  startSession: runtimeFallibleProcedure(conversationKey, acpApiContract.startSession.output),
-  resumeSession: runtimeFallibleProcedure(conversationKey, acpApiContract.resumeSession.output),
-  killSession: runtimeFallibleProcedure(
-    acpApiContract.killSession.input,
-    acpApiContract.killSession.output
-  ),
+  start: runtimeFallibleProcedure(conversationKey, acpApiContract.start.output),
+  resume: runtimeFallibleProcedure(conversationKey, acpApiContract.resume.output),
+  kill: runtimeFallibleProcedure(acpApiContract.kill.input, acpApiContract.kill.output),
   sendPrompt: runtimeFallibleProcedure(
     acpApiContract.sendPrompt.input,
     acpApiContract.sendPrompt.output
@@ -89,9 +86,9 @@ const conversationsAcpContract = defineContract({
     acpApiContract.setPromptDraft.input,
     acpApiContract.setPromptDraft.output
   ),
-  exportACPTranscript: runtimeFallibleProcedure(
-    acpApiContract.exportACPTranscript.input,
-    acpApiContract.exportACPTranscript.output
+  exportAcpTranscript: runtimeFallibleProcedure(
+    acpApiContract.exportAcpTranscript.input,
+    acpApiContract.exportAcpTranscript.output
   ),
   exportRawAcpLog: runtimeFallibleProcedure(
     acpApiContract.exportRawAcpLog.input,
@@ -121,26 +118,11 @@ const conversationsAcpContract = defineContract({
 });
 
 const conversationsTuiContract = defineContract({
-  startSession: runtimeFallibleProcedure(
-    tuiAgentsContract.startSession.input,
-    tuiAgentsContract.startSession.output
-  ),
-  resumeSession: runtimeFallibleProcedure(
-    tuiAgentsContract.resumeSession.input,
-    tuiAgentsContract.resumeSession.output
-  ),
-  stopSession: runtimeFallibleProcedure(
-    tuiAgentsContract.stopSession.input,
-    tuiAgentsContract.stopSession.output
-  ),
-  deleteSession: runtimeFallibleProcedure(
-    tuiAgentsContract.deleteSession.input,
-    tuiAgentsContract.deleteSession.output
-  ),
-  killSession: runtimeFallibleProcedure(
-    tuiAgentsContract.killSession.input,
-    tuiAgentsContract.killSession.output
-  ),
+  start: runtimeFallibleProcedure(tuiAgentsContract.start.input, tuiAgentsContract.start.output),
+  resume: runtimeFallibleProcedure(tuiAgentsContract.resume.input, tuiAgentsContract.resume.output),
+  stop: runtimeFallibleProcedure(tuiAgentsContract.stop.input, tuiAgentsContract.stop.output),
+  delete: runtimeFallibleProcedure(tuiAgentsContract.delete.input, tuiAgentsContract.delete.output),
+  kill: runtimeFallibleProcedure(tuiAgentsContract.kill.input, tuiAgentsContract.kill.output),
   sendInput: runtimeFallibleProcedure(
     tuiAgentsContract.sendInput.input,
     tuiAgentsContract.sendInput.output

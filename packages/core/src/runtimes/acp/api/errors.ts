@@ -1,9 +1,12 @@
 /**
- * Tagged error union for AcpRuntime public API failures.
+ * Tagged error union for AcpRuntime public API failures, plus the wire error schemas the
+ * contract declares per verb (convention 2: closed `type`-discriminated unions built from
+ * shared variant objects).
  */
 
 import type { BaseError, SerializedError } from '@emdash/shared';
 import { fail } from '@emdash/shared';
+import { z } from 'zod';
 
 /** Provider does not support the ACP transport. */
 export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
@@ -54,21 +57,21 @@ export type AcpRuntimeError =
   | SetConfigFailedError
   | SetModeFailedError;
 
-export type AcpStartSessionError =
+export type AcpStartError =
   | ProviderUnsupportedError
   | AuthRequiredError
   | SpawnFailedError
   | InitializeFailedError
   | NewSessionFailedError
   | InvalidStateError;
-export type AcpResumeSessionError = AcpStartSessionError;
-export type AcpStopSessionError = never;
+export type AcpResumeError = AcpStartError;
+export type AcpKillError = never;
 export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;
-export type AcpQueuePromptError = ConversationNotFoundError | InvalidStateError;
-export type AcpEditQueuedPromptError = AcpQueuePromptError;
-export type AcpDeleteQueuedPromptError = AcpQueuePromptError;
-export type AcpChangeQueuePromptOrderError = AcpQueuePromptError;
-export type AcpResolvePermissionError = AcpQueuePromptError;
+export type AcpQueueMutationError = ConversationNotFoundError | InvalidStateError;
+export type AcpEditQueuedPromptError = AcpQueueMutationError;
+export type AcpDeleteQueuedPromptError = AcpQueueMutationError;
+export type AcpChangeQueuePromptOrderError = AcpQueueMutationError;
+export type AcpResolvePermissionError = AcpQueueMutationError;
 export type AcpSetPromptDraftError = ConversationNotFoundError;
 export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
 export type AcpSetModelOptionError =
@@ -109,3 +112,88 @@ export const acpErr = {
 
   setModeFailed: (cause: SerializedError) => fail('set_mode_failed', { cause }),
 } as const;
+
+export const serializedErrorSchema = z.object({
+  name: z.string(),
+  message: z.string(),
+  stack: z.string().optional(),
+});
+
+const plainTagErrorSchema = <T extends string>(type: T) =>
+  z.object({ type: z.literal(type), message: z.string().optional() });
+
+const failedErrorSchema = <T extends string>(type: T) =>
+  z.object({
+    type: z.literal(type),
+    message: z.string().optional(),
+    cause: serializedErrorSchema.optional(),
+  });
+
+export const providerUnsupportedErrorSchema = plainTagErrorSchema('provider_unsupported');
+export const conversationNotFoundErrorSchema = plainTagErrorSchema('conversation_not_found');
+export const invalidStateErrorSchema = plainTagErrorSchema('invalid_state');
+export const spawnFailedErrorSchema = failedErrorSchema('spawn_failed');
+export const initializeFailedErrorSchema = failedErrorSchema('initialize_failed');
+export const newSessionFailedErrorSchema = failedErrorSchema('new_session_failed');
+export const authRequiredErrorSchema = failedErrorSchema('auth_required');
+export const promptFailedErrorSchema = failedErrorSchema('prompt_failed');
+export const cancelFailedErrorSchema = failedErrorSchema('cancel_failed');
+export const setConfigFailedErrorSchema = failedErrorSchema('set_config_failed');
+export const setModeFailedErrorSchema = failedErrorSchema('set_mode_failed');
+
+export const acpStartErrorSchema = z.discriminatedUnion('type', [
+  providerUnsupportedErrorSchema,
+  authRequiredErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
+  invalidStateErrorSchema,
+]);
+export const acpResumeErrorSchema = acpStartErrorSchema;
+export const acpKillErrorSchema = z.never();
+export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  promptFailedErrorSchema,
+]);
+export const acpQueueMutationErrorSchema = z.discriminatedUnion('type', [
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+]);
+export const acpEditQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
+export const acpDeleteQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
+export const acpChangeQueuePromptOrderErrorSchema = acpQueueMutationErrorSchema;
+export const acpResolvePermissionErrorSchema = acpQueueMutationErrorSchema;
+export const acpSetPromptDraftErrorSchema = conversationNotFoundErrorSchema;
+export const acpCancelTurnErrorSchema = z.discriminatedUnion('type', [
+  invalidStateErrorSchema,
+  cancelFailedErrorSchema,
+]);
+export const acpSetModelOptionErrorSchema = z.discriminatedUnion('type', [
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  setConfigFailedErrorSchema,
+]);
+export const acpSetModeOptionErrorSchema = z.discriminatedUnion('type', [
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  setModeFailedErrorSchema,
+]);
+export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
+export const acpExportRawLogErrorSchema = conversationNotFoundErrorSchema;
+export const acpAttachmentErrorSchema = invalidStateErrorSchema;
+export const acpGetHistoryErrorSchema = z.never();
+
+export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [
+  providerUnsupportedErrorSchema,
+  conversationNotFoundErrorSchema,
+  invalidStateErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
+  authRequiredErrorSchema,
+  promptFailedErrorSchema,
+  cancelFailedErrorSchema,
+  setConfigFailedErrorSchema,
+  setModeFailedErrorSchema,
+]);

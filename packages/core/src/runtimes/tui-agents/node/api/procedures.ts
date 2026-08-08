@@ -3,10 +3,10 @@ import type {
   TuiAgentStartInput,
   TuiInputError,
   TuiResumeOutcome,
-  TuiResumeSessionError,
+  TuiResumeError,
   TuiSessionControlError,
   TuiStartOutcome,
-  TuiStartSessionError,
+  TuiStartError,
 } from '#runtimes/tui-agents/api';
 import type { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
 
@@ -14,23 +14,23 @@ export type StartTuiSessionInput = TuiAgentStartInput;
 
 export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
   return {
-    startSession(input: {
-      input: StartTuiSessionInput;
-    }): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartSessionError>> {
-      return runtime.startSession(input.input);
+    start(
+      input: StartTuiSessionInput
+    ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
+      return runtime.startSession(input);
     },
-    resumeSession(input: {
-      input: StartTuiSessionInput;
-    }): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError>> {
-      return runtime.resumeSession(input.input);
+    resume(
+      input: StartTuiSessionInput
+    ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
+      return runtime.resumeSession(input);
     },
-    stopSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    stop(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.stopSession(input.conversationId);
     },
-    deleteSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    delete(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.deleteSession(input.conversationId);
     },
-    killSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    kill(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.killSession(input.conversationId);
     },
     sendInput(input: { conversationId: string; data: string }): Result<void, TuiInputError> {

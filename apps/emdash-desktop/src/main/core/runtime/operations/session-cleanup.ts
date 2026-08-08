@@ -119,7 +119,7 @@ export async function killLifecycleAcpSessions(
   if (targets.acpConversationIds.length === 0) return;
   const client = await dependencies.getAcpRuntimeClient();
   for (const conversationId of targets.acpConversationIds) {
-    const result = await client.killSession({ conversationId });
+    const result = await client.kill({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
       throw new Error(errorMessage(result.error));
     }
@@ -136,7 +136,7 @@ export async function killLifecycleTerminalSessions(
   if (targets.tuiConversationIds.length > 0) {
     const tui = await dependencies.getTuiAgentsRuntimeClient();
     for (const conversationId of targets.tuiConversationIds) {
-      const result = await tui.deleteSession({ conversationId });
+      const result = await tui.delete({ conversationId });
       if (!result.success && !isMissingError(result.error)) {
         throw new Error(errorMessage(result.error));
       }

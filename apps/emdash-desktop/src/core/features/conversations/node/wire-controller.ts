@@ -139,17 +139,17 @@ export function createConversationsWireController(
     acp: {
       // The returned session id is not persisted client-side: the ACP runtime reports it
       // into the conversation index (spec §3.3) and convergence caches it here.
-      startSession: async ({ conversationId }, meta) => {
+      start: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         if (!runtimeTarget.acpInput) {
           throw missingAcpInputError(runtimeTarget);
         }
         const input = runtimeTarget.acpInput;
         return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
-          client.acp.startSession({ input }, callOptions(meta))
+          client.acp.start(input, callOptions(meta))
         );
       },
-      resumeSession: async ({ conversationId }, meta) => {
+      resume: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         const input = runtimeTarget.acpInput;
         if (!input) {
@@ -160,11 +160,11 @@ export function createConversationsWireController(
         }
         const sessionId = input.sessionId;
         return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
-          client.acp.resumeSession({ input: { ...input, sessionId } }, callOptions(meta))
+          client.acp.resume({ ...input, sessionId }, callOptions(meta))
         );
       },
-      killSession: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.killSession(input, callOptions(meta))),
+      kill: (input, meta) =>
+        run(input.conversationId, (client) => client.acp.kill(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
         run(input.conversationId, (client) => client.acp.sendPrompt(input, callOptions(meta))),
       editQueuedPrompt: (input, meta) =>
@@ -203,9 +203,9 @@ export function createConversationsWireController(
         ),
       setPromptDraft: (input, meta) =>
         run(input.conversationId, (client) => client.acp.setPromptDraft(input, callOptions(meta))),
-      exportACPTranscript: (input, meta) =>
+      exportAcpTranscript: (input, meta) =>
         run(input.conversationId, (client) =>
-          client.acp.exportACPTranscript(input, callOptions(meta))
+          client.acp.exportAcpTranscript(input, callOptions(meta))
         ),
       exportRawAcpLog: (input, meta) =>
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
@@ -234,26 +234,16 @@ export function createConversationsWireController(
         ),
     },
     tui: {
-      startSession: (input, meta) =>
-        run(input.input.conversationId, (client) =>
-          client.tuiAgents.startSession(input, callOptions(meta))
-        ),
-      resumeSession: (input, meta) =>
-        run(input.input.conversationId, (client) =>
-          client.tuiAgents.resumeSession(input, callOptions(meta))
-        ),
-      stopSession: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.tuiAgents.stopSession(input, callOptions(meta))
-        ),
-      deleteSession: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.tuiAgents.deleteSession(input, callOptions(meta))
-        ),
-      killSession: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.tuiAgents.killSession(input, callOptions(meta))
-        ),
+      start: (input, meta) =>
+        run(input.conversationId, (client) => client.tuiAgents.start(input, callOptions(meta))),
+      resume: (input, meta) =>
+        run(input.conversationId, (client) => client.tuiAgents.resume(input, callOptions(meta))),
+      stop: (input, meta) =>
+        run(input.conversationId, (client) => client.tuiAgents.stop(input, callOptions(meta))),
+      delete: (input, meta) =>
+        run(input.conversationId, (client) => client.tuiAgents.delete(input, callOptions(meta))),
+      kill: (input, meta) =>
+        run(input.conversationId, (client) => client.tuiAgents.kill(input, callOptions(meta))),
       sendInput: async (input, meta) => {
         const runtimeTarget = await target(input.conversationId);
         return withConversationRuntime(

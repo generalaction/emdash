@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { ConversationSyncService } from './conversation-sync-service';
 
-function hostRecord(overrides: Partial<ConversationRecord> & { id: string }): ConversationRecord {
+function hostRecord(
+  overrides: Partial<ConversationRecord> & { conversationId: string }
+): ConversationRecord {
   return {
     provider: 'claude-code',
     type: 'acp',
@@ -93,11 +95,11 @@ describe('ConversationSyncService', () => {
   }
 
   function setHostRecords(...records: ConversationRecord[]): void {
-    hostRecords.set(Object.fromEntries(records.map((record) => [record.id, record])));
+    hostRecords.set(Object.fromEntries(records.map((record) => [record.conversationId, record])));
   }
 
   it('applies initial host state and then diffs through the same path', async () => {
-    setHostRecords(hostRecord({ id: 'conv-1', title: 'Pre-existing' }));
+    setHostRecords(hostRecord({ conversationId: 'conv-1', title: 'Pre-existing' }));
 
     await service.attachHost(LOCAL_HOST_REF);
     await vi.waitFor(() => {
@@ -111,8 +113,8 @@ describe('ConversationSyncService', () => {
 
     // Subsequent host mutations arrive as diffs and route through the same verbs.
     setHostRecords(
-      hostRecord({ id: 'conv-1', title: 'Renamed on host' }),
-      hostRecord({ id: 'conv-2', title: 'Born after attach' })
+      hostRecord({ conversationId: 'conv-1', title: 'Renamed on host' }),
+      hostRecord({ conversationId: 'conv-2', title: 'Born after attach' })
     );
     await vi.waitFor(() => {
       expect(registry().getLive('conv-2')).toMatchObject({ title: 'Born after attach' });
@@ -121,15 +123,15 @@ describe('ConversationSyncService', () => {
   });
 
   it('loses nothing across kill-and-resubscribe: reattach replays full state', async () => {
-    setHostRecords(hostRecord({ id: 'conv-1', title: 'First' }));
+    setHostRecords(hostRecord({ conversationId: 'conv-1', title: 'First' }));
     await service.attachHost(LOCAL_HOST_REF);
     await vi.waitFor(() => expect(registry().getLive('conv-1')).toBeDefined());
 
     service.detachHost(LOCAL_HOST_REF);
     // Mutations while detached are invisible to the client...
     setHostRecords(
-      hostRecord({ id: 'conv-1', title: 'Renamed while detached' }),
-      hostRecord({ id: 'conv-2', title: 'While detached' })
+      hostRecord({ conversationId: 'conv-1', title: 'Renamed while detached' }),
+      hostRecord({ conversationId: 'conv-2', title: 'While detached' })
     );
     expect(registry().getLive('conv-2')).toBeUndefined();
 
@@ -142,7 +144,7 @@ describe('ConversationSyncService', () => {
   });
 
   it('serves cached observations when the host is unreachable; nothing errors, nothing sweeps', async () => {
-    setHostRecords(hostRecord({ id: 'conv-1', title: 'Cached' }));
+    setHostRecords(hostRecord({ conversationId: 'conv-1', title: 'Cached' }));
     await service.attachHost(LOCAL_HOST_REF);
     await vi.waitFor(() => expect(registry().getLive('conv-1')).toBeDefined());
     service.detachHost(LOCAL_HOST_REF);

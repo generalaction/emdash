@@ -112,7 +112,10 @@ describe('workspace registry deleteWorktree', () => {
     const activated = await wire.client.activateWorkspace({ workspaceId: 'wt-active' });
     expect(activated.success).toBe(true);
 
-    const deleted = await wire.client.deleteWorktree({ workspaceId: 'wt-active', deleteBranch: false });
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-active',
+      deleteBranch: false,
+    });
     expect(deleted).toEqual({ success: true, data: undefined });
 
     expect(killedPaths).toContain(worktree.path);
@@ -128,10 +131,14 @@ describe('workspace registry deleteWorktree', () => {
     await createWorktree('ws-repo', 'keep');
     await createWorktree('ws-repo', 'drop');
 
-    expect(await wire.client.deleteWorktree({ workspaceId: 'wt-keep', deleteBranch: false })).toMatchObject({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-keep', deleteBranch: false })
+    ).toMatchObject({
       success: true,
     });
-    expect(await wire.client.deleteWorktree({ workspaceId: 'wt-drop', deleteBranch: true })).toMatchObject({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-drop', deleteBranch: true })
+    ).toMatchObject({
       success: true,
     });
 
@@ -149,13 +156,18 @@ describe('workspace registry deleteWorktree', () => {
     git(worktree.path, 'add', 'committed.txt');
     git(worktree.path, 'commit', '-m', 'unpushed work');
 
-    const deleted = await wire.client.deleteWorktree({ workspaceId: 'wt-dirty', deleteBranch: true });
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-dirty',
+      deleteBranch: true,
+    });
     expect(deleted).toEqual({ success: true, data: undefined });
     await expect(fs.stat(worktree.path)).rejects.toThrow();
   });
 
   it('absent ids and repeated deletes succeed; non-worktree records get the typed error', async () => {
-    expect(await wire.client.deleteWorktree({ workspaceId: 'wt-never', deleteBranch: false })).toEqual({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-never', deleteBranch: false })
+    ).toEqual({
       success: true,
       data: undefined,
     });
@@ -163,15 +175,19 @@ describe('workspace registry deleteWorktree', () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     await createWorktree('ws-repo', 'twice');
-    expect(await wire.client.deleteWorktree({ workspaceId: 'wt-twice', deleteBranch: false })).toMatchObject(
-      { success: true }
-    );
-    expect(await wire.client.deleteWorktree({ workspaceId: 'wt-twice', deleteBranch: false })).toEqual({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-twice', deleteBranch: false })
+    ).toMatchObject({ success: true });
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'wt-twice', deleteBranch: false })
+    ).toEqual({
       success: true,
       data: undefined,
     });
 
-    expect(await wire.client.deleteWorktree({ workspaceId: 'ws-repo', deleteBranch: false })).toEqual({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'ws-repo', deleteBranch: false })
+    ).toEqual({
       success: false,
       error: { type: 'not-a-worktree', workspaceId: 'ws-repo' },
     });
@@ -179,7 +195,9 @@ describe('workspace registry deleteWorktree', () => {
     const directoryPath = path.join(root, 'plain');
     await fs.mkdir(directoryPath);
     await wire.client.createWorkspace({ workspaceId: 'ws-plain', path: directoryPath });
-    expect(await wire.client.deleteWorktree({ workspaceId: 'ws-plain', deleteBranch: false })).toEqual({
+    expect(
+      await wire.client.deleteWorktree({ workspaceId: 'ws-plain', deleteBranch: false })
+    ).toEqual({
       success: false,
       error: { type: 'not-a-worktree', workspaceId: 'ws-plain' },
     });
@@ -202,7 +220,10 @@ describe('workspace registry deleteWorktree', () => {
     await fs.rm(repoPath, { recursive: true, force: true });
 
     await clock.advanceBy(2_000);
-    const deleted = await wire.client.deleteWorktree({ workspaceId: 'wt-stuck', deleteBranch: false });
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-stuck',
+      deleteBranch: false,
+    });
     if (deleted.success) throw new Error('expected the delete to fail');
     expect(deleted.error.type).toBe('remove-failed');
 
@@ -242,7 +263,10 @@ describe('workspace registry deleteWorktree', () => {
     await wire.client.refresh({ workspaceId: 'wt-torn' });
     expect((await wire.client.activateWorkspace({ workspaceId: 'wt-torn' })).success).toBe(true);
 
-    const deleted = await wire.client.deleteWorktree({ workspaceId: 'wt-torn', deleteBranch: false });
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-torn',
+      deleteBranch: false,
+    });
     expect(deleted).toMatchObject({ success: false, error: { type: 'remove-failed' } });
 
     // Teardown failed, so nothing was removed and the record stays registered.
@@ -254,7 +278,10 @@ describe('workspace registry deleteWorktree', () => {
     });
 
     // Teardown runs at most once per activation: the retry proceeds past it.
-    const retried = await wire.client.deleteWorktree({ workspaceId: 'wt-torn', deleteBranch: false });
+    const retried = await wire.client.deleteWorktree({
+      workspaceId: 'wt-torn',
+      deleteBranch: false,
+    });
     expect(retried).toEqual({ success: true, data: undefined });
     await expect(fs.stat(worktree.path)).rejects.toThrow();
     expect((await listRecords())['wt-torn']).toBeUndefined();

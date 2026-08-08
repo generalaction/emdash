@@ -19,7 +19,7 @@ import { createConversationDeletionSweepKind } from './conversation-deletion-swe
 describe('conversation deletion sweep (integration)', () => {
   type SessionKillMock = Mock<(input: { conversationId: string }) => Promise<unknown>>;
   type IndexDeleteMock = Mock<
-    (input: { id: string }) => Promise<Result<void, { type: string; message?: string }>>
+    (input: { conversationId: string }) => Promise<Result<void, { type: string; message?: string }>>
   >;
 
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -57,10 +57,10 @@ describe('conversation deletion sweep (integration)', () => {
         reachable
           ? ok({
               acp: {
-                killSession: hostVerbs.killAcp,
-                deleteConversationAttachments: hostVerbs.deleteAttachments,
+                kill: hostVerbs.killAcp,
+                deleteAttachments: hostVerbs.deleteAttachments,
               },
-              tuiAgents: { deleteSession: hostVerbs.deleteTui },
+              tuiAgents: { delete: hostVerbs.deleteTui },
               conversations: { delete: hostVerbs.deleteRecord },
             })
           : err({ type: 'host-unreachable', message: 'offline' }),
@@ -114,7 +114,7 @@ describe('conversation deletion sweep (integration)', () => {
     // Killing the live session is part of the verb, ordered before the index delete.
     expect(hostVerbs.killAcp).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     expect(hostVerbs.deleteTui).toHaveBeenCalledWith({ conversationId: 'conv-1' });
-    expect(hostVerbs.deleteRecord).toHaveBeenCalledWith({ id: 'conv-1' });
+    expect(hostVerbs.deleteRecord).toHaveBeenCalledWith({ conversationId: 'conv-1' });
 
     // The RPC return asserted nothing: the row is still the visible pending state.
     const registry = createConversationRegistry(fixture.db);
@@ -141,7 +141,7 @@ describe('conversation deletion sweep (integration)', () => {
     const service = createService();
 
     await service.sweepHost(LOCAL_HOST_REF);
-    expect(hostVerbs.deleteRecord).toHaveBeenCalledWith({ id: 'conv-gone' });
+    expect(hostVerbs.deleteRecord).toHaveBeenCalledWith({ conversationId: 'conv-gone' });
 
     await applyConversationSnapshot({
       db: fixture.db,

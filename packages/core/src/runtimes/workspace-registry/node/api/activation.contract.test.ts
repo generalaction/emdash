@@ -82,7 +82,10 @@ describe('workspace registry activation lifecycle', () => {
     const workspacePath = path.join(root, name);
     await fs.mkdir(workspacePath, { recursive: true });
     await fs.writeFile(path.join(workspacePath, '.emdash.json'), JSON.stringify({ scripts }));
-    const created = await wire.client.createWorkspace({ workspaceId: `ws-${name}`, path: workspacePath });
+    const created = await wire.client.createWorkspace({
+      workspaceId: `ws-${name}`,
+      path: workspacePath,
+    });
     expect(created.success).toBe(true);
     return workspacePath;
   }
@@ -209,7 +212,9 @@ describe('workspace registry activation lifecycle', () => {
       run: 'echo ran',
     });
 
-    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(
+      true
+    );
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
@@ -241,7 +246,9 @@ describe('workspace registry activation lifecycle', () => {
     // Reactivating overwrites the script steps wholesale — no history accumulates.
     await fs.writeFile(path.join(workspacePath, 'fixed'), '');
     await clock.advanceBy(7_000);
-    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-outcomes' })).success).toBe(
+      true
+    );
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
@@ -254,7 +261,9 @@ describe('workspace registry activation lifecycle', () => {
 
   it('workspaces without configured scripts get no script steps', async () => {
     await makeWorkspace('scriptless', { prepare: 'echo prepared' });
-    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-scriptless' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-scriptless' })).success).toBe(
+      true
+    );
     await eventually(async () => {
       const records = await listRecords();
       expect(records['ws-scriptless']?.runtime?.lifecycle?.map((step) => step.id)).toEqual([

@@ -25,9 +25,9 @@ const hostConversations = {
   delete: vi.fn(async () => ({ success: true as const, data: undefined })),
 };
 const workspaceRegistry = {
-  createWorkspace: vi.fn(async (input: { id: string; path: string }) => ({
+  createWorkspace: vi.fn(async (input: { workspaceId: string; path: string }) => ({
     success: true as const,
-    data: { id: input.id },
+    data: { id: input.workspaceId },
   })),
   createWorktree: vi.fn(async (_input: Record<string, unknown>) => ({
     success: true as const,
@@ -467,11 +467,11 @@ describe('createTask', () => {
       // The project row already links a repository workspace; it is re-registered
       // idempotently under its preserved id before the worktree verb runs.
       expect(workspaceRegistry.createWorkspace).toHaveBeenCalledWith({
-        id: 'repo-workspace',
+        workspaceId: 'repo-workspace',
         path: '/repo',
       });
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith({
-        id: wsInsert.id,
+        workspaceId: wsInsert.id,
         repositoryId: 'repo-workspace',
         branch: 'feature/test',
         baseRef: 'main',
@@ -717,7 +717,7 @@ describe('createTask', () => {
       expect(hostInput.workspacePath).toBe(verbInput.path);
       expect(hostInput.cwd).toBe(verbInput.path);
       expect(hostInput).toMatchObject({
-        id: 'conv-1',
+        conversationId: 'conv-1',
         provider: 'claude-code',
         type: 'acp',
         idRegime: 'provider-minted',
@@ -756,7 +756,7 @@ describe('createTask', () => {
       await expect(createTask(db, projects, hostIsReachable, worktreeParams)).rejects.toThrow(
         'constraint violated'
       );
-      expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
+      expect(hostConversations.delete).toHaveBeenCalledWith({ conversationId: 'conv-1' });
       expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
     });
 

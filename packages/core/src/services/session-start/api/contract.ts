@@ -8,7 +8,7 @@ import {
 } from './schemas';
 
 export const acpSessionStartContract = defineContract({
-  startSession: fallible({
+  start: fallible({
     input: acpSessionStartInputSchema,
     data: acpSessionStartResultSchema,
     error: sessionStartErrorSchema,
@@ -16,7 +16,7 @@ export const acpSessionStartContract = defineContract({
 });
 
 export const tuiSessionStartContract = defineContract({
-  startSession: fallible({
+  start: fallible({
     input: tuiSessionStartInputSchema,
     data: tuiSessionStartResultSchema,
     error: sessionStartErrorSchema,

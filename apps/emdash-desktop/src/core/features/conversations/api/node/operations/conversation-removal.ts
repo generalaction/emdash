@@ -37,12 +37,14 @@ export type ConversationRemovalBroker = {
     Result<
       {
         acp: {
-          killSession(input: { conversationId: string }): Promise<unknown>;
-          deleteConversationAttachments(input: { conversationId: string }): Promise<unknown>;
+          kill(input: { conversationId: string }): Promise<unknown>;
+          deleteAttachments(input: { conversationId: string }): Promise<unknown>;
         };
-        tuiAgents: { deleteSession(input: { conversationId: string }): Promise<unknown> };
+        tuiAgents: { delete(input: { conversationId: string }): Promise<unknown> };
         conversations: {
-          delete(input: { id: string }): Promise<Result<void, { type: string; message?: string }>>;
+          delete(input: {
+            conversationId: string;
+          }): Promise<Result<void, { type: string; message?: string }>>;
         };
       },
       { type: string; message: string }
@@ -101,17 +103,17 @@ export async function executeConversationRemoval(
   // here, so both kills run; absent sessions are no-ops and kill failures must not
   // block record deletion (the host reaps orphaned sessions).
   try {
-    await client.data.acp.killSession({ conversationId });
+    await client.data.acp.kill({ conversationId });
   } catch {
     // Swallowed by design; see comment above.
   }
   try {
-    await client.data.tuiAgents.deleteSession({ conversationId });
+    await client.data.tuiAgents.delete({ conversationId });
   } catch {
     // Swallowed by design; see comment above.
   }
 
-  const deleted = await client.data.conversations.delete({ id: conversationId });
+  const deleted = await client.data.conversations.delete({ conversationId });
   if (!deleted.success) {
     if (deleted.error.type === 'host-unreachable') return 'unreachable';
     return { failed: deleteVerbFailure(deleted.error) };
@@ -121,7 +123,7 @@ export async function executeConversationRemoval(
   // the acp runtime purges the conversation's attachment directory. Best effort — a failed
   // purge leaves an inert orphaned directory, never a blocked deletion.
   try {
-    await client.data.acp.deleteConversationAttachments({ conversationId });
+    await client.data.acp.deleteAttachments({ conversationId });
   } catch {
     // Swallowed by design; see comment above.
   }
