@@ -8,6 +8,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
+import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
 import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
@@ -77,6 +78,13 @@ import {
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
 import type { WorkspaceScriptRunner } from './script-runner';
+import {
+  createScriptsPlaneRunner,
+  failureMessageWithTail,
+  ScriptRunsObserver,
+  type ObservedScriptRun,
+  type ScriptsClient,
+} from './scripts-plane';
 import type { SessionCounter, SessionKiller } from './session-cleanup';
 import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
 
@@ -92,6 +100,13 @@ export type WorkspaceRegistryRuntimeOptions = {
   killSessions?: SessionKiller;
   /** updateWorktree's "active" guard probe; the component builds it from the same runtimes. */
   countSessions?: SessionCounter;
+  /**
+   * The scripts runtime client (spec: activation-scripts-via-terminals): activation
+   * runs its scripts through it, and the registry observes its run state as the
+   * single writer of durable script lifecycle steps. Absent only in tests that
+   * exercise sequencing through a fake runner.
+   */
+  scripts?: ScriptsClient;
   activation?: {
     runner?: WorkspaceScriptRunner;
     teardownTimeoutMs?: number;
@@ -152,6 +167,8 @@ export class WorkspaceRegistryRuntime {
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
   private readonly activationManager: WorkspaceActivationManager;
+  /** Observation is the single step-writer for script-class lifecycle steps. */
+  private readonly scriptRuns: ScriptRunsObserver | null;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
@@ -162,6 +179,12 @@ export class WorkspaceRegistryRuntime {
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);
     this.countSessions = options.countSessions ?? (async () => 0);
+    this.scriptRuns = options.scripts
+      ? new ScriptRunsObserver({
+          client: options.scripts,
+          onRun: (run) => this.onScriptRun(run),
+        })
+      : null;
     this.activationManager = new WorkspaceActivationManager({
       publishActivation: (id, activation) =>
         this.updateOverlay(id, (overlay) => ({ ...overlay, activation })),
@@ -227,7 +250,18 @@ export class WorkspaceRegistryRuntime {
           this.store.update(updated);
           this.publish(updated);
         }),
-      runner: options.activation?.runner,
+      // The single execution plane: activation scripts run on the scripts runtime
+      // (identical env and shellSetup to manual runs, by construction). The fake
+      // runner seam remains for sequencing-only tests.
+      runner:
+        options.activation?.runner ??
+        (options.scripts
+          ? createScriptsPlaneRunner({
+              client: options.scripts,
+              factsFor: (workspacePath) => this.scriptFactsFor(workspacePath),
+              logger: this.logger,
+            })
+          : undefined),
       teardownTimeoutMs: options.activation?.teardownTimeoutMs,
       // Scripts come from the config live model — no filesystem read inside the
       // activation verb. A missing entry (startup race) fills the model once.
@@ -253,20 +287,25 @@ export class WorkspaceRegistryRuntime {
 
     // Restart replay: background steps left pending/running (a daemon killed mid-step)
     // re-run exactly once; terminal statuses (failed/succeeded/skipped) are respected.
-    // The config live model boots alongside: one read per present record, off every
-    // blocking path.
+    // Script steps never replay: runs died with the daemon, so incomplete ones settle
+    // as cancelled — the timeline must not show a phantom in-flight run (spec:
+    // activation-scripts-via-terminals). The config live model boots alongside: one
+    // read per present record, off every blocking path.
     queueMicrotask(() => {
       if (this.disposed) return;
       for (const record of this.store.list()) {
         if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(record.id);
         if (record.observedStatus === 'present') void this.refreshConfig(record.id, record.path);
+        this.settleInterruptedScriptSteps(record);
       }
+      this.syncScriptObservers();
     });
   }
 
   dispose(): void {
     this.disposed = true;
     this.configs.dispose();
+    this.scriptRuns?.dispose();
     this.activationManager.dispose();
     this.recordsHost.dispose();
   }
@@ -1207,9 +1246,12 @@ export class WorkspaceRegistryRuntime {
   ): Promise<void> {
     return this.enqueue(async () => {
       const record = this.store.get(id);
-      if (!record?.lifecycle) return;
+      if (!record) return;
+      // Script runs can land on records with no creation history (adopted worktrees,
+      // manual runs before any activation): mint the section rather than drop the run.
+      const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
       const now = this.clock.now();
-      const previous = getLifecycleStep(record.lifecycle, stepId);
+      const previous = getLifecycleStep(lifecycle, stepId);
       const terminal = state.status !== 'pending' && state.status !== 'running';
       const step: WorkspaceLifecycleStep = {
         id: stepId,
@@ -1221,12 +1263,95 @@ export class WorkspaceRegistryRuntime {
       };
       const updated: DurableWorkspaceRecord = {
         ...record,
-        lifecycle: withLifecycleStep(record.lifecycle, step),
+        lifecycle: withLifecycleStep(lifecycle, step),
         updatedAt: now,
       };
       this.store.update(updated);
       this.publish(updated);
     });
+  }
+
+  /**
+   * The observation stream's landing point (spec: observation is the single
+   * step-writer): every scripts-runtime run transition — activation, manual, or
+   * retry — mirrors into the durable lifecycle step for that script. Timed-out runs
+   * settle the step as failed with the timeout message; failure messages fold in the
+   * run's output tail.
+   */
+  private onScriptRun(run: ObservedScriptRun): void {
+    const record = this.store.getByPath(run.workspacePath);
+    if (!record) return;
+    const params = { provenance: run.provenance };
+    const state =
+      run.status === 'running'
+        ? { status: 'running' as const, params }
+        : run.status === 'succeeded'
+          ? { status: 'succeeded' as const, params }
+          : run.status === 'cancelled'
+            ? { status: 'cancelled' as const, message: run.message ?? 'Stopped', params }
+            : {
+                status: 'failed' as const,
+                message: failureMessageWithTail(
+                  run.message ?? `Script '${run.script}' failed`,
+                  run.outputTail
+                ),
+                params,
+              };
+    void this.updateLifecycleStep(record.id, run.script, state).catch((error) => {
+      this.logger.warn?.(`recording observed ${run.script} run for '${record.id}' failed`, {
+        error,
+      });
+    });
+  }
+
+  /** Record facts for the script env builder — same derivations for every initiator. */
+  private async scriptFactsFor(workspacePath: string): Promise<ScriptWorkspaceFacts> {
+    const record = this.store.getByPath(workspacePath);
+    if (!record) return { workspaceId: workspacePath };
+    const parent = record.parentId === null ? null : this.store.get(record.parentId);
+    const repositoryPath = await this.resolveRepositoryPath(record, parent);
+    const branch = record.git?.branch ?? record.creation?.branch;
+    // 'origin/main' → 'main': EMDASH_DEFAULT_BRANCH is a branch name, not a ref.
+    const baseRef = record.creation?.baseRef;
+    const defaultBranch = baseRef?.includes('/')
+      ? baseRef.slice(baseRef.indexOf('/') + 1)
+      : baseRef;
+    return {
+      workspaceId: record.id,
+      ...(repositoryPath !== null ? { repositoryPath } : {}),
+      ...(branch ? { branch } : {}),
+      ...(defaultBranch ? { defaultBranch } : {}),
+    };
+  }
+
+  /** Points the run observer at every present record path; called on records changes. */
+  private syncScriptObservers(): void {
+    if (!this.scriptRuns || this.disposed) return;
+    const paths = new Set<string>();
+    for (const record of this.store.list()) {
+      if (record.observedStatus === 'present') paths.add(record.path);
+    }
+    this.scriptRuns.sync(paths);
+  }
+
+  /**
+   * Boot settlement: script runs died with the previous daemon, so steps left
+   * pending/running settle as cancelled — the timeline never lies about an in-flight
+   * run that no longer exists.
+   */
+  private settleInterruptedScriptSteps(record: DurableWorkspaceRecord): void {
+    for (const step of record.lifecycle?.steps ?? []) {
+      if (!SCRIPT_STEP_IDS.has(step.id)) continue;
+      if (step.status !== 'pending' && step.status !== 'running') continue;
+      void this.updateLifecycleStep(record.id, step.id, {
+        status: 'cancelled',
+        message: 'Interrupted by restart',
+      }).catch((error) => {
+        this.logger.warn?.(`settling interrupted ${step.id} step for '${record.id}' failed`, {
+          error,
+        });
+      });
+    }
   }
 
   private logStageTimings(
@@ -1271,6 +1396,7 @@ export class WorkspaceRegistryRuntime {
         delete next[input.workspaceId];
         return next;
       });
+      this.syncScriptObservers();
       this.onRecordsChanged?.();
     } else {
       this.logger.debug?.(`delete of absent workspace '${input.workspaceId}' — idempotent no-op`);
@@ -1663,6 +1789,7 @@ export class WorkspaceRegistryRuntime {
   private publish(record: DurableWorkspaceRecord): void {
     const wire = this.toWire(record);
     this.recordsCell.update((previous) => ({ ...previous, [record.id]: wire }));
+    this.syncScriptObservers();
     this.onRecordsChanged?.();
   }
 

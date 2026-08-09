@@ -1,11 +1,17 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { LiveLogSource } from '@emdash/wire/live';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire/rpc';
 import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
-import type { EmdashScriptsConfig } from '#primitives/emdash-config/api';
-import { PtyRegistry, type PtySpawner } from '#services/pty/api';
+import {
+  EMDASH_CONFIG_FILE,
+  parseEmdashConfig,
+  type EmdashScriptsConfig,
+} from '#primitives/emdash-config/api';
+import { readConfigFile } from '#services/config-model/node';
+import { buildTerminalEnv, PtyRegistry, type PtySpawner } from '#services/pty/api';
 import { scriptsContract } from '../api/contract';
 import type { ScriptRunNotFoundError, StartScriptRunError } from '../api/errors';
 import type {
@@ -27,6 +33,17 @@ export type WorkspaceScriptsConfig = {
   scripts?: EmdashScriptsConfig;
   shellSetup?: string;
 };
+
+/** The production config reader: the workspace's `.emdash.json`, read leniently. */
+export async function readWorkspaceScriptsConfig(
+  workspacePath: string
+): Promise<WorkspaceScriptsConfig> {
+  const entry = await readConfigFile(
+    path.join(workspacePath, EMDASH_CONFIG_FILE),
+    parseEmdashConfig
+  );
+  return { scripts: entry.data.scripts, shellSetup: entry.data.shellSetup };
+}
 
 export type ScriptsRuntimeOptions = {
   spawner: PtySpawner;
@@ -106,7 +123,9 @@ export class ScriptsRuntime {
     }
     const shellSetup = config.shellSetup ?? (await this.defaultShellSetup?.());
 
-    const env = buildScriptEnv(input.workspacePath, input.facts);
+    // Worker env verbatim + the six host-derived EMDASH_* vars; deliberately no
+    // CI=1 injection (spec: env parity — a documented breaking change).
+    const env = buildTerminalEnv({ overrides: buildScriptEnv(input.workspacePath, input.facts) });
     const log = this.logFor(input);
     log.reseed();
 

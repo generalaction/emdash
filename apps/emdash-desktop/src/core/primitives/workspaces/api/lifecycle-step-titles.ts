@@ -17,4 +17,5 @@ export const LIFECYCLE_STEP_TITLES: Record<WorkspaceLifecycleStepInfo['id'], str
   prepare: 'Prepare',
   setup: 'Setup',
   run: 'Run',
+  teardown: 'Teardown',
 };

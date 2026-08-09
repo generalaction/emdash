@@ -1,13 +1,10 @@
-import path from 'node:path';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
-import { EMDASH_CONFIG_FILE, parseEmdashConfig } from '#primitives/emdash-config/api';
-import { readConfigFile } from '#services/config-model/node';
 import { NodePtySpawner } from '#services/pty/node';
 import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { scriptsContract } from '../api/contract';
 import { createScriptsController } from './api/controller';
-import { ScriptsRuntime, type WorkspaceScriptsConfig } from './runtime';
+import { readWorkspaceScriptsConfig, ScriptsRuntime } from './runtime';
 
 /**
  * The scripts worker: the single script execution plane on a host. Consumes the
@@ -25,13 +22,7 @@ export const scriptsComponent = defineWireComponent({
   create: ({ dependencies, instance, logger, scope }) => {
     const runtime = new ScriptsRuntime({
       spawner: new NodePtySpawner(),
-      readConfig: async (workspacePath): Promise<WorkspaceScriptsConfig> => {
-        const entry = await readConfigFile(
-          path.join(workspacePath, EMDASH_CONFIG_FILE),
-          parseEmdashConfig
-        );
-        return { scripts: entry.data.scripts, shellSetup: entry.data.shellSetup };
-      },
+      readConfig: readWorkspaceScriptsConfig,
       defaultShellSetup: async () => {
         const result = await dependencies.hostSettings.get();
         return result.success ? result.data.settings.shellSetup : undefined;

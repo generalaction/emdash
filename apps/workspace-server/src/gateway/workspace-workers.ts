@@ -240,7 +240,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...workspaceRegistryWorkerSpec({
       executable: workspaceWorkerPath('workspace-registry'),
       env,
-      dependencies: { watcher, acp, terminals, tuiAgents },
+      dependencies: { watcher, acp, terminals, tuiAgents, scripts },
       databasePath: paths.workspaceRegistryDatabase,
     })
   );

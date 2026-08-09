@@ -118,7 +118,8 @@ describe('scripts runtime contract', () => {
       EMDASH_TASK_NAME: 'feature-x',
       EMDASH_ROOT_PATH: '/repos/app',
     });
-    expect(spec.env).not.toHaveProperty('CI');
+    // CI is never injected: it is whatever the worker's own environment carries.
+    expect(spec.env?.CI).toBe(process.env.CI);
 
     spawner.processes[0]!.emit('installing...\n');
     spawner.processes[0]!.exit({ exitCode: 0, signal: null });

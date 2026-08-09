@@ -101,3 +101,11 @@ export const waitingIcon = style({
     },
   },
 });
+
+export const cancelledIcon = style({
+  '@layer': {
+    recipes: {
+      color: vars.foregroundMuted,
+    },
+  },
+});

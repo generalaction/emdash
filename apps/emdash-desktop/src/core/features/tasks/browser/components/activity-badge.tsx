@@ -28,12 +28,13 @@ import { LIFECYCLE_STEP_TITLES } from '@core/primitives/workspaces/api';
  * script-status icon, derived copy, and relative dates.
  */
 
-type ScriptStepId = 'prepare' | 'setup' | 'run';
+type ScriptStepId = 'prepare' | 'setup' | 'run' | 'teardown';
 
 const SCRIPT_STEP_IDS: ReadonlySet<WorkspaceLifecycleStepInfo['id']> = new Set([
   'prepare',
   'setup',
   'run',
+  'teardown',
 ]);
 
 const STATUS_ICONS: Record<
@@ -44,6 +45,7 @@ const STATUS_ICONS: Record<
   running: 'in-progress',
   succeeded: 'success',
   failed: 'error',
+  cancelled: 'cancelled',
 };
 
 function stepDescription(step: WorkspaceLifecycleStepInfo): string {
@@ -79,6 +81,8 @@ function stepDescription(step: WorkspaceLifecycleStepInfo): string {
       return 'Running setup scripts';
     case 'run':
       return 'Starting run scripts';
+    case 'teardown':
+      return 'Running teardown scripts';
     case 'fetch-refs':
       return '';
   }
@@ -166,6 +170,11 @@ export function ActivityBadgeView({
                 </span>
                 {step.status === 'failed' && step.message ? (
                   <span className="w-full truncate text-left text-[11px] text-foreground-destructive">
+                    {step.message}
+                  </span>
+                ) : null}
+                {step.status === 'cancelled' && step.message ? (
+                  <span className="w-full truncate text-left text-[11px] text-foreground-passive">
                     {step.message}
                   </span>
                 ) : null}

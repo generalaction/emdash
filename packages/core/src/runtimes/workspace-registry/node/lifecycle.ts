@@ -22,6 +22,7 @@ export const LIFECYCLE_STEP_ORDER: readonly WorkspaceLifecycleStepId[] = [
   'prepare',
   'setup',
   'run',
+  'teardown',
 ];
 
 /** The steps the runtime replays when left pending/running (restart, next activation). */
@@ -33,6 +34,7 @@ export const SCRIPT_STEP_IDS: ReadonlySet<WorkspaceLifecycleStepId> = new Set([
   'prepare',
   'setup',
   'run',
+  'teardown',
 ]);
 
 export function getLifecycleStep(

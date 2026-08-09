@@ -6,6 +6,10 @@ import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+import { scriptsContract } from '#runtimes/scripts/api';
+import { createScriptsController } from '#runtimes/scripts/node/api/controller';
+import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
   workspaceRegistryStore,
@@ -18,7 +22,9 @@ import { createWorkspaceRegistryController } from './controller';
 // session-gating point (prepare); setup and run continue in the background and are
 // observable only through the records overlay; script failures are notices, never verb
 // errors; deactivate owns kill-sessions + time-boxed non-fatal teardown; activation is
-// ephemeral — a daemon restart leaves only lastActivatedAt.
+// ephemeral — a daemon restart leaves only lastActivatedAt. Scripts execute on a real
+// in-process scripts runtime (spec: activation-scripts-via-terminals) whose run state
+// the registry observes to write durable lifecycle steps.
 
 async function eventually(assertion: () => Promise<void>, timeoutMs = 10_000): Promise<void> {
   const started = Date.now();
@@ -37,29 +43,43 @@ describe('workspace registry activation lifecycle', () => {
   let root: string;
   let handle: TempStoreHandle<WorkspaceRegistryDb>;
   let clock: ManualClock;
+  let scriptsRuntime: ScriptsRuntime;
+  let scriptsWire: TestWire<typeof scriptsContract>;
   let runtime: WorkspaceRegistryRuntime;
   let wire: TestWire<typeof workspaceRegistryContract>;
   let killedPaths: string[];
+
+  function createRegistryRuntime(): WorkspaceRegistryRuntime {
+    return new WorkspaceRegistryRuntime({
+      handle,
+      clock,
+      killSessions: async (workspacePath) => {
+        killedPaths.push(workspacePath);
+      },
+      scripts: scriptsWire.client,
+      activation: { teardownTimeoutMs: 500 },
+    });
+  }
 
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-activation-')));
     handle = await workspaceRegistryStore.openTemp();
     clock = new ManualClock(10_000);
     killedPaths = [];
-    runtime = new WorkspaceRegistryRuntime({
-      handle,
-      clock,
-      killSessions: async (workspacePath) => {
-        killedPaths.push(workspacePath);
-      },
-      activation: { teardownTimeoutMs: 500 },
+    scriptsRuntime = new ScriptsRuntime({
+      spawner: new ChildProcessPtySpawner(),
+      readConfig: readWorkspaceScriptsConfig,
     });
+    scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
+    runtime = createRegistryRuntime();
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
   afterEach(async () => {
     wire.dispose();
     runtime.dispose();
+    scriptsWire.dispose();
+    scriptsRuntime.dispose();
     handle.close();
     await fs.rm(root, { recursive: true, force: true });
   });
@@ -180,6 +200,18 @@ describe('workspace registry activation lifecycle', () => {
     const records = await listRecords();
     expect(records['ws-lifecycle']?.runtime?.activation ?? null).toBeNull();
 
+    // Teardown joins the Activity timeline like every other lifecycle step.
+    await eventually(async () => {
+      const current = await listRecords();
+      expect(current['ws-lifecycle']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({
+          id: 'teardown',
+          status: 'succeeded',
+          params: { provenance: 'activation' },
+        }),
+      ]);
+    });
+
     // Idempotent on inactive workspaces: sessions are swept again, teardown is not re-run.
     const again = await wire.client.deactivateWorkspace({ workspaceId: 'ws-lifecycle' });
     expect(again.success).toBe(true);
@@ -224,7 +256,12 @@ describe('workspace registry activation lifecycle', () => {
           startedAt: 10_000,
           finishedAt: 10_000,
         }),
-        expect.objectContaining({ id: 'setup', status: 'failed', message: expect.any(String) }),
+        // Failure messages fold in the run's output tail — the popover says why.
+        expect.objectContaining({
+          id: 'setup',
+          status: 'failed',
+          message: expect.stringContaining('setup broke'),
+        }),
         // Run never started (setup gates it): a settled skipped step, not a phantom run.
         expect.objectContaining({ id: 'run', status: 'skipped' }),
       ]);
@@ -233,7 +270,7 @@ describe('workspace registry activation lifecycle', () => {
     // Simulated daemon restart: the overlay dies, the durable steps do not.
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = createRegistryRuntime();
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
     const restarted = (await listRecords())['ws-outcomes'];
     expect(restarted?.runtime?.activation ?? null).toBeNull();
@@ -259,6 +296,53 @@ describe('workspace registry activation lifecycle', () => {
     });
   });
 
+  it('a manual run started directly against the scripts runtime lands in the timeline', async () => {
+    const workspacePath = await makeWorkspace('direct', { setup: 'echo direct' });
+
+    const started = await scriptsWire.client.start({
+      workspacePath,
+      script: 'setup',
+      provenance: 'manual',
+      facts: { workspaceId: 'ws-direct' },
+    });
+    expect(started.success).toBe(true);
+
+    // No activation happened — observation alone mirrors the run into the timeline.
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-direct']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({
+          id: 'setup',
+          status: 'succeeded',
+          params: { provenance: 'manual' },
+        }),
+      ]);
+    });
+  });
+
+  it('deactivation stops an in-flight run script and its step settles as cancelled', async () => {
+    await makeWorkspace('stopped', { run: 'sleep 30' });
+
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-stopped' })).success).toBe(true);
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-stopped']?.runtime?.activation?.scripts.run).toBe('running');
+    });
+
+    const startedAt = Date.now();
+    const deactivated = await wire.client.deactivateWorkspace({ workspaceId: 'ws-stopped' });
+    expect(deactivated.success).toBe(true);
+    // The stop verb killed the dev-server-shaped run; deactivation never waited it out.
+    expect(Date.now() - startedAt).toBeLessThan(10_000);
+
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-stopped']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({ id: 'run', status: 'cancelled', message: 'Stopped' }),
+      ]);
+    });
+  });
+
   it('workspaces without configured scripts get no script steps', async () => {
     await makeWorkspace('scriptless', { prepare: 'echo prepared' });
     expect((await wire.client.activateWorkspace({ workspaceId: 'ws-scriptless' })).success).toBe(
@@ -279,7 +363,7 @@ describe('workspace registry activation lifecycle', () => {
 
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = createRegistryRuntime();
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();

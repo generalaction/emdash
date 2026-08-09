@@ -2,7 +2,7 @@ import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
 import * as styles from './script-status.css';
 
-export type ScriptStatusKind = 'success' | 'error' | 'in-progress' | 'waiting';
+export type ScriptStatusKind = 'success' | 'error' | 'in-progress' | 'waiting' | 'cancelled';
 
 export interface ScriptStatusProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
   status: ScriptStatusKind;
@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<ScriptStatusKind, string> = {
   error: 'Error',
   'in-progress': 'In Progress',
   waiting: 'Waiting',
+  cancelled: 'Cancelled',
 };
 
 // Clockwise animation order for a matrix laid out as:
@@ -115,6 +116,21 @@ function ScriptStatusGlyph({ status }: { status: ScriptStatusKind }) {
       return (
         <svg className={cx(styles.icon, styles.waitingIcon)} viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="3" fill="currentColor" />
+        </svg>
+      );
+
+    case 'cancelled':
+      return (
+        <svg
+          className={cx(styles.icon, styles.cancelledIcon)}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 12h12" />
         </svg>
       );
   }

@@ -94,8 +94,9 @@ const lifecycleStepV1 = z.object({
     'prepare',
     'setup',
     'run',
+    'teardown',
   ]),
-  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped', 'cancelled']),
   startedAt: z.number().nullable(),
   finishedAt: z.number().nullable(),
   /** Present for failed steps (and skip reasons). */

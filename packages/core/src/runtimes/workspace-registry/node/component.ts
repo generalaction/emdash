@@ -50,6 +50,9 @@ export const workspaceRegistryComponent = defineWireComponent({
     acp: requireContract(hostRuntimesDefinitions.acp),
     terminals: requireContract(hostRuntimesDefinitions.terminals),
     tuiAgents: requireContract(hostRuntimesDefinitions.tuiAgents),
+    // The single script execution plane: activation runs execute here, and the
+    // registry observes its run state to write durable script lifecycle steps.
+    scripts: requireContract(hostRuntimesDefinitions.scripts),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
@@ -67,6 +70,7 @@ export const workspaceRegistryComponent = defineWireComponent({
       logger,
       killSessions,
       countSessions: createSessionCounter(sessionClients),
+      scripts: dependencies.scripts,
     });
     // Sweeps sessions under vanished paths (moved from the retired workspace-host).
     const sessionGc = new WorkspaceSessionGc({

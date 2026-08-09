@@ -37,9 +37,10 @@ export type WorkspaceActivationManagerOptions = {
    */
   resetScriptSteps: (id: string, scripts: ScriptStepScript[]) => void;
   /**
-   * Durable step transition for one activation script — the trace that survives a
-   * daemon restart where notices do not. Cancelled runs (deliberate deactivations)
-   * settle their step as skipped.
+   * Durable step write for the one case observation cannot see: a script that never
+   * started (run after a failed setup) settles as skipped. Every actual run's step
+   * transitions come from the registry's observation of the scripts runtime — the
+   * single step-writer (spec: activation-scripts-via-terminals).
    */
   recordScriptStep: (id: string, script: ScriptStepScript, state: WorkspaceScriptStepState) => void;
   /** Persists lastActivatedAt — the only durable trace of an activation. */
@@ -243,7 +244,8 @@ export class WorkspaceActivationManager {
     command: string,
     options: { longRunning?: boolean } = {}
   ): Promise<'succeeded' | 'failed' | 'cancelled'> {
-    this.options.recordScriptStep(id, script, { status: 'running' });
+    // The run's durable step transitions come from observation, not from here: the
+    // outcome below drives only sequencing (control flow) and notices.
     const outcome = await this.runner.run({
       id: script,
       command,
@@ -255,23 +257,13 @@ export class WorkspaceActivationManager {
     });
     if (outcome.status === 'succeeded') {
       this.options.clearNotice(id, script);
-      this.options.recordScriptStep(id, script, { status: 'succeeded' });
       return 'succeeded';
     }
     if (outcome.status === 'cancelled') {
-      // Deactivation aborted it on purpose; a notice would be noise, but the step
-      // settles so the timeline never shows a phantom in-flight run.
-      this.options.recordScriptStep(id, script, {
-        status: 'skipped',
-        message: 'Cancelled by deactivation',
-      });
+      // Deactivation stopped it on purpose; a notice would be noise.
       return 'cancelled';
     }
     this.options.setNotice(id, script, outcome.message);
-    this.options.recordScriptStep(id, script, {
-      status: 'failed',
-      message: outcome.message,
-    });
     return 'failed';
   }
 

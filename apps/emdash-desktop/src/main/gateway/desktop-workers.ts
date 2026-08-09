@@ -335,12 +335,13 @@ async function startDesktopWorkersWithHost(
     acpReady,
     terminalsReady,
     tuiAgentsReady,
-  ]).then(async ([watcher, acp, terminals, tuiAgents]) => {
+    scriptsReady,
+  ]).then(async ([watcher, acp, terminals, tuiAgents, scripts]) => {
     const worker = host.create(
       ...workspaceRegistryWorkerSpec({
         executable: desktopWorkerPath('workspace-registry'),
         env: process.env,
-        dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client },
+        dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client, scripts },
         databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
       })
     );

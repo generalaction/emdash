@@ -52,8 +52,8 @@ export type WorkspaceRemovalAttempt = z.infer<typeof workspaceRemovalAttemptSche
  * Identity of one workspace lifecycle step. Creation-class steps (adopt-worktree |
  * fetch-branch | fetch-remote-base | create-worktree | configure-branch) settle in the
  * foreground pipeline; background-class steps (copy-artifacts | push-branch |
- * fetch-refs) run after the verb returns; script-class steps (prepare | setup | run)
- * track the current activation.
+ * fetch-refs) run after the verb returns; script-class steps (prepare | setup | run |
+ * teardown) track the current activation cycle.
  */
 export const workspaceLifecycleStepIdSchema = z.enum([
   'adopt-worktree',
@@ -67,6 +67,7 @@ export const workspaceLifecycleStepIdSchema = z.enum([
   'prepare',
   'setup',
   'run',
+  'teardown',
 ]);
 export type WorkspaceLifecycleStepId = z.infer<typeof workspaceLifecycleStepIdSchema>;
 
@@ -75,7 +76,9 @@ export type WorkspaceLifecycleStepId = z.infer<typeof workspaceLifecycleStepIdSc
  * idempotently on host restart or the next activation; 'failed' is terminal and only
  * re-runs through the explicit retryStep verb — never automatically. 'skipped' marks
  * a step that was planned but became inapplicable at runtime; steps that never
- * applied to a record are absent, not skipped.
+ * applied to a record are absent, not skipped. 'cancelled' marks a run somebody
+ * stopped (deactivation, the drawer's stop button) or a restart interrupted —
+ * distinct from failed and from never-started.
  */
 export const workspaceLifecycleStepStatusSchema = z.enum([
   'pending',
@@ -83,6 +86,7 @@ export const workspaceLifecycleStepStatusSchema = z.enum([
   'succeeded',
   'failed',
   'skipped',
+  'cancelled',
 ]);
 export type WorkspaceLifecycleStepStatus = z.infer<typeof workspaceLifecycleStepStatusSchema>;
 

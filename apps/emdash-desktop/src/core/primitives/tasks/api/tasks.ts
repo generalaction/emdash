@@ -99,8 +99,9 @@ export type WorkspaceLifecycleStepInfo = {
     | 'fetch-refs'
     | 'prepare'
     | 'setup'
-    | 'run';
-  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+    | 'run'
+    | 'teardown';
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
   startedAt: number | null;
   finishedAt: number | null;
   message?: string;
