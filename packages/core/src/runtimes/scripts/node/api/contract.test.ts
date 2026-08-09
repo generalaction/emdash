@@ -76,6 +76,7 @@ describe('scripts runtime contract', () => {
       spawner,
       readConfig: async () => config,
       defaultShellSetup: async () => hostShellSetup,
+      portProbe: async () => true,
     });
     wire = createTestWire(scriptsContract, createScriptsController(runtime));
   });
@@ -206,6 +207,40 @@ describe('scripts runtime contract', () => {
     expect(!stopped.success && stopped.error.type).toBe('not-found');
     const waited = await wire.client.wait({ workspacePath: '/nowhere', script: 'run' });
     expect(!waited.success && waited.error.type).toBe('not-found');
+  });
+
+  it('detects dev-server URLs in run output and prunes them when the run exits', async () => {
+    const devServers = remote(scriptsContract.devServers, wire.client.devServers);
+    const model = devServers(undefined);
+    try {
+      await start('run');
+      spawner.processes[0]!.emit('Local: http://localhost:5173/app\n');
+
+      await expect
+        .poll(async () => {
+          await model.states.list.refresh();
+          return Object.values(snapshot(model.states.list).value ?? {});
+        })
+        .toMatchObject([
+          {
+            key: { workspacePath: WORKSPACE, script: 'run' },
+            protocol: 'http:',
+            host: 'localhost',
+            port: 5173,
+            urlPath: '/app',
+          },
+        ]);
+
+      spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+      await expect
+        .poll(async () => {
+          await model.states.list.refresh();
+          return snapshot(model.states.list).value ?? {};
+        })
+        .toEqual({});
+    } finally {
+      await devServers.dispose();
+    }
   });
 
   it('shellSetup: .emdash.json overrides the host default; host default applies otherwise', async () => {

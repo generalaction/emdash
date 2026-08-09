@@ -6,9 +6,13 @@ import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
 import { scriptsContract } from '#runtimes/scripts/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
@@ -318,6 +322,50 @@ describe('workspace registry activation lifecycle', () => {
         }),
       ]);
     });
+  });
+
+  it('runScript brokers a manual run host-side and it lands in the timeline', async () => {
+    const workspacePath = await makeWorkspace('brokered', { setup: 'echo brokered' });
+
+    const started = await wire.client.runScript({
+      workspaceId: 'ws-brokered',
+      script: 'setup',
+      provenance: 'retry',
+    });
+    expect(started.success).toBe(true);
+
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-brokered']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({
+          id: 'setup',
+          status: 'succeeded',
+          params: { provenance: 'retry' },
+        }),
+      ]);
+    });
+
+    // The registry built the request from its record: the run saw record facts.
+    const run = await scriptsWire.client.wait({ workspacePath, script: 'setup' });
+    expect(run.success && run.data.provenance === 'retry').toBe(true);
+  });
+
+  it('runScript rejects unknown workspaces and unconfigured scripts', async () => {
+    await makeWorkspace('rejects', { setup: 'echo ok' });
+
+    const missing = await wire.client.runScript({
+      workspaceId: 'ws-nope',
+      script: 'setup',
+      provenance: 'manual',
+    });
+    expect(!missing.success && missing.error.type === 'workspace-not-found').toBe(true);
+
+    const unconfigured = await wire.client.runScript({
+      workspaceId: 'ws-rejects',
+      script: 'prepare',
+      provenance: 'manual',
+    });
+    expect(!unconfigured.success && unconfigured.error.type === 'script-not-configured').toBe(true);
   });
 
   it('deactivation stops an in-flight run script and its step settles as cancelled', async () => {

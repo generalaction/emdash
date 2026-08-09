@@ -269,6 +269,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           files: access.data.files,
           settings: project.settings,
           tuiAgents: access.data.client.tuiAgents,
+          hostSettings: access.data.client.hostSettings,
         },
         project.projectId,
         project.repoPath,

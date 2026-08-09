@@ -1,5 +1,6 @@
 import { PageLayout, SettingsCard } from '@emdash/ui/react/patterns';
 import { useMemo } from 'react';
+import { HostSettingsCard } from '../components/host-settings-card';
 import { ResourceUtilizationRow } from '../components/machine-resources';
 import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
 import { createSystemDependenciesStore } from '../machines-store';
@@ -19,6 +20,7 @@ export function SystemSettingsPage() {
       <SettingsCard>
         <ResourceUtilizationRow metrics={metrics} />
       </SettingsCard>
+      <HostSettingsCard />
       <MachineSystemDependenciesCard machinesStore={systemDependenciesStore} />
     </div>
   );

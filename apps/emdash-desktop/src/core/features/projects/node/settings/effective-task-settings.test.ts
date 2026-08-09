@@ -72,7 +72,7 @@ describe('getEffectiveTaskSettings', () => {
 
   it('falls back to defaults plus project settings when the task config is invalid', async () => {
     const settings = await getEffectiveTaskSettings({
-      projectSettings: makeProjectSettings({ shellSetup: 'nvm use' }),
+      projectSettings: makeProjectSettings({ scripts: { run: 'pnpm dev' }, shellSetup: 'nvm use' }),
       taskFiles: taskFilesWith(
         vi.fn(async () => ok(true)),
         vi.fn(async () => ok({ content: '{', truncated: false, totalSize: 1, etag: 'test-etag' }))
@@ -82,7 +82,10 @@ describe('getEffectiveTaskSettings', () => {
 
     // No built-in preserve defaults: nothing is copied unless configured.
     expect(settings).not.toHaveProperty('preservePatterns');
-    expect(settings.shellSetup).toBe('nvm use');
+    expect(settings.scripts?.run).toBe('pnpm dev');
+    // shellSetup was retired as a project-settings field: only the workspace's own
+    // .emdash.json supplies it, and the invalid task config supplies nothing.
+    expect(settings).not.toHaveProperty('shellSetup');
   });
 
   it('falls back to project settings when the task config read is truncated', async () => {

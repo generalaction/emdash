@@ -249,7 +249,7 @@ describe('createWorkspaceRegistryWireController', () => {
         })
       ).resolves.toEqual(err({ type: 'worktree-dirty', workspaceId: 'wt-1' }));
       expect(hostVerbs.updateWorktree).toHaveBeenCalledWith({
-        id: 'wt-1',
+        workspaceId: 'wt-1',
         remote: 'origin',
         sourceRef: 'refs/pull/42/head',
       });

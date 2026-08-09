@@ -241,7 +241,6 @@ async function startDesktopWorkersWithHost(
       env: process.env,
       lifecycle: {
         terminal: { kind: 'always' },
-        backgroundScript: { kind: 'always' },
       },
     })
   );

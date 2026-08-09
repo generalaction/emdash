@@ -24,6 +24,8 @@ import { tasksDomain, tasksWireContract } from '@core/features/tasks/api';
 import { terminalsContract, terminalsDomain } from '@core/features/terminals/api';
 import { updatesContract, updatesDomain } from '@core/features/updates/api';
 import {
+  lifecycleScriptsDomain,
+  lifecycleScriptsWireContract,
   projectSettingsContract,
   projectSettingsDomain,
   projectWorkspacesContract,
@@ -72,6 +74,7 @@ export const desktopDomainContracts = {
   [catalogDomain]: catalogWireContract,
   [workspacesDomain]: workspacesWireContract,
   [workspaceRegistryDomain]: workspaceRegistryWireContract,
+  [lifecycleScriptsDomain]: lifecycleScriptsWireContract,
   [projectsDomain]: projectsWireContract,
   [automationsDomain]: automationsContract,
   [browserDomain]: browserContract,

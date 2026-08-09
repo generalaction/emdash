@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WorkspaceActivationManager } from './activation';
-import type { WorkspaceScriptRunner } from './script-runner';
+import type { WorkspaceScriptRunner } from './scripts-plane';
 
 // The artifact gate (dependency gating, spec: workspace-activation-speed): prepare and
 // the setup→run chain wait for the background artifact clone to settle; workspaces

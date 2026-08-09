@@ -41,7 +41,10 @@ export function createDevServerBridgeParticipant({
   const attachOnce = async (host: HostRef): Promise<DevServerBridge> => {
     const runtime = await runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    return await createBridge(runtime.data.terminals, hostContextFor(host));
+    return await createBridge(
+      { terminals: runtime.data.terminals, scripts: runtime.data.scripts },
+      hostContextFor(host)
+    );
   };
 
   return {

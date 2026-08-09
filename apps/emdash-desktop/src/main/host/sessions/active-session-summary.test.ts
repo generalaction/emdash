@@ -23,9 +23,8 @@ describe('getActiveSessionSummary', () => {
           exited: { status: 'exited' },
         },
         terminals: {
-          terminal: { status: 'running', kind: 'terminal' },
-          workflow: { status: 'running', kind: 'workflow' },
-          exited: { status: 'exited', kind: 'terminal' },
+          terminal: { status: 'running' },
+          exited: { status: 'exited' },
         },
       }),
       [formatHostRef(remote)]: runtimeClient({

@@ -1,12 +1,20 @@
 import { z } from 'zod';
 import { hostFileRefSchema } from '#primitives/path/api';
 import { terminalShellIdSchema } from '#primitives/terminal-shell/api';
-import {
-  scriptWorkflowErrorSchema,
-  scriptWorkflowKindSchema,
-  terminalExitSchema,
-  terminalSizeSchema,
-} from '#services/script-workflows/api';
+
+export const terminalSizeSchema = z.object({
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+});
+
+export type TerminalSize = z.infer<typeof terminalSizeSchema>;
+
+export const terminalExitSchema = z.object({
+  exitCode: z.number().int().nullable(),
+  signal: z.string().nullable(),
+});
+
+export type TerminalExit = z.infer<typeof terminalExitSchema>;
 
 /** Starting the interactive terminal failed (spawn, shell resolution, tmux…). */
 export const terminalStartFailedErrorSchema = z.object({
@@ -86,52 +94,9 @@ export const startTerminalInputSchema = z.object({
 
 export type StartTerminalInput = z.infer<typeof startTerminalInputSchema>;
 
-export const scriptNodeStatusSchema = z.enum(['pending', 'running', 'done', 'skipped', 'failed']);
-
-export const scriptNodeStateSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1).optional(),
-  status: scriptNodeStatusSchema,
-  awaitingOn: z.array(z.string().min(1)),
-  attempt: z.number().int().positive().optional(),
-  pid: z.number().int().positive().optional(),
-  progress: z
-    .object({
-      percent: z.number().min(0).max(100).optional(),
-      message: z.string().optional(),
-    })
-    .optional(),
-  exit: terminalExitSchema.omit({ outputTail: true }).optional(),
-  error: scriptWorkflowErrorSchema.optional(),
-});
-
-export type ScriptNodeState = z.infer<typeof scriptNodeStateSchema>;
-
-export const scriptWorkflowPhaseSchema = z.enum([
-  'idle',
-  'running',
-  'succeeded',
-  'failed',
-  'cancelled',
-]);
-
-export const scriptWorkflowStateSchema = z.object({
-  workflowId: z.string().min(1),
-  kind: scriptWorkflowKindSchema,
-  phase: scriptWorkflowPhaseSchema,
-  nodes: z.record(z.string(), scriptNodeStateSchema),
-  order: z.array(z.string().min(1)),
-  startedAt: z.number().int(),
-  finishedAt: z.number().int().optional(),
-  error: scriptWorkflowErrorSchema.optional(),
-});
-
-export type ScriptWorkflowState = z.infer<typeof scriptWorkflowStateSchema>;
-
 export const terminalSessionStateSchema = z.object({
   key: terminalKeySchema,
   status: z.enum(['running', 'exited']),
-  kind: z.enum(['workflow', 'terminal']),
   startCount: z.number().int().nonnegative(),
   tmux: z.boolean().optional(),
   pid: z.number().int().positive().optional(),
@@ -141,7 +106,7 @@ export const terminalSessionStateSchema = z.object({
   exitedAt: z.number().int().optional(),
   lastInputAt: z.number().int().optional(),
   lastOutputAt: z.number().int().optional(),
-  exit: terminalExitSchema.omit({ outputTail: true }).optional(),
+  exit: terminalExitSchema.optional(),
 });
 
 export type TerminalSessionState = z.infer<typeof terminalSessionStateSchema>;

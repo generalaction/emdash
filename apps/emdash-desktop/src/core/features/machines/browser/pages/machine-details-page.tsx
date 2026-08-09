@@ -32,6 +32,7 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isServerUsable } from '@core/services/hosts/api';
+import { HostSettingsCard } from '../components/host-settings-card';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { MachineConversationsList } from '../components/machine-conversations-list';
 import { ResourceUtilizationRow } from '../components/machine-resources';
@@ -352,11 +353,15 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           </SettingsCard>
 
           {serverUsable ? (
-            <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
+            <>
+              <HostSettingsCard machineId={machine.id} />
+              <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
+            </>
           ) : (
             <SettingsCard>
               <div className="p-4 text-sm text-foreground-muted">
-                System dependency detection is available when the workspace server is healthy.
+                Host settings and system dependency detection are available when the workspace
+                server is healthy.
               </div>
             </SettingsCard>
           )}

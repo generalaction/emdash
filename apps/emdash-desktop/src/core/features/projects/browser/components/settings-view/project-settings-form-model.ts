@@ -12,7 +12,6 @@ import {
 
 export type FormState = {
   preservePatterns: string;
-  shellSetup: string;
   tmux: boolean;
   autoRunSetupScriptOnTaskCreation: boolean;
   autoRunRunScriptOnTaskCreation: boolean;
@@ -57,7 +56,6 @@ export function settingsToForm(
 
   return {
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
-    shellSetup: s.shellSetup ?? '',
     tmux: s.tmux ?? false,
     autoRunSetupScriptOnTaskCreation: s.autoRunSetupScriptOnTaskCreation ?? true,
     autoRunRunScriptOnTaskCreation: s.autoRunRunScriptOnTaskCreation ?? false,
@@ -95,7 +93,6 @@ export function formToSettings(f: FormState): ProjectSettings {
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
-    shellSetup: blankToUndefined(f.shellSetup),
     tmux: f.tmux,
     ...(f.autoRunSetupScriptOnTaskCreation ? {} : { autoRunSetupScriptOnTaskCreation: false }),
     ...(f.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),

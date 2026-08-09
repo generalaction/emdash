@@ -148,7 +148,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     setMode('scripts');
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-    void script.run(projectId, taskId, workspaceId).catch(() => {});
+    void script.run().catch(() => {});
   };
 
   const handleStopScript = (id: string) => {

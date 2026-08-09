@@ -24,6 +24,7 @@ function makeResolver(options: {
   missingParents?: string[];
   appOverrides?: Record<string, string>;
   projectOverride?: string;
+  hostWorktreeRoot?: string;
   homeError?: Error;
 }) {
   const existingPaths = new Set(options.existingPaths ?? []);
@@ -40,8 +41,16 @@ function makeResolver(options: {
     }
     return ok({ exists: existingPaths.has(candidate) });
   });
+  const hostSettings = {
+    get: vi.fn(async () =>
+      ok({
+        settings: options.hostWorktreeRoot ? { worktreeRoot: options.hostWorktreeRoot } : {},
+        parseError: false,
+      })
+    ),
+  };
   const broker = {
-    client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } } })),
+    client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } }, hostSettings })),
   };
   const resolver = new WorkspacePlacementResolver({
     broker: broker as never,
@@ -119,6 +128,35 @@ describe('WorkspacePlacementResolver', () => {
     expect(result).toMatchObject({
       success: true,
       data: expect.stringMatching(/^\/home\/remote\/fast-worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
+  it('uses the host-settings worktree root when the project has no override', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      hostWorktreeRoot: '~/host-worktrees',
+    });
+
+    const result = await resolver.resolveWorktreePool(project);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: expect.stringMatching(/^\/home\/jona\/host-worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
+  it('prefers the per-project override over the host-settings worktree root', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      hostWorktreeRoot: '~/host-worktrees',
+      projectOverride: '~/project-worktrees',
+    });
+
+    const result = await resolver.resolveWorktreePool(project);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: expect.stringMatching(/^\/home\/jona\/project-worktrees\/emdash-[a-f0-9]{8}$/u),
     });
   });
 

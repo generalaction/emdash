@@ -2,9 +2,9 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import { LiveLogSource, type LiveJobContext } from '@emdash/wire/live';
+import { LiveLogSource } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
-import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
+import { cell, expose, peek, type Cell } from '@emdash/wire/state';
 import type { IExecutionContext } from '#primitives/exec/api';
 import {
   compileIdlePolicy,
@@ -24,18 +24,8 @@ import type {
   TerminalShellResolver,
 } from '#primitives/terminal-shell/api';
 import {
-  createWorkflow,
-  type Workflow,
-  type WorkflowCompileError,
-  type WorkflowError,
-  type WorkflowNodeDefinition,
-  type WorkflowState,
-} from '#primitives/workflow/api';
-import {
   terminalsContract,
   type KillTmuxSessionsInput,
-  type ScriptNodeState,
-  type ScriptWorkflowState,
   type ShellAvailabilityFailedError,
   type StartTerminalInput,
   type StartTerminalSpec,
@@ -50,7 +40,7 @@ import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type TerminalPortProbe,
-} from '#runtimes/terminals/node/preview/url-detector';
+} from '#services/preview-detection/node';
 import {
   buildTerminalEnv,
   killTmuxSession,
@@ -60,43 +50,13 @@ import {
   type PtySession,
   type PtySpawner,
 } from '#services/pty/api';
-import {
-  scriptWorkflowErrorSchema,
-  type RunScriptWorkflowInput,
-  type ScriptNode,
-  type ScriptWorkflowError,
-  type ScriptWorkflowProgress,
-  type ScriptWorkflowResult,
-  type TerminalExit,
-} from '#services/script-workflows/api';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const OUTPUT_TAIL_CAP = 16 * 1024;
 
-type WorkflowCell = Cell<ScriptWorkflowState | null>;
 type SessionsCell = Cell<Record<string, TerminalSessionState>>;
 type DevServersCell = Cell<Record<string, TerminalDevServer>>;
-
-type ActiveWorkflow = {
-  scopeKey: string;
-  kind: string;
-  workflowId: string;
-  result: Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>>;
-};
-
-type WorkflowRunContext = {
-  workflowId: string;
-  kind: string;
-  workspace: HostFileRef;
-  inputNodes: Map<string, ScriptNode>;
-  nodeExits: Map<string, TerminalExit>;
-  nodePids: Map<string, number>;
-  startedAt: number;
-  finishedAt?: number;
-};
-
-type SessionKind = 'workflow' | 'terminal';
 
 type InteractiveTerminalConfig = {
   key: TerminalKey;
@@ -123,26 +83,12 @@ export type TerminalsRuntimeOptions = {
 
 export type TerminalsRuntimeLifecycleOptions = {
   terminal?: IdlePolicyConfig;
-  backgroundScript?: IdlePolicyConfig;
   sweepIntervalMs?: number;
 };
 
 export class TerminalsRuntime {
-  private readonly workflowStates = family<{ workspace: HostFileRef }, WorkflowCell>(
-    () => cell<ScriptWorkflowState | null>(null),
-    { name: 'terminal-workflow-states' }
-  );
   private readonly sessionsList: SessionsCell = cell({});
   private readonly devServersList: DevServersCell = cell({});
-  readonly workflowsHost: LeasedLiveModelProvider<typeof terminalsContract.workflows> = expose(
-    terminalsContract.workflows,
-    {
-      state: (key, scope) => {
-        scope.add(this.workflowStates.retain(key));
-        return this.workflowStates(key);
-      },
-    }
-  );
   readonly sessionsHost: LeasedLiveModelProvider<typeof terminalsContract.sessions> = expose(
     terminalsContract.sessions,
     { list: this.sessionsList },
@@ -163,17 +109,10 @@ export class TerminalsRuntime {
   private readonly shellResolver: TerminalShellResolver | undefined;
   private readonly logger: Logger;
   private readonly terminalIdlePolicy: IdlePolicy;
-  private readonly backgroundScriptIdlePolicy: IdlePolicy;
-  private readonly completableScriptIdlePolicy: IdlePolicy;
   private readonly idleSweeper: IdleSweeper;
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly activity = new Map<string, IoActivityTracker>();
-  private readonly activeWorkflows = new Map<string, ActiveWorkflow>();
-  private readonly workflowBindings = new Map<string, { sync(): void; dispose(): void }>();
-  private readonly workflowRuns = new Map<string, WorkflowRunContext>();
   private readonly sessionKeys = new Map<string, TerminalKey>();
-  private readonly sessionKinds = new Map<string, SessionKind>();
-  private readonly scriptNodeLifecycles = new Map<string, ScriptNode['lifecycle']>();
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
   private readonly outputTails = new Map<string, string>();
   private readonly startCounts = new Map<string, number>();
@@ -191,17 +130,13 @@ export class TerminalsRuntime {
     this.shellResolver = options.shellResolver;
     this.logger = options.logger ?? noopLogger;
     this.terminalIdlePolicy = compileIdlePolicy(options.lifecycle?.terminal ?? { kind: 'always' });
-    this.backgroundScriptIdlePolicy = compileIdlePolicy(
-      options.lifecycle?.backgroundScript ?? { kind: 'always' }
-    );
-    this.completableScriptIdlePolicy = compileIdlePolicy({ kind: 'until-complete' });
     this.idleSweeper = createIdleSweeper<string>({
       ...(this.clock ? { clock: this.clock } : {}),
       scope: this.scope,
       intervalMs: options.lifecycle?.sweepIntervalMs ?? 60_000,
       entries: () => Object.keys(peek(this.sessionsList)),
       snapshot: (sessionKey) => this.lifecycleSnapshot(sessionKey),
-      policy: (sessionKey) => this.policyForSession(sessionKey),
+      policy: () => this.terminalIdlePolicy,
       deactivate: async (sessionKey) => {
         const key = this.sessionKeys.get(sessionKey);
         if (!key) return;
@@ -217,7 +152,6 @@ export class TerminalsRuntime {
     if (existing && !existing.exited) return ok(undefined);
 
     this.sessionKeys.set(sessionKey, input.key);
-    this.sessionKinds.set(sessionKey, 'terminal');
     this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
 
     try {
@@ -247,37 +181,6 @@ export class TerminalsRuntime {
         type: 'shell-availability-failed',
         message: error instanceof Error ? error.message : String(error),
       });
-    }
-  }
-
-  async runWorkflow(
-    input: RunScriptWorkflowInput,
-    ctx: LiveJobContext<ScriptWorkflowProgress>
-  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
-    const scopeKey = scopeKeyFor(input.workspace);
-    const active = this.activeWorkflows.get(scopeKey);
-    if (active) {
-      if (active.kind !== input.kind) {
-        return err({
-          type: 'workflow-in-flight',
-          message: `Workflow '${active.kind}' is already running for this workspace`,
-        });
-      }
-      return await active.result;
-    }
-
-    const result = this.startWorkflow(input, ctx, scopeKey);
-    this.activeWorkflows.set(scopeKey, {
-      scopeKey,
-      kind: input.kind,
-      workflowId: ctx.jobId,
-      result,
-    });
-    try {
-      return await result;
-    } finally {
-      const current = this.activeWorkflows.get(scopeKey);
-      if (current?.workflowId === ctx.jobId) this.activeWorkflows.delete(scopeKey);
     }
   }
 
@@ -344,17 +247,12 @@ export class TerminalsRuntime {
 
   dispose(): void {
     this.idleSweeper.dispose();
-    for (const binding of this.workflowBindings.values()) binding.dispose();
-    this.workflowBindings.clear();
-    this.workflowRuns.clear();
     this.registry.killAll();
     this.logs.clear();
     for (const source of this.previewSources.values()) source.dispose();
     this.previewSources.clear();
-    void this.workflowsHost.dispose();
     void this.sessionsHost.dispose();
     void this.devServersHost.dispose();
-    void this.workflowStates.dispose();
   }
 
   private async spawnInteractiveTerminal(
@@ -366,7 +264,6 @@ export class TerminalsRuntime {
     const startCount = (this.startCounts.get(sessionKey) ?? 0) + 1;
     this.startCounts.set(sessionKey, startCount);
     this.sessionKeys.set(sessionKey, key);
-    this.sessionKinds.set(sessionKey, 'terminal');
 
     const shellProfile = await this.resolveShellProfile(key, spec.shellIntent);
     const env = buildTerminalEnv({
@@ -436,215 +333,6 @@ export class TerminalsRuntime {
     await killTmuxSession(this.exec, makeTmuxSessionName(sessionKey));
   }
 
-  private startWorkflow(
-    input: RunScriptWorkflowInput,
-    ctx: LiveJobContext<ScriptWorkflowProgress>,
-    scopeKey: string
-  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
-    const runScope = this.scope.child(`workflow:${scopeKey}`);
-    const inputNodes = new Map(input.nodes.map((node) => [node.id, node]));
-    const run: WorkflowRunContext = {
-      workflowId: ctx.jobId,
-      kind: input.kind,
-      workspace: input.workspace,
-      inputNodes,
-      nodeExits: new Map(),
-      nodePids: new Map(),
-      startedAt: this.now(),
-    };
-    this.workflowRuns.set(ctx.jobId, run);
-
-    const workflow = createWorkflow({
-      scope: runScope,
-      signal: ctx.signal,
-      nodes: input.nodes.map((node) => this.workflowNode(input, node, ctx, run)),
-      onOutput: ({ nodeId, chunk }) =>
-        this.logFor({ workspace: input.workspace, id: nodeId }).append(chunk),
-    });
-    if (!workflow.success) {
-      const error = workflowCompileErrorToScriptWorkflowError(workflow.error);
-      this.publishFailedWorkflow(input, run, error);
-      return Promise.resolve(err(error));
-    }
-
-    this.bindWorkflow(input.workspace, workflow.data, run);
-    return this.runAndFinalizeWorkflow(input, workflow.data, ctx, runScope, run);
-  }
-
-  private workflowNode(
-    input: RunScriptWorkflowInput,
-    node: ScriptNode,
-    ctx: LiveJobContext<ScriptWorkflowProgress>,
-    run: WorkflowRunContext
-  ): WorkflowNodeDefinition {
-    return {
-      id: node.id,
-      label: node.label,
-      dependsOn: node.dependsOn,
-      run: async (workflowCtx) => {
-        workflowCtx.report({ message: node.label ?? node.id });
-        ctx.progress({
-          workflowId: ctx.jobId,
-          kind: input.kind,
-          runningNodeId: node.id,
-          message: node.label ?? node.id,
-        });
-        const result = await this.runScriptNode(input.workspace, node, input, ctx.signal, run);
-        if (!result.success) {
-          return { status: 'failed', failure: 'permanent', error: result.error };
-        }
-        return { status: 'done', facts: { exit: result.data } };
-      },
-      fatal: true,
-    };
-  }
-
-  private async runScriptNode(
-    workspace: HostFileRef,
-    node: ScriptNode,
-    input: RunScriptWorkflowInput,
-    signal: AbortSignal | undefined,
-    run: WorkflowRunContext
-  ): Promise<Result<TerminalExit, ScriptWorkflowError>> {
-    const key = { workspace, id: node.id };
-    const sessionKey = sessionKeyFor(key);
-    const log = this.logFor(key);
-    log.reseed();
-    this.sessionKeys.set(sessionKey, key);
-    this.sessionKinds.set(sessionKey, 'workflow');
-    this.scriptNodeLifecycles.set(sessionKey, node.lifecycle ?? 'completable');
-    this.startCounts.set(sessionKey, 1);
-    let outputTail = '';
-    let resolveExit: (exit: TerminalExit) => void;
-    const exitPromise = new Promise<TerminalExit>((resolve) => {
-      resolveExit = resolve;
-    });
-
-    const session = await this.registry.create(sessionKey, spawnSpecFor(node, input), {
-      output: log,
-      onProcess: (process) => {
-        const pid = process.getPid?.();
-        if (pid !== undefined) run.nodePids.set(node.id, pid);
-      },
-      onData: (chunk) => {
-        this.activityFor(sessionKey).recordOutput();
-        outputTail = appendOutputTail(outputTail, chunk);
-        this.outputTails.set(sessionKey, outputTail);
-        this.previewSourceFor(sessionKey, key).emitData(chunk);
-      },
-      onExit: (info) => {
-        this.closePreviewSource(sessionKey);
-        resolveExit({
-          exitCode: info.exitCode,
-          signal: info.signal,
-          outputTail,
-        });
-      },
-    });
-    const abort = () => session.kill();
-    signal?.addEventListener('abort', abort, { once: true });
-
-    try {
-      const exit = await exitPromise;
-      run.nodeExits.set(node.id, exit);
-      if (exit.exitCode === 0 && exit.signal === null) return ok(exit);
-      return err({
-        type: 'script-failed',
-        nodeId: node.id,
-        message:
-          exit.signal !== null
-            ? `${node.label ?? node.id} exited with signal ${exit.signal}`
-            : `${node.label ?? node.id} exited with code ${exit.exitCode ?? 'unknown'}`,
-      });
-    } catch (error) {
-      return err({
-        type: 'script-failed',
-        nodeId: node.id,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      signal?.removeEventListener('abort', abort);
-      if (signal?.aborted) session.kill();
-    }
-  }
-
-  private async runAndFinalizeWorkflow(
-    input: RunScriptWorkflowInput,
-    workflow: Workflow,
-    ctx: LiveJobContext<ScriptWorkflowProgress>,
-    runScope: Scope,
-    run: WorkflowRunContext
-  ): Promise<Result<ScriptWorkflowResult, ScriptWorkflowError>> {
-    try {
-      const result = await workflow.run();
-      run.finishedAt = this.now();
-      this.bindingFor(ctx.jobId)?.sync();
-      if (!result.success) return err(workflowErrorToScriptWorkflowError(result.error));
-      return ok({
-        workflowId: ctx.jobId,
-        kind: input.kind,
-        completedNodes: Object.keys(result.data.facts),
-      });
-    } finally {
-      this.bindingFor(ctx.jobId)?.sync();
-      this.bindingFor(ctx.jobId)?.dispose();
-      this.workflowBindings.delete(ctx.jobId);
-      this.workflowRuns.delete(ctx.jobId);
-      workflow.dispose();
-      void runScope.dispose();
-    }
-  }
-
-  private bindWorkflow(workspace: HostFileRef, workflow: Workflow, run: WorkflowRunContext): void {
-    const workflowCell = this.ensureWorkflowCell(workspace);
-    const sync = () => workflowCell.set(projectWorkflowState(workflow.machine.current(), run));
-    sync();
-    const unsubscribe = workflow.machine.subscribe(() => sync());
-    const binding = {
-      sync,
-      dispose: unsubscribe,
-    };
-    this.workflowBindings.set(run.workflowId, binding);
-  }
-
-  private bindingFor(workflowId: string): { sync(): void; dispose(): void } | undefined {
-    return this.workflowBindings.get(workflowId);
-  }
-
-  private ensureWorkflowCell(workspace: HostFileRef): WorkflowCell {
-    const key = { workspace };
-    return this.workflowStates(key);
-  }
-
-  private publishFailedWorkflow(
-    input: RunScriptWorkflowInput,
-    run: WorkflowRunContext,
-    error: ScriptWorkflowError
-  ): void {
-    run.finishedAt = this.now();
-    this.ensureWorkflowCell(input.workspace).set({
-      workflowId: run.workflowId,
-      kind: input.kind,
-      phase: 'failed',
-      nodes: Object.fromEntries(
-        input.nodes.map((node) => [
-          node.id,
-          {
-            id: node.id,
-            label: node.label,
-            status: 'failed' as const,
-            awaitingOn: [],
-            error,
-          },
-        ])
-      ),
-      order: input.nodes.map((node) => node.id),
-      startedAt: run.startedAt,
-      finishedAt: run.finishedAt,
-      error,
-    });
-  }
-
   private logFor(key: TerminalKey): LiveLogSource {
     const id = sessionKeyFor(key);
     let log = this.logs.get(id);
@@ -678,7 +366,6 @@ export class TerminalsRuntime {
       const state: TerminalSessionState = {
         key: terminalKey,
         status: session.exited ? 'exited' : 'running',
-        kind: this.sessionKinds.get(key) ?? 'workflow',
         startCount: this.startCounts.get(key) ?? existing?.startCount ?? 1,
         tmux: this.interactiveConfigs.get(key)?.spec.tmux,
         pid: session.getPid(),
@@ -720,15 +407,6 @@ export class TerminalsRuntime {
       busy: false,
       ...this.activityFor(sessionKey).snapshot(),
     };
-  }
-
-  private policyForSession(sessionKey: string): IdlePolicy {
-    if (this.sessionKinds.get(sessionKey) === 'terminal') {
-      return this.terminalIdlePolicy;
-    }
-    return this.scriptNodeLifecycles.get(sessionKey) === 'background'
-      ? this.backgroundScriptIdlePolicy
-      : this.completableScriptIdlePolicy;
   }
 
   private previewSourceFor(sessionKey: string, key: TerminalKey): PreviewOutputSource {
@@ -809,69 +487,6 @@ export class TerminalsRuntime {
   }
 }
 
-function projectWorkflowState(state: WorkflowState, run: WorkflowRunContext): ScriptWorkflowState {
-  return {
-    workflowId: run.workflowId,
-    kind: run.kind,
-    phase: state.phase,
-    nodes: Object.fromEntries(
-      Object.entries(state.nodes).map(([id, node]) => {
-        const input = run.inputNodes.get(id);
-        const projected: ScriptNodeState = {
-          id,
-          label: node.label,
-          status: node.status,
-          awaitingOn: awaitingOn(id, state, run),
-          attempt: node.attempt,
-          pid: run.nodePids.get(id),
-          progress: node.progress,
-          exit: exitWithoutTail(run.nodeExits.get(id)),
-          error: node.error ? workflowErrorToScriptWorkflowError(node.error) : undefined,
-        };
-        if (!projected.label && input?.label) projected.label = input.label;
-        return [id, projected];
-      })
-    ),
-    order: Object.keys(state.nodes),
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-    error: state.error ? workflowErrorToScriptWorkflowError(state.error) : undefined,
-  };
-}
-
-function awaitingOn(id: string, state: WorkflowState, run: WorkflowRunContext): string[] {
-  if (state.nodes[id]?.status !== 'pending') return [];
-  return (run.inputNodes.get(id)?.dependsOn ?? []).filter((dependency) => {
-    return state.nodes[dependency]?.status !== 'done';
-  });
-}
-
-function spawnSpecFor(node: ScriptNode, input: RunScriptWorkflowInput) {
-  const command = fullCommand(node);
-  if (process.platform === 'win32') {
-    return {
-      command: process.env.ComSpec ?? 'cmd.exe',
-      args: ['/d', '/s', '/c', command],
-      cwd: node.cwd,
-      env: node.env,
-      cols: input.cols ?? DEFAULT_COLS,
-      rows: input.rows ?? DEFAULT_ROWS,
-    };
-  }
-  return {
-    command: process.env.SHELL ?? '/bin/sh',
-    args: ['-lc', command],
-    cwd: node.cwd,
-    env: node.env,
-    cols: input.cols ?? DEFAULT_COLS,
-    rows: input.rows ?? DEFAULT_ROWS,
-  };
-}
-
-function fullCommand(node: ScriptNode): string {
-  return node.shellSetup ? `${node.shellSetup}\n${node.command}` : node.command;
-}
-
 function scopeKeyFor(workspace: HostFileRef): string {
   return resourceKeyFromFileRef(workspace);
 }
@@ -890,14 +505,6 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   return rest;
 }
 
-function exitWithoutTail(exit: TerminalExit | undefined): TerminalSessionState['exit'] {
-  if (!exit) return undefined;
-  return {
-    exitCode: exit.exitCode,
-    signal: exit.signal,
-  };
-}
-
 function stripTerminalControls(value: string): string {
   return value
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
@@ -909,49 +516,4 @@ function stripTerminalControls(value: string): string {
 function appendOutputTail(current: string, chunk: string): string {
   const next = current + stripTerminalControls(chunk);
   return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
-}
-
-function workflowCompileErrorToScriptWorkflowError(
-  error: WorkflowCompileError
-): ScriptWorkflowError {
-  return {
-    type: 'workflow-compile-failed',
-    message: error.message,
-  };
-}
-
-/**
- * Maps the workflow primitive's open error `type` into the closed wire union: node
- * failures produced by this runtime are always 'script-failed', cancellation is
- * 'cancelled', and everything else (unexpected node throws, illegal machine
- * transitions) lands in the 'workflow-runtime-error' passthrough variant with the
- * original discriminant preserved.
- */
-function workflowErrorToScriptWorkflowError(error: WorkflowError): ScriptWorkflowError {
-  if (error.type === 'script-failed') {
-    const nodeId = (error as { nodeId?: unknown }).nodeId;
-    return {
-      type: 'script-failed',
-      message: error.message,
-      ...(typeof nodeId === 'string' ? { nodeId } : {}),
-    };
-  }
-  if (error.type === 'cancelled') {
-    return { type: 'cancelled', message: error.message };
-  }
-  return {
-    type: 'workflow-runtime-error',
-    workflowErrorType: error.type,
-    message: error.message,
-    ...(error.resolutions ? { resolutions: error.resolutions } : {}),
-  };
-}
-
-export function scriptWorkflowJobError(error: unknown): ScriptWorkflowError {
-  const parsed = scriptWorkflowErrorSchema.safeParse(error);
-  if (parsed.success) return parsed.data;
-  return {
-    type: 'workflow-runtime-error',
-    message: error instanceof Error ? error.message : String(error),
-  };
 }

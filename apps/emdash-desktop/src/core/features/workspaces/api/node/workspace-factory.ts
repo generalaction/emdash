@@ -9,6 +9,7 @@ import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env
 import type { Task } from '@core/primitives/tasks/api';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
+import { hostDefaultShellSetup } from '@core/services/runtime-broker/node/host-settings';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 
@@ -36,7 +37,7 @@ export async function buildTaskProviders(
 
 export async function resolveTaskEnv(
   task: Pick<Task, 'id' | 'name'>,
-  workspace: Pick<Workspace, 'path' | 'files' | 'configPath'>,
+  workspace: Pick<Workspace, 'path' | 'files' | 'configPath' | 'hostSettings'>,
   projectPath: string,
   settings: ProjectSettingsProvider
 ): Promise<{
@@ -61,6 +62,9 @@ export async function resolveTaskEnv(
       portSeed: workspace.path,
     }),
     tmuxEnabled: projectSettings.tmux ?? false,
-    shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
+    // Workspace .emdash.json overrides the per-host default (host-settings runtime);
+    // the per-project DB shellSetup field was retired.
+    shellSetup:
+      taskLevelSettings.shellSetup ?? (await hostDefaultShellSetup(workspace.hostSettings)),
   };
 }

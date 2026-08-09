@@ -6,40 +6,28 @@ import type {
 } from '@emdash/core/primitives/terminal-shell/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import {
-  createLiveJobReplicaCache,
-  LiveJobFailedError,
-  type LiveJobContext,
-} from '@emdash/wire/live';
-import { type LiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
+import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import {
   terminalsContract,
-  terminalSliceErrorSchema,
-  type RunTerminalScriptWorkflowInput,
   type TerminalCreateResult,
   type TerminalHydrateResult,
   type TerminalRuntimeKey,
   type TerminalSliceContextError,
 } from '@core/features/terminals/api';
 import {
-  isTerminalsRuntimeResolveError,
   throwTerminalsRuntimeResolveError,
   type TerminalsHostRuntimesClient as HostRuntimesClient,
-  type TerminalsRunScriptWorkflowInput as RunScriptWorkflowInput,
   type TerminalsRuntimeError as TerminalError,
   type TerminalsRuntimeBroker,
   type TerminalsRuntimeKey as TerminalKey,
   type TerminalsRuntimeResolveError as RuntimeResolveError,
-  type TerminalsScriptWorkflowProgress as ScriptWorkflowProgress,
-  type TerminalsScriptWorkflowResult as ScriptWorkflowResult,
   type TerminalsWorkspaceIdentity as WorkspaceIdentity,
   type TerminalsWorkspaceIdentityResolver,
 } from '@core/features/terminals/api/runtime-adapter';
-import { terminalsRuntimeContract } from '@core/features/terminals/api/runtime-adapter';
 import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
@@ -48,7 +36,7 @@ import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primit
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
-import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
+import { hostDefaultShellSetup } from '@core/services/runtime-broker/node/host-settings';
 import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
@@ -86,11 +74,6 @@ export function createTerminalsWireController(
     rename: (input) => renameTerminal(options, input),
     hydrate: (input) => hydrateTerminal(options, input),
     getShellAvailability: (input) => getShellAvailability(options, input),
-    runScriptWorkflow: {
-      run: (input, context) => runScriptWorkflow(options, input, context),
-      toError: unknownToTerminalError,
-    },
-    workflows: createWorkflowsProvider(options),
     output: async (key) =>
       resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
         client.terminals.output.handle(toTerminalKey(identity, key.terminalId)).asLiveSource()
@@ -337,7 +320,10 @@ async function resolveTerminalContext(
         makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
       ),
       tmuxEnabled: projectSettings.tmux ?? false,
-      shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
+      // Workspace .emdash.json overrides the per-host default (host-settings runtime);
+      // the per-project DB shellSetup field was retired.
+      shellSetup:
+        taskLevelSettings.shellSetup ?? (await hostDefaultShellSetup(client.hostSettings)),
       taskEnvVars: getTaskEnvVars({
         taskId: terminal.taskId,
         taskName: taskRow.name,
@@ -348,111 +334,6 @@ async function resolveTerminalContext(
       }),
     });
   });
-}
-
-async function runScriptWorkflow(
-  options: CreateTerminalsWireControllerOptions,
-  input: RunTerminalScriptWorkflowInput,
-  context: LiveJobContext<ScriptWorkflowProgress>
-): Promise<Result<ScriptWorkflowResult, TerminalControllerError>> {
-  const [taskRow] = await options.db
-    .select()
-    .from(tasks)
-    .where(
-      and(eq(tasks.id, input.taskId), eq(tasks.projectId, input.projectId), isNull(tasks.deletedAt))
-    )
-    .limit(1);
-  if (!taskRow) return err(terminalError('missing-task', `Task ${input.taskId} not found`));
-  if (taskRow.workspaceId !== input.workspaceId) {
-    return err(terminalError('missing-workspace', `Task ${input.taskId} is not in this workspace`));
-  }
-  const project = options.projects.getProject(input.projectId);
-  if (!project)
-    return err(terminalError('missing-project', `Project ${input.projectId} not found`));
-
-  return withWorkspaceRuntime(options, input.workspaceId, async (client, identity) => {
-    const projectSettings = await project.settings.get();
-    const taskSettings = await getEffectiveTaskSettings({
-      projectSettings: project.settings,
-      taskFiles: filesClientScope(client.files, identity.path),
-      taskConfigPath: project.configPathForDirectory(identity.path),
-    });
-    const command = taskSettings.scripts?.[input.type];
-    if (!command) {
-      return ok({
-        workflowId: context.jobId,
-        kind: `manual:${input.type}`,
-        completedNodes: [],
-      });
-    }
-    const defaultBranch = await project.settings.getDefaultBranch();
-    return runUpstreamWorkflow(
-      client,
-      {
-        workspace: workspaceRef(identity),
-        kind: `manual:${input.type}`,
-        nodes: [
-          {
-            id: input.type,
-            label: labelForScript(input.type),
-            command,
-            shellSetup: taskSettings.shellSetup ?? projectSettings.shellSetup,
-            cwd: identity.path,
-            env: getTaskEnvVars({
-              taskId: input.taskId,
-              taskName: taskRow.name,
-              taskPath: identity.path,
-              projectPath: project.repoPath,
-              defaultBranch,
-              portSeed: identity.path,
-            }),
-          },
-        ],
-      },
-      context
-    );
-  });
-}
-
-function createWorkflowsProvider(
-  options: CreateTerminalsWireControllerOptions
-): LiveModelProvider<typeof terminalsContract.workflows> {
-  return forwardLiveModel(terminalsContract.workflows, (key, name) =>
-    resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-      client.terminals.workflows.state({ workspace: workspaceRef(identity) }, name).asLiveSource()
-    )
-  );
-}
-
-async function runUpstreamWorkflow(
-  client: HostRuntimesClient,
-  input: RunScriptWorkflowInput,
-  context: LiveJobContext<ScriptWorkflowProgress>
-): Promise<Result<ScriptWorkflowResult, TerminalControllerError>> {
-  const jobs = createLiveJobReplicaCache(
-    terminalsRuntimeContract.runWorkflow,
-    client.terminals.runWorkflow
-  );
-  const lease = await jobs.start(input);
-  try {
-    const job = await lease.ready();
-    const unsubscribe = job.onProgress(context.progress);
-    const cancel = () => void job.cancel();
-    context.signal.addEventListener('abort', cancel, { once: true });
-    if (context.signal.aborted) cancel();
-    try {
-      return ok(await job.result);
-    } catch (error) {
-      if (error instanceof LiveJobFailedError) return err(error.error);
-      throw error;
-    } finally {
-      context.signal.removeEventListener('abort', cancel);
-      unsubscribe();
-    }
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
 }
 
 async function withTerminalRuntime<T, E>(
@@ -541,21 +422,6 @@ function terminalError(
   message: string
 ): TerminalSliceContextError {
   return { type, message };
-}
-
-function unknownToTerminalError(error: unknown): TerminalControllerError {
-  if (isTerminalsRuntimeResolveError(error)) return error;
-  const parsed = terminalSliceErrorSchema.safeParse(error);
-  if (parsed.success) return parsed.data;
-  return terminalError('terminal-wire-error', errorMessage(error));
-}
-
-function labelForScript(type: RunTerminalScriptWorkflowInput['type']): string {
-  return type[0]!.toUpperCase() + type.slice(1);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {

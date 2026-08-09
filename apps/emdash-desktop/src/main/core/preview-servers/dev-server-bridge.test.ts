@@ -7,6 +7,7 @@ import { createDevServerBridge, type DevServerBridgeDependencies } from './dev-s
 
 const mocks = vi.hoisted(() => ({
   list: {} as TerminalDevServerList,
+  scriptList: {} as Record<string, unknown>,
   observe: vi.fn(),
   remote: vi.fn(),
   whenReady: vi.fn(),
@@ -34,16 +35,25 @@ describe('createDevServerBridge', () => {
         detectedAt: 1,
       },
     };
+    mocks.scriptList = {};
     mocks.observe.mockReset();
     mocks.remote.mockReset();
     mocks.whenReady.mockReset();
     mocks.remote.mockReturnValue(() => ({ states: { list: {} } }));
-    mocks.observe.mockImplementation(
-      (_state: unknown, listener: (snapshot: { value: TerminalDevServerList }) => void) => {
-        listener({ value: mocks.list });
-        return () => {};
-      }
-    );
+    // The bridge observes the terminals list first, then the scripts list.
+    mocks.observe
+      .mockImplementationOnce(
+        (_state: unknown, listener: (snapshot: { value: TerminalDevServerList }) => void) => {
+          listener({ value: mocks.list });
+          return () => {};
+        }
+      )
+      .mockImplementationOnce(
+        (_state: unknown, listener: (snapshot: { value: Record<string, unknown> }) => void) => {
+          listener({ value: mocks.scriptList });
+          return () => {};
+        }
+      );
     mocks.whenReady.mockResolvedValue(undefined);
   });
 
@@ -72,7 +82,10 @@ describe('createDevServerBridge', () => {
     } as unknown as DevServerBridgeDependencies;
     const sendInput = vi.fn(async () => ({ success: true, data: undefined }));
     const bridge = await createDevServerBridge(
-      { devServers: {}, sendInput } as never,
+      {
+        terminals: { devServers: {}, sendInput },
+        scripts: { devServers: {}, sendInput: vi.fn() },
+      } as never,
       dependencies,
       { transport: 'ssh', connectionId: 'connection-1' }
     );
@@ -128,5 +141,79 @@ describe('createDevServerBridge', () => {
       },
     });
     expect(unregisterStopHandler).toHaveBeenCalledOnce();
+  });
+
+  it('registers script-plane dev servers under lifecycle terminal ids and interrupts via the scripts runtime', async () => {
+    mocks.list = {};
+    mocks.scriptList = {
+      detected: {
+        key: { workspacePath: '/repo', script: 'run' },
+        protocol: 'http:',
+        host: 'localhost',
+        port: 5173,
+        urlPath: '/app',
+        detectedAt: 1,
+      },
+    };
+    let stopHandler: ((server: PreviewServer) => Promise<void> | void) | undefined;
+    const registerDetectedTarget = vi.fn(async () => undefined);
+    const dependencies = {
+      previewServers: {
+        registerDetectedTarget,
+        handleTerminalSourceClosed: vi.fn(async () => {}),
+        registerStopTerminalServerHandler: vi.fn(
+          (_key: string, handler: (server: PreviewServer) => Promise<void> | void) => {
+            stopHandler = handler;
+            return vi.fn();
+          }
+        ),
+      },
+      resolveWorkspace: vi.fn(async () => ({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+      })),
+    } as unknown as DevServerBridgeDependencies;
+    const terminalSendInput = vi.fn(async () => ({ success: true, data: undefined }));
+    const scriptStop = vi.fn(async () => ({ success: true, data: undefined }));
+    const bridge = await createDevServerBridge(
+      {
+        terminals: { devServers: {}, sendInput: terminalSendInput },
+        scripts: { devServers: {}, stop: scriptStop },
+      } as never,
+      dependencies,
+      { transport: 'local' }
+    );
+
+    expect(registerDetectedTarget).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      transport: 'local',
+      source: { kind: 'terminal-output', terminalId: 'script-lifecycle-run' },
+      protocol: 'http:',
+      host: 'localhost',
+      port: 5173,
+      urlPath: '/app',
+    });
+
+    await stopHandler?.({
+      id: 'local:auto:1',
+      kind: 'direct',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      source: { kind: 'terminal-output', terminalId: 'script-lifecycle-run' },
+      protocol: 'http:',
+      host: 'localhost',
+      port: 5173,
+      urlPath: '/app',
+      status: { kind: 'ready' },
+    });
+    // The stop verb, not a Ctrl-C: the run settles as cancelled in the timeline.
+    expect(scriptStop).toHaveBeenCalledWith({
+      workspacePath: '/repo',
+      script: 'run',
+    });
+    expect(terminalSendInput).not.toHaveBeenCalled();
+
+    await bridge.dispose();
   });
 });

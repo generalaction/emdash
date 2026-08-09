@@ -3,18 +3,9 @@ import {
   terminalShellAvailabilityListSchema,
   terminalShellIdSchema,
 } from '@emdash/core/primitives/terminal-shell/api';
-import {
-  scriptWorkflowStateSchema,
-  terminalErrorSchema,
-} from '@emdash/core/runtimes/terminals/api';
+import { terminalErrorSchema, terminalSizeSchema } from '@emdash/core/runtimes/terminals/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import {
-  scriptWorkflowErrorSchema,
-  scriptWorkflowProgressSchema,
-  scriptWorkflowResultSchema,
-  terminalSizeSchema,
-} from '@emdash/core/services/script-workflows/api';
-import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
+import { defineContract, fallible, liveLog } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const terminalRecordSchema = z.object({
@@ -73,19 +64,8 @@ export const terminalRuntimeDataInputSchema = terminalRuntimeKeySchema.extend({
 
 export const terminalRuntimeResizeInputSchema = terminalRuntimeKeySchema.merge(terminalSizeSchema);
 
-export const terminalWorkspaceInputSchema = z.object({
-  workspaceId: z.string(),
-});
-
 export const terminalShellAvailabilityInputSchema = z.object({
   host: hostRefSchema,
-});
-
-export const runTerminalScriptWorkflowInputSchema = z.object({
-  projectId: z.string(),
-  taskId: z.string(),
-  workspaceId: z.string(),
-  type: z.enum(['prepare', 'setup', 'run', 'teardown']),
 });
 
 /** Failures the desktop slice itself produces while resolving terminal context. */
@@ -102,7 +82,6 @@ export type TerminalSliceContextError = z.infer<typeof terminalSliceContextError
 export const terminalSliceErrorSchema = z.union([
   runtimeResolveErrorSchema,
   terminalErrorSchema,
-  scriptWorkflowErrorSchema,
   terminalSliceContextErrorSchema,
 ]);
 
@@ -139,18 +118,6 @@ export const terminalsContract = defineContract({
     data: terminalShellAvailabilityListSchema,
     error: terminalSliceErrorSchema,
   }),
-  runScriptWorkflow: liveJob({
-    input: runTerminalScriptWorkflowInputSchema,
-    progress: scriptWorkflowProgressSchema,
-    result: scriptWorkflowResultSchema,
-    error: terminalSliceErrorSchema,
-  }),
-  workflows: liveModel({
-    key: terminalWorkspaceInputSchema,
-    states: {
-      state: liveState({ data: scriptWorkflowStateSchema.nullable() }),
-    },
-  }),
   output: liveLog({
     key: terminalRuntimeKeySchema,
   }),
@@ -175,5 +142,4 @@ export type TerminalsContract = typeof terminalsContract;
 export type TerminalCreateResult = z.infer<typeof terminalCreateResultSchema>;
 export type TerminalHydrateResult = z.infer<typeof terminalHydrateResultSchema>;
 export type TerminalRuntimeKey = z.infer<typeof terminalRuntimeKeySchema>;
-export type RunTerminalScriptWorkflowInput = z.infer<typeof runTerminalScriptWorkflowInputSchema>;
 export type TerminalSliceError = z.infer<typeof terminalSliceErrorSchema>;

@@ -108,10 +108,8 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         ...canonicalBaseSettings,
         baseRemote: canonicalBaseSettings.baseRemote ?? remote,
       }),
-      shareable: readJson(
-        row.shareableProjectSettingsJson,
-        emdashConfigSchema,
-        'shareable project settings'
+      shareable: withoutRetiredShellSetup(
+        readJson(row.shareableProjectSettingsJson, emdashConfigSchema, 'shareable project settings')
       ),
       legacyConfigMigratedAt: row.legacyConfigMigratedAt,
     };
@@ -172,7 +170,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
 
     const base = baseProjectSettingsSchema.parse(nextSettings);
-    const shareable = emdashConfigSchema.parse(nextSettings);
+    const shareable = withoutRetiredShellSetup(emdashConfigSchema.parse(nextSettings));
 
     try {
       await this.ensure();
@@ -202,10 +200,12 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
           )
         : await this.initialBaseProjectSettings();
       const shareable = row
-        ? readJson(
-            row.shareableProjectSettingsJson,
-            emdashConfigSchema,
-            'shareable project settings'
+        ? withoutRetiredShellSetup(
+            readJson(
+              row.shareableProjectSettingsJson,
+              emdashConfigSchema,
+              'shareable project settings'
+            )
           )
         : {};
 
@@ -272,4 +272,16 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
     return defaultWorktreeDirectory;
   }
+}
+
+/**
+ * shellSetup was retired from project settings (spec: activation-scripts-via-terminals):
+ * the host-settings runtime owns the per-host default and workspace `.emdash.json`
+ * overrides it. Stored DB values are ignored on read and dropped on the next write —
+ * a deliberate breaking change with no migration.
+ */
+function withoutRetiredShellSetup(shareable: ShareableProjectSettings): ShareableProjectSettings {
+  if (shareable.shellSetup === undefined) return shareable;
+  const { shellSetup: _retired, ...rest } = shareable;
+  return rest;
 }

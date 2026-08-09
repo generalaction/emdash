@@ -2,7 +2,6 @@ import type { ShareableProjectSettingsWriteField } from '@core/primitives/projec
 
 export type ShareableFieldFormKey =
   | 'preservePatterns'
-  | 'shellSetup'
   | 'scriptPrepare'
   | 'scriptSetup'
   | 'scriptRun'
@@ -44,17 +43,6 @@ export const SHAREABLE_FIELD_DESCRIPTORS: ShareableFieldDescriptor[] = [
     placeholder: '.env\n.env.local',
     description:
       'Gitignored and untracked files matching these glob patterns are copied from the main repo into each worktree. One pattern per line.',
-    multiline: true,
-  },
-  {
-    id: 'shellSetup',
-    formKey: 'shellSetup',
-    modalLabel: 'Shell setup',
-    leafLabel: 'shell setup',
-    defaultWrite: true,
-    normalizeText: trimText,
-    placeholder: 'nvm use\nsource .envrc',
-    description: 'Shell commands run before the agent starts in each worktree session',
     multiline: true,
   },
   {

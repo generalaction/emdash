@@ -25,6 +25,7 @@ import {
 } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
+import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import type { AppSettingsService } from '@core/services/settings/node';
 import {
   defaultRepositoriesRoot,
@@ -58,8 +59,11 @@ export class WorkspacePlacementResolver {
     const homeResult = await this.getHomeDirectory(host);
     if (!homeResult.success) return homeResult;
 
+    // Precedence: per-project DB override, then the per-host default (host-settings
+    // runtime), then the desktop-wide app setting, then the built-in default.
     const configuredRoot =
       (await this.dependencies.loadProjectWorktreeDirectory(project.id)) ??
+      (await this.getHostWorktreeRoot(host)) ??
       (await this.getExplicitAppRoot('defaultWorktreeDirectory'));
     const rootResult = configuredRoot
       ? resolveConfiguredRoot(configuredRoot, homeResult.data)
@@ -163,6 +167,12 @@ export class WorkspacePlacementResolver {
         message: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  private async getHostWorktreeRoot(host: HostRef): Promise<string | undefined> {
+    const session = await this.dependencies.broker.client(host);
+    if (!session.success) return undefined;
+    return (await hostSettingsDefaults(session.data.hostSettings)).worktreeRoot;
   }
 
   private async getExplicitAppRoot(

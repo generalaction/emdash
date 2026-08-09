@@ -11,22 +11,13 @@ import {
   type RuntimeBroker,
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
-import type {
-  RunScriptWorkflowInput,
-  ScriptWorkflowError,
-  ScriptWorkflowProgress,
-  ScriptWorkflowResult,
-} from '@emdash/core/services/script-workflows/api';
 
 export { terminalsRuntimeContract };
 
 export type TerminalsHostRuntimesClient = HostRuntimesClient;
 export type TerminalsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type TerminalsRuntimeKey = TerminalKey;
-export type TerminalsRunScriptWorkflowInput = RunScriptWorkflowInput;
-export type TerminalsScriptWorkflowProgress = ScriptWorkflowProgress;
-export type TerminalsScriptWorkflowResult = ScriptWorkflowResult;
-export type TerminalsRuntimeError = TerminalError | ScriptWorkflowError;
+export type TerminalsRuntimeError = TerminalError;
 export type TerminalsRuntimeResolveError = RuntimeResolveError;
 
 export function isTerminalsRuntimeResolveError(

@@ -69,6 +69,7 @@ import {
 } from '@core/features/workbench/node/wire-controller';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { createLifecycleScriptsWireController } from '@core/features/workspaces/node/lifecycle-scripts-wire-controller';
 import {
   createProjectSettingsWireController,
   createProjectWorkspacesWireController,
@@ -301,6 +302,10 @@ export const desktopNodeControllers = {
   workspaceRegistry: {
     create: ({ db, reconcileSweep, runtimes }) =>
       createWorkspaceRegistryWireController({ db, runtimes, sweep: reconcileSweep }),
+  },
+  lifecycleScripts: {
+    create: ({ runtimes, workspaceIdentity }) =>
+      createLifecycleScriptsWireController({ runtimes, workspaceIdentity }),
   },
   projects: {
     create: ({

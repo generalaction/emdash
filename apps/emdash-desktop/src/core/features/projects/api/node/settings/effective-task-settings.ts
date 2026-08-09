@@ -46,9 +46,14 @@ export async function getEffectiveTaskSettings(args: {
       error: parsed.error,
     });
   }
-  return mergeShareableProjectSettings(
+  const merged = mergeShareableProjectSettings(
     defaults,
     parsed.success ? parsed.data : {},
     localShareableSettings
   );
+  // shellSetup is not a shareable project-settings field anymore (the host-settings
+  // runtime owns the default), so the merge above ignores it — but the workspace
+  // .emdash.json override still applies and is carried through explicitly.
+  const shellSetup = parsed.success ? parsed.data.shellSetup : undefined;
+  return shellSetup !== undefined ? { ...merged, shellSetup } : merged;
 }

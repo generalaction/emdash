@@ -1,18 +1,18 @@
 import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
-import type { ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
+import type { ScriptRuns } from '@emdash/core/runtimes/scripts/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplicaCache, ReplicaLog } from '@emdash/wire/live';
+import { toast } from '@emdash/ui/react/primitives';
+import { ReplicaLog } from '@emdash/wire/live';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { watchFileContent } from '@core/features/files/api/browser/file-content';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
-import { terminalsContract } from '@core/features/terminals/api';
-import { getTerminalsClient } from '@core/features/terminals/api/browser/client';
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { lifecycleScriptsWireContract } from '@core/features/workspaces/api/lifecycle-scripts-wire-contract';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -25,7 +25,7 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@core/primitives/workbench-shell/browser/tabs/tab-utils';
-import { getProjectSettingsClient } from './client';
+import { getLifecycleScriptsClient, getProjectSettingsClient } from './client';
 
 export type ScriptType = 'prepare' | 'setup' | 'run' | 'teardown';
 
@@ -36,28 +36,29 @@ export type LifecycleScriptData = {
   command: string;
 };
 
-export type LifecycleScriptStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
+export type LifecycleScriptStatus = 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
+/**
+ * One drawer tab, bound to the host scripts plane (spec:
+ * activation-scripts-via-terminals): output streams from the scripts runtime's
+ * PTY, run/stop go through the lifecycle-scripts domain, and status arrives
+ * through the shared runs model — so activation-started runs show live here
+ * exactly like manually started ones.
+ */
 export class LifecycleScriptStore {
   data: LifecycleScriptData;
   session: PtySession;
   status: LifecycleScriptStatus = 'idle';
-  private activeRun: { cancel(): void; dispose(): Promise<void> } | null = null;
-  constructor(
-    data: LifecycleScriptData,
-    projectId: string,
-    workspaceId: string,
-    outputAvailable = false
-  ) {
+  private readonly workspaceId: string;
+  constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
+    this.workspaceId = workspaceId;
     this.session = new PtySession(
       makePtySessionId(projectId, workspaceId, data.id),
       undefined,
       undefined,
       undefined,
-      outputAvailable
-        ? createTerminalsConnector(workspaceId, makePtySessionId(projectId, workspaceId, data.id))
-        : createUnavailableConnector()
+      createScriptsConnector(workspaceId, data.type)
     );
     makeObservable(this, {
       data: observable,
@@ -76,45 +77,47 @@ export class LifecycleScriptStore {
     this.status = status;
   }
 
-  async run(projectId: string, taskId: string, workspaceId: string): Promise<void> {
-    if (this.activeRun || this.isRunning) return;
-    const client = await getTerminalsClient();
-    const jobs = createLiveJobReplicaCache(
-      terminalsContract.runScriptWorkflow,
-      client.runScriptWorkflow
-    );
-    const lease = await jobs.start({
-      projectId,
-      taskId,
-      workspaceId,
-      type: this.data.type,
+  /**
+   * Starts a manual run; the host builds the request from the record. Progress
+   * and the final status arrive through the runs model, never from this call.
+   */
+  async run(): Promise<void> {
+    if (this.isRunning) return;
+    const client = await getLifecycleScriptsClient();
+    const result = await client.start({
+      workspaceId: this.workspaceId,
+      script: this.data.type,
+      provenance: 'manual',
     });
-    const job = await lease.ready();
-    this.activeRun = {
-      cancel: () => void job.cancel(),
-      dispose: async () => {
-        await lease.release();
-        await jobs.dispose();
-      },
-    };
-    try {
-      await job.result;
-    } catch {
-      // Status and failure surfaces are driven by the workflow model.
-    } finally {
-      const active = this.activeRun;
-      this.activeRun = null;
-      await active?.dispose();
+    if (!result.success) {
+      log.warn('lifecycle-scripts: start rejected', {
+        script: this.data.type,
+        error: result.error,
+      });
+      toast.error(`Could not start the ${this.data.label} script`, {
+        description:
+          'message' in result.error ? result.error.message : 'The workspace no longer exists',
+      });
     }
   }
 
   stop(): void {
-    this.activeRun?.cancel();
+    void getLifecycleScriptsClient()
+      .then(async (client) => {
+        const result = await client.stop({ workspaceId: this.workspaceId, script: this.data.type });
+        if (!result.success) {
+          log.warn('lifecycle-scripts: stop failed', {
+            script: this.data.type,
+            error: result.error,
+          });
+        }
+      })
+      .catch((error) => {
+        log.warn('lifecycle-scripts: failed to stop script', { script: this.data.type, error });
+      });
   }
 
   dispose() {
-    void this.activeRun?.dispose();
-    this.activeRun = null;
     this.session.destroy();
   }
 }
@@ -126,9 +129,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private _disposed = false;
   private _refreshSeq = 0;
   private readonly _unsubscribes: Array<() => void> = [];
-  private readonly outputAvailable: boolean;
-  private workflowScope: Scope | null = null;
-  private workflowRemote: RemoteModel<typeof terminalsContract.workflows> | null = null;
+  private runsScope: Scope | null = null;
+  private runsRemote: RemoteModel<typeof lifecycleScriptsWireContract.runs> | null = null;
   scripts = observable.map<string, LifecycleScriptStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -141,7 +143,6 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   ) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
-    this.outputAvailable = sshConnectionId === undefined;
     makeObservable(this, {
       scripts: observable,
       tabOrder: observable,
@@ -183,7 +184,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         else this._unsubscribes.push(unsubscribe);
       })
       .catch(() => {});
-    if (this.outputAvailable) this.bindWorkflowState();
+    this.bindRunsState();
   }
 
   get tabs(): LifecycleScriptStore[] {
@@ -197,7 +198,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   }
 
   get runningScript(): LifecycleScriptStore | undefined {
-    return this.tabs.find((script) => script.status === 'running' || script.status === 'pending');
+    return this.tabs.find((script) => script.status === 'running');
   }
 
   get failedScript(): LifecycleScriptStore | undefined {
@@ -294,12 +295,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         if (existing) {
           Object.assign(existing.data, data);
         } else {
-          const store = new LifecycleScriptStore(
-            data,
-            this.projectId,
-            this.workspaceId,
-            this.outputAvailable
-          );
+          const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
         }
@@ -319,9 +315,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     this._disposed = true;
     this._refreshSeq++;
     for (const unsubscribe of this._unsubscribes) unsubscribe();
-    void this.workflowRemote?.dispose();
-    this.workflowScope = null;
-    this.workflowRemote = null;
+    void this.runsRemote?.dispose();
+    this.runsScope = null;
+    this.runsRemote = null;
     for (const script of this.scripts.values()) {
       script.dispose();
     }
@@ -330,59 +326,69 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     this.activeTabId = undefined;
   }
 
-  private bindWorkflowState(): void {
-    if (!this.outputAvailable) return;
+  /**
+   * Status comes from the scripts runtime's runs model — the same source the
+   * Activity timeline observes host-side — so every run shows here regardless
+   * of who started it.
+   */
+  private bindRunsState(): void {
     if (typeof window === 'undefined') return;
     void (async () => {
-      const client = await getTerminalsClient();
+      const client = await getLifecycleScriptsClient();
       if (this._disposed) return;
-      const scope = createScope({ label: `lifecycle-workflow:${this.workspaceId}` });
-      const workflows = remote(terminalsContract.workflows, client.workflows, { scope });
-      const model = workflows({ workspaceId: this.workspaceId });
-      pin(scope, [model.states.state]);
+      const scope = createScope({ label: `lifecycle-scripts:${this.workspaceId}` });
+      const runs = remote(lifecycleScriptsWireContract.runs, client.runs, { scope });
+      const model = runs({ workspaceId: this.workspaceId });
+      pin(scope, [model.states.current]);
       observe(
-        model.states.state,
+        model.states.current,
         (current) => {
-          if (current.value !== undefined) this.handleWorkflowState(current.value);
+          if (current.value !== undefined) this.handleRunsState(current.value);
         },
         { scope }
       );
-      this.workflowScope = scope;
-      this.workflowRemote = workflows;
-      if (this._disposed) void workflows.dispose();
+      this.runsScope = scope;
+      this.runsRemote = runs;
+      if (this._disposed) void runs.dispose();
     })();
   }
 
-  private handleWorkflowState(state: ScriptWorkflowState | null): void {
+  private handleRunsState(runs: ScriptRuns): void {
     runInAction(() => {
       for (const script of this.scripts.values()) {
-        const node = state?.nodes[script.data.type];
-        if (!node) {
-          script.setStatus('idle');
-        } else if (node.status === 'done') {
-          script.setStatus('succeeded');
-        } else if (node.status === 'skipped') {
-          script.setStatus('idle');
-        } else {
-          script.setStatus(node.status);
-        }
+        const run = runs[script.data.type];
+        script.setStatus(run ? toScriptStatus(run.status) : 'idle');
       }
     });
   }
 }
 
-function createTerminalsConnector(workspaceId: string, terminalId: string): FrontendPtyConnector {
+function toScriptStatus(status: ScriptRuns[string]['status']): LifecycleScriptStatus {
+  switch (status) {
+    case 'running':
+      return 'running';
+    case 'succeeded':
+      return 'succeeded';
+    case 'cancelled':
+      return 'cancelled';
+    case 'failed':
+    case 'timed-out':
+      return 'failed';
+  }
+}
+
+function createScriptsConnector(workspaceId: string, script: ScriptType): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
-  let clientPromise: ReturnType<typeof getTerminalsClient> | null = null;
+  let clientPromise: ReturnType<typeof getLifecycleScriptsClient> | null = null;
   const client = () => {
-    clientPromise ??= getTerminalsClient();
+    clientPromise ??= getLifecycleScriptsClient();
     return clientPromise;
   };
 
   return {
     async connect(terminal: Terminal) {
       const runtime = await client();
-      logBinding = new ReplicaLog(runtime.output.handle({ workspaceId, terminalId }), {
+      logBinding = new ReplicaLog(runtime.output.handle({ workspaceId, script }), {
         store: createXtermLogSink(terminal),
       });
       await logBinding.ready;
@@ -394,41 +400,26 @@ function createTerminalsConnector(workspaceId: string, terminalId: string): Fron
     sendInput(data: string) {
       void client()
         .then(async (runtime) => {
-          const result = await runtime.sendInput({ workspaceId, terminalId, data });
+          const result = await runtime.sendInput({ workspaceId, script, data });
           if (!result.success) {
-            log.warn('lifecycle-scripts: terminal input failed', {
-              terminalId,
-              error: result.error,
-            });
+            log.warn('lifecycle-scripts: input failed', { script, error: result.error });
           }
         })
         .catch((error) => {
-          log.warn('lifecycle-scripts: failed to send terminal input', { terminalId, error });
+          log.warn('lifecycle-scripts: failed to send input', { script, error });
         });
     },
     resize(cols: number, rows: number) {
       void client()
         .then(async (runtime) => {
-          const result = await runtime.resize({ workspaceId, terminalId, cols, rows });
+          const result = await runtime.resize({ workspaceId, script, cols, rows });
           if (!result.success) {
-            log.warn('lifecycle-scripts: terminal resize failed', {
-              terminalId,
-              error: result.error,
-            });
+            log.warn('lifecycle-scripts: resize failed', { script, error: result.error });
           }
         })
         .catch((error) => {
-          log.warn('lifecycle-scripts: failed to resize terminal', { terminalId, error });
+          log.warn('lifecycle-scripts: failed to resize', { script, error });
         });
-    },
-  };
-}
-
-function createUnavailableConnector(): FrontendPtyConnector {
-  return {
-    connect(terminal) {
-      terminal.write('Terminal output is unavailable for this workspace.\r\n');
-      return () => {};
     },
   };
 }

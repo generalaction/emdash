@@ -6,7 +6,6 @@ describe('terminalsWorkerSpec', () => {
     const env = { PATH: '/usr/bin' };
     const lifecycle = {
       terminal: { kind: 'while-attached', graceMs: 5 * 60_000 },
-      backgroundScript: { kind: 'always' },
     } as const;
     const [component, options] = terminalsWorkerSpec({
       executable: '/w/terminals.mjs',

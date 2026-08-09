@@ -16,7 +16,6 @@ const upstream: GitRemote = { name: 'upstream', url: 'git@github.com:upstream/re
 function makeForm(overrides: Partial<FormState> = {}): FormState {
   return {
     preservePatterns: '',
-    shellSetup: '',
     tmux: false,
     autoRunSetupScriptOnTaskCreation: true,
     autoRunRunScriptOnTaskCreation: false,
@@ -38,7 +37,6 @@ describe('project settings form model', () => {
     const form = settingsToForm(
       {
         preservePatterns: ['.env', '.env.local'],
-        shellSetup: 'source .envrc',
         tmux: true,
         autoRunSetupScriptOnTaskCreation: false,
         autoRunRunScriptOnTaskCreation: true,
@@ -59,7 +57,6 @@ describe('project settings form model', () => {
 
     expect(form).toEqual({
       preservePatterns: '.env\n.env.local',
-      shellSetup: 'source .envrc',
       tmux: true,
       autoRunSetupScriptOnTaskCreation: false,
       autoRunRunScriptOnTaskCreation: true,
@@ -99,7 +96,6 @@ describe('project settings form model', () => {
       formToSettings(
         makeForm({
           preservePatterns: ' .env \n\n.env.local ',
-          shellSetup: 'source .envrc',
           tmux: true,
           autoRunSetupScriptOnTaskCreation: false,
           autoRunRunScriptOnTaskCreation: true,
@@ -112,7 +108,6 @@ describe('project settings form model', () => {
       )
     ).toEqual({
       preservePatterns: ['.env', '.env.local'],
-      shellSetup: 'source .envrc',
       tmux: true,
       autoRunSetupScriptOnTaskCreation: false,
       autoRunRunScriptOnTaskCreation: true,
@@ -168,7 +163,6 @@ describe('project settings form model', () => {
   it('detects shareable form fields', () => {
     const form = makeForm({
       preservePatterns: '.env',
-      shellSetup: 'source .envrc',
       scriptPrepare: 'python -m venv .venv',
       scriptSetup: 'pnpm install',
       scriptRun: 'pnpm dev',
@@ -177,7 +171,6 @@ describe('project settings form model', () => {
 
     expect(getAvailableWriteFields(form)).toEqual([
       'preservePatterns',
-      'shellSetup',
       'scripts.prepare',
       'scripts.setup',
       'scripts.run',

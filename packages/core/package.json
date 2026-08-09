@@ -235,11 +235,6 @@
       "types": "./dist/services-fs-watch-api.d.mts",
       "default": "./dist/services-fs-watch-api.mjs"
     },
-    "./services/script-workflows/api": {
-      "development": "./src/services/script-workflows/api/index.ts",
-      "types": "./dist/services-script-workflows-api.d.mts",
-      "default": "./dist/services-script-workflows-api.mjs"
-    },
     "./services/fs-watch/node": {
       "development": "./src/services/fs-watch/node/index.ts",
       "types": "./dist/services-fs-watch-node.d.mts",
@@ -389,6 +384,16 @@
       "development": "./src/services/config-model/node/index.ts",
       "types": "./dist/services-config-model-node.d.mts",
       "default": "./dist/services-config-model-node.mjs"
+    },
+    "./services/preview-detection/api": {
+      "development": "./src/services/preview-detection/api/index.ts",
+      "types": "./dist/services-preview-detection-api.d.mts",
+      "default": "./dist/services-preview-detection-api.mjs"
+    },
+    "./services/preview-detection/node": {
+      "development": "./src/services/preview-detection/node/index.ts",
+      "types": "./dist/services-preview-detection-node.d.mts",
+      "default": "./dist/services-preview-detection-node.mjs"
     },
     "./workspace-server": {
       "development": "./src/workspace-server/index.ts",

@@ -115,3 +115,37 @@ export const stopScriptRunInputSchema = z.object({
 });
 
 export type StopScriptRunInput = z.infer<typeof stopScriptRunInputSchema>;
+
+/** Keyboard input into an in-flight run's PTY (interactive prompts). */
+export const scriptRunInputSchema = scriptRunKeySchema.extend({
+  data: z.string(),
+});
+
+export type ScriptRunInput = z.infer<typeof scriptRunInputSchema>;
+
+export const scriptRunResizeInputSchema = scriptRunKeySchema.extend({
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+});
+
+export type ScriptRunResizeInput = z.infer<typeof scriptRunResizeInputSchema>;
+
+/**
+ * A dev-server URL detected in a run's output — the same detection interactive
+ * terminals get, so a `run` script's dev server reaches the preview surface no
+ * matter which plane spawned it.
+ */
+export const scriptDevServerSchema = z.object({
+  key: scriptRunKeySchema,
+  protocol: z.enum(['http:', 'https:']),
+  host: z.enum(['localhost', '127.0.0.1']),
+  port: z.number().int().min(1).max(65535),
+  urlPath: z.string(),
+  detectedAt: z.number().int(),
+});
+
+export type ScriptDevServer = z.infer<typeof scriptDevServerSchema>;
+
+export const scriptDevServerListSchema = z.record(z.string(), scriptDevServerSchema);
+
+export type ScriptDevServerList = z.infer<typeof scriptDevServerListSchema>;

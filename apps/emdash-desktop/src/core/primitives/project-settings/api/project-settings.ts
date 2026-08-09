@@ -66,9 +66,10 @@ export type ProjectSettingsWriteTargetOption = ProjectSettingsWriteTarget & {
   path: string;
 };
 
+// shellSetup is deliberately absent: the per-project DB field was retired in favor
+// of per-host defaults (host-settings runtime) overridden by workspace .emdash.json.
 export type ShareableProjectSettingsWriteField =
   | 'preservePatterns'
-  | 'shellSetup'
   | 'scripts.prepare'
   | 'scripts.setup'
   | 'scripts.run'
@@ -76,7 +77,6 @@ export type ShareableProjectSettingsWriteField =
 
 export const SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS = [
   'preservePatterns',
-  'shellSetup',
   'scripts.prepare',
   'scripts.setup',
   'scripts.run',
@@ -124,7 +124,6 @@ export type MigrateProjectConfigResult = {
 export function emptyProjectSettingsOverrideState(): ProjectSettingsOverrideState {
   return {
     preservePatterns: [],
-    shellSetup: [],
     'scripts.prepare': [],
     'scripts.setup': [],
     'scripts.run': [],

@@ -2,14 +2,54 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { observe, remote, type RemoteModel } from '@emdash/wire/state';
+// oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import { scriptsContract } from '#runtimes/scripts/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import type { ScriptKind, ScriptRunState, ScriptWorkspaceFacts } from '#runtimes/scripts/api';
-import type { WorkspaceScriptRunner, WorkspaceScriptRunOutcome } from './script-runner';
 
 export type ScriptsClient = ContractClient<typeof scriptsContract>;
 
-const DEFAULT_SCRIPT_TIMEOUT_MS = 5 * 60 * 1000;
+export const DEFAULT_SCRIPT_TIMEOUT_MS = 5 * 60 * 1000;
 const FAILURE_TAIL_EXCERPT_LENGTH = 600;
+
+/**
+ * The activation manager's runner seam. The scripts-plane runner below is the one
+ * production implementation (spec: activation-scripts-via-terminals — one execution
+ * plane); tests inject fakes.
+ */
+export type WorkspaceScriptRunInput = {
+  id: string;
+  command: string;
+  cwd: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
+export type WorkspaceScriptRunOutcome =
+  | { status: 'succeeded'; outputTail: string }
+  | {
+      status: 'failed' | 'timed-out' | 'cancelled';
+      message: string;
+      exitCode?: number;
+      outputTail: string;
+    };
+
+export type WorkspaceScriptRunner = {
+  run(input: WorkspaceScriptRunInput): Promise<WorkspaceScriptRunOutcome>;
+};
+
+/** For registries constructed without a scripts client (tests): fail honestly. */
+export function unavailableScriptRunner(): WorkspaceScriptRunner {
+  return {
+    async run(input) {
+      return {
+        status: 'failed',
+        message: `Script "${input.id}" could not run: no scripts runtime is available`,
+        outputTail: '',
+      };
+    },
+  };
+}
 
 /** Folds the tail of a failed run's output into its human-facing message. */
 export function failureMessageWithTail(message: string, outputTail: string): string {

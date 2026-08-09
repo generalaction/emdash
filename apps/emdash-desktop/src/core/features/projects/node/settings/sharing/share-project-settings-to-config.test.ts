@@ -136,7 +136,6 @@ describe('shareProjectSettingsToConfig', () => {
           baseRemote: 'origin',
           tmux: true,
           preservePatterns: ['.env', '.env.local'],
-          shellSetup: 'nvm use',
           scripts: {
             setup: 'pnpm install',
             run: 'pnpm dev',
@@ -151,7 +150,7 @@ describe('shareProjectSettingsToConfig', () => {
       project as never,
       {
         target: { type: 'project' },
-        fields: ['preservePatterns', 'shellSetup', 'scripts.setup', 'scripts.run'],
+        fields: ['preservePatterns', 'scripts.setup', 'scripts.run'],
       },
       [projectTarget(fileSystem)]
     );
@@ -162,7 +161,6 @@ describe('shareProjectSettingsToConfig', () => {
       `${JSON.stringify(
         {
           preservePatterns: ['.env', '.env.local'],
-          shellSetup: 'nvm use',
           scripts: {
             setup: 'pnpm install',
             run: 'pnpm dev',
@@ -173,7 +171,7 @@ describe('shareProjectSettingsToConfig', () => {
       )}\n`
     );
     expect(patch).toHaveBeenCalledWith({
-      clearShareableFields: ['preservePatterns', 'shellSetup', 'scripts.setup', 'scripts.run'],
+      clearShareableFields: ['preservePatterns', 'scripts.setup', 'scripts.run'],
     });
   });
 
@@ -487,9 +485,9 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('excludes task targets that use the project root working directory', async () => {
     const projectRootFs = createMemoryFileSystem({
-      '.emdash.json': JSON.stringify({ shellSetup: 'root setup' }),
+      '.emdash.json': JSON.stringify({ scripts: { run: 'root run' } }),
       '/repo/.emdash/worktrees/task-two/.emdash.json': JSON.stringify({
-        shellSetup: 'worktree setup',
+        scripts: { run: 'worktree run' },
       }),
     });
     const findTaskWorktree = vi.fn();
@@ -562,12 +560,12 @@ describe('shareProjectSettingsToConfig', () => {
       },
     ]);
     expect(findTaskWorktree).not.toHaveBeenCalled();
-    expect(overrideState.shellSetup).toEqual([
-      { label: 'Repo Name', path: '/repo', value: 'root setup' },
+    expect(overrideState['scripts.run']).toEqual([
+      { label: 'Repo Name', path: '/repo', value: 'root run' },
       {
         label: 'Task Two',
         path: '/repo/.emdash/worktrees/task-two',
-        value: 'worktree setup',
+        value: 'worktree run',
       },
     ]);
   });
@@ -599,7 +597,6 @@ describe('shareProjectSettingsToConfig', () => {
     const projectFs = createMemoryFileSystem({
       '.emdash.json': JSON.stringify({
         preservePatterns: ['.env', '.env.local'],
-        shellSetup: 'nvm use',
         scripts: {
           setup: 'pnpm install',
           run: 'pnpm dev',
@@ -636,13 +633,6 @@ describe('shareProjectSettingsToConfig', () => {
           label: 'Repo Name',
           path: '/repo',
           value: '.env\n.env.local',
-        },
-      ],
-      shellSetup: [
-        {
-          label: 'Repo Name',
-          path: '/repo',
-          value: 'nvm use',
         },
       ],
       'scripts.prepare': [],

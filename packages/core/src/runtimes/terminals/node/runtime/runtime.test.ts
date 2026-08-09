@@ -116,91 +116,6 @@ class FakeShellResolver implements TerminalShellResolver {
 }
 
 describe('TerminalsRuntime', () => {
-  it('runs a script workflow node in a PTY and publishes retained state', async () => {
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope, now: () => 1000 });
-    const workspace = testWorkspace();
-    const promise = runtime.runWorkflow(
-      {
-        workspace,
-        kind: 'manual:setup',
-        nodes: [
-          {
-            id: 'setup',
-            label: 'Setup',
-            command: 'pnpm install',
-            cwd: '/repo',
-            env: {},
-          },
-        ],
-      },
-      liveJobContext('job-1')
-    );
-
-    await waitFor(() => spawner.processes.length === 1);
-    spawner.processes[0]!.emit('installing\n');
-    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
-
-    await expect(promise).resolves.toMatchObject({
-      success: true,
-      data: { completedNodes: ['setup'] },
-    });
-    expect(await workflowState(runtime, workspace)).toMatchObject({
-      workflowId: 'job-1',
-      kind: 'manual:setup',
-      phase: 'succeeded',
-      nodes: {
-        setup: {
-          status: 'done',
-          pid: 1,
-          awaitingOn: [],
-          exit: { exitCode: 0, signal: null },
-        },
-      },
-    });
-    const output = (await runtime.outputLog({ workspace, id: 'setup' }).snapshot()).data as {
-      text: string;
-    };
-    expect(output.text).toContain('installing');
-
-    await scope.dispose();
-  });
-
-  it('rejects overlapping different workflow kinds for the same workspace', async () => {
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
-    const workspace = testWorkspace();
-    const first = runtime.runWorkflow(
-      {
-        workspace,
-        kind: 'manual:setup',
-        nodes: [{ id: 'setup', command: 'echo setup', cwd: '/repo', env: {} }],
-      },
-      liveJobContext('job-1')
-    );
-    await waitFor(() => spawner.processes.length === 1);
-
-    await expect(
-      runtime.runWorkflow(
-        {
-          workspace,
-          kind: 'teardown',
-          nodes: [{ id: 'teardown', command: 'echo teardown', cwd: '/repo', env: {} }],
-        },
-        liveJobContext('job-2')
-      )
-    ).resolves.toMatchObject({
-      success: false,
-      error: { type: 'workflow-in-flight' },
-    });
-
-    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
-    await first;
-    await scope.dispose();
-  });
-
   it('publishes detected dev servers and prunes them when the session exits', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
@@ -211,22 +126,18 @@ describe('TerminalsRuntime', () => {
       portProbe: async () => true,
     });
     const workspace = testWorkspace();
-    const run = runtime.runWorkflow(
-      {
-        workspace,
-        kind: 'manual:run',
-        nodes: [{ id: 'run', command: 'pnpm dev', cwd: '/repo', env: {} }],
-      },
-      liveJobContext('job-1')
-    );
+    await runtime.start({
+      key: { workspace, id: 'terminal-1' },
+      spec: { cwd: '/repo', env: {} },
+    });
     await waitFor(() => spawner.processes.length === 1);
 
     spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
 
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
     expect(await devServers(runtime)).toEqual({
-      [`${workspaceKey(workspace)}:run:http::5173`]: {
-        key: { workspace, id: 'run' },
+      [`${workspaceKey(workspace)}:terminal-1:http::5173`]: {
+        key: { workspace, id: 'terminal-1' },
         protocol: 'http:',
         host: 'localhost',
         port: 5173,
@@ -236,7 +147,6 @@ describe('TerminalsRuntime', () => {
     });
 
     spawner.processes[0]!.exit({ exitCode: 0, signal: null });
-    await run;
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 0);
     await scope.dispose();
   });
@@ -308,57 +218,6 @@ describe('TerminalsRuntime', () => {
     });
 
     expect(result).toEqual({ success: true, data: undefined });
-    await scope.dispose();
-  });
-
-  it('keeps completable workflow nodes while reaping background nodes by policy', async () => {
-    const clock = createManualClock(0);
-    const spawner = new FakePtySpawner();
-    const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({
-      spawner,
-      scope,
-      clock,
-      lifecycle: {
-        backgroundScript: { kind: 'while-attached', graceMs: 1_000 },
-        sweepIntervalMs: 100,
-      },
-    });
-    const workspace = testWorkspace();
-    const completable = runtime.runWorkflow(
-      {
-        workspace,
-        kind: 'manual:setup',
-        nodes: [{ id: 'setup', command: 'pnpm install', cwd: '/repo', env: {} }],
-      },
-      liveJobContext('job-setup')
-    );
-    await waitFor(() => spawner.processes.length === 1);
-    const background = runtime.runWorkflow(
-      {
-        workspace: hostFileRef(LOCAL_HOST_REF, parseAbsoluteWorkspace('/repo-2')),
-        kind: 'manual:run',
-        nodes: [
-          {
-            id: 'run',
-            command: 'pnpm dev',
-            cwd: '/repo-2',
-            env: {},
-            lifecycle: 'background',
-          },
-        ],
-      },
-      liveJobContext('job-run')
-    );
-    await waitFor(() => spawner.processes.length === 2);
-
-    await clock.advanceBy(1_200);
-
-    expect(spawner.processes[0]!.isExited).toBe(false);
-    expect(spawner.processes[1]!.isExited).toBe(true);
-    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
-    await completable;
-    await background;
     await scope.dispose();
   });
 
@@ -459,14 +318,6 @@ describe('TerminalsRuntime', () => {
   });
 });
 
-function liveJobContext(jobId: string) {
-  return {
-    jobId,
-    signal: new AbortController().signal,
-    progress: () => {},
-  };
-}
-
 function testWorkspace(): HostFileRef {
   return hostFileRef(LOCAL_HOST_REF, parseAbsoluteWorkspace('/repo'));
 }
@@ -485,16 +336,6 @@ function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
     execStreaming: vi.fn().mockResolvedValue({ exitCode: 0 }),
     dispose: vi.fn(),
   };
-}
-
-async function workflowState(runtime: TerminalsRuntime, workspace: HostFileRef) {
-  const lease = runtime.workflowsHost.acquireState({ workspace }, 'state');
-  try {
-    const source = await lease.ready();
-    return (await source.snapshot()).data;
-  } finally {
-    await lease.release();
-  }
 }
 
 async function devServers(runtime: TerminalsRuntime) {

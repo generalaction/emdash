@@ -8,6 +8,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
 import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
@@ -18,6 +19,7 @@ import type {
   DeleteWorkspaceError,
   DeleteWorktreeError,
   MeasureUsageError,
+  RunScriptError,
   UpdateWorktreeError,
   WorkspaceNotFoundError,
 } from '../api/errors';
@@ -31,6 +33,7 @@ import type {
   MeasureUsageInput,
   RefreshWorkspacesInput,
   RetryStepInput,
+  RunScriptInput,
   UpdateWorktreeInput,
   WorkspaceGitSetup,
   WorkspaceLifecycleStep,
@@ -77,13 +80,15 @@ import {
   type WorktreeListing,
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
-import type { WorkspaceScriptRunner } from './script-runner';
 import {
   createScriptsPlaneRunner,
+  DEFAULT_SCRIPT_TIMEOUT_MS,
   failureMessageWithTail,
   ScriptRunsObserver,
+  unavailableScriptRunner,
   type ObservedScriptRun,
   type ScriptsClient,
+  type WorkspaceScriptRunner,
 } from './scripts-plane';
 import type { SessionCounter, SessionKiller } from './session-cleanup';
 import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
@@ -167,6 +172,7 @@ export class WorkspaceRegistryRuntime {
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
   private readonly activationManager: WorkspaceActivationManager;
+  private readonly scriptsClient: ScriptsClient | null;
   /** Observation is the single step-writer for script-class lifecycle steps. */
   private readonly scriptRuns: ScriptRunsObserver | null;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
@@ -179,6 +185,7 @@ export class WorkspaceRegistryRuntime {
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);
     this.countSessions = options.countSessions ?? (async () => 0);
+    this.scriptsClient = options.scripts ?? null;
     this.scriptRuns = options.scripts
       ? new ScriptRunsObserver({
           client: options.scripts,
@@ -261,7 +268,7 @@ export class WorkspaceRegistryRuntime {
               factsFor: (workspacePath) => this.scriptFactsFor(workspacePath),
               logger: this.logger,
             })
-          : undefined),
+          : unavailableScriptRunner()),
       teardownTimeoutMs: options.activation?.teardownTimeoutMs,
       // Scripts come from the config live model — no filesystem read inside the
       // activation verb. A missing entry (startup race) fills the model once.
@@ -1228,6 +1235,33 @@ export class WorkspaceRegistryRuntime {
     }
     const current = this.store.get(input.workspaceId) ?? record;
     return ok(this.toWire(current));
+  }
+
+  /**
+   * Manual/retry script run, brokered here so the request is host-built: facts from
+   * the record, the standard 5-minute timeout for everything but run. The run is
+   * detached — this verb returns once it started; observation writes its steps.
+   */
+  async runScript(input: RunScriptInput): Promise<Result<void, RunScriptError>> {
+    const record = this.store.get(input.workspaceId);
+    if (!record) {
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+    }
+    if (!this.scriptsClient) {
+      return err({ type: 'spawn-failed', message: 'No scripts runtime is available on this host' });
+    }
+    const facts = await this.scriptFactsFor(record.path);
+    const started = await this.scriptsClient.start({
+      workspacePath: record.path,
+      script: input.script,
+      provenance: input.provenance,
+      facts,
+      // Run scripts are dev-server-shaped: no timeout; everything else gets the
+      // same 5-minute box activation applies.
+      ...(input.script === 'run' ? {} : { timeoutMs: DEFAULT_SCRIPT_TIMEOUT_MS }),
+    });
+    if (!started.success) return err(started.error);
+    return ok(undefined);
   }
 
   /**

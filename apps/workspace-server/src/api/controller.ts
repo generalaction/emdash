@@ -64,7 +64,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     fileSearch: forwardContractImpl(workspaceWireContract.fileSearch, deps.runtimes.fileSearch),
     files: forwardContractImpl(workspaceWireContract.files, deps.runtimes.files),
     git: forwardContractImpl(workspaceWireContract.git, deps.runtimes.git),
-    hostSettings: forwardContractImpl(workspaceWireContract.hostSettings, deps.runtimes.hostSettings),
+    hostSettings: forwardContractImpl(
+      workspaceWireContract.hostSettings,
+      deps.runtimes.hostSettings
+    ),
     scripts: forwardContractImpl(workspaceWireContract.scripts, deps.runtimes.scripts),
     resourceUsage: forwardContractImpl(
       workspaceWireContract.resourceUsage,

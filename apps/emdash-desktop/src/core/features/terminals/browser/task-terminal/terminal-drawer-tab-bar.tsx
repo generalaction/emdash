@@ -51,10 +51,10 @@ interface TerminalDrawerTabBarProps {
 
 const SCRIPT_STATUS_MAP: Record<LifecycleScriptStatus, ScriptStatusKind> = {
   idle: 'waiting',
-  pending: 'waiting',
   running: 'in-progress',
   succeeded: 'success',
   failed: 'error',
+  cancelled: 'cancelled',
 };
 
 export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({

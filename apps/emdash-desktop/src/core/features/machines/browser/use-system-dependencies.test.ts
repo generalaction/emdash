@@ -6,7 +6,7 @@ import {
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import { expose, flushStateTurn, peek, query } from '@emdash/wire/state';
+import { cell, expose, flushStateTurn, peek, query } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { JSDOM } from 'jsdom';
@@ -149,11 +149,16 @@ function createMachinesWire() {
     { current: snapshot },
     { mutations: { refresh } }
   );
+  const hostSettings = expose(machinesContract.hostSettings, {
+    current: () => cell({ settings: {}, parseError: false }),
+  });
   const wire = createTestWire(machinesContract, {
     getMachines: async () => [],
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
     systemDependencies,
+    hostSettings,
+    updateHostSettings: async () => ok({ settings: {}, parseError: false }),
     installSystemDependencies: {
       run: async () => ok({}),
       toError: (error: unknown) => ({

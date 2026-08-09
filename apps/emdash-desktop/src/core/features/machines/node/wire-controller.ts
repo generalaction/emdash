@@ -8,6 +8,7 @@ import {
 import { err, ok } from '@emdash/shared';
 import { createController, type Controller, type LiveModelProvider } from '@emdash/wire/rpc';
 import type { MachinesService } from '@core/features/machines/api/node/machines-service';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 import type { InstallMachineSystemDependenciesResult } from '../api';
 import { machinesContract } from '../api';
@@ -63,6 +64,15 @@ export function createMachinesWireController(
         type: 'io',
         message: error instanceof Error ? error.message : String(error),
       }),
+    },
+    hostSettings: forwardLiveModel(machinesContract.hostSettings, async (key, name) => {
+      const runtime = await resolveMachineRuntime(runtimes, key.machineId);
+      // The upstream live model is itself named `state` on the host-settings contract.
+      return runtime.hostSettings.state.state(undefined, name).asLiveSource();
+    }),
+    updateHostSettings: async ({ machineId, patch }) => {
+      const runtime = await resolveMachineRuntime(runtimes, machineId);
+      return runtime.hostSettings.update(patch);
     },
     saveMachine: (input) => service.saveMachine(input),
     deleteMachine: ({ id }) => service.deleteMachine(id),

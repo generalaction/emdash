@@ -1,8 +1,12 @@
+import { scriptsContract } from '@emdash/core/runtimes/scripts/api';
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  nativePathFromHost,
+} from '@core/primitives/desktop-runtime/api';
 import type {
   DirectPreviewServerHost,
   PreviewServer,
@@ -10,7 +14,11 @@ import type {
   PreviewServerSource,
 } from '@core/primitives/preview-servers/api';
 import { parsePtySessionId } from '@core/primitives/pty/api';
-import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
+import {
+  createLifecycleScriptTerminalId,
+  lifecycleScriptNodeIdFromTerminalId,
+} from '@core/primitives/terminals/api';
+import type { ScriptsRuntimeClient, TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 
 export type DevServerBridge = {
@@ -61,24 +69,36 @@ export type DevServerBridgeDependencies = {
   ): Promise<{ projectId: string; workspaceId: string } | null | undefined>;
 };
 
+export type DevServerBridgeClient = {
+  terminals: TerminalsRuntimeClient;
+  scripts: ScriptsRuntimeClient;
+};
+
 export async function createDevServerBridge(
-  client: TerminalsRuntimeClient,
+  client: DevServerBridgeClient,
   dependencies: DevServerBridgeDependencies,
   hostContext: DevServerHostContext
 ): Promise<DevServerBridge> {
   let previous = new Map<string, TerminalDevServer>();
+  let terminalList: TerminalDevServerList = {};
+  let scriptList: TerminalDevServerList = {};
   let syncChain = Promise.resolve();
   let disposed = false;
   const scope = createScope({ label: 'dev-server-bridge' });
-  const devServers = remote(terminalsContract.devServers, client.devServers, {
+  const devServers = remote(terminalsContract.devServers, client.terminals.devServers, {
     scope,
     lingerMs: 15_000,
   });
   const member = devServers(undefined);
+  const scriptDevServers = remote(scriptsContract.devServers, client.scripts.devServers, {
+    scope,
+    lingerMs: 15_000,
+  });
+  const scriptMember = scriptDevServers(undefined);
   const stopHandler = async (server: PreviewServer) => {
     const devServer = await findDevServerForPreview(dependencies, previous, server);
     if (!devServer) return;
-    const result = await client.sendInput({ key: devServer.key, data: '\x03' });
+    const result = await sendInterrupt(client, devServer);
     if (!result.success) {
       log.warn('dev-server-bridge: failed to interrupt dev server terminal', {
         terminalId: devServer.key.id,
@@ -90,28 +110,61 @@ export async function createDevServerBridge(
     stopHandlerKey(hostContext),
     stopHandler
   );
+  const enqueueSync = () => {
+    const list: TerminalDevServerList = { ...terminalList, ...scriptList };
+    const next = new Map(Object.entries(list));
+    syncChain = syncChain
+      .then(async () => {
+        try {
+          await syncDevServers(dependencies, previous, list, hostContext);
+        } finally {
+          previous = next;
+        }
+      })
+      .catch((error) => {
+        log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
+      });
+  };
 
   try {
     observe(
       member.states.list,
       (snapshot) => {
-        const list: TerminalDevServerList = snapshot.value ?? {};
-        const next = new Map(Object.entries(list));
-        syncChain = syncChain
-          .then(async () => {
-            try {
-              await syncDevServers(dependencies, previous, list, hostContext);
-            } finally {
-              previous = next;
-            }
-          })
-          .catch((error) => {
-            log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
-          });
+        terminalList = snapshot.value ?? {};
+        enqueueSync();
+      },
+      { scope }
+    );
+    observe(
+      scriptMember.states.list,
+      (snapshot) => {
+        // Script keys have no host ref; project them onto the terminal shape so the
+        // rest of the bridge (workspace resolution, preview sources) stays uniform.
+        scriptList = Object.fromEntries(
+          Object.entries(snapshot.value ?? {}).map(([id, server]) => [
+            `script:${id}`,
+            {
+              key: {
+                workspace: hostFileRefFromNativePath(
+                  server.key.workspacePath,
+                  hostContext.transport === 'ssh' ? hostContext.connectionId : undefined
+                ),
+                id: createLifecycleScriptTerminalId(server.key.script),
+              },
+              protocol: server.protocol,
+              host: server.host,
+              port: server.port,
+              urlPath: server.urlPath,
+              detectedAt: server.detectedAt,
+            } satisfies TerminalDevServer,
+          ])
+        );
+        enqueueSync();
       },
       { scope }
     );
     await whenReady(member.states.list, { scope });
+    await whenReady(scriptMember.states.list, { scope });
     await syncChain;
   } catch (error) {
     unregisterStopHandler();
@@ -244,6 +297,25 @@ async function findDevServerForPreview(
     return devServer;
   }
   return undefined;
+}
+
+/**
+ * Stop through whichever plane owns the PTY: lifecycle-script servers go through
+ * the scripts runtime's stop verb (the one cancel control, so the run settles as
+ * cancelled in the timeline); interactive terminals get a Ctrl-C.
+ */
+function sendInterrupt(
+  client: DevServerBridgeClient,
+  devServer: TerminalDevServer
+): Promise<{ success: boolean; error?: unknown }> {
+  const script = lifecycleScriptNodeIdFromTerminalId(devServer.key.id);
+  if (script === 'prepare' || script === 'setup' || script === 'run' || script === 'teardown') {
+    return client.scripts.stop({
+      workspacePath: nativePathFromHost(devServer.key.workspace.path),
+      script,
+    });
+  }
+  return client.terminals.sendInput({ key: devServer.key, data: '\x03' });
 }
 
 function stopHandlerKey(hostContext: DevServerHostContext): string {

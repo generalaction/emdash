@@ -11,7 +11,6 @@ export const terminalsComponentConfigSchema = z.object({
   lifecycle: z
     .object({
       terminal: idlePolicyConfigSchema.optional(),
-      backgroundScript: idlePolicyConfigSchema.optional(),
       sweepIntervalMs: z.number().int().positive().optional(),
     })
     .optional(),

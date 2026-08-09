@@ -7,6 +7,7 @@ import {
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
   measureUsageErrorSchema,
+  runScriptErrorSchema,
   updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
@@ -20,6 +21,7 @@ import {
   measureUsageInputSchema,
   refreshWorkspacesInputSchema,
   retryStepInputSchema,
+  runScriptInputSchema,
   updateWorktreeInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
@@ -86,6 +88,19 @@ export const workspaceRegistryContract = defineContract({
     input: retryStepInputSchema,
     data: workspaceRecordSchema,
     error: workspaceNotFoundErrorSchema,
+  }),
+
+  /**
+   * Manual/retry lifecycle-script run: the registry builds the request from its
+   * record (facts, default timeout) and starts it on the scripts runtime — clients
+   * never resolve env, settings, or shellSetup themselves. The run is detached and
+   * lands in the timeline through observation like every other run; a same-script
+   * start while one is running is rejected (stop it first).
+   */
+  runScript: fallible({
+    input: runScriptInputSchema,
+    data: z.void(),
+    error: runScriptErrorSchema,
   }),
 
   /**

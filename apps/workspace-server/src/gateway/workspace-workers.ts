@@ -122,7 +122,6 @@ export async function createWorkspaceServerRuntimeHost(
       env,
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
-        backgroundScript: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
     })
   );

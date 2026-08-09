@@ -2,9 +2,10 @@
 
 ## Main Files
 
-- `src/main/core/projects/worktrees/worktree-service.ts`
-- `src/main/core/projects/project-manager.ts`
-- `src/main/core/terminals/runLifecycleScript.ts`
+- `packages/core/src/runtimes/workspace-registry/` (creation pipeline, lifecycle steps, activation)
+- `packages/core/src/runtimes/scripts/` (lifecycle script execution)
+- `packages/core/src/runtimes/host-settings/` (per-host defaults)
+- `src/core/features/workspaces/` (desktop wire controllers and UI)
 - `.emdash.json`
 
 ## Current Behavior
@@ -35,7 +36,8 @@
 - `scripts.setup`
 - `scripts.run`
 - `scripts.teardown`
-- `shellSetup`
+- `shellSetup` (per-workspace override of the host-settings default; the per-project DB
+  field was retired)
 
 Base project settings are DB-backed Project Settings, not runtime `.emdash.json` keys:
 
@@ -44,6 +46,11 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 - `baseRemote`
 - `pushRemote`
 - `tmux`
+
+Host-level defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
+runtime (`packages/core/src/runtimes/host-settings/`), stored as a JSON file in the
+host's emdash data directory and editable from the machines/system settings UI.
+Precedence is per-project DB override, then host settings, then app defaults.
 
 ## Rules
 
@@ -55,6 +62,12 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
   settle before running, since they may consume preserved files
 - `scripts.setup` and `scripts.run` are runtime-triggered after `scripts.prepare` succeeds; they do
   not block task readiness
-- `shellSetup` runs inside each PTY before the interactive shell starts
+- lifecycle scripts execute in the dedicated scripts runtime
+  (`packages/core/src/runtimes/scripts/`) on the host: PTY-backed, one run per
+  (workspace, script), with provenance (`activation`/`manual`/`retry`), per-run timeouts,
+  and a stop verb; the workspace registry observes runs and mirrors them into durable
+  lifecycle steps for the Activity timeline
+- `shellSetup` runs inside each PTY before the interactive shell starts; the workspace's
+  `.emdash.json` value overrides the host-settings default
 - tmux wrapping has an app level default but is also project-configurable in Project Settings and affects PTY lifecycle behavior.
 - `preservePatterns` never copies tracked files or `.emdash.json`

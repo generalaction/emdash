@@ -1,6 +1,10 @@
 import type { ContractClient } from '@emdash/wire/rpc';
 import { domainClient } from '@core/primitives/wire/browser/connection';
 import {
+  lifecycleScriptsDomain,
+  lifecycleScriptsWireContract,
+} from '../lifecycle-scripts-wire-contract';
+import {
   projectSettingsContract,
   projectSettingsDomain,
   projectWorkspacesContract,
@@ -34,4 +38,10 @@ export type ProjectSettingsClient = ContractClient<typeof projectSettingsContrac
 
 export function getProjectSettingsClient(): Promise<ProjectSettingsClient> {
   return domainClient<ProjectSettingsClient>(projectSettingsDomain, projectSettingsContract);
+}
+
+export type LifecycleScriptsClient = ContractClient<typeof lifecycleScriptsWireContract>;
+
+export function getLifecycleScriptsClient(): Promise<LifecycleScriptsClient> {
+  return domainClient<LifecycleScriptsClient>(lifecycleScriptsDomain, lifecycleScriptsWireContract);
 }

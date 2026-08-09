@@ -2,12 +2,7 @@ import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash
 import { z } from 'zod';
 import { terminalShellAvailabilityListSchema } from '#primitives/terminal-shell/api';
 import {
-  scriptWorkflowsDefinitions,
-  terminalScopeInputSchema,
-} from '#services/script-workflows/api';
-import {
   startTerminalInputSchema,
-  scriptWorkflowStateSchema,
   killTmuxSessionsInputSchema,
   shellAvailabilityFailedErrorSchema,
   terminalControlInputSchema,
@@ -22,7 +17,6 @@ import {
 } from './schemas';
 
 export const terminalsContract = defineContract({
-  ...scriptWorkflowsDefinitions,
   start: fallible({
     input: startTerminalInputSchema,
     data: z.void(),
@@ -32,12 +26,6 @@ export const terminalsContract = defineContract({
     input: z.void().optional(),
     data: terminalShellAvailabilityListSchema,
     error: shellAvailabilityFailedErrorSchema,
-  }),
-  workflows: liveModel({
-    key: terminalScopeInputSchema,
-    states: {
-      state: liveState({ data: scriptWorkflowStateSchema.nullable() }),
-    },
   }),
   output: liveLog({
     key: terminalKeySchema,

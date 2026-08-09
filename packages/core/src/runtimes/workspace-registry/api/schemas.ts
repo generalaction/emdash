@@ -424,3 +424,18 @@ export const retryStepInputSchema = z.object({
   step: retryableLifecycleStepSchema,
 });
 export type RetryStepInput = z.infer<typeof retryStepInputSchema>;
+
+/**
+ * Manual/retry script run, brokered by the registry: the registry builds the
+ * request (facts, timeout) from its record and starts the run on the scripts
+ * runtime — clients never resolve env or settings themselves (spec:
+ * activation-scripts-via-terminals, the manual path). The run itself lands in
+ * the same scripts-runtime scope as activation runs and mirrors into the
+ * timeline through observation like every other run.
+ */
+export const runScriptInputSchema = z.object({
+  workspaceId: z.string().min(1),
+  script: z.enum(['prepare', 'setup', 'run', 'teardown']),
+  provenance: z.enum(['manual', 'retry']),
+});
+export type RunScriptInput = z.infer<typeof runScriptInputSchema>;

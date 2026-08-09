@@ -1,3 +1,8 @@
+import {
+  hostSettingsErrorSchema,
+  hostSettingsStateSchema,
+  updateHostSettingsInputSchema,
+} from '@emdash/core/runtimes/host-settings/api';
 import { resourceUsageSampleSchema } from '@emdash/core/runtimes/resource-usage/api';
 import type {
   DependencyStatus,
@@ -15,6 +20,7 @@ import type { Result } from '@emdash/shared';
 import { resultSchema } from '@emdash/shared';
 import {
   defineContract,
+  fallible,
   liveJob,
   liveModel,
   liveState,
@@ -101,6 +107,21 @@ export const machinesContract = defineContract({
     progress: hostDependencyOperationProgressSchema,
     result: z.record(z.string(), systemDependencyInstallResult),
     error: hostDependencyErrorSchema,
+  }),
+  /**
+   * Per-host defaults (shellSetup, worktree root, tmux) from the host-settings
+   * runtime; the live model also reflects out-of-band edits to the settings file.
+   */
+  hostSettings: liveModel({
+    key: hostInput,
+    states: {
+      current: liveState({ data: hostSettingsStateSchema }),
+    },
+  }),
+  updateHostSettings: fallible({
+    input: hostInput.extend({ patch: updateHostSettingsInputSchema }),
+    data: hostSettingsStateSchema,
+    error: hostSettingsErrorSchema,
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),

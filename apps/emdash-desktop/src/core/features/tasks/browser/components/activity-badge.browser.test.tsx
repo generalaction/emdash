@@ -48,7 +48,11 @@ describe('ActivityBadgeView', () => {
 
   async function render(
     steps: WorkspaceLifecycleStepInfo[],
-    handlers: { onOpenScript?: (script: string) => void; onRetryPush?: () => void } = {}
+    handlers: {
+      onOpenScript?: (script: string) => void;
+      onRetryPush?: () => void;
+      onRetryScript?: (script: string) => void;
+    } = {}
   ) {
     await act(async () => {
       root.render(
@@ -56,6 +60,7 @@ describe('ActivityBadgeView', () => {
           steps={steps}
           onOpenScript={handlers.onOpenScript ?? (() => {})}
           onRetryPush={handlers.onRetryPush ?? (() => {})}
+          onRetryScript={handlers.onRetryScript ?? (() => {})}
           now={NOW}
         />
       );
@@ -67,7 +72,8 @@ describe('ActivityBadgeView', () => {
   }
 
   async function openPopover(): Promise<void> {
-    await act(async () => badge()!.click());
+    // The popover survives re-renders; clicking an open trigger would toggle it closed.
+    if (rows().length === 0) await act(async () => badge()!.click());
   }
 
   function rows(): HTMLElement[] {
@@ -186,8 +192,27 @@ describe('ActivityBadgeView', () => {
     await openPopover();
 
     const setupRow = rows().find((row) => row.dataset.step === 'setup')!;
-    expect(setupRow.tagName).toBe('BUTTON');
-    await act(async () => setupRow.click());
+    const open = setupRow.querySelector<HTMLButtonElement>('button[title="Open script output"]')!;
+    await act(async () => open.click());
     expect(onOpenScript).toHaveBeenCalledWith('setup');
+  });
+
+  it('a failed script step exposes a retry action that starts a fresh manual run', async () => {
+    const onRetryScript = vi.fn();
+    await render([step('prepare', 'succeeded'), step('setup', 'failed', { message: 'exit 1' })], {
+      onRetryScript,
+    });
+    await openPopover();
+
+    // Succeeded script rows stay retry-free; only the failure gets the affordance.
+    const prepareRow = rows().find((row) => row.dataset.step === 'prepare')!;
+    expect(prepareRow.textContent).not.toContain('Retry');
+
+    const setupRow = rows().find((row) => row.dataset.step === 'setup')!;
+    const retry = Array.from(setupRow.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Retry')
+    );
+    await act(async () => retry!.click());
+    expect(onRetryScript).toHaveBeenCalledWith('setup');
   });
 });

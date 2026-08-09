@@ -11,11 +11,21 @@ import {
   type EmdashScriptsConfig,
 } from '#primitives/emdash-config/api';
 import { readConfigFile } from '#services/config-model/node';
+import {
+  wireTerminalUrlDetector,
+  type DetectedPreviewUrl,
+  type TerminalPortProbe,
+} from '#services/preview-detection/node';
 import { buildTerminalEnv, PtyRegistry, type PtySpawner } from '#services/pty/api';
 import { scriptsContract } from '../api/contract';
 import type { ScriptRunNotFoundError, StartScriptRunError } from '../api/errors';
 import type {
+  ScriptDevServer,
+  ScriptDevServerList,
+  ScriptKind,
+  ScriptRunInput,
   ScriptRunKey,
+  ScriptRunResizeInput,
   ScriptRunState,
   ScriptRuns,
   StartScriptRunInput,
@@ -51,8 +61,16 @@ export type ScriptsRuntimeOptions = {
   readConfig: (workspacePath: string) => Promise<WorkspaceScriptsConfig>;
   /** The host-settings default shellSetup; `.emdash.json` overrides it when present. */
   defaultShellSetup?: () => Promise<string | undefined>;
+  /** Test seam for the dev-server URL detector's port liveness probe. */
+  portProbe?: TerminalPortProbe;
   now?: () => number;
   logger?: Logger;
+};
+
+type PreviewSource = {
+  emitData(chunk: string): void;
+  emitExit(): void;
+  dispose(): void;
 };
 
 type ActiveRun = {
@@ -87,19 +105,28 @@ export class ScriptsRuntime {
       },
     }
   );
+  private readonly devServersList: Cell<ScriptDevServerList> = cell({});
+  readonly devServersHost: LeasedLiveModelProvider<typeof scriptsContract.devServers> = expose(
+    scriptsContract.devServers,
+    { list: this.devServersList },
+    { publish: { list: 'diff' } }
+  );
 
   private readonly registry: PtyRegistry;
   private readonly readConfig: (workspacePath: string) => Promise<WorkspaceScriptsConfig>;
   private readonly defaultShellSetup: (() => Promise<string | undefined>) | undefined;
+  private readonly portProbe: TerminalPortProbe | undefined;
   private readonly now: () => number;
   private readonly logger: Logger;
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly active = new Map<string, ActiveRun>();
+  private readonly previewSources = new Map<string, PreviewSource>();
 
   constructor(options: ScriptsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner);
     this.readConfig = options.readConfig;
     this.defaultShellSetup = options.defaultShellSetup;
+    this.portProbe = options.portProbe;
     this.now = options.now ?? Date.now;
     this.logger = options.logger ?? noopLogger;
   }
@@ -153,8 +180,10 @@ export class ScriptsRuntime {
           onData: (chunk) => {
             outputTail = appendOutputTail(outputTail, chunk);
             this.updateRun(input, runId, (run) => ({ ...run, outputTail }));
+            this.previewSourceFor(input).emitData(chunk);
           },
           onExit: (info) => {
+            this.closePreviewSource(runKey);
             const run = this.active.get(runKey);
             if (run?.runId === runId) {
               if (run.timer) clearTimeout(run.timer);
@@ -265,6 +294,20 @@ export class ScriptsRuntime {
     return ok(undefined);
   }
 
+  sendInput(input: ScriptRunInput): Result<void, ScriptRunNotFoundError> {
+    if (!this.registry.write(runKeyFor(input), input.data)) {
+      return err(notRunning(input.script));
+    }
+    return ok(undefined);
+  }
+
+  resize(input: ScriptRunResizeInput): Result<void, ScriptRunNotFoundError> {
+    if (!this.registry.resize(runKeyFor(input), input.cols, input.rows)) {
+      return err(notRunning(input.script));
+    }
+    return ok(undefined);
+  }
+
   outputLog(key: ScriptRunKey): LiveSource {
     return this.logFor(key);
   }
@@ -276,7 +319,10 @@ export class ScriptsRuntime {
     this.registry.killAll();
     this.active.clear();
     this.logs.clear();
+    for (const source of this.previewSources.values()) source.dispose();
+    this.previewSources.clear();
     void this.runsHost.dispose();
+    void this.devServersHost.dispose();
     void this.runStates.dispose();
   }
 
@@ -306,10 +352,102 @@ export class ScriptsRuntime {
     }
     return log;
   }
+
+  /** Same detection interactive terminals get: URLs in run output become dev servers. */
+  private previewSourceFor(key: ScriptRunKey): PreviewSource {
+    const runKey = runKeyFor(key);
+    const existing = this.previewSources.get(runKey);
+    if (existing) return existing;
+
+    const dataHandlers: Array<(chunk: string) => void> = [];
+    const exitHandlers: Array<() => void> = [];
+    const stopDetector = wireTerminalUrlDetector({
+      pty: {
+        onData(handler) {
+          dataHandlers.push(handler);
+        },
+        onExit(handler) {
+          exitHandlers.push(handler);
+        },
+      },
+      ...(this.portProbe ? { portProbe: this.portProbe } : {}),
+      onDetected: (server) => this.upsertDevServer(runKey, key, server),
+      onSourceClosed: (event) => {
+        if (event.reason === 'local-probe-failed') {
+          this.devServersList.update((previous) =>
+            omitKey(previous, devServerKeyFor(runKey, event.server))
+          );
+        } else {
+          this.pruneDevServers(runKey);
+        }
+      },
+    });
+
+    const source: PreviewSource = {
+      emitData(chunk) {
+        for (const handler of dataHandlers) handler(chunk);
+      },
+      emitExit() {
+        for (const handler of exitHandlers) handler();
+      },
+      dispose: stopDetector,
+    };
+    this.previewSources.set(runKey, source);
+    return source;
+  }
+
+  private closePreviewSource(runKey: string): void {
+    const source = this.previewSources.get(runKey);
+    if (source) {
+      source.emitExit();
+      source.dispose();
+      this.previewSources.delete(runKey);
+    }
+    this.pruneDevServers(runKey);
+  }
+
+  private upsertDevServer(runKey: string, key: ScriptRunKey, server: DetectedPreviewUrl): void {
+    const record: ScriptDevServer = {
+      key,
+      protocol: server.protocol,
+      host: server.host,
+      port: server.port,
+      urlPath: server.urlPath,
+      detectedAt: this.now(),
+    };
+    this.devServersList.update((previous) => ({
+      ...previous,
+      [devServerKeyFor(runKey, server)]: record,
+    }));
+  }
+
+  private pruneDevServers(runKey: string): void {
+    const prefix = `${runKey}:`;
+    this.devServersList.update((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(prefix)))
+    );
+  }
+}
+
+function devServerKeyFor(runKey: string, server: DetectedPreviewUrl): string {
+  return `${runKey}:${server.protocol}:${server.port}`;
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const { [key]: _removed, ...rest } = record;
+  return rest;
 }
 
 function runKeyFor(key: ScriptRunKey): string {
   return `${key.workspacePath}\u0000${key.script}`;
+}
+
+function notRunning(script: ScriptKind): ScriptRunNotFoundError {
+  return {
+    type: 'not-found',
+    message: `Script '${script}' is not running for this workspace`,
+  };
 }
 
 function spawnSpec(input: {

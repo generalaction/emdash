@@ -14,6 +14,7 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
     measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
     refresh: (input) => runtime.refresh(input),
     retryStep: (input) => runtime.retryStep(input),
+    runScript: (input) => runtime.runScript(input),
     updateWorktree: (input) => runtime.updateWorktree(input),
   });
 }

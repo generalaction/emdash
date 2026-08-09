@@ -85,9 +85,8 @@ async function readHostSessionSummary(
             ).terminals.sessions
               .state(undefined, 'list')
               .snapshot();
-            return Object.values(snapshot.data).filter(
-              (session) => session.status === 'running' && session.kind === 'terminal'
-            ).length;
+            return Object.values(snapshot.data).filter((session) => session.status === 'running')
+              .length;
           },
           0
         )

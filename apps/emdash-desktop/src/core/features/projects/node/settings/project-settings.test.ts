@@ -190,13 +190,14 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: ['.env.local'],
-      shellSetup: 'nvm use',
       scripts: {
         setup: 'pnpm install',
         run: 'pnpm dev',
         teardown: 'pnpm cleanup',
       },
     });
+    // shellSetup was retired from project settings: stored/migrated values are inert.
+    await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
     expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
   });
 
@@ -230,12 +231,12 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const provider = makeLocalProvider(projectPath, { git });
 
     await expect(provider.get()).resolves.toMatchObject({
-      shellSetup: 'nvm use',
       scripts: {
         setup: 'pnpm install',
         run: 'pnpm dev',
       },
     });
+    await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
     expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));
 
     const result = await provider.update({ preservePatterns: [] });

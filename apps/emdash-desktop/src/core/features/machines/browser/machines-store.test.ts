@@ -355,11 +355,16 @@ function setup(
     getSshConfigHost: async ({ alias }) => ({ host: alias }),
     testConnection: async () => ({ success: true }),
   });
+  const hostSettings = expose(machinesContract.hostSettings, {
+    current: () => cell({ settings: {}, parseError: false }),
+  });
   const machinesWire = createTestWire(machinesContract, {
     getMachines: async () => options.saved ?? [],
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
     systemDependencies,
+    hostSettings,
+    updateHostSettings: async () => ok({ settings: {}, parseError: false }),
     installSystemDependencies: {
       run: installSystemDependencies,
       toError: (error) => ({

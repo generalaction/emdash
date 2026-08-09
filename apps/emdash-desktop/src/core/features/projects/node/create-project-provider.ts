@@ -36,6 +36,7 @@ import {
   gitFilePath,
   repositorySelector,
 } from '@core/services/runtime-broker/node/git';
+import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
@@ -111,11 +112,16 @@ export async function createProvider(
       projectFiles,
       {
         git: gitInspector,
+        // Host settings (per-host defaults) win over the desktop-wide app defaults;
+        // the per-project DB fields stay as overrides on top of both.
         getProjectDefaults: async () => ({
-          tmuxByDefault: (await dependencies.getProjectDefaults()).tmuxByDefault,
+          tmuxByDefault:
+            (await hostSettingsDefaults(runtime.data.hostSettings)).tmux ??
+            (await dependencies.getProjectDefaults()).tmuxByDefault,
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
         defaultWorktreeDirectory: async () =>
+          (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ??
           (await dependencies.getProjectDefaults()).defaultWorktreeDirectory,
         worktreeDirectoryFileSystem: {
           mkdir: async (targetPath, options) => {

@@ -24,9 +24,6 @@ vi.mock('@core/features/files/api/browser/file-content', () => ({
   }),
 }));
 
-vi.mock('@core/features/terminals/api/browser/client', () => ({
-  getTerminalsClient: vi.fn(() => new Promise(() => {})),
-}));
 vi.mock('@core/features/workspaces/api/browser/client', async (importOriginal) => {
   const actual = await importOriginal<typeof WorkspacesClientModule>();
   return {
@@ -34,6 +31,7 @@ vi.mock('@core/features/workspaces/api/browser/client', async (importOriginal) =
     getProjectSettingsClient: async () => ({
       getSettings,
     }),
+    getLifecycleScriptsClient: vi.fn(() => new Promise(() => {})),
   };
 });
 
@@ -75,12 +73,11 @@ describe('LifecycleScriptStore', () => {
     fileWatch.unsubscribe.mockClear();
   });
 
-  it('tracks script running state from workflow status updates', () => {
+  it('tracks script running state from run status updates', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
-      'workspace-1',
-      undefined
+      'workspace-1'
     );
 
     expect(store.isRunning).toBe(false);
@@ -100,8 +97,7 @@ describe('LifecycleScriptStore', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
-      'workspace-1',
-      undefined
+      'workspace-1'
     );
 
     store.dispose();
@@ -182,5 +178,28 @@ describe('LifecycleScriptsStore', () => {
     await (store as unknown as { load(): Promise<void> }).load();
 
     expect(store.tabs).toEqual([]);
+  });
+
+  it('maps runs-model states onto tab statuses, idling scripts with no run', async () => {
+    getSettings.mockResolvedValueOnce(ok({ scripts: { setup: 'pnpm install', run: 'pnpm dev' } }));
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1', '/workspace');
+    await (store as unknown as { load(): Promise<void> }).load();
+
+    const apply = (
+      store as unknown as { handleRunsState(runs: Record<string, unknown>): void }
+    ).handleRunsState.bind(store);
+
+    apply({ setup: { status: 'running' } });
+    expect(store.tabs.map((tab) => tab.status)).toEqual(['running', 'idle']);
+    expect(store.runningScript?.data.type).toBe('setup');
+
+    apply({ setup: { status: 'timed-out' }, run: { status: 'cancelled' } });
+    expect(store.tabs.map((tab) => tab.status)).toEqual(['failed', 'cancelled']);
+    expect(store.failedScript?.data.type).toBe('setup');
+
+    apply({});
+    expect(store.tabs.map((tab) => tab.status)).toEqual(['idle', 'idle']);
+
+    store.dispose();
   });
 });

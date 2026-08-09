@@ -27,7 +27,7 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - **skills** — Skills service and controller
 - **ssh** — SSH connection management, credentials, config parsing, client proxy
 - **tasks** — Task CRUD (create, delete, archive, restore, provision)
-- **terminals** — Terminal lifecycle with provider pattern (`local-terminal-provider.ts`, `ssh-terminal-provider.ts`), lifecycle scripts
+- **terminals** — Terminal lifecycle with provider pattern (`local-terminal-provider.ts`, `ssh-terminal-provider.ts`); lifecycle scripts run in the host scripts runtime (`packages/core/src/runtimes/scripts/`)
 - **updates** — Auto-update service
 
 ## Other Main Process Areas

@@ -81,17 +81,6 @@ export const SHAREABLE_FIELD_ACCESSORS = {
       return value?.length ? value.join('\n') : null;
     },
   },
-  shellSetup: {
-    path: ['shellSetup'],
-    get: (settings) => settings.shellSetup,
-    set: (settings, value) => {
-      settings.shellSetup = value as string | undefined;
-    },
-    clear: (settings) => {
-      delete settings.shellSetup;
-    },
-    displayValue: (settings) => displayText(settings.shellSetup),
-  },
   'scripts.prepare': {
     path: ['scripts', 'prepare'],
     get: (settings) => settings.scripts?.prepare,

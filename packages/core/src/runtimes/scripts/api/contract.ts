@@ -2,7 +2,10 @@ import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash
 import { z } from 'zod';
 import { scriptRunNotFoundErrorSchema, startScriptRunErrorSchema } from './errors';
 import {
+  scriptDevServerListSchema,
+  scriptRunInputSchema,
   scriptRunKeySchema,
+  scriptRunResizeInputSchema,
   scriptRunStateSchema,
   scriptRunsSchema,
   scriptsScopeInputSchema,
@@ -33,6 +36,14 @@ export const scriptsContract = defineContract({
     key: scriptRunKeySchema,
   }),
 
+  /** Dev-server URLs detected in run output, host-wide (the desktop preview bridge reads this). */
+  devServers: liveModel({
+    key: z.void().optional(),
+    states: {
+      list: liveState({ data: scriptDevServerListSchema }),
+    },
+  }),
+
   /**
    * Starts a run and returns once it is spawned (status 'running'). The command,
    * shellSetup, and env are host-resolved: the command from the workspace's
@@ -58,6 +69,19 @@ export const scriptsContract = defineContract({
    */
   stop: fallible({
     input: stopScriptRunInputSchema,
+    data: z.void(),
+    error: scriptRunNotFoundErrorSchema,
+  }),
+
+  /** Keyboard input into an in-flight run — scripts run without CI=1 and may prompt. */
+  sendInput: fallible({
+    input: scriptRunInputSchema,
+    data: z.void(),
+    error: scriptRunNotFoundErrorSchema,
+  }),
+
+  resize: fallible({
+    input: scriptRunResizeInputSchema,
     data: z.void(),
     error: scriptRunNotFoundErrorSchema,
   }),

@@ -3,11 +3,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type EmdashScriptsConfig } from '#primitives/emdash-config/api';
 import type { WorkspaceRuntimeOverlay } from '../api/schemas';
 import { readWorkspaceConfig } from './config-model';
-import {
-  createWorkspaceScriptRunner,
-  DEFAULT_WORKSPACE_SCRIPT_TIMEOUT_MS,
-  type WorkspaceScriptRunner,
-} from './script-runner';
+import { DEFAULT_SCRIPT_TIMEOUT_MS, type WorkspaceScriptRunner } from './scripts-plane';
 
 type WorkspaceActivation = NonNullable<WorkspaceRuntimeOverlay['activation']>;
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
@@ -51,7 +47,8 @@ export type WorkspaceActivationManagerOptions = {
    * before the setup→run chain; workspaces without those scripts never wait.
    */
   awaitArtifacts?: (id: string) => Promise<void>;
-  runner?: WorkspaceScriptRunner;
+  /** The single execution plane: production wires the scripts-plane runner. */
+  runner: WorkspaceScriptRunner;
   /**
    * Script resolution seam: the registry runtime serves this from its config live
    * model so no filesystem read sits inside the activation verb. The default reads
@@ -89,12 +86,12 @@ export class WorkspaceActivationManager {
 
   constructor(options: WorkspaceActivationManagerOptions) {
     this.options = options;
-    this.runner = options.runner ?? createWorkspaceScriptRunner();
+    this.runner = options.runner;
     this.awaitArtifacts = options.awaitArtifacts ?? (async () => undefined);
     this.readScripts = options.readScripts ?? readWorkspaceScripts;
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
-    this.teardownTimeoutMs = options.teardownTimeoutMs ?? DEFAULT_WORKSPACE_SCRIPT_TIMEOUT_MS;
+    this.teardownTimeoutMs = options.teardownTimeoutMs ?? DEFAULT_SCRIPT_TIMEOUT_MS;
   }
 
   isActive(id: string): boolean {

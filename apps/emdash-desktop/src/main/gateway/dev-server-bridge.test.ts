@@ -11,10 +11,13 @@ describe('createDevServerBridgeParticipant', () => {
   it('creates one bridge per attached host and disposes each bridge on detach', async () => {
     const localTerminals = { host: 'local' };
     const remoteTerminals = { host: 'remote' };
+    const localScripts = { host: 'local-scripts' };
+    const remoteScripts = { host: 'remote-scripts' };
     const client = vi.fn(async (host: { type: string }) => ({
       success: true as const,
       data: {
         terminals: host.type === 'local' ? localTerminals : remoteTerminals,
+        scripts: host.type === 'local' ? localScripts : remoteScripts,
       },
     }));
     const localBridge = { dispose: vi.fn(async () => {}) };
@@ -34,11 +37,16 @@ describe('createDevServerBridgeParticipant', () => {
 
     expect(client).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
     expect(client).toHaveBeenNthCalledWith(2, remoteHost);
-    expect(createBridge).toHaveBeenNthCalledWith(1, localTerminals, { transport: 'local' });
-    expect(createBridge).toHaveBeenNthCalledWith(2, remoteTerminals, {
-      transport: 'ssh',
-      connectionId: 'connection-1',
-    });
+    expect(createBridge).toHaveBeenNthCalledWith(
+      1,
+      { terminals: localTerminals, scripts: localScripts },
+      { transport: 'local' }
+    );
+    expect(createBridge).toHaveBeenNthCalledWith(
+      2,
+      { terminals: remoteTerminals, scripts: remoteScripts },
+      { transport: 'ssh', connectionId: 'connection-1' }
+    );
 
     await participant.detach(remoteHost);
     expect(remoteBridge.dispose).toHaveBeenCalledOnce();

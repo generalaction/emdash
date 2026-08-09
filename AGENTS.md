@@ -342,9 +342,15 @@ pnpm run test
   `src/core/features/skills/browser/` and `src/core/features/skills/node/`.
 - Worktree runtime settings can be supplied through `.emdash.json`:
  `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
- `scripts.teardown`, and `shellSetup`.
+ `scripts.teardown`, and `shellSetup` (a per-workspace override of the host default).
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
   `pushRemote`, and `tmux` are DB-backed, not `.emdash.json`.
+- Per-host defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
+  runtime (`packages/core/src/runtimes/host-settings/`), stored as JSON in the host's
+  emdash data directory and editable from the machines/system settings UI.
+- Lifecycle scripts run in the scripts runtime (`packages/core/src/runtimes/scripts/`);
+  the workspace registry sequences activation scripts through it and observes runs into
+  durable lifecycle steps.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
   `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.

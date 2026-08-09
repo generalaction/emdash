@@ -7,6 +7,14 @@ import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- contract tests wire a real scripts runtime behind the registry, mirroring host composition (activation-scripts-via-terminals spec)
+import { scriptsContract } from '#runtimes/scripts/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
+import { createScriptsController } from '#runtimes/scripts/node/api/controller';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
+import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+// oxlint-disable-next-line emdash/core-module-boundaries -- see above
+import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
   workspaceRegistryStore,
@@ -48,6 +56,8 @@ describe('workspace registry deleteWorktree', () => {
   let root: string;
   let handle: TempStoreHandle<WorkspaceRegistryDb>;
   let clock: ManualClock;
+  let scriptsRuntime: ScriptsRuntime;
+  let scriptsWire: TestWire<typeof scriptsContract>;
   let runtime: WorkspaceRegistryRuntime;
   let wire: TestWire<typeof workspaceRegistryContract>;
   let killedPaths: string[];
@@ -57,12 +67,18 @@ describe('workspace registry deleteWorktree', () => {
     handle = await workspaceRegistryStore.openTemp();
     clock = new ManualClock(10_000);
     killedPaths = [];
+    scriptsRuntime = new ScriptsRuntime({
+      spawner: new ChildProcessPtySpawner(),
+      readConfig: readWorkspaceScriptsConfig,
+    });
+    scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({
       handle,
       clock,
       killSessions: async (workspacePath) => {
         killedPaths.push(workspacePath);
       },
+      scripts: scriptsWire.client,
     });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
@@ -70,6 +86,8 @@ describe('workspace registry deleteWorktree', () => {
   afterEach(async () => {
     wire.dispose();
     runtime.dispose();
+    scriptsWire.dispose();
+    scriptsRuntime.dispose();
     handle.close();
     await fs.rm(root, { recursive: true, force: true });
   });
@@ -207,7 +225,7 @@ describe('workspace registry deleteWorktree', () => {
   function rebuildRuntime() {
     wire.dispose();
     runtime.dispose();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   }
 

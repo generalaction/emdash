@@ -12,7 +12,10 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
+import {
+  getLifecycleScriptsClient,
+  getWorkspaceRegistryWireClient,
+} from '@core/features/workspaces/api/browser/client';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -107,6 +110,9 @@ export type ActivityBadgeViewProps = {
   onOpenScript: (script: ScriptStepId) => void;
   onRetryPush: () => void;
   isRetryingPush?: boolean;
+  /** Starts a fresh manual run with provenance 'retry' — the drawer's play button's mechanism. */
+  onRetryScript: (script: ScriptStepId) => void;
+  retryingScript?: ScriptStepId | null;
   /** Test seam: relative labels are pure given a fixed now. */
   now?: number;
 };
@@ -116,6 +122,8 @@ export function ActivityBadgeView({
   onOpenScript,
   onRetryPush,
   isRetryingPush = false,
+  onRetryScript,
+  retryingScript = null,
   now = Date.now(),
 }: ActivityBadgeViewProps) {
   // fetch-refs is durable but advisory — never displayed; skipped steps are hidden.
@@ -182,17 +190,34 @@ export function ActivityBadgeView({
             </>
           );
           if (SCRIPT_STEP_IDS.has(step.id)) {
+            const script = step.id as ScriptStepId;
+            const isRetryingScript = retryingScript === script;
             return (
-              <button
+              <div
                 key={step.id}
-                type="button"
                 data-step={step.id}
-                title="Open script output"
-                onClick={() => onOpenScript(step.id as ScriptStepId)}
-                className="hover:bg-muted/30 flex items-start gap-2 rounded-md p-1.5 text-left transition-colors"
+                className="hover:bg-muted/30 flex items-start gap-2 rounded-md p-1.5 transition-colors"
               >
-                {body}
-              </button>
+                <button
+                  type="button"
+                  title="Open script output"
+                  onClick={() => onOpenScript(script)}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                >
+                  {body}
+                </button>
+                {step.status === 'failed' ? (
+                  <button
+                    type="button"
+                    disabled={isRetryingScript}
+                    onClick={() => onRetryScript(script)}
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-foreground-muted transition-colors hover:text-foreground disabled:opacity-60"
+                  >
+                    {isRetryingScript ? <Spinner size="sm" /> : <RotateCcw className="size-2.5" />}
+                    Retry
+                  </button>
+                ) : null}
+              </div>
             );
           }
           return (
@@ -228,6 +253,7 @@ export const ActivityBadge = observer(function ActivityBadge({
   const workspace = useWorkspace();
   const taskView = useTaskComposition();
   const [isRetrying, setIsRetrying] = useState(false);
+  const [retryingScript, setRetryingScript] = useState<ScriptStepId | null>(null);
   const steps = taskStore?.workspaceLifecycle;
   if (!taskStore || !steps) return null;
 
@@ -239,6 +265,29 @@ export const ActivityBadge = observer(function ActivityBadge({
     scripts?.setActiveTab(tabId);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id: tabId });
     taskView.chrome.commands.openTerminalDrawer();
+  };
+
+  // The same mechanism as the drawer's play button: a fresh manual run against the
+  // scripts plane, marked as a retry. Progress arrives through the timeline itself.
+  const retryScript = async (script: ScriptStepId) => {
+    const workspaceId = taskStore.workspaceId;
+    if (!workspaceId) return;
+    setRetryingScript(script);
+    try {
+      const client = await getLifecycleScriptsClient();
+      const result = await client.start({ workspaceId, script, provenance: 'retry' });
+      if (!result.success) {
+        throw new Error(
+          'message' in result.error ? result.error.message : 'The workspace no longer exists'
+        );
+      }
+    } catch (error) {
+      toast.error(`Could not retry the ${script} script`, {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setRetryingScript(null);
+    }
   };
 
   const retryPush = async () => {
@@ -273,6 +322,8 @@ export const ActivityBadge = observer(function ActivityBadge({
       onOpenScript={openScript}
       onRetryPush={() => void retryPush()}
       isRetryingPush={isRetrying}
+      onRetryScript={(script) => void retryScript(script)}
+      retryingScript={retryingScript}
     />
   );
 });
