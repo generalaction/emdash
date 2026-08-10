@@ -9,7 +9,7 @@ import { Button, RelativeTime } from '@emdash/ui/react/primitives';
 import { PlusIcon } from 'lucide-react';
 import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import type { WorkspacesScope } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import { useWorkspaceRows } from '@core/features/workspaces/api/browser/use-workspace-rows';
 import {
@@ -79,10 +79,13 @@ export const WorkspacesListView = observer(function WorkspacesListView({
   const { workspaceQuery, groups } = workspaceRows;
 
   // Bridge query data into the view's sync source: the getter reads this box,
-  // so the list pipeline re-derives whenever fresh groups arrive.
-  const [itemsBox] = useState(() => observable.box<WorkspacesListItem[]>([], { deep: false }));
+  // so the list pipeline re-derives whenever fresh groups arrive. Seeded at
+  // mount and updated before paint so fresh data never flashes the empty state.
+  const [itemsBox] = useState(() =>
+    observable.box<WorkspacesListItem[]>(buildWorkspaceItems(groups), { deep: false })
+  );
   const [view] = useState(() => createWorkspacesListView(() => itemsBox.get()));
-  useEffect(() => {
+  useLayoutEffect(() => {
     runInAction(() => itemsBox.set(buildWorkspaceItems(groups)));
   }, [groups, itemsBox]);
 
