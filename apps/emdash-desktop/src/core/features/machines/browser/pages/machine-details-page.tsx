@@ -98,7 +98,8 @@ export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDeta
       scope={{ kind: 'machine', machineId }}
       connected={machine ? getMachinesStore().stateFor(machine.id) === 'connected' : false}
       machineName={machine?.name}
-      {...props}
+      projectId={props.detailId}
+      onDeletedAll={props.closeDetail}
     />
   );
 });

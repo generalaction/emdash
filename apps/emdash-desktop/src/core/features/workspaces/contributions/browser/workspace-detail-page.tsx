@@ -13,7 +13,6 @@ import { useCallback, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
-import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import type {
   ProjectWorkspaceGitStats,
   ProjectWorkspacePathIssue,
@@ -133,15 +132,18 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   scope,
   connected,
   machineName,
-  detailId,
-  closeDetail,
+  projectId,
+  onDeletedAll,
 }: {
   scope: WorkspacesScope;
   connected: boolean;
   machineName?: string;
-} & SettingsPageDetailProps) {
+  projectId: string;
+  /** Called after a full successful project-wide delete; settings hosts navigate back, the project tab stays. */
+  onDeletedAll?: () => void;
+}) {
   const openConfirm = useOpenModal('confirmActionModal');
-  const workspaceRows = useWorkspaceRows({ scope, projectId: detailId, enabled: connected });
+  const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: connected });
   const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
@@ -197,7 +199,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         });
       } else {
         toast(`Deleted ${deletableRows.length} workspaces`);
-        closeDetail();
+        onDeletedAll?.();
       }
       // No cache invalidation: the mirror live model streams the deletions.
     } catch (error) {
@@ -205,7 +207,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         description: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [closeDetail, group, openConfirm]);
+  }, [group, onDeletedAll, openConfirm]);
 
   if (!connected) return <DetailOfflineState machineName={machineName} />;
   if (workspaceQuery.isLoading) return <DetailLoadingState />;

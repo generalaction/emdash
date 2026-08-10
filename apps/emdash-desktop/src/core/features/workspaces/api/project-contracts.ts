@@ -6,7 +6,6 @@ import type {
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceActionSummary,
-  ProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
 
 export const projectSettingsDomain = 'projectSettings' as const;
@@ -21,19 +20,12 @@ export const projectSettingsContract = defineContract({
 export const projectWorkspacesDomain = 'projectWorkspaces' as const;
 
 /**
- * Mirror-served workspace reads (planning ticket 09): both live models are DB reads
+ * Mirror-served workspace reads (planning ticket 09): the live model is a DB read
  * poked by app-db changes — the registry sync keeps the mirror fresh, so no read here
  * ever scans a host. Disk usage stays an on-demand measurement.
  */
 export const projectWorkspacesContract = defineContract({
-  /** Project detail view rows, live from the mirror. */
-  projectWorkspaceList: liveModel({
-    key: z.object({ projectId: z.string() }),
-    states: {
-      list: liveState({ data: z.custom<ProjectWorkspacesResult>() }),
-    },
-  }),
-  /** Machines-page grouping: one group per project on the host, live from the mirror. */
+  /** Workspace grouping: one group per project on the host, live from the mirror. */
   workspaceGroups: liveModel({
     key: z.object({ hostKey: z.string() }),
     states: {

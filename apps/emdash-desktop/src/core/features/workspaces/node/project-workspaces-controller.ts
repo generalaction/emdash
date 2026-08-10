@@ -4,10 +4,7 @@ import {
   listHostWorkspaceGroups,
   type WorkspaceGroupsHostKey,
 } from './operations/list-host-workspace-groups';
-import {
-  listProjectWorkspaces,
-  type ListProjectWorkspacesDependencies,
-} from './operations/list-project-workspaces';
+import type { ListProjectWorkspacesDependencies } from './operations/list-project-workspaces';
 import { measureProjectWorkspaces } from './operations/measure-project-workspaces';
 
 export type ProjectWorkspaceOperationDependencies = ListProjectWorkspacesDependencies & {
@@ -18,7 +15,6 @@ export function createProjectWorkspaceOperations(
   dependencies: ProjectWorkspaceOperationDependencies
 ) {
   return {
-    listProjectWorkspaces: (projectId: string) => listProjectWorkspaces(dependencies, projectId),
     listHostWorkspaceGroups: (hostKey: WorkspaceGroupsHostKey) =>
       listHostWorkspaceGroups(dependencies, hostKey),
     measureProjectWorkspaces: (input: Parameters<typeof measureProjectWorkspaces>[1]) =>

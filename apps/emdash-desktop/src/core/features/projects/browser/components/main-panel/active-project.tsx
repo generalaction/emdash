@@ -7,7 +7,7 @@ import {
 import { PullRequestView } from '@core/features/projects/browser/components/pr-view/pr-view';
 import { SettingsPanel } from '@core/features/projects/browser/components/settings-view/settings-panel';
 import { TaskList } from '@core/features/projects/browser/components/task-view/task-list';
-import { WorkspacesView } from '@core/features/projects/browser/components/workspaces-view/workspaces-view';
+import { ProjectWorkspacesView } from '@core/features/projects/browser/components/workspaces-view/project-workspaces-view';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
@@ -77,7 +77,7 @@ export const ActiveProject = observer(function ActiveProject() {
             <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
               {activeView === 'tasks' && <TaskList />}
               {activeView === 'pull-request' && <PullRequestView />}
-              {activeView === 'workspaces' && <WorkspacesView projectId={projectId} />}
+              {activeView === 'workspaces' && <ProjectWorkspacesView projectId={projectId} />}
               {activeView === 'settings' && <SettingsPanel />}
             </div>
           </div>
