@@ -2,6 +2,8 @@ import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-pr
 import {
   openPortForwardTunnel,
   type OpenPortForwardTunnelOptions,
+  type PortForwardProbe,
+  type PortForwardProbeResult,
   type PortForwardTunnel,
 } from './port-forward-tunnel';
 
@@ -13,6 +15,7 @@ export type OpenPortForwardRequest = {
   proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
   remotePort: number;
   preferredLocalPort?: number;
+  probe?: PortForwardProbe;
 };
 
 export type PortForwardRecord = {
@@ -29,6 +32,8 @@ type PortForwardEntry = PortForwardRecord & {
 };
 
 export type PortForwardConnectionErrorHandler = (id: string, error: Error) => void;
+export type PortForwardProbeResultHandler = (id: string, result: PortForwardProbeResult) => void;
+export type PortForwardConnectionEstablishedHandler = (id: string) => void;
 
 export class PortForwardService {
   private readonly tunnels = new Map<string, PortForwardEntry>();
@@ -37,6 +42,9 @@ export class PortForwardService {
   ) => Promise<PortForwardTunnel>;
   private readonly onTunnelClosed?: (id: string) => void;
   private readonly connectionErrorHandlers = new Set<PortForwardConnectionErrorHandler>();
+  private readonly probeResultHandlers = new Set<PortForwardProbeResultHandler>();
+  private readonly connectionEstablishedHandlers =
+    new Set<PortForwardConnectionEstablishedHandler>();
 
   constructor(
     options: {
@@ -57,6 +65,16 @@ export class PortForwardService {
     return () => this.connectionErrorHandlers.delete(handler);
   }
 
+  onProbeResult(handler: PortForwardProbeResultHandler): () => void {
+    this.probeResultHandlers.add(handler);
+    return () => this.probeResultHandlers.delete(handler);
+  }
+
+  onConnectionEstablished(handler: PortForwardConnectionEstablishedHandler): () => void {
+    this.connectionEstablishedHandlers.add(handler);
+    return () => this.connectionEstablishedHandlers.delete(handler);
+  }
+
   async open(request: OpenPortForwardRequest): Promise<PortForwardRecord> {
     const existing = this.tunnels.get(request.id);
     if (existing) return toRecord(existing);
@@ -66,6 +84,9 @@ export class PortForwardService {
       remotePort: request.remotePort,
       preferredLocalPort: request.preferredLocalPort,
       onConnectionError: (error) => this.emitConnectionError(request.id, error),
+      probe: request.probe,
+      onProbeResult: (result) => this.emitProbeResult(request.id, result),
+      onConnectionEstablished: () => this.emitConnectionEstablished(request.id),
     });
     const entry: PortForwardEntry = {
       id: request.id,
@@ -105,6 +126,18 @@ export class PortForwardService {
   private emitConnectionError(id: string, error: Error): void {
     for (const handler of this.connectionErrorHandlers) {
       handler(id, error);
+    }
+  }
+
+  private emitProbeResult(id: string, result: PortForwardProbeResult): void {
+    for (const handler of this.probeResultHandlers) {
+      handler(id, result);
+    }
+  }
+
+  private emitConnectionEstablished(id: string): void {
+    for (const handler of this.connectionEstablishedHandlers) {
+      handler(id);
     }
   }
 }

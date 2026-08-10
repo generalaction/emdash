@@ -35,7 +35,10 @@ export const PreviewServerPill = observer(function PreviewServerPill({
   const taskView = useTaskComposition();
   const url = previewServerUrl(server);
   const hasUrl = url !== null;
-  const canOpen = server.status.kind === 'ready' && hasUrl;
+  // 'not-listening' is advisory: the tunnel is open, so opening the URL is a
+  // legitimate retry (a successful dial flips the status back to ready).
+  const canOpen =
+    (server.status.kind === 'ready' || server.status.kind === 'not-listening') && hasUrl;
   const title = hasUrl
     ? `${previewServerStatusLabel(server)} at ${url}`
     : `${previewServerStatusLabel(server)} for ${formatPreviewServerLabel(server)}`;
@@ -78,6 +81,11 @@ export const PreviewServerPill = observer(function PreviewServerPill({
           ) : null}
           {server.status.kind === 'failed' ? (
             <div className="mt-1 text-xs text-foreground-destructive">{server.status.message}</div>
+          ) : null}
+          {server.status.kind === 'not-listening' ? (
+            <div className="mt-1 text-xs text-foreground-warning">
+              Remote port not listening yet
+            </div>
           ) : null}
         </div>
         <DropdownMenu.Separator />

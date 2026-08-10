@@ -19,6 +19,7 @@ import type { ConnectionState } from '@core/primitives/ssh/api';
 import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import { PortForwardService, type PortForwardRecord } from './port-forward-service';
+import type { PortForwardProbe, PortForwardProbeResult } from './port-forward-tunnel';
 
 export type DetectedPreviewUrl = {
   protocol: PreviewServerProtocol;
@@ -62,6 +63,12 @@ type PreviewMetadata = {
 type PreviewSshRuntime = {
   getConnectionState: (connectionId: string) => ConnectionState;
   getSshProxy: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
+  /**
+   * One-shot advisory inspection of a remote port through the host's pinned
+   * workspace-server wire client. Absent or rejecting means "no hint": the
+   * tunnel keeps its blind dual-family dial.
+   */
+  inspectRemotePort?: (connectionId: string, remotePort: number) => Promise<PortForwardProbeResult>;
 };
 
 /**
@@ -78,6 +85,7 @@ export class PreviewServerService {
   private readonly emit: (event: PreviewServerEvent) => void;
   private sshRuntime: PreviewSshRuntime | undefined;
   private readonly stopTerminalServerHandlers = new Map<string, StopTerminalServerHandler>();
+  private readonly notListeningTunnels = new Set<string>();
 
   constructor({
     emit,
@@ -95,6 +103,12 @@ export class PreviewServerService {
           error: String(handlerError),
         });
       });
+    });
+    this.portForwards.onProbeResult((tunnelId, result) => {
+      this.handlePortForwardProbeResult(tunnelId, result);
+    });
+    this.portForwards.onConnectionEstablished((tunnelId) => {
+      this.handlePortForwardEstablished(tunnelId);
     });
   }
 
@@ -156,6 +170,7 @@ export class PreviewServerService {
       proxy: proxyResult.data,
       remotePort: request.remotePort,
       preferredLocalPort: request.preferredLocalPort ?? request.remotePort,
+      probe: this.probeFor(request.connectionId),
     });
     if (!forwardResult.success) {
       if (!this.servers.has(id)) return err(manualForwardCancelledError());
@@ -172,7 +187,7 @@ export class PreviewServerService {
     const next: PreviewServer = {
       ...current,
       localPort: forwardResult.data.localPort,
-      status: { kind: 'ready' },
+      status: this.statusForOpenedTunnel(tunnelId),
     };
     this.servers.set(next.id, next);
     this.emit({ type: 'upsert', server: next });
@@ -248,7 +263,10 @@ export class PreviewServerService {
     const metadata = this.metadata.get(id);
     this.metadata.delete(id);
     if (metadata) this.identities.delete(metadata.identity);
-    if (metadata?.tunnelId) await this.portForwards.stop(metadata.tunnelId);
+    if (metadata?.tunnelId) {
+      this.notListeningTunnels.delete(metadata.tunnelId);
+      await this.portForwards.stop(metadata.tunnelId);
+    }
     this.emit({ type: 'remove', id });
     if (interrupt && server.source.kind === 'terminal-output') {
       const handlerKey = server.kind === 'direct' ? 'local' : server.connectionId;
@@ -277,6 +295,7 @@ export class PreviewServerService {
 
     try {
       await this.portForwards.stop(metadata.tunnelId);
+      this.notListeningTunnels.delete(metadata.tunnelId);
       const proxy = await this.getSshProxy(server.connectionId);
       const forward = await this.portForwards.open({
         id: metadata.tunnelId,
@@ -286,6 +305,7 @@ export class PreviewServerService {
         proxy,
         remotePort: server.remotePort,
         preferredLocalPort: server.localPort ?? server.remotePort,
+        probe: this.probeFor(server.connectionId),
       });
       const current = this.servers.get(id);
       if (!current || current.kind !== 'forwarded') {
@@ -295,7 +315,7 @@ export class PreviewServerService {
       const next: PreviewServer = {
         ...current,
         localPort: forward.localPort,
-        status: { kind: 'ready' },
+        status: this.statusForOpenedTunnel(metadata.tunnelId),
       };
       this.servers.set(id, next);
       this.emit({ type: 'upsert', server: next });
@@ -400,6 +420,7 @@ export class PreviewServerService {
         proxy,
         remotePort: target.port,
         preferredLocalPort: target.port,
+        probe: this.probeFor(target.connectionId),
       });
       const current = this.servers.get(server.id);
       if (!current || current.kind !== 'forwarded') {
@@ -410,7 +431,7 @@ export class PreviewServerService {
       const next: ForwardedPreviewServer = {
         ...current,
         localPort: forward.localPort,
-        status: { kind: 'ready' },
+        status: this.statusForOpenedTunnel(tunnelId),
       };
       this.servers.set(next.id, next);
       this.emit({ type: 'upsert', server: next });
@@ -450,6 +471,40 @@ export class PreviewServerService {
     await Promise.all(ids.map((id) => this.removeServer(id, { interrupt: false })));
   }
 
+  private handlePortForwardProbeResult(tunnelId: string, result: PortForwardProbeResult): void {
+    if (result.listening) {
+      this.notListeningTunnels.delete(tunnelId);
+      return;
+    }
+
+    this.notListeningTunnels.add(tunnelId);
+    const server = this.serverForTunnel(tunnelId);
+    // A tunnel still opening resolves its status through statusForOpenedTunnel.
+    if (!server || server.kind !== 'forwarded' || server.status.kind !== 'ready') return;
+    const next: PreviewServer = { ...server, status: { kind: 'not-listening' } };
+    this.servers.set(next.id, next);
+    this.emit({ type: 'upsert', server: next });
+  }
+
+  private handlePortForwardEstablished(tunnelId: string): void {
+    if (!this.notListeningTunnels.delete(tunnelId)) return;
+    const server = this.serverForTunnel(tunnelId);
+    if (!server || server.kind !== 'forwarded' || server.status.kind !== 'not-listening') return;
+    const next: PreviewServer = { ...server, status: { kind: 'ready' } };
+    this.servers.set(next.id, next);
+    this.emit({ type: 'upsert', server: next });
+  }
+
+  private statusForOpenedTunnel(tunnelId: string): PreviewServer['status'] {
+    return this.notListeningTunnels.has(tunnelId) ? { kind: 'not-listening' } : { kind: 'ready' };
+  }
+
+  private probeFor(connectionId: string): PortForwardProbe | undefined {
+    const inspect = this.sshRuntime?.inspectRemotePort;
+    if (!inspect) return undefined;
+    return (remotePort) => inspect(connectionId, remotePort);
+  }
+
   private async handlePortForwardConnectionError(tunnelId: string, error: Error): Promise<void> {
     const server = this.serverForTunnel(tunnelId);
     if (!server || server.kind !== 'forwarded') return;
@@ -463,6 +518,7 @@ export class PreviewServerService {
       error: String(error),
     });
 
+    this.notListeningTunnels.delete(tunnelId);
     await this.portForwards.stop(tunnelId);
     const current = this.servers.get(server.id);
     if (!current || current.kind !== 'forwarded') return;
@@ -516,6 +572,7 @@ export class PreviewServerService {
     proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
     remotePort: number;
     preferredLocalPort: number;
+    probe?: PortForwardProbe;
   }): Promise<Result<PortForwardRecord, ManualPreviewServerError>> {
     try {
       return ok(await this.portForwards.open(request));

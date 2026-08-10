@@ -3,7 +3,7 @@ import { Transform } from 'node:stream';
 import type { ClientChannel } from 'ssh2';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
-import { openPortForwardTunnel } from './port-forward-tunnel';
+import { openPortForwardTunnel, type PortForwardProbeResult } from './port-forward-tunnel';
 
 class EchoChannel extends Transform {
   override _transform(
@@ -311,6 +311,153 @@ describe('openPortForwardTunnel', () => {
     } finally {
       await tunnel.close();
     }
+  });
+
+  describe('advisory probe', () => {
+    const flushProbe = () => new Promise((resolve) => setImmediate(resolve));
+
+    it('dials the IPv6 loopback first when the probe reports an IPv6-only listener', async () => {
+      const { proxy, calls } = makeFamilyAwareProxy('::1');
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: async () => ({ listening: true, families: ['ipv6'] }),
+      });
+
+      try {
+        await flushProbe();
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        expect(calls).toEqual([{ remoteHost: '::1', remotePort: 5173 }]);
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('keeps the per-connection family fallback when the probe hint is wrong', async () => {
+      const { proxy, calls } = makeFamilyAwareProxy('127.0.0.1');
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: async () => ({ listening: true, families: ['ipv6'] }),
+      });
+
+      try {
+        await flushProbe();
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        expect(calls).toEqual([
+          { remoteHost: '::1', remotePort: 5173 },
+          { remoteHost: '127.0.0.1', remotePort: 5173 },
+        ]);
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('keeps the default dial order when the probe reports both families', async () => {
+      const { proxy, calls } = makeFamilyAwareProxy('127.0.0.1');
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: async () => ({ listening: true, families: ['ipv4', 'ipv6'] }),
+      });
+
+      try {
+        await flushProbe();
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        expect(calls).toEqual([{ remoteHost: '127.0.0.1', remotePort: 5173 }]);
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('opens the tunnel without waiting when the probe never resolves', async () => {
+      const { proxy, calls } = makeProxy();
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: () => new Promise<PortForwardProbeResult>(() => {}),
+      });
+
+      try {
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        expect(calls).toEqual([
+          { sourceHost: '127.0.0.1', sourcePort: 0, remoteHost: '127.0.0.1', remotePort: 5173 },
+        ]);
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('falls back to the blind dual-family dial when the probe rejects', async () => {
+      const { proxy, calls } = makeFamilyAwareProxy('::1');
+      const probeResults: PortForwardProbeResult[] = [];
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: async () => {
+          throw new Error('probe unavailable');
+        },
+        onProbeResult: (result) => probeResults.push(result),
+      });
+
+      try {
+        await flushProbe();
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        expect(calls).toEqual([
+          { remoteHost: '127.0.0.1', remotePort: 5173 },
+          { remoteHost: '::1', remotePort: 5173 },
+        ]);
+        expect(probeResults).toEqual([]);
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('opens the tunnel and reports the probe result when nothing is listening', async () => {
+      const { proxy } = makeProxy();
+      const probeResults: PortForwardProbeResult[] = [];
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        probe: async () => ({ listening: false, families: [] }),
+        onProbeResult: (result) => probeResults.push(result),
+      });
+
+      try {
+        await flushProbe();
+        expect(probeResults).toEqual([{ listening: false, families: [] }]);
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+      } finally {
+        await tunnel.close();
+      }
+    });
+
+    it('reports established connections so a stale not-listening state can clear', async () => {
+      const { proxy } = makeProxy();
+      let established = 0;
+
+      const tunnel = await openPortForwardTunnel({
+        proxy,
+        remotePort: 5173,
+        onConnectionEstablished: () => {
+          established += 1;
+        },
+      });
+
+      try {
+        await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(established).toBe(1);
+      } finally {
+        await tunnel.close();
+      }
+    });
   });
 
   it('closes local sockets without an uncaught exception when the remote port refuses connections', async () => {

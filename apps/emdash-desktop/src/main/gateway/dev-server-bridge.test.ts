@@ -98,4 +98,28 @@ describe('createDevServerBridgeParticipant', () => {
     await participant.detach(LOCAL_HOST_REF);
     expect(bridge.dispose).toHaveBeenCalledOnce();
   });
+
+  it('retries a transient remote bridge failure inside the attachment', async () => {
+    vi.useFakeTimers();
+    const bridge = { dispose: vi.fn(async () => {}) };
+    const client = vi.fn(async () => ({ success: true, data: { terminals: {} } }));
+    const createBridge = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('bridge unavailable'))
+      .mockResolvedValueOnce(bridge);
+    const participant = createDevServerBridgeParticipant({
+      runtimes: { client } as unknown as Pick<RuntimeBroker, 'client'>,
+      createBridge,
+    });
+    const host = hostRef('remote', 'connection-1');
+
+    const attaching = participant.attach(host);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await attaching;
+
+    expect(client).toHaveBeenCalledTimes(2);
+    expect(createBridge).toHaveBeenCalledTimes(2);
+    await participant.detach(host);
+    expect(bridge.dispose).toHaveBeenCalledOnce();
+  });
 });

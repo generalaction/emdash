@@ -1,5 +1,6 @@
 import { isLocalHostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import { AccountAuthServerClient } from '@core/features/account/node/services/account-auth-server-client';
@@ -80,6 +81,7 @@ import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/syn
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
+import { isServerUsable } from '@core/services/hosts/api';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
@@ -186,6 +188,21 @@ export async function bootServices(
       const proxy = infrastructure.ssh.manager.getProxy(connectionId);
       if (!proxy) throw new Error(`SSH connection ${connectionId} is not available`);
       return proxy;
+    },
+    inspectRemotePort: async (connectionId, remotePort) => {
+      // Advisory only: rejections here mean "no hint" to the tunnel, which
+      // then keeps its blind dual-family dial. The usability guard keeps the
+      // probe from triggering workspace-server provisioning as a side effect.
+      if (!isServerUsable(infrastructure.hosts.stateModel.get(connectionId))) {
+        throw new Error(`No usable workspace server for SSH connection ${connectionId}`);
+      }
+      const connection = await infrastructure.hosts.client(connectionId);
+      const inspected = await runWithTimeout(
+        () => connection.client.portForwards.inspect({ port: remotePort }),
+        { timeoutMs: 2_000 }
+      );
+      if (!inspected.success) throw new Error(inspected.error.message);
+      return inspected.data;
     },
   });
   const handleSshConnectionEvent = (

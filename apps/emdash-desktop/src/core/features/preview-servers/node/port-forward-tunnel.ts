@@ -22,36 +22,92 @@ export type PortForwardTunnel = {
   close(): Promise<void>;
 };
 
+export type PortForwardProbeFamily = 'ipv4' | 'ipv6';
+
+export type PortForwardProbeResult = {
+  listening: boolean;
+  families: PortForwardProbeFamily[];
+};
+
+/** One-shot advisory inspection of the remote port (workspace-server hosts only). */
+export type PortForwardProbe = (remotePort: number) => Promise<PortForwardProbeResult>;
+
 export type OpenPortForwardTunnelOptions = {
   proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
   remotePort: number;
   preferredLocalPort?: number;
   onConnectionError?: (error: Error) => void;
+  probe?: PortForwardProbe;
+  onProbeResult?: (result: PortForwardProbeResult) => void;
+  onConnectionEstablished?: () => void;
+};
+
+type RemoteTargetHost = (typeof REMOTE_TARGET_HOSTS)[number];
+
+/** Mutable dial-order hint; connections read it at connect time, the probe updates it. */
+type DialOrder = { current: readonly RemoteTargetHost[] };
+
+const FAMILY_TARGET_HOSTS: Record<PortForwardProbeFamily, RemoteTargetHost> = {
+  ipv4: '127.0.0.1',
+  ipv6: '::1',
 };
 
 export async function openPortForwardTunnel(
   options: OpenPortForwardTunnelOptions
 ): Promise<PortForwardTunnel> {
+  const dialOrder = startAdvisoryProbe(options);
   try {
-    return await bindTunnel(options, options.preferredLocalPort ?? 0);
+    return await bindTunnel(options, options.preferredLocalPort ?? 0, dialOrder);
   } catch (error) {
     if (options.preferredLocalPort !== undefined && isAddressInUse(error)) {
-      return await bindTunnel(options, 0);
+      return await bindTunnel(options, 0, dialOrder);
     }
     throw error;
   }
 }
 
+/**
+ * Fires the one-shot advisory probe. Its promise is intentionally never
+ * awaited by the bind or dial path: a slow, failing, or absent probe leaves
+ * behavior exactly at today's blind dual-family dial.
+ */
+function startAdvisoryProbe(options: OpenPortForwardTunnelOptions): DialOrder {
+  const dialOrder: DialOrder = { current: REMOTE_TARGET_HOSTS };
+  const probe = options.probe;
+  if (!probe) return dialOrder;
+
+  void Promise.resolve()
+    .then(() => probe(options.remotePort))
+    .then((result) => {
+      dialOrder.current = orderTargetHosts(result.families);
+      options.onProbeResult?.(result);
+    })
+    .catch(() => {});
+
+  return dialOrder;
+}
+
+function orderTargetHosts(families: PortForwardProbeFamily[]): readonly RemoteTargetHost[] {
+  const listening = new Set(families.map((family) => FAMILY_TARGET_HOSTS[family]));
+  if (listening.size === 0) return REMOTE_TARGET_HOSTS;
+  // Listening families dial first; both stay in the list so the existing
+  // per-connection fallback covers a wrong or stale hint.
+  return [...REMOTE_TARGET_HOSTS].sort(
+    (a, b) => Number(listening.has(b)) - Number(listening.has(a))
+  );
+}
+
 function bindTunnel(
   options: OpenPortForwardTunnelOptions,
-  localPort: number
+  localPort: number,
+  dialOrder: DialOrder
 ): Promise<PortForwardTunnel> {
   const sockets = new Set<net.Socket>();
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
     socket.on('error', () => {});
-    forwardSocket(socket, options);
+    forwardSocket(socket, options, dialOrder.current);
   });
 
   return new Promise((resolve, reject) => {
@@ -83,7 +139,11 @@ function bindTunnel(
   });
 }
 
-function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions): void {
+function forwardSocket(
+  socket: net.Socket,
+  options: OpenPortForwardTunnelOptions,
+  targetHosts: readonly RemoteTargetHost[]
+): void {
   if (!options.proxy.isConnected) {
     socket.destroy();
     return;
@@ -100,7 +160,7 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
   let firstError: Error | undefined;
 
   const tryTargetHost = (index: number): void => {
-    const remoteHost = REMOTE_TARGET_HOSTS[index];
+    const remoteHost = targetHosts[index];
     client.forwardOut(
       LOCAL_BIND_HOST,
       0,
@@ -109,7 +169,7 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
       (error: Error | undefined, channel: ClientChannel) => {
         if (error) {
           firstError = firstError ?? error;
-          if (index + 1 < REMOTE_TARGET_HOSTS.length && isConnectFailure(error)) {
+          if (index + 1 < targetHosts.length && isConnectFailure(error)) {
             tryTargetHost(index + 1);
             return;
           }
@@ -118,6 +178,7 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
           return;
         }
 
+        options.onConnectionEstablished?.();
         socket.on('error', () => channel.destroy());
         channel.on('error', (channelError: Error) => {
           options.onConnectionError?.(channelError);
