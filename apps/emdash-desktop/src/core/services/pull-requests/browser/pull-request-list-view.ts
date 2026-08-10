@@ -64,7 +64,6 @@ export function createPullRequestListView(options: {
         return { items: result.data.prs, nextCursor: result.data.nextCursor };
       },
     },
-    selection: { kind: 'single' as const },
   });
 
   getQueryState = () => ({
@@ -75,3 +74,5 @@ export function createPullRequestListView(options: {
 
   return view;
 }
+
+export type PullRequestListView = ReturnType<typeof createPullRequestListView>;
