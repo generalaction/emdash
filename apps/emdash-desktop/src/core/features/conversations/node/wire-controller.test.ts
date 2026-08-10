@@ -62,6 +62,21 @@ describe('createConversationsWireController', () => {
     expect(start).toHaveBeenCalledWith(target.acpInput, {});
   });
 
+  it('disables the worker Wire deadline for the turn-long ACP prompt call', async () => {
+    const sendPrompt = vi.fn(async () => ok({ queued: false }));
+    const controller = setupController({
+      client: { acp: { sendPrompt } },
+    });
+    const input = {
+      conversationId: target.conversationId,
+      prompt: { text: 'hello' },
+    };
+
+    await expect(controller.call('acp.sendPrompt', input)).resolves.toEqual(ok({ queued: false }));
+
+    expect(sendPrompt).toHaveBeenCalledWith(input, { timeoutMs: 0 });
+  });
+
   it('records submitted TUI input only after a successful carriage return', async () => {
     const sendInput = vi.fn(async () => ok(undefined));
     const recordTuiInput = vi.fn(async () => {});

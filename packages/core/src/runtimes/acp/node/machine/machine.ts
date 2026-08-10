@@ -266,9 +266,14 @@ export function evolve(
 
     case 'QueueReordered': {
       const byId = new Map(s.queuedPrompts.map((prompt) => [prompt.id, prompt]));
+      const reordered = ev.ids.map((id) => byId.get(id)!).filter(Boolean);
+      const { queuedPrompts, effects: queueEffects } =
+        s.phase.kind === 'ready' && !s.agentTurnActive && s.backgroundAgentCount === 0
+          ? dequeuePromptEffects(reordered)
+          : { queuedPrompts: reordered, effects: [] as Effect[] };
       return {
-        state: { ...s, queuedPrompts: ev.ids.map((id) => byId.get(id)!).filter(Boolean) },
-        effects: [{ type: 'state' }],
+        state: { ...s, queuedPrompts },
+        effects: [{ type: 'state' }, ...queueEffects],
       };
     }
 

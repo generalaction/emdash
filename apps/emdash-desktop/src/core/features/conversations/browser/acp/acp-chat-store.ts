@@ -107,7 +107,6 @@ export class AcpChatStore {
       affordances: computed,
       isEmpty: computed,
       submitPrompt: action,
-      queuePrompt: action,
       stop: action,
       setModel: action,
       setMode: action,
@@ -277,7 +276,7 @@ export class AcpChatStore {
   submitPrompt(
     text: string,
     attachments: AcpPromptAttachment[] = [],
-    hiddenContext?: string
+    hiddenContext?: string | Promise<string | undefined>
   ): void {
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
@@ -293,33 +292,7 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this.session
-      ?.sendPrompt({
-        text,
-        ...(hiddenContext ? { hiddenContext } : {}),
-        ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
-      })
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to send message', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to send message', error));
-  }
-
-  queuePrompt(text: string, attachments: AcpPromptAttachment[] = [], hiddenContext?: string): void {
-    const promptAttachments = attachments.map((attachment) => attachment.ref);
-    void this.session
-      ?.sendPrompt(
-        {
-          text,
-          ...(hiddenContext ? { hiddenContext } : {}),
-          ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
-        },
-        'queue'
-      )
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to queue message', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to queue message', error));
+    void this._submitPrompt(text, promptAttachments, hiddenContext);
   }
 
   setDraftText(text: string): void {
@@ -483,10 +456,44 @@ export class AcpChatStore {
     return this.session?.sessionState.current().queuedPrompts ?? [];
   }
 
+  private async _submitPrompt(
+    text: string,
+    attachments: StoredPromptAttachment[],
+    hiddenContext?: string | Promise<string | undefined>
+  ): Promise<void> {
+    const session = this.session;
+    if (!session) {
+      this._toastError('Failed to send message', new Error('ACP session is not connected'));
+      return;
+    }
+
+    let resolvedHiddenContext: string | undefined;
+    try {
+      resolvedHiddenContext = await hiddenContext;
+    } catch (error) {
+      log.warn('Failed to resolve issue context for ACP prompt', {
+        conversationId: this.conversationId,
+        error,
+      });
+    }
+
+    try {
+      const result = await session.sendPrompt({
+        text,
+        ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
+      });
+      if (!result.success) this._toastError('Failed to send message', result.error);
+    } catch (error) {
+      this._toastError('Failed to send message', error);
+    }
+  }
+
   private async _sendQueuedPromptNow(id: string): Promise<void> {
     const current = this._queuedPromptModels();
     if (!current.some((prompt) => prompt.id === id)) return;
 
+    const shouldCancelActiveTurn = this.affordances.isWorking;
     const ids = [id, ...current.map((prompt) => prompt.id).filter((promptId) => promptId !== id)];
     const reorderResult = await this.session?.changeQueuePromptOrder(ids);
     if (!reorderResult?.success) {
@@ -494,7 +501,7 @@ export class AcpChatStore {
       return;
     }
 
-    if (!this.affordances.isWorking) return;
+    if (!shouldCancelActiveTurn) return;
     const cancelResult = await this.session?.cancelTurn();
     if (!cancelResult?.success) {
       this._toastError('Failed to send queued prompt', cancelResult?.error);

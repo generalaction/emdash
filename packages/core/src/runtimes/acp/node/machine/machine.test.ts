@@ -72,6 +72,22 @@ describe('decide Prompt', () => {
   });
 });
 
+describe('decide QueuePrompt', () => {
+  it('queues while a turn is already in flight', () => {
+    const result = decide(makeWorking(), { type: 'QueuePrompt', prompt });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data).toEqual([{ type: 'PromptQueued', prompt }]);
+  });
+
+  it('queues while the session is starting', () => {
+    const result = decide(initialMachineState(CONV_ID), { type: 'QueuePrompt', prompt });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data).toEqual([{ type: 'PromptQueued', prompt }]);
+  });
+});
+
 describe('lifecycle control', () => {
   it('starting -> replaying -> ready', () => {
     const s0 = initialMachineState(CONV_ID);
@@ -248,7 +264,7 @@ describe('permissions and config validation', () => {
   it('edits and reorders queued prompts', () => {
     const queuedA = { id: 'a', text: 'a', createdAt: 100, updatedAt: 100 };
     const queuedB = { id: 'b', text: 'b', createdAt: 100, updatedAt: 100 };
-    let state = evolve(makeReady(), { type: 'PromptQueued', prompt: queuedA }).state;
+    let state = evolve(makeWorking(), { type: 'PromptQueued', prompt: queuedA }).state;
     state = evolve(state, { type: 'PromptQueued', prompt: queuedB }).state;
     state = evolve(state, {
       type: 'QueuedPromptEdited',
@@ -260,6 +276,18 @@ describe('permissions and config validation', () => {
 
     expect(state.queuedPrompts.map((entry) => entry.id)).toEqual(['b', 'a']);
     expect(state.queuedPrompts[1]).toMatchObject({ text: 'edited', updatedAt: 200 });
+  });
+
+  it('drains the selected prompt when reordering a legacy idle queue', () => {
+    const queuedA = { id: 'a', text: 'a', createdAt: 100, updatedAt: 100 };
+    const queuedB = { id: 'b', text: 'b', createdAt: 100, updatedAt: 100 };
+    let state = evolve(makeReady(), { type: 'PromptQueued', prompt: queuedA }).state;
+    state = evolve(state, { type: 'PromptQueued', prompt: queuedB }).state;
+
+    const result = evolve(state, { type: 'QueueReordered', ids: ['b', 'a'] });
+
+    expect(result.state.queuedPrompts.map((entry) => entry.id)).toEqual(['a']);
+    expect(result.effects).toContainEqual({ type: 'sendPrompt', prompt: queuedB });
   });
 });
 

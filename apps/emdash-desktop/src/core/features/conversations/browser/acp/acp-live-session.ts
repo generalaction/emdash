@@ -24,6 +24,7 @@ import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
 import { type BlobSource } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
+import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
 import {
   getConversationsClient,
@@ -239,7 +240,10 @@ export class AcpLiveSession {
     prompt: PromptInput,
     placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt({ conversationId: this.conversationId, prompt, placement });
+    return this.client.sendPrompt(
+      { conversationId: this.conversationId, prompt, placement },
+      { timeoutMs: 0 }
+    );
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {
@@ -312,26 +316,30 @@ async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
   yield data;
 }
 
-function remoteValueState<T>(
+export function remoteValueState<T>(
   source: Readable<T | undefined>,
   schema: z.ZodType<T>,
   parentScope: Scope
 ): RemoteValueState<T> {
   const scope = parentScope.child('remote-value-state');
   const changes = createEmitter<T>();
-  let value: T | undefined;
+  const value = observable.box<T | undefined>(undefined, { deep: false });
+  const update = (next: T): void => {
+    runInAction(() => value.set(next));
+  };
   const ready = whenReady(source, { scope }).then((settled) => {
     if (settled.status === 'error' && settled.value === undefined) {
       throw readableError(settled.error);
     }
-    if (settled.value !== undefined) value = schema.parse(settled.value);
+    if (settled.value !== undefined) update(schema.parse(settled.value));
   });
   observe(
     source,
     (snapshot) => {
       if (snapshot.value !== undefined) {
-        value = schema.parse(snapshot.value);
-        changes.emit(value);
+        const next = schema.parse(snapshot.value);
+        update(next);
+        changes.emit(next);
       }
     },
     { scope }
@@ -339,7 +347,7 @@ function remoteValueState<T>(
   return {
     ready,
     current() {
-      return value as T;
+      return value.get() as T;
     },
     onChange(cb) {
       return changes.subscribe(cb);

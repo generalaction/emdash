@@ -6,7 +6,7 @@ export type AcpAgentStatusAction =
   | { kind: 'reset'; conversationId: string };
 
 function isBusy(summary: SessionSummary | undefined): boolean {
-  return summary !== undefined && (summary.isGenerating || summary.queuedPromptCount > 0);
+  return summary?.isGenerating ?? false;
 }
 
 function eventBase(summary: SessionSummary): Omit<AgentStatusSignal, 'type' | 'payload'> {

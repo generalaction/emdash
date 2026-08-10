@@ -21,10 +21,7 @@ function summary(overrides: Partial<SessionSummary> = {}): SessionSummary {
 
 describe('projectAcpStatusSnapshot', () => {
   it('projects busy work and pending permissions', () => {
-    expect(projectAcpStatusSnapshot(summary({ queuedPromptCount: 1 }))).toMatchObject({
-      kind: 'event',
-      event: { type: 'start', providerId: 'claude', conversationId: 'conv-1' },
-    });
+    expect(projectAcpStatusSnapshot(summary({ queuedPromptCount: 1 }))).toBeNull();
     expect(
       projectAcpStatusSnapshot(summary({ isGenerating: true, pendingPermissionCount: 1 }))
     ).toMatchObject({
@@ -72,6 +69,10 @@ describe('deriveAcpAgentStatusActions', () => {
 
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ kind: 'event', event: { type: 'start' } });
+  });
+
+  it('does not report an idle queue as active work', () => {
+    expect(deriveAcpAgentStatusActions(summary(), summary({ queuedPromptCount: 1 }))).toEqual([]);
   });
 
   it('emits an attention notification when a permission prompt appears', () => {

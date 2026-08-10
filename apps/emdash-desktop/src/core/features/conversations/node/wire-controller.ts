@@ -166,7 +166,9 @@ export function createConversationsWireController(
       kill: (input, meta) =>
         run(input.conversationId, (client) => client.acp.kill(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.sendPrompt(input, callOptions(meta))),
+        run(input.conversationId, (client) =>
+          client.acp.sendPrompt(input, { ...callOptions(meta), timeoutMs: 0 })
+        ),
       editQueuedPrompt: (input, meta) =>
         run(input.conversationId, (client) =>
           client.acp.editQueuedPrompt(input, callOptions(meta))

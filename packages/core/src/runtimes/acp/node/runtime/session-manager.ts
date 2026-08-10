@@ -305,9 +305,12 @@ export class SessionManager implements InboundRouter {
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     this.recordInputActivity(input.conversationId);
     if (input.placement === 'queue') {
-      const result = record.cell.queuePrompt(input.prompt);
-      if (!result.success) return result;
-      return ok({ queued: true });
+      const state = record.cell.sessionState;
+      if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
+        const result = record.cell.queuePrompt(input.prompt);
+        if (!result.success) return result;
+        return ok({ queued: true });
+      }
     }
     return record.cell.prompt(input.prompt);
   }

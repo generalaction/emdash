@@ -510,18 +510,40 @@ describe('AcpRuntime session manager', () => {
     expect(firstResult.data).toEqual({ queued: false });
   });
 
-  it("always queues a prompt with placement 'queue', even while idle", async () => {
+  it("delivers a prompt with placement 'queue' immediately when idle", async () => {
     const { h, rt } = await startHarness('conv-placement-queue');
 
     const result = await rt.sendPrompt('conv-placement-queue', { text: 'later' }, 'queue');
 
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
-    expect(result.data).toEqual({ queued: true });
-    expect(h.agent.prompt).not.toHaveBeenCalled();
-    expect(rt.getSessionState('conv-placement-queue').queuedPrompts).toMatchObject([
-      { text: 'later' },
+    expect(result.data).toEqual({ queued: false });
+    expect(h.agent.prompt).toHaveBeenCalledTimes(1);
+    expect(rt.getSessionState('conv-placement-queue').queuedPrompts).toEqual([]);
+  });
+
+  it("keeps placement 'queue' queued while a turn is active", async () => {
+    const { h, rt } = await startHarness('conv-placement-queue-active');
+    let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
+    h.agent.prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+          resolvePrompt = resolve;
+        })
+    );
+
+    const first = rt.sendPrompt('conv-placement-queue-active', { text: 'first' });
+    const second = await rt.sendPrompt('conv-placement-queue-active', { text: 'second' }, 'queue');
+
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    expect(second.data).toEqual({ queued: true });
+    expect(rt.getSessionState('conv-placement-queue-active').queuedPrompts).toMatchObject([
+      { text: 'second' },
     ]);
+
+    resolvePrompt({ stopReason: 'end_turn' });
+    await first;
   });
 
   it('returns a resume result with replayed history', async () => {

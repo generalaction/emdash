@@ -292,25 +292,13 @@ const ComposerForStore = observer(function ComposerForStore({
   );
 
   const handleSubmit = useCallback(
-    async (value: string) => {
+    (value: string) => {
       const promptAttachments = buildPromptAttachments();
       if (!value.trim() && promptAttachments.length === 0) return;
       setAttachments([]);
       editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
+      const hiddenContext = buildHiddenIssueContext(value);
       store.submitPrompt(value, promptAttachments, hiddenContext);
-    },
-    [store, buildPromptAttachments, buildHiddenIssueContext]
-  );
-
-  const handleSubmitWhileWorking = useCallback(
-    async (value: string) => {
-      const promptAttachments = buildPromptAttachments();
-      if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
-      store.queuePrompt(value, promptAttachments, hiddenContext);
     },
     [store, buildPromptAttachments, buildHiddenIssueContext]
   );
@@ -599,7 +587,7 @@ const ComposerForStore = observer(function ComposerForStore({
         canSubmit={a.canSubmit}
         onSubmit={handleSubmit}
         onInputChange={(text) => store.setDraftText(text)}
-        onSubmitWhileWorking={handleSubmitWhileWorking}
+        onSubmitWhileWorking={handleSubmit}
         onStop={a.isWorking ? handleStop : undefined}
         permissionRequest={permissionRequest}
         permissionQueueCount={store.permissionQueue.length}
