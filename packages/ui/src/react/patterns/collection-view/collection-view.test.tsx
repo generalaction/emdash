@@ -103,6 +103,36 @@ describe('CollectionView shortcut mode', () => {
     expect(onItemClick.mock.calls[0][1]).toBe(1);
   });
 
+  it('makes interactive rows keyboard-operable buttons', () => {
+    const onItemClick = vi.fn();
+    const { container } = render(
+      <CollectionView
+        items={ITEMS}
+        getItemKey={(item) => item.id}
+        columns={NAME_COLUMNS}
+        onItemClick={onItemClick}
+      />
+    );
+
+    const rows = container.querySelectorAll('[data-slot="list-row"]');
+    expect(rows[0]?.getAttribute('role')).toBe('button');
+    expect(rows[0]?.getAttribute('tabindex')).toBe('0');
+
+    fireEvent.keyDown(rows[1]!, { key: 'Enter' });
+    expect(onItemClick).toHaveBeenCalledTimes(1);
+    expect(onItemClick.mock.calls[0][0]).toEqual(ITEMS[1]);
+  });
+
+  it('leaves non-interactive rows without button semantics', () => {
+    const { container } = render(
+      <CollectionView items={ITEMS} getItemKey={(item) => item.id} columns={NAME_COLUMNS} />
+    );
+
+    const row = container.querySelector('[data-slot="list-row"]');
+    expect(row?.getAttribute('role')).toBeNull();
+    expect(row?.getAttribute('tabindex')).toBeNull();
+  });
+
   it('renders freeform rows through renderRow inside the row shell', () => {
     const { container } = render(
       <CollectionView
