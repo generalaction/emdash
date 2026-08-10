@@ -2,6 +2,7 @@ import { Button, RelativeTime, Spinner, toast } from '@emdash/ui/react/primitive
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
 import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
+import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   workspaceRemovalNeedsAttention,
@@ -119,5 +120,5 @@ function RemovalActionButton({
 }
 
 function removalRowLabel(row: ProjectWorkspaceRow): string {
-  return row.branch ?? row.path.split(/[\\/]/u).filter(Boolean).at(-1) ?? row.path;
+  return row.branch ?? (basenameFromAnyPath(row.path) || row.path);
 }

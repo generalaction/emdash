@@ -4,6 +4,7 @@ import { Button, DropdownMenu, Spinner, toast } from '@emdash/ui/react/primitive
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useWorkspaceGroups } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -18,7 +19,6 @@ import {
   useMachineConversations,
   type MachineConversationsScope,
 } from '../use-machine-conversations';
-import { useWorkspaceGroups } from '../use-machine-workspaces';
 
 type ConversationListRow = {
   item: MachineConversationItem;

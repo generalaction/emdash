@@ -28,6 +28,7 @@ import { getMachinesStore } from '@core/features/machines/contributions/app-stor
 import { McpPanel } from '@core/features/mcp/contributions/browser/McpPanel';
 import { AgentsPanel } from '@core/features/settings/contributions/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/contributions/browser/SkillsPanel';
+import { WorkspaceDetailPage } from '@core/features/workspaces/contributions/browser/workspace-detail-page';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -42,7 +43,6 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { WorkspacesListView } from '../components/workspaces-list-view';
 import { useHostServerState } from '../use-host-server-state';
 import { useMachineMetrics } from '../use-machine-metrics';
-import { WorkspaceDetailPage } from './workspace-detail-page';
 
 type MachineDetailsSection =
   | 'system'
@@ -84,7 +84,7 @@ function MachineDetailsCard({
 
 /**
  * Machines tab child detail: path is `[connectionId, projectId]`. Lives here
- * (not in workspace-detail-page.tsx) because it owns the machine
+ * (not in the shared workspace-detail-page) because it owns the machine
  * connection-state lookup, which core-host boundaries allow for this file.
  */
 export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDetailPage(

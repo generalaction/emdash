@@ -1,6 +1,8 @@
 import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/components';
 import { Button, DropdownMenu, Tooltip } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
+import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
+import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceGitStats,
@@ -8,7 +10,6 @@ import {
   type ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
 import { GitStatsCell } from './git-stats-cell';
-import { basename, formatBytes } from './workspace-format';
 
 export function RepositoryHeader({
   project,
@@ -178,7 +179,7 @@ function WorkspaceScanWarnings({ warnings }: { warnings: readonly string[] }) {
 }
 
 function worktreeLabel(row: ProjectWorkspaceRow): string {
-  return row.branch ?? basename(row.path);
+  return row.branch ?? (basenameFromAnyPath(row.path) || row.path);
 }
 
 function pathIssueMessage(row: ProjectWorkspaceRow): string {

@@ -8,13 +8,13 @@ import { Button, RelativeTime, Spinner } from '@emdash/ui/react/primitives';
 import { PlusIcon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { WorkspacesScope } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import {
   useWorkspaceRows,
   type WorkspaceRowsGroup,
-  type WorkspacesScope,
-} from '../use-workspace-rows';
-import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
+} from '@core/features/workspaces/api/browser/use-workspace-rows';
+import { aggregateWorkspaceStatus } from '@core/features/workspaces/api/browser/workspace-runtime-status';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 
 type WorkspaceEntry = {
   item: WorkspacesListItem;

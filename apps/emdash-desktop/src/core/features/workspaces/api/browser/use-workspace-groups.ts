@@ -1,18 +1,13 @@
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { projectWorkspacesContract } from '@core/features/workspaces/api';
-import { getProjectWorkspacesClient } from '@core/features/workspaces/api/browser/client';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
-import type {
-  HostWorkspaceGroup,
-  MeasureProjectWorkspacesResult,
-} from '@core/primitives/workspaces/api';
+import type { MeasureProjectWorkspacesResult } from '@core/primitives/workspaces/api';
+import { projectWorkspacesContract } from '../project-contracts';
+import { getProjectWorkspacesClient } from './client';
 
 /** Which host's workspaces to read: this device or a remote machine. */
 export type WorkspacesScope = { kind: 'local' } | { kind: 'machine'; machineId: string };
-
-export type MachineProjectWorkspaces = HostWorkspaceGroup;
 
 let workspaceGroupsRemotePromise:
   | Promise<RemoteModel<typeof projectWorkspacesContract.workspaceGroups>>
@@ -54,13 +49,15 @@ export function useWorkspaceGroups(scope: WorkspacesScope, enabled: boolean) {
   };
 }
 
+export const PROJECT_WORKSPACE_USAGE_QUERY_KEY = 'projectWorkspaceUsage';
+
 export function useProjectWorkspaceUsage(
   projectId: string | undefined,
   paths: readonly string[],
   enabled: boolean
 ) {
   return useQuery({
-    queryKey: ['projectWorkspaceUsage', projectId, paths],
+    queryKey: [PROJECT_WORKSPACE_USAGE_QUERY_KEY, projectId, paths],
     queryFn: async (): Promise<MeasureProjectWorkspacesResult> => {
       if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
       const client = await getProjectWorkspacesClient();
@@ -75,7 +72,7 @@ export function useProjectWorkspaceUsage(
   });
 }
 
-export async function deleteMachineProjectWorkspaces({
+export async function deleteProjectWorkspaces({
   projectId,
   paths,
   deleteConversations,

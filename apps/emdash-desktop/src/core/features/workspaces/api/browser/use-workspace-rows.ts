@@ -3,10 +3,8 @@ import {
   useProjectWorkspaceUsage,
   useWorkspaceGroups,
   type WorkspacesScope,
-} from './use-machine-workspaces';
+} from './use-workspace-groups';
 import { joinWorkspaceRows, type JoinedWorkspaceRow } from './workspace-rows';
-
-export type { WorkspacesScope } from './use-machine-workspaces';
 
 export type WorkspaceRowsOptions = {
   scope: WorkspacesScope;
