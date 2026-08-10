@@ -1,11 +1,13 @@
 import {
-  ColumnList,
-  ColumnListCell,
   WorkspaceIcon,
-  type ColumnListColumn,
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
+import {
+  CollectionView,
+  CollectionViewCell,
+  type CollectionViewColumn,
+} from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, RelativeTime, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
@@ -76,7 +78,7 @@ type WorkspaceRowActionHandlers = {
 
 function buildDetailColumns(
   handlers: WorkspaceRowActionHandlers
-): ColumnListColumn<WorkspaceDetailListItem>[] {
+): CollectionViewColumn<WorkspaceDetailListItem>[] {
   return [
     ...DETAIL_COLUMNS,
     {
@@ -87,7 +89,7 @@ function buildDetailColumns(
   ];
 }
 
-const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
+const DETAIL_COLUMNS: CollectionViewColumn<WorkspaceDetailListItem>[] = [
   {
     id: 'icon',
     width: '2.25rem',
@@ -97,7 +99,7 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
     id: 'name',
     width: 'minmax(0, 1fr)',
     cell: (item) => (
-      <ColumnListCell
+      <CollectionViewCell
         primary={
           <span className="inline-flex min-w-0 items-center gap-2">
             <span className="truncate">{item.name}</span>
@@ -120,7 +122,7 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
     id: 'git',
     width: '13rem',
     cell: (item) => (
-      <ColumnListCell
+      <CollectionViewCell
         primary={item.branch ?? 'No branch'}
         secondary={<GitStatsCell stats={item.gitStats} loading={item.loadingGitStats} />}
       />
@@ -130,7 +132,7 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
     id: 'storage',
     width: '9rem',
     cell: (item) => (
-      <ColumnListCell
+      <CollectionViewCell
         primary={
           item.usage ? formatBytes(item.usage.totalBytes) : item.loadingUsage ? 'Loading...' : '-'
         }
@@ -148,7 +150,7 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
     id: 'tasks',
     width: '10rem',
     cell: (item) => (
-      <ColumnListCell
+      <CollectionViewCell
         primary={formatCount(item.linkedTaskCount, 'Linked task')}
         secondary={formatCount(item.activeTaskCount, 'task active', 'tasks active')}
       />
@@ -368,7 +370,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         <WorkspaceRemovalAttentionPanel rows={rows.map((joined) => joined.row)} />
 
         <WorkspaceSection label="Worktrees">
-          <ColumnList
+          <CollectionView
             items={worktreeItems}
             columns={columns}
             getItemKey={(item) => item.id}
@@ -451,6 +453,7 @@ function RowActionsMenu({
           <BrushCleaningIcon aria-hidden />
           Clean Artifacts
         </DropdownMenu.Item>
+        <DropdownMenu.Separator />
         <DropdownMenu.Item
           variant="destructive"
           disabled={!canDelete}
