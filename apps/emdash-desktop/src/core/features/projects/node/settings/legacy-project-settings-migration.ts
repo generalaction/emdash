@@ -3,10 +3,9 @@ import type { Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
-  baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
   legacyProjectConfigSchema,
-  type BaseProjectSettings,
+  type LegacyBaseProjectSettings,
   type ShareableProjectSettings,
 } from '@core/primitives/project-settings/api';
 import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
@@ -37,11 +36,13 @@ export type ProjectSettingsGitInspector = {
 };
 
 function normalizeLegacyDefaultBranch(
-  branch: BaseProjectSettings['defaultBranch'],
+  branch: LegacyBaseProjectSettings['defaultBranch'],
   remote: string | undefined,
   fallback: string
-): BaseProjectSettings['defaultBranch'] {
+): LegacyBaseProjectSettings['defaultBranch'] {
   if (!branch) return undefined;
+  // Already in the new stored model: nothing to normalize.
+  if (typeof branch === 'object' && 'branch' in branch) return branch;
   const branchName = typeof branch === 'string' ? branch.trim() : branch.name.trim();
   if (!branchName) return undefined;
   if (branchName.includes('/')) return branchName;
@@ -52,12 +53,7 @@ function normalizeLegacyDefaultBranch(
 async function readLegacyProjectConfig(
   configFiles: FilesClientScope | undefined,
   configPath: string
-): Promise<
-  | (BaseProjectSettings & {
-      remote?: string;
-    })
-  | undefined
-> {
+): Promise<LegacyBaseProjectSettings | undefined> {
   if (!configFiles) return undefined;
   try {
     const exists = await configFiles.client.fs.exists(fileKey(configFiles, configPath));
@@ -120,10 +116,14 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   );
   const { remote, ...currentSettings } = current;
   const legacy = await readLegacyProjectConfig(configFiles, configPath);
-  const next: BaseProjectSettings = baseProjectSettingsSchema.parse({
+  // Keep whatever shape the row already has (legacy or new stored model); the
+  // provider's lazy read-path migrations own the shape conversion.
+  const next: Omit<LegacyBaseProjectSettings, 'remote'> = {
     ...currentSettings,
-    baseRemote: currentSettings.baseRemote ?? remote,
-  });
+    ...(currentSettings.baseRemote === undefined && remote !== undefined
+      ? { baseRemote: remote }
+      : {}),
+  };
   let nextShareable: ShareableProjectSettings | undefined;
 
   if (legacy && !baseAlreadyMigrated) {

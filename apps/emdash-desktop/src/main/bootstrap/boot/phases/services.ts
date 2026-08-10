@@ -1,4 +1,4 @@
-import { isLocalHostRef } from '@emdash/core/primitives/host/api';
+import { isLocalHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { app } from 'electron';
@@ -58,6 +58,7 @@ import {
   getProjectById,
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
+import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/app-worktree-root-migration';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -273,6 +274,33 @@ export async function bootServices(
     },
     backfillGitHubAccount: async (provider) => {
       await githubAccountBackfill.backfillProject(provider);
+    },
+    migrateAppWorktreeRoot: async () => {
+      const local = await runtimes.client(LOCAL_HOST_REF);
+      if (!local.success) throw new Error('local host runtime unavailable');
+      const hostSettings = local.data.hostSettings;
+      await migrateAppWorktreeRootToLocalHostDefault({
+        getAppDefaultWorktreeDirectoryOverride: async () => {
+          const { overrides } = await appSettingsService.getWithMeta('localProject');
+          return Object.hasOwn(overrides, 'defaultWorktreeDirectory')
+            ? overrides.defaultWorktreeDirectory
+            : undefined;
+        },
+        clearAppDefaultWorktreeDirectory: () =>
+          appSettingsService.resetField('localProject', 'defaultWorktreeDirectory'),
+        localHostSettings: {
+          getWorktreeRoot: async () => {
+            const state = await hostSettings.get();
+            return state.success
+              ? { success: true, worktreeRoot: state.data.settings.worktreeRoot }
+              : { success: false };
+          },
+          setWorktreeRoot: async (worktreeRoot) => {
+            const result = await hostSettings.update({ worktreeRoot });
+            return { success: result.success };
+          },
+        },
+      });
     },
   });
   const projectSettingsService = new ProjectSettingsService({

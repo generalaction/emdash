@@ -66,6 +66,27 @@ describe('countProjectsUsingGithubAccount', () => {
     );
   });
 
+  it('counts rows already migrated to the stored githubAccount model', async () => {
+    await fixture.db.insert(projects).values([
+      { id: 'project-account-ref', name: 'Account ref' },
+      { id: 'project-none', name: 'Explicit none' },
+    ]);
+    await fixture.db.insert(projectSettings).values([
+      {
+        projectId: 'project-account-ref',
+        baseProjectSettingsJson: JSON.stringify({
+          githubAccount: { kind: 'account', accountId: TARGET_ACCOUNT_ID },
+        }),
+      },
+      {
+        projectId: 'project-none',
+        baseProjectSettingsJson: JSON.stringify({ githubAccount: { kind: 'none' } }),
+      },
+    ]);
+
+    await expect(countProjectsUsingGithubAccount(fixture.db, TARGET_ACCOUNT_ID)).resolves.toBe(1);
+  });
+
   it('skips malformed base settings JSON', async () => {
     await fixture.db.insert(projects).values([
       { id: 'project-malformed', name: 'Malformed' },

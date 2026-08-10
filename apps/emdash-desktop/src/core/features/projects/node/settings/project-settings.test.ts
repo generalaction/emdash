@@ -373,10 +373,13 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const result = await provider.patch({ githubAccountId: 'github.com:42' });
 
     expect(result.success).toBe(true);
+    // The patch write-back also lazily migrates the row to the stored model
+    // (structured defaultBranch, githubAccount ref). Without repo facts the
+    // baseRemote/defaultBranch values stay pinned rather than demoted.
     expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
-      defaultBranch: 'develop',
+      defaultBranch: { remote: null, branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccountId: 'github.com:42',
+      githubAccount: { kind: 'account', accountId: 'github.com:42' },
       tmux: true,
     });
     await expect(provider.get()).resolves.toMatchObject({

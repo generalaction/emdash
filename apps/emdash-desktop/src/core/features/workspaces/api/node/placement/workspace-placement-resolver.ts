@@ -16,7 +16,7 @@ import {
 import { safePathSegment } from '@core/primitives/path-name/api';
 import {
   legacyBaseProjectSettingsSchema,
-  type BaseProjectSettings,
+  type LegacyBaseProjectSettings,
 } from '@core/primitives/project-settings/api';
 import {
   projectHostRef,
@@ -195,8 +195,12 @@ export async function loadProjectWorktreeDirectory(
   if (!row) return undefined;
 
   try {
-    const parsed: BaseProjectSettings = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
-    return parsed.worktreeDirectory;
+    const parsed: LegacyBaseProjectSettings = legacyBaseProjectSettingsSchema.parse(
+      JSON.parse(row.base)
+    );
+    // worktreeRoot is the migrated key; worktreeDirectory survives on rows the
+    // provider has not lazily rewritten yet.
+    return parsed.worktreeRoot ?? parsed.worktreeDirectory;
   } catch (error) {
     log.warn('Failed to read worktree placement override; using the host default', {
       projectId,

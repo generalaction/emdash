@@ -40,6 +40,7 @@ import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-se
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
+import { createRepoFactsLoader } from './settings/repo-facts';
 
 export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
@@ -68,6 +69,13 @@ export type CreateProjectProviderDependencies = {
   }>;
   backfillGitHubAccount(provider: ProjectProvider): Promise<void>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
+  /**
+   * Lazy migration 5 (spec: github-git-settings §10): one-time move of the
+   * app-wide defaultWorktreeDirectory into the local host default. Injected
+   * from the composition root since it spans app settings and the local
+   * host-settings runtime.
+   */
+  migrateAppWorktreeRoot?: () => Promise<void>;
 };
 
 export async function createProvider(
@@ -120,6 +128,8 @@ export async function createProvider(
             (await dependencies.getProjectDefaults()).tmuxByDefault,
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
+        getRepoFacts: createRepoFactsLoader(git, repository, hasRepository),
+        migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
         defaultWorktreeDirectory: async () =>
           (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ??
           (await dependencies.getProjectDefaults()).defaultWorktreeDirectory,

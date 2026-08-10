@@ -8,10 +8,7 @@ import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/works
 import type { Automation, AutomationDefinitionError } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import {
-  baseProjectSettingsSchema,
-  legacyBaseProjectSettingsSchema,
-} from '@core/primitives/project-settings/api';
+import { legacyBaseProjectSettingsSchema } from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
@@ -210,17 +207,13 @@ async function loadDeploymentProjectSettings(
   }
 
   try {
-    const legacyBase = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
-    const { remote, ...withoutLegacyRemote } = legacyBase;
-    const base = baseProjectSettingsSchema.parse({
-      ...withoutLegacyRemote,
-      baseRemote: withoutLegacyRemote.baseRemote ?? remote,
-    });
+    const base = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
+    const baseRemote = base.baseRemote ?? base.remote;
     const shareable = emdashConfigSchema.parse(JSON.parse(row.shareable));
     return {
-      baseRemote: base.baseRemote ?? 'origin',
+      baseRemote: baseRemote ?? 'origin',
       preservePatterns: shareable.preservePatterns ?? [],
-      pushRemote: base.pushRemote ?? base.baseRemote ?? 'origin',
+      pushRemote: base.pushRemote ?? baseRemote ?? 'origin',
     };
   } catch {
     return {

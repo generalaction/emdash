@@ -24,9 +24,51 @@ export const baseProjectSettingsSchema = z.object({
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
 
+// --- Stored model (spec: github-git-settings §10) -------------------------
+// The persisted per-project base settings after lazy migration. Only explicit
+// user choices are stored; absence of a field always means "infer". The
+// resolver-facing types live in ./effective-settings.
+
+export const storedDefaultBranchSchema = z.object({
+  /** Remote the branch lives on; `null` means a local branch. */
+  remote: z.string().nullable(),
+  branch: z.string(),
+});
+
+export const storedGithubAccountSchema = z.union([
+  z.object({ kind: z.literal('account'), accountId: z.string().trim().min(1) }),
+  z.object({ kind: z.literal('none') }),
+]);
+
+export const storedBaseProjectSettingsSchema = z.object({
+  /** Renamed from the legacy `worktreeDirectory` key. */
+  worktreeRoot: z.string().trim().optional(),
+  defaultBranch: storedDefaultBranchSchema.optional(),
+  baseRemote: z.string().optional(),
+  pushRemote: z.string().optional(),
+  githubAccount: storedGithubAccountSchema.optional(),
+  tmux: z.boolean().optional(),
+  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
+  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
+});
+
+export type StoredBaseProjectSettings = z.infer<typeof storedBaseProjectSettingsSchema>;
+
+/**
+ * Permissive read schema for stored base-settings rows: accepts every legacy
+ * form (bare-string/`{name, remote}` defaultBranch, `githubAccountId`,
+ * `worktreeDirectory`, pre-baseRemote `remote`) alongside the new stored
+ * model. The settings provider migrates rows lazily on read; every other
+ * reader of the raw JSON must parse with this schema.
+ */
 export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
   remote: z.string().optional(),
+  defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
+  worktreeRoot: z.string().trim().optional(),
+  githubAccount: storedGithubAccountSchema.optional(),
 });
+
+export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;
 
 export const projectSettingsSchema = baseProjectSettingsSchema.merge(emdashConfigSchema);
 
