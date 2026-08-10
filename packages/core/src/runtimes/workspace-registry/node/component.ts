@@ -20,20 +20,6 @@ export const workspaceRegistryComponentConfigSchema = z.object({
     .refine((value) => value === ':memory:' || path.isAbsolute(value), {
       message: 'Workspace registry database path must be absolute or :memory:',
     }),
-  scan: z
-    .object({
-      debounceMs: z.number().positive().optional(),
-      activeDebounceMs: z.number().positive().optional(),
-      pollIntervalMs: z.number().positive().optional(),
-    })
-    .optional(),
-  refFollow: z
-    .object({
-      intervalMs: z.number().positive().optional(),
-      jitterMs: z.number().nonnegative().optional(),
-    })
-    .optional(),
-  sessionGcIntervalMs: z.number().int().positive().optional(),
 });
 
 /**
@@ -75,7 +61,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     // Sweeps sessions under vanished paths (moved from the retired workspace-host).
     const sessionGc = new WorkspaceSessionGc({
       clients: sessionClients,
-      intervalMs: config.sessionGcIntervalMs ?? 60_000,
+      intervalMs: 60_000,
       scope,
       onError: (error) => logger.warn('workspace session GC failed', { error }),
     });
@@ -89,11 +75,10 @@ export const workspaceRegistryComponent = defineWireComponent({
     });
     const scheduler = new WorkspaceScanScheduler({
       watcher,
-      execute: (request) => runtime.executeScanRequest(request),
+      execute: (request) => runtime.scanner.executeScanRequest(request),
       listTargets: () => runtime.scanTargets(),
       isActive: (id) => runtime.isWorkspaceActive(id),
       logger,
-      ...config.scan,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
     // Self-suppression: background steps mute their own watch events while writing.
@@ -106,7 +91,6 @@ export const workspaceRegistryComponent = defineWireComponent({
     const refFollow = new RefFollowScheduler({
       runPass: () => runtime.runRefFollowPass(),
       logger,
-      ...config.refFollow,
     });
     refFollow.start();
     scope.add(() => refFollow.dispose());

@@ -9,13 +9,15 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { RegistryScanner } from '#runtimes/workspace-registry/node/scan/scanner';
 import type { ScanRequest } from '#runtimes/workspace-registry/node/scan/scheduler';
 
 // Self-inflicted scan suppression (spec: workspace-lifecycle-v2, scan minimization):
 // background steps hold the scheduler's mute for exactly the id they write into and
 // request their own deliberate scans on settle. Asserted at the runtime's injection
-// seams — a fake muter records hold ordering, a wrapped executeScanRequest records
-// the trailing scans — never against internal queue state.
+// seams — a fake muter records hold ordering, a recording proxy around the real
+// scanner (the `createScanner` seam) records the trailing scans — never against
+// internal queue state.
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, {
@@ -55,19 +57,32 @@ describe('background steps suppress their own scans', () => {
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-suppress-')));
     handle = await workspaceRegistryStore.openTemp();
-    runtime = new WorkspaceRegistryRuntime({ handle });
     muteEvents = [];
     settleScans = [];
+    runtime = new WorkspaceRegistryRuntime({
+      handle,
+      // Settle scans are the only scanner requests the runtime makes itself here (no
+      // scheduler is wired): a recording proxy around the real scanner captures them.
+      createScanner: (landing, deps) => {
+        const scanner = new RegistryScanner(landing, deps);
+        return new Proxy(scanner, {
+          get(target, property, receiver) {
+            if (property === 'executeScanRequest') {
+              return (request: ScanRequest) => {
+                settleScans.push(request);
+                return target.executeScanRequest(request);
+              };
+            }
+            const value = Reflect.get(target, property, receiver);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      },
+    });
     runtime.setScanMuter((id) => {
       muteEvents.push({ action: 'mute', id });
       return () => muteEvents.push({ action: 'release', id });
     });
-    // Settle scans are the only executeScanRequest calls the runtime makes itself.
-    const original = runtime.executeScanRequest.bind(runtime);
-    runtime.executeScanRequest = (request: ScanRequest) => {
-      settleScans.push(request);
-      return original(request);
-    };
   });
 
   afterEach(async () => {

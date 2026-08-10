@@ -1,10 +1,12 @@
 import crypto from 'node:crypto';
 import type { BoundExec } from '#services/exec/api';
-import { retryTransientLock, worktreeWriteLocks, type GitWorkTier } from './git-schedule';
-import { createRegistryGitExec } from './scan/observe-git';
+import type { RegistryGitContext } from './git-context';
+import { retryTransientLock, type GitWorkTier } from './git-schedule';
 
 export type UpdateWorktreeExecution = {
-  /** The owning repository's path — the scheduling key for the host git budget. */
+  /** The owning runtime's git context — budget slots and the per-worktree writer lock. */
+  git: RegistryGitContext;
+  /** The owning repository's path — the scheduling key for the git budget. */
   repositoryPath: string;
   worktreePath: string;
   remote: string;
@@ -54,11 +56,11 @@ export type UpdateWorktreeExecutionResult =
 export async function executeUpdateWorktree(
   execution: UpdateWorktreeExecution
 ): Promise<UpdateWorktreeExecutionResult> {
-  const exec = createRegistryGitExec(execution.worktreePath, {
+  const exec = execution.git.exec(execution.worktreePath, {
     tier: execution.tier ?? 'activation',
     repository: execution.repositoryPath,
   });
-  return worktreeWriteLocks.withWriter(execution.worktreePath, async () => {
+  return execution.git.locks.withWriter(execution.worktreePath, async () => {
     if (await execution.isActive()) {
       return { status: 'refused', reason: 'active-sessions' };
     }

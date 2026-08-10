@@ -4,12 +4,13 @@ import { cp, glob, lstat, mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { EMDASH_CONFIG_FILE } from '#primitives/emdash-config/api';
-import { hostGitSchedule } from './git-schedule';
-import { createRegistryGitExec } from './scan/observe-git';
+import type { RegistryGitContext } from './git-context';
 
 const execFileAsync = promisify(execFile);
 
 export type CopyArtifactsInput = {
+  /** The owning runtime's git context — copy subprocesses take its budget slots. */
+  git: RegistryGitContext;
   repositoryPath: string;
   worktreePath: string;
   /** The deliberate selection: gitignored files that ride into the new worktree. */
@@ -70,7 +71,7 @@ export async function executeCopyArtifacts(
 
   let accepted: string[];
   try {
-    accepted = await filterIgnored(input.repositoryPath, candidates);
+    accepted = await filterIgnored(input.git, input.repositoryPath, candidates);
   } catch (error) {
     return { status: 'failed', message: `Could not filter preserved matches: ${message(error)}` };
   }
@@ -86,7 +87,7 @@ export async function executeCopyArtifacts(
     }
     // Each entry's copy subprocess takes a background-tier budget slot (spec: the
     // budget governs artifact-copy processes too).
-    const outcome = await hostGitSchedule.run(
+    const outcome = await input.git.schedule.run(
       { tier: 'background', repository: input.repositoryPath },
       () => cloneEntry(input.repositoryPath, input.worktreePath, entry)
     );
@@ -146,14 +147,17 @@ async function resolvePatternMatches(
  * a careless glob can never clobber tracked (or merely untracked) files the checkout
  * owns. Exit code 1 means "nothing ignored" and is not an error.
  */
-async function filterIgnored(repositoryPath: string, candidates: string[]): Promise<string[]> {
+async function filterIgnored(
+  git: RegistryGitContext,
+  repositoryPath: string,
+  candidates: string[]
+): Promise<string[]> {
   if (candidates.length === 0) return [];
   // spawn bypasses the exec-level budget wrapping; take the slot around it here.
-  const ignored = await hostGitSchedule.run(
+  const ignored = await git.schedule.run(
     { tier: 'background', repository: repositoryPath },
     async () => {
-      const git = createRegistryGitExec(repositoryPath);
-      const child = git.spawn(['check-ignore', '--stdin', '-z']);
+      const child = git.exec(repositoryPath).spawn(['check-ignore', '--stdin', '-z']);
       const stdoutChunks: Buffer[] = [];
       child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
       child.stderr.resume();

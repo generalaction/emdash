@@ -1,9 +1,10 @@
 import { promises as fs } from 'node:fs';
-import { worktreeWriteLocks } from './git-schedule';
-import { createRegistryGitExec } from './scan/observe-git';
+import type { RegistryGitContext } from './git-context';
 import { validateWorktreePath } from './worktree-path-safety';
 
 export type DeleteWorktreeExecution = {
+  /** The owning runtime's git context — budget slots and the per-worktree writer lock. */
+  git: RegistryGitContext;
   repositoryPath: string;
   worktreePath: string;
   deleteBranch: boolean;
@@ -30,7 +31,7 @@ export async function executeDeleteWorktree(
   execution: DeleteWorktreeExecution
 ): Promise<DeleteWorktreeExecutionResult> {
   // Interactive tier: a user-initiated delete never waits behind background work.
-  const exec = createRegistryGitExec(execution.repositoryPath, {
+  const exec = execution.git.exec(execution.repositoryPath, {
     tier: 'activation',
     repository: execution.repositoryPath,
   });
@@ -45,12 +46,12 @@ export async function executeDeleteWorktree(
   }
 
   const branch = execution.deleteBranch
-    ? ((await currentBranch(execution.worktreePath)) ?? execution.branchHint)
+    ? ((await currentBranch(execution.git, execution.worktreePath)) ?? execution.branchHint)
     : null;
 
   // The writer lock (spec: git concurrency model): removal mutates this worktree's
   // checkout, so probes of it wait rather than observing a half-removed tree.
-  const removal = await worktreeWriteLocks.withWriter(
+  const removal = await execution.git.locks.withWriter(
     execution.worktreePath,
     async (): Promise<DeleteWorktreeExecutionResult | null> => {
       if (await pathExists(execution.worktreePath)) {
@@ -89,9 +90,12 @@ export async function executeDeleteWorktree(
   return { status: 'succeeded' };
 }
 
-async function currentBranch(worktreePath: string): Promise<string | null> {
+async function currentBranch(
+  git: RegistryGitContext,
+  worktreePath: string
+): Promise<string | null> {
   try {
-    const result = await createRegistryGitExec(worktreePath).exec(['branch', '--show-current']);
+    const result = await git.exec(worktreePath).exec(['branch', '--show-current']);
     return result.stdout.trim() || null;
   } catch {
     return null;

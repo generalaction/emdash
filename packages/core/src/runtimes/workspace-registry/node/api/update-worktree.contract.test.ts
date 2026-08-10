@@ -7,7 +7,6 @@ import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
-import { worktreeWriteLocks } from '#runtimes/workspace-registry/node/git-schedule';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
@@ -282,6 +281,7 @@ describe('workspace registry updateWorktree', () => {
       releaseGuard = resolve;
     });
     const run = executeUpdateWorktree({
+      git: runtime.gitContext,
       repositoryPath: repoPath,
       worktreePath: worktree.path,
       remote: 'origin',
@@ -290,7 +290,7 @@ describe('workspace registry updateWorktree', () => {
     });
 
     let unlocked = false;
-    void worktreeWriteLocks.whenUnlocked(worktree.path).then(() => {
+    void runtime.gitContext.locks.whenUnlocked(worktree.path).then(() => {
       unlocked = true;
     });
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -299,7 +299,7 @@ describe('workspace registry updateWorktree', () => {
     releaseGuard(false);
     const result = await run;
     expect(result.status).toBe('updated');
-    await worktreeWriteLocks.whenUnlocked(worktree.path);
+    await runtime.gitContext.locks.whenUnlocked(worktree.path);
     expect(unlocked).toBe(true);
   });
 });

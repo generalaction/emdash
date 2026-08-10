@@ -33,7 +33,7 @@ export type GitWork = {
 type Waiter = { start: () => void };
 
 /**
- * The host-wide git budget: one in-process semaphore over every registry-spawned git
+ * The registry's git budget: one per-runtime semaphore over every registry-spawned git
  * subprocess and artifact-copy process, with priority dispatch and +headroom slots
  * reserved for creation/activation so interactive verbs always start immediately —
  * even when probes saturate the budget. Never a mutual-exclusion device: git's own
@@ -154,9 +154,6 @@ export class GitSchedule {
   }
 }
 
-/** The process-wide budget every registry exec flows through by default. */
-export const hostGitSchedule = new GitSchedule();
-
 /**
  * The per-worktree writer lock (spec: exclusivity shrinks to workspaceClaims plus
  * this): mutators of one worktree's checkout (plumbing, removal) hold it exclusively;
@@ -189,9 +186,6 @@ export class WorktreeWriteLocks {
     return this.writers.get(key) ?? Promise.resolve();
   }
 }
-
-/** Host-wide writer locks, shared by every registry probe and mutator in-process. */
-export const worktreeWriteLocks = new WorktreeWriteLocks();
 
 const TRANSIENT_LOCK_PATTERNS = [
   /unable to create .*\.lock.*file exists/i,
