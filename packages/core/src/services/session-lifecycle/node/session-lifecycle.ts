@@ -113,6 +113,7 @@ export function createSessionLifecycle<TResume, TCtx>(
     conversation?.reports ?? noopConversationLifecycleReporter;
 
   const trackers = new Map<string, ActivityTracker>();
+  const tombstones = new Set<string>();
   const intentQueues = new Map<string, Promise<void>>();
   const evicting = new Map<string, Promise<void>>();
 
@@ -125,7 +126,37 @@ export function createSessionLifecycle<TResume, TCtx>(
     return tracker;
   }
 
+  /**
+   * Post-evict calls must not lazily recreate a tracker (behavior contract 7): a
+   * late PTY flush racing an evict would leave an activity entry nothing ever
+   * cleans, because the key is gone from the runtime's maps and no future evict
+   * will run for it. A tombstoned key is revived only by a re-creation signal:
+   * an explicit `recordInput` (every consumer's start/restart path leads with
+   * one — record-before-list-entry stays legal per contract 1 — and every other
+   * recordInput call site is guarded by the runtime's own maps), or the key
+   * re-appearing in `entries()` (terminals restart-replace re-registers the key
+   * before spawning; its first record is output-driven). Everything else on a
+   * tombstoned key is a straggler from the torn-down session and is dropped.
+   */
+  function reviveTombstoned(key: string, signal: 'record-input' | 'passive'): boolean {
+    if (!tombstones.has(key)) return true;
+    if (signal === 'passive' && !entriesInclude(key)) return false;
+    tombstones.delete(key);
+    return true;
+  }
+
+  function entriesInclude(target: string): boolean {
+    for (const key of entries()) {
+      if (key === target) return true;
+    }
+    return false;
+  }
+
   function activity(key: string): ActivityFields {
+    if (!reviveTombstoned(key, 'passive')) {
+      // Transient snapshot matching a fresh tracker; nothing is stored.
+      return { lastInputAt: null, lastOutputAt: null, attachedClients: 0, detachedAt: clock.now() };
+    }
     return trackerFor(key).snapshot();
   }
 
@@ -241,6 +272,7 @@ export function createSessionLifecycle<TResume, TCtx>(
           }
         }
         trackers.delete(key);
+        tombstones.add(key);
         reports.sessionEnded(key);
 
         const intent = opts.intent ?? 'suspend';
@@ -383,17 +415,21 @@ export function createSessionLifecycle<TResume, TCtx>(
 
   return {
     recordInput(key) {
+      reviveTombstoned(key, 'record-input');
       trackerFor(key).recordInput();
       afterRecord(key);
     },
     recordOutput(key) {
+      if (!reviveTombstoned(key, 'passive')) return;
       trackerFor(key).recordOutput();
       afterRecord(key);
     },
     attach(key) {
+      if (!reviveTombstoned(key, 'passive')) return;
       trackerFor(key).attach();
     },
     detach(key) {
+      if (!reviveTombstoned(key, 'passive')) return;
       trackerFor(key).detach();
       syncListEntry?.(key, activity(key));
     },
