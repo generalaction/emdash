@@ -1,4 +1,5 @@
 import '@emdash/ui/style.css';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,6 +65,7 @@ describe('MCP drawer Escape routing', () => {
             <McpDrawer
               open
               mode={{ type: 'add-custom' }}
+              host={LOCAL_HOST_REF}
               providers={[]}
               onOpenChange={onOpenChange}
               onSave={vi.fn(async () => undefined)}

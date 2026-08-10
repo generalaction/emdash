@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React from 'react';
@@ -8,6 +9,7 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 
 type McpServersListProps = {
   mcp: UseMcpsResult;
+  host: HostRef;
   search?: string;
   drawerMode: McpDrawerMode | null;
   onDrawerModeChange: (mode: McpDrawerMode | null) => void;
@@ -15,6 +17,7 @@ type McpServersListProps = {
 
 export const McpServersList: React.FC<McpServersListProps> = ({
   mcp,
+  host,
   search = '',
   drawerMode,
   onDrawerModeChange,
@@ -65,6 +68,7 @@ export const McpServersList: React.FC<McpServersListProps> = ({
       <McpDrawer
         open={drawerMode !== null}
         mode={drawerMode}
+        host={host}
         providers={mcp.providers}
         onOpenChange={(open) => {
           if (!open) onDrawerModeChange(null);
@@ -79,6 +83,7 @@ export const McpServersList: React.FC<McpServersListProps> = ({
               <McpCard
                 key={server.name}
                 server={server}
+                providers={mcp.providers}
                 catalogEntry={mcp.catalog.find((entry) => entry.key === server.name)}
                 onEdit={(nextServer) => onDrawerModeChange({ type: 'edit', server: nextServer })}
               />
@@ -91,6 +96,7 @@ export const McpServersList: React.FC<McpServersListProps> = ({
             {filteredCatalog.map((entry) => (
               <McpCard
                 key={entry.key}
+                providers={mcp.providers}
                 catalogEntry={entry}
                 onAdd={(nextEntry) => onDrawerModeChange({ type: 'add-catalog', entry: nextEntry })}
               />

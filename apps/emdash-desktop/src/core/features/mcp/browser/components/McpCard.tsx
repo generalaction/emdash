@@ -1,15 +1,20 @@
-import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api';
+import type {
+  McpCatalogEntry,
+  McpProvidersResponse,
+  McpServer,
+} from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { CardGridItem } from '@emdash/ui/react/components';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { McpServerIcon } from '@core/features/mcp/browser/mcpIcons';
 
 interface McpCardProps {
   server?: McpServer;
+  /** Host-scoped provider list from the owning panel's `useMcps(host)`. */
+  providers: McpProvidersResponse[];
   catalogEntry?: McpCatalogEntry;
   onEdit?: (server: McpServer) => void;
   onAdd?: (entry: McpCatalogEntry) => void;
@@ -24,14 +29,19 @@ function getTransport(server?: McpServer, entry?: McpCatalogEntry): 'stdio' | 'h
   return 'stdio';
 }
 
-export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, onAdd }) => {
+export const McpCard: React.FC<McpCardProps> = ({
+  server,
+  providers,
+  catalogEntry,
+  onEdit,
+  onAdd,
+}) => {
   const name = server?.name ?? catalogEntry?.name ?? 'Unknown';
   const description = catalogEntry?.description ?? (server ? `${server.transport} server` : '');
   const isInstalled = !!server;
   const transport = getTransport(server, catalogEntry);
   const docsUrl = catalogEntry?.docsUrl;
-  const { data: agents } = useAgents();
-  const agentIds = new Set((agents ?? []).map((a) => a.id));
+  const agentIds = new Set(providers.map((provider) => provider.id));
   const syncedProviders = (server?.providers ?? []).filter((id) =>
     agentIds.has(id)
   ) as AgentProviderId[];

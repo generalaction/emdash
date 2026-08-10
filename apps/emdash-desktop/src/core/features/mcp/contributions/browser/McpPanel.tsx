@@ -40,6 +40,7 @@ export function McpPanel({ host = LOCAL_HOST_REF, header }: McpPanelProps) {
       )}
       <McpServersList
         mcp={mcp}
+        host={host}
         search={search}
         drawerMode={drawerMode}
         onDrawerModeChange={setDrawerMode}
