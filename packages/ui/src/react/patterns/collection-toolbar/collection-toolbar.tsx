@@ -23,8 +23,8 @@ export interface CollectionToolbarProps extends Omit<
 
 /**
  * CollectionToolbar — a consistent search, metadata, and actions row for any
- * collection renderer. It deliberately does not depend on ListPage, ListView,
- * or a particular list/grid implementation.
+ * collection renderer. It deliberately does not depend on CollectionView,
+ * ListView, or a particular list/grid implementation.
  */
 export const CollectionToolbar = React.forwardRef<HTMLInputElement, CollectionToolbarProps>(
   function CollectionToolbar(

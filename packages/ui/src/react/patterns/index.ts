@@ -84,21 +84,6 @@ export type {
   TreeViewProps,
 } from './tree-view';
 
-export { ListPage } from './list-page';
-export type {
-  ListPageProps,
-  ListPageBodyProps,
-  ListPageSectionProps,
-  ListPageSectionHeaderProps,
-  ListPageSeparatorProps,
-  ListPageRowProps,
-  ListPageRowIconProps,
-  ListPageRowContentProps,
-  ListPageRowTitleProps,
-  ListPageRowDescriptionProps,
-  ListPageRowTrailingProps,
-} from './list-page';
-
 export { PageLayout } from './page-layout';
 export type {
   PageLayoutProps,
