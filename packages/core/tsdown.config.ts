@@ -4,8 +4,7 @@ export default defineConfig({
   entry: {
     'primitives-path-api': 'src/primitives/path/api/index.ts',
     'primitives-host-api': 'src/primitives/host/api/index.ts',
-    'primitives-host-resource-api': 'src/primitives/host-resource/api/index.ts',
-    'primitives-lib-api': 'src/primitives/lib/api/index.ts',
+    'primitives-exclusion-policy-api': 'src/primitives/exclusion-policy/api/index.ts',
     'primitives-workflow-api': 'src/primitives/workflow/api/index.ts',
     'primitives-skills-api': 'src/primitives/skills/api/index.ts',
     'primitives-mcp-api': 'src/primitives/mcp/api/index.ts',

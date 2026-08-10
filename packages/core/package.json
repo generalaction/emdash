@@ -45,15 +45,10 @@
       "types": "./dist/primitives-host-api.d.mts",
       "default": "./dist/primitives-host-api.mjs"
     },
-    "./primitives/host-resource/api": {
-      "development": "./src/primitives/host-resource/api/index.ts",
-      "types": "./dist/primitives-host-resource-api.d.mts",
-      "default": "./dist/primitives-host-resource-api.mjs"
-    },
-    "./primitives/lib/api": {
-      "development": "./src/primitives/lib/api/index.ts",
-      "types": "./dist/primitives-lib-api.d.mts",
-      "default": "./dist/primitives-lib-api.mjs"
+    "./primitives/exclusion-policy/api": {
+      "development": "./src/primitives/exclusion-policy/api/index.ts",
+      "types": "./dist/primitives-exclusion-policy-api.d.mts",
+      "default": "./dist/primitives-exclusion-policy-api.mjs"
     },
     "./primitives/workflow/api": {
       "development": "./src/primitives/workflow/api/index.ts",

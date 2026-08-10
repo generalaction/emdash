@@ -8,7 +8,7 @@ import {
   type ExposedMutationContext,
   type Revision,
 } from '@emdash/wire/state';
-import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '#primitives/lib/api';
+import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '#primitives/exclusion-policy/api';
 import {
   parsePortableRelativePath,
   ROOT_RELATIVE_PATH,

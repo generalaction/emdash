@@ -1,7 +1,7 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '#primitives/lib/api';
+import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '#primitives/exclusion-policy/api';
 import {
   comparisonKeyForAbsolutePath,
   createPathProfile,

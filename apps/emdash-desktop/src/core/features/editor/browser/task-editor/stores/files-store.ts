@@ -1,5 +1,8 @@
+import {
+  canonicalExclusionPatterns,
+  DEFAULT_TREE_EXCLUDE,
+} from '@emdash/core/primitives/exclusion-policy/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
 import {
   encodeResourceUri,
   hostFileRef,

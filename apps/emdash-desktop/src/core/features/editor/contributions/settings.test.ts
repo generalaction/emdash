@@ -2,7 +2,7 @@ import {
   DEFAULT_SEARCH_EXCLUDE,
   DEFAULT_TREE_EXCLUDE,
   DEFAULT_WATCHER_EXCLUDE,
-} from '@emdash/core/primitives/lib/api';
+} from '@emdash/core/primitives/exclusion-policy/api';
 import { describe, expect, it } from 'vitest';
 import { filesSettingsContribution } from './settings';
 
