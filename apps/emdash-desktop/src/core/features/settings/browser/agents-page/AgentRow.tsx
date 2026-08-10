@@ -8,10 +8,9 @@ import {
 } from '@core/features/settings/browser/agents-page/agent-status-badge';
 import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
 
-export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {
+/** Row content (icon tile + name + badge cluster) — the CollectionView shell owns interaction. */
+export const AgentRow = ({ agent }: { agent: AgentPayload }) => {
   const isInstalled = agent.status === 'available';
-  const isClickable = !!onClick;
-  const Tag = isClickable ? 'button' : 'div';
   const showUiBadge = agentSupportsAcp(agent.capabilities);
 
   const updates = agent.capabilities.hostDependency.updates;
@@ -25,25 +24,18 @@ export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: ()
   });
 
   return (
-    <Tag
-      className={`group flex w-full items-center gap-3 rounded-lg p-3 hover:bg-background-1${isClickable ? ' cursor-pointer text-left' : ''}`}
-      onClick={isClickable ? onClick : undefined}
-    >
+    <div className="group flex w-full items-center gap-3">
       <div className="flex size-6 items-center justify-center rounded-lg bg-background-1 p-1.5 group-hover:bg-background-2">
         <AgentIcon id={agent.id} size={16} />
       </div>
-      <div className="flex w-full flex-col gap-0.5">
-        <div className="flex w-full items-center justify-between">
-          <span className="text-sm text-foreground">{agent.name}</span>
-          <div className="flex items-center gap-1.5">
-            <>
-              {showUiBadge && <Pill variant="info">Chat UI</Pill>}
-              {updateState.render && <UpdateAvailableBadge />}
-              {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
-            </>
-          </div>
+      <div className="flex w-full items-center justify-between">
+        <span className="text-sm text-foreground">{agent.name}</span>
+        <div className="flex items-center gap-1.5">
+          {showUiBadge && <Pill variant="info">Chat UI</Pill>}
+          {updateState.render && <UpdateAvailableBadge />}
+          {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
         </div>
       </div>
-    </Tag>
+    </div>
   );
 };
