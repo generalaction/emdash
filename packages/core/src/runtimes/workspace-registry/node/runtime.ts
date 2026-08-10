@@ -1779,8 +1779,7 @@ export class WorkspaceRegistryRuntime {
   /** Persists a scan result, stamping observation time and bumping updatedAt on change. */
   private saveRecord(next: DurableWorkspaceRecord, now: number): void {
     const previous = this.store.get(next.id);
-    const changed =
-      !previous || JSON.stringify(recordEssence(previous)) !== JSON.stringify(recordEssence(next));
+    const changed = !previous || !sameRecordEssence(previous, next);
     const record: DurableWorkspaceRecord = {
       ...next,
       updatedAt: changed ? now : (previous?.updatedAt ?? now),
@@ -1952,6 +1951,33 @@ function recordEssence(
 ): Omit<DurableWorkspaceRecord, 'updatedAt' | 'lastObservedAt'> {
   const { updatedAt: _updatedAt, lastObservedAt: _lastObservedAt, ...essence } = record;
   return essence;
+}
+
+/**
+ * Key-order-independent equality of two records' change-detection essence: a stored
+ * record round-trips through JSON in zod parse order while a scan result is built as
+ * a literal, so key order must never masquerade as a change (the {@link sameGitSetup}
+ * precedent). Exported for saveRecord's unit test only.
+ */
+export function sameRecordEssence(a: DurableWorkspaceRecord, b: DurableWorkspaceRecord): boolean {
+  return canonicalJson(recordEssence(a)) === canonicalJson(recordEssence(b));
+}
+
+/** JSON.stringify over a deep key-sorted copy — one canonical form per value. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value));
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, entry]) => [key, sortKeysDeep(entry)])
+    );
+  }
+  return value;
 }
 
 async function isDirectory(path: string): Promise<boolean> {
