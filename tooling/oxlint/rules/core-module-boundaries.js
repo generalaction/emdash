@@ -115,6 +115,17 @@ export function isAllowedCoreModuleDependency(source, target) {
     );
   }
 
+  // The session-lifecycle chassis types against the intent store and lifecycle
+  // reporter ports (spec: conversation-lifecycle-chassis).
+  if (source.type === 'services' && source.moduleName === 'session-lifecycle') {
+    return (
+      (target.type === 'services' &&
+        (target.moduleName === 'session-intents' ||
+          target.moduleName === 'conversation-reports')) ||
+      target.type === 'primitives'
+    );
+  }
+
   if (source.type === 'runtimes') {
     return target.type === 'services' || target.type === 'primitives';
   }
@@ -161,7 +172,7 @@ export function isAllowedCoreModuleDependency(source, target) {
 export function dependencyMessage(source, target, specifier) {
   return `${source.type}/${source.moduleName} must not import ${target.type}/${
     target.moduleName
-  } via '${specifier}'. Allowed Core module dependencies are: any module -> named shared-infra services (app-db/operations), runtime-broker -> runtime/host-dependency APIs and primitives, runtimes -> services/primitives, services -> primitives, features -> other feature api/contributions surfaces, runtime APIs, and primitives, feature node surfaces -> service APIs/node surfaces, primitives -> primitives.`;
+  } via '${specifier}'. Allowed Core module dependencies are: any module -> named shared-infra services (app-db/operations), runtime-broker -> runtime/host-dependency APIs and primitives, session-lifecycle -> session-intents/conversation-reports and primitives, runtimes -> services/primitives, services -> primitives, features -> other feature api/contributions surfaces, runtime APIs, and primitives, feature node surfaces -> service APIs/node surfaces, primitives -> primitives.`;
 }
 
 function getFilename(context) {
