@@ -1,4 +1,13 @@
-import { Button, DropdownMenu, Input, Select, Switch, toast } from '@emdash/ui/react/primitives';
+import { SettingsCard, SettingsSection } from '@emdash/ui/react/patterns';
+import {
+  Button,
+  DropdownMenu,
+  Input,
+  Select,
+  SeparatedList,
+  Switch,
+  toast,
+} from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -126,265 +135,269 @@ export function BrowserSettingsCard() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <SettingRow
-        title="Default browser profile"
-        description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
-        control={
-          <Select.Root
-            value={selectedDefault}
-            onValueChange={(next) => {
-              if (next) update({ defaultProfileId: next });
-            }}
-            disabled={disabled}
-          >
-            <Select.Trigger className="w-[190px] shrink-0 gap-2">
-              <Select.Value>{browserProfileLabel(selectedDefault, profiles)}</Select.Value>
-            </Select.Trigger>
-            <Select.Content align="end">
-              {profiles.map((profile) => (
-                <Select.Item key={profile.id} value={profile.id}>
-                  {profile.name}
-                </Select.Item>
-              ))}
-              <Select.Item value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        }
-      />
-
-      <SettingRow
-        title="Disable CORS for localhost"
-        description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
-        control={
-          <Switch
-            checked={browserSettings?.relaxCorsForLocalhost ?? false}
-            disabled={disabled}
-            onCheckedChange={(next) => update({ relaxCorsForLocalhost: next })}
+    <div className="flex flex-col gap-8">
+      <SettingsCard>
+        <SeparatedList gap="1rem" direction="column">
+          <SettingRow
+            title="Default browser profile"
+            description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
+            control={
+              <Select.Root
+                value={selectedDefault}
+                onValueChange={(next) => {
+                  if (next) update({ defaultProfileId: next });
+                }}
+                disabled={disabled}
+              >
+                <Select.Trigger className="w-[190px] shrink-0 gap-2">
+                  <Select.Value>{browserProfileLabel(selectedDefault, profiles)}</Select.Value>
+                </Select.Trigger>
+                <Select.Content align="end">
+                  {profiles.map((profile) => (
+                    <Select.Item key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </Select.Item>
+                  ))}
+                  <Select.Item value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</Select.Item>
+                </Select.Content>
+              </Select.Root>
+            }
           />
-        }
-      />
 
-      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
-        <div className="flex flex-col gap-1">
-          <div className="text-sm text-foreground">Browser profiles</div>
+          <SettingRow
+            title="Disable CORS for localhost"
+            description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
+            control={
+              <Switch
+                checked={browserSettings?.relaxCorsForLocalhost ?? false}
+                disabled={disabled}
+                onCheckedChange={(next) => update({ relaxCorsForLocalhost: next })}
+              />
+            }
+          />
+        </SeparatedList>
+      </SettingsCard>
+
+      <SettingsSection title="Browser profiles" bare>
+        <SettingsCard>
           <div className="text-xs text-foreground-passive">
             Each profile keeps its own cookies and logins, shared across tasks. Profiles do not
             import anything from your system browser.
           </div>
-        </div>
 
-        <div className="mt-2 flex flex-col divide-y divide-border/40">
-          {profiles.map((profile) => (
-            <div key={profile.id} className="flex h-9 items-center gap-2">
-              {editingProfileId === profile.id ? (
-                <>
-                  <Input
-                    ref={renameInputRef}
-                    autoFocus
-                    defaultValue={profile.name}
-                    disabled={disabled}
-                    aria-label={`Rename ${profile.name} browser profile`}
-                    className="h-7 min-w-0 flex-1"
-                    onFocus={(event) => event.currentTarget.select()}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter')
-                        renameProfile(profile.id, event.currentTarget.value);
-                      if (event.key === 'Escape') setEditingProfileId(null);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    icon
-                    className="size-7 shrink-0 text-foreground-muted"
-                    disabled={disabled}
-                    aria-label={`Save ${profile.name} browser profile name`}
-                    onClick={() => renameProfile(profile.id, renameInputRef.current?.value ?? '')}
-                  >
-                    <Check className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    icon
-                    className="size-7 shrink-0 text-foreground-muted"
-                    disabled={disabled}
-                    aria-label={`Cancel renaming ${profile.name} browser profile`}
-                    onClick={() => setEditingProfileId(null)}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                    {profile.name}
-                  </span>
-                  <DropdownMenu.Root>
-                    <DropdownMenu.Trigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          icon
-                          className="size-7 shrink-0 text-foreground-muted"
-                          disabled={disabled}
-                          aria-label={`${profile.name} browser profile actions`}
-                        />
-                      }
-                    >
-                      <Ellipsis className="size-4" />
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Content
-                      align="end"
-                      className="min-w-40"
-                      finalFocus={renameInputRef}
-                    >
-                      <DropdownMenu.Item onClick={() => setEditingProfileId(profile.id)}>
-                        <Pencil className="size-4" />
-                        Rename
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Item onClick={() => clearProfileStorage(profile)}>
-                        <Eraser className="size-4" />
-                        Clear storage
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Separator />
-                      <DropdownMenu.Item
-                        variant="destructive"
-                        disabled={profiles.length <= 1}
-                        onClick={() => deleteProfile(profile)}
-                      >
-                        <Trash2 className="size-4" />
-                        Delete
-                      </DropdownMenu.Item>
-                    </DropdownMenu.Content>
-                  </DropdownMenu.Root>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-2 flex h-7 items-center">
-          {isAdding ? (
-            <div className="flex w-full items-center gap-2">
-              <Input
-                ref={addInputRef}
-                autoFocus
-                disabled={disabled}
-                placeholder="Profile name"
-                aria-label="New browser profile name"
-                className="h-7 min-w-0 flex-1"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') addProfile(event.currentTarget.value);
-                  if (event.key === 'Escape') setIsAdding(false);
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                icon
-                className="size-7 shrink-0 text-foreground-muted"
-                disabled={disabled}
-                aria-label="Save new browser profile"
-                onClick={() => addProfile(addInputRef.current?.value ?? '')}
-              >
-                <Check className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                icon
-                className="size-7 shrink-0 text-foreground-muted"
-                disabled={disabled}
-                aria-label="Cancel adding profile"
-                onClick={() => setIsAdding(false)}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-foreground-muted"
-              disabled={disabled}
-              onClick={() => setIsAdding(true)}
-            >
-              <Plus className="size-4" />
-              Add profile
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
-            <div className="text-sm text-foreground">Browsing data</div>
-            <div className="text-xs text-foreground-passive">
-              Clear cookies, cached files, and site data from the in-app browser.
-            </div>
-          </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-foreground-muted"
-              disabled={disabled || isClearingBrowsingData}
-              onClick={() => clearBrowsingData('all', 'All browsing data')}
-            >
-              Clear all browsing data
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon
-              className="shrink-0 text-foreground-muted"
-              aria-expanded={isBrowsingDataExpanded}
-              aria-label={
-                isBrowsingDataExpanded
-                  ? 'Hide individual browsing data options'
-                  : 'Show individual browsing data options'
-              }
-              onClick={() => setIsBrowsingDataExpanded((expanded) => !expanded)}
-            >
-              <ChevronDown
-                className={cn(
-                  'size-4 transition-transform',
-                  isBrowsingDataExpanded && 'rotate-180'
-                )}
-              />
-            </Button>
-          </div>
-        </div>
-
-        {isBrowsingDataExpanded && (
           <div className="mt-2 flex flex-col divide-y divide-border/40">
-            {BROWSING_DATA_CATEGORIES.map((category) => (
-              <div key={category.kind} className="flex h-9 items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {category.label}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0 text-foreground-muted"
-                  disabled={disabled || isClearingBrowsingData}
-                  onClick={() => clearBrowsingData(category.kind, category.label)}
-                >
-                  {category.actionLabel}
-                </Button>
+            {profiles.map((profile) => (
+              <div key={profile.id} className="flex h-9 items-center gap-2">
+                {editingProfileId === profile.id ? (
+                  <>
+                    <Input
+                      ref={renameInputRef}
+                      autoFocus
+                      defaultValue={profile.name}
+                      disabled={disabled}
+                      aria-label={`Rename ${profile.name} browser profile`}
+                      className="h-7 min-w-0 flex-1"
+                      onFocus={(event) => event.currentTarget.select()}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter')
+                          renameProfile(profile.id, event.currentTarget.value);
+                        if (event.key === 'Escape') setEditingProfileId(null);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      icon
+                      className="size-7 shrink-0 text-foreground-muted"
+                      disabled={disabled}
+                      aria-label={`Save ${profile.name} browser profile name`}
+                      onClick={() => renameProfile(profile.id, renameInputRef.current?.value ?? '')}
+                    >
+                      <Check className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      icon
+                      className="size-7 shrink-0 text-foreground-muted"
+                      disabled={disabled}
+                      aria-label={`Cancel renaming ${profile.name} browser profile`}
+                      onClick={() => setEditingProfileId(null)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {profile.name}
+                    </span>
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            icon
+                            className="size-7 shrink-0 text-foreground-muted"
+                            disabled={disabled}
+                            aria-label={`${profile.name} browser profile actions`}
+                          />
+                        }
+                      >
+                        <Ellipsis className="size-4" />
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Content
+                        align="end"
+                        className="min-w-40"
+                        finalFocus={renameInputRef}
+                      >
+                        <DropdownMenu.Item onClick={() => setEditingProfileId(profile.id)}>
+                          <Pencil className="size-4" />
+                          Rename
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item onClick={() => clearProfileStorage(profile)}>
+                          <Eraser className="size-4" />
+                          Clear storage
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Separator />
+                        <DropdownMenu.Item
+                          variant="destructive"
+                          disabled={profiles.length <= 1}
+                          onClick={() => deleteProfile(profile)}
+                        >
+                          <Trash2 className="size-4" />
+                          Delete
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Root>
+                  </>
+                )}
               </div>
             ))}
           </div>
-        )}
-      </div>
+
+          <div className="mt-2 flex h-7 items-center">
+            {isAdding ? (
+              <div className="flex w-full items-center gap-2">
+                <Input
+                  ref={addInputRef}
+                  autoFocus
+                  disabled={disabled}
+                  placeholder="Profile name"
+                  aria-label="New browser profile name"
+                  className="h-7 min-w-0 flex-1"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') addProfile(event.currentTarget.value);
+                    if (event.key === 'Escape') setIsAdding(false);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  icon
+                  className="size-7 shrink-0 text-foreground-muted"
+                  disabled={disabled}
+                  aria-label="Save new browser profile"
+                  onClick={() => addProfile(addInputRef.current?.value ?? '')}
+                >
+                  <Check className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  icon
+                  className="size-7 shrink-0 text-foreground-muted"
+                  disabled={disabled}
+                  aria-label="Cancel adding profile"
+                  onClick={() => setIsAdding(false)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-foreground-muted"
+                disabled={disabled}
+                onClick={() => setIsAdding(true)}
+              >
+                <Plus className="size-4" />
+                Add profile
+              </Button>
+            )}
+          </div>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title="Browsing data" bare>
+        <SettingsCard>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
+              <div className="text-xs text-foreground-passive">
+                Clear cookies, cached files, and site data from the in-app browser.
+              </div>
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-foreground-muted"
+                disabled={disabled || isClearingBrowsingData}
+                onClick={() => clearBrowsingData('all', 'All browsing data')}
+              >
+                Clear all browsing data
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon
+                className="shrink-0 text-foreground-muted"
+                aria-expanded={isBrowsingDataExpanded}
+                aria-label={
+                  isBrowsingDataExpanded
+                    ? 'Hide individual browsing data options'
+                    : 'Show individual browsing data options'
+                }
+                onClick={() => setIsBrowsingDataExpanded((expanded) => !expanded)}
+              >
+                <ChevronDown
+                  className={cn(
+                    'size-4 transition-transform',
+                    isBrowsingDataExpanded && 'rotate-180'
+                  )}
+                />
+              </Button>
+            </div>
+          </div>
+
+          {isBrowsingDataExpanded && (
+            <div className="mt-2 flex flex-col divide-y divide-border/40">
+              {BROWSING_DATA_CATEGORIES.map((category) => (
+                <div key={category.kind} className="flex h-9 items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {category.label}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-foreground-muted"
+                    disabled={disabled || isClearingBrowsingData}
+                    onClick={() => clearBrowsingData(category.kind, category.label)}
+                  >
+                    {category.actionLabel}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </SettingsCard>
+      </SettingsSection>
     </div>
   );
 }

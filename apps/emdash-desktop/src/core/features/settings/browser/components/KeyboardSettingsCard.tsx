@@ -1,3 +1,4 @@
+import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -110,7 +111,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
   };
 
   return (
-    <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
+    <SettingsCard>
       <div className="space-y-6">
         {groups.map((group) => (
           <div key={group.category}>
@@ -232,7 +233,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
           </div>
         ))}
       </div>
-    </div>
+    </SettingsCard>
   );
 });
 

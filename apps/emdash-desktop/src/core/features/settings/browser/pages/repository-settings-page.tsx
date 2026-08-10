@@ -1,4 +1,4 @@
-import { PageLayout } from '@emdash/ui/react/patterns';
+import { PageLayout, SettingsSection } from '@emdash/ui/react/patterns';
 import RepositorySettingsCard from '../components/RepositorySettingsCard';
 
 export function RepositorySettingsPage() {
@@ -9,10 +9,9 @@ export function RepositorySettingsPage() {
         title="Repository"
         description="Configure repository and branch settings."
       />
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-normal text-foreground">Branch prefix</h3>
+      <SettingsSection title="Branches" bare>
         <RepositorySettingsCard />
-      </div>
+      </SettingsSection>
     </div>
   );
 }

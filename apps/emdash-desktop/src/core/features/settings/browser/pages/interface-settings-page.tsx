@@ -1,4 +1,4 @@
-import { PageLayout } from '@emdash/ui/react/patterns';
+import { PageLayout, SettingsSection } from '@emdash/ui/react/patterns';
 import FilesSettingsCard from '../components/FilesSettingsCard';
 import HiddenToolsSettingsCard from '../components/HiddenToolsSettingsCard';
 import InterfaceSettingsCard from '../components/InterfaceSettingsCard';
@@ -15,22 +15,27 @@ export function InterfaceSettingsPage() {
         title="Interface"
         description="Customize the appearance and behavior of the app."
       />
-      <ThemeCard />
-      <TerminalSettingsCard />
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-normal text-foreground">Files</h3>
+      <SettingsSection title="Color mode" bare>
+        <ThemeCard />
+      </SettingsSection>
+      <SettingsSection title="Terminal" bare>
+        <TerminalSettingsCard />
+      </SettingsSection>
+      <SettingsSection title="Files" bare>
         <FilesSettingsCard />
-      </div>
-      <SidebarMetadataSettingsCard />
-      <InterfaceSettingsCard />
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-normal text-foreground">Keyboard shortcuts</h3>
+      </SettingsSection>
+      <SettingsSection title="Sidebar" bare>
+        <SidebarMetadataSettingsCard />
+      </SettingsSection>
+      <SettingsSection bare>
+        <InterfaceSettingsCard />
+      </SettingsSection>
+      <SettingsSection title="Keyboard shortcuts" bare>
         <KeyboardSettingsCard />
-      </div>
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-normal text-foreground">Tools</h3>
+      </SettingsSection>
+      <SettingsSection title="Tools" bare>
         <HiddenToolsSettingsCard />
-      </div>
+      </SettingsSection>
     </div>
   );
 }

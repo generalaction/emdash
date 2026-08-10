@@ -102,3 +102,4 @@ export type {
 
 export { SettingsCard, type SettingsCardProps } from './settings';
 export { SettingsRow, type SettingsRowProps } from './settings';
+export { SettingsSection, type SettingsSectionProps } from './settings';

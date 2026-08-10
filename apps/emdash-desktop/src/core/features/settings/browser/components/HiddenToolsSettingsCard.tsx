@@ -1,3 +1,4 @@
+import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Switch, Tooltip } from '@emdash/ui/react/primitives';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -27,7 +28,7 @@ export default function HiddenToolsSettingsCard() {
   }, [availability, labels]);
 
   return (
-    <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
+    <SettingsCard>
       <div className="space-y-2">
         {sortedApps.map((app) => {
           const isDetected = availability[app.id] ?? app.alwaysAvailable ?? false;
@@ -78,6 +79,6 @@ export default function HiddenToolsSettingsCard() {
           );
         })}
       </div>
-    </div>
+    </SettingsCard>
   );
 }

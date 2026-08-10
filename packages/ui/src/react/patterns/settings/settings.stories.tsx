@@ -7,8 +7,10 @@ import { Switch } from '@react/primitives/switch';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { useAppForm } from '../form/use-app-form';
+import { PageLayout } from '../page-layout';
 import { SettingsCard } from './settings-card';
 import { SettingsRow } from './settings-row';
+import { SettingsSection } from './settings-section';
 import * as s from '@react/story-layout.css';
 
 const meta: Meta<typeof SettingsCard> = {
@@ -170,6 +172,75 @@ function FormSettings() {
 
 export const WithFormFields: Story = {
   render: () => <FormSettings />,
+};
+
+function PageAnatomy() {
+  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [telemetry, setTelemetry] = useState(false);
+
+  return (
+    <div style={{ height: '100vh', overflowY: 'auto' }}>
+      <div style={{ ...storyWidth, margin: '0 auto', paddingBottom: '4rem' }}>
+        <PageLayout.Header
+          sticky
+          title="Interface"
+          description="Customize the appearance and behavior of the app."
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '2rem' }}>
+          <SettingsSection title="App">
+            <SettingsRow
+              label="Automatic updates"
+              description="Download new versions when they become available."
+              htmlFor="anatomy-auto-update"
+              control={
+                <Switch
+                  id="anatomy-auto-update"
+                  checked={autoUpdate}
+                  onCheckedChange={setAutoUpdate}
+                />
+              }
+            />
+            <SettingsRow
+              label="Send telemetry"
+              description="Anonymous usage data helps improve the application."
+              htmlFor="anatomy-telemetry"
+              control={
+                <Switch id="anatomy-telemetry" checked={telemetry} onCheckedChange={setTelemetry} />
+              }
+            />
+          </SettingsSection>
+          <SettingsSection>
+            <SettingsRow
+              label="Untitled section"
+              description="A section without a heading, like General's account card."
+              control={
+                <Button variant="secondary" size="xs">
+                  Manage
+                </Button>
+              }
+            />
+          </SettingsSection>
+          <SettingsSection title="Custom surface" bare>
+            <SettingsCard>
+              <SeparatedList gap="1rem" direction="column">
+                <SettingsRow
+                  label="Bare section"
+                  description="Children bring their own surface — custom cards, tile grids."
+                  control={<Switch />}
+                />
+              </SeparatedList>
+            </SettingsCard>
+          </SettingsSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const PageAnatomyStory: Story = {
+  name: 'Page anatomy',
+  parameters: { layout: 'fullscreen' },
+  render: () => <PageAnatomy />,
 };
 
 export const AcrossSurfaces: Story = {

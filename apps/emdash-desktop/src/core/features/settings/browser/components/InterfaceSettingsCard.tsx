@@ -1,4 +1,5 @@
-import { Switch } from '@emdash/ui/react/primitives';
+import { SettingsCard } from '@emdash/ui/react/patterns';
+import { SeparatedList, Switch } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -17,27 +18,29 @@ const InterfaceSettingsCard: React.FC = () => {
   const hideContextBar = interfaceSettings?.hideContextBar ?? false;
 
   return (
-    <div className="flex flex-col gap-4">
-      <SettingRow
-        title="Context bar"
-        description="Hide the on-screen context trigger. The keyboard shortcut still works."
-        control={
-          <>
-            <ResetToDefaultButton
-              visible={isFieldOverridden('hideContextBar')}
-              defaultLabel="shown"
-              onReset={() => resetField('hideContextBar')}
-              disabled={loading || saving}
-            />
-            <Switch
-              checked={hideContextBar}
-              disabled={loading || saving}
-              onCheckedChange={(checked) => update({ hideContextBar: checked })}
-            />
-          </>
-        }
-      />
-    </div>
+    <SettingsCard>
+      <SeparatedList gap="1rem" direction="column">
+        <SettingRow
+          title="Context bar"
+          description="Hide the on-screen context trigger. The keyboard shortcut still works."
+          control={
+            <>
+              <ResetToDefaultButton
+                visible={isFieldOverridden('hideContextBar')}
+                defaultLabel="shown"
+                onReset={() => resetField('hideContextBar')}
+                disabled={loading || saving}
+              />
+              <Switch
+                checked={hideContextBar}
+                disabled={loading || saving}
+                onCheckedChange={(checked) => update({ hideContextBar: checked })}
+              />
+            </>
+          }
+        />
+      </SeparatedList>
+    </SettingsCard>
   );
 };
 
