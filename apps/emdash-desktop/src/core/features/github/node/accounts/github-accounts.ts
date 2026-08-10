@@ -1,4 +1,5 @@
-import type { GitHubTokenSource } from '@core/primitives/github/api';
+import type { GitHubAccountSummary, GitHubCredentialSource } from '@core/primitives/github/api';
+import type { ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type {
   ProviderAccount,
@@ -7,31 +8,18 @@ import type {
 
 export const GITHUB_PROVIDER_ID = 'github';
 
-export type GitHubAccountCredentialSource = Exclude<GitHubTokenSource, null>;
-
-export type GitHubProviderAccount = {
-  providerId: 'github';
-  providerAccountId: string;
-  host: string;
-  login: string;
-  avatarUrl: string;
-};
+export type GitHubProviderAccount = ProviderAccountIdentity & { providerId: 'github' };
 
 /** Flat GitHub-shaped view over a generic provider account row. */
-export type GitHubAccount = {
-  id: string;
+export type GitHubAccount = Omit<GitHubAccountSummary, 'isDefault'> & {
   providerAccountId: string;
-  host: string;
-  login: string;
-  avatarUrl: string;
-  credentialSource: GitHubAccountCredentialSource;
   connectedAt: number;
   updatedAt: number;
 };
 
 export type GitHubAccountUpsert = {
   accessToken: string;
-  credentialSource: GitHubAccountCredentialSource;
+  credentialSource: GitHubCredentialSource;
   providerAccount: GitHubProviderAccount;
 };
 
@@ -66,14 +54,13 @@ export function toGitHubAccount(account: ProviderAccount): GitHubAccount {
     separator > 0 ? account.accountId.slice(separator + 1) : account.accountId;
 
   return {
-    id: account.accountId,
+    accountId: account.accountId,
     providerAccountId: account.meta?.providerAccountId ?? fallbackProviderAccountId,
     host: account.meta?.host ?? fallbackHost,
     login: account.meta?.login ?? '',
     avatarUrl: account.meta?.avatarUrl ?? '',
     credentialSource:
-      (account.meta?.credentialSource as GitHubAccountCredentialSource | undefined) ??
-      'secure_storage',
+      (account.meta?.credentialSource as GitHubCredentialSource | undefined) ?? 'secure_storage',
     connectedAt: account.createdAt,
     updatedAt: account.updatedAt,
   };

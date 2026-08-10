@@ -45,11 +45,11 @@ describe('GitHubAccountService', () => {
   it('lists linked accounts with exactly one default account marker', async () => {
     const first = await upsertAccount('monalisa', '42');
     const second = await upsertAccount('enterprise-monalisa', '42', 'ghe.example.com');
-    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.id);
+    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.accountId);
 
     await expect(service.listAccounts()).resolves.toEqual([
       {
-        accountId: first.id,
+        accountId: first.accountId,
         host: 'github.com',
         login: 'monalisa',
         avatarUrl: 'https://github.com/avatars/42',
@@ -57,7 +57,7 @@ describe('GitHubAccountService', () => {
         isDefault: false,
       },
       {
-        accountId: second.id,
+        accountId: second.accountId,
         host: 'ghe.example.com',
         login: 'enterprise-monalisa',
         avatarUrl: 'https://ghe.example.com/avatars/42',
@@ -72,7 +72,7 @@ describe('GitHubAccountService', () => {
 
     await expect(service.setDefaultAccount('github.com:missing')).resolves.toBeNull();
     await expect(fixture.registry.getDefaultAccountId(GITHUB_PROVIDER_ID)).resolves.toBe(
-      account.id
+      account.accountId
     );
   });
 
@@ -80,8 +80,8 @@ describe('GitHubAccountService', () => {
     await upsertAccount('monalisa', '42');
     const second = await upsertAccount('octocat', '84');
 
-    await expect(service.setDefaultAccount(second.id)).resolves.toMatchObject({
-      accountId: second.id,
+    await expect(service.setDefaultAccount(second.accountId)).resolves.toMatchObject({
+      accountId: second.accountId,
       isDefault: true,
     });
   });
@@ -94,7 +94,7 @@ describe('GitHubAccountService', () => {
 
     expect(result.importedAccountIds).toEqual(['ghe.example.com:168']);
     expect(result.accounts).toMatchObject([
-      { accountId: existing.id, login: 'monalisa', isDefault: true },
+      { accountId: existing.accountId, login: 'monalisa', isDefault: true },
       { accountId: 'ghe.example.com:168', login: 'enterprise', isDefault: false },
     ]);
     await expect(
@@ -116,13 +116,15 @@ describe('GitHubAccountService', () => {
   it('returns the fallback default when removing the default account', async () => {
     const first = await upsertAccount('monalisa', '42');
     const second = await upsertAccount('octocat', '84');
-    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.id);
+    await fixture.registry.setDefaultAccount(GITHUB_PROVIDER_ID, second.accountId);
 
-    const accounts = await service.removeAccount(second.id);
+    const accounts = await service.removeAccount(second.accountId);
 
-    expect(accounts).toMatchObject([{ accountId: first.id, isDefault: true }]);
-    await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, second.id)).resolves.toBeNull();
-    expect(clearOctokitCache).toHaveBeenCalledWith('github.com', second.id);
+    expect(accounts).toMatchObject([{ accountId: first.accountId, isDefault: true }]);
+    await expect(
+      fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, second.accountId)
+    ).resolves.toBeNull();
+    expect(clearOctokitCache).toHaveBeenCalledWith('github.com', second.accountId);
   });
 
   it('returns null when removing an unknown account id', async () => {

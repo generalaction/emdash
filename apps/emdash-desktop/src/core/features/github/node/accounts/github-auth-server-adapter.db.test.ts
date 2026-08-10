@@ -38,7 +38,7 @@ describe('GitHubAuthServerAdapter', () => {
     });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
-      id: 'github.com:42',
+      accountId: 'github.com:42',
       login: 'monalisa',
       credentialSource: 'emdash_oauth',
     });

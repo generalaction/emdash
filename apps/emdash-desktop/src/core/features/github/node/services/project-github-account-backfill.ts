@@ -61,8 +61,8 @@ export class ProjectGitHubAccountBackfillService {
       .filter((account) => normalizeRepositoryHost(account.host) === normalizedHost);
     if (hostAccounts.length === 0) return null;
 
-    const defaultAccount = hostAccounts.find((account) => account.id === defaultAccountId);
-    return defaultAccount?.id ?? this.oldestAccount(hostAccounts)?.id ?? null;
+    const defaultAccount = hostAccounts.find((account) => account.accountId === defaultAccountId);
+    return defaultAccount?.accountId ?? this.oldestAccount(hostAccounts)?.accountId ?? null;
   }
 
   private oldestAccount(accounts: GitHubAccount[]): GitHubAccount | undefined {

@@ -41,8 +41,8 @@ export class GitHubAccountReconciliationService {
     const cliAccounts = await this.importCliAccounts();
 
     return {
-      legacyAccountId: legacyAccount?.id ?? null,
-      importedCliAccountIds: [...new Set(cliAccounts.map((account) => account.id))],
+      legacyAccountId: legacyAccount?.accountId ?? null,
+      importedCliAccountIds: [...new Set(cliAccounts.map((account) => account.accountId))],
     };
   }
 

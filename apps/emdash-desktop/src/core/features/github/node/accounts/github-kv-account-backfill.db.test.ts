@@ -86,7 +86,10 @@ describe('GitHubKvAccountBackfillService', () => {
 
     const imported = await service.backfillFromKv();
 
-    expect(imported.map((account) => account.id)).toEqual(['github.com:42', 'ghe.example.com:7']);
+    expect(imported.map((account) => account.accountId)).toEqual([
+      'github.com:42',
+      'ghe.example.com:7',
+    ]);
     const accounts = await fixture.registry.listAccounts(GITHUB_PROVIDER_ID);
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({

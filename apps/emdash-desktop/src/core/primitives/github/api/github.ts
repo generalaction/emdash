@@ -10,7 +10,13 @@ export type GitHubTokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'dev
 
 export type GitHubCredentialSource = Exclude<GitHubTokenSource, null>;
 
+/**
+ * The one shared GitHub provider-account summary, used everywhere an account
+ * is passed around (Wire DTOs, node services, resolver inputs). Derive from
+ * this type instead of redeclaring the shape.
+ */
 export interface GitHubAccountSummary {
+  /** `provider_accounts` row id. */
   accountId: string;
   host: string;
   login: string;

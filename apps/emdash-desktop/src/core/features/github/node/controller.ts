@@ -60,7 +60,7 @@ export function createGithubOperations(dependencies: {
 
       try {
         const accountSummary = (await githubAccountService.listAccounts()).find(
-          (candidate) => candidate.accountId === result.account.id
+          (candidate) => candidate.accountId === result.account.accountId
         );
         if (!accountSummary) {
           const message = 'Failed to register GitHub account';

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { ProviderAccountPayload } from '@core/features/account/api/node/provider-token-registry';
+import type { ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
 import type { AccountInvalidAuthResponseError } from '../account-errors';
 import type { AccountUser, AuthProviderToken, SignInExchange } from '../account-types';
 
@@ -71,7 +71,7 @@ function parseOptionalProviderToken(raw: Record<string, unknown>): AuthProviderT
   };
 }
 
-function parseProviderAccountPayload(raw: unknown): ProviderAccountPayload | undefined {
+function parseProviderAccountPayload(raw: unknown): ProviderAccountIdentity | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
 
   const candidate = raw as Record<string, unknown>;

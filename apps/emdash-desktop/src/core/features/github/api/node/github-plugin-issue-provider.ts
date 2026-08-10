@@ -105,10 +105,10 @@ async function getDefaultLinkedAccountConnection(
 
   const account = (await dependencies.accounts.listAccounts(GITHUB_PROVIDER_ID))
     .map(toGitHubAccount)
-    .find((candidate) => candidate.id === defaultAccountId);
+    .find((candidate) => candidate.accountId === defaultAccountId);
   if (!account) return null;
 
-  const token = await dependencies.auth.getToken(account.host, { accountId: account.id });
+  const token = await dependencies.auth.getToken(account.host, { accountId: account.accountId });
   if (!token.success) return null;
 
   return {

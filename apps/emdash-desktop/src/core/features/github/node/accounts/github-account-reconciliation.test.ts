@@ -4,7 +4,7 @@ import type { GitHubAccount } from './github-accounts';
 
 function account(id: string, credentialSource: GitHubAccount['credentialSource']): GitHubAccount {
   return {
-    id,
+    accountId: id,
     providerAccountId: id.split(':')[1] ?? id,
     host: id.split(':')[0] ?? 'github.com',
     login: id,

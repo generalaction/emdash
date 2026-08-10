@@ -48,7 +48,7 @@ describe('GitHubAccountBackfillService', () => {
     const account = await service.backfillLegacyToken();
 
     expect(account).toMatchObject({
-      id: 'github.com:42',
+      accountId: 'github.com:42',
       login: 'monalisa',
       credentialSource: 'secure_storage',
     });
@@ -75,10 +75,12 @@ describe('GitHubAccountBackfillService', () => {
       },
     });
 
-    await expect(service.backfillLegacyToken()).resolves.toMatchObject({ id: 'github.com:42' });
+    await expect(service.backfillLegacyToken()).resolves.toMatchObject({
+      accountId: 'github.com:42',
+    });
 
     await expect(fixture.registry.getDefaultAccountId(GITHUB_PROVIDER_ID)).resolves.toBe(
-      existing.id
+      existing.accountId
     );
   });
 
@@ -105,7 +107,7 @@ describe('GitHubAccountBackfillService', () => {
     legacyConnection.source = 'cli';
 
     await expect(service.backfillLegacyToken()).resolves.toMatchObject({
-      id: 'github.com:42',
+      accountId: 'github.com:42',
       credentialSource: 'cli',
     });
   });

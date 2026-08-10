@@ -1,5 +1,6 @@
 import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import type { ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
 
 type AccountUser = {
   userId: string;
@@ -7,14 +8,6 @@ type AccountUser = {
   username: string;
   avatarUrl: string;
   email: string;
-};
-
-type ProviderAccount = {
-  providerId: string;
-  providerAccountId: string;
-  host: string;
-  login: string;
-  avatarUrl: string;
 };
 
 type AccountSession = {
@@ -28,7 +21,7 @@ type AccountResult = {
   user?: AccountUser;
   provider?: string;
   providerAccountStatus?: string;
-  providerAccount?: ProviderAccount;
+  providerAccount?: ProviderAccountIdentity;
   code?: string;
   error?: string;
 };

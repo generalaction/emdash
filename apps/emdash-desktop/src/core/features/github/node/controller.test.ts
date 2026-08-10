@@ -30,7 +30,7 @@ describe('githubController auth', () => {
       success: true,
       token: 'gho_device',
       user,
-      account: { id: 'github.com:42' },
+      account: { accountId: 'github.com:42' },
     });
     mocks.listAccounts.mockResolvedValue([
       {
@@ -92,7 +92,7 @@ describe('githubController auth', () => {
         email: '',
         avatar_url: 'https://github.com/octocat.png',
       },
-      account: { id: 'github.com:42' },
+      account: { accountId: 'github.com:42' },
     });
     mocks.listAccounts.mockResolvedValue([]);
 
@@ -128,7 +128,7 @@ describe('githubController auth', () => {
         email: '',
         avatar_url: 'https://github.com/octocat.png',
       },
-      account: { id: 'github.com:42' },
+      account: { accountId: 'github.com:42' },
     });
     mocks.listAccounts.mockRejectedValue(new Error('secure storage failed'));
 

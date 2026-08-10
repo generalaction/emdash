@@ -36,8 +36,11 @@ export class GitHubApiAuthService {
     if (!account) return err(githubApiAuthRequired(normalizedHost));
     if (!account.success) return err(account.error);
 
-    const token = await this.accountLookup.resolveSecret(GITHUB_PROVIDER_ID, account.data.id);
-    if (!token) return err(githubApiTokenMissing(normalizedHost, account.data.id));
+    const token = await this.accountLookup.resolveSecret(
+      GITHUB_PROVIDER_ID,
+      account.data.accountId
+    );
+    if (!token) return err(githubApiTokenMissing(normalizedHost, account.data.accountId));
     return ok(token);
   }
 
@@ -49,12 +52,12 @@ export class GitHubApiAuthService {
       toGitHubAccount
     );
     if (accountId) {
-      const account = accounts.find((candidate) => candidate.id === accountId);
+      const account = accounts.find((candidate) => candidate.accountId === accountId);
       if (!account) return err(githubApiAccountNotFound(normalizedHost, accountId));
 
       const accountHost = normalizeRepositoryHost(account.host);
       if (accountHost !== normalizedHost) {
-        return err(githubApiAccountHostMismatch(normalizedHost, account.id, accountHost));
+        return err(githubApiAccountHostMismatch(normalizedHost, account.accountId, accountHost));
       }
 
       return ok(account);
@@ -66,7 +69,7 @@ export class GitHubApiAuthService {
     const defaultAccount =
       accounts.find(
         (candidate) =>
-          candidate.id === defaultAccountId &&
+          candidate.accountId === defaultAccountId &&
           normalizeRepositoryHost(candidate.host) === normalizedHost
       ) ?? null;
     return defaultAccount ? ok(defaultAccount) : null;

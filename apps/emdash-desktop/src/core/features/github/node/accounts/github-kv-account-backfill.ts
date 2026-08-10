@@ -1,10 +1,6 @@
+import type { GitHubCredentialSource } from '@core/primitives/github/api';
 import type { ProviderAccountStore } from '@core/services/provider-accounts/api/provider-account-store';
-import {
-  GITHUB_PROVIDER_ID,
-  toGitHubAccount,
-  type GitHubAccount,
-  type GitHubAccountCredentialSource,
-} from './github-accounts';
+import { GITHUB_PROVIDER_ID, toGitHubAccount, type GitHubAccount } from './github-accounts';
 
 /** Secret key used by released builds for per-account GitHub tokens. */
 export function legacyGitHubTokenRef(accountId: string): string {
@@ -18,7 +14,7 @@ export type LegacyKvGitHubAccount = {
   host: string;
   login: string;
   avatarUrl: string;
-  credentialSource: GitHubAccountCredentialSource;
+  credentialSource: GitHubCredentialSource;
   connectedAt: number;
   updatedAt: number;
 };
@@ -70,7 +66,7 @@ export class GitHubKvAccountBackfillService {
 
     if (
       legacyDefaultAccountId &&
-      imported.some((account) => account.id === legacyDefaultAccountId)
+      imported.some((account) => account.accountId === legacyDefaultAccountId)
     ) {
       await this.accounts.setDefaultAccount(GITHUB_PROVIDER_ID, legacyDefaultAccountId);
     }
