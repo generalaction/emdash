@@ -53,22 +53,21 @@ export function createDevServerBridgeParticipant({
       const key = formatHostRef(host);
       if (bridges.has(key)) return;
 
-      const bridge = isLocalHostRef(host)
-        ? await retry(() => attachOnce(host), {
-            schedule: retrySchedules.exponential({
-              initialMs: 1_000,
-              maxMs: 30_000,
-              maxRetries: 2,
-            }),
-            signal,
-            shouldRetry: isRetryableBridgeError,
-            onRetry: ({ attempt, delayMs }) =>
-              log.warn('Retrying local dev-server bridge attach after error', {
-                attempt,
-                delayMs,
-              }),
-          })
-        : await attachOnce(host);
+      const bridge = await retry(() => attachOnce(host), {
+        schedule: retrySchedules.exponential({
+          initialMs: 1_000,
+          maxMs: 30_000,
+          maxRetries: 2,
+        }),
+        signal,
+        shouldRetry: isRetryableBridgeError,
+        onRetry: ({ attempt, delayMs }) =>
+          log.warn('Retrying dev-server bridge attach after error', {
+            host: formatHostRef(host),
+            attempt,
+            delayMs,
+          }),
+      });
       bridges.set(key, bridge);
     },
     async detach(host) {
