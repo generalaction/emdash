@@ -113,17 +113,31 @@ export class BackgroundStepRunner {
   ensureRunning(id: string): BackgroundRunHandle {
     const existing = this.runs.get(id);
     if (existing) return existing;
+    return this.register(id, 'background creation steps', (copySettled) =>
+      this.executeChain(id, copySettled)
+    );
+  }
+
+  /**
+   * The single-flight's one entry point: registers a run's handle before the work
+   * starts, so a gate opened at any moment observes this run — never a map race.
+   * `settled` and `copySettled` never reject; whatever ends the run (early return,
+   * copy done, or a rejection) the artifact gate is open once the run is over.
+   */
+  private register(
+    id: string,
+    what: string,
+    work: (copySettled: () => void) => Promise<void>
+  ): BackgroundRunHandle {
     let resolveCopy!: () => void;
     const copySettled = new Promise<void>((resolve) => {
       resolveCopy = resolve;
     });
-    const settled = this.executeChain(id, resolveCopy)
+    const settled = work(resolveCopy)
       .catch((error) => {
-        this.logger.warn?.(`background creation steps for '${id}' failed unexpectedly`, { error });
+        this.logger.warn?.(`${what} for '${id}' failed unexpectedly`, { error });
       })
       .finally(() => {
-        // Whatever ended the run — early return, copy done, or a rejection — the
-        // artifact gate is open once the run is over.
         resolveCopy();
         this.runs.delete(id);
       });
@@ -158,20 +172,9 @@ export class BackgroundStepRunner {
     while (this.runs.has(id)) {
       await this.runs.get(id)?.settled;
     }
-    let resolveCopy!: () => void;
-    const copySettled = new Promise<void>((resolve) => {
-      resolveCopy = resolve;
-    });
-    const settled = this.executeRetry(id, step, resolveCopy)
-      .catch((error) => {
-        this.logger.warn?.(`retry of ${step} for '${id}' failed unexpectedly`, { error });
-      })
-      .finally(() => {
-        resolveCopy();
-        this.runs.delete(id);
-      });
-    this.runs.set(id, { settled, copySettled });
-    await settled;
+    await this.register(id, `retry of ${step}`, (copySettled) =>
+      this.executeRetry(id, step, copySettled)
+    ).settled;
   }
 
   private async executeRetry(
@@ -209,14 +212,17 @@ export class BackgroundStepRunner {
     const baseRef = record.creation?.baseRef ?? null;
     const lifecycle = record.lifecycle;
 
+    // Copy inclusion is known from durable state alone: when copy is not part of
+    // this run, the artifact gate opens now — not after the repo hold is acquired.
+    const copyIncluded = isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'));
+    if (!copyIncluded) copySettled();
+
     // The whole chain holds the repository's idle gate (spec: scan minimization —
     // registry-owned background steps suppress idle-gated scans like creation does).
     await this.git.schedule.withRepoHold(repositoryPath, async () => {
       const work: Array<Promise<void>> = [];
-      if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
+      if (copyIncluded) {
         work.push(this.executeCopyStep(id, repositoryPath, record.path).finally(copySettled));
-      } else {
-        copySettled();
       }
       if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
         work.push(this.executePushStep(id, parent.id, repositoryPath, branch));

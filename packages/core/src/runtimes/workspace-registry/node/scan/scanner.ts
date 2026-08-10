@@ -126,12 +126,17 @@ export class RegistryScanner {
     });
   }
 
-  /** The refresh verb's targeted path: one record's scan, on the scan lane. */
-  scanRecord(id: string): Promise<void> {
+  /**
+   * The refresh verb's targeted path: one record's scan, on the scan lane. Returns
+   * false when the record was already gone at the lane slot — existence is judged
+   * where the scan runs, exactly like the pre-extraction verb body.
+   */
+  scanRecord(id: string): Promise<boolean> {
     return this.enqueueScan(async () => {
       const record = this.landing.get(id);
-      if (!record) return;
+      if (!record) return false;
       await this.scanRecordPass(record);
+      return true;
     });
   }
 

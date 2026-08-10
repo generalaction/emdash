@@ -5,6 +5,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { KeyedMutex } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { stableStringify } from '@emdash/shared/util';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
@@ -1290,16 +1291,19 @@ export class WorkspaceRegistryRuntime {
   // lands here is re-validated against the live store on the mutation lane.
   // -------------------------------------------------------------------------
 
-  /** The refresh verb's body; the scans run on the scanner's lane. */
+  /**
+   * The refresh verb's body; the scans run on the scanner's lane, and existence is
+   * judged there too — a record deleted while earlier scans drain reads as not found,
+   * exactly as it did before the extraction.
+   */
   private async executeRefresh(
     input: RefreshWorkspacesInput
   ): Promise<Result<void, WorkspaceNotFoundError>> {
     if (input.workspaceId !== undefined) {
-      const record = this.store.get(input.workspaceId);
-      if (!record) {
+      const scanned = await this.scanner.scanRecord(input.workspaceId);
+      if (!scanned) {
         return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
       }
-      await this.scanner.scanRecord(record.id);
       return ok(undefined);
     }
     await this.scanner.scanHost();
@@ -1562,24 +1566,7 @@ function recordEssence(
  * precedent). Exported for saveRecord's unit test only.
  */
 export function sameRecordEssence(a: DurableWorkspaceRecord, b: DurableWorkspaceRecord): boolean {
-  return canonicalJson(recordEssence(a)) === canonicalJson(recordEssence(b));
-}
-
-/** JSON.stringify over a deep key-sorted copy — one canonical form per value. */
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeysDeep(value));
-}
-
-function sortKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, entry]) => [key, sortKeysDeep(entry)])
-    );
-  }
-  return value;
+  return stableStringify(recordEssence(a)) === stableStringify(recordEssence(b));
 }
 
 async function isDirectory(path: string): Promise<boolean> {
