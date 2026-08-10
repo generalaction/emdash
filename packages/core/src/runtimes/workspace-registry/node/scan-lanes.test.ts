@@ -3,19 +3,20 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ManualClock } from '@emdash/shared/testing';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { RegistryScanner } from '#runtimes/workspace-registry/node/scan/scanner';
 
 // Scan-lane decoupling (spec: workspace-lifecycle-v2, git concurrency model): scans
 // serialize on their own lane and land results through re-validated mutation blocks,
 // so a slow repository observation never blocks creation verbs, and a record deleted
-// mid-observation stays deleted. observeWorkspaceGit is faked with a controllable
-// gate; ordering is asserted externally.
+// mid-observation stays deleted. The scanner's observe dep is a controllable gate
+// (the honest seam); ordering is asserted externally.
 
 const observeGate = { block: false, waiters: [] as Array<() => void>, started: [] as string[] };
 
@@ -24,19 +25,13 @@ function releaseObservations(): void {
   for (const waiter of observeGate.waiters.splice(0)) waiter();
 }
 
-vi.mock('./scan/observe-git', async (importOriginal) => {
-  const original = (await importOriginal()) as object;
-  return {
-    ...original,
-    observeWorkspaceGit: async (_git: unknown, workspacePath: string) => {
-      observeGate.started.push(workspacePath);
-      if (observeGate.block) {
-        await new Promise<void>((resolve) => observeGate.waiters.push(resolve));
-      }
-      return null;
-    },
-  };
-});
+async function gatedObservation(workspacePath: string): Promise<null> {
+  observeGate.started.push(workspacePath);
+  if (observeGate.block) {
+    await new Promise<void>((resolve) => observeGate.waiters.push(resolve));
+  }
+  return null;
+}
 
 async function eventually(assertion: () => void | Promise<void>, timeoutMs = 5_000): Promise<void> {
   const started = Date.now();
@@ -59,7 +54,18 @@ describe('workspace registry scan lanes', () => {
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ws-lanes-')));
     handle = await workspaceRegistryStore.openTemp();
-    runtime = new WorkspaceRegistryRuntime({ handle, clock: new ManualClock(10_000) });
+    runtime = new WorkspaceRegistryRuntime({
+      handle,
+      clock: new ManualClock(10_000),
+      createScanner: (landing, deps) =>
+        new RegistryScanner(landing, {
+          ...deps,
+          observe: {
+            full: (workspacePath) => gatedObservation(workspacePath),
+            refs: (workspacePath) => gatedObservation(workspacePath),
+          },
+        }),
+    });
     observeGate.block = false;
     observeGate.waiters = [];
     observeGate.started = [];

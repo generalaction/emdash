@@ -75,7 +75,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     });
     const scheduler = new WorkspaceScanScheduler({
       watcher,
-      execute: (request) => runtime.executeScanRequest(request),
+      execute: (request) => runtime.scanner.executeScanRequest(request),
       listTargets: () => runtime.scanTargets(),
       isActive: (id) => runtime.isWorkspaceActive(id),
       logger,

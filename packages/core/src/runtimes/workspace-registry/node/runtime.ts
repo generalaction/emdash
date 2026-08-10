@@ -70,15 +70,8 @@ import {
 import { measureWorkspaceUsage } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
-import {
-  createRemoteUrlCache,
-  createUntrackedLinesCache,
-  listRepositoryWorktrees,
-  observeWorkspaceGit,
-  observeWorkspaceGitRefs,
-  type UntrackedLinesCache,
-  type WorktreeListing,
-} from './scan/observe-git';
+import { listRepositoryWorktrees, observeWorkspaceGit } from './scan/observe-git';
+import { RegistryScanner, type RegistryScannerDeps, type ScanLanding } from './scan/scanner';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
 import {
   createScriptsPlaneRunner,
@@ -105,6 +98,12 @@ export type WorkspaceRegistryRuntimeOptions = {
    * behavior with the runtime.
    */
   gitContext?: RegistryGitContext;
+  /**
+   * Scanner seam for tests: wrap or replace the scan plane (e.g. a recording proxy,
+   * a gated observe fake) while the landings stay the runtime's own. Production
+   * always builds the real scanner from the same landing and deps.
+   */
+  createScanner?: (landing: ScanLanding, deps: RegistryScannerDeps) => RegistryScanner;
   /** Invoked after every records change; the component points the scheduler at it. */
   onRecordsChanged?: () => void;
   /** deactivateWorkspace's session-plane step; the component builds it from the session runtimes. */
@@ -147,16 +146,8 @@ export class WorkspaceRegistryRuntime {
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
-  /**
-   * The scan lane: serializes scans among themselves, off the mutation queue, so a
-   * slow repository observation never blocks creation/activation verbs (spec: git
-   * concurrency model). Scan results land through short re-validated mutation blocks.
-   */
-  private scanQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
-  /** Per-record untracked line-count caches; evicted when the record vanishes. */
-  private readonly untrackedCaches = new Map<string, UntrackedLinesCache>();
   /** In-flight background-step runs, coalesced per workspace id. */
   private readonly backgroundRuns = new Map<string, Promise<void>>();
   /** In-flight artifact copies — the promise the activation artifact gate awaits. */
@@ -184,6 +175,12 @@ export class WorkspaceRegistryRuntime {
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
   /** Every registry-spawned git subprocess flows through this context's budget. */
   readonly gitContext: RegistryGitContext;
+  /**
+   * The scan plane (spec: registry-runtime-carveout): pass bodies, scan lane, idle
+   * gate, and untracked caches live on the scanner; results land back through this
+   * runtime's re-validated {@link ScanLanding} implementation.
+   */
+  readonly scanner: RegistryScanner;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
     this.clock = options.clock ?? systemClock;
@@ -300,6 +297,26 @@ export class WorkspaceRegistryRuntime {
     this.recordsHost = expose(workspaceRegistryContract.records, {
       list: () => this.recordsCell,
     });
+
+    // The scan plane: the scanner owns the passes; every landing runs here on the
+    // mutation lane, re-validated against the live store (ADR 0001 stays structural).
+    const landing: ScanLanding = {
+      get: (id) => this.store.get(id) ?? undefined,
+      list: () => this.store.list(),
+      observation: (id, patch, now) => this.applyObservation(id, patch, now),
+      vanished: (id, now) => this.applyVanished(id, now),
+      adoption: (record) => this.applyAdoption(record),
+      refreshConfig: async (id, workspacePath) => {
+        await this.refreshConfig(id, workspacePath);
+      },
+    };
+    const scannerDeps: RegistryScannerDeps = {
+      git: this.gitContext,
+      clock: this.clock,
+      logger: this.logger,
+    };
+    this.scanner =
+      options.createScanner?.(landing, scannerDeps) ?? new RegistryScanner(landing, scannerDeps);
 
     // Restart replay: background steps left pending/running (a daemon killed mid-step)
     // re-run exactly once; terminal statuses (failed/succeeded/skipped) are respected.
@@ -620,7 +637,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
-    return this.enqueueScan(() => this.executeRefresh(input));
+    return this.executeRefresh(input);
   }
 
   /**
@@ -753,40 +770,9 @@ export class WorkspaceRegistryRuntime {
     return inspection.kind === 'worktree' ? inspection.repositoryPath : null;
   }
 
-  /**
-   * Scheduler entry point: executes one coalesced scan request on the scan lane.
-   * Idle-gated (spec: git concurrency model): the scan defers while its repository
-   * has creation/activation/background work queued or in flight, with the poll floor
-   * as the anti-starvation deadline.
-   */
-  async executeScanRequest(request: ScanRequest): Promise<void> {
-    // The idle wait happens before the scan lane is taken: one busy repository must
-    // not stall every other repository's scans behind its gate.
-    const target = this.store.get(request.id);
-    if (!target) return;
-    await this.gitContext.schedule.whenIdle(this.repositoryKeyFor(target), SCAN_IDLE_DEADLINE_MS);
-    return this.enqueueScan(async () => {
-      const record = this.store.get(request.id);
-      if (!record) return;
-      if (request.kind === 'repository') {
-        await this.scanRepository(record, this.store.list());
-        return;
-      }
-      if (request.mode === 'refs') {
-        await this.scanRefsOnly(record);
-        return;
-      }
-      await this.scanRecord(record);
-    });
-  }
-
-  /** The idle-gate key: the owning repository's path (a record's own path otherwise). */
-  private repositoryKeyFor(record: DurableWorkspaceRecord): string {
-    if (record.kind === 'worktree' && record.parentId !== null) {
-      const parent = this.store.get(record.parentId);
-      if (parent) return parent.path;
-    }
-    return record.path;
+  /** Scheduler entry point; the pass bodies live on the scanner. */
+  executeScanRequest(request: ScanRequest): Promise<void> {
+    return this.scanner.executeScanRequest(request);
   }
 
   /** The scheduler's view of the registry: present paths to watch, staleness to bound. */
@@ -1042,7 +1028,8 @@ export class WorkspaceRegistryRuntime {
       lifecycle,
       lastCreateOutcome: { status: 'succeeded', at: now },
       git: await observeWorkspaceGit(this.gitContext, result.finalPath, undefined, {
-        untrackedCache: this.untrackedCacheFor(record.id),
+        // The scanner's cache, borrowed: the first scan after this creation stays warm.
+        untrackedCache: this.scanner.untrackedCacheFor(record.id),
       }),
       updatedAt: now,
       lastObservedAt: now,
@@ -1111,7 +1098,7 @@ export class WorkspaceRegistryRuntime {
    */
   private settleScan(request: ScanRequest): void {
     if (this.disposed) return;
-    void this.executeScanRequest(request).catch((error) => {
+    void this.scanner.executeScanRequest(request).catch((error) => {
       this.logger.warn?.(`settle scan for '${request.id}' failed`, { error });
     });
   }
@@ -1437,7 +1424,7 @@ export class WorkspaceRegistryRuntime {
     const deleted = this.store.delete(input.workspaceId);
     if (deleted) {
       this.overlays.delete(input.workspaceId);
-      this.untrackedCaches.delete(input.workspaceId);
+      this.scanner.evict(input.workspaceId);
       this.configs.delete(input.workspaceId);
       this.recordsCell.update((previous) => {
         const next = { ...previous };
@@ -1453,11 +1440,11 @@ export class WorkspaceRegistryRuntime {
   }
 
   // -------------------------------------------------------------------------
-  // Scan: the registry's reconciliation with the disk. The filesystem is the
-  // source of truth — records follow it, never the other way around.
+  // Scan landings: the pass bodies live on the scanner (scan/scanner.ts); what
+  // lands here is re-validated against the live store on the mutation lane.
   // -------------------------------------------------------------------------
 
-  /** The refresh verb's body; runs on the scan lane. */
+  /** The refresh verb's body; the scans run on the scanner's lane. */
   private async executeRefresh(
     input: RefreshWorkspacesInput
   ): Promise<Result<void, WorkspaceNotFoundError>> {
@@ -1466,216 +1453,15 @@ export class WorkspaceRegistryRuntime {
       if (!record) {
         return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
       }
-      await this.scanRecord(record);
+      await this.scanner.scanRecord(record.id);
       return ok(undefined);
     }
-    await this.scanHostUnqueued();
+    await this.scanner.scanHost();
     return ok(undefined);
   }
 
   scanHost(): Promise<void> {
-    return this.enqueueScan(() => this.scanHostUnqueued());
-  }
-
-  private async scanHostUnqueued(): Promise<void> {
-    const records = this.store.list();
-    const repositories = records.filter((record) => record.kind === 'repository');
-    const reconciledWorktreeIds = new Set<string>();
-
-    for (const repository of repositories) {
-      const childIds = await this.scanRepository(repository, records);
-      for (const id of childIds) reconciledWorktreeIds.add(id);
-    }
-
-    // Records the repository pass did not cover: directories, and worktrees whose
-    // parent repository is unknown, missing, or unscannable.
-    for (const record of this.store.list()) {
-      if (record.kind === 'repository' || reconciledWorktreeIds.has(record.id)) continue;
-      await this.scanStandalone(record);
-    }
-  }
-
-  private async scanRecord(record: DurableWorkspaceRecord): Promise<void> {
-    if (record.kind === 'repository') {
-      await this.scanRepository(record, this.store.list());
-      return;
-    }
-    if (record.kind === 'worktree' && record.parentId !== null) {
-      const parent = this.store.get(record.parentId);
-      if (parent && (await isDirectory(parent.path))) {
-        // Reconcile through the owning repository so relinks and locked/prunable land.
-        await this.scanRepository(parent, this.store.list());
-        return;
-      }
-    }
-    await this.scanStandalone(record);
-  }
-
-  /**
-   * Reconciles one present repository and its worktrees with the disk. Returns the ids
-   * of every worktree record it settled (so the host scan skips them).
-   */
-  private async scanRepository(
-    repository: DurableWorkspaceRecord,
-    records: DurableWorkspaceRecord[]
-  ): Promise<Set<string>> {
-    const settled = new Set<string>();
-    const now = this.clock.now();
-
-    if (!(await isDirectory(repository.path))) {
-      await this.applyVanished(repository.id, now);
-      return settled;
-    }
-
-    let listings: WorktreeListing[];
-    try {
-      listings = await listRepositoryWorktrees(this.gitContext, repository.path);
-    } catch (error) {
-      // Positive assertion: an unscannable repository degrades its own observations and
-      // asserts nothing about its worktrees.
-      this.logger.warn?.(
-        `workspace registry scan of '${repository.path}' failed: ${String(error)}`
-      );
-      await this.applyObservation(repository.id, { observedStatus: 'present', git: null }, now);
-      return settled;
-    }
-
-    // One remote-URL resolution per repository per reconcile pass (spec: probe budget);
-    // worktrees share their repository's config, so the cache is safe across children.
-    const remoteUrlCache = createRemoteUrlCache();
-    const children = records.filter(
-      (record) => record.kind === 'worktree' && record.parentId === repository.id
-    );
-    const childByPath = new Map(children.map((child) => [child.path, child]));
-    const childByAdminName = new Map(
-      children.flatMap((child) => (child.gitAdminName ? [[child.gitAdminName, child]] : []))
-    );
-
-    for (const listing of listings) {
-      if (listing.isMain) continue;
-      const canonicalPath = await realpathSafe(listing.path);
-      if (!(await isDirectory(canonicalPath))) {
-        // Prunable admin debris without a directory: nothing to track.
-        continue;
-      }
-
-      const byPath = childByPath.get(canonicalPath);
-      const byAdmin = listing.adminName ? childByAdminName.get(listing.adminName) : undefined;
-      const child = byPath ?? byAdmin;
-      if (child) {
-        settled.add(child.id);
-        await this.applyObservation(
-          child.id,
-          {
-            // Moved worktrees relink by admin name: identity survives, path follows.
-            path: canonicalPath,
-            gitAdminName: listing.adminName ?? child.gitAdminName,
-            observedStatus: 'present',
-            git: await observeWorkspaceGit(this.gitContext, canonicalPath, listing, {
-              untrackedCache: this.untrackedCacheFor(child.id),
-              remoteUrlCache,
-            }),
-          },
-          now
-        );
-        await this.refreshConfig(child.id, canonicalPath);
-        continue;
-      }
-
-      // Host-discovered worktree of a registered repository: adopt under a host-minted id.
-      const adoptedId = crypto.randomUUID();
-      const adopted: DurableWorkspaceRecord = {
-        id: adoptedId,
-        kind: 'worktree',
-        path: canonicalPath,
-        parentId: repository.id,
-        origin: 'adopted',
-        gitAdminName: listing.adminName ?? null,
-        observedStatus: 'present',
-        creation: null,
-        lastCreateOutcome: null,
-        lifecycle: null,
-        lastRemovalAttempt: null,
-        git: await observeWorkspaceGit(this.gitContext, canonicalPath, listing, {
-          untrackedCache: this.untrackedCacheFor(adoptedId),
-          remoteUrlCache,
-        }),
-        lastActivatedAt: null,
-        createdAt: now,
-        updatedAt: now,
-        lastObservedAt: now,
-      };
-      if (await this.applyAdoption(adopted)) {
-        settled.add(adopted.id);
-        await this.refreshConfig(adopted.id, adopted.path);
-      }
-    }
-
-    for (const child of children) {
-      if (settled.has(child.id)) continue;
-      settled.add(child.id);
-      if (await isDirectory(child.path)) {
-        // On disk but no longer listed by the repository (e.g. pruned admin data):
-        // observe it directly rather than asserting it gone.
-        await this.applyObservation(
-          child.id,
-          {
-            observedStatus: 'present',
-            git: await observeWorkspaceGit(this.gitContext, child.path, undefined, {
-              untrackedCache: this.untrackedCacheFor(child.id),
-              remoteUrlCache,
-            }),
-          },
-          now
-        );
-        await this.refreshConfig(child.id, child.path);
-        continue;
-      }
-      await this.applyVanished(child.id, now);
-    }
-
-    await this.applyObservation(
-      repository.id,
-      {
-        observedStatus: 'present',
-        git: await observeWorkspaceGit(this.gitContext, repository.path, undefined, {
-          untrackedCache: this.untrackedCacheFor(repository.id),
-          remoteUrlCache,
-        }),
-      },
-      now
-    );
-    await this.refreshConfig(repository.id, repository.path);
-    return settled;
-  }
-
-  /** The cheap scan path: ref-only change — no status, no untracked counting. */
-  private async scanRefsOnly(record: DurableWorkspaceRecord): Promise<void> {
-    const now = this.clock.now();
-    if (record.kind === 'directory') return;
-    if (!(await isDirectory(record.path))) {
-      await this.applyVanished(record.id, now);
-      return;
-    }
-    const git = await observeWorkspaceGitRefs(this.gitContext, record.path, record.git);
-    await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
-  }
-
-  /** Presence + observations for a record outside any repository reconciliation. */
-  private async scanStandalone(record: DurableWorkspaceRecord): Promise<void> {
-    const now = this.clock.now();
-    if (!(await isDirectory(record.path))) {
-      await this.applyVanished(record.id, now);
-      return;
-    }
-    const git =
-      record.kind === 'directory'
-        ? null
-        : await observeWorkspaceGit(this.gitContext, record.path, undefined, {
-            untrackedCache: this.untrackedCacheFor(record.id),
-          });
-    await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
-    await this.refreshConfig(record.id, record.path);
+    return this.scanner.scanHost();
   }
 
   /**
@@ -1717,7 +1503,7 @@ export class WorkspaceRegistryRuntime {
 
   /** Adopted records follow the disk; registered records survive as 'missing'. Mutation-lane only. */
   private recordVanished(record: DurableWorkspaceRecord, now: number): void {
-    this.untrackedCaches.delete(record.id);
+    this.scanner.evict(record.id);
     this.configs.delete(record.id);
     if (record.origin === 'adopted') {
       this.deleteWorkspaceLocked({ workspaceId: record.id });
@@ -1767,15 +1553,6 @@ export class WorkspaceRegistryRuntime {
     }
   }
 
-  private untrackedCacheFor(id: string): UntrackedLinesCache {
-    let cache = this.untrackedCaches.get(id);
-    if (!cache) {
-      cache = createUntrackedLinesCache();
-      this.untrackedCaches.set(id, cache);
-    }
-    return cache;
-  }
-
   /** Persists a scan result, stamping observation time and bumping updatedAt on change. */
   private saveRecord(next: DurableWorkspaceRecord, now: number): void {
     const previous = this.store.get(next.id);
@@ -1823,13 +1600,6 @@ export class WorkspaceRegistryRuntime {
   private enqueue<T>(operation: () => Promise<T> | T): Promise<T> {
     const next = this.mutationQueue.then(operation, operation);
     this.mutationQueue = next.catch(() => undefined);
-    return next;
-  }
-
-  /** The scan lane's serializer; see the `scanQueue` field for the design intent. */
-  private enqueueScan<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.scanQueue.then(operation, operation);
-    this.scanQueue = next.catch(() => undefined);
     return next;
   }
 
@@ -1890,8 +1660,6 @@ export class WorkspaceRegistryRuntime {
 }
 
 const FETCH_DEBOUNCE_MS = 5 * 60_000;
-/** Idle-gate anti-starvation deadline; mirrors the scan scheduler's poll floor. */
-const SCAN_IDLE_DEADLINE_MS = 5 * 60_000;
 
 function hasIncompleteBackgroundSteps(record: DurableWorkspaceRecord): boolean {
   const lifecycle = record.lifecycle;
@@ -1985,13 +1753,5 @@ async function isDirectory(path: string): Promise<boolean> {
     return (await fs.stat(path)).isDirectory();
   } catch {
     return false;
-  }
-}
-
-async function realpathSafe(target: string): Promise<string> {
-  try {
-    return await fs.realpath(target);
-  } catch {
-    return target;
   }
 }
