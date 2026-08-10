@@ -6,16 +6,9 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import {
-  Button,
-  DropdownMenu,
-  RelativeTime,
-  Spinner,
-  toast,
-  Tooltip,
-} from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, RelativeTime, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
-import { BrushCleaningIcon, EllipsisIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
+import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -39,6 +32,13 @@ import { aggregateWorkspaceStatus } from '../../api/browser/workspace-runtime-st
 import { GitStatsCell } from './git-stats-cell';
 import { WorkspaceRemovalAttentionPanel } from './removal-attention-panel';
 import { RepositoryHeader } from './repository-header';
+import { PathIssueChip, RemovalPill } from './workspace-pills';
+import {
+  WorkspacesEmptyState,
+  WorkspacesErrorState,
+  WorkspacesLoadingState,
+  WorkspacesOfflineState,
+} from './workspace-states';
 
 /** One durable script failure (overlay lifecycle step) or a live overlay notice. */
 type WorkspaceScriptIssue = {
@@ -102,7 +102,11 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
           <span className="inline-flex min-w-0 items-center gap-2">
             <span className="truncate">{item.name}</span>
             {item.pathIssue && <PathIssueChip issue={item.pathIssue} path={item.path} />}
-            <RemovalChip item={item} />
+            <RemovalPill
+              pendingRemoval={item.pendingRemoval}
+              needsAttention={item.removalNeedsAttention}
+              message={item.statusMessage}
+            />
             {item.scriptIssues.map((issue) => (
               <ScriptIssueChip key={issue.script} issue={issue} />
             ))}
@@ -327,10 +331,21 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     [handleCleanArtifacts, handleDeleteRow]
   );
 
-  if (!connected) return <DetailOfflineState machineName={machineName} />;
-  if (workspaceQuery.isLoading) return <DetailLoadingState />;
-  if (workspaceQuery.isError) return <DetailErrorState error={workspaceQuery.error} />;
-  if (!group || !rootJoined || !rootRow) return <DetailMissingState />;
+  if (!connected) {
+    return (
+      <WorkspacesOfflineState
+        title={machineName ? `${machineName} is offline` : 'Machine offline'}
+        description="Workspaces load here as soon as the machine reconnects."
+      />
+    );
+  }
+  if (workspaceQuery.isLoading) return <WorkspacesLoadingState label="Loading workspace" />;
+  if (workspaceQuery.isError) {
+    return <WorkspacesErrorState error={workspaceQuery.error} title="Could not load workspace." />;
+  }
+  if (!group || !rootJoined || !rootRow) {
+    return <WorkspacesEmptyState message="Workspace not found." />;
+  }
 
   return (
     <Tooltip.Provider delay={150}>
@@ -357,7 +372,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
             items={worktreeItems}
             columns={columns}
             getItemKey={(item) => item.id}
-            emptySlot={<WorktreesEmptyState />}
+            emptySlot={<WorkspacesEmptyState message="No worktrees found." className="h-32" />}
           />
         </WorkspaceSection>
       </div>
@@ -481,58 +496,6 @@ function workspaceScriptIssues(row: ProjectWorkspaceRow): WorkspaceScriptIssue[]
   return issues;
 }
 
-function PathIssueChip({ issue, path }: { issue: ProjectWorkspacePathIssue; path: string }) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger>
-        <span className={pathIssueChipClass(issue)}>
-          {issue.kind === 'prunable' ? 'Stale git record' : 'Missing'}
-        </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="max-w-80 text-xs">
-        {pathIssueMessage(issue, path)}
-      </Tooltip.Content>
-    </Tooltip.Root>
-  );
-}
-
-function pathIssueChipClass(issue: ProjectWorkspacePathIssue): string {
-  const base = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
-  if (issue.kind === 'prunable') return `${base} border-border-warning text-foreground-warning`;
-  return `${base} border-border-destructive text-foreground-destructive`;
-}
-
-function pathIssueMessage(issue: ProjectWorkspacePathIssue, path: string): string {
-  if (issue.reason) return issue.reason;
-  if (issue.kind === 'prunable') return 'Git reports this worktree as prunable.';
-  return `Directory not found at ${path}.`;
-}
-
-/** Pending-deletion treatment: the tombstoned row is its own visible state (ADR 0006). */
-function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
-  if (!item.pendingRemoval) return null;
-  const chipBase = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
-  if (item.removalNeedsAttention) {
-    return (
-      <Tooltip.Root>
-        <Tooltip.Trigger>
-          <span className={`${chipBase} border-border-destructive text-foreground-destructive`}>
-            Removal failed
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Content className="max-w-70 text-xs">
-          {item.statusMessage ?? 'The removal stopped after a failure that needs your decision.'}
-        </Tooltip.Content>
-      </Tooltip.Root>
-    );
-  }
-  return (
-    <span className={`${chipBase} animate-pulse border-border-warning text-foreground-warning`}>
-      Removing…
-    </span>
-  );
-}
-
 function ScriptIssueChip({ issue }: { issue: WorkspaceScriptIssue }) {
   return (
     <Tooltip.Root>
@@ -561,53 +524,4 @@ function activeTaskCount(row: ProjectWorkspaceRow): number {
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function DetailOfflineState({ machineName }: { machineName?: string }) {
-  return (
-    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm text-foreground-muted">
-      <div className="inline-flex items-center gap-2">
-        <WifiOffIcon className="size-4" />
-        {machineName ? `${machineName} is offline` : 'Machine offline'}
-      </div>
-      <p className="max-w-sm text-center text-xs text-foreground-passive">
-        Workspaces load here as soon as the machine reconnects.
-      </p>
-    </div>
-  );
-}
-
-function DetailLoadingState() {
-  return (
-    <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner size="sm" />
-      Loading workspace
-    </div>
-  );
-}
-
-function DetailErrorState({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
-      <div className="text-foreground-destructive">Could not load workspace.</div>
-      <div className="max-w-md text-center text-xs text-foreground-muted">{message}</div>
-    </div>
-  );
-}
-
-function DetailMissingState() {
-  return (
-    <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
-      Workspace not found.
-    </div>
-  );
-}
-
-function WorktreesEmptyState() {
-  return (
-    <div className="flex h-32 items-center justify-center text-sm text-foreground-muted">
-      No worktrees found.
-    </div>
-  );
 }

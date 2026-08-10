@@ -4,8 +4,8 @@ import {
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
 import { CollectionToolbar } from '@emdash/ui/react/patterns';
-import { Button, RelativeTime, Spinner } from '@emdash/ui/react/primitives';
-import { PlusIcon, WifiOffIcon } from 'lucide-react';
+import { Button, RelativeTime } from '@emdash/ui/react/primitives';
+import { PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { WorkspacesScope } from '@core/features/workspaces/api/browser/use-workspace-groups';
@@ -14,6 +14,12 @@ import {
   type WorkspaceRowsGroup,
 } from '@core/features/workspaces/api/browser/use-workspace-rows';
 import { aggregateWorkspaceStatus } from '@core/features/workspaces/api/browser/workspace-runtime-status';
+import {
+  WorkspacesEmptyState,
+  WorkspacesErrorState,
+  WorkspacesLoadingState,
+  WorkspacesOfflineState,
+} from '@core/features/workspaces/contributions/browser/workspace-states';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 
 type WorkspaceEntry = {
@@ -42,7 +48,11 @@ export const WorkspacesListView = observer(function WorkspacesListView({
   const entries = buildWorkspaceEntries(groups);
   const filteredEntries = entries.filter((entry) => matchesSearch(entry.item, search));
 
-  if (scope.kind === 'machine' && !enabled) return <WorkspacesOfflineState />;
+  if (scope.kind === 'machine' && !enabled) {
+    return (
+      <WorkspacesOfflineState description="Workspaces load when the machine reconnects and its workspace server is healthy." />
+    );
+  }
   if (workspaceQuery.isLoading) return <WorkspacesLoadingState />;
   if (workspaceQuery.isError) return <WorkspacesErrorState error={workspaceQuery.error} />;
 
@@ -72,7 +82,13 @@ export const WorkspacesListView = observer(function WorkspacesListView({
       <WorkspacesList
         items={filteredEntries.map((entry) => entry.item)}
         onItemClick={(item) => openDetail(item.id)}
-        emptySlot={<WorkspacesEmptyState searching={search.trim().length > 0} />}
+        emptySlot={
+          <WorkspacesEmptyState
+            message={
+              search.trim().length > 0 ? 'No workspaces match your search.' : 'No workspaces found.'
+            }
+          />
+        }
       />
     </div>
   );
@@ -123,45 +139,4 @@ function maxTimestamp(values: readonly (string | undefined)[]): string | undefin
   }
 
   return latest;
-}
-
-function WorkspacesLoadingState() {
-  return (
-    <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner size="sm" />
-      Loading workspaces
-    </div>
-  );
-}
-
-function WorkspacesErrorState({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
-      <div className="text-foreground-destructive">Could not load workspaces.</div>
-      <div className="max-w-md text-center text-xs text-foreground-muted">{message}</div>
-    </div>
-  );
-}
-
-function WorkspacesOfflineState() {
-  return (
-    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm text-foreground-muted">
-      <div className="inline-flex items-center gap-2">
-        <WifiOffIcon className="size-4" />
-        Machine offline
-      </div>
-      <p className="max-w-sm text-center text-xs text-foreground-passive">
-        Workspaces load when the machine reconnects and its workspace server is healthy.
-      </p>
-    </div>
-  );
-}
-
-function WorkspacesEmptyState({ searching }: { searching: boolean }) {
-  return (
-    <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
-      {searching ? 'No workspaces match your search.' : 'No workspaces found.'}
-    </div>
-  );
 }

@@ -1,15 +1,14 @@
 import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/components';
-import { Button, DropdownMenu, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
-import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
-import {
-  workspaceRemovalNeedsAttention,
-  type ProjectWorkspaceGitStats,
-  type ProjectWorkspaceRow,
-  type ProjectWorkspaceUsage,
+import type {
+  ProjectWorkspaceGitStats,
+  ProjectWorkspaceRow,
+  ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
 import { GitStatsCell } from './git-stats-cell';
+import { PathIssueSummaryPill, RemovalSummaryPill } from './workspace-pills';
 
 export function RepositoryHeader({
   project,
@@ -35,9 +34,6 @@ export function RepositoryHeader({
   onDelete(): void;
 }) {
   const healthStatus = status;
-  const issueRows = pathIssueRows(rows);
-  const issueSummary = pathIssueSummary(issueRows);
-  const removals = removalSummary(rows);
 
   return (
     <section className="rounded-lg border border-border bg-background-secondary/40 px-4 py-3">
@@ -52,10 +48,8 @@ export function RepositoryHeader({
                   {runtimeStatusLabel(healthStatus)}
                 </span>
               )}
-              {issueSummary && <PathIssueSummaryPill rows={issueRows} summary={issueSummary} />}
-              {removals && (
-                <span className={removalPillClass(removals)}>{removalPillLabel(removals)}</span>
-              )}
+              <PathIssueSummaryPill rows={rows} className="px-2" />
+              <RemovalSummaryPill rows={rows} className="px-2" />
             </div>
             <div className="mt-0.5 truncate text-xs text-foreground-muted">{rootRow.path}</div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground-muted">
@@ -122,49 +116,6 @@ function runtimeStatusLabel(status: WorkspaceIconStatus): string {
   }
 }
 
-function pathIssueRows(rows: readonly ProjectWorkspaceRow[]): ProjectWorkspaceRow[] {
-  return rows.filter((row) => row.pathIssue !== undefined);
-}
-
-function pathIssueSummary(rows: readonly ProjectWorkspaceRow[]): string | undefined {
-  if (rows.length === 0) return undefined;
-  const [first] = rows;
-  if (rows.length === 1 && first?.pathIssue) {
-    return first.pathIssue.kind === 'prunable'
-      ? `${worktreeLabel(first)} has a stale git record`
-      : `${worktreeLabel(first)} missing`;
-  }
-  return `${rows.length} worktrees need attention`;
-}
-
-function PathIssueSummaryPill({
-  rows,
-  summary,
-}: {
-  rows: readonly ProjectWorkspaceRow[];
-  summary: string;
-}) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger>
-        <span className="rounded-full border border-border-warning px-2 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
-          {summary}
-        </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content className="max-w-96 text-xs">
-        <div className="flex flex-col gap-1">
-          {rows.map((row) => (
-            <div key={`${row.workspaceId ?? row.path}:${row.path}`} className="min-w-0">
-              <div className="font-medium">{worktreeLabel(row)}</div>
-              <div className="text-foreground-muted">{pathIssueMessage(row)}</div>
-            </div>
-          ))}
-        </div>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  );
-}
-
 function WorkspaceScanWarnings({ warnings }: { warnings: readonly string[] }) {
   if (warnings.length === 0) return null;
   return (
@@ -176,17 +127,6 @@ function WorkspaceScanWarnings({ warnings }: { warnings: readonly string[] }) {
       </div>
     </div>
   );
-}
-
-function worktreeLabel(row: ProjectWorkspaceRow): string {
-  return row.branch ?? (basenameFromAnyPath(row.path) || row.path);
-}
-
-function pathIssueMessage(row: ProjectWorkspaceRow): string {
-  if (!row.pathIssue) return 'Workspace path needs attention.';
-  if (row.pathIssue.reason) return row.pathIssue.reason;
-  if (row.pathIssue.kind === 'prunable') return 'Git reports this worktree as prunable.';
-  return `Directory not found at ${row.path}.`;
 }
 
 function runtimeStatusPillClass(status: WorkspaceIconStatus): string {
@@ -203,32 +143,4 @@ function runtimeStatusPillClass(status: WorkspaceIconStatus): string {
     case 'idle':
       return base;
   }
-}
-
-type RemovalSummary = { pending: number; needsAttention: number };
-
-/** Pending deletions are tombstoned mirror rows (ADR 0006) — no operation records. */
-function removalSummary(rows: readonly ProjectWorkspaceRow[]): RemovalSummary | undefined {
-  const pendingRows = rows.filter((row) => row.pendingRemoval);
-  if (pendingRows.length === 0) return undefined;
-  return {
-    pending: pendingRows.length,
-    needsAttention: pendingRows.filter((row) => workspaceRemovalNeedsAttention(row)).length,
-  };
-}
-
-function removalPillLabel(removals: RemovalSummary): string {
-  if (removals.needsAttention > 0) {
-    const noun = removals.needsAttention === 1 ? 'removal needs' : 'removals need';
-    return `${removals.needsAttention} ${noun} attention`;
-  }
-  const noun = removals.pending === 1 ? 'removal' : 'removals';
-  return `${removals.pending} ${noun} pending`;
-}
-
-function removalPillClass(removals: RemovalSummary): string {
-  const base = 'rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase';
-  return removals.needsAttention > 0
-    ? `${base} border-border-destructive text-foreground-destructive`
-    : `${base} animate-pulse border-border-warning text-foreground-warning`;
 }
