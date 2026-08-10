@@ -94,6 +94,17 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
 
   const hasSessions = sessionIds.length > 0;
 
+  // This panel can mount while its resizable panel still has a transient
+  // zero-height layout — the panel group assigns real sizes only after the
+  // entry commit (observed as height 0 on drawer open). Mounting xterm against
+  // that geometry forces a synchronous measure/re-layout cascade inside the
+  // commit, which is the drawer-open frame spike. Defer the terminal subtree
+  // until the pane reports a real height: the sink is observable, so the first
+  // non-zero measurement re-renders this observer and the terminal mounts
+  // once, with correct pre-mount dimensions already computed by the pane's
+  // resize controller.
+  const paneMeasured = (dimensionSink.dimensions?.height ?? 0) > 0;
+
   return (
     <div
       ref={containerRef}
@@ -112,7 +123,10 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
             emptyState
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+              {paneMeasured &&
+              activeSessionId &&
+              activeSession?.status === 'ready' &&
+              activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
                   <TerminalSearchOverlay
                     sessionId={activeSessionId}
