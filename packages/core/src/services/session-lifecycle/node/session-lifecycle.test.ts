@@ -722,23 +722,104 @@ describe('createSessionLifecycle', () => {
   });
 
   describe('post-evict records (contract 7)', () => {
-    it('lazily recreates a tracker with a fresh idle baseline after evict', async () => {
+    /** An instance whose evictSteps remove the key from the runtime map, like real consumers. */
+    function evictionHarness() {
       const clock = createManualClock(0);
       const harness = makeHarness();
-      const lifecycle = createSessionLifecycle({ ...baseOptions(harness), clock });
+      const reports = createRecordingConversationLifecycleReporter();
+      const lifecycle = createSessionLifecycle({
+        ...baseOptions(harness, {
+          evictSteps: [{ name: 'drop-key', run: (key) => void harness.keys.delete(key) }],
+        }),
+        clock,
+        conversation: {
+          intents: createMemorySessionIntentStore(),
+          activePayload: () => null,
+          reports,
+        },
+      });
+      return { clock, harness, reports, lifecycle };
+    }
+
+    it('drops records for evicted keys instead of recreating an activity entry', async () => {
+      const { clock, harness, reports, lifecycle } = evictionHarness();
+      harness.keys.add('s1');
+      lifecycle.recordOutput('s1');
+
+      await clock.advanceBy(5_000);
+      await lifecycle.evict('s1');
+      const syncsBefore = harness.syncs.length;
+      const activitiesBefore = reports.activities.length;
+
+      // A late PTY flush racing the evict: the key is gone from the runtime's
+      // maps, so nothing would ever clean a lazily recreated tracker.
+      lifecycle.recordOutput('s1');
+
+      expect(harness.syncs.length).toBe(syncsBefore);
+      expect(reports.activities.length).toBe(activitiesBefore);
+      expect(lifecycle.activity('s1')).toEqual({
+        lastInputAt: null,
+        lastOutputAt: null,
+        attachedClients: 0,
+        detachedAt: 5_000,
+      });
+    });
+
+    it('drops attach/detach for evicted keys; activity() reads do not resurrect tracking', async () => {
+      const { harness, lifecycle } = evictionHarness();
+      harness.keys.add('s1');
+      lifecycle.recordOutput('s1');
+      await lifecycle.evict('s1');
+      const syncsBefore = harness.syncs.length;
+
+      lifecycle.attach('s1');
+      expect(lifecycle.activity('s1').attachedClients).toBe(0);
+
+      // Neither the attach nor the activity() read may have revived the key.
+      lifecycle.recordOutput('s1');
+      expect(lifecycle.activity('s1').lastOutputAt).toBeNull();
+
+      lifecycle.detach('s1');
+      expect(harness.syncs.length).toBe(syncsBefore);
+    });
+
+    it('revives with a fresh idle baseline when a genuine restart records input (agent start paths)', async () => {
+      const { clock, harness, lifecycle } = evictionHarness();
+      harness.keys.add('s1');
       lifecycle.recordInput('s1');
       lifecycle.recordOutput('s1');
 
       await clock.advanceBy(5_000);
       await lifecycle.evict('s1');
-      lifecycle.recordOutput('s1');
+      // acp/tui restart: the start path leads with recordInput, in some paths
+      // before the runtime's own maps are repopulated (contract 1).
+      lifecycle.recordInput('s1');
 
       expect(lifecycle.activity('s1')).toEqual({
-        lastInputAt: null,
-        lastOutputAt: 5_000,
+        lastInputAt: 5_000,
+        lastOutputAt: null,
         attachedClients: 0,
         detachedAt: 5_000,
       });
+      lifecycle.recordOutput('s1');
+      expect(lifecycle.activity('s1').lastOutputAt).toBe(5_000);
+    });
+
+    it('revives when the runtime re-registers the key before the first record (terminals restart)', async () => {
+      const { clock, harness, lifecycle } = evictionHarness();
+      harness.keys.add('s1');
+      lifecycle.recordOutput('s1');
+
+      await clock.advanceBy(5_000);
+      await lifecycle.evict('s1');
+      // Terminals restart-replace: evict-then-create re-registers the key in the
+      // authoritative map before spawning; the first record is output-driven.
+      harness.keys.add('s1');
+      const syncsBefore = harness.syncs.length;
+      lifecycle.recordOutput('s1');
+
+      expect(lifecycle.activity('s1').lastOutputAt).toBe(5_000);
+      expect(harness.syncs.length).toBe(syncsBefore + 1);
     });
   });
 

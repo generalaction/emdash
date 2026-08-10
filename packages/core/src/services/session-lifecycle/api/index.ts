@@ -115,11 +115,17 @@ export interface EvictOptions {
 }
 
 export interface SessionLifecycle {
-  /** tracker -> syncListEntry -> reporter.activity, in that order. */
+  /**
+   * tracker -> syncListEntry -> reporter.activity, in that order. `recordInput`
+   * also revives an evicted key (it is the re-creation signal on the agent
+   * runtimes' start paths, which record before their maps repopulate).
+   */
   recordInput(key: string): void;
+  /** Like recordInput, but dropped for evicted keys (behavior contract 7). */
   recordOutput(key: string): void;
+  /** Dropped for evicted keys (behavior contract 7). */
   attach(key: string): void;
-  /** Uniform post-detach list sync. */
+  /** Uniform post-detach list sync; dropped for evicted keys (behavior contract 7). */
   detach(key: string): void;
   /** For back-filling the first list write. */
   activity(key: string): ActivityFields;
@@ -134,6 +140,12 @@ export interface SessionLifecycle {
    * isolated, logged per step name) -> drop tracker -> sessionEnded exactly once ->
    * enqueue intent write (default 'suspend'). Never rejects; concurrent evicts of one
    * key coalesce onto the in-flight promise.
+   *
+   * Post-evict record/attach/detach calls for the key are dropped, never lazily
+   * recreated (behavior contract 7): a late PTY flush racing the evict would
+   * otherwise leave an activity entry nothing ever cleans. The key is revived by a
+   * fresh `recordInput` (agent start paths) or by re-appearing in `entries()`
+   * (terminals re-registers the key before spawning on restart-replace).
    */
   evict(key: string, opts?: EvictOptions): Promise<void>;
 
