@@ -1,45 +1,41 @@
 import { AgentStatus } from '@emdash/ui/react/components';
 import { Checkbox, RelativeTime } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useRef } from 'react';
 import { StackedAgentLogos } from '@core/features/agents/contributions/browser/stacked-agent-logos';
 import {
   taskAgentStatus,
   taskConversationStats,
 } from '@core/features/conversations/api/browser/conversation-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
-import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { type Task } from '@core/primitives/tasks/api';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
+import { type ReadyTask, type TaskListViewModel } from './task-list-model';
 
-export type ReadyTask = TaskStore & { data: Task };
-
+/**
+ * Row content for the project task list. The CollectionView shell owns row
+ * click (navigation) and modifier-click selection; this component renders the
+ * content, the hover-revealed checkbox, and the context menu.
+ */
 export const TaskRow = observer(function TaskRow({
   task,
-  isSelected,
-  onToggleSelect,
+  view,
 }: {
   task: ReadyTask;
-  isSelected: boolean;
-  onToggleSelect: (shiftKey: boolean) => void;
+  view: TaskListViewModel;
 }) {
-  const { navigate } = useNavigate();
+  const { id } = view.useItem();
+  const selection = view.useSelection();
   const openRename = useOpenModal('renameTaskModal');
   const openDeleteTask = useOpenModal('deleteTaskModal');
   const taskManager = getTaskManagerStore(task.data.projectId);
-  const shiftKeyRef = useRef(false);
 
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
-  const handleProvision = () => void taskManager?.provisionTask(task.data.id);
   const handleDelete = () => {
     void openDeleteTask({
       projectId: task.data.projectId,
@@ -62,6 +58,7 @@ export const TaskRow = observer(function TaskRow({
     });
   };
   const isArchived = Boolean(task.data.archivedAt);
+  const isSelected = selection.isSelected(id);
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
@@ -82,43 +79,24 @@ export const TaskRow = observer(function TaskRow({
       onConvertAutomation={undefined}
       onDelete={handleDelete}
     >
-      <button
-        onClick={() => {
-          if (isArchived) return;
-          handleProvision();
-          navigate(taskViewDef({ projectId: task.data.projectId, taskId: task.data.id }));
-        }}
-        className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
-      >
-        <div
-          onPointerDownCapture={(e) => {
-            shiftKeyRef.current = e.shiftKey;
+      <div className="group flex w-full items-center gap-2">
+        {/* The wrapper click carries the modifier keys the Checkbox callback drops. */}
+        <span
+          onClick={(event) => {
+            event.stopPropagation();
+            selection.toggle(id, event);
           }}
-          onKeyDownCapture={(e) => {
-            shiftKeyRef.current = e.shiftKey;
-          }}
-          onClick={(e) => e.stopPropagation()}
           className={cn(
-            'transition-opacity',
+            'inline-flex cursor-pointer transition-opacity',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
         >
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => {
-              const shift = shiftKeyRef.current;
-              shiftKeyRef.current = false;
-              onToggleSelect(shift);
-            }}
-            aria-label="Select task"
-          />
-        </div>
+          <Checkbox checked={isSelected} className="pointer-events-none" aria-label="Select task" />
+        </span>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>
-            <TaskGitDiffStats task={task} className="shrink-0 text-xs" />
-            {currentPr && <PrBadge pr={currentPr} />}
-          </div>
+          <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>
+          <TaskGitDiffStats task={task} className="shrink-0 text-xs" />
+          {currentPr && <PrBadge pr={currentPr} />}
         </div>
         <StackedAgentLogos stats={taskConversationStats(task)} />
         <div
@@ -137,7 +115,7 @@ export const TaskRow = observer(function TaskRow({
             />
           )}
         </div>
-      </button>
+      </div>
     </TaskContextMenu>
   );
 });

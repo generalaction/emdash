@@ -1,19 +1,68 @@
+import type * as React from 'react';
 import { describe, expect, it } from 'vitest';
 import type { ProjectViewState } from '@core/features/projects/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { ProjectViewStore } from './project-view';
 
-describe('TaskViewStore range selection', () => {
-  it('keeps the non-shift click as the range anchor', () => {
-    const store = new ProjectViewStore(createHandle()).taskView;
-    const ids = ['1', '2', '3', '4', '5'];
+const shiftClick = { shiftKey: true } as unknown as React.MouseEvent;
 
-    store.toggleSelect('1');
-    store.selectRange(ids, '5');
-    store.selectRange(ids, '3');
+describe('TaskViewStore selection', () => {
+  const ids = ['1', '2', '3', '4', '5'];
+
+  function createStore() {
+    const store = new ProjectViewStore(createHandle()).taskView;
+    store.attachOrderedIds(() => ids);
+    return store;
+  }
+
+  it('toggles membership and reports count and isSelected', () => {
+    const store = createStore();
+
+    store.toggle('2');
+    store.toggle('4');
+    expect(store.count).toBe(2);
+    expect(store.isSelected('2')).toBe(true);
+
+    store.toggle('2');
+    expect(store.isSelected('2')).toBe(false);
+    expect(store.count).toBe(1);
+  });
+
+  it('keeps the non-shift click as the range anchor across shift-clicks', () => {
+    const store = createStore();
+
+    store.toggle('1');
+    store.toggle('5', shiftClick);
+    store.toggle('3', shiftClick);
 
     expect([...store.selectedIds]).toEqual(['1', '2', '3']);
-    expect(store.lastSelectedId).toBe('1');
+  });
+
+  it('falls back to a plain toggle when the shift target is off-list', () => {
+    const store = createStore();
+
+    store.toggle('1');
+    store.toggle('gone', shiftClick);
+
+    expect([...store.selectedIds]).toEqual(['1', 'gone']);
+  });
+
+  it('selects an explicit range regardless of direction', () => {
+    const store = createStore();
+
+    store.selectRange('4', '2', ids);
+
+    expect([...store.selectedIds]).toEqual(['2', '3', '4']);
+  });
+
+  it('selects all and clears', () => {
+    const store = createStore();
+
+    store.selectAll(ids);
+    expect(store.count).toBe(5);
+
+    store.clear();
+    expect(store.count).toBe(0);
   });
 });
 
