@@ -3,57 +3,8 @@ import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { scriptsContract } from '#runtimes/scripts/api';
 import { ScriptsRuntime, type WorkspaceScriptsConfig } from '#runtimes/scripts/node/runtime';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { FakePtySpawner } from '#services/pty/testing';
 import { createScriptsController } from './controller';
-
-class FakePtyProcess implements PtyProcess {
-  private readonly dataHandlers: Array<(data: string) => void> = [];
-  private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-  private exited = false;
-
-  constructor(readonly pid: number) {}
-
-  write(_data: string): void {}
-  resize(_cols: number, _rows: number): void {}
-
-  kill(): void {
-    this.exit({ exitCode: null, signal: 'SIGTERM' });
-  }
-
-  onData(handler: (data: string) => void): void {
-    this.dataHandlers.push(handler);
-  }
-
-  onExit(handler: (info: PtyExitInfo) => void): void {
-    this.exitHandlers.push(handler);
-  }
-
-  getPid(): number {
-    return this.pid;
-  }
-
-  emit(data: string): void {
-    for (const handler of this.dataHandlers) handler(data);
-  }
-
-  exit(info: PtyExitInfo): void {
-    if (this.exited) return;
-    this.exited = true;
-    for (const handler of this.exitHandlers) handler(info);
-  }
-}
-
-class FakePtySpawner implements PtySpawner {
-  readonly specs: PtySpawnSpec[] = [];
-  readonly processes: FakePtyProcess[] = [];
-
-  spawn(spec: PtySpawnSpec): PtyProcess {
-    this.specs.push(spec);
-    const process = new FakePtyProcess(this.processes.length + 1);
-    this.processes.push(process);
-    return process;
-  }
-}
 
 const WORKSPACE = '/work/trees/task-1';
 const FACTS = { workspaceId: 'ws-1', repositoryPath: '/repos/app', branch: 'feature-x' };
@@ -122,8 +73,8 @@ describe('scripts runtime contract', () => {
     // CI is never injected: it is whatever the worker's own environment carries.
     expect(spec.env?.CI).toBe(process.env.CI);
 
-    spawner.processes[0]!.emit('installing...\n');
-    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+    spawner.processes[0]!.emitData('installing...\n');
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
 
     const settled = await wire.client.wait({ workspacePath: WORKSPACE, script: 'setup' });
     expect(settled.success && settled.data).toMatchObject({
@@ -166,8 +117,8 @@ describe('scripts runtime contract', () => {
 
   it('a non-zero exit settles as failed with the exit code and message', async () => {
     await start('setup');
-    spawner.processes[0]!.emit('boom\n');
-    spawner.processes[0]!.exit({ exitCode: 3, signal: null });
+    spawner.processes[0]!.emitData('boom\n');
+    spawner.processes[0]!.emitExit({ exitCode: 3, signal: null });
 
     const settled = await wire.client.wait({ workspacePath: WORKSPACE, script: 'setup' });
     expect(settled.success && settled.data).toMatchObject({
@@ -180,12 +131,12 @@ describe('scripts runtime contract', () => {
 
   it('a re-run replaces the previous run record', async () => {
     await start('setup');
-    spawner.processes[0]!.exit({ exitCode: 1, signal: null });
+    spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
     await wire.client.wait({ workspacePath: WORKSPACE, script: 'setup' });
 
     const second = await start('setup', { provenance: 'retry' });
     expect(second.success).toBe(true);
-    spawner.processes[1]!.exit({ exitCode: 0, signal: null });
+    spawner.processes[1]!.emitExit({ exitCode: 0, signal: null });
     const settled = await wire.client.wait({ workspacePath: WORKSPACE, script: 'setup' });
     expect(settled.success && settled.data).toMatchObject({
       status: 'succeeded',
@@ -214,7 +165,7 @@ describe('scripts runtime contract', () => {
     const model = devServers(undefined);
     try {
       await start('run');
-      spawner.processes[0]!.emit('Local: http://localhost:5173/app\n');
+      spawner.processes[0]!.emitData('Local: http://localhost:5173/app\n');
 
       await expect
         .poll(async () => {
@@ -231,7 +182,7 @@ describe('scripts runtime contract', () => {
           },
         ]);
 
-      spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+      spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
       await expect
         .poll(async () => {
           await model.states.list.refresh();

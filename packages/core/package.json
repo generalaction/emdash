@@ -90,11 +90,6 @@
       "types": "./dist/primitives-kv-api.d.mts",
       "default": "./dist/primitives-kv-api.mjs"
     },
-    "./primitives/io-activity/api": {
-      "development": "./src/primitives/io-activity/api/index.ts",
-      "types": "./dist/primitives-io-activity-api.d.mts",
-      "default": "./dist/primitives-io-activity-api.mjs"
-    },
     "./primitives/terminal-shell/api": {
       "development": "./src/primitives/terminal-shell/api/index.ts",
       "types": "./dist/primitives-terminal-shell-api.d.mts",

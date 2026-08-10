@@ -3,7 +3,6 @@ import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
-import { idlePolicyConfigSchema } from '#primitives/io-activity/api';
 import { tuiAgentsContract } from '#runtimes/tui-agents/api';
 import { createTuiAgentsController } from '#runtimes/tui-agents/node/api/controller';
 import { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
@@ -21,6 +20,7 @@ import {
   createFileSessionIntentStore,
   createNoopSessionIntentStore,
 } from '#services/session-intents/node';
+import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   intentsFilePath: z.string().min(1).optional(),

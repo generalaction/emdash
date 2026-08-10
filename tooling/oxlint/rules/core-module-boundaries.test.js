@@ -152,6 +152,21 @@ test('allows only the core module dependency graph', () => {
     false
   );
   assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, serviceExec), false);
+  const serviceSessionLifecycle = { type: 'services', moduleName: 'session-lifecycle' };
+  const serviceSessionIntents = { type: 'services', moduleName: 'session-intents', surface: 'api' };
+  const serviceConversationReports = {
+    type: 'services',
+    moduleName: 'conversation-reports',
+    surface: 'node',
+  };
+  assert.equal(isAllowedCoreModuleDependency(serviceSessionLifecycle, serviceSessionIntents), true);
+  assert.equal(
+    isAllowedCoreModuleDependency(serviceSessionLifecycle, serviceConversationReports),
+    true
+  );
+  assert.equal(isAllowedCoreModuleDependency(serviceSessionLifecycle, primitivePath), true);
+  assert.equal(isAllowedCoreModuleDependency(serviceSessionLifecycle, serviceExec), false);
+  assert.equal(isAllowedCoreModuleDependency(serviceExec, serviceSessionIntents), false);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, primitiveHost), true);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, serviceExec), false);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, runtimeGit), false);

@@ -17,62 +17,14 @@ import type {
   TerminalShellId,
   TerminalShellResolver,
 } from '#primitives/terminal-shell/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import type { TerminalSessionState } from '#runtimes/terminals/api';
+import { FakePtySpawner } from '#services/pty/testing';
+import {
+  expectNoSessionResidue,
+  mapContainer,
+  type LeakCheckContainer,
+} from '#services/session-lifecycle/node/testing';
 import { TerminalsRuntime } from './runtime';
-
-class FakePtyProcess implements PtyProcess {
-  private readonly dataHandlers: Array<(data: string) => void> = [];
-  private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-  private exited = false;
-
-  constructor(readonly pid: number) {}
-
-  write(_data: string): void {}
-
-  resize(_cols: number, _rows: number): void {}
-
-  kill(): void {
-    this.exit({ exitCode: null, signal: 'SIGTERM' });
-  }
-
-  onData(handler: (data: string) => void): void {
-    this.dataHandlers.push(handler);
-  }
-
-  onExit(handler: (info: PtyExitInfo) => void): void {
-    this.exitHandlers.push(handler);
-  }
-
-  getPid(): number {
-    return this.pid;
-  }
-
-  get isExited(): boolean {
-    return this.exited;
-  }
-
-  emit(data: string): void {
-    for (const handler of this.dataHandlers) handler(data);
-  }
-
-  exit(info: PtyExitInfo): void {
-    if (this.exited) return;
-    this.exited = true;
-    for (const handler of this.exitHandlers) handler(info);
-  }
-}
-
-class FakePtySpawner implements PtySpawner {
-  readonly specs: PtySpawnSpec[] = [];
-  readonly processes: FakePtyProcess[] = [];
-
-  spawn(spec: PtySpawnSpec): PtyProcess {
-    this.specs.push(spec);
-    const process = new FakePtyProcess(this.processes.length + 1);
-    this.processes.push(process);
-    return process;
-  }
-}
 
 function posixShellProfile(overrides: Partial<ResolvedShellProfile> = {}): ResolvedShellProfile {
   return {
@@ -122,7 +74,7 @@ describe('TerminalsRuntime', () => {
     const runtime = new TerminalsRuntime({
       spawner,
       scope,
-      now: () => 1000,
+      clock: createManualClock(1000),
       portProbe: async () => true,
     });
     const workspace = testWorkspace();
@@ -132,7 +84,7 @@ describe('TerminalsRuntime', () => {
     });
     await waitFor(() => spawner.processes.length === 1);
 
-    spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
+    spawner.processes[0]!.emitData('ready at http://localhost:5173/app\n');
 
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
     expect(await devServers(runtime)).toEqual({
@@ -146,8 +98,125 @@ describe('TerminalsRuntime', () => {
       },
     });
 
-    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 0);
+    await scope.dispose();
+  });
+
+  it('retains exited terminals with scrollback instead of evicting them', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+    spawner.processes[0]!.emitData('scrollback line\n');
+
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+
+    const list = await sessions(runtime);
+    expect(list[sessionKey]).toMatchObject({ status: 'exited', exit: { exitCode: 0 } });
+    const snapshot = await runtime.outputLog(key).snapshot();
+    expect(JSON.stringify(snapshot)).toContain('scrollback line');
+    await scope.dispose();
+  });
+
+  it('kill evicts the session: list entry removed and no per-key map holds the key', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+    spawner.processes[0]!.emitData('output\n');
+
+    const result = await runtime.kill(key);
+
+    expect(result.success).toBe(true);
+    expect(spawner.processes[0]!.isExited).toBe(true);
+    expect(await sessions(runtime)).toEqual({});
+    expectNoSessionResidue(sessionKey, leakContainers(runtime));
+    await scope.dispose();
+  });
+
+  it('kill also evicts a retained exited terminal', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+    expect((await sessions(runtime))[sessionKey]).toBeDefined();
+
+    const result = await runtime.kill(key);
+
+    expect(result.success).toBe(true);
+    expect(await sessions(runtime)).toEqual({});
+    expectNoSessionResidue(sessionKey, leakContainers(runtime));
+    await scope.dispose();
+  });
+
+  it('kill on an unknown terminal returns not-found', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+
+    const result = await runtime.kill({ workspace: testWorkspace(), id: 'missing' });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'not-found' } });
+    await scope.dispose();
+  });
+
+  it('restarting an exited terminal evicts the old entry, then creates a fresh one', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+    spawner.processes[0]!.emitData('first run\n');
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+    const firstLog = await runtime.outputLog(key).snapshot();
+    expect(JSON.stringify(firstLog)).toContain('first run');
+
+    await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+
+    expect(spawner.processes).toHaveLength(2);
+    const entry = (await sessions(runtime))[sessionKey];
+    expect(entry).toMatchObject({ status: 'running', startCount: 2 });
+    // The eviction replaced the log source: scrollback starts fresh.
+    const secondLog = await runtime.outputLog(key).snapshot();
+    expect(JSON.stringify(secondLog)).not.toContain('first run');
+    await scope.dispose();
+  });
+
+  it('workspace deactivation (kill per session) evicts every terminal under the workspace', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+    const workspace = testWorkspace();
+    const keys = [
+      { workspace, id: 'terminal-1' },
+      { workspace, id: 'terminal-2' },
+    ];
+    for (const key of keys) {
+      await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
+    }
+    spawner.processes[1]!.emitExit({ exitCode: 0, signal: null });
+
+    for (const entry of Object.values(await sessions(runtime))) {
+      await runtime.kill(entry.key);
+    }
+
+    expect(await sessions(runtime)).toEqual({});
+    for (const key of keys) {
+      expectNoSessionResidue(`${workspaceKey(workspace)}:${key.id}`, leakContainers(runtime));
+    }
     await scope.dispose();
   });
 
@@ -166,6 +235,7 @@ describe('TerminalsRuntime', () => {
     });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
+    const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
     await runtime.start({ key, spec: { cwd: '/repo', env: {} } });
     const unsubscribe = await runtime.outputLog(key).subscribe(() => {});
     unsubscribe();
@@ -173,6 +243,9 @@ describe('TerminalsRuntime', () => {
     await clock.advanceBy(1_200);
 
     expect(spawner.processes[0]!.isExited).toBe(true);
+    // Sweeper deactivation is a full evict, not just a kill.
+    expect(await sessions(runtime)).toEqual({});
+    expectNoSessionResidue(sessionKey, leakContainers(runtime));
     await scope.dispose();
   });
 
@@ -336,6 +409,38 @@ function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
     execStreaming: vi.fn().mockResolvedValue({ exitCode: 0 }),
     dispose: vi.fn(),
   };
+}
+
+type RuntimeInternals = {
+  logs: Map<string, unknown>;
+  sessionKeys: Map<string, unknown>;
+  interactiveConfigs: Map<string, unknown>;
+  startCounts: Map<string, unknown>;
+  previewSources: Map<string, unknown>;
+  registry: { get(key: string): unknown };
+};
+
+/** Reflects over the runtime's per-key maps so the shared leak check can see them. */
+function leakContainers(runtime: TerminalsRuntime): LeakCheckContainer[] {
+  const internals = runtime as unknown as RuntimeInternals;
+  return [
+    mapContainer('logs', internals.logs),
+    mapContainer('sessionKeys', internals.sessionKeys),
+    mapContainer('interactiveConfigs', internals.interactiveConfigs),
+    mapContainer('startCounts', internals.startCounts),
+    mapContainer('previewSources', internals.previewSources),
+    { name: 'ptyRegistry', has: (key) => internals.registry.get(key) !== undefined },
+  ];
+}
+
+async function sessions(runtime: TerminalsRuntime): Promise<Record<string, TerminalSessionState>> {
+  const lease = runtime.sessionsHost.acquireState(undefined, 'list');
+  try {
+    const source = await lease.ready();
+    return (await source.snapshot()).data as Record<string, TerminalSessionState>;
+  } finally {
+    await lease.release();
+  }
 }
 
 async function devServers(runtime: TerminalsRuntime) {
