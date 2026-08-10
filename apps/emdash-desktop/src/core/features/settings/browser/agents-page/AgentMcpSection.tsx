@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { Button, Field, Label } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
@@ -63,11 +63,11 @@ export function useManageMcpSettingsNavigation(): () => void {
 
 export function AgentMcpSection({
   agentId,
-  host = LOCAL_HOST_REF,
+  host,
   onManage,
 }: {
   agentId: string;
-  host?: HostRef;
+  host: HostRef;
   onManage?: () => void;
 }) {
   const { servers, isLoading, removeServer, removingServerName } = useAgentMcps(agentId, host);

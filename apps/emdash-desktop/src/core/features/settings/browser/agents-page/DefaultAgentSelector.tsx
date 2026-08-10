@@ -1,3 +1,4 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import React from 'react';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
@@ -12,7 +13,8 @@ export const DefaultAgentSelector: React.FC = () => {
     isLoading,
     isSaving,
   } = useAppSettingsKey('defaultAgent');
-  const { data: agents } = useAgents();
+  // App-level preference: the default agent is validated against the local host by design.
+  const { data: agents } = useAgents(LOCAL_HOST_REF);
 
   const defaultAgent =
     defaultAgentValue && agents?.some((agent) => agent.id === defaultAgentValue)

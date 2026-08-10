@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type {
   McpCatalogEntry,
   McpProvidersResponse,
@@ -23,6 +24,7 @@ export type McpDrawerMode =
 interface McpDrawerProps {
   open: boolean;
   mode: McpDrawerMode | null;
+  host: HostRef;
   providers: McpProvidersResponse[];
   onOpenChange: (open: boolean) => void;
   onSave: (server: McpServer) => Promise<void>;
@@ -32,6 +34,7 @@ interface McpDrawerProps {
 export const McpDrawer: React.FC<McpDrawerProps> = ({
   open,
   mode,
+  host,
   providers,
   onOpenChange,
   onSave,
@@ -53,6 +56,7 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
           {mode && (
             <McpDrawerContent
               mode={mode}
+              host={host}
               providers={providers}
               onOpenChange={onOpenChange}
               onSave={onSave}
@@ -67,6 +71,7 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
 
 interface McpDrawerContentProps {
   mode: McpDrawerMode;
+  host: HostRef;
   providers: McpProvidersResponse[];
   onOpenChange: (open: boolean) => void;
   onSave: (server: McpServer) => Promise<void>;
@@ -75,6 +80,7 @@ interface McpDrawerContentProps {
 
 const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
   mode,
+  host,
   providers,
   onOpenChange,
   onSave,
@@ -288,6 +294,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
           <form.Field name="selectedProviders">
             {(field) => (
               <SyncToAgentsSection
+                host={host}
                 providers={providers}
                 selectedProviders={field.state.value}
                 onToggle={(id) => {

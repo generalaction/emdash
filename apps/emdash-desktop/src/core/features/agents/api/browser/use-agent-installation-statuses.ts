@@ -1,4 +1,4 @@
-import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   isRuntimeResolveError,
   type RuntimeResolveError,
@@ -44,7 +44,7 @@ type AgentOperationResult = Result<AgentInstallationStatus, AgentInstallError | 
 const selectOpVars = (mutation: { state: { variables?: unknown } }) =>
   mutation.state.variables as OpVars | undefined;
 
-export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
+export function useAgentInstallationStatuses(host: HostRef) {
   const queryClient = useQueryClient();
   const installFailureMap = useDependencyOperationFailures();
   const updateFailureMap = useDependencyOperationFailures();
@@ -227,7 +227,7 @@ export type HostDependencyInstallation = {
 
 export function useAgentInstallationStatus(
   id: string,
-  host: HostRef = LOCAL_HOST_REF,
+  host: HostRef,
   agentPayload?: AgentPayload
 ): HostDependencyInstallation {
   const {

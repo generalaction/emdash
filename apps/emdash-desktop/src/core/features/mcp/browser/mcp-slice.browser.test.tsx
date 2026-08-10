@@ -73,7 +73,7 @@ describe('mcp slice through the wire seam', () => {
 
   it('streams live-model updates into the slice hook', async () => {
     function InstalledServers() {
-      const { data, isLoading } = useInstalledMcpServersLiveModel();
+      const { data, isLoading } = useInstalledMcpServersLiveModel(LOCAL_HOST_REF);
       return (
         <div data-names={data.map((server) => server.name).join(',')} data-loading={isLoading} />
       );

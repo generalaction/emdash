@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useMemo } from 'react';
@@ -8,7 +8,7 @@ import { getSkillsClient } from './client';
 
 let installedRemotePromise: Promise<RemoteModel<typeof skillsContract.installed>> | undefined;
 
-export function useInstalledSkillsLiveModel(host: HostRef = LOCAL_HOST_REF): {
+export function useInstalledSkillsLiveModel(host: HostRef): {
   data: CatalogSkill[];
   isLoading: boolean;
 } {

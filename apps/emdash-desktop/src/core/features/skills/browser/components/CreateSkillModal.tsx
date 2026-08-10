@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { Button, Dialog, Input, Label, Textarea } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { getSkillsClient } from '../client';
 
-export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) {
+export function CreateSkillModal({ host }: { host: HostRef }) {
   const { complete, dismiss } = useModalController('createSkillModal');
   const queryClient = useQueryClient();
   const [name, setName] = useState('');

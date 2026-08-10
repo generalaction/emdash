@@ -1,11 +1,13 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import { Button, Dialog } from '@emdash/ui/react/primitives';
+import { useQuery } from '@tanstack/react-query';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { Loader2 } from 'lucide-react';
 import { reaction } from 'mobx';
 import { useEffect, useRef, useState } from 'react';
 import { AcpAuthLoginBinding } from '@core/features/agents/api/browser/auth-login-binding';
+import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { isPrimaryMouseButton } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import {
   buildTheme,
@@ -27,10 +29,31 @@ export type AgentSignInModalArgs = {
   providerId: string;
   methodId: string;
   providerName: string;
+  /** Host the sign-in runs on; remote hosts show the machine's name in the title. */
+  host: HostRef;
 };
 
-export function AgentSignInModal({ providerId, methodId, providerName }: AgentSignInModalArgs) {
+/** Resolves the display name of the machine behind a remote host ref (null for local). */
+function useMachineName(host: HostRef): string | null {
+  const connectionId = sshConnectionIdOf(host);
+  const { data } = useQuery({
+    queryKey: ['machines', 'name', connectionId],
+    queryFn: async () => (await getMachinesClient()).getMachines(undefined),
+    enabled: connectionId !== undefined,
+    staleTime: 60 * 1000,
+  });
+  if (!connectionId) return null;
+  return data?.find((connection) => connection.id === connectionId)?.name ?? null;
+}
+
+export function AgentSignInModal({
+  providerId,
+  methodId,
+  providerName,
+  host,
+}: AgentSignInModalArgs) {
   const modal = useModalController('agentSignInModal');
+  const machineName = useMachineName(host);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const terminalHostRef = useRef<HTMLDivElement | null>(null);
@@ -40,13 +63,13 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
   completeRef.current = modal.complete;
 
   useEffect(() => {
-    const host = terminalHostRef.current;
-    if (!host) return;
+    const terminalHost = terminalHostRef.current;
+    if (!terminalHost) return;
 
     let disposed = false;
     let animationFrame: number | null = null;
     const terminal = createLoginTerminal();
-    terminal.open(host);
+    terminal.open(terminalHost);
     styleLoginTerminal(terminal);
     terminal.focus();
 
@@ -55,17 +78,17 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
     });
     const resize = () => {
       if (disposed) return;
-      resizeLoginTerminal(terminal, host, bindingRef.current);
+      resizeLoginTerminal(terminal, terminalHost, bindingRef.current);
     };
     const observer = new ResizeObserver(() => {
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(resize);
     });
-    observer.observe(host);
+    observer.observe(terminalHost);
     resize();
 
     void AcpAuthLoginBinding.create({
-      host: LOCAL_HOST_REF,
+      host,
       providerId,
       methodId,
       terminal,
@@ -93,7 +116,7 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
       bindingRef.current = null;
       terminal.dispose();
     };
-  }, [methodId, providerId]);
+  }, [host, methodId, providerId]);
 
   useEffect(() => {
     const binding = bindingRef.current;
@@ -122,6 +145,7 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
     <>
       <Dialog.Header>
         <Dialog.Title>Sign in to {providerName}</Dialog.Title>
+        {machineName && <Dialog.Description>on {machineName}</Dialog.Description>}
       </Dialog.Header>
       <Dialog.Body className="h-[520px] p-0">
         <div className="relative h-full">

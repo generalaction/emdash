@@ -1,3 +1,4 @@
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { Button, Field } from '@emdash/ui/react/primitives';
@@ -8,6 +9,7 @@ import { AgentSelector } from '@core/features/agents/contributions/browser/agent
 import { cn } from '@core/primitives/styling/browser/cn';
 
 interface SyncToAgentsSectionProps {
+  host: HostRef;
   providers: McpProvidersResponse[];
   selectedProviders: string[];
   onToggle: (id: string) => void;
@@ -15,6 +17,7 @@ interface SyncToAgentsSectionProps {
 }
 
 export const SyncToAgentsSection: React.FC<SyncToAgentsSectionProps> = ({
+  host,
   providers,
   selectedProviders,
   onToggle,
@@ -71,6 +74,7 @@ export const SyncToAgentsSection: React.FC<SyncToAgentsSectionProps> = ({
         <AgentSelector
           value={null}
           placeholder="Select agent"
+          connectionId={sshConnectionIdOf(host)}
           onChange={(id) => {
             if (!selectedProviderIds.has(id)) onToggle(id);
           }}

@@ -12,6 +12,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import type { AgentDisableReason } from '@core/features/agents/api/browser/components/agent-selector/agent-selector-options';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
@@ -76,7 +77,7 @@ export function useInitialConversationState(
   const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
-  const { data: agents } = useAgents();
+  const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
@@ -150,9 +151,10 @@ export function useInitialConversationState(
 }
 
 function useModelOptions(
-  providerId: AgentProviderId | null
+  providerId: AgentProviderId | null,
+  connectionId: string | undefined
 ): Record<string, { name: string }> | null {
-  const { data: agents } = useAgents();
+  const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   if (!providerId) return null;
   const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
   return models?.kind === 'selectable' ? models.modelOptions : null;
@@ -206,7 +208,7 @@ export function InitialConversationField({
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
-  const modelOptions = useModelOptions(state.provider);
+  const modelOptions = useModelOptions(state.provider, state.connectionId);
   const defaultIssueContext = useMemo(
     () => (linkedIssue ? buildIssueContextText(linkedIssue) : null),
     [linkedIssue]
@@ -218,7 +220,7 @@ export function InitialConversationField({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [defaultIssueContext, includeIssueContextByDefault]);
 
-  const { data: agents } = useAgents();
+  const { data: agents } = useAgents(hostRefFromConnectionId(state.connectionId));
   const selectedAgent = state.provider
     ? agents?.find((agent) => agent.id === state.provider)
     : null;

@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import React, { useState } from 'react';
 import type { McpDrawerMode } from '@core/features/mcp/browser/components/McpDrawer';
@@ -7,11 +7,11 @@ import { McpToolbar } from '@core/features/mcp/browser/components/McpToolbar';
 import { useMcps } from '@core/features/mcp/browser/components/useMcps';
 
 type McpPanelProps = {
-  host?: HostRef;
+  host: HostRef;
   header?: { title: string; description: string };
 };
 
-export function McpPanel({ host = LOCAL_HOST_REF, header }: McpPanelProps) {
+export function McpPanel({ host, header }: McpPanelProps) {
   const mcp = useMcps(host);
   const [search, setSearch] = useState('');
   const [drawerMode, setDrawerMode] = useState<McpDrawerMode | null>(null);
@@ -40,6 +40,7 @@ export function McpPanel({ host = LOCAL_HOST_REF, header }: McpPanelProps) {
       )}
       <McpServersList
         mcp={mcp}
+        host={host}
         search={search}
         drawerMode={drawerMode}
         onDrawerModeChange={setDrawerMode}

@@ -1,5 +1,8 @@
+import { formatHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
+
+const localSessionHost = () => formatHostRef(LOCAL_HOST_REF);
 
 const hydrateConversation = vi.hoisted(() => vi.fn());
 const dehydrateConversation = vi.hoisted(() => vi.fn());
@@ -35,17 +38,22 @@ describe('ConversationManagerStore session hydration', () => {
   });
 
   it('does not hydrate conversations from the PTY session connect path', async () => {
-    const store = new ConversationManagerStore('project-1', 'task-1', [
-      {
-        id: 'conversation-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        providerId: 'codex',
-        title: 'Conversation 1',
-        lastInteractedAt: null,
-        isInitialConversation: false,
-      },
-    ]);
+    const store = new ConversationManagerStore(
+      'project-1',
+      'task-1',
+      [
+        {
+          id: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          providerId: 'codex',
+          title: 'Conversation 1',
+          lastInteractedAt: null,
+          isInitialConversation: false,
+        },
+      ],
+      localSessionHost
+    );
 
     const session = store.sessions.get('conversation-1');
     expect(session).toBeDefined();
@@ -59,7 +67,7 @@ describe('ConversationManagerStore session hydration', () => {
   });
 
   it('marks only starting and running TUI sessions active', () => {
-    const store = new ConversationManagerStore('project-1', 'task-1', []);
+    const store = new ConversationManagerStore('project-1', 'task-1', [], localSessionHost);
 
     (
       store as unknown as {
@@ -106,7 +114,7 @@ describe('ConversationManagerStore session hydration', () => {
   });
 
   it('marks closed ACP sessions inactive', () => {
-    const store = new ConversationManagerStore('project-1', 'task-1', []);
+    const store = new ConversationManagerStore('project-1', 'task-1', [], localSessionHost);
 
     (
       store as unknown as {

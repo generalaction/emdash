@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +12,7 @@ import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
 
 const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;
 
-export function useMcps(host: HostRef = LOCAL_HOST_REF) {
+export function useMcps(host: HostRef) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: installed, isLoading: isLoadingInstalled } = useInstalledMcpServersLiveModel(host);

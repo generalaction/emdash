@@ -37,7 +37,13 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   const { data: agents } = useAgents(host);
   const agentPayload = agents?.find((a) => a.id === agentId);
 
-  const { value: storedConfig, isOverridden, isLoading, update, reset } = useAgentSettings(agentId);
+  const {
+    value: storedConfig,
+    isOverridden,
+    isLoading,
+    update,
+    reset,
+  } = useAgentSettings(agentId, host);
   const navigateToMcpSettings = useManageMcpSettingsNavigation();
 
   const isInstalled = agentPayload?.status === 'available';

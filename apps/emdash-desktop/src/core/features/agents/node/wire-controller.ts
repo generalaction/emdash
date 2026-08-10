@@ -22,6 +22,7 @@ export type CreateAgentsWireControllerOptions = Readonly<{
 export function createAgentsWireController(options: CreateAgentsWireControllerOptions): Controller {
   const agentOperations = options.operations;
   return createController(agentsContract, {
+    listMetadata: () => agentOperations.listMetadata(),
     list: ({ host }) =>
       withHostRuntime(options.runtimes, host, (runtime) =>
         agentOperations.list(sshConnectionIdOf(host), runtime.hostDependencies)
