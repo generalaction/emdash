@@ -11,11 +11,20 @@ import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/p
 import { hostDependencyOperationProgressSchema } from '@emdash/core/services/host-dependencies/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
-import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
+import {
+  defineContract,
+  fallible,
+  liveJob,
+  liveLog,
+  liveModel,
+  liveState,
+  procedure,
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   AgentInstallationStatus,
   AgentInstallError,
+  AgentMetadata,
   AgentPayload,
   AgentSettings,
   AgentUninstallError,
@@ -32,6 +41,8 @@ const agentsAuthErrorSchema = z.union([agentConfigAuthErrorSchema, runtimeResolv
 export const agentsDomain = 'agents' as const;
 
 export const agentsContract = defineContract({
+  // Static plugin-registry metadata (icons, display names); identical on every host.
+  listMetadata: procedure({ input: z.void(), output: z.custom<AgentMetadata[]>() }),
   list: fallible({
     input: hostInputSchema,
     data: z.custom<AgentPayload[]>(),

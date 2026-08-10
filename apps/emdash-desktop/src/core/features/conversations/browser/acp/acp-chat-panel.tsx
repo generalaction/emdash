@@ -15,6 +15,7 @@ import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
+import { useAgentMetadata } from '@core/features/agents/api/browser/use-agent-metadata';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
@@ -527,7 +528,8 @@ const ComposerForStore = observer(function ComposerForStore({
     issueProviderContext.repositoryUrl,
   ]);
 
-  const { data: agents } = useAgents();
+  // Display-only (the selector is locked): static registry metadata, no host needed.
+  const { data: agents } = useAgentMetadata();
   const agentOptions = useMemo<ComposerAgentOption[]>(
     () =>
       (agents ?? []).map((a) => ({

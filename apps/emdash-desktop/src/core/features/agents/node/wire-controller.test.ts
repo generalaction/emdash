@@ -29,6 +29,21 @@ describe('createAgentsWireController', () => {
     expect(legacyOperations.list).toHaveBeenCalledWith('ssh-1', hostDependencies);
   });
 
+  it('serves static agent metadata without resolving a host runtime', async () => {
+    const metadata = [{ id: 'claude', name: 'Claude Code' }];
+    const listMetadata = vi.fn(async () => metadata);
+    const client = vi.fn(async () => ok({}));
+    const controller = createAgentsWireController({
+      operations: { listMetadata } as never,
+      runtimes: { client } as never,
+    });
+
+    await expect(controller.call('listMetadata', undefined)).resolves.toEqual(metadata);
+
+    expect(listMetadata).toHaveBeenCalledOnce();
+    expect(client).not.toHaveBeenCalled();
+  });
+
   it('routes login procedures by HostRef', async () => {
     const refreshAuthStatus = vi.fn(async () => ok({ kind: 'unknown' as const }));
     const startLogin = vi.fn(async () => ok(undefined));

@@ -1,4 +1,4 @@
-import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { useAgentMetadata } from '@core/features/agents/api/browser/use-agent-metadata';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 
 interface StackedAgentLogosProps {
@@ -8,7 +8,7 @@ interface StackedAgentLogosProps {
 
 export function StackedAgentLogos({ stats }: StackedAgentLogosProps) {
   const entries = Object.entries(stats);
-  const { data: agents } = useAgents();
+  const { data: agents } = useAgentMetadata();
   if (entries.length === 0) return null;
 
   const nameMap = new Map((agents ?? []).map((a) => [a.id, a.name]));

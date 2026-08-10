@@ -1,4 +1,4 @@
-import { useAgentIcon } from '@core/features/agents/api/browser/use-agents';
+import { useAgentIcon } from '@core/features/agents/api/browser/use-agent-metadata';
 import { PluginIcon } from '@core/features/agents/contributions/browser/plugin-icon';
 
 interface AgentIconProps {
