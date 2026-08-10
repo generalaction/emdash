@@ -1,4 +1,5 @@
-import { Button, SearchInput } from '@emdash/ui/react/primitives';
+import { CollectionToolbar } from '@emdash/ui/react/patterns';
+import { Button } from '@emdash/ui/react/primitives';
 import { RefreshCw } from 'lucide-react';
 import React from 'react';
 
@@ -16,21 +17,21 @@ export function AgentsToolbar({
   isRefreshing,
 }: AgentsToolbarProps) {
   return (
-    <div className="flex w-full items-center justify-between gap-2">
-      <SearchInput
-        placeholder="Search agents…"
-        value={searchQuery}
-        onChange={(event) => onSearchQueryChange(event.target.value)}
-      />
-      <Button
-        variant="secondary"
-        icon
-        onClick={onRefresh}
-        disabled={isRefreshing}
-        aria-label="Refresh agent detection"
-      >
-        <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
-      </Button>
-    </div>
+    <CollectionToolbar
+      searchValue={searchQuery}
+      onSearchValueChange={onSearchQueryChange}
+      searchPlaceholder="Search agents…"
+      actions={
+        <Button
+          variant="secondary"
+          icon
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh agent detection"
+        >
+          <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
+        </Button>
+      }
+    />
   );
 }

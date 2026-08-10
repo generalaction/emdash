@@ -1,5 +1,5 @@
-import { ListPage, PageLayout } from '@emdash/ui/react/patterns';
-import { Button, SearchInput } from '@emdash/ui/react/primitives';
+import { CollectionToolbar, ListPage, PageLayout } from '@emdash/ui/react/patterns';
+import { Button } from '@emdash/ui/react/primitives';
 import { PlusIcon, ServerIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
@@ -57,20 +57,17 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage({
         title="Machines"
         description="Manage reusable machines for remote projects."
         actions={
-          <div className="flex items-center justify-between gap-2">
-            <SearchInput
-              size="sm"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onClear={() => setSearch('')}
-              placeholder="Search machines…"
-              style={{ width: '14rem' }}
-            />
-            <Button type="button" variant="primary" size="xs" onClick={openCreateModal}>
-              <PlusIcon />
-              Add machine
-            </Button>
-          </div>
+          <CollectionToolbar
+            searchValue={search}
+            onSearchValueChange={setSearch}
+            searchPlaceholder="Search machines…"
+            actions={
+              <Button type="button" variant="primary" onClick={openCreateModal}>
+                <PlusIcon />
+                Add machine
+              </Button>
+            }
+          />
         }
       />
 

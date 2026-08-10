@@ -1,5 +1,6 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
-import { Button, DropdownMenu, SearchInput, Spinner, toast } from '@emdash/ui/react/primitives';
+import { CollectionToolbar } from '@emdash/ui/react/patterns';
+import { Button, DropdownMenu, Spinner, toast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -176,26 +177,25 @@ export function MachineConversationsList({
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-48 flex-1">
-          <SearchInput
-            ref={searchRef}
-            className="h-8"
-            placeholder="Search conversations, tasks, workspaces..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        <span className="text-xs text-foreground-passive tabular-nums">
-          {items.length} {items.length === 1 ? 'conversation' : 'conversations'}
-        </span>
-        {!hostReachable && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
-            <WifiOffIcon className="size-3" />
-            Offline — showing cached records
-          </span>
-        )}
-      </div>
+      <CollectionToolbar
+        ref={searchRef}
+        searchValue={search}
+        onSearchValueChange={setSearch}
+        searchPlaceholder="Search conversations, tasks, workspaces…"
+        metadata={
+          <>
+            <span className="text-xs text-foreground-passive tabular-nums">
+              {items.length} {items.length === 1 ? 'conversation' : 'conversations'}
+            </span>
+            {!hostReachable && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+                <WifiOffIcon className="size-3" />
+                Offline — showing cached records
+              </span>
+            )}
+          </>
+        }
+      />
       {conversationsQuery.isLoading ? (
         <ConversationsLoadingState />
       ) : conversationsQuery.isError ? (

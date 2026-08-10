@@ -1,6 +1,6 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { ListView, PageLayout } from '@emdash/ui/react/patterns';
-import { Button, SearchInput, toast } from '@emdash/ui/react/primitives';
+import { CollectionToolbar, ListView, PageLayout } from '@emdash/ui/react/patterns';
+import { Button, toast } from '@emdash/ui/react/primitives';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
@@ -143,23 +143,23 @@ export function PromptLibraryView() {
         title="Prompts"
         description="Manage reusable prompts that can be sent from task prompt menus."
         actions={
-          <div className="flex w-full justify-between gap-2">
-            <SearchInput
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search prompts..."
-            />
-            <Button
-              variant="primary"
-              onClick={createPrompt}
-              disabled={isDisabled}
-              aria-label="New Prompt"
-            >
-              <Plus className="size-4" />
-              <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
-            </Button>
-          </div>
+          <CollectionToolbar
+            ref={searchRef}
+            searchValue={search}
+            onSearchValueChange={setSearch}
+            searchPlaceholder="Search prompts…"
+            actions={
+              <Button
+                variant="primary"
+                onClick={createPrompt}
+                disabled={isDisabled}
+                aria-label="New Prompt"
+              >
+                <Plus className="size-4" />
+                <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
+              </Button>
+            }
+          />
         }
       />
       <div className={cn('flex flex-col py-2', filteredItems.length === 0 && 'min-h-64')}>

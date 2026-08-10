@@ -3,7 +3,8 @@ import {
   type WorkspaceIconStatus,
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
-import { Button, RelativeTime, SearchInput, Spinner } from '@emdash/ui/react/primitives';
+import { CollectionToolbar } from '@emdash/ui/react/patterns';
+import { Button, RelativeTime, Spinner } from '@emdash/ui/react/primitives';
 import { PlusIcon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -47,31 +48,27 @@ export const WorkspacesListView = observer(function WorkspacesListView({
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <SearchInput
-          size="sm"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onClear={() => setSearch('')}
-          placeholder="Search workspaces…"
-          style={{ width: '14rem' }}
-        />
-        <Button
-          type="button"
-          variant="primary"
-          size="xs"
-          onClick={() =>
-            void openAddProject(
-              scope.kind === 'machine'
-                ? { strategy: 'ssh', mode: 'clone', connectionId: scope.machineId }
-                : { strategy: 'local', mode: 'pick' }
-            )
-          }
-        >
-          <PlusIcon />
-          Add Project
-        </Button>
-      </div>
+      <CollectionToolbar
+        searchValue={search}
+        onSearchValueChange={setSearch}
+        searchPlaceholder="Search workspaces…"
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() =>
+              void openAddProject(
+                scope.kind === 'machine'
+                  ? { strategy: 'ssh', mode: 'clone', connectionId: scope.machineId }
+                  : { strategy: 'local', mode: 'pick' }
+              )
+            }
+          >
+            <PlusIcon />
+            Add Project
+          </Button>
+        }
+      />
       <WorkspacesList
         items={filteredEntries.map((entry) => entry.item)}
         onItemClick={(item) => openDetail(item.id)}
