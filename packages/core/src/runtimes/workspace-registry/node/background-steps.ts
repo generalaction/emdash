@@ -1,5 +1,5 @@
 import type { BoundExec } from '#services/exec/api';
-import { createRegistryGitExec } from './scan/observe-git';
+import type { RegistryGitContext } from './git-context';
 
 export type BackgroundStepOutcome =
   | { status: 'succeeded' }
@@ -12,10 +12,11 @@ export type BackgroundStepOutcome =
  * durable "branch not pushed" state with a manual retry — never an automatic loop.
  */
 export async function executePushBranch(input: {
+  git: RegistryGitContext;
   repositoryPath: string;
   branch: string;
 }): Promise<BackgroundStepOutcome> {
-  const exec = createRegistryGitExec(input.repositoryPath, {
+  const exec = input.git.exec(input.repositoryPath, {
     tier: 'background',
     repository: input.repositoryPath,
   });
@@ -37,10 +38,11 @@ export async function executePushBranch(input: {
  * a failure (offline) never surfaces as an error. Base remote only; never --all.
  */
 export async function executeFetchRefs(input: {
+  git: RegistryGitContext;
   repositoryPath: string;
   baseRef: string;
 }): Promise<BackgroundStepOutcome> {
-  const exec = createRegistryGitExec(input.repositoryPath, {
+  const exec = input.git.exec(input.repositoryPath, {
     tier: 'background',
     repository: input.repositoryPath,
   });

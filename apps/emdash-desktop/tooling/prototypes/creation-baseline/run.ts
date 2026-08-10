@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { executeCreateWorktree } from '../../../../../packages/core/src/runtimes/workspace-registry/node/create-worktree';
+import { createRegistryGitContext } from '../../../../../packages/core/src/runtimes/workspace-registry/node/git-context';
 
 interface Target {
   label: string;
@@ -66,6 +67,7 @@ async function timeOne(target: Target, runIdx: number): Promise<Record<string, n
   const stageStarts: Array<{ stage: string; at: number }> = [];
   const t0 = performance.now();
   const result = await executeCreateWorktree({
+    git: createRegistryGitContext(),
     repositoryPath: target.repo,
     worktreePath,
     branch,

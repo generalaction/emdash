@@ -4,6 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { executeCopyArtifacts } from './copy-artifacts';
+import { createRegistryGitContext } from './git-context';
+
+const gitContext = createRegistryGitContext();
 
 // Unit tests for the copy-artifacts background step (spec: workspace-lifecycle-v2,
 // preserved-artifact copy): exactly the gitignored entries named in preservePatterns
@@ -60,6 +63,7 @@ describe('executeCopyArtifacts', () => {
 
   it('copies exactly the matched gitignored entries and nothing else', async () => {
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: ['.env*', 'dist'],
@@ -81,6 +85,7 @@ describe('executeCopyArtifacts', () => {
 
   it('skips with no patterns configured and copies nothing', async () => {
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: [],
@@ -92,6 +97,7 @@ describe('executeCopyArtifacts', () => {
   it('never copies over tracked or merely-untracked files (check-ignore filter)', async () => {
     await fs.writeFile(path.join(repoPath, 'README.md'), '# diverged in source\n');
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       // Match a tracked file and an untracked-but-not-ignored file explicitly.
@@ -108,6 +114,7 @@ describe('executeCopyArtifacts', () => {
 
   it('rejects escaping and absolute patterns with warnings instead of copying', async () => {
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: ['../outside', '/absolute'],
@@ -125,6 +132,7 @@ describe('executeCopyArtifacts', () => {
 
   it('replays idempotently: existing entries are trusted, missing ones are redone', async () => {
     const first = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: ['.env', 'dist'],
@@ -140,6 +148,7 @@ describe('executeCopyArtifacts', () => {
     await fs.writeFile(path.join(worktreePath, 'dist.emdash-clone-tmp', 'torn'), 'partial\n');
 
     const second = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: ['.env', 'dist'],
@@ -154,6 +163,7 @@ describe('executeCopyArtifacts', () => {
 
   it('a preserved directory counts as one entry and nested matches ride their parent', async () => {
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       // Both the directory and a file inside it match; the file rides the directory.
@@ -172,6 +182,7 @@ describe('executeCopyArtifacts', () => {
     git(repoPath, 'commit', '-m', 'ignore link');
     // The worktree's .gitignore lags behind; check-ignore runs in the source repo.
     const outcome = await executeCopyArtifacts({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath,
       preservePatterns: ['ignored-link'],

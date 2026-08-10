@@ -28,7 +28,7 @@ vi.mock('./scan/observe-git', async (importOriginal) => {
   const original = (await importOriginal()) as object;
   return {
     ...original,
-    observeWorkspaceGit: async (workspacePath: string) => {
+    observeWorkspaceGit: async (_git: unknown, workspacePath: string) => {
       observeGate.started.push(workspacePath);
       if (observeGate.block) {
         await new Promise<void>((resolve) => observeGate.waiters.push(resolve));

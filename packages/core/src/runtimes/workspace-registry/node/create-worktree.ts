@@ -2,11 +2,13 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
+import type { RegistryGitContext } from './git-context';
 import { retryTransientLock } from './git-schedule';
-import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
 export type CreateWorktreeExecution = {
+  /** The owning runtime's git context — budget slots and the budgeted exec factory. */
+  git: RegistryGitContext;
   repositoryPath: string;
   /** Resolved target path; may not exist yet. */
   worktreePath: string;
@@ -41,7 +43,7 @@ export async function executeCreateWorktree(
   execution: CreateWorktreeExecution
 ): Promise<CreateWorktreeExecutionResult> {
   // Creation-tier budget slots: starts immediately even under saturated probe load.
-  const exec = createRegistryGitExec(execution.repositoryPath, {
+  const exec = execution.git.exec(execution.repositoryPath, {
     tier: 'creation',
     repository: execution.repositoryPath,
   });
@@ -73,10 +75,9 @@ export async function executeCreateWorktree(
     );
     if (existing) {
       const current = (
-        await createRegistryGitExec(execution.worktreePath, {
-          tier: 'creation',
-          repository: execution.repositoryPath,
-        }).exec(['branch', '--show-current'])
+        await execution.git
+          .exec(execution.worktreePath, { tier: 'creation', repository: execution.repositoryPath })
+          .exec(['branch', '--show-current'])
       ).stdout.trim();
       if (current !== execution.branch) {
         return {

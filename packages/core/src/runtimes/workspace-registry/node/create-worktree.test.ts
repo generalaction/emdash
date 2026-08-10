@@ -4,10 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { executeCreateWorktree } from './create-worktree';
+import { createRegistryGitContext } from './git-context';
 
 // Unit tests for the foreground pipeline's resolve-base stage (spec:
 // workspace-activation-speed): creation never fetches when the base ref resolves
 // locally; an unresolvable remote-shaped ref triggers exactly one targeted fetch.
+
+const gitContext = createRegistryGitContext();
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, {
@@ -72,6 +75,7 @@ describe('executeCreateWorktree resolve-base', () => {
 
     const stages: string[] = [];
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'local-wt'),
       branch: 'feature/local',
@@ -100,6 +104,7 @@ describe('executeCreateWorktree resolve-base', () => {
 
     const stages: string[] = [];
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'remote-wt'),
       branch: 'feature/from-remote',
@@ -121,6 +126,7 @@ describe('executeCreateWorktree resolve-base', () => {
     git(repoPath, 'remote', 'add', 'origin', originPath);
 
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'doomed-wt'),
       branch: 'feature/doomed',
@@ -162,6 +168,7 @@ describe('executeCreateWorktree gitSetup', () => {
   it('fetches the source ref into the branch, checks it out, and configures it', async () => {
     const stages: string[] = [];
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'pr-wt'),
       branch: 'pr/7/fix',
@@ -198,6 +205,7 @@ describe('executeCreateWorktree gitSetup', () => {
 
     const stages: string[] = [];
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'reuse-wt'),
       branch: 'pr/7/fix',
@@ -224,6 +232,7 @@ describe('executeCreateWorktree gitSetup', () => {
   it('a fetchBranch without upstream or breadcrumb never runs configure-branch', async () => {
     const stages: string[] = [];
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'plain-wt'),
       branch: 'pr/7/plain',
@@ -239,6 +248,7 @@ describe('executeCreateWorktree gitSetup', () => {
 
   it('a failed fetch is a stage-tagged fetch-branch failure leaving no debris branch', async () => {
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'doomed-wt'),
       branch: 'pr/999/missing',
@@ -261,6 +271,7 @@ describe('executeCreateWorktree gitSetup', () => {
     await fs.writeFile(path.join(repoPath, '.git', 'config.lock'), '');
 
     const result = await executeCreateWorktree({
+      git: gitContext,
       repositoryPath: repoPath,
       worktreePath: path.join(root, 'locked-wt'),
       branch: 'pr/7/locked',

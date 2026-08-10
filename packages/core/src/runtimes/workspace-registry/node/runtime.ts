@@ -50,7 +50,7 @@ import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
 import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
-import { hostGitSchedule } from './git-schedule';
+import { createRegistryGitContext, type RegistryGitContext } from './git-context';
 import {
   canonicalizeWorkspacePath,
   inspectWorkspacePath,
@@ -99,6 +99,12 @@ export type WorkspaceRegistryRuntimeOptions = {
   logger?: Logger;
   /** Test seam for hosts without git; production always inspects the real filesystem. */
   inspector?: PathInspector;
+  /**
+   * The git dependency bundle — budget, writer locks, budgeted exec factory. The
+   * runtime constructs a real context by default; tests inject one to compose budget
+   * behavior with the runtime.
+   */
+  gitContext?: RegistryGitContext;
   /** Invoked after every records change; the component points the scheduler at it. */
   onRecordsChanged?: () => void;
   /** deactivateWorkspace's session-plane step; the component builds it from the session runtimes. */
@@ -176,11 +182,14 @@ export class WorkspaceRegistryRuntime {
   /** Observation is the single step-writer for script-class lifecycle steps. */
   private readonly scriptRuns: ScriptRunsObserver | null;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
+  /** Every registry-spawned git subprocess flows through this context's budget. */
+  readonly gitContext: RegistryGitContext;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
     this.inspector = options.inspector ?? inspectWorkspacePath;
+    this.gitContext = options.gitContext ?? createRegistryGitContext();
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);
@@ -386,6 +395,7 @@ export class WorkspaceRegistryRuntime {
       const teardownFailure = await this.deactivateForRemoval(current);
       if (teardownFailure) return err(teardownFailure);
       const result = await executeDeleteWorktree({
+        git: this.gitContext,
         repositoryPath,
         worktreePath: current.path,
         deleteBranch: input.deleteBranch,
@@ -434,6 +444,7 @@ export class WorkspaceRegistryRuntime {
       const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
       try {
         const result = await executeUpdateWorktree({
+          git: this.gitContext,
           repositoryPath: parent?.path ?? record.path,
           worktreePath: record.path,
           remote: input.remote,
@@ -525,6 +536,7 @@ export class WorkspaceRegistryRuntime {
       const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
       try {
         const result = await executeUpdateWorktree({
+          git: this.gitContext,
           repositoryPath: parent?.path ?? record.path,
           worktreePath: record.path,
           remote: instruction.remote,
@@ -570,7 +582,7 @@ export class WorkspaceRegistryRuntime {
     }
     const repository = registration.data.repository;
 
-    const created = await hostGitSchedule.withRepoHold(repository.path, async () => {
+    const created = await this.gitContext.schedule.withRepoHold(repository.path, async () => {
       const startedAt = this.clock.now();
       const stageStarts: CreationStageTimeline = [];
       this.updateOverlay(input.workspaceId, (overlay) => ({
@@ -580,6 +592,7 @@ export class WorkspaceRegistryRuntime {
       stageStarts.push({ stage: 'inspect', at: Date.now() });
 
       const result = await executeCreateWorktree({
+        git: this.gitContext,
         repositoryPath: repository.path,
         worktreePath: path.resolve(input.path),
         branch: input.branch,
@@ -751,7 +764,7 @@ export class WorkspaceRegistryRuntime {
     // not stall every other repository's scans behind its gate.
     const target = this.store.get(request.id);
     if (!target) return;
-    await hostGitSchedule.whenIdle(this.repositoryKeyFor(target), SCAN_IDLE_DEADLINE_MS);
+    await this.gitContext.schedule.whenIdle(this.repositoryKeyFor(target), SCAN_IDLE_DEADLINE_MS);
     return this.enqueueScan(async () => {
       const record = this.store.get(request.id);
       if (!record) return;
@@ -1013,7 +1026,7 @@ export class WorkspaceRegistryRuntime {
     let gitAdminName = record.gitAdminName;
     if (parent) {
       try {
-        const listing = (await listRepositoryWorktrees(parent.path)).find(
+        const listing = (await listRepositoryWorktrees(this.gitContext, parent.path)).find(
           (entry) => entry.path === result.finalPath
         );
         gitAdminName = listing?.adminName ?? gitAdminName;
@@ -1028,7 +1041,7 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'present',
       lifecycle,
       lastCreateOutcome: { status: 'succeeded', at: now },
-      git: await observeWorkspaceGit(result.finalPath, undefined, {
+      git: await observeWorkspaceGit(this.gitContext, result.finalPath, undefined, {
         untrackedCache: this.untrackedCacheFor(record.id),
       }),
       updatedAt: now,
@@ -1073,7 +1086,7 @@ export class WorkspaceRegistryRuntime {
 
     // The whole chain holds the repository's idle gate (spec: scan minimization —
     // registry-owned background steps suppress idle-gated scans like creation does).
-    await hostGitSchedule.withRepoHold(repositoryPath, async () => {
+    await this.gitContext.schedule.withRepoHold(repositoryPath, async () => {
       const work: Array<Promise<void>> = [];
       if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
         const copy = this.executeCopyStep(id, repositoryPath, record.path).finally(() => {
@@ -1116,6 +1129,7 @@ export class WorkspaceRegistryRuntime {
       await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
       const startedAt = Date.now();
       const outcome = await executeCopyArtifacts({
+        git: this.gitContext,
         repositoryPath,
         worktreePath,
         preservePatterns,
@@ -1150,7 +1164,7 @@ export class WorkspaceRegistryRuntime {
     const release = this.muteScans(repositoryId);
     try {
       await this.updateLifecycleStep(id, 'push-branch', { status: 'running' });
-      const outcome = await executePushBranch({ repositoryPath, branch });
+      const outcome = await executePushBranch({ git: this.gitContext, repositoryPath, branch });
       await this.updateLifecycleStep(id, 'push-branch', toStepState(outcome));
     } finally {
       release();
@@ -1181,7 +1195,7 @@ export class WorkspaceRegistryRuntime {
     const release = this.muteScans(repositoryId);
     try {
       await this.updateLifecycleStep(id, 'fetch-refs', { status: 'running' });
-      const outcome = await executeFetchRefs({ repositoryPath, baseRef });
+      const outcome = await executeFetchRefs({ git: this.gitContext, repositoryPath, baseRef });
       // Advisory by contract: a failed fetch is recorded, never surfaced as an error.
       await this.updateLifecycleStep(id, 'fetch-refs', toStepState(outcome));
     } finally {
@@ -1515,7 +1529,7 @@ export class WorkspaceRegistryRuntime {
 
     let listings: WorktreeListing[];
     try {
-      listings = await listRepositoryWorktrees(repository.path);
+      listings = await listRepositoryWorktrees(this.gitContext, repository.path);
     } catch (error) {
       // Positive assertion: an unscannable repository degrades its own observations and
       // asserts nothing about its worktrees.
@@ -1557,7 +1571,7 @@ export class WorkspaceRegistryRuntime {
             path: canonicalPath,
             gitAdminName: listing.adminName ?? child.gitAdminName,
             observedStatus: 'present',
-            git: await observeWorkspaceGit(canonicalPath, listing, {
+            git: await observeWorkspaceGit(this.gitContext, canonicalPath, listing, {
               untrackedCache: this.untrackedCacheFor(child.id),
               remoteUrlCache,
             }),
@@ -1582,7 +1596,7 @@ export class WorkspaceRegistryRuntime {
         lastCreateOutcome: null,
         lifecycle: null,
         lastRemovalAttempt: null,
-        git: await observeWorkspaceGit(canonicalPath, listing, {
+        git: await observeWorkspaceGit(this.gitContext, canonicalPath, listing, {
           untrackedCache: this.untrackedCacheFor(adoptedId),
           remoteUrlCache,
         }),
@@ -1607,7 +1621,7 @@ export class WorkspaceRegistryRuntime {
           child.id,
           {
             observedStatus: 'present',
-            git: await observeWorkspaceGit(child.path, undefined, {
+            git: await observeWorkspaceGit(this.gitContext, child.path, undefined, {
               untrackedCache: this.untrackedCacheFor(child.id),
               remoteUrlCache,
             }),
@@ -1624,7 +1638,7 @@ export class WorkspaceRegistryRuntime {
       repository.id,
       {
         observedStatus: 'present',
-        git: await observeWorkspaceGit(repository.path, undefined, {
+        git: await observeWorkspaceGit(this.gitContext, repository.path, undefined, {
           untrackedCache: this.untrackedCacheFor(repository.id),
           remoteUrlCache,
         }),
@@ -1643,7 +1657,7 @@ export class WorkspaceRegistryRuntime {
       await this.applyVanished(record.id, now);
       return;
     }
-    const git = await observeWorkspaceGitRefs(record.path, record.git);
+    const git = await observeWorkspaceGitRefs(this.gitContext, record.path, record.git);
     await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
   }
 
@@ -1657,7 +1671,7 @@ export class WorkspaceRegistryRuntime {
     const git =
       record.kind === 'directory'
         ? null
-        : await observeWorkspaceGit(record.path, undefined, {
+        : await observeWorkspaceGit(this.gitContext, record.path, undefined, {
             untrackedCache: this.untrackedCacheFor(record.id),
           });
     await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
