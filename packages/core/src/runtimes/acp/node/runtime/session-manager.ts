@@ -12,15 +12,7 @@ import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import {
-  compileIdlePolicy,
-  createIdleSweeper,
-  createIoActivityTracker,
-  type IdlePolicy,
-  type IdleSweeper,
-  type IoActivitySnapshot,
-  type IoActivityTracker,
-} from '#primitives/io-activity/api';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
@@ -77,10 +69,12 @@ import {
   type SessionLiveModels,
   type SessionsListModel,
 } from '#runtimes/acp/node/state/live-models';
-import {
-  noopConversationLifecycleReporter,
-  type ConversationLifecycleReporter,
-} from '#services/conversation-reports/node';
+import type {
+  ActivityFields,
+  ConversationSessionLifecycle,
+  SessionSnapshotJudgment,
+} from '#services/session-lifecycle/api';
+import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
@@ -88,6 +82,11 @@ interface SessionRecord {
   input: AcpStartInput;
   processKey: string;
   connectionLease: Lease<PooledAcpProcess>;
+  /**
+   * Cleared before evicting a record whose pooled process already died: the pool
+   * entry is invalidated instead, so the evict step must not release the lease.
+   */
+  releaseLeaseOnEvict: boolean;
   cell: SessionCell;
   live: SessionLiveModels;
   machineStateBinding: { dispose(): void };
@@ -115,10 +114,8 @@ export class SessionManager implements InboundRouter {
   private readonly cells = new Map<string, SessionRecord>();
   private readonly routes = new Map<string, Map<string, string>>();
   private readonly loadingConversations = new Map<string, Set<string>>();
-  private readonly activity = new Map<string, IoActivityTracker>();
-  private readonly sessionIdlePolicy: IdlePolicy;
-  private readonly idleSweeper: IdleSweeper;
-  private readonly reports: ConversationLifecycleReporter;
+  private readonly clock: Clock;
+  private readonly lifecycle: ConversationSessionLifecycle;
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
@@ -126,24 +123,74 @@ export class SessionManager implements InboundRouter {
     private readonly terminals: AgentTerminalManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {
-    this.reports = deps.conversationReports ?? noopConversationLifecycleReporter;
-    this.sessionIdlePolicy = compileIdlePolicy(
-      deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: 60 * 60_000 }
-    );
-    this.idleSweeper = createIdleSweeper<string>({
-      ...(deps.clock ? { clock: deps.clock } : {}),
-      intervalMs: deps.lifecycle?.sweepIntervalMs ?? 60_000,
-      entries: () => Array.from(this.cells.keys()),
+    this.clock = deps.clock ?? systemClock;
+    this.lifecycle = createSessionLifecycle<AcpStartInput, void>({
+      name: 'SessionManager',
+      logger: deps.logger,
+      clock: this.clock,
+      idlePolicy: deps.lifecycle?.session,
+      sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
+      entries: () => this.cells.keys(),
       snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
-      policy: () => this.sessionIdlePolicy,
-      deactivate: (conversationId, reason) => {
-        this.stop(conversationId, reason);
+      syncListEntry: (conversationId, activity) =>
+        this.syncSessionActivity(conversationId, activity),
+      deactivate: async (conversationId, cause) => {
+        await this.stop(conversationId, cause);
       },
-      onError: (error, conversationId) => {
-        this.deps.logger.warn('SessionManager: idle sweep failed', {
-          conversationId,
-          error: String(error),
-        });
+      evictSteps: [
+        { name: 'cell', run: (key) => this.cells.get(key)?.cell.dispose() },
+        {
+          name: 'machine-state-binding',
+          run: (key) => this.cells.get(key)?.machineStateBinding.dispose(),
+        },
+        {
+          name: 'routes',
+          run: (key) => {
+            const record = this.cells.get(key);
+            if (record) this.unregisterRoutes(record.processKey, key);
+          },
+        },
+        { name: 'live-models', run: (key) => this.cells.get(key)?.live.dispose() },
+        {
+          name: 'connection-lease',
+          run: (key) => {
+            const record = this.cells.get(key);
+            if (record?.releaseLeaseOnEvict) void record.connectionLease.release();
+          },
+        },
+        {
+          name: 'record',
+          run: (key) => {
+            this.cells.delete(key);
+          },
+        },
+        {
+          name: 'conversation-terminals',
+          run: (key) => {
+            this.terminals.disposeConversation(key);
+          },
+        },
+        { name: 'sessions-list-summary', run: (key) => this.deleteSessionSummary(key) },
+      ],
+      conversation: {
+        intents: deps.intents,
+        reports: deps.conversationReports,
+        activePayload: (conversationId) => {
+          const record = this.cells.get(conversationId);
+          if (!record) return null;
+          const { initialQueue: _initialQueue, ...persisted } = record.input;
+          const sessionId = record.cell.acpSessionId;
+          return { payload: { ...persisted, sessionId } as unknown as Serializable, sessionId };
+        },
+        reconcile: {
+          parse: (intent) => {
+            const parsed = acpStartInputSchema.safeParse(intent.payload);
+            const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
+            if (!parsed.success || !sessionId) return { suspend: 'reconcile-failed' };
+            return { input: { ...parsed.data, sessionId, initialQueue: undefined } };
+          },
+          resume: (input) => this.start(input),
+        },
       },
     });
   }
@@ -151,10 +198,10 @@ export class SessionManager implements InboundRouter {
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     const existing = this.cells.get(input.conversationId);
     if (existing) {
-      this.persistActiveIntent(input, existing.cell.acpSessionId);
+      this.lifecycle.saveIntent(input.conversationId);
       return ok({ sessionId: existing.cell.acpSessionId });
     }
-    this.recordInputActivity(input.conversationId);
+    this.lifecycle.recordInput(input.conversationId);
 
     this.upsertSessionSummary(input, null, {
       lifecycle: 'starting',
@@ -166,7 +213,9 @@ export class SessionManager implements InboundRouter {
 
     const binding = this.deps.agentHost.resolveAcp(input.providerId);
     if (!binding) {
-      this.deleteSessionSummary(input.conversationId);
+      // Start-failure teardown: no record exists yet, but the eviction drops the
+      // activity tracker and summary entry (the old failed-start leak).
+      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
       return acpErr.providerUnsupported(input.providerId);
     }
 
@@ -181,7 +230,7 @@ export class SessionManager implements InboundRouter {
       isAcpConnectionError
     );
     if (!acquire.success) {
-      this.deleteSessionSummary(input.conversationId);
+      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
       return acquire;
     }
 
@@ -239,7 +288,7 @@ export class SessionManager implements InboundRouter {
         }
 
         if (!loaded) {
-          this.removeRecord(input.conversationId, false);
+          this.discardReplacedRecord(input.conversationId);
           record = null;
         }
       }
@@ -252,9 +301,10 @@ export class SessionManager implements InboundRouter {
           );
         } catch (e) {
           if (isAuthRequiredError(e)) throw e;
-          this.removeRecord(input.conversationId, false);
+          // No record exists here (the loadSession fallback already discarded its
+          // record), so the lease is still caller-held and released explicitly.
+          await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
           await acquired.release();
-          this.deleteSessionSummary(input.conversationId);
           return acpErr.newSessionFailed(toSerializedError(e));
         }
         record = this.createRecord(input, connection, acquired, response.sessionId);
@@ -282,17 +332,19 @@ export class SessionManager implements InboundRouter {
 
       this.publishSessionMcpServers(record, mcpServerSummary);
       this.syncRecord(record);
-      this.persistActiveIntent(input, record.cell.acpSessionId);
-      this.reports.sessionStarted({
+      // `started` reports sessionStarted and persists the active intent.
+      this.lifecycle.started(input.conversationId, {
         conversationId: input.conversationId,
         providerSessionId: record.cell.acpSessionId,
         resumeOutcome,
       });
       return ok({ sessionId: record.cell.acpSessionId });
     } catch (e) {
-      if (record) this.removeRecord(record.input.conversationId, false);
-      await acquired.release();
-      this.deleteSessionSummary(input.conversationId);
+      // When a record exists it holds the lease, so the evict step releases it;
+      // otherwise the caller-held lease is released explicitly.
+      const recordHeldLease = this.cells.has(input.conversationId);
+      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
+      if (!recordHeldLease) await acquired.release();
       if (isAuthRequiredError(e)) {
         return acpErr.authRequired(toSerializedError(e));
       }
@@ -303,7 +355,7 @@ export class SessionManager implements InboundRouter {
   async prompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
-    this.recordInputActivity(input.conversationId);
+    this.lifecycle.recordInput(input.conversationId);
     if (input.placement === 'queue') {
       const state = record.cell.sessionState;
       if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
@@ -355,21 +407,21 @@ export class SessionManager implements InboundRouter {
     return record.cell.setPromptDraft(draft);
   }
 
-  stop(conversationId: string, cause = 'user'): Result<void, AcpKillError> {
-    const record = this.cells.get(conversationId);
-    if (record) {
-      record.cell.closeSession().catch(() => {});
-      this.removeRecord(conversationId, true);
-      this.reports.sessionEnded(conversationId);
-    }
-    this.persistSuspendedIntent(conversationId, cause);
+  async stop(conversationId: string, cause = 'user'): Promise<Result<void, AcpKillError>> {
+    this.cells
+      .get(conversationId)
+      ?.cell.closeSession()
+      .catch(() => {});
+    await this.lifecycle.evict(conversationId, { cause, intent: 'suspend' });
     return ok();
   }
 
-  kill(conversationId: string): Result<void, AcpKillError> {
-    const result = this.stop(conversationId, 'user');
-    if (!result.success) return result;
-    this.removePersistedIntent(conversationId);
+  async kill(conversationId: string): Promise<Result<void, AcpKillError>> {
+    this.cells
+      .get(conversationId)
+      ?.cell.closeSession()
+      .catch(() => {});
+    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
     return ok();
   }
 
@@ -380,7 +432,7 @@ export class SessionManager implements InboundRouter {
   ): Result<void, AcpResolvePermissionError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
-    this.recordInputActivity(conversationId);
+    this.lifecycle.recordInput(conversationId);
     return record.cell.resolvePermission(requestId, optionId);
   }
 
@@ -488,11 +540,14 @@ export class SessionManager implements InboundRouter {
 
     const record = this.cells.get(conversationId);
     if (!record) return;
-    this.recordOutputActivity(conversationId);
+    this.lifecycle.recordOutput(conversationId);
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
-      this.reports.providerSessionId({ conversationId, providerSessionId: params.sessionId });
+      this.lifecycle.providerSessionId(conversationId, {
+        conversationId,
+        providerSessionId: params.sessionId,
+      });
     }
     record.cell.recordRaw({
       kind: 'session_update',
@@ -511,7 +566,7 @@ export class SessionManager implements InboundRouter {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
     const record = conversationId ? this.cells.get(conversationId) : undefined;
     if (!conversationId || !record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
-    this.recordOutputActivity(conversationId);
+    this.lifecycle.recordOutput(conversationId);
     const response = record.cell.requestPermission(params);
     this.syncRecord(record);
     return response;
@@ -531,10 +586,16 @@ export class SessionManager implements InboundRouter {
   onProcessClosed(processKey: string, exitCode: number | null): void {
     for (const record of [...this.cells.values()]) {
       if (record.processKey !== processKey) continue;
+      // The pooled process is gone: invalidation owns the pool entry, so the evict
+      // step must not release the dead lease.
+      record.releaseLeaseOnEvict = false;
       record.cell.processClosed(exitCode);
-      this.removeRecord(record.input.conversationId, false);
-      this.deleteSessionSummary(record.input.conversationId);
-      this.reports.sessionEnded(record.input.conversationId);
+      // The active intent is kept so restart reconciliation can restore the
+      // conversation; the cell's onClosed eviction (triggered above) coalesces.
+      void this.lifecycle.evict(record.input.conversationId, {
+        cause: 'process-exited',
+        intent: 'keep',
+      });
       void this.connections.invalidate({
         providerId: record.input.providerId,
         cwd: record.input.cwd,
@@ -553,7 +614,13 @@ export class SessionManager implements InboundRouter {
       onSessionStateChanged: () => this.syncRecord(record),
       onTranscriptChanged: () => this.syncRecord(record),
       onDraftChanged: () => this.syncRecord(record),
-      onClosed: () => this.removeRecord(input.conversationId, true),
+      // Machine-driven close (usually process death): full teardown; the active
+      // intent is kept so restart reconciliation can restore the conversation.
+      onClosed: () =>
+        void this.lifecycle.evict(input.conversationId, {
+          cause: 'process-exited',
+          intent: 'keep',
+        }),
       onSendQueuedPrompt: () => this.syncRecord(record),
     };
     const cell = new SessionCell({
@@ -575,6 +642,7 @@ export class SessionManager implements InboundRouter {
       input,
       processKey: connection.key,
       connectionLease,
+      releaseLeaseOnEvict: true,
       cell,
       live,
       machineStateBinding,
@@ -685,13 +753,13 @@ export class SessionManager implements InboundRouter {
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,
       title: cell?.transcript.title ?? null,
-      updatedAt: this.now(),
+      updatedAt: this.clock.now(),
     };
-    const activity = this.activity.get(input.conversationId)?.snapshot();
-    if (activity?.lastInputAt !== null && activity?.lastInputAt !== undefined) {
+    const activity = this.lifecycle.activity(input.conversationId);
+    if (activity.lastInputAt !== null) {
       summary.lastInputAt = activity.lastInputAt;
     }
-    if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
+    if (activity.lastOutputAt !== null) {
       summary.lastOutputAt = activity.lastOutputAt;
     }
     produceCell(this.sessionsList.states.list, (draft) => {
@@ -700,41 +768,11 @@ export class SessionManager implements InboundRouter {
   }
 
   dispose(): void {
-    this.idleSweeper.dispose();
+    this.lifecycle.dispose();
   }
 
-  async reconcile(): Promise<void> {
-    const listed = await this.deps.intents.list();
-    if (!listed.success) {
-      this.deps.logger.warn('SessionManager: failed to load session intents', {
-        error: listed.error,
-      });
-      return;
-    }
-
-    for (const intent of listed.data) {
-      if (intent.status !== 'active') continue;
-      const parsed = acpStartInputSchema.safeParse(intent.payload);
-      const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
-      if (!parsed.success || !sessionId) {
-        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
-        continue;
-      }
-
-      const input: AcpStartInput = {
-        ...parsed.data,
-        sessionId,
-        initialQueue: undefined,
-      };
-      const result = await this.start(input);
-      if (!result.success) {
-        this.deps.logger.warn('SessionManager: failed to reconcile session intent', {
-          conversationId: intent.conversationId,
-          error: result.error,
-        });
-        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
-      }
-    }
+  reconcile(): Promise<void> {
+    return this.lifecycle.reconcile();
   }
 
   private deleteSessionSummary(conversationId: string): void {
@@ -743,30 +781,7 @@ export class SessionManager implements InboundRouter {
     });
   }
 
-  private activityFor(conversationId: string): IoActivityTracker {
-    let tracker = this.activity.get(conversationId);
-    if (!tracker) {
-      tracker = createIoActivityTracker(() => this.now());
-      this.activity.set(conversationId, tracker);
-    }
-    return tracker;
-  }
-
-  private recordInputActivity(conversationId: string): void {
-    this.activityFor(conversationId).recordInput();
-    this.syncSessionActivity(conversationId);
-    this.reports.activity(conversationId);
-  }
-
-  private recordOutputActivity(conversationId: string): void {
-    this.activityFor(conversationId).recordOutput();
-    this.syncSessionActivity(conversationId);
-    this.reports.activity(conversationId);
-  }
-
-  private syncSessionActivity(conversationId: string): void {
-    const activity = this.activity.get(conversationId)?.snapshot();
-    if (!activity) return;
+  private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
     produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
@@ -775,11 +790,10 @@ export class SessionManager implements InboundRouter {
     });
   }
 
-  private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
+  private lifecycleSnapshot(conversationId: string): SessionSnapshotJudgment | null {
     const record = this.cells.get(conversationId);
     if (!record) return null;
     const state = record.cell.sessionState;
-    const activity = this.activityFor(conversationId).snapshot();
     return {
       running: true,
       busy:
@@ -787,69 +801,24 @@ export class SessionManager implements InboundRouter {
         state.pendingPermissions.length > 0 ||
         state.queuedPrompts.length > 0 ||
         state.backgroundAgentCount > 0,
-      attachedClients: activity.attachedClients,
-      detachedAt: activity.detachedAt,
-      lastInputAt: activity.lastInputAt,
-      lastOutputAt: activity.lastOutputAt,
     };
   }
 
-  private now(): number {
-    return this.deps.clock?.now() ?? Date.now();
-  }
-
-  private persistActiveIntent(input: AcpStartInput, sessionId: string): void {
-    const { initialQueue: _initialQueue, ...persisted } = input;
-    void this.deps.intents
-      .saveActive({
-        conversationId: input.conversationId,
-        sessionId,
-        payload: { ...persisted, sessionId } as unknown as Serializable,
-      })
-      .then((result) => {
-        if (!result.success) {
-          this.deps.logger.warn('SessionManager: failed to persist active intent', {
-            conversationId: input.conversationId,
-            error: result.error,
-          });
-        }
-      });
-  }
-
-  private persistSuspendedIntent(conversationId: string, cause: string): void {
-    void this.deps.intents.markSuspended(conversationId, cause).then((result) => {
-      if (!result.success) {
-        this.deps.logger.warn('SessionManager: failed to persist suspended intent', {
-          conversationId,
-          error: result.error,
-        });
-      }
-    });
-  }
-
-  private removePersistedIntent(conversationId: string): void {
-    void this.deps.intents.remove(conversationId).then((result) => {
-      if (!result.success) {
-        this.deps.logger.warn('SessionManager: failed to remove session intent', {
-          conversationId,
-          error: result.error,
-        });
-      }
-    });
-  }
-
-  private removeRecord(conversationId: string, releaseConnection: boolean): void {
+  /**
+   * loadSession-fallback teardown: the same connection lease is reused by the
+   * newSession retry, so this must NOT release it, and the session did not end
+   * (no report, no intent write). Deliberately bypasses the chassis evict.
+   */
+  private discardReplacedRecord(conversationId: string): void {
     const record = this.cells.get(conversationId);
     if (!record) return;
     record.cell.dispose();
     record.machineStateBinding.dispose();
     this.unregisterRoutes(record.processKey, conversationId);
     this.cells.delete(conversationId);
-    this.activity.delete(conversationId);
     this.terminals.disposeConversation(conversationId);
     record.live.dispose();
     this.deleteSessionSummary(conversationId);
-    if (releaseConnection) void record.connectionLease.release();
   }
 
   private resolveConversationForSession(processKey: string, acpSessionId: string): string | null {

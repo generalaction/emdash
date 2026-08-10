@@ -11,6 +11,11 @@ import {
 } from '#runtimes/acp/node/acp-test-support';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
+import {
+  expectNoSessionResidue,
+  mapContainer,
+  type LeakCheckContainer,
+} from '#services/session-lifecycle/node/testing';
 import { AcpRuntime } from './runtime';
 
 async function startHarness(conversationId = 'conv-1') {
@@ -45,9 +50,9 @@ describe('AcpRuntime session manager', () => {
     await rt.startSession(makeStartInput({ conversationId: 'conv-b' }));
 
     expect(h.children).toHaveLength(1);
-    rt.stopSession('conv-a');
+    await rt.stopSession('conv-a');
     expect(h.lastChild.kill).not.toHaveBeenCalled();
-    rt.stopSession('conv-b');
+    await rt.stopSession('conv-b');
     await clock.advanceBy(500);
     await vi.waitFor(() => {
       expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
@@ -315,9 +320,10 @@ describe('AcpRuntime session manager', () => {
     await rt.startSession(makeStartInput({ conversationId: 'conv-kill' }));
 
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
-    rt.killSession('conv-kill');
+    await rt.killSession('conv-kill');
 
     await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
+    expectNoSessionResidue('conv-kill', leakContainers(rt));
   });
 
   it('publishes activeTurn patches without root replacement during incremental text growth', async () => {
@@ -727,18 +733,19 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     ]);
   });
 
-  it('reports session end on user stop', async () => {
+  it('reports session end exactly once on user stop', async () => {
     const reports = createRecordingConversationLifecycleReporter();
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
     await rt.startSession(makeStartInput({ conversationId: 'conv-stop' }));
 
-    rt.stopSession('conv-stop');
+    await rt.stopSession('conv-stop');
 
     expect(reports.ended).toEqual(['conv-stop']);
+    expectNoSessionResidue('conv-stop', leakContainers(rt));
   });
 
-  it('reports session end when the provider process dies', async () => {
+  it('reports session end exactly once when the provider process dies', async () => {
     const reports = createRecordingConversationLifecycleReporter();
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
@@ -749,8 +756,87 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     await vi.waitFor(() => {
       expect(reports.ended).toEqual(['conv-died']);
     });
+    // The cell onClosed eviction and the process-close eviction coalesce.
+    await vi.waitFor(() => expect(rt.sessionLiveModels('conv-died')).toBeNull());
+    expect(reports.ended).toEqual(['conv-died']);
+    expectNoSessionResidue('conv-died', leakContainers(rt));
+  });
+
+  it('keeps the active intent when the provider process dies', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-crash' }));
+    await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
+
+    h.lastChild.emitExit(42);
+
+    await vi.waitFor(() => expect(rt.sessionLiveModels('conv-crash')).toBeNull());
+    expect(intents.snapshot()[0]).toMatchObject({
+      conversationId: 'conv-crash',
+      status: 'active',
+    });
+  });
+
+  it('reports session end and cleans up when the start fails before a session exists', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    h.agent.newSession.mockRejectedValueOnce(new Error('agent refused'));
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-start-fail' }));
+
+    expect(result.success).toBe(false);
+    expect(reports.ended).toEqual(['conv-start-fail']);
+    expectNoSessionResidue('conv-start-fail', leakContainers(rt));
+  });
+
+  it('reuses the connection lease across the loadSession fallback (no pool churn)', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    h.agent.loadSession = vi.fn(async () => {
+      throw new Error('session file is gone');
+    });
+
+    const result = await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-lease' }),
+      sessionId: 'session-old',
+    });
+
+    expect(isOk(result)).toBe(true);
+    expect(h.children).toHaveLength(1);
+    expect(h.lastChild.kill).not.toHaveBeenCalled();
+    expect(rt.sessionLiveModels('conv-lease')).not.toBeNull();
   });
 });
+
+type ManagerInternals = {
+  cells: Map<string, unknown>;
+  routes: Map<string, Map<string, string>>;
+  loadingConversations: Map<string, Set<string>>;
+};
+
+/** Reflects over the manager's per-key maps so the shared leak check can see them. */
+function leakContainers(rt: AcpRuntime): LeakCheckContainer[] {
+  const internals = rt.manager as unknown as ManagerInternals;
+  return [
+    mapContainer('cells', internals.cells),
+    {
+      name: 'routes',
+      has: (key) =>
+        [...internals.routes.values()].some((bySession) => [...bySession.values()].includes(key)),
+    },
+    {
+      name: 'loadingConversations',
+      has: (key) => [...internals.loadingConversations.values()].some((set) => set.has(key)),
+    },
+    { name: 'liveModels', has: (key) => rt.sessionLiveModels(key) !== null },
+    {
+      name: 'sessionsList',
+      has: (key) => key in peek(rt.sessionsListLiveModel().states.list),
+    },
+  ];
+}
 
 function modeConfigOption(currentValue: string) {
   return {
