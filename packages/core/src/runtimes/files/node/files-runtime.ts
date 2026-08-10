@@ -1,7 +1,10 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { DEFAULT_WATCHER_EXCLUDE, normalizeExclusionPatterns } from '#primitives/lib/api';
+import {
+  DEFAULT_WATCHER_EXCLUDE,
+  normalizeExclusionPatterns,
+} from '#primitives/exclusion-policy/api';
 import { parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
 import { FileContentRuntime } from '#runtimes/files/node/content/content-runtime';

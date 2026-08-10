@@ -3,8 +3,8 @@ import type { PluginRegistry } from '@emdash/shared/plugins';
 import type { ProvidedWireComponentRequirements } from '@emdash/wire/worker';
 import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
 import type { z } from 'zod';
-import { SESSION_IDLE_MS } from '#primitives/io-activity/api';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
+import { SESSION_IDLE_MS } from '#services/session-lifecycle/api';
 import { type acpComponentConfigSchema, createAcpComponent } from './component';
 
 /**

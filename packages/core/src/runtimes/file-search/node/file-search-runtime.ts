@@ -6,7 +6,7 @@ import {
   type Scope,
 } from '@emdash/shared/concurrency';
 import type Database from 'better-sqlite3';
-import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/lib/api';
+import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/exclusion-policy/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type {
   ContentSearchError,

@@ -27,10 +27,10 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     stop(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.stopSession(input.conversationId);
     },
-    delete(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    delete(input: { conversationId: string }): Promise<Result<void, TuiSessionControlError>> {
       return runtime.deleteSession(input.conversationId);
     },
-    kill(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    kill(input: { conversationId: string }): Promise<Result<void, TuiSessionControlError>> {
       return runtime.killSession(input.conversationId);
     },
     sendInput(input: { conversationId: string; data: string }): Result<void, TuiInputError> {

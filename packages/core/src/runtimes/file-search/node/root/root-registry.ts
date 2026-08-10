@@ -4,7 +4,7 @@ import {
   type LifecycleRegistry,
   type Scope,
 } from '@emdash/shared/concurrency';
-import { canonicalExclusionPatterns } from '#primitives/lib/api';
+import { canonicalExclusionPatterns } from '#primitives/exclusion-policy/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import type {
   FileSearchRegisterRootError,

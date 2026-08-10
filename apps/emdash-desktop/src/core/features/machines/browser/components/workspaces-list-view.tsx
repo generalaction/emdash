@@ -1,19 +1,17 @@
+import { WorkspaceIcon } from '@emdash/ui/react/components';
 import {
-  WorkspacesList,
-  type WorkspaceIconStatus,
-  type WorkspacesListItem,
-} from '@emdash/ui/react/components';
-import { CollectionToolbar } from '@emdash/ui/react/patterns';
+  CollectionToolbar,
+  CollectionView,
+  CollectionViewCell,
+  type CollectionViewColumn,
+} from '@emdash/ui/react/patterns';
 import { Button, RelativeTime } from '@emdash/ui/react/primitives';
 import { PlusIcon } from 'lucide-react';
+import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import type { WorkspacesScope } from '@core/features/workspaces/api/browser/use-workspace-groups';
-import {
-  useWorkspaceRows,
-  type WorkspaceRowsGroup,
-} from '@core/features/workspaces/api/browser/use-workspace-rows';
-import { aggregateWorkspaceStatus } from '@core/features/workspaces/api/browser/workspace-runtime-status';
+import { useWorkspaceRows } from '@core/features/workspaces/api/browser/use-workspace-rows';
 import {
   WorkspacesEmptyState,
   WorkspacesErrorState,
@@ -21,15 +19,50 @@ import {
   WorkspacesOfflineState,
 } from '@core/features/workspaces/contributions/browser/workspace-states';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import {
+  buildWorkspaceItems,
+  createWorkspacesListView,
+  type WorkspacesListItem,
+  type WorkspacesListViewModel,
+} from './workspaces-list-model';
 
-type WorkspaceEntry = {
-  item: WorkspacesListItem;
-};
+const WORKSPACE_COLUMNS: CollectionViewColumn<WorkspacesListItem>[] = [
+  {
+    id: 'icon',
+    width: '2.25rem',
+    cell: (item) => <WorkspaceIcon type={item.kind} status={item.status} />,
+  },
+  {
+    id: 'name',
+    width: 'minmax(0, 1fr)',
+    cell: (item) => <CollectionViewCell primary={item.name} secondary={item.path} />,
+  },
+  {
+    id: 'worktrees',
+    width: '10rem',
+    cell: (item) => (
+      <CollectionViewCell
+        primary={formatCount(item.worktreeCount, 'Worktree')}
+        secondary={formatCount(item.linkedTaskCount, 'linked task')}
+      />
+    ),
+  },
+  {
+    id: 'usage',
+    width: '10rem',
+    cell: (item) => (
+      <CollectionViewCell
+        primary={item.lastActivityAt ? <RelativeTime value={item.lastActivityAt} /> : 'Never'}
+        secondary={formatCount(item.activeTaskCount, 'Task active', 'Tasks active')}
+      />
+    ),
+  },
+];
 
 /**
- * One row per project, rendered with the shared WorkspacesList; clicking a row
- * opens the project's workspace detail. Serves both the Local Workspaces tab
- * and the machine details Workspaces section.
+ * One row per project, rendered through CollectionView in state mode; clicking
+ * a row opens the project's workspace detail. Serves both the Local Workspaces
+ * tab and the machine details Workspaces section.
  */
 export const WorkspacesListView = observer(function WorkspacesListView({
   scope,
@@ -44,9 +77,17 @@ export const WorkspacesListView = observer(function WorkspacesListView({
   const openAddProject = useOpenModal('addProjectModal');
   const workspaceRows = useWorkspaceRows({ scope, enabled });
   const { workspaceQuery, groups } = workspaceRows;
-  const [search, setSearch] = useState('');
-  const entries = buildWorkspaceEntries(groups);
-  const filteredEntries = entries.filter((entry) => matchesSearch(entry.item, search));
+
+  // Bridge query data into the view's sync source: the getter reads this box,
+  // so the list pipeline re-derives whenever fresh groups arrive. Seeded at
+  // mount and updated before paint so fresh data never flashes the empty state.
+  const [itemsBox] = useState(() =>
+    observable.box<WorkspacesListItem[]>(buildWorkspaceItems(groups), { deep: false })
+  );
+  const [view] = useState(() => createWorkspacesListView(() => itemsBox.get()));
+  useLayoutEffect(() => {
+    runInAction(() => itemsBox.set(buildWorkspaceItems(groups)));
+  }, [groups, itemsBox]);
 
   if (scope.kind === 'machine' && !enabled) {
     return (
@@ -57,86 +98,67 @@ export const WorkspacesListView = observer(function WorkspacesListView({
   if (workspaceQuery.isError) return <WorkspacesErrorState error={workspaceQuery.error} />;
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <CollectionToolbar
-        searchValue={search}
-        onSearchValueChange={setSearch}
-        searchPlaceholder="Search workspaces…"
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() =>
+    <view.Root>
+      <CollectionView
+        view={view}
+        columns={WORKSPACE_COLUMNS}
+        toolbar={
+          <WorkspacesToolbar
+            view={view}
+            onAddProject={() =>
               void openAddProject(
                 scope.kind === 'machine'
                   ? { strategy: 'ssh', mode: 'clone', connectionId: scope.machineId }
                   : { strategy: 'local', mode: 'pick' }
               )
             }
-          >
-            <PlusIcon />
-            Add Project
-          </Button>
-        }
-      />
-      <WorkspacesList
-        items={filteredEntries.map((entry) => entry.item)}
-        onItemClick={(item) => openDetail(item.id)}
-        emptySlot={
-          <WorkspacesEmptyState
-            message={
-              search.trim().length > 0 ? 'No workspaces match your search.' : 'No workspaces found.'
-            }
           />
         }
+        onItemClick={(item) => openDetail(item.id)}
+        emptySlot={<WorkspacesEmpty view={view} />}
       />
-    </div>
+    </view.Root>
   );
 });
 
-function matchesSearch(item: WorkspacesListItem, query: string): boolean {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) return true;
-  return [item.name, item.path].some((value) =>
-    value.toLocaleLowerCase().includes(normalizedQuery)
+const WorkspacesToolbar = observer(function WorkspacesToolbar({
+  view,
+  onAddProject,
+}: {
+  view: WorkspacesListViewModel;
+  onAddProject: () => void;
+}) {
+  const search = view.useSearch();
+  return (
+    <CollectionToolbar
+      searchValue={search.query}
+      onSearchValueChange={search.setQuery}
+      searchPlaceholder="Search workspaces…"
+      actions={
+        <Button type="button" variant="primary" onClick={onAddProject}>
+          <PlusIcon />
+          Add Project
+        </Button>
+      }
+    />
   );
-}
+});
 
-function buildWorkspaceEntries(groups: readonly WorkspaceRowsGroup[]): WorkspaceEntry[] {
-  return groups.map((group) => {
-    const rows = group.workspaces;
-    const rootRow = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
-    const rowStatuses = rows.map((row) => row.status);
-    const lastActivityAt = maxTimestamp(rows.map((joined) => joined.row.lastActivityAt));
-    const worktreeCount = rows.filter((joined) => joined.row.kind !== 'root').length;
+const WorkspacesEmpty = observer(function WorkspacesEmpty({
+  view,
+}: {
+  view: WorkspacesListViewModel;
+}) {
+  const search = view.useSearch();
+  return (
+    <WorkspacesEmptyState
+      message={
+        search.query.trim().length > 0 ? 'No workspaces match your search.' : 'No workspaces found.'
+      }
+    />
+  );
+});
 
-    return {
-      item: {
-        id: group.project.id,
-        name: group.project.name,
-        path: rootRow?.row.path ?? group.project.name,
-        kind: 'repository',
-        status: aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus,
-        worktreeCount,
-        linkedTaskCount: rows.reduce((count, joined) => count + joined.row.tasks.length, 0),
-        lastUsed: lastActivityAt ? <RelativeTime value={lastActivityAt} /> : undefined,
-        activeTaskCount: rowStatuses.filter((status) => status === 'active').length,
-      },
-    };
-  });
-}
-
-function maxTimestamp(values: readonly (string | undefined)[]): string | undefined {
-  let latest: string | undefined;
-  let latestTime = -Infinity;
-
-  for (const value of values) {
-    if (!value) continue;
-    const time = Date.parse(value);
-    if (Number.isNaN(time) || time <= latestTime) continue;
-    latest = value;
-    latestTime = time;
-  }
-
-  return latest;
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
 }

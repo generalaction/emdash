@@ -1,4 +1,7 @@
-import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
+import {
+  canonicalExclusionPatterns,
+  DEFAULT_TREE_EXCLUDE,
+} from '@emdash/core/primitives/exclusion-policy/api';
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import type { FileTreeModel } from '@emdash/core/runtimes/files/api';
 import { ok } from '@emdash/shared';

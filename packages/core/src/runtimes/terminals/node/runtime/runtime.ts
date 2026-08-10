@@ -1,21 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
-import type { Clock } from '@emdash/shared/scheduling';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
 import { cell, expose, peek, type Cell } from '@emdash/wire/state';
 import type { IExecutionContext } from '#primitives/exec/api';
-import {
-  compileIdlePolicy,
-  createIdleSweeper,
-  createIoActivityTracker,
-  type IdlePolicy,
-  type IdlePolicyConfig,
-  type IdleSweeper,
-  type IoActivitySnapshot,
-  type IoActivityTracker,
-} from '#primitives/io-activity/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '#primitives/path/api';
 import type {
   ResolvedShellProfile,
@@ -50,10 +40,17 @@ import {
   type PtySession,
   type PtySpawner,
 } from '#services/pty/api';
+import type {
+  ActivityFields,
+  DeactivationCause,
+  IdlePolicyConfig,
+  SessionLifecycle,
+  SessionSnapshotJudgment,
+} from '#services/session-lifecycle/api';
+import { createSessionLifecycle } from '#services/session-lifecycle/node';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
-const OUTPUT_TAIL_CAP = 16 * 1024;
 
 type SessionsCell = Cell<Record<string, TerminalSessionState>>;
 type DevServersCell = Cell<Record<string, TerminalDevServer>>;
@@ -73,7 +70,6 @@ export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
   exec?: IExecutionContext;
   scope?: Scope;
-  now?: () => number;
   clock?: Clock;
   portProbe?: TerminalPortProbe;
   lifecycle?: TerminalsRuntimeLifecycleOptions;
@@ -103,18 +99,14 @@ export class TerminalsRuntime {
   private readonly registry: PtyRegistry;
   private readonly exec: IExecutionContext | undefined;
   private readonly scope: Scope;
-  private readonly now: () => number;
-  private readonly clock: Clock | undefined;
+  private readonly clock: Clock;
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly shellResolver: TerminalShellResolver | undefined;
   private readonly logger: Logger;
-  private readonly terminalIdlePolicy: IdlePolicy;
-  private readonly idleSweeper: IdleSweeper;
+  private readonly lifecycle: SessionLifecycle;
   private readonly logs = new Map<string, LiveLogSource>();
-  private readonly activity = new Map<string, IoActivityTracker>();
   private readonly sessionKeys = new Map<string, TerminalKey>();
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
-  private readonly outputTails = new Map<string, string>();
   private readonly startCounts = new Map<string, number>();
   private readonly previewSources = new Map<string, PreviewOutputSource>();
 
@@ -124,24 +116,58 @@ export class TerminalsRuntime {
     });
     this.exec = options.exec;
     this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
-    this.clock = options.clock;
-    this.now = options.now ?? options.clock?.now.bind(options.clock) ?? Date.now;
+    this.clock = options.clock ?? systemClock;
     this.portProbe = options.portProbe;
     this.shellResolver = options.shellResolver;
     this.logger = options.logger ?? noopLogger;
-    this.terminalIdlePolicy = compileIdlePolicy(options.lifecycle?.terminal ?? { kind: 'always' });
-    this.idleSweeper = createIdleSweeper<string>({
-      ...(this.clock ? { clock: this.clock } : {}),
+    this.lifecycle = createSessionLifecycle({
+      name: 'TerminalsRuntime',
+      logger: this.logger,
+      clock: this.clock,
       scope: this.scope,
-      intervalMs: options.lifecycle?.sweepIntervalMs ?? 60_000,
-      entries: () => Object.keys(peek(this.sessionsList)),
+      // User shells never idle out by default; the sweeper is policy-inert by design.
+      idlePolicy: options.lifecycle?.terminal ?? { kind: 'always' },
+      ...(options.lifecycle?.sweepIntervalMs !== undefined
+        ? { sweepIntervalMs: options.lifecycle.sweepIntervalMs }
+        : {}),
+      entries: () => this.sessionKeys.keys(),
       snapshot: (sessionKey) => this.lifecycleSnapshot(sessionKey),
-      policy: () => this.terminalIdlePolicy,
-      deactivate: async (sessionKey) => {
-        const key = this.sessionKeys.get(sessionKey);
-        if (!key) return;
-        await this.kill(key);
-      },
+      syncListEntry: (sessionKey, activity) => this.syncActivity(sessionKey, activity),
+      deactivate: (sessionKey, cause) => this.killSession(sessionKey, cause),
+      evictSteps: [
+        { name: 'preview-detection', run: (key) => this.closePreviewSource(key) },
+        {
+          name: 'pty-registry',
+          run: (key) => {
+            this.registry.dispose(key);
+          },
+        },
+        {
+          name: 'output-log',
+          run: (key) => {
+            this.logs.delete(key);
+          },
+        },
+        {
+          name: 'session-key',
+          run: (key) => {
+            this.sessionKeys.delete(key);
+          },
+        },
+        {
+          name: 'interactive-config',
+          run: (key) => {
+            this.interactiveConfigs.delete(key);
+          },
+        },
+        {
+          name: 'start-count',
+          run: (key) => {
+            this.startCounts.delete(key);
+          },
+        },
+        { name: 'sessions-list-entry', run: (key) => this.removeSessionListEntry(key) },
+      ],
     });
     this.scope.add(() => this.dispose());
   }
@@ -150,6 +176,13 @@ export class TerminalsRuntime {
     const sessionKey = sessionKeyFor(input.key);
     const existing = this.registry.get(sessionKey);
     if (existing && !existing.exited) return ok(undefined);
+    if (existing) {
+      // Restart of a retained exited terminal: evict-then-create. The start
+      // count survives eviction so the renderer still sees a restart.
+      const startCount = this.startCounts.get(sessionKey) ?? 0;
+      await this.lifecycle.evict(sessionKey, { cause: 'restart' });
+      if (startCount > 0) this.startCounts.set(sessionKey, startCount);
+    }
 
     this.sessionKeys.set(sessionKey, input.key);
     this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
@@ -158,6 +191,7 @@ export class TerminalsRuntime {
       await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
       return ok(undefined);
     } catch (error) {
+      await this.lifecycle.evict(sessionKey, { cause: 'start-failed' });
       return err({
         type: 'terminal-start-failed',
         message: error instanceof Error ? error.message : String(error),
@@ -186,15 +220,15 @@ export class TerminalsRuntime {
 
   outputLog(key: TerminalKey): LiveSource {
     const source = this.logFor(key);
-    const tracker = this.activityFor(sessionKeyFor(key));
+    const sessionKey = sessionKeyFor(key);
     return {
       snapshot: () => source.snapshot(),
       subscribe: (cb) => {
-        tracker.attach();
+        this.lifecycle.attach(sessionKey);
         const unsubscribe = source.subscribe(cb);
         return () => {
           unsubscribe();
-          tracker.detach();
+          this.lifecycle.detach(sessionKey);
         };
       },
     };
@@ -205,7 +239,7 @@ export class TerminalsRuntime {
     if (!this.registry.write(sessionKey, data)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
     }
-    this.activityFor(sessionKey).recordInput();
+    this.lifecycle.recordInput(sessionKey);
     return ok(undefined);
   }
 
@@ -227,11 +261,10 @@ export class TerminalsRuntime {
 
   async kill(key: TerminalKey): Promise<Result<void, TerminalNotFoundError>> {
     const sessionKey = sessionKeyFor(key);
-    if (!this.registry.kill(sessionKey)) {
+    if (!this.sessionKeys.has(sessionKey)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
     }
-    this.closePreviewSource(sessionKey);
-    await this.killTmuxForSession(sessionKey);
+    await this.killSession(sessionKey, 'user');
     return ok(undefined);
   }
 
@@ -246,13 +279,24 @@ export class TerminalsRuntime {
   }
 
   dispose(): void {
-    this.idleSweeper.dispose();
+    this.lifecycle.dispose();
     this.registry.killAll();
     this.logs.clear();
     for (const source of this.previewSources.values()) source.dispose();
     this.previewSources.clear();
     void this.sessionsHost.dispose();
     void this.devServersHost.dispose();
+  }
+
+  /**
+   * Full teardown for close/kill, sweeper deactivation, and workspace
+   * deactivation (which arrives per key through `kill`). Process *exit* does
+   * NOT come here — exited entries are retained with scrollback until close,
+   * restart, or workspace deactivation.
+   */
+  private async killSession(sessionKey: string, cause: DeactivationCause): Promise<void> {
+    await this.killTmuxForSession(sessionKey);
+    await this.lifecycle.evict(sessionKey, { cause });
   }
 
   private async spawnInteractiveTerminal(
@@ -295,11 +339,7 @@ export class TerminalsRuntime {
       {
         output: log,
         onData: (chunk) => {
-          this.activityFor(sessionKey).recordOutput();
-          this.outputTails.set(
-            sessionKey,
-            appendOutputTail(this.outputTails.get(sessionKey) ?? '', chunk)
-          );
+          this.lifecycle.recordOutput(sessionKey);
           this.previewSourceFor(sessionKey, key).emitData(chunk);
         },
         onExit: () => this.handleInteractiveExit(sessionKey),
@@ -354,7 +394,7 @@ export class TerminalsRuntime {
           [key]: {
             ...existing,
             status: 'exited',
-            exitedAt: existing.exitedAt ?? this.now(),
+            exitedAt: existing.exitedAt ?? this.clock.now(),
           },
         };
       }
@@ -362,7 +402,7 @@ export class TerminalsRuntime {
       if (!terminalKey) return previous;
       const exit = session.exitStatus ?? undefined;
       const existing = previous[key];
-      const activity = this.activity.get(key)?.snapshot();
+      const activity = this.lifecycle.activity(key);
       const state: TerminalSessionState = {
         key: terminalKey,
         status: session.exited ? 'exited' : 'running',
@@ -372,9 +412,9 @@ export class TerminalsRuntime {
         cols: session.spec.cols,
         rows: session.spec.rows,
         startedAt: session.startedAt,
-        exitedAt: session.exited ? (existing?.exitedAt ?? this.now()) : undefined,
-        lastInputAt: activity?.lastInputAt ?? existing?.lastInputAt,
-        lastOutputAt: activity?.lastOutputAt ?? existing?.lastOutputAt,
+        exitedAt: session.exited ? (existing?.exitedAt ?? this.clock.now()) : undefined,
+        lastInputAt: activity.lastInputAt ?? existing?.lastInputAt,
+        lastOutputAt: activity.lastOutputAt ?? existing?.lastOutputAt,
         exit:
           exit !== undefined
             ? {
@@ -390,23 +430,29 @@ export class TerminalsRuntime {
     });
   }
 
-  private activityFor(sessionKey: string): IoActivityTracker {
-    let tracker = this.activity.get(sessionKey);
-    if (!tracker) {
-      tracker = createIoActivityTracker(this.now);
-      this.activity.set(sessionKey, tracker);
-    }
-    return tracker;
+  private syncActivity(sessionKey: string, activity: ActivityFields): void {
+    this.sessionsList.update((previous) => {
+      const session = previous[sessionKey];
+      if (!session) return previous;
+      return {
+        ...previous,
+        [sessionKey]: {
+          ...session,
+          lastInputAt: activity.lastInputAt ?? session.lastInputAt,
+          lastOutputAt: activity.lastOutputAt ?? session.lastOutputAt,
+        },
+      };
+    });
   }
 
-  private lifecycleSnapshot(sessionKey: string): IoActivitySnapshot | null {
+  private lifecycleSnapshot(sessionKey: string): SessionSnapshotJudgment | null {
     const session = peek(this.sessionsList)[sessionKey];
     if (!session || session.status !== 'running') return null;
-    return {
-      running: session.status === 'running',
-      busy: false,
-      ...this.activityFor(sessionKey).snapshot(),
-    };
+    return { running: true, busy: false };
+  }
+
+  private removeSessionListEntry(sessionKey: string): void {
+    this.sessionsList.update((previous) => omitKey(previous, sessionKey));
   }
 
   private previewSourceFor(sessionKey: string, key: TerminalKey): PreviewOutputSource {
@@ -466,7 +512,7 @@ export class TerminalsRuntime {
       host: server.host,
       port: server.port,
       urlPath: server.urlPath,
-      detectedAt: this.now(),
+      detectedAt: this.clock.now(),
     };
     this.devServersList.update((previous) => ({
       ...previous,
@@ -503,17 +549,4 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   if (!(key in record)) return record;
   const { [key]: _removed, ...rest } = record;
   return rest;
-}
-
-function stripTerminalControls(value: string): string {
-  return value
-    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/\x1b\][^\x07]*\x07/g, '')
-    .replace(/\x1b\][^\x1b]*\x1b\\/g, '')
-    .replace(/\r/g, '');
-}
-
-function appendOutputTail(current: string, chunk: string): string {
-  const next = current + stripTerminalControls(chunk);
-  return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
 }

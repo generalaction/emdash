@@ -117,11 +117,9 @@ Choose lifecycle primitives by ownership shape:
 - Use `Scope` for cleanup ordering, cancellation, child ownership, and tracked async work.
 - Use `LifecycleRegistry` for keyed local resources with explicit `start()`, `stop()`,
   `register()`, queryable state, typed start/stop results, and state-change observers.
-- Use `Machine` (from Core's `primitives/machine`) for local command/event/effect protocols
-  where commands decide domain events, events evolve state, and host-owned effect interpreters
-  keep side effects explicit.
-- Use the Core workflow primitive for dependency-ordered async DAG execution with named nodes,
-  parallel unblocking, retry policies, cancellation, facts, warnings, and observable progress.
+- The `Machine` command/event/effect primitive is internal to the acp runtime
+  (`packages/core/src/runtimes/acp/node/machine/primitive/`), not a shared building block; it
+  promotes back to `primitives/` only when a second runtime adopts it.
 - Use `ResourceCache` when resource lifetime is lease-driven through `acquire()` and `release()`,
   optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
   `AsyncCache` for cached async values without finalizers.

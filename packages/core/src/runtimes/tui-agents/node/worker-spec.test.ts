@@ -1,7 +1,7 @@
 import { createPluginRegistry } from '@emdash/shared/plugins';
 import { describe, expect, it } from 'vitest';
-import { SESSION_IDLE_MS } from '#primitives/io-activity/api';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
+import { SESSION_IDLE_MS } from '#services/session-lifecycle/api';
 import { tuiAgentsWorkerSpec, type TuiAgentsWorkerSpecInput } from './worker-spec';
 
 describe('tuiAgentsWorkerSpec', () => {

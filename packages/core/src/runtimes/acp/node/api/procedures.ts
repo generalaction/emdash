@@ -40,7 +40,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     ): Promise<Result<ResumeResult, AcpResumeError>> {
       return runtime.resumeSession(input);
     },
-    kill(input: { conversationId: string }): Result<void, AcpKillError> {
+    kill(input: { conversationId: string }): Promise<Result<void, AcpKillError>> {
       return runtime.killSession(input.conversationId);
     },
     sendPrompt(input: {

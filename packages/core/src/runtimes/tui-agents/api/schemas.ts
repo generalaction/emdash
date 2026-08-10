@@ -151,6 +151,8 @@ export const persistedTuiAgentStartInputSchema = tuiAgentStartInputSchema.extend
   lastAgentState: tuiAgentStateSchema.optional(),
 });
 
+export type PersistedTuiAgentStartInput = z.infer<typeof persistedTuiAgentStartInputSchema>;
+
 export const tuiUnknownProviderErrorSchema = z.object({
   type: z.literal('unknown-provider'),
   providerId: z.string(),

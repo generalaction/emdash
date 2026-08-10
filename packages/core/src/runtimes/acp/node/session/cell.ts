@@ -8,7 +8,6 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
-import { createMachineEffectDriver, type MachineEffectDriver } from '#primitives/machine/api';
 import type {
   AcpCancelTurnError,
   AcpPermissionRequest,
@@ -45,6 +44,7 @@ import {
   SessionMachine,
   type SessionMachineContext,
 } from '#runtimes/acp/node/machine/machine';
+import { createMachineEffectDriver, type MachineEffectDriver } from '../machine/primitive';
 import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
 import { PermissionBroker } from './permission-broker';
 import { RawAcpLog, type RawAcpEvent } from './raw-log';

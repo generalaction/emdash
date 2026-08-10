@@ -4,7 +4,6 @@ import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
-import { idlePolicyConfigSchema } from '#primitives/io-activity/api';
 import { acpApiContract } from '#runtimes/acp/api';
 import { createAcpController } from '#runtimes/acp/node/api/controller';
 import { ChildAcpProcessHost } from '#runtimes/acp/node/node/child-process-host';
@@ -24,6 +23,7 @@ import {
   createFileSessionIntentStore,
   createNoopSessionIntentStore,
 } from '#services/session-intents/node';
+import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
 
 export const acpComponentConfigSchema = z.object({
   attachmentsDir: z.string().min(1),

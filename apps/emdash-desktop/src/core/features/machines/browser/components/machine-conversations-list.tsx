@@ -1,9 +1,15 @@
-import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
-import { CollectionToolbar } from '@emdash/ui/react/patterns';
+import {
+  CollectionToolbar,
+  CollectionView,
+  CollectionViewCell,
+  type CollectionViewColumn,
+} from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Spinner, toast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { observable, runInAction } from 'mobx';
+import { observer } from 'mobx-react-lite';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { useWorkspaceGroups } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
@@ -13,6 +19,10 @@ import {
   type MachineConversationItem,
 } from '../machine-conversation-rows';
 import {
+  createMachineConversationsListView,
+  type MachineConversationsListViewModel,
+} from '../machine-conversations-list-model';
+import {
   deleteMachineConversation,
   linkMachineConversation,
   machineConversationsQueryKey,
@@ -20,18 +30,11 @@ import {
   type MachineConversationsScope,
 } from '../use-machine-conversations';
 
-type ConversationListRow = {
-  item: MachineConversationItem;
-  busy: boolean;
-  onLink: () => void;
-  onDelete: () => void;
-};
-
-const CONVERSATION_COLUMNS: ColumnListColumn<ConversationListRow>[] = [
+const CONVERSATION_COLUMNS: CollectionViewColumn<MachineConversationItem>[] = [
   {
     id: 'icon',
     width: '2.25rem',
-    cell: ({ item }) => (
+    cell: (item) => (
       <span
         className={cn(
           'flex size-7 shrink-0 items-center justify-center rounded-md bg-background-2 text-foreground-muted',
@@ -45,8 +48,8 @@ const CONVERSATION_COLUMNS: ColumnListColumn<ConversationListRow>[] = [
   {
     id: 'title',
     width: 'minmax(0, 1fr)',
-    cell: ({ item }) => (
-      <ColumnListCell
+    cell: (item) => (
+      <CollectionViewCell
         className={cn(item.pendingRemoval && 'opacity-60')}
         primary={item.conversation.title || 'Untitled'}
         secondary={
@@ -61,13 +64,7 @@ const CONVERSATION_COLUMNS: ColumnListColumn<ConversationListRow>[] = [
     id: 'status',
     width: 'max-content',
     align: 'center',
-    cell: ({ item }) => <ConversationStatusCell item={item} />,
-  },
-  {
-    id: 'actions',
-    width: '2.5rem',
-    align: 'center',
-    cell: (row) => <ConversationActionsCell row={row} />,
+    cell: (item) => <ConversationStatusCell item={item} />,
   },
 ];
 
@@ -88,7 +85,6 @@ export function MachineConversationsList({
   const conversationsQuery = useMachineConversations(scope);
   const openLinkModal = useOpenModal('linkConversationModal');
   const openConfirm = useOpenModal('confirmActionModal');
-  const [search, setSearch] = useState('');
   const searchRef = useSearchFocusHotkeys();
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -119,7 +115,17 @@ export function MachineConversationsList({
       }),
     [conversationsQuery.data, knownWorkspacePaths]
   );
-  const visibleItems = useMemo(() => filterItems(items, search), [items, search]);
+
+  // Bridge query data into the view's sync source: the getter reads this box,
+  // so the list pipeline re-derives whenever fresh rows arrive. Seeded at mount
+  // and updated before paint so fresh data never flashes the empty state.
+  const [itemsBox] = useState(() =>
+    observable.box<MachineConversationItem[]>(items, { deep: false })
+  );
+  const [view] = useState(() => createMachineConversationsListView(() => itemsBox.get()));
+  useLayoutEffect(() => {
+    runInAction(() => itemsBox.set(items));
+  }, [items, itemsBox]);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: machineConversationsQueryKey(scope) });
@@ -168,49 +174,84 @@ export function MachineConversationsList({
     }
   };
 
-  const rows: ConversationListRow[] = visibleItems.map((item) => ({
-    item,
-    busy: busyId === item.conversation.id,
-    onLink: () => void linkConversation(item),
-    onDelete: () => void deleteConversation(item),
-  }));
+  const columns: CollectionViewColumn<MachineConversationItem>[] = [
+    ...CONVERSATION_COLUMNS,
+    {
+      id: 'actions',
+      width: '2.5rem',
+      align: 'center',
+      cell: (item) => (
+        <ConversationActionsCell
+          item={item}
+          busy={busyId === item.conversation.id}
+          onLink={() => void linkConversation(item)}
+          onDelete={() => void deleteConversation(item)}
+        />
+      ),
+    },
+  ];
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <CollectionToolbar
-        ref={searchRef}
-        searchValue={search}
-        onSearchValueChange={setSearch}
-        searchPlaceholder="Search conversations, tasks, workspaces…"
-        metadata={
-          <>
-            <span className="text-xs text-foreground-passive tabular-nums">
-              {items.length} {items.length === 1 ? 'conversation' : 'conversations'}
-            </span>
-            {!hostReachable && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
-                <WifiOffIcon className="size-3" />
-                Offline — showing cached records
-              </span>
-            )}
-          </>
+    <view.Root>
+      <CollectionView
+        view={view}
+        columns={columns}
+        toolbar={
+          <ConversationsToolbar
+            view={view}
+            searchRef={searchRef}
+            total={items.length}
+            hostReachable={hostReachable}
+          />
+        }
+        emptySlot={
+          conversationsQuery.isLoading ? (
+            <ConversationsLoadingState />
+          ) : conversationsQuery.isError ? (
+            <ConversationsErrorState error={conversationsQuery.error} />
+          ) : (
+            <ConversationsEmptyState searching={items.length > 0} />
+          )
         }
       />
-      {conversationsQuery.isLoading ? (
-        <ConversationsLoadingState />
-      ) : conversationsQuery.isError ? (
-        <ConversationsErrorState error={conversationsQuery.error} />
-      ) : (
-        <ColumnList
-          items={rows}
-          columns={CONVERSATION_COLUMNS}
-          getItemKey={(row) => row.item.conversation.id}
-          emptySlot={<ConversationsEmptyState searching={items.length > 0} />}
-        />
-      )}
-    </div>
+    </view.Root>
   );
 }
+
+const ConversationsToolbar = observer(function ConversationsToolbar({
+  view,
+  searchRef,
+  total,
+  hostReachable,
+}: {
+  view: MachineConversationsListViewModel;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  total: number;
+  hostReachable: boolean;
+}) {
+  const search = view.useSearch();
+  return (
+    <CollectionToolbar
+      ref={searchRef}
+      searchValue={search.query}
+      onSearchValueChange={search.setQuery}
+      searchPlaceholder="Search conversations, tasks, workspaces…"
+      metadata={
+        <>
+          <span className="text-xs text-foreground-passive tabular-nums">
+            {total} {total === 1 ? 'conversation' : 'conversations'}
+          </span>
+          {!hostReachable && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+              <WifiOffIcon className="size-3" />
+              Offline — showing cached records
+            </span>
+          )}
+        </>
+      }
+    />
+  );
+});
 
 function ConversationStatusCell({ item }: { item: MachineConversationItem }) {
   const { conversation } = item;
@@ -244,8 +285,17 @@ function ConversationStatusCell({ item }: { item: MachineConversationItem }) {
   );
 }
 
-function ConversationActionsCell({ row }: { row: ConversationListRow }) {
-  const { item, busy, onLink, onDelete } = row;
+function ConversationActionsCell({
+  item,
+  busy,
+  onLink,
+  onDelete,
+}: {
+  item: MachineConversationItem;
+  busy: boolean;
+  onLink: () => void;
+  onDelete: () => void;
+}) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
@@ -267,6 +317,7 @@ function ConversationActionsCell({ row }: { row: ConversationListRow }) {
           <Link2Icon />
           {item.linked ? 'Link to another task…' : 'Link to a task…'}
         </DropdownMenu.Item>
+        <DropdownMenu.Separator />
         <DropdownMenu.Item variant="destructive" onClick={onDelete}>
           <Trash2Icon />
           Delete…
@@ -326,19 +377,5 @@ function ConversationsEmptyState({ searching }: { searching: boolean }) {
         ? 'No conversations match the current search.'
         : 'No conversations on this machine.'}
     </div>
-  );
-}
-
-function filterItems(items: MachineConversationItem[], search: string): MachineConversationItem[] {
-  const query = search.trim().toLowerCase();
-  if (!query) return items;
-  return items.filter((item) =>
-    [
-      item.conversation.title,
-      item.conversation.provider ?? '',
-      item.conversation.workspacePath ?? '',
-      item.conversation.taskName ?? '',
-      item.conversation.projectName ?? '',
-    ].some((value) => value.toLowerCase().includes(query))
   );
 }

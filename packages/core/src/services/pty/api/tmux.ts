@@ -79,7 +79,10 @@ function isExpectedTmuxListFailure(error: unknown): boolean {
   const failure = readExecFailure(error);
   if (!failure) return false;
   if (failure.spawnFailed) return true;
-  if (failure.exitCode === 1 && /no server running|failed to connect to server/i.test(failure.stderr)) {
+  if (
+    failure.exitCode === 1 &&
+    /no server running|failed to connect to server/i.test(failure.stderr)
+  ) {
     return true;
   }
   return failure.exitCode === 127 || /command not found|not found/i.test(failure.stderr);

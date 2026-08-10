@@ -2,7 +2,7 @@ import {
   DEFAULT_SEARCH_EXCLUDE,
   DEFAULT_TREE_EXCLUDE,
   DEFAULT_WATCHER_EXCLUDE,
-} from '@emdash/core/primitives/lib/api';
+} from '@emdash/core/primitives/exclusion-policy/api';
 import { z } from 'zod';
 import type { FilesSettings } from '@core/primitives/app-settings/api';
 import { defineSettingsContribution } from '@core/primitives/settings/api';

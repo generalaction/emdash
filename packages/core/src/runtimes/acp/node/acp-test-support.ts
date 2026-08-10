@@ -30,7 +30,7 @@ import {
   type ResolvedAuthProvider,
 } from '#services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '#services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { FakePtySpawner } from '#services/pty/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 
 /**
@@ -261,42 +261,6 @@ export class FakeAcpProcessHost implements AcpProcessHost {
 
   get allTerminalProcs(): FakeAcpTerminalProcess[] {
     return this.terminalProcs;
-  }
-}
-
-export class FakePtyProcess implements PtyProcess {
-  readonly write = vi.fn<(data: string) => void>();
-  readonly resize = vi.fn<(cols: number, rows: number) => void>();
-  readonly kill = vi.fn<() => void>();
-  private readonly dataHandlers: Array<(data: string) => void> = [];
-  private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-
-  onData(handler: (data: string) => void): void {
-    this.dataHandlers.push(handler);
-  }
-
-  onExit(handler: (info: PtyExitInfo) => void): void {
-    this.exitHandlers.push(handler);
-  }
-
-  emitData(data: string): void {
-    for (const handler of this.dataHandlers) handler(data);
-  }
-
-  emitExit(info: PtyExitInfo): void {
-    for (const handler of this.exitHandlers) handler(info);
-  }
-}
-
-export class FakePtySpawner implements PtySpawner {
-  readonly specs: PtySpawnSpec[] = [];
-  readonly processes: FakePtyProcess[] = [];
-
-  spawn(spec: PtySpawnSpec): PtyProcess {
-    this.specs.push(spec);
-    const proc = new FakePtyProcess();
-    this.processes.push(proc);
-    return proc;
   }
 }
 
