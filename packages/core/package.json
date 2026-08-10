@@ -55,11 +55,6 @@
       "types": "./dist/primitives-lib-api.d.mts",
       "default": "./dist/primitives-lib-api.mjs"
     },
-    "./primitives/workflow/api": {
-      "development": "./src/primitives/workflow/api/index.ts",
-      "types": "./dist/primitives-workflow-api.d.mts",
-      "default": "./dist/primitives-workflow-api.mjs"
-    },
     "./primitives/skills/api": {
       "development": "./src/primitives/skills/api/index.ts",
       "types": "./dist/primitives-skills-api.d.mts",
