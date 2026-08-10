@@ -13,7 +13,7 @@ import type {
 } from '#services/agent-plugins/api/plugins';
 import { AgentPluginHost, createPluginRegistry } from '#services/agent-plugins/api/plugins';
 import type { ExecContextOptions, IExecutionContext } from '#services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { FakePtySpawner } from '#services/pty/testing';
 import { AgentConfigRuntime } from './runtime';
 
 class FakeExecutionContext implements IExecutionContext {
@@ -43,55 +43,9 @@ class FakeExecutionContext implements IExecutionContext {
   readonly dispose = vi.fn();
 }
 
-class FakePtySpawner implements PtySpawner {
-  readonly processes: FakePtyProcess[] = [];
-  readonly spawn = vi.fn((spec: PtySpawnSpec): PtyProcess => {
-    const process = new FakePtyProcess(spec);
-    this.processes.push(process);
-    return process;
-  });
-}
-
-class FakePtyProcess implements PtyProcess {
-  readonly writes: string[] = [];
-  killed = false;
-  private readonly dataHandlers: Array<(data: string) => void> = [];
-  private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-
-  constructor(readonly spec: PtySpawnSpec) {}
-
-  write(data: string): void {
-    this.writes.push(data);
-  }
-
-  resize(cols: number, rows: number): void {
-    this.spec.cols = cols;
-    this.spec.rows = rows;
-  }
-
-  kill(): void {
-    this.killed = true;
-  }
-
-  onData(handler: (data: string) => void): void {
-    this.dataHandlers.push(handler);
-  }
-
-  onExit(handler: (info: PtyExitInfo) => void): void {
-    this.exitHandlers.push(handler);
-  }
-
-  getPid(): number {
-    return 123;
-  }
-
-  emitData(data: string): void {
-    for (const handler of this.dataHandlers) handler(data);
-  }
-
-  emitExit(info: PtyExitInfo = { exitCode: 0, signal: null }): void {
-    for (const handler of this.exitHandlers) handler(info);
-  }
+// The auth runtime tears sessions down itself, so kill must not emit an exit.
+function makePtySpawner(): FakePtySpawner {
+  return new FakePtySpawner({ exitOnKill: false });
 }
 
 class MemoryPluginFs implements PluginFs {
@@ -201,14 +155,14 @@ describe('AgentConfigRuntime', () => {
   });
 
   it('starts login through a managed PTY and exposes output', async () => {
-    const ptySpawner = new FakePtySpawner();
+    const ptySpawner = makePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });
 
     const started = await runtime.startLogin('claude', 'login');
 
     expect(started).toEqual(ok(undefined));
     expect(ptySpawner.processes).toHaveLength(1);
-    expect(ptySpawner.processes[0]?.spec).toMatchObject({
+    expect(ptySpawner.specs[0]).toMatchObject({
       command: '/opt/fake-agent',
       args: [],
       cwd: '/home/ada',
@@ -227,33 +181,33 @@ describe('AgentConfigRuntime', () => {
   });
 
   it('cancels login by releasing the managed PTY', async () => {
-    const ptySpawner = new FakePtySpawner();
+    const ptySpawner = makePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });
     await runtime.startLogin('claude', 'login');
 
     await expect(runtime.cancelLogin('claude')).resolves.toEqual(ok(undefined));
 
-    expect(ptySpawner.processes[0]?.killed).toBe(true);
+    expect(ptySpawner.processes[0]!.killCount).toBeGreaterThan(0);
     expect(runtime.loginOutputLog('claude')).toBeNull();
     expect(runtime.sendLoginInput('claude', 'code\n').success).toBe(false);
     await runtime.dispose();
   });
 
   it('restarts login for repeated starts on the same provider', async () => {
-    const ptySpawner = new FakePtySpawner();
+    const ptySpawner = makePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });
 
     await runtime.startLogin('claude', 'login');
     await runtime.startLogin('claude', 'login');
 
     expect(ptySpawner.processes).toHaveLength(2);
-    expect(ptySpawner.processes[0]?.killed).toBe(true);
-    expect(ptySpawner.processes[1]?.killed).toBe(false);
+    expect(ptySpawner.processes[0]!.killCount).toBeGreaterThan(0);
+    expect(ptySpawner.processes[1]!.killCount).toBe(0);
     await runtime.dispose();
   });
 
   it('ignores stale output and exit callbacks from a replaced login', async () => {
-    const ptySpawner = new FakePtySpawner();
+    const ptySpawner = makePtySpawner();
     const authCheckStatus = vi.fn(async () => ({ kind: 'unauthenticated' as const }));
     const { runtime } = makeRuntime({ authCheckStatus, ptySpawner });
 
@@ -266,7 +220,7 @@ describe('AgentConfigRuntime', () => {
     expect((await runtime.loginOutputLog('claude')?.snapshot())?.data.text).toBe('');
 
     first?.emitExit({ exitCode: 0, signal: null });
-    expect(second?.killed).toBe(false);
+    expect(second?.killCount).toBe(0);
     expect(runtime.sendLoginInput('claude', 'code\n')).toEqual(ok(undefined));
     expect(authCheckStatus).not.toHaveBeenCalled();
 
@@ -278,7 +232,7 @@ describe('AgentConfigRuntime', () => {
   });
 
   it('refreshes auth and releases login when the PTY exits', async () => {
-    const ptySpawner = new FakePtySpawner();
+    const ptySpawner = makePtySpawner();
     const authCheckStatus = vi.fn(async () => ({ kind: 'unauthenticated' as const }));
     const { runtime } = makeRuntime({ authCheckStatus, ptySpawner });
     await runtime.startLogin('claude', 'login');
@@ -351,7 +305,7 @@ function makeRuntime(
   options: {
     authCheckStatus?: (ctx: AgentAuthContext) => Promise<AgentAuthStatus>;
     logger?: Logger;
-    ptySpawner?: PtySpawner;
+    ptySpawner?: FakePtySpawner;
   } = {}
 ) {
   const exec = new FakeExecutionContext();
@@ -440,7 +394,7 @@ function makeRuntime(
     runtime: new AgentConfigRuntime({
       scope,
       agentHost,
-      ptySpawner: options.ptySpawner ?? new FakePtySpawner(),
+      ptySpawner: options.ptySpawner ?? makePtySpawner(),
       logger,
     }),
   };

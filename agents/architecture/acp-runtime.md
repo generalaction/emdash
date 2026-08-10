@@ -10,7 +10,10 @@ not mix cross-session routing with per-session state projection.
   ports, the resource-cached connection source, and the session manager.
 - `SessionManager` owns cross-session lifecycle: session creation, routing ACP
   `sessionId`s to conversation cells, process cleanup, and the sessions-list live
-  model.
+  model. Activity tracking, idle sweeping, intent persistence, lifecycle reports,
+  and eviction sequencing are delegated to the shared session-lifecycle chassis
+  (`packages/core/src/services/session-lifecycle/`), which the TUI-agents and
+  terminals runtimes also compose.
 - `SessionCell` owns one conversation: the state machine, transcript reducer,
   per-session live models, permission broker, prompt queue effects, and turn
   quiescence.
