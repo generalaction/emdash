@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
-import type {
-  PullRequestFilters,
-  PullRequestSort,
-} from '@root/src/core/services/pull-requests/api';
+import type { PullRequestFilters } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 
@@ -17,11 +14,9 @@ export function usePrViewState(repositoryUrl: string) {
   const listView = store.listView.store;
   const { user } = useGithubContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
-  const [sortFilter, setSortFilter] = useState<PullRequestSort>('newest');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
   const [selectedAssigneeUserId, setSelectedAssigneeUserId] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
@@ -34,10 +29,6 @@ export function usePrViewState(repositoryUrl: string) {
     };
     listView.filter?.set(filters);
   }, [listView, selectedAssigneeUserId, selectedAuthorUserId, selectedLabelNames, statusFilter]);
-
-  useEffect(() => {
-    listView.sort?.setKey(sortFilter);
-  }, [listView, sortFilter]);
 
   const authorItems: UserItem[] = useMemo(
     () =>
@@ -75,10 +66,6 @@ export function usePrViewState(repositoryUrl: string) {
 
   const handleStatusChange = (value: StatusFilter) => {
     setStatusFilter(value);
-  };
-
-  const handleSortChange = (value: string | null) => {
-    if (value) setSortFilter(value as PullRequestSort);
   };
 
   function captureRefreshError(error: unknown): void {
@@ -132,12 +119,6 @@ export function usePrViewState(repositoryUrl: string) {
   return {
     // filter state
     statusFilter,
-    sortFilter,
-    query,
-    setQuery: (value: string) => {
-      setQuery(value);
-      listView.search?.setQuery(value);
-    },
     syncing: isSyncing,
     selectedAuthorLogin: selectedAuthorUserId,
     setSelectedAuthorLogin: setSelectedAuthorUserId,
@@ -147,19 +128,12 @@ export function usePrViewState(repositoryUrl: string) {
     setSelectedAssigneeLogin: setSelectedAssigneeUserId,
     // handlers
     handleStatusChange,
-    handleSortChange,
     handleRefresh,
     handleForceFullSync,
     removeLabel,
     // data
     prs: listView.visibleItems,
-    loading: listView.status === 'loading',
     error: refreshError ?? listError ?? syncError,
-    fetchNextPage: async () => {
-      await listView.pagination?.loadMore();
-    },
-    hasNextPage: listView.pagination?.hasMore ?? false,
-    isFetchingNextPage: listView.pagination?.isFetchingMore ?? false,
     // filter option items
     authorItems,
     assigneeItems,
