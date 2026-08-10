@@ -71,6 +71,10 @@ _Avoid_: Sync kernel (that is the client↔client CRDT plane), Registry kernel (
 The lean helper set in `packages/core` that sole-writer host runtimes compose in — the records publication helper (cell + expose + publish, guaranteeing the snapshot-on-subscribe `records` semantics the Mirror kernel's sync attachment assumes) and the idempotent-delete helper. Deliberately not a framework: runtimes stay hand-written, and the idempotent-create replay rule is a stated contract with per-kind implementations.
 _Avoid_: Host kernel (there is no host-side counterpart to the Mirror kernel), runtime scaffold/base class
 
+**Session lifecycle chassis**:
+The one deep module behind the session-shaped runtimes' lifecycle glue — activity tracking, idle sweeping, intent persistence, reporter fan-out, and eviction — replacing the per-runtime copies. Keyed by Session, so it serves terminals as well as agents; Conversation concerns (intents, reporter, reconcile) are one optional block that a subset consumer omits. Eviction runs a named per-key resource list and always reports the session's end, so teardown and reporting cannot drift.
+_Avoid_: Conversation lifecycle (terminals carry no Conversation), framework/base-class framing (runtimes stay hand-written and drive it)
+
 ### State vocabulary
 
 **Host fact**:
@@ -122,6 +126,10 @@ _Avoid_: Queue/outbox language, "removal pending" as a separate state (the visib
 **Reconcile sweep**:
 The client-side loop that converges tombstoned entities: whenever a host is reachable (boot, reconnect, tombstoned-while-online, 10-minute backstop), it calls each kind's idempotent removal verb for that host's tombstones and purges on mirror-confirmed absence. Entity-generic — one sweep, per-kind removal functions; failure classes are host-written on the record (transient retries silently, terminal stops with Retry / Untrack anyway). Deletion-only: it removes what tombstones name and converges nothing else.
 _Avoid_: Reconciling the host toward records generally (ADR 0001 still rejects that), cross-kind ordering guarantees, treating RPC returns as truth (the record's outcome metadata is)
+
+**Scan**:
+The host-side pass that computes Observations and performs Adoption for registered paths — it reads the filesystem and git, records what it finds in the Host registry, and never mutates the world or converges it toward a record (ADR 0001). A failed or partial scan writes nothing (the positive-assertion invariant). Owned by the Registry scanner inside the workspace-registry runtime.
+_Avoid_: Reconcile (the Reconcile sweep is the client-side, deletion-only tombstone loop), sync (that is the mirror plane)
 
 **Placement**:
 The desktop policy that picks the intended path for a new Workspace — computed from settings and Registry knowledge only, never by probing the host. The host is the final arbiter of what actually happens at that path.
@@ -208,6 +216,14 @@ The adapter pair carrying kernel state over the live-model wire protocol: `expos
 **Wire seam**:
 The seeded-connection seam in `primitives/wire/browser` — the single point where a host process hands core its wire connection. The host bootstrap calls `seedWireConnection` once; everything else reaches the wire through `domainClient`.
 _Avoid_: Acquiring a connection anywhere else in core, reaching the wire through renderer-owned clients (the aggregate desktop wire client is renderer-internal)
+
+### Core vocabulary
+
+Roles in `packages/core`, sharpened during the exec-and-layering effort.
+
+**Runtime (core)**:
+Host-specific code under `packages/core/src/runtimes/` — a wire component worker that runs on the host plane, both locally and in the workspace-server, serving desktops through the host runtimes contract. Being a subprocess over wire is not sufficient: a worker that serves other workers rather than desktops (fs-watch) is a service, not a runtime.
+_Avoid_: Calling every wire component worker a runtime
 
 ### Shared vocabulary
 

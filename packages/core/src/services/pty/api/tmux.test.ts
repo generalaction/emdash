@@ -37,6 +37,30 @@ describe('listTmuxSessionActivity', () => {
 
     await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
   });
+
+  it('returns an empty map when no tmux server is running (execFile error shape)', async () => {
+    const exec = vi.fn(async () => {
+      throw Object.assign(new Error('Command failed'), { code: 1, stderr: 'no server running' });
+    });
+
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+  });
+
+  it('returns an empty map when tmux is not installed (spawn failure)', async () => {
+    const exec = vi.fn(async () => {
+      throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
+    });
+
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+  });
+
+  it('rethrows unexpected failures', async () => {
+    const exec = vi.fn(async () => {
+      throw Object.assign(new Error('Command failed'), { code: 2, stderr: 'server crashed' });
+    });
+
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).rejects.toThrow('Command failed');
+  });
 });
 
 function stubExecContext(exec: IExecutionContext['exec']): IExecutionContext {

@@ -76,20 +76,33 @@ export async function killTmuxSession(
 }
 
 function isExpectedTmuxListFailure(error: unknown): boolean {
-  if (!isExecLikeError(error)) return false;
-  if (error.exitCode === 1 && /no server running|failed to connect to server/i.test(error.stderr)) {
+  const failure = readExecFailure(error);
+  if (!failure) return false;
+  if (failure.spawnFailed) return true;
+  if (failure.exitCode === 1 && /no server running|failed to connect to server/i.test(failure.stderr)) {
     return true;
   }
-  return error.exitCode === 127 || /command not found|not found/i.test(error.stderr);
+  return failure.exitCode === 127 || /command not found|not found/i.test(failure.stderr);
 }
 
-function isExecLikeError(error: unknown): error is { exitCode: number | null; stderr: string } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'exitCode' in error &&
-    'stderr' in error &&
-    (typeof error.exitCode === 'number' || error.exitCode === null) &&
-    typeof error.stderr === 'string'
-  );
+/**
+ * IExecutionContext does not declare its error mode yet, so two shapes flow
+ * through it: BoundExec's ExecError ({ exitCode, stderr }) and
+ * NodeExecutionContext's raw promisified-execFile errors ({ code, stderr },
+ * where code is 'ENOENT' when the binary is missing). Accept both until the
+ * unified ExecError lands (.scratch/exec-and-layering/map.md).
+ */
+function readExecFailure(
+  error: unknown
+): { exitCode: number | null; stderr: string; spawnFailed: boolean } | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const stderr = 'stderr' in error && typeof error.stderr === 'string' ? error.stderr : '';
+  if ('exitCode' in error && (typeof error.exitCode === 'number' || error.exitCode === null)) {
+    return { exitCode: error.exitCode, stderr, spawnFailed: false };
+  }
+  if ('code' in error) {
+    if (error.code === 'ENOENT') return { exitCode: null, stderr, spawnFailed: true };
+    if (typeof error.code === 'number') return { exitCode: error.code, stderr, spawnFailed: false };
+  }
+  return null;
 }
