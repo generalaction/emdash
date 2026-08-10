@@ -164,6 +164,13 @@ export class MachinesStore {
     });
   }
 
+  async setSyncLocalSettings(id: string, enabled: boolean): Promise<void> {
+    await this.withMutation(async () => {
+      const updated = await (await this.getMachinesClient()).setSyncLocalSettings({ id, enabled });
+      this.connectionsResource.setValue(this.upsertConnection(updated));
+    });
+  }
+
   async getSshConfigHosts(): Promise<SshConfigHost[]> {
     return await (await this.getSshClient()).getSshConfigHosts(undefined);
   }

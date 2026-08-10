@@ -75,6 +75,7 @@ export function createMachinesWireController(
       return runtime.hostSettings.update(patch);
     },
     saveMachine: (input) => service.saveMachine(input),
+    setSyncLocalSettings: ({ id, enabled }) => service.setSyncLocalSettings(id, enabled),
     deleteMachine: ({ id }) => service.deleteMachine(id),
     renameMachine: ({ id, name }) => service.renameMachine(id, name),
   });
