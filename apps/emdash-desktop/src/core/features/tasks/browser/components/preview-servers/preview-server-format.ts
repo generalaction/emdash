@@ -24,6 +24,8 @@ export function previewServerStatusLabel(server: PreviewServer): string {
       return server.kind === 'forwarded' ? 'Forwarded' : 'Ready';
     case 'starting':
       return 'Starting';
+    case 'not-listening':
+      return 'Remote port not listening yet';
     case 'reconnecting':
       return 'Reconnecting';
     case 'failed':
@@ -36,6 +38,7 @@ export function previewServerStatusClasses(server: PreviewServer): string {
     case 'ready':
       return 'bg-background-info text-foreground-info hover:bg-background-info-hover';
     case 'starting':
+    case 'not-listening':
     case 'reconnecting':
       return 'bg-background-warning text-foreground-warning hover:bg-background-warning-hover';
     case 'failed':

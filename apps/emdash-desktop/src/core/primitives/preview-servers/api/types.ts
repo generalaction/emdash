@@ -11,6 +11,9 @@ export type PreviewServerSource =
 export type PreviewServerStatus =
   | { kind: 'starting' }
   | { kind: 'ready' }
+  // Tunnel is open, but an advisory probe reported nothing listening on the
+  // remote port yet. Clears on the first successfully forwarded connection.
+  | { kind: 'not-listening' }
   | { kind: 'reconnecting' }
   | { kind: 'failed'; message: string };
 

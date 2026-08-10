@@ -4,19 +4,22 @@ import { previewServerUrl } from '@core/primitives/preview-servers/api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
 import { PortForwardService } from './port-forward-service';
-import type { PortForwardTunnel } from './port-forward-tunnel';
+import type {
+  OpenPortForwardTunnelOptions,
+  PortForwardProbeResult,
+  PortForwardTunnel,
+} from './port-forward-tunnel';
 import { PreviewServerService } from './preview-server-service';
 
 function createService(
   options: {
     connectionState?: ConnectionState;
-    openTunnel?: (request: {
-      proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
-      remotePort: number;
-      preferredLocalPort?: number;
-      onConnectionError?: (error: Error) => void;
-    }) => Promise<PortForwardTunnel>;
+    openTunnel?: (request: OpenPortForwardTunnelOptions) => Promise<PortForwardTunnel>;
     getSshProxy?: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
+    inspectRemotePort?: (
+      connectionId: string,
+      remotePort: number
+    ) => Promise<PortForwardProbeResult>;
   } = {}
 ) {
   const events: PreviewServerEvent[] = [];
@@ -42,6 +45,7 @@ function createService(
   service.attachSshRuntime({
     getConnectionState: () => connectionState,
     getSshProxy: options.getSshProxy ?? (async () => fakeProxy()),
+    inspectRemotePort: options.inspectRemotePort,
   });
   return {
     service,
@@ -464,6 +468,88 @@ describe('PreviewServerService', () => {
       });
     });
     expect(openAttempts).toBe(2);
+  });
+
+  it('passes a connection-scoped advisory probe to the tunnel', async () => {
+    const inspectRemotePort = vi
+      .fn()
+      .mockResolvedValue({ listening: true, families: ['ipv6'] } satisfies PortForwardProbeResult);
+    let probe: OpenPortForwardTunnelOptions['probe'];
+    const context = createService({
+      inspectRemotePort,
+      openTunnel: async (request) => {
+        probe = request.probe;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+
+    await registerSsh(context.service);
+
+    expect(probe).toBeDefined();
+    await expect(probe!(5173)).resolves.toEqual({ listening: true, families: ['ipv6'] });
+    expect(inspectRemotePort).toHaveBeenCalledWith('connection-1', 5173);
+  });
+
+  it('omits the probe when the SSH runtime has no port inspection', async () => {
+    let request: OpenPortForwardTunnelOptions | undefined;
+    const context = createService({
+      openTunnel: async (openRequest) => {
+        request = openRequest;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+
+    await registerSsh(context.service);
+
+    expect(request?.probe).toBeUndefined();
+  });
+
+  it('surfaces a not-listening state from the probe and recovers on the first forwarded connection', async () => {
+    let onProbeResult: OpenPortForwardTunnelOptions['onProbeResult'];
+    let onConnectionEstablished: OpenPortForwardTunnelOptions['onConnectionEstablished'];
+    const context = createService({
+      openTunnel: async (request) => {
+        onProbeResult = request.onProbeResult;
+        onConnectionEstablished = request.onConnectionEstablished;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+
+    const server = await registerSsh(context.service);
+    expect(server.status).toEqual({ kind: 'ready' });
+
+    onProbeResult?.({ listening: false, families: [] });
+    let [current] = context.service.listForWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(current).toMatchObject({
+      id: server.id,
+      localPort: 6100,
+      status: { kind: 'not-listening' },
+    });
+    expect(previewServerUrl(current!)).toBe('http://127.0.0.1:6100/app');
+
+    onConnectionEstablished?.();
+    [current] = context.service.listForWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(current).toMatchObject({ id: server.id, status: { kind: 'ready' } });
+  });
+
+  it('lands in the not-listening state when the probe answers before the tunnel opens', async () => {
+    const context = createService({
+      openTunnel: async (request) => {
+        request.onProbeResult?.({ listening: false, families: [] });
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+
+    const server = await registerSsh(context.service);
+
+    expect(server.status).toEqual({ kind: 'not-listening' });
+    expect(server).toMatchObject({ localPort: 6100 });
   });
 
   it('marks a forwarded preview failed when later browser traffic cannot reach the remote port', async () => {
