@@ -34,41 +34,30 @@ export function AgentsPanel({
     });
   }, [probeAll]);
 
-  const toolbar = (
-    <AgentsToolbar
-      searchQuery={searchQuery}
-      onSearchQueryChange={setSearchQuery}
-      onRefresh={handleRefresh}
-      isRefreshing={refreshing}
-    />
-  );
-
   const list = (
     <CliAgentsList
       searchQuery={searchQuery}
       connectionId={connectionId}
       onManageMcp={onManageMcp}
+      toolbar={
+        <AgentsToolbar
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onRefresh={handleRefresh}
+          isRefreshing={refreshing}
+        />
+      }
     />
   );
 
   if (header) {
     return (
-      <>
-        <PageLayout.Header
-          sticky
-          title={header.title}
-          description={header.description}
-          actions={toolbar}
-        />
-        <div className="flex flex-col gap-3">{list}</div>
-      </>
+      <div className="flex min-h-0 flex-col gap-4">
+        <PageLayout.Header sticky title={header.title} description={header.description} />
+        {list}
+      </div>
     );
   }
 
-  return (
-    <>
-      {toolbar}
-      {list}
-    </>
-  );
+  return list;
 }
