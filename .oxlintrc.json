@@ -161,6 +161,7 @@
         "apps/emdash-desktop/src/main/bootstrap/**/*.{ts,tsx}",
         "apps/emdash-desktop/src/main/host/recovery/**/*.{ts,tsx}",
         "apps/emdash-desktop/scripts/**",
+        "apps/emdash-desktop/src/core/features/editor/browser/monaco/monaco-bootstrap.ts",
         "apps/workspace-server/scripts/**",
         "packages/ui/src/react/components/markdown/highlight.ts"
       ],
