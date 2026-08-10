@@ -14,6 +14,7 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
@@ -33,6 +34,7 @@ import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {
   asMounted,
+  getProjectSshConnectionId,
   getProjectStore,
   getProjectViewStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -706,7 +708,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       : undefined
   );
   const conversationSeen = conversationStore?.seen;
-  const { data: agents } = useAgents();
+  const connectionId = useObserver(() =>
+    store ? getProjectSshConnectionId(store.projectId) : undefined
+  );
+  const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
+  const { data: agents } = useAgents(host);
   const providerId = conversationStore?.data.providerId ?? null;
   const agent = agents?.find((candidate) => candidate.id === providerId) ?? null;
   const cliAuthMethod =
@@ -720,12 +726,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
       providerId,
       methodId: cliAuthMethod.id,
       providerName: agent?.name ?? providerId,
+      host,
     }).then((outcome) => {
       if (outcome.success) {
         if (store.loadError?.kind === 'auth_required') store.retry();
       }
     });
-  }, [agent?.name, cliAuthMethod, providerId, store]);
+  }, [agent?.name, cliAuthMethod, host, providerId, store]);
 
   useEffect(() => {
     if (conversationStore && !conversationStore.seen) {

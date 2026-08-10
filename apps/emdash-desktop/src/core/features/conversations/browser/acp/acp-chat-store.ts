@@ -1,5 +1,4 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type {
   AttachmentMimeType,
   AttachmentRef,
@@ -19,7 +18,10 @@ import type {
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { getAgentsClient } from '@core/features/agents/api/browser/client';
+import {
+  getAgentsClient,
+  hostRefFromConnectionId,
+} from '@core/features/agents/api/browser/client';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -27,6 +29,7 @@ import {
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
@@ -436,8 +439,9 @@ export class AcpChatStore {
 
   private async _refreshAuthStatus(providerId: string): Promise<void> {
     try {
+      const host = hostRefFromConnectionId(getProjectSshConnectionId(this.projectId));
       const client = await getAgentsClient();
-      const result = await client.refreshAuthStatus({ host: LOCAL_HOST_REF, providerId });
+      const result = await client.refreshAuthStatus({ host, providerId });
       if (!result.success) {
         log.warn('Failed to refresh agent auth status after ACP auth error', {
           providerId,
