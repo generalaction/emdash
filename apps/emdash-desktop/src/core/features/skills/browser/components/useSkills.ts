@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { mergeSkillsInstalledState, type CatalogIndex } from '@emdash/core/primitives/skills/api';
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,12 +13,12 @@ import { useInstalledSkillsLiveModel } from '../live-model-hooks';
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
 export function useSkills({
-  host = LOCAL_HOST_REF,
+  host,
   searchQuery = '',
 }: {
-  host?: HostRef;
+  host: HostRef;
   searchQuery?: string;
-} = {}) {
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: installedLiveSkills, isLoading: isLoadingInstalled } =

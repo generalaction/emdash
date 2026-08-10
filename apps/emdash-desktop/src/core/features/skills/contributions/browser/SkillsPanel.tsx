@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { useCallback, useState } from 'react';
 import { SkillsList } from '@core/features/skills/browser/components/SkillsList';
@@ -8,11 +8,11 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 
 type SkillsPanelProps = {
-  host?: HostRef;
+  host: HostRef;
   header?: { title: string; description: string };
 };
 
-export function SkillsPanel({ host = LOCAL_HOST_REF, header }: SkillsPanelProps) {
+export function SkillsPanel({ host, header }: SkillsPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const skills = useSkills({ host, searchQuery });
   const openCreateSkillModal = useOpenModal('createSkillModal');

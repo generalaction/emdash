@@ -1,8 +1,4 @@
-import {
-  formatHostRef,
-  LOCAL_HOST_REF,
-  type SerializedHostRef,
-} from '@emdash/core/primitives/host/api';
+import type { SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type { SessionSummary } from '@emdash/core/runtimes/acp/api/client';
 import type { TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import { createScope, type Disposable } from '@emdash/shared/concurrency';
@@ -58,8 +54,8 @@ export class ConversationManagerStore implements Disposable {
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    preloaded?: Conversation[],
-    private readonly sessionHost: () => SerializedHostRef = () => formatHostRef(LOCAL_HOST_REF)
+    preloaded: Conversation[] | undefined,
+    private readonly sessionHost: () => SerializedHostRef
   ) {
     makeObservable(this, {
       conversations: observable,

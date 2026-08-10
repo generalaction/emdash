@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import { getMcpClient } from '@core/features/mcp/api/browser/client';
 
 export function useAgentMcps(
   agentId: string,
-  host: HostRef = LOCAL_HOST_REF
+  host: HostRef
 ): {
   servers: McpServer[];
   isLoading: boolean;

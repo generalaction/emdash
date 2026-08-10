@@ -1,4 +1,4 @@
-import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAgentsClient, unwrapAgentsResult } from '@core/features/agents/api/browser/client';
@@ -9,7 +9,7 @@ function agentSettingsQueryKey(id: string, host: HostRef) {
   return ['agents', 'settings', hostRefKey(host), id] as const;
 }
 
-export function useAgentSettings(id: string, host: HostRef = LOCAL_HOST_REF) {
+export function useAgentSettings(id: string, host: HostRef) {
   const queryClient = useQueryClient();
   const queryKey = agentSettingsQueryKey(id, host);
 
