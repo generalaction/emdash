@@ -1,6 +1,7 @@
 import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
@@ -39,7 +40,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   );
   useCloseGuard(isSubmitting);
 
-  const { data: agents } = useAgents();
+  const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
   const selectedAgent = agents?.find((a) => a.id === providerId);
   const modelsCapability = selectedAgent?.capabilities.models;
   const modelOptions =

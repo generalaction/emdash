@@ -1,5 +1,6 @@
 import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { useEffect, useMemo, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import {
   DEFAULT_CRON_STATE,
@@ -8,6 +9,7 @@ import {
 import {
   asMounted,
   firstMountedProjectId,
+  getProjectSshConnectionId,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
@@ -83,7 +85,6 @@ export function useAutomationFormState(
   const seedConfig = seed?.taskConfig;
   const seedPrompt =
     seedConversationConfig?.prompt ?? initialTemplate?.defaultConversationConfig.initialPrompt;
-  const { data: agents } = useAgents();
 
   const [name, setName] = useState(seed?.name ?? initialTemplate?.name ?? '');
   const [projectId, setProjectId] = useState<string | undefined>(
@@ -96,6 +97,12 @@ export function useAutomationFormState(
 
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
+
+  // Validate the seeded provider against the project's host, not the local machine.
+  const connectionId = effectiveProjectId
+    ? getProjectSshConnectionId(effectiveProjectId)
+    : undefined;
+  const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
 
   const seedProvider = agents?.some((agent) => agent.id === seedConversationConfig?.provider)
     ? (seedConversationConfig?.provider as AgentProviderId)
