@@ -1,41 +1,53 @@
-import { loader } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
-import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
-import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
-import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import type * as monaco from 'monaco-editor';
 import { configureMonacoTypeScript } from './monaco-config';
 import { defineMonacoThemes, getMonacoTheme } from './monaco-themes';
 
 let instance: typeof monaco | null = null;
 let initPromise: Promise<typeof monaco> | null = null;
 
-function configureMonacoEnvironment(): void {
+/**
+ * Monaco (and its Vite worker wrappers) read `window` at module scope, so all
+ * browser-only modules are imported here inside init() rather than at the top
+ * of the file. This keeps the bootstrap itself import-safe for the node test
+ * environment, which reaches it through the tab-provider contribution graph.
+ */
+async function loadMonaco(): Promise<typeof monaco> {
+  const [{ loader }, monacoNamespace, editorWorker, cssWorker, htmlWorker, jsonWorker, tsWorker] =
+    await Promise.all([
+      import('@monaco-editor/react'),
+      import('monaco-editor'),
+      import('monaco-editor/esm/vs/editor/editor.worker?worker'),
+      import('monaco-editor/esm/vs/language/css/css.worker?worker'),
+      import('monaco-editor/esm/vs/language/html/html.worker?worker'),
+      import('monaco-editor/esm/vs/language/json/json.worker?worker'),
+      import('monaco-editor/esm/vs/language/typescript/ts.worker?worker'),
+    ]);
+
   self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string): Worker {
       switch (label) {
         case 'json':
-          return new jsonWorker();
+          return new jsonWorker.default();
         case 'css':
         case 'scss':
         case 'less':
-          return new cssWorker();
+          return new cssWorker.default();
         case 'html':
         case 'handlebars':
         case 'razor':
-          return new htmlWorker();
+          return new htmlWorker.default();
         case 'typescript':
         case 'javascript':
-          return new tsWorker();
+          return new tsWorker.default();
         default:
-          return new editorWorker();
+          return new editorWorker.default();
       }
     },
   };
   // Serve Monaco from the bundled package instead of the default CDN so the
   // editor works offline; loader.init() resolves with this instance.
-  loader.config({ monaco });
+  loader.config({ monaco: monacoNamespace });
+  return loader.init();
 }
 
 /**
@@ -52,9 +64,8 @@ export const monacoBootstrap = {
   /** Load Monaco once, set up themes and TypeScript. Safe to call multiple times. */
   init(): Promise<typeof monaco> {
     if (initPromise) return initPromise;
-    configureMonacoEnvironment();
     initPromise = (async () => {
-      const m = await loader.init();
+      const m = await loadMonaco();
       instance = m;
       // oxlint-disable-next-line typescript/no-explicit-any
       (globalThis as any).__monaco = m;
