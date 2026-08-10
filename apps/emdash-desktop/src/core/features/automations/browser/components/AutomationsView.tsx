@@ -126,6 +126,10 @@ export function AutomationsView() {
                 emptySlot={
                   automations.isPending ? (
                     <AutomationsLoadingState />
+                  ) : automations.isError ? (
+                    <div className="p-8 text-center text-sm text-foreground-muted">
+                      Could not load automations. {formatAutomationError(automations.error)}
+                    </div>
                   ) : hasAutomations ? (
                     <div className="p-8 text-center text-sm text-foreground-muted">
                       No automations match your search.
