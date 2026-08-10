@@ -14,6 +14,12 @@ export interface SshConfig {
   useAgent?: boolean;
   forwardAgent?: boolean;
   proxyJump?: string;
+  /**
+   * Opt-in "Sync local settings" toggle: while true, this desktop mirrors its
+   * local settings in this class (currently watcher exclusions) to this host.
+   * Stored in connection metadata; absent means false.
+   */
+  syncLocalSettings?: boolean;
 }
 
 /**

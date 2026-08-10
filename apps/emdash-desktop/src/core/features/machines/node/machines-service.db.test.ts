@@ -243,6 +243,64 @@ describe('MachinesService', () => {
     expect(rows[0]).toMatchObject({ taskId: 'task-1', untrackedAt: null });
   });
 
+  it('setSyncLocalSettings persists the toggle without dropping the connection', async () => {
+    await insertSshConnection(fixture.db);
+    const mutatedEvents: unknown[] = [];
+    const syncEvents: unknown[] = [];
+    service.on('machine:mutated', (event) => {
+      mutatedEvents.push(event);
+    });
+    service.on('machine:sync-local-settings-changed', (event) => {
+      syncEvents.push(event);
+    });
+
+    const updated = await service.setSyncLocalSettings('ssh-1', true);
+    expect(updated).toMatchObject({ id: 'ssh-1', syncLocalSettings: true });
+
+    const [row] = await fixture.db
+      .select()
+      .from(sshConnections)
+      .where(eq(sshConnections.id, 'ssh-1'));
+    expect(row?.metadata?.syncLocalSettings).toBe(true);
+
+    const machines = await service.getMachines();
+    expect(machines.find((machine) => machine.id === 'ssh-1')?.syncLocalSettings).toBe(true);
+
+    // Flipping the toggle must not invalidate the pinned host connection.
+    expect(dropConnection).not.toHaveBeenCalled();
+    expect(mutatedEvents).toEqual([]);
+    expect(syncEvents).toEqual([{ connectionId: 'ssh-1', enabled: true }]);
+
+    await service.setSyncLocalSettings('ssh-1', false);
+    const after = await service.getMachines();
+    expect(after.find((machine) => machine.id === 'ssh-1')?.syncLocalSettings).toBe(false);
+  });
+
+  it('setSyncLocalSettings rejects unknown machines', async () => {
+    await expect(service.setSyncLocalSettings('missing', true)).rejects.toThrow(
+      'SSH connection missing not found'
+    );
+  });
+
+  it('saveMachine preserves the sync toggle stored in metadata', async () => {
+    await insertSshConnection(fixture.db);
+    await service.setSyncLocalSettings('ssh-1', true);
+
+    const saved = await service.saveMachine({
+      id: 'ssh-1',
+      name: 'Existing SSH',
+      host: 'example.org',
+      port: 22,
+      username: 'jona',
+      authType: 'agent',
+      useAgent: true,
+    });
+    expect(saved.syncLocalSettings).toBe(true);
+
+    const machines = await service.getMachines();
+    expect(machines.find((machine) => machine.id === 'ssh-1')?.syncLocalSettings).toBe(true);
+  });
+
   it('does not delete credentials when a project still uses the machine', async () => {
     await insertSshConnection(fixture.db);
     await insertRemoteWorkspace(fixture.db);

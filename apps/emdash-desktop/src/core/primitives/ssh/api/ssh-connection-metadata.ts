@@ -76,6 +76,26 @@ const v3Schema = v0Schema.extend({
 });
 
 // ---------------------------------------------------------------------------
+// v4 schema — adds syncLocalSettings (opt-in per-host "Sync local settings")
+// ---------------------------------------------------------------------------
+
+const v4Schema = v3Schema.extend({
+  /**
+   * Declared (unlike earlier versions) so dev-mode validation does not strip
+   * the version marker from parsed data before it is written back.
+   */
+  version: z.literal('4').optional(),
+  /**
+   * Opt-in "Sync local settings" toggle for this host: while true, this
+   * desktop mirrors its local settings in this class (currently
+   * files.watcherExclude) into the host's host-settings file on attach and on
+   * local change. Absent means false (off). Desktop-side state — it describes
+   * this desktop's relationship to the host.
+   */
+  syncLocalSettings: z.boolean().optional(),
+});
+
+// ---------------------------------------------------------------------------
 // Versioned schema
 // ---------------------------------------------------------------------------
 
@@ -89,6 +109,7 @@ const v3Schema = v0Schema.extend({
  * v1: adds dependencySelections ({usedId?,path?,cli?} legacy format)
  * v2: migrates dependencySelections to InstallOverride | null (override-only)
  * v3: adds { kind: 'pinned', realpath } to installOverrideSchema (pass-through)
+ * v4: adds syncLocalSettings (absent = false; pass-through)
  */
 export const sshConnectionMetadata = defineVersionedSchema()
   .unversioned(v0Schema)
@@ -118,6 +139,11 @@ export const sshConnectionMetadata = defineVersionedSchema()
     // New 'pinned' overrides can only be created going forward.
     ...prev,
     version: '3',
+  }))
+  .version('4', v4Schema, (prev) => ({
+    // Pass-through: syncLocalSettings stays unset (false) for existing hosts.
+    ...prev,
+    version: '4' as const,
   }))
   .build();
 
@@ -236,5 +262,6 @@ export function sshConfigFromRow(row: SshConnectionConfigRow): SshConfig {
     sshConfigAlias: metadata.sshConfigAlias,
     forwardAgent: metadata.forwardAgent,
     proxyJump: metadata.proxyJump,
+    syncLocalSettings: metadata.syncLocalSettings,
   };
 }

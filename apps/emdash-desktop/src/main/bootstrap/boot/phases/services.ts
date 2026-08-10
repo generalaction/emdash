@@ -48,6 +48,7 @@ import {
   createPromptLibraryService,
   type PromptLibraryKV,
 } from '@core/features/library/node/prompt-library-service';
+import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
@@ -615,6 +616,38 @@ export async function bootServices(
     },
     detach: () => {},
   });
+  // "Sync local settings" (spec: release-code-prep §6): mirror the local
+  // watcherExclude to hosts whose toggle is ON — on attach, on local change,
+  // and when the toggle flips ON. Fire-and-forget so a slow host never blocks
+  // the per-host attachment chain; failures are logged inside the service.
+  const localSettingsSync = new LocalSettingsSync({
+    runtimes,
+    getWatcherExclude: async () => (await appSettingsService.get('files')).watcherExclude,
+    isSyncEnabled: async (connectionId) => {
+      const machines = await infrastructure.ssh.machines.getMachines();
+      return machines.find((machine) => machine.id === connectionId)?.syncLocalSettings ?? false;
+    },
+    logger: log,
+  });
+  hostAttachments.register({
+    label: 'local-settings-sync',
+    attach: (host) => {
+      void localSettingsSync.attachHost(host);
+    },
+    detach: (host) => localSettingsSync.detachHost(host),
+  });
+  const handleLocalSettingsSyncChanged = (key: AppSettingsKey) => {
+    if (key === 'files') void localSettingsSync.handleLocalSettingsChanged();
+  };
+  appSettingsService.on('app-settings:changed', handleLocalSettingsSyncChanged);
+  appScope.add(() => {
+    appSettingsService.off('app-settings:changed', handleLocalSettingsSyncChanged);
+  });
+  appScope.add(
+    infrastructure.ssh.machines.on('machine:sync-local-settings-changed', (event) => {
+      void localSettingsSync.handleSyncToggled(event.connectionId, event.enabled);
+    })
+  );
   // Tombstoned-while-reachable trigger: constructed here (composition root) and
   // installed on the module bridge the tombstone write paths poke.
   const reconcileSweepTriggers = createReconcileSweepTriggers();

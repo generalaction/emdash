@@ -54,8 +54,21 @@ export type MachineMutationEvent = {
   connectionId: string;
 };
 
+export type SyncLocalSettingsChangedEvent = {
+  connectionId: string;
+  enabled: boolean;
+};
+
 export type MachinesServiceHooks = {
   'machine:mutated': (event: MachineMutationEvent) => void | Promise<void>;
+  /**
+   * The per-host "Sync local settings" toggle changed. Separate from
+   * machine:mutated on purpose: flipping the toggle must not invalidate the
+   * host's pinned connection.
+   */
+  'machine:sync-local-settings-changed': (
+    event: SyncLocalSettingsChangedEvent
+  ) => void | Promise<void>;
 };
 
 export class MachinesService implements Hookable<MachinesServiceHooks> {
@@ -203,7 +216,32 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       sshConfigAlias: metadata.sshConfigAlias,
       forwardAgent: metadata.forwardAgent,
       proxyJump: metadata.proxyJump,
+      syncLocalSettings: metadata.syncLocalSettings,
     };
+  }
+
+  async setSyncLocalSettings(id: string, enabled: boolean): Promise<SshConfig> {
+    const [row] = await this.deps.db
+      .select()
+      .from(sshConnectionsTable)
+      .where(eq(sshConnectionsTable.id, id));
+    if (!row) throw new Error(`SSH connection ${id} not found`);
+
+    const metadata: SshConnectionMetadata = {
+      ...(row.metadata ?? {}),
+      version: '4',
+      syncLocalSettings: enabled,
+    };
+    await this.deps.db
+      .update(sshConnectionsTable)
+      .set({ metadata, updatedAt: new Date(this.now()).toISOString() })
+      .where(eq(sshConnectionsTable.id, id));
+
+    this.hooks.callHookBackground('machine:sync-local-settings-changed', {
+      connectionId: id,
+      enabled,
+    });
+    return sshConfigFromRow({ ...row, metadata });
   }
 
   async deleteMachine(id: string): Promise<void> {

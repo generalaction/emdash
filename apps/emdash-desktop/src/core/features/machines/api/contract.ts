@@ -30,8 +30,10 @@ import {
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 
+// syncLocalSettings is excluded from save: it is toggled through the dedicated
+// setSyncLocalSettings procedure so flipping it never drops the pinned connection.
 export type SaveMachineInput = Partial<Pick<SshConfig, 'id'>> &
-  Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
+  Omit<SshConfig, 'id' | 'syncLocalSettings'> & { password?: string; passphrase?: string };
 
 export type MachineSystemDependencyTier = 'required' | 'recommended';
 
@@ -125,6 +127,15 @@ export const machinesContract = defineContract({
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),
+    output: z.custom<SshConfig>(),
+  }),
+  /**
+   * Flips the per-host "Sync local settings" toggle (connection metadata,
+   * desktop-side). Deliberately separate from saveMachine so toggling never
+   * drops the pinned host connection.
+   */
+  setSyncLocalSettings: procedure({
+    input: z.object({ id: z.string(), enabled: z.boolean() }),
     output: z.custom<SshConfig>(),
   }),
   deleteMachine: procedure({
