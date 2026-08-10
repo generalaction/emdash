@@ -45,9 +45,8 @@ import type {
   WorkspaceUsage,
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
-import { executeFetchRefs, executePushBranch } from './background-steps';
+import { BackgroundStepRunner } from './background-steps';
 import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
-import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
 import { createRegistryGitContext, type RegistryGitContext } from './git-context';
@@ -148,12 +147,11 @@ export class WorkspaceRegistryRuntime {
   private mutationQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
-  /** In-flight background-step runs, coalesced per workspace id. */
-  private readonly backgroundRuns = new Map<string, Promise<void>>();
-  /** In-flight artifact copies — the promise the activation artifact gate awaits. */
-  private readonly copyRuns = new Map<string, Promise<void>>();
-  /** Debounce stamps for the advisory fetch-refs step, keyed by repository path. */
-  private readonly lastFetchAt = new Map<string, number>();
+  /**
+   * The background creation-step chain (copy/push/fetch); runs, retries, and the
+   * activation artifact gate all flow through its per-workspace single-flight.
+   */
+  private readonly backgroundSteps: BackgroundStepRunner;
   /**
    * The `.emdash.json` live model (spec: workspace-lifecycle-v2): one parsed entry per
    * present record, filled at boot / creation / scans — never read from disk inside a
@@ -284,7 +282,7 @@ export class WorkspaceRegistryRuntime {
       },
       // The artifact gate (dependency gating): prepare/setup wait for the background
       // copy to settle; a terminal copy failure opens the gates anyway.
-      awaitArtifacts: (id) => this.awaitCopyArtifacts(id),
+      awaitArtifacts: (id) => this.backgroundSteps.awaitArtifactCopy(id),
       clock: this.clock,
       logger: this.logger,
     });
@@ -318,6 +316,25 @@ export class WorkspaceRegistryRuntime {
     this.scanner =
       options.createScanner?.(landing, scannerDeps) ?? new RegistryScanner(landing, scannerDeps);
 
+    // The step chain: reads through the store, writes only through the lifecycle
+    // step writer, suppresses and settles scans through the runtime's muting seams.
+    this.backgroundSteps = new BackgroundStepRunner({
+      records: {
+        get: (id) => this.store.get(id) ?? undefined,
+        list: () => this.store.list(),
+      },
+      steps: {
+        update: (id, stepId, state) => this.updateLifecycleStep(id, stepId, state),
+      },
+      scans: {
+        mute: (id) => this.muteScans(id),
+        settle: (request) => this.settleScan(request),
+      },
+      git: this.gitContext,
+      logger: this.logger,
+      clock: this.clock,
+    });
+
     // Restart replay: background steps left pending/running (a daemon killed mid-step)
     // re-run exactly once; terminal statuses (failed/succeeded/skipped) are respected.
     // Script steps never replay: runs died with the daemon, so incomplete ones settle
@@ -327,7 +344,7 @@ export class WorkspaceRegistryRuntime {
     queueMicrotask(() => {
       if (this.disposed) return;
       for (const record of this.store.list()) {
-        if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(record.id);
+        if (hasIncompleteBackgroundSteps(record)) this.backgroundSteps.ensureRunning(record.id);
         if (record.observedStatus === 'present') void this.refreshConfig(record.id, record.path);
         this.settleInterruptedScriptSteps(record);
       }
@@ -632,7 +649,7 @@ export class WorkspaceRegistryRuntime {
 
     // The verb returns at agent-spawnable; artifact cloning, branch pushing, and ref
     // freshening continue as durable background steps outside the repository claim.
-    if (created.success) void this.runBackgroundSteps(input.workspaceId);
+    if (created.success) this.backgroundSteps.ensureRunning(input.workspaceId);
     return created;
   }
 
@@ -674,7 +691,8 @@ export class WorkspaceRegistryRuntime {
       }
       // Activation replays incomplete background steps (ticket semantics); the
       // activation manager's artifact gate awaits the copy only where scripts need it.
-      if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(input.workspaceId);
+      if (hasIncompleteBackgroundSteps(record))
+        this.backgroundSteps.ensureRunning(input.workspaceId);
       await this.activationManager.activate(input.workspaceId, record.path);
       const current = this.store.get(input.workspaceId) ?? record;
       return ok(this.toWire(current));
@@ -1040,58 +1058,6 @@ export class WorkspaceRegistryRuntime {
     return ok(this.toWire(succeeded));
   }
 
-  // -------------------------------------------------------------------------
-  // Background creation steps (spec: workspace-activation-speed). Durable per-step
-  // statuses on the record; runs outside the per-repository claim; replayed
-  // idempotently on restart and on activation; never a gate on agent spawn.
-  // -------------------------------------------------------------------------
-
-  /** Runs every incomplete background step for one record, coalesced per workspace. */
-  private runBackgroundSteps(id: string): Promise<void> {
-    const existing = this.backgroundRuns.get(id);
-    if (existing) return existing;
-    const run = this.executeBackgroundSteps(id)
-      .catch((error) => {
-        this.logger.warn?.(`background creation steps for '${id}' failed unexpectedly`, { error });
-      })
-      .finally(() => {
-        this.backgroundRuns.delete(id);
-      });
-    this.backgroundRuns.set(id, run);
-    return run;
-  }
-
-  private async executeBackgroundSteps(id: string): Promise<void> {
-    const record = this.store.get(id);
-    if (!record?.lifecycle || record.lastCreateOutcome?.status !== 'succeeded') return;
-    const parent = record.parentId === null ? null : this.store.get(record.parentId);
-    if (!parent) return;
-    const repositoryPath = parent.path;
-    const branch = record.creation?.branch ?? null;
-    const baseRef = record.creation?.baseRef ?? null;
-    const lifecycle = record.lifecycle;
-
-    // The whole chain holds the repository's idle gate (spec: scan minimization —
-    // registry-owned background steps suppress idle-gated scans like creation does).
-    await this.gitContext.schedule.withRepoHold(repositoryPath, async () => {
-      const work: Array<Promise<void>> = [];
-      if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
-        const copy = this.executeCopyStep(id, repositoryPath, record.path).finally(() => {
-          this.copyRuns.delete(id);
-        });
-        this.copyRuns.set(id, copy);
-        work.push(copy);
-      }
-      if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
-        work.push(this.executePushStep(id, parent.id, repositoryPath, branch));
-      }
-      if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
-        work.push(this.executeFetchStep(id, parent.id, repositoryPath, baseRef));
-      }
-      await Promise.all(work);
-    });
-  }
-
   /**
    * The deliberate trailing scan after a self-suppressed write settles (spec: scan
    * minimization): fire-and-forget so the step never blocks on scan-lane time.
@@ -1103,137 +1069,17 @@ export class WorkspaceRegistryRuntime {
     });
   }
 
-  private async executeCopyStep(
-    id: string,
-    repositoryPath: string,
-    worktreePath: string
-  ): Promise<void> {
-    const preservePatterns = this.store.get(id)?.lifecycle?.preservePatterns ?? [];
-    // The copy writes straight into the watched working tree: mute the workspace's
-    // watcher-driven scans for the duration, then scan once deliberately.
-    const release = this.muteScans(id);
-    try {
-      await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
-      const startedAt = Date.now();
-      const outcome = await executeCopyArtifacts({
-        git: this.gitContext,
-        repositoryPath,
-        worktreePath,
-        preservePatterns,
-      });
-      this.logger.info?.(
-        `copy-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
-        {
-          ...(outcome.status === 'succeeded'
-            ? { engine: outcome.engine, entries: outcome.entries, warnings: outcome.warnings }
-            : {}),
-          ...(outcome.status === 'failed' ? { message: outcome.message } : {}),
-        }
-      );
-      await this.updateLifecycleStep(id, 'copy-artifacts', {
-        ...toStepState(outcome),
-        ...(outcome.status === 'succeeded' ? { params: { fileCount: outcome.entries } } : {}),
-      });
-    } finally {
-      release();
-      this.settleScan({ kind: 'workspace', id, mode: 'full' });
-    }
-  }
-
-  private async executePushStep(
-    id: string,
-    repositoryId: string,
-    repositoryPath: string,
-    branch: string
-  ): Promise<void> {
-    // The push updates the repository's remote-tracking ref: mute the repository's
-    // gitdir events (fanout included), then refresh the two records it affects.
-    const release = this.muteScans(repositoryId);
-    try {
-      await this.updateLifecycleStep(id, 'push-branch', { status: 'running' });
-      const outcome = await executePushBranch({ git: this.gitContext, repositoryPath, branch });
-      await this.updateLifecycleStep(id, 'push-branch', toStepState(outcome));
-    } finally {
-      release();
-      this.settleScan({ kind: 'workspace', id: repositoryId, mode: 'refs' });
-      this.settleScan({ kind: 'workspace', id, mode: 'refs' });
-    }
-  }
-
-  private async executeFetchStep(
-    id: string,
-    repositoryId: string,
-    repositoryPath: string,
-    baseRef: string
-  ): Promise<void> {
-    const last = this.lastFetchAt.get(repositoryPath);
-    const now = Date.now();
-    if (last !== undefined && now - last < FETCH_DEBOUNCE_MS) {
-      await this.updateLifecycleStep(id, 'fetch-refs', {
-        status: 'skipped',
-        message: 'A recent fetch already freshened this repository',
-      });
-      return;
-    }
-    this.lastFetchAt.set(repositoryPath, now);
-    // The fetch rewrites refs/remotes and packed-refs: mute the repository so the
-    // watcher does not fan refs scans across every worktree mid-write, then run
-    // the same fanout once, deliberately, when it settles.
-    const release = this.muteScans(repositoryId);
-    try {
-      await this.updateLifecycleStep(id, 'fetch-refs', { status: 'running' });
-      const outcome = await executeFetchRefs({ git: this.gitContext, repositoryPath, baseRef });
-      // Advisory by contract: a failed fetch is recorded, never surfaced as an error.
-      await this.updateLifecycleStep(id, 'fetch-refs', toStepState(outcome));
-    } finally {
-      release();
-      this.settleScan({ kind: 'workspace', id: repositoryId, mode: 'refs' });
-      for (const record of this.store.list()) {
-        if (record.parentId === repositoryId && record.observedStatus === 'present') {
-          this.settleScan({ kind: 'workspace', id: record.id, mode: 'refs' });
-        }
-      }
-    }
-  }
-
-  /**
-   * The activation artifact gate: resolves once the artifact copy settled (succeeded,
-   * failed, or skipped — a terminal failure opens the gates anyway) so dependency-
-   * consuming steps run against whatever exists. Incomplete durable state without an
-   * in-flight run (post-restart) triggers a replay first.
-   */
-  private async awaitCopyArtifacts(id: string): Promise<void> {
-    const record = this.store.get(id);
-    if (!record?.lifecycle) return;
-    if (!isIncompleteStep(getLifecycleStep(record.lifecycle, 'copy-artifacts'))) return;
-    if (!this.copyRuns.has(id)) void this.runBackgroundSteps(id);
-    // A rejected copy run (e.g. a store write failure) still opens the gate —
-    // dependents proceed and a real install is the graceful degradation.
-    await (this.copyRuns.get(id) ?? Promise.resolve()).catch(() => undefined);
-  }
-
   /**
    * Manual retry of a durably failed lifecycle step. 'failed' is the only status a
-   * retry re-runs; anything else (succeeded, skipped, or an in-flight run) is a
-   * no-op returning the current record.
+   * retry re-runs; anything else (succeeded, skipped, or an in-flight run the retry
+   * waits out) is a no-op returning the current record.
    */
   async retryStep(input: RetryStepInput): Promise<Result<WorkspaceRecord, WorkspaceNotFoundError>> {
     const record = this.store.get(input.workspaceId);
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
     }
-    const step = getLifecycleStep(record.lifecycle, input.step);
-    const parent = record.parentId === null ? null : this.store.get(record.parentId);
-    if (step?.status === 'failed' && parent) {
-      if (input.step === 'push-branch') {
-        const branch = record.creation?.branch ?? null;
-        if (branch !== null) {
-          await this.executePushStep(input.workspaceId, parent.id, parent.path, branch);
-        }
-      } else {
-        await this.executeCopyStep(input.workspaceId, parent.path, record.path);
-      }
-    }
+    await this.backgroundSteps.retry(input.workspaceId, input.step);
     const current = this.store.get(input.workspaceId) ?? record;
     return ok(this.toWire(current));
   }
@@ -1659,22 +1505,10 @@ export class WorkspaceRegistryRuntime {
   }
 }
 
-const FETCH_DEBOUNCE_MS = 5 * 60_000;
-
 function hasIncompleteBackgroundSteps(record: DurableWorkspaceRecord): boolean {
   const lifecycle = record.lifecycle;
   if (!lifecycle || record.lastCreateOutcome?.status !== 'succeeded') return false;
   return BACKGROUND_STEP_IDS.some((id) => isIncompleteStep(getLifecycleStep(lifecycle, id)));
-}
-
-function toStepState(outcome: {
-  status: 'succeeded' | 'skipped' | 'failed';
-  message?: string;
-  reason?: string;
-}): { status: 'succeeded' | 'skipped' | 'failed'; message?: string } {
-  if (outcome.status === 'failed') return { status: 'failed', message: outcome.message };
-  if (outcome.status === 'skipped') return { status: 'skipped', message: outcome.reason };
-  return { status: 'succeeded' };
 }
 
 /** The skip's one-line forensic description for the follow pass's debug log. */
