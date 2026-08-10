@@ -1,3 +1,8 @@
+/**
+ * Stories for the raw `ListView` chrome — an internal escape hatch. Page-level
+ * lists render through `CollectionView` (see Patterns/CollectionView); compose
+ * this chrome directly only when a surface cannot fit that shell.
+ */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   CheckIcon,
@@ -14,7 +19,7 @@ import { ListView } from './index';
 import * as s from '../../story-layout.css';
 
 const meta: Meta = {
-  title: 'Patterns/ListView',
+  title: 'Patterns/ListView/Chrome (escape hatch)',
   parameters: { layout: 'padded' },
 };
 export default meta;

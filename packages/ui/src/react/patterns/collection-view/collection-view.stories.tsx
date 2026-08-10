@@ -262,8 +262,8 @@ export const TaskView: Story = {
 };
 
 // ══ 2 · Worktrees table — shortcut mode with a trailing actions column ═══════
-// The old ColumnList call-site shape survives unchanged: plain items, columns,
-// no state layer — plus the ellipsis-menu column the real worktrees table has.
+// The simplest call-site shape: plain items, columns, no state layer — plus
+// the ellipsis-menu column the real worktrees table has.
 
 interface WorktreeFixture {
   id: string;

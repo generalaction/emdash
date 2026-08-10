@@ -1,5 +1,8 @@
 /**
- * Stories for the headless `createListView` factory.
+ * Stories for the headless `createListView` factory — the state layer that
+ * powers `CollectionView` (the page-level list pattern; see
+ * Patterns/CollectionView). These stories render through the raw chrome to
+ * exercise the factory in isolation.
  *
  * Each story demonstrates a different capability combination using a simple
  * Agent fixture type.  The observer-wrapped rows access the store through

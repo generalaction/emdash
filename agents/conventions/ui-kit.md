@@ -83,8 +83,11 @@ locked spec lives with the unify-list-views effort.
   modal when irreversible.
 - **An empty state is mandatory** (`EmptyState` is the default content; rich
   interactive empty states are allowed); `Spinner` is the loading default.
-- **Deprecations**: `ColumnList` and `ListPage` are superseded by `CollectionView`;
-  raw `ListView` chrome is an internal escape hatch, not a pattern for new surfaces.
+- **Removed**: `ColumnList` and `ListPage` no longer exist — `CollectionView` replaced
+  both (its `columns`/`CollectionViewColumn`/`CollectionViewCell` vocabulary is the
+  former `ColumnList` shape). Raw `ListView` chrome remains exported as an internal
+  escape hatch for surfaces that cannot fit the shell (for example the workbench
+  sidebar lists); it is not a pattern for new page surfaces.
 
 ## Settings pages
 

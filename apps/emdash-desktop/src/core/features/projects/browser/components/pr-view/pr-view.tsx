@@ -24,7 +24,7 @@ import { useCurrentViewParams } from '@core/primitives/navigation/browser/naviga
 import {
   usePullRequestsStore,
   type PullRequestListView,
-} from '@core/services/pull-requests/browser';
+} from '@root/src/core/services/pull-requests/browser';
 import { PrRow } from './pr-row';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';
