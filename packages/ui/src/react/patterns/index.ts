@@ -1,3 +1,5 @@
+export { CollectionToolbar, type CollectionToolbarProps } from './collection-toolbar';
+
 export { ListView } from './list-view';
 export type {
   ListViewSection,
