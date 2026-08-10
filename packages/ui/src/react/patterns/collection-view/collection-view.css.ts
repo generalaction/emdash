@@ -18,17 +18,15 @@ export const root = style({
   },
 });
 
-/**
- * Softer separators than the ListView.Row default. Deliberately unlayered:
- * the list-row recipe is unlayered too, so a rule inside `@layer recipes`
- * would always lose. Matching our own data-slot attribute boosts specificity
- * (0-2-0) over the recipe's `borderBottom` shorthand (0-1-0), independent of
- * stylesheet emission order.
- */
-export const row = style({
-  selectors: {
-    "&[data-slot='list-row']": {
-      borderBottomColor: vars.borderSubtle,
+/** Default loading slot: centered spinner. */
+export const loading = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      padding: '2rem',
     },
   },
 });

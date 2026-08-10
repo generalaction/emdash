@@ -38,6 +38,11 @@ function ColumnListCell({ primary, secondary, className, ...props }: ColumnListC
   );
 }
 
+/**
+ * @deprecated Use `CollectionView` from `@emdash/ui` patterns instead — the
+ * canonical page-level list surface (this component's `columns` mode is a
+ * drop-in). ColumnList is scheduled for deletion once its consumers migrate.
+ */
 function ColumnList<T>({
   items,
   columns,

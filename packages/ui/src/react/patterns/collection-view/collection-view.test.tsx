@@ -128,6 +128,13 @@ describe('CollectionView shortcut mode', () => {
     expect(screen.getByText('Nothing here')).toBeTruthy();
   });
 
+  it('falls back to the default empty state when no emptySlot is given', () => {
+    render(
+      <CollectionView items={[]} getItemKey={(item: Fixture) => item.id} columns={NAME_COLUMNS} />
+    );
+    expect(screen.getByText('No items')).toBeTruthy();
+  });
+
   it('exposes the density on the root element', () => {
     const { container } = render(
       <CollectionView
@@ -190,6 +197,35 @@ describe('CollectionView state mode', () => {
     expect(container.querySelector('[data-slot="list-row"][data-selected]')).toBeNull();
     fireEvent.click(screen.getByText('sel-a'));
     expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(1);
+  });
+
+  it('applies universal selection mechanics: modifier-click toggles, shift-click ranges', () => {
+    const view = createListView({
+      getItemId: (item: Fixture) => item.id,
+      source: { kind: 'sync', items: ITEMS },
+      selection: { kind: 'multi' },
+    });
+    const onItemClick = vi.fn();
+
+    const { container } = render(
+      <view.Root>
+        <CollectionView view={view} columns={NAME_COLUMNS} onItemClick={onItemClick} />
+      </view.Root>
+    );
+
+    // Modifier-click toggles selection without navigating.
+    fireEvent.click(screen.getByText('Alpha'), { metaKey: true });
+    expect(onItemClick).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(1);
+
+    // Shift-click extends the range from the anchor.
+    fireEvent.click(screen.getByText('Gamma'), { shiftKey: true });
+    expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(3);
+
+    // A plain click stays navigation.
+    fireEvent.click(screen.getByText('Beta'));
+    expect(onItemClick).toHaveBeenCalledTimes(1);
+    expect(onItemClick.mock.calls[0][0]).toEqual(ITEMS[1]);
   });
 
   it('renders default section headers and honors renderSectionHeader', () => {

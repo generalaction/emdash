@@ -1,6 +1,8 @@
 import { cx } from '@styles/utilities/cx';
 import { observer } from 'mobx-react-lite';
 import * as React from 'react';
+import { EmptyState } from '../../components/empty-state/empty-state';
+import { Spinner } from '../../primitives/spinner';
 import { ListView } from '../list-view';
 import type { ItemContextValue, ListProps, ListViewSnapshot, SelectionApi } from '../list-view';
 import * as styles from './collection-view.css';
@@ -68,10 +70,11 @@ export interface CollectionViewProps<T> {
   /** Override the density's row-height estimate when content is taller. */
   estimateSize?: number;
   onItemClick?: (item: T, index: number, event: React.MouseEvent<HTMLDivElement>) => void;
+  /** Shown when the list is empty. Defaults to a generic `EmptyState`. */
   emptySlot?: React.ReactNode;
-  /** State mode only: shown while the view's source is loading. */
+  /** State mode only: shown while the view's source is loading. Defaults to a `Spinner`. */
   loadingSlot?: React.ReactNode;
-  /** State mode only: shown when the view's source errored. */
+  /** State mode only: shown when the view's source errored. Defaults to an `EmptyState`. */
   errorSlot?: React.ReactNode;
   className?: string;
 }
@@ -107,6 +110,13 @@ type AnyItem = any;
 
 const DENSITY_ESTIMATE: Record<CollectionViewDensity, number> = { default: 60, compact: 36 };
 
+const DEFAULT_EMPTY_SLOT = <EmptyState label="No items" />;
+const DEFAULT_LOADING_SLOT = (
+  <div className={styles.loading}>
+    <Spinner />
+  </div>
+);
+
 interface RowContentProps {
   item: AnyItem;
   index: number;
@@ -135,6 +145,30 @@ function RowContent({ item, index, columns, renderRow, template, density }: RowC
   return <div className={styles.freeform[density]}>{renderRow?.(item, index)}</div>;
 }
 
+interface ShellRowProps {
+  selected?: boolean;
+  isLast: boolean;
+  interactive: boolean;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
+  children: React.ReactNode;
+}
+
+/** The canonical row shell shared by both data modes. */
+function ShellRow({ selected = false, isLast, interactive, onClick, children }: ShellRowProps) {
+  return (
+    <ListView.Row
+      bare
+      divider="subtle"
+      interactive={interactive}
+      selected={selected}
+      isLast={isLast}
+      onClick={onClick}
+    >
+      {children}
+    </ListView.Row>
+  );
+}
+
 interface StateRowProps extends RowContentProps {
   view: CollectionViewHandle<AnyItem>;
   /** Id of the visually last item — suppresses the final divider. */
@@ -142,7 +176,11 @@ interface StateRowProps extends RowContentProps {
   onItemClick?: (item: AnyItem, index: number, event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-/** State-mode row: `selected` auto-derives when the view declares selection. */
+/**
+ * State-mode row. When the view declares selection, `selected` auto-derives
+ * and the universal selection mechanics apply: modifier-click toggles,
+ * shift-click extends the range, and a plain click stays navigation.
+ */
 const StateRow = observer(function StateRow({
   view,
   item,
@@ -158,14 +196,24 @@ const StateRow = observer(function StateRow({
   const selection = view.useSelection?.();
   const selected = selection?.isSelected(id) ?? false;
 
+  const handleClick =
+    selection !== undefined || onItemClick !== undefined
+      ? (event: React.MouseEvent<HTMLDivElement>) => {
+          if (selection !== undefined && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+            event.preventDefault();
+            selection.toggle(id, event);
+            return;
+          }
+          onItemClick?.(item, index, event);
+        }
+      : undefined;
+
   return (
-    <ListView.Row
-      bare
-      className={styles.row}
-      interactive={onItemClick !== undefined}
+    <ShellRow
+      interactive={handleClick !== undefined}
       selected={selected}
       isLast={id === lastId}
-      onClick={onItemClick !== undefined ? (event) => onItemClick(item, index, event) : undefined}
+      onClick={handleClick}
     >
       <RowContent
         item={item}
@@ -175,7 +223,7 @@ const StateRow = observer(function StateRow({
         template={template}
         density={density}
       />
-    </ListView.Row>
+    </ShellRow>
   );
 });
 
@@ -206,15 +254,19 @@ const StateBody = observer(function StateBody({
   errorSlot,
   renderSectionHeader,
 }: StateBodyProps) {
-  const { orderedIds } = view.useListView();
+  const { orderedIds, error } = view.useListView();
   const lastId = orderedIds[orderedIds.length - 1];
+  const errorMessage =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
 
   return (
     <view.List
       virtualization={{ estimateSize }}
-      emptySlot={emptySlot}
-      loadingSlot={loadingSlot}
-      errorSlot={errorSlot}
+      emptySlot={emptySlot ?? DEFAULT_EMPTY_SLOT}
+      loadingSlot={loadingSlot ?? DEFAULT_LOADING_SLOT}
+      errorSlot={
+        errorSlot ?? <EmptyState label="Something went wrong" description={errorMessage} />
+      }
       renderSection={renderSectionHeader}
       renderItem={(item, index) => (
         <StateRow
@@ -322,11 +374,9 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
             items={listItems}
             getItemKey={getItemKey as (item: T, index: number) => string}
             estimateSize={estimate}
-            emptySlot={emptySlot}
+            emptySlot={emptySlot ?? DEFAULT_EMPTY_SLOT}
             renderItem={(item, index) => (
-              <ListView.Row
-                bare
-                className={styles.row}
+              <ShellRow
                 interactive={onItemClick !== undefined}
                 isLast={index === listItems.length - 1}
                 onClick={
@@ -341,7 +391,7 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
                   template={template}
                   density={density}
                 />
-              </ListView.Row>
+              </ShellRow>
             )}
           />
         )}

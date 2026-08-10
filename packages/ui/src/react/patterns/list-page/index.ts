@@ -23,6 +23,10 @@ import { Section, SectionHeader, Separator } from './list-page-section';
  *   </PageLayout>
  * </agentView.Root>
  * ```
+ *
+ * @deprecated Use `CollectionView` instead — the canonical page-level list
+ * surface (state mode covers ListPage's sections, search, and navigation
+ * rows). ListPage is scheduled for deletion once Machines migrates.
  */
 export const ListPage = Object.assign(ListPageRoot, {
   Body,

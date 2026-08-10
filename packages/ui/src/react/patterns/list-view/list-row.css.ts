@@ -32,11 +32,16 @@ export const row = recipe({
     isLast: {
       true: { borderBottom: 'none' },
     },
+    divider: {
+      default: {},
+      subtle: { borderBottomColor: vars.borderSubtle },
+    },
   },
   defaultVariants: {
     interactive: false,
     selected: false,
     isLast: false,
+    divider: 'default',
   },
 });
 
