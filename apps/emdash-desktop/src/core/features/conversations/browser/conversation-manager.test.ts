@@ -38,17 +38,22 @@ describe('ConversationManagerStore session hydration', () => {
   });
 
   it('does not hydrate conversations from the PTY session connect path', async () => {
-    const store = new ConversationManagerStore('project-1', 'task-1', [
-      {
-        id: 'conversation-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        providerId: 'codex',
-        title: 'Conversation 1',
-        lastInteractedAt: null,
-        isInitialConversation: false,
-      },
-    ], localSessionHost);
+    const store = new ConversationManagerStore(
+      'project-1',
+      'task-1',
+      [
+        {
+          id: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          providerId: 'codex',
+          title: 'Conversation 1',
+          lastInteractedAt: null,
+          isInitialConversation: false,
+        },
+      ],
+      localSessionHost
+    );
 
     const session = store.sessions.get('conversation-1');
     expect(session).toBeDefined();

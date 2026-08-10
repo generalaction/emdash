@@ -46,7 +46,12 @@ function useMachineName(host: HostRef): string | null {
   return data?.find((connection) => connection.id === connectionId)?.name ?? null;
 }
 
-export function AgentSignInModal({ providerId, methodId, providerName, host }: AgentSignInModalArgs) {
+export function AgentSignInModal({
+  providerId,
+  methodId,
+  providerName,
+  host,
+}: AgentSignInModalArgs) {
   const modal = useModalController('agentSignInModal');
   const machineName = useMachineName(host);
   const [error, setError] = useState<string | null>(null);

@@ -18,10 +18,7 @@ import type {
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import {
-  getAgentsClient,
-  hostRefFromConnectionId,
-} from '@core/features/agents/api/browser/client';
+import { getAgentsClient, hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import {
   registerConversationCommands,
   unregisterConversationCommands,

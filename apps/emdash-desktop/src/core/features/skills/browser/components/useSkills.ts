@@ -12,13 +12,7 @@ import { useInstalledSkillsLiveModel } from '../live-model-hooks';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
-export function useSkills({
-  host,
-  searchQuery = '',
-}: {
-  host: HostRef;
-  searchQuery?: string;
-}) {
+export function useSkills({ host, searchQuery = '' }: { host: HostRef; searchQuery?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: installedLiveSkills, isLoading: isLoadingInstalled } =
