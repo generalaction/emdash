@@ -1,190 +1,236 @@
-import { EmptyState, ListPopoverCard } from '@emdash/ui/react/components';
-import { Button, SearchInput, Select, ToggleGroup } from '@emdash/ui/react/primitives';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { ListPopoverCard } from '@emdash/ui/react/components';
+import { CollectionToolbar, CollectionView, SortSelect } from '@emdash/ui/react/patterns';
+import { Button, ToggleGroup } from '@emdash/ui/react/primitives';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useRef } from 'react';
-import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
+import { useLayoutEffect, useState } from 'react';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
-import type { ProjectTaskSortBy } from '@core/features/projects/contributions/mementos';
+import type { TaskViewStore } from '@core/features/projects/browser/stores/project-view';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-selected-tasks';
+import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
-import { cn } from '@core/primitives/styling/browser/cn';
+import {
+  useCurrentViewParams,
+  useNavigate,
+} from '@core/primitives/navigation/browser/navigation-hooks';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
 import { TaskListEmptyState } from './task-list-empty-state';
-import { TaskRow, type ReadyTask } from './task-row';
+import {
+  createTaskListView,
+  type ReadyTask,
+  type TaskListTab,
+  type TaskListViewModel,
+} from './task-list-model';
+import { TaskRow } from './task-row';
 
-const SORT_OPTIONS: { value: ProjectTaskSortBy; label: string }[] = [
-  { value: 'updated-at', label: 'Last used' },
-  { value: 'created-at', label: 'Created at' },
-  { value: 'pr-status', label: 'PR status' },
-  { value: 'unread', label: 'Unread first' },
-];
-
-function latestInstant(task: ReadyTask) {
-  return task.data.lastInteractedAt ?? task.data.updatedAt;
-}
-
-function prStatusRank(task: ReadyTask) {
-  const pr = selectCurrentPr(task.data.prs);
-  if (!pr) return 4;
-  if (pr.status === 'merged') return 0;
-  if (pr.status === 'open' && !pr.isDraft) return 1;
-  if (pr.status === 'closed') return 2;
-  return 3;
-}
-
-function isUnread(task: ReadyTask) {
-  const status = taskAgentStatus(task);
-  return status === 'awaiting-input' || status === 'error' || status === 'completed';
-}
-
-function sortTasks(tasks: ReadyTask[], sortBy: ProjectTaskSortBy) {
-  return [...tasks].sort((a, b) => {
-    let comparison = 0;
-    if (sortBy === 'created-at') {
-      comparison = b.data.createdAt.localeCompare(a.data.createdAt);
-    } else if (sortBy === 'pr-status') {
-      comparison = prStatusRank(a) - prStatusRank(b);
-    } else if (sortBy === 'unread') {
-      comparison = Number(isUnread(b)) - Number(isUnread(a));
-    }
-
-    if (comparison !== 0) return comparison;
-
-    const latestComparison = latestInstant(b).localeCompare(latestInstant(a));
-    return latestComparison || a.data.id.localeCompare(b.data.id);
-  });
-}
-
-function TaskVirtualList({
-  tasks,
-  selectedIds,
-  onToggleSelect,
-}: {
-  tasks: ReadyTask[];
-  selectedIds: Set<string>;
-  onToggleSelect: (id: string, shiftKey: boolean) => void;
-}) {
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: tasks.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 60,
-    overscan: 5,
-    measureElement: (el) => el.getBoundingClientRect().height,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-
-  if (tasks.length === 0) {
-    return <EmptyState label="No tasks" description="No tasks found" />;
-  }
-
-  return (
-    <div
-      ref={parentRef}
-      className="min-h-0 flex-1 overflow-y-auto py-3"
-      style={{ scrollbarWidth: 'none' }}
-    >
-      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-        {virtualItems.map((virtualItem) => {
-          const task = tasks[virtualItem.index]!;
-          return (
-            <div
-              key={virtualItem.key}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              className={cn(virtualItem.index === tasks.length - 1 && 'border-b-0')}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              <TaskRow
-                task={task}
-                isSelected={selectedIds.has(task.data.id)}
-                onToggleSelect={(shiftKey) => onToggleSelect(task.data.id, shiftKey)}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
+/** The tasks this surface lists: registered, and not automation runs. */
+function listedTasks(taskManager: TaskManagerStore): ReadyTask[] {
+  return Array.from(taskManager.tasks.values()).filter(
+    (t): t is ReadyTask => t.state !== 'unregistered' && t.data.type !== 'automation-run'
   );
 }
 
-function SelectionBar({
-  count,
-  tab,
-  onClear,
-  onArchive,
-  onRestore,
-  onDelete,
+const TasksTabs = observer(function TasksTabs({
+  view,
+  taskView,
+  taskManager,
 }: {
-  count: number;
-  tab: 'active' | 'archived';
-  onClear: () => void;
-  onArchive: () => void;
-  onRestore: () => void;
-  onDelete: () => void;
+  view: TaskListViewModel;
+  taskView: TaskViewStore;
+  taskManager: TaskManagerStore;
 }) {
-  if (count === 0) return null;
+  const filter = view.useFilter();
+  const allTasks = listedTasks(taskManager);
+  const activeCount = allTasks.filter((t) => !t.data.archivedAt).length;
+  const archivedCount = allTasks.length - activeCount;
+
+  return (
+    <ToggleGroup.Root
+      multiple={false}
+      value={[taskView.tab]}
+      onValueChange={([value]) => {
+        if (!value) return;
+        const tab = value as TaskListTab;
+        // The memento remembers the tab across sessions; the filter shows it now.
+        taskView.setTab(tab);
+        filter.set({ tab });
+      }}
+    >
+      <ToggleGroup.Item value="active">Active ({activeCount})</ToggleGroup.Item>
+      <ToggleGroup.Item value="archived">Archived ({archivedCount})</ToggleGroup.Item>
+    </ToggleGroup.Root>
+  );
+});
+
+const TasksToolbar = observer(function TasksToolbar({
+  view,
+  taskView,
+}: {
+  view: TaskListViewModel;
+  taskView: TaskViewStore;
+}) {
+  const searchRef = useSearchFocusHotkeys();
+  const search = view.useSearch();
+  const sort = view.useSort();
+
+  return (
+    <CollectionToolbar
+      ref={searchRef}
+      searchValue={search.query}
+      onSearchValueChange={search.setQuery}
+      searchPlaceholder="Search tasks…"
+      actions={
+        <SortSelect
+          sort={{
+            ...sort,
+            // Persist the chosen sort in the project memento alongside the view.
+            setKey: (key) => {
+              sort.setKey(key);
+              taskView.setSortBy(key);
+            },
+          }}
+        />
+      }
+    />
+  );
+});
+
+const TasksSelectionBar = observer(function TasksSelectionBar({
+  taskView,
+  taskManager,
+  projectId,
+}: {
+  taskView: TaskViewStore;
+  taskManager: TaskManagerStore;
+  projectId: string;
+}) {
+  if (taskView.count === 0) return null;
+
+  const bulkApply = (apply: (id: string) => void) => {
+    [...taskView.selectedIds].forEach(apply);
+    taskView.clear();
+  };
 
   return (
     <ListPopoverCard className="justify-between">
-      <span className="whitespace-nowrap text-foreground-muted">{count} selected</span>
+      <span className="whitespace-nowrap text-foreground-muted">{taskView.count} selected</span>
       <div className="flex items-center gap-2">
-        {tab === 'active' && (
-          <Button variant="secondary" size="sm" onClick={onArchive}>
+        {taskView.tab === 'active' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => bulkApply((id) => void taskManager.archiveTask(id))}
+          >
             <Archive className="size-3.5" />
             Archive
           </Button>
         )}
-        {tab === 'archived' && (
-          <Button variant="secondary" size="sm" onClick={onRestore}>
+        {taskView.tab === 'archived' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => bulkApply((id) => void taskManager.restoreTask(id))}
+          >
             <RotateCcw className="size-3.5" />
             Restore
           </Button>
         )}
-        <Button variant="destructive" size="sm" onClick={onDelete}>
+        <Button variant="destructive" size="sm" onClick={() => void deleteSelectedTasks(projectId)}>
           <Trash2 className="size-3.5" />
           Delete <BoundShortcut command="task.deleteSelected" variant="keycaps" />
         </Button>
-        <Button variant="ghost" size="xs" icon onClick={onClear} aria-label="Clear selection">
+        <Button
+          variant="ghost"
+          size="xs"
+          icon
+          onClick={() => taskView.clear()}
+          aria-label="Clear selection"
+        >
           <X className="size-3.5" />
         </Button>
       </div>
     </ListPopoverCard>
   );
-}
+});
+
+const TaskListContent = observer(function TaskListContent({
+  projectId,
+  taskManager,
+  taskView,
+}: {
+  projectId: string;
+  taskManager: TaskManagerStore;
+  taskView: TaskViewStore;
+}) {
+  const { navigate } = useNavigate();
+  const openCreateTaskModal = useOpenModal('taskModal');
+
+  const [view] = useState(() =>
+    createTaskListView({
+      getTasks: () => listedTasks(taskManager),
+      initialTab: taskView.tab,
+      initialSortBy: taskView.sortBy,
+      selection: taskView,
+    })
+  );
+
+  // Shift-ranges follow the list's visible order; wire it in before any clicks.
+  useLayoutEffect(() => {
+    taskView.attachOrderedIds(() => view.store.orderedIds);
+  }, [taskView, view]);
+
+  return (
+    <view.Root>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3">
+        <TasksTabs view={view} taskView={taskView} taskManager={taskManager} />
+        <Button variant="primary" onClick={() => void openCreateTaskModal({ projectId })}>
+          Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
+        </Button>
+      </div>
+      <CollectionView
+        view={view}
+        renderRow={(task) => <TaskRow task={task} view={view} />}
+        toolbar={<TasksToolbar view={view} taskView={taskView} />}
+        footer={
+          <TasksSelectionBar taskView={taskView} taskManager={taskManager} projectId={projectId} />
+        }
+        onItemClick={(task) => {
+          if (task.data.archivedAt) return;
+          void taskManager.provisionTask(task.data.id);
+          navigate(taskViewDef({ projectId, taskId: task.data.id }));
+        }}
+        emptySlot={
+          taskView.tab === 'active' ? (
+            <TaskListEmptyState projectId={projectId} />
+          ) : (
+            <div className="flex h-full items-center justify-center p-6 text-sm text-foreground-muted">
+              No archived tasks
+            </div>
+          )
+        }
+      />
+    </view.Root>
+  );
+});
 
 export const TaskList = observer(function TaskList() {
   const {
     params: { projectId },
   } = useCurrentViewParams(projectViewDef);
   const taskManager = getTaskManagerStore(projectId);
-  const projectView = getProjectViewStore(projectId);
-  const openCreateTaskModal = useOpenModal('taskModal');
-  const searchRef = useSearchFocusHotkeys();
+  const taskView = getProjectViewStore(projectId)?.taskView ?? null;
 
-  const taskView = projectView?.taskView ?? null;
   const implementation = {
     'task.deleteSelected': () => ({
       availability: () =>
-        taskView && taskView.selectedIds.size > 0 ? enabled : disabled('Select one or more tasks'),
+        taskView && taskView.count > 0 ? enabled : disabled('Select one or more tasks'),
       execute: () => {
         void deleteSelectedTasks(projectId);
       },
@@ -192,46 +238,7 @@ export const TaskList = observer(function TaskList() {
   } satisfies ViewScopeImpl<typeof taskListScope>;
   const { attachRef, instance } = useViewScope(taskListScope({ projectId }), implementation);
 
-  const allTasks = taskManager
-    ? Array.from(taskManager.tasks.values()).filter(
-        (t): t is ReadyTask => t.state !== 'unregistered' && t.data.type !== 'automation-run'
-      )
-    : [];
-  const activeTasks = allTasks.filter((t) => !t.data.archivedAt);
-  const archivedTasks = allTasks.filter((t) => Boolean(t.data.archivedAt));
-
-  const clearSelection = () => taskView?.setSelectedIds(new Set());
-
-  const bulkArchive = () => {
-    if (!taskView) return;
-
-    const ids = [...taskView.selectedIds];
-    ids.forEach((id) => void taskManager?.archiveTask(id));
-    clearSelection();
-  };
-
-  const bulkRestore = () => {
-    if (!taskView) return;
-
-    const ids = [...taskView.selectedIds];
-    ids.forEach((id) => void taskManager?.restoreTask(id));
-    clearSelection();
-  };
-
-  const bulkDelete = () => {
-    void deleteSelectedTasks(projectId);
-  };
-
-  if (!taskView) return null;
-
-  const displayTasks = sortTasks(
-    taskView.tab === 'active' ? activeTasks : archivedTasks,
-    taskView.sortBy
-  );
-  const q = taskView.searchQuery.trim().toLowerCase();
-  const filteredTasks = q
-    ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
-    : displayTasks;
+  if (!taskManager || !taskView) return null;
 
   return (
     <ViewScopeInstanceProvider instance={instance}>
@@ -241,84 +248,11 @@ export const TaskList = observer(function TaskList() {
         className="relative flex h-full min-h-0 w-full flex-col outline-none"
         onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
       >
-        <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <ToggleGroup.Root
-              multiple={false}
-              value={[taskView.tab]}
-              onValueChange={([value]) => {
-                if (value) taskView.setTab(value as 'active' | 'archived');
-              }}
-            >
-              <ToggleGroup.Item value="active">Active ({activeTasks.length})</ToggleGroup.Item>
-              <ToggleGroup.Item value="archived">
-                Archived ({archivedTasks.length})
-              </ToggleGroup.Item>
-            </ToggleGroup.Root>
-            <div className="flex items-center gap-2">
-              <SearchInput
-                ref={searchRef}
-                placeholder="Search tasks…"
-                value={taskView.searchQuery}
-                onChange={(e) => taskView.setSearchQuery(e.target.value)}
-                className="flex-1"
-              />
-              <Button variant="primary" onClick={() => void openCreateTaskModal({ projectId })}>
-                Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
-              </Button>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-foreground-passive">Sort</span>
-            <Select.Root
-              value={taskView.sortBy}
-              onValueChange={(value) => taskView.setSortBy(value as ProjectTaskSortBy)}
-            >
-              <Select.Trigger
-                size="sm"
-                className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
-              >
-                <Select.Value>
-                  {SORT_OPTIONS.find(({ value }) => value === taskView.sortBy)?.label}
-                </Select.Value>
-              </Select.Trigger>
-              <Select.Content align="start" alignItemWithTrigger={false}>
-                {SORT_OPTIONS.map(({ value, label }) => (
-                  <Select.Item key={value} value={value}>
-                    {label}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          </div>
-        </div>
-
-        {filteredTasks.length === 0 && taskView.tab === 'active' ? (
-          <TaskListEmptyState projectId={projectId} />
-        ) : (
-          <TaskVirtualList
-            tasks={filteredTasks}
-            selectedIds={taskView.selectedIds}
-            onToggleSelect={(id, shiftKey) => {
-              if (shiftKey) {
-                taskView.selectRange(
-                  filteredTasks.map((t) => t.data.id),
-                  id
-                );
-              } else {
-                taskView.toggleSelect(id);
-              }
-            }}
-          />
-        )}
-
-        <SelectionBar
-          count={taskView.selectedIds.size}
-          tab={taskView.tab}
-          onClear={clearSelection}
-          onArchive={bulkArchive}
-          onRestore={bulkRestore}
-          onDelete={bulkDelete}
+        <TaskListContent
+          key={projectId}
+          projectId={projectId}
+          taskManager={taskManager}
+          taskView={taskView}
         />
       </div>
     </ViewScopeInstanceProvider>

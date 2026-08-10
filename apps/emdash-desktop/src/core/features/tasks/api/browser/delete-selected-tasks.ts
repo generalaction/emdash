@@ -4,7 +4,7 @@ import { openModal } from '@core/manifests/browser/modal-api';
 
 export function selectedTaskCount(projectId: string | undefined): number {
   if (!projectId) return 0;
-  return getProjectViewStore(projectId)?.taskView.selectedIds.size ?? 0;
+  return getProjectViewStore(projectId)?.taskView.count ?? 0;
 }
 
 export async function deleteSelectedTasks(projectId: string): Promise<void> {
@@ -30,5 +30,5 @@ export async function deleteSelectedTasks(projectId: string): Promise<void> {
     deleteBranch,
     deleteConversations,
   });
-  taskView.setSelectedIds(new Set());
+  taskView.clear();
 }
