@@ -306,6 +306,18 @@ describe('SessionCell idle turns and queue commands', () => {
   it('queues, edits, removes, and reorders queued prompts', () => {
     const { cell } = makeCell();
 
+    // Keep the session busy so reordering an idle queue does not drain its head
+    // (QueueReordered dispatches the new head when the session is idle).
+    cell.push({
+      kind: 'subagent',
+      toolCallId: 'tool-1',
+      agentId: 'agent-1',
+      title: 'Background agent',
+      status: 'in_progress',
+      parentToolCallId: null,
+      background: true,
+    });
+
     expect(isOk(cell.queuePrompt({ text: 'a' }))).toBe(true);
     expect(isOk(cell.queuePrompt({ text: 'b' }))).toBe(true);
     const [first, second] = cell.sessionState.queuedPrompts;
