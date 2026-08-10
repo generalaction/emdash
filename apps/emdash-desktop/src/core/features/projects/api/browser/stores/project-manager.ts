@@ -35,7 +35,6 @@ import {
   getNavigationHistory,
 } from '@core/primitives/navigation/browser/navigation-selectors';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
-import { reconcileKeyedEntities } from '@core/primitives/reconcile/browser/keyed-entity-reconciler';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
@@ -48,11 +47,16 @@ import type {
   StartProjectCreationResult,
 } from '../../../browser/stores/project-creation-types';
 
+interface ProjectMountAttempt {
+  readonly identity: object;
+  readonly promise: Promise<void>;
+}
+
 export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
   pendingCreationIds = observable.set<string>();
   private _projectCreationJobs = new Map<string, { cancel(): Promise<void> }>();
-  private _projectMountPromises = new Map<string, Promise<void>>();
+  private _projectMountAttempts = new Map<string, ProjectMountAttempt>();
   private _loadPromise: Promise<void> | null = null;
   private readonly _projectListScope: Scope = createScope({ label: 'project-list-replica' });
   private _projectListRemote: RemoteModel<typeof projectsWireContract.projectList> | null = null;
@@ -73,7 +77,13 @@ export class ProjectManagerStore {
   }
 
   dispose(): void {
+    if (this._disposed) return;
     this._disposed = true;
+    this._projectMountAttempts.clear();
+    runInAction(() => {
+      for (const project of this.projects.values()) project.mountedProject?.dispose();
+      this.projects.clear();
+    });
     void this._projectListScope.dispose();
     void this._projectListRemote?.dispose();
     globalThis.window?.removeEventListener('online', this._handleOnline);
@@ -108,9 +118,9 @@ export class ProjectManagerStore {
             return;
           }
           if (!current.value) return;
-          const toMount = this._reconcileProjectRows(current.value.projects);
+          const toMount = this._applyProjectListSnapshot(current.value.projects);
           if (resolved) {
-            void Promise.allSettled(toMount.map((id) => this.mountProject(id)));
+            void Promise.allSettled(toMount.map((id) => this._startOrReuseProjectMount(id, false)));
             return;
           }
           resolved = true;
@@ -119,35 +129,55 @@ export class ProjectManagerStore {
         { scope: this._projectListScope }
       );
     });
-    await Promise.allSettled(initialMounts.map((id) => this.mountProject(id)));
+    await Promise.allSettled(initialMounts.map((id) => this._startOrReuseProjectMount(id, false)));
   }
 
-  private _reconcileProjectRows(rows: readonly (LocalProject | SshProject)[]): string[] {
+  private _applyProjectListSnapshot(rows: readonly (LocalProject | SshProject)[]): string[] {
+    if (this._disposed) return [];
     const toMount: string[] = [];
-    reconcileKeyedEntities({
-      rows,
-      stores: this.projects,
-      getRowId: (project) => project.id,
-      create: (project) => {
-        toMount.push(project.id);
-        return createUnmountedProject(project, { kind: 'idle' });
-      },
-      update: (current, project) => {
-        if (isUnregisteredProject(current)) {
-          current.transitionToUnmounted(project, { kind: 'idle' });
-          toMount.push(project.id);
-          return;
-        }
-        if (current.data) {
-          Object.assign(current.data, project);
-          current.name = project.name;
-          current.createdAt = project.createdAt;
-        }
-      },
-      shouldKeepMissing: (projectId) => this.pendingCreationIds.has(projectId),
-      remove: (current) => current.mountedProject?.dispose(),
+    const seen = new Set(rows.map((project) => project.id));
+    for (const project of rows) {
+      if (this._applyProjectSnapshot(project)) toMount.push(project.id);
+    }
+    runInAction(() => {
+      for (const [projectId, project] of this.projects) {
+        if (seen.has(projectId) || this.pendingCreationIds.has(projectId)) continue;
+        this.projects.delete(projectId);
+        this._projectMountAttempts.delete(projectId);
+        project.mountedProject?.dispose();
+      }
     });
     return toMount;
+  }
+
+  private _applyProjectSnapshot(project: LocalProject | SshProject): boolean {
+    let shouldMount = false;
+    runInAction(() => {
+      const current = this.projects.get(project.id);
+      if (!current) {
+        this.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
+        shouldMount = true;
+        return;
+      }
+      if (isUnregisteredProject(current)) {
+        current.transitionToUnmounted(project, { kind: 'idle' });
+        shouldMount = true;
+        return;
+      }
+      current.updateData(project);
+      if (isUnmountedProject(current) && current.unmounted.kind === 'idle') {
+        shouldMount = true;
+      }
+    });
+    return shouldMount;
+  }
+
+  private _applyProjectSnapshotAndEnsureMounted(project: LocalProject | SshProject): void {
+    if (!this._applyProjectSnapshot(project)) return;
+    void this._startOrReuseProjectMount(project.id, false).catch((error: unknown) => {
+      if (this._disposed) return;
+      log.error('Failed to mount observed project', { projectId: project.id, error });
+    });
   }
 
   async createProject(
@@ -274,7 +304,7 @@ export class ProjectManagerStore {
           if (data.initGitRepository) {
             await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           }
-          this._setAndOpenProject(projectId, project);
+          this._applyProjectSnapshotAndEnsureMounted(project);
           result = ok();
           break;
         }
@@ -296,7 +326,7 @@ export class ProjectManagerStore {
             break;
           }
 
-          this._setAndOpenProject(projectId, projectResult.data);
+          this._applyProjectSnapshotAndEnsureMounted(projectResult.data);
           result = ok();
           break;
         }
@@ -341,7 +371,7 @@ export class ProjectManagerStore {
 
           const project = projectResult.data;
           await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
-          this._setAndOpenProject(projectId, project);
+          this._applyProjectSnapshotAndEnsureMounted(project);
           result = ok();
           break;
         }
@@ -372,86 +402,23 @@ export class ProjectManagerStore {
   }
 
   mountProject(projectId: string): Promise<void> {
-    const inFlight = this._projectMountPromises.get(projectId);
-    if (inFlight) return inFlight;
+    return this._startOrReuseProjectMount(projectId, true);
+  }
 
+  private _startOrReuseProjectMount(projectId: string, retryFailed: boolean): Promise<void> {
+    if (this._disposed) return Promise.resolve();
+    const inFlight = this._projectMountAttempts.get(projectId);
+    if (inFlight) return inFlight.promise;
     const project = this.projects.get(projectId);
     if (!project || !isUnmountedProject(project)) return Promise.resolve();
+    if (!retryFailed && project.unmounted.kind !== 'idle') return Promise.resolve();
 
-    runInAction(() => {
-      project.unmounted = { kind: 'opening' };
-    });
-
-    const promise = getProjectsWireClient()
-      .then((client) => client.openProject({ projectId }))
-      .then(async (openResult) => {
-        if (!openResult.success) {
-          runInAction(() => {
-            const current = this.projects.get(projectId);
-            if (current && isUnmountedProject(current)) {
-              if (openResult.error.type === 'path-not-found') {
-                current.unmounted = {
-                  kind: 'failed',
-                  message: openResult.error.path,
-                  code: 'path-not-found',
-                };
-              } else if (openResult.error.type === 'ssh-disconnected') {
-                current.unmounted = {
-                  kind: 'failed',
-                  message: openResult.error.connectionId,
-                  code: 'ssh-disconnected',
-                };
-              } else {
-                current.unmounted = { kind: 'failed', message: openResult.error.message };
-              }
-            }
-          });
-          return;
-        }
-        const current = this.projects.get(projectId);
-        if (!current || !isUnmountedProject(current)) return;
-        const projectData = current.data;
-        if (openResult.data.repositoryWorkspaceId) {
-          runInAction(() => {
-            projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
-          });
-        }
-        const mountedProject = new MountedProject(projectData);
-        try {
-          await mountedProject.space.ready;
-        } catch (error) {
-          mountedProject.dispose();
-          throw error;
-        }
-        runInAction(() => {
-          if (this.projects.get(projectId) === current && isUnmountedProject(current)) {
-            current.transitionToMounted(mountedProject);
-          } else {
-            mountedProject.dispose();
-          }
-        });
-        // Load the task list before provisioning so the tasks map is populated.
-        const taskManager = this.projects
-          .get(projectId)
-          ?.mountedProject?.get(taskManagerStoreToken);
-        if (taskManager) {
-          await taskManager.loadTasks();
-          const nav = getNavigation();
-          const navParams = nav.currentRef.params as {
-            projectId?: string;
-            taskId?: string;
-          };
-          const navTaskId =
-            nav.currentViewId === 'task' && navParams?.projectId === projectId
-              ? navParams.taskId
-              : undefined;
-          if (navTaskId) {
-            taskManager.provisionTask(navTaskId).catch(() => {});
-          }
-        }
-      })
+    const identity = {};
+    const promise = Promise.resolve()
+      .then(() => this._runProjectMountAttempt(projectId, identity))
       .catch((err: unknown) => {
         runInAction(() => {
+          if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
             current.unmounted = {
@@ -463,15 +430,125 @@ export class ProjectManagerStore {
         throw err;
       })
       .finally(() => {
-        this._projectMountPromises.delete(projectId);
+        if (this._isCurrentProjectMountAttempt(projectId, identity)) {
+          this._projectMountAttempts.delete(projectId);
+        }
       });
 
-    this._projectMountPromises.set(projectId, promise);
+    this._projectMountAttempts.set(projectId, { identity, promise });
+    runInAction(() => {
+      project.unmounted = { kind: 'opening' };
+    });
     return promise;
+  }
+
+  private async _runProjectMountAttempt(projectId: string, identity: object): Promise<void> {
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    const client = await getProjectsWireClient();
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    const openResult = await client.openProject({ projectId });
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    if (!openResult.success) {
+      runInAction(() => {
+        if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+        const current = this.projects.get(projectId);
+        if (!current || !isUnmountedProject(current)) return;
+        if (openResult.error.type === 'path-not-found') {
+          current.unmounted = {
+            kind: 'failed',
+            message: openResult.error.path,
+            code: 'path-not-found',
+          };
+        } else if (openResult.error.type === 'ssh-disconnected') {
+          current.unmounted = {
+            kind: 'failed',
+            message: openResult.error.connectionId,
+            code: 'ssh-disconnected',
+          };
+        } else {
+          current.unmounted = { kind: 'failed', message: openResult.error.message };
+        }
+      });
+      return;
+    }
+
+    const current = this.projects.get(projectId);
+    if (!current || !isUnmountedProject(current)) return;
+    const projectData = current.data;
+    if (openResult.data.repositoryWorkspaceId) {
+      runInAction(() => {
+        if (this._isCurrentProjectMountAttempt(projectId, identity)) {
+          projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
+        }
+      });
+    }
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+
+    const mountedProject = new MountedProject(projectData);
+    try {
+      await mountedProject.space.ready;
+    } catch (error) {
+      mountedProject.dispose();
+      throw error;
+    }
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) {
+      mountedProject.dispose();
+      return;
+    }
+
+    let installed = false;
+    runInAction(() => {
+      if (
+        this._isCurrentProjectMountAttempt(projectId, identity) &&
+        this.projects.get(projectId) === current &&
+        isUnmountedProject(current)
+      ) {
+        current.transitionToMounted(mountedProject);
+        installed = true;
+      } else {
+        mountedProject.dispose();
+      }
+    });
+    if (installed) {
+      void this._hydrateMountedProject(mountedProject).catch((error: unknown) => {
+        if (this.projects.get(projectId)?.mountedProject !== mountedProject) return;
+        log.error('Failed to hydrate mounted project tasks', { projectId, error });
+      });
+    }
+  }
+
+  private _isCurrentProjectMountAttempt(projectId: string, identity: object): boolean {
+    return this._projectMountAttempts.get(projectId)?.identity === identity;
+  }
+
+  private async _hydrateMountedProject(mountedProject: MountedProject): Promise<void> {
+    const taskManager = mountedProject.get(taskManagerStoreToken);
+    await taskManager.loadTasks();
+    if (
+      this._disposed ||
+      this.projects.get(mountedProject.data.id)?.mountedProject !== mountedProject
+    ) {
+      return;
+    }
+
+    const nav = getNavigation();
+    const navParams = nav.currentRef.params as {
+      projectId?: string;
+      taskId?: string;
+    };
+    const navTaskId =
+      nav.currentViewId === 'task' && navParams?.projectId === mountedProject.data.id
+        ? navParams.taskId
+        : undefined;
+    if (navTaskId) taskManager.provisionTask(navTaskId).catch(() => {});
   }
 
   async deleteProject(projectId: string): Promise<void> {
     const snapshot = this.projects.get(projectId);
+    const resumeMountOnFailure =
+      snapshot !== undefined &&
+      isUnmountedProject(snapshot) &&
+      snapshot.unmounted.kind === 'opening';
     const taskIds = [...(snapshot?.mountedProject?.get(taskManagerStoreToken).tasks.keys() ?? [])];
     const projectIds = [...this.projects.keys()];
     const deletedIndex = projectIds.indexOf(projectId);
@@ -490,6 +567,7 @@ export class ProjectManagerStore {
 
     runInAction(() => {
       this.projects.delete(projectId);
+      this._projectMountAttempts.delete(projectId);
     });
     try {
       const result = await (await getProjectsWireClient()).delete({ projectId });
@@ -520,6 +598,15 @@ export class ProjectManagerStore {
       runInAction(() => {
         if (snapshot) this.projects.set(projectId, snapshot);
       });
+      if (resumeMountOnFailure) {
+        void this.mountProject(projectId).catch((error: unknown) => {
+          if (this._disposed) return;
+          log.error('Failed to resume project mount after deletion rollback', {
+            projectId,
+            error,
+          });
+        });
+      }
       throw err;
     }
   }
@@ -588,22 +675,24 @@ export class ProjectManagerStore {
 
     const newData: SshProject = { ...store.data, connectionId: newConnectionId };
 
+    void this._remountProject(projectId, newData).catch(() => {});
+  }
+
+  private _remountProject(projectId: string, nextData: LocalProject | SshProject): Promise<void> {
+    this._projectMountAttempts.delete(projectId);
+
     runInAction(() => {
       const current = this.projects.get(projectId);
-      if (!current || !current.data || current.data.type !== 'ssh') return;
+      if (!current || !current.data) return;
       if (isMountedProject(current)) {
-        current.transitionToUnmounted(newData, { kind: 'opening' });
+        current.transitionToUnmounted(nextData, { kind: 'opening' });
       } else if (isUnmountedProject(current)) {
-        current.data = newData;
+        current.updateData(nextData);
         current.unmounted = { kind: 'opening' };
       }
     });
 
-    // Wait for any existing in-flight mount to settle before attempting a fresh mount
-    const inFlight = this._projectMountPromises.get(projectId);
-    if (inFlight) await inFlight.catch(() => {});
-
-    this.mountProject(projectId).catch(() => {});
+    return this.mountProject(projectId);
   }
 
   removeUnregisteredProject(projectId: string): void {
@@ -617,18 +706,6 @@ export class ProjectManagerStore {
 
   cancelProjectCreation(projectId: string): void {
     void this._projectCreationJobs.get(projectId)?.cancel();
-  }
-
-  private _setAndOpenProject(id: string, project: LocalProject | SshProject): void {
-    runInAction(() => {
-      const current = this.projects.get(id);
-      if (current) {
-        current.transitionToUnmounted(project, { kind: 'opening' });
-      } else {
-        this.projects.set(id, createUnmountedProject(project, { kind: 'opening' }));
-      }
-    });
-    void this.mountProject(id);
   }
 
   private async _saveInitialGitHubAccountSetting(

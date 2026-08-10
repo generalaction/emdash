@@ -25,7 +25,6 @@ export type CreationStatus =
 export type UnmountedStatus =
   | { kind: 'idle' }
   | { kind: 'opening' }
-  | { kind: 'closing' }
   | {
       kind: 'failed';
       message: string;
@@ -112,6 +111,23 @@ export class ProjectStore {
     this.state = 'mounted';
     this.creation = null;
     this.unmounted = null;
+    this.mode = null;
+  }
+
+  updateData(data: LocalProject | SshProject): void {
+    if (!this.data) throw new Error(`Cannot update unregistered project ${this.id}`);
+    if (data.id !== this.id) {
+      throw new Error(`Cannot change project identity from ${this.id} to ${data.id}`);
+    }
+    if (data.type !== this.data.type) {
+      throw new Error(
+        `Cannot change project ${this.id} type from ${this.data.type} to ${data.type}`
+      );
+    }
+
+    Object.assign(this.data, data);
+    this.name = data.name;
+    this.createdAt = data.createdAt;
   }
 
   transitionToUnmounted(
@@ -127,23 +143,7 @@ export class ProjectStore {
     this.state = 'unmounted';
     this.creation = null;
     this.unmounted = unmounted;
-  }
-
-  transitionToUnregistered(
-    id: string,
-    name: string,
-    creation: CreationStatus,
-    mode: ProjectMode
-  ): void {
-    this.mountedProject?.dispose();
-    this.mountedProject = null;
-    this.data = null;
-    this.id = id;
-    this.name = name;
-    this.state = 'unregistered';
-    this.creation = creation;
-    this.unmounted = null;
-    this.mode = mode;
+    this.mode = null;
   }
 
   updateCreationProgress(
