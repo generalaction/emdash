@@ -89,9 +89,6 @@ importers:
       electron-updater:
         specifier: ^6.3.9
         version: 6.8.9
-      glob:
-        specifier: ^13.0.6
-        version: 13.0.6
       human-id:
         specifier: ^4.1.2
         version: 4.2.0
@@ -488,9 +485,6 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.10.0)
-      glob:
-        specifier: ^13.0.6
-        version: 13.0.6
       minimatch:
         specifier: ^10.2.5
         version: 10.2.5

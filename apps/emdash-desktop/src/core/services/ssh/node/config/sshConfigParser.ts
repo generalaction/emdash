@@ -1,8 +1,7 @@
 // Best-effort listing of ~/.ssh/config aliases for UI import. Not canonical for connection behavior.
-import { readFile } from 'node:fs/promises';
+import { glob, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { glob } from 'glob';
 import type { SshConfigHost } from '@core/primitives/ssh/api';
 
 /**
@@ -83,7 +82,12 @@ async function resolveIncludePaths(value: string, configDir: string): Promise<st
       const absolutePattern = isAbsolute(expandedPattern)
         ? expandedPattern
         : resolve(configDir, expandedPattern);
-      return await glob(absolutePattern, { nodir: true });
+      const files: string[] = [];
+      for await (const match of glob(absolutePattern)) {
+        const matchStat = await stat(match).catch(() => null);
+        if (matchStat?.isFile()) files.push(match);
+      }
+      return files;
     })
   );
 
