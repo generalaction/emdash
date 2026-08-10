@@ -161,9 +161,4 @@ export {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from './workspace-icon/workspace-icon';
-export {
-  WorkspacesList,
-  type WorkspacesListItem,
-  type WorkspacesListProps,
-} from './workspaces-list/workspaces-list';
 export { McpIcon, type McpIconProps } from './mcp-icon/mcp-icon';
