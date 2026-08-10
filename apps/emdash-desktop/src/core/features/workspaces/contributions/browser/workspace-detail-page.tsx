@@ -6,10 +6,18 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { RelativeTime, Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
-import { WifiOffIcon } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  RelativeTime,
+  Spinner,
+  toast,
+  Tooltip,
+} from '@emdash/ui/react/primitives';
+import { useQueryClient } from '@tanstack/react-query';
+import { BrushCleaningIcon, EllipsisIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
@@ -19,8 +27,10 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
+import { getWorkspacesWireClient } from '../../api/browser/client';
 import {
   deleteProjectWorkspaces,
+  PROJECT_WORKSPACE_USAGE_QUERY_KEY,
   type WorkspacesScope,
 } from '../../api/browser/use-workspace-groups';
 import { useWorkspaceRows } from '../../api/browser/use-workspace-rows';
@@ -56,7 +66,26 @@ type WorkspaceDetailListItem = {
   statusMessage?: string;
   scriptIssues: WorkspaceScriptIssue[];
   pathIssue?: ProjectWorkspacePathIssue;
+  row: ProjectWorkspaceRow;
 };
+
+type WorkspaceRowActionHandlers = {
+  onCleanArtifacts: (item: WorkspaceDetailListItem) => void;
+  onDelete: (item: WorkspaceDetailListItem) => void;
+};
+
+function buildDetailColumns(
+  handlers: WorkspaceRowActionHandlers
+): ColumnListColumn<WorkspaceDetailListItem>[] {
+  return [
+    ...DETAIL_COLUMNS,
+    {
+      id: 'actions',
+      width: '2.5rem',
+      cell: (item) => <RowActionsMenu item={item} handlers={handlers} />,
+    },
+  ];
+}
 
 const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
   {
@@ -143,6 +172,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   onDeletedAll?: () => void;
 }) {
   const openConfirm = useOpenModal('confirmActionModal');
+  const queryClient = useQueryClient();
   const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: connected });
   const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
@@ -209,6 +239,94 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     }
   }, [group, onDeletedAll, openConfirm]);
 
+  const refreshUsage = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: [PROJECT_WORKSPACE_USAGE_QUERY_KEY, projectId],
+    });
+  }, [projectId, queryClient]);
+
+  const handleCleanArtifacts = useCallback(
+    async (item: WorkspaceDetailListItem) => {
+      const { row } = item;
+      const outcome = await openConfirm({
+        title: `Clean artifacts for ${item.name}?`,
+        description: row.hasActiveSessions
+          ? 'This stops active sessions, runs teardown scripts, and removes gitignored artifacts. Tasks remain restorable, but dependencies may need to be restored.'
+          : 'This runs teardown scripts and removes gitignored dependencies, build output, and caches. The worktree and its tasks stay intact.',
+        confirmLabel: 'Clean Artifacts',
+      });
+      if (!outcome.success) return;
+
+      try {
+        const client = await getWorkspacesWireClient();
+        const result = await client.archive({
+          projectId: row.projectId,
+          workspaceId: row.workspaceId ?? undefined,
+          workspacePath: row.path,
+          branchName: row.branch,
+        });
+        if (result.success) {
+          toast(`Queued artifact cleanup for ${item.name}`);
+        } else {
+          toast.error('Could not clean artifacts', { description: result.error.message });
+        }
+      } catch (error) {
+        toast.error('Could not clean artifacts', {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+      refreshUsage();
+    },
+    [openConfirm, refreshUsage]
+  );
+
+  const handleDeleteRow = useCallback(
+    async (item: WorkspaceDetailListItem) => {
+      const { row } = item;
+      const outcome = await openConfirm({
+        title: `Delete ${item.name}?`,
+        description: row.hasActiveSessions
+          ? 'This removes the workspace and its linked tasks. Active sessions will be stopped.'
+          : 'This removes the workspace. Linked tasks are deleted with their owned worktrees.',
+        confirmLabel: 'Delete',
+        variant: 'destructive',
+        // Unchecked default (spec §7.1): removal keeps conversation records.
+        checkbox: { label: 'Delete their conversations too' },
+      });
+      if (!outcome.success) return;
+
+      try {
+        const result = await deleteProjectWorkspaces({
+          projectId: row.projectId,
+          paths: [row.path],
+          deleteConversations: outcome.data?.checked ?? false,
+        });
+        const failure = result.results.find((entry) => !entry.success);
+        if (failure && !failure.success) {
+          toast.error('Could not delete workspace', { description: failure.message });
+        } else {
+          toast(`Deleted ${item.name}`);
+        }
+        // No cache invalidation for rows: the mirror live model streams the deletion.
+      } catch (error) {
+        toast.error('Could not delete workspace', {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+      refreshUsage();
+    },
+    [openConfirm, refreshUsage]
+  );
+
+  const columns = useMemo(
+    () =>
+      buildDetailColumns({
+        onCleanArtifacts: (item) => void handleCleanArtifacts(item),
+        onDelete: (item) => void handleDeleteRow(item),
+      }),
+    [handleCleanArtifacts, handleDeleteRow]
+  );
+
   if (!connected) return <DetailOfflineState machineName={machineName} />;
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
   if (workspaceQuery.isError) return <DetailErrorState error={workspaceQuery.error} />;
@@ -237,7 +355,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         <WorkspaceSection label="Worktrees">
           <ColumnList
             items={worktreeItems}
-            columns={DETAIL_COLUMNS}
+            columns={columns}
             getItemKey={(item) => item.id}
             emptySlot={<WorktreesEmptyState />}
           />
@@ -284,7 +402,51 @@ function buildWorktreeItem({
     statusMessage: joined.statusMessage,
     scriptIssues: workspaceScriptIssues(row),
     ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
+    row,
   };
+}
+
+function RowActionsMenu({
+  item,
+  handlers,
+}: {
+  item: WorkspaceDetailListItem;
+  handlers: WorkspaceRowActionHandlers;
+}) {
+  const { canCleanArtifacts, canDelete } = item.row;
+  if (!canCleanArtifacts && !canDelete) return null;
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          icon
+          aria-label={`Actions for ${item.name}`}
+        >
+          <EllipsisIcon aria-hidden />
+        </Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end">
+        <DropdownMenu.Item
+          disabled={!canCleanArtifacts}
+          onClick={() => handlers.onCleanArtifacts(item)}
+        >
+          <BrushCleaningIcon aria-hidden />
+          Clean Artifacts
+        </DropdownMenu.Item>
+        <DropdownMenu.Item
+          variant="destructive"
+          disabled={!canDelete}
+          onClick={() => handlers.onDelete(item)}
+        >
+          <Trash2Icon aria-hidden />
+          Delete
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  );
 }
 
 /**
