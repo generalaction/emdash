@@ -115,7 +115,7 @@
     "devicon": "^2.17.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.24.2",
-    "electron": "^40.7.0",
+    "electron": "40.10.2",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "framer-motion": "^12.33.0",
