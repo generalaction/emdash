@@ -24,7 +24,7 @@ import { useCurrentViewParams } from '@core/primitives/navigation/browser/naviga
 import {
   usePullRequestsStore,
   type PullRequestListView,
-} from '@root/src/core/services/pull-requests/browser';
+} from '@core/services/pull-requests/browser';
 import { PrRow } from './pr-row';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';
@@ -227,6 +227,29 @@ const PrSortSelect = observer(function PrSortSelect({ view }: { view: PullReques
   return <SortSelect sort={sort} />;
 });
 
+function PrErrorState({ error }: { error: string | null }) {
+  return (
+    <div className="flex flex-col items-center gap-1 p-6 text-center">
+      <p className="text-sm font-medium">Could not load pull requests</p>
+      {error && <p className="text-sm text-foreground-muted">{error}</p>}
+    </div>
+  );
+}
+
+/** Search bound directly to the view's search slice (needs Root context). */
+const PrSearchInput = observer(function PrSearchInput({ view }: { view: PullRequestListView }) {
+  const searchRef = useSearchFocusHotkeys();
+  const search = view.useSearch();
+  return (
+    <SearchInput
+      ref={searchRef}
+      placeholder="Search by title, branch, or number..."
+      value={search.query}
+      onChange={(e) => search.setQuery(e.target.value)}
+    />
+  );
+});
+
 const PullRequestViewContent = observer(function PullRequestViewContent({
   projectId,
   repositoryUrl,
@@ -238,8 +261,6 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
   const view = store.listView;
   const {
     statusFilter,
-    query,
-    setQuery,
     syncing,
     selectedAuthorLogin,
     setSelectedAuthorLogin,
@@ -261,7 +282,6 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedLabelItems,
     hasPills,
   } = usePrViewState(repositoryUrl);
-  const searchRef = useSearchFocusHotkeys();
 
   const toolbar = (
     <div className="flex flex-col gap-4">
@@ -278,12 +298,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
         </ToggleGroup.Root>
 
         <div className="flex items-center gap-2">
-          <SearchInput
-            ref={searchRef}
-            placeholder="Search by title, branch, or number..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <PrSearchInput view={view} />
           <ContextMenu.Root>
             <ContextMenu.Trigger>
               <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
@@ -387,19 +402,21 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
           />
         }
         loadingSlot={<p className="py-4 text-center text-sm text-foreground-muted">Loading…</p>}
-        errorSlot={
-          <div className="flex flex-col items-center gap-1 p-6 text-center">
-            <p className="text-sm font-medium">Could not load pull requests</p>
-            {error && <p className="text-sm text-foreground-muted">{error}</p>}
-          </div>
-        }
+        errorSlot={<PrErrorState error={error} />}
+        // Refresh/sync failures don't set the list view's error status, so an
+        // empty list surfaces them here — matching the old error-before-empty
+        // precedence.
         emptySlot={
-          <div className="flex flex-col items-center gap-1 p-6 text-center">
-            <p className="text-sm font-medium">No pull requests</p>
-            <p className="text-sm text-foreground-muted">
-              No pull requests available or none that match this filter
-            </p>
-          </div>
+          error ? (
+            <PrErrorState error={error} />
+          ) : (
+            <div className="flex flex-col items-center gap-1 p-6 text-center">
+              <p className="text-sm font-medium">No pull requests</p>
+              <p className="text-sm text-foreground-muted">
+                No pull requests available or none that match this filter
+              </p>
+            </div>
+          )
         }
       />
     </view.Root>

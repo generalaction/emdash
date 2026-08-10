@@ -17,7 +17,6 @@ export function usePrViewState(repositoryUrl: string) {
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
   const [selectedAssigneeUserId, setSelectedAssigneeUserId] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
@@ -120,11 +119,6 @@ export function usePrViewState(repositoryUrl: string) {
   return {
     // filter state
     statusFilter,
-    query,
-    setQuery: (value: string) => {
-      setQuery(value);
-      listView.search?.setQuery(value);
-    },
     syncing: isSyncing,
     selectedAuthorLogin: selectedAuthorUserId,
     setSelectedAuthorLogin: setSelectedAuthorUserId,
