@@ -6,7 +6,6 @@ export default defineConfig({
     'primitives-host-api': 'src/primitives/host/api/index.ts',
     'primitives-host-resource-api': 'src/primitives/host-resource/api/index.ts',
     'primitives-lib-api': 'src/primitives/lib/api/index.ts',
-    'primitives-workflow-api': 'src/primitives/workflow/api/index.ts',
     'primitives-skills-api': 'src/primitives/skills/api/index.ts',
     'primitives-mcp-api': 'src/primitives/mcp/api/index.ts',
     'primitives-acp-transcript-api': 'src/primitives/acp-transcript/api/index.ts',

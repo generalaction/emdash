@@ -1,6 +1,5 @@
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { ok } from '@emdash/shared';
-import { createMachine, type Machine, type MachineBatch } from '#primitives/machine/api';
 import type {
   AcpPermissionRequest,
   AcpRuntimeError,
@@ -11,6 +10,7 @@ import type {
   StopReason,
 } from '#runtimes/acp/api';
 import { acpErr, makeTurnId } from '#runtimes/acp/api';
+import { createMachine, type Machine, type MachineBatch } from './primitive';
 
 export type SessionPhase =
   | { kind: 'starting' }

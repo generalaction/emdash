@@ -79,8 +79,9 @@ Use `createSharedResource` for the same lease behavior around one unkeyed
 resource, and `createAsyncCache` for retryable cached async values with no
 finalizer.
 
-Command/event/effect machines live in `@emdash/core` (`core/primitives/machine`),
-beside their consumers. Use Wire-owned primitives when the lifecycle is
+The command/event/effect machine primitive is internal to `@emdash/core`'s acp
+runtime (`packages/core/src/runtimes/acp/node/machine/primitive/`) and is not
+offered as a shared building block. Use Wire-owned primitives when the lifecycle is
 protocol-specific: Wire workers belong to `@emdash/wire/worker` because they
 supervise process generations and keep a stable typed Wire client, and
 `LiveJobSource` belongs to `@emdash/wire/live` because it publishes cancellable
