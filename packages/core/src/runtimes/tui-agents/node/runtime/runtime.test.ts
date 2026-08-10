@@ -12,51 +12,14 @@ import type {
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import type { IExecutionContext } from '#services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { FakePtySpawner } from '#services/pty/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
+import {
+  expectNoSessionResidue,
+  mapContainer,
+  type LeakCheckContainer,
+} from '#services/session-lifecycle/node/testing';
 import { TuiAgentsRuntime } from './runtime';
-
-class FakePtyProcess implements PtyProcess {
-  readonly write = vi.fn();
-  readonly resize = vi.fn();
-  readonly kill = vi.fn();
-  private readonly dataHandlers: Array<(data: string) => void> = [];
-  private readonly exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-
-  onData(handler: (data: string) => void): void {
-    this.dataHandlers.push(handler);
-  }
-
-  onExit(handler: (info: PtyExitInfo) => void): void {
-    this.exitHandlers.push(handler);
-  }
-
-  emitData(data: string): void {
-    for (const handler of this.dataHandlers) handler(data);
-  }
-
-  emitExit(info: PtyExitInfo): void {
-    for (const handler of this.exitHandlers) handler(info);
-  }
-
-  getPid(): number {
-    return 1234;
-  }
-}
-
-class FakePtySpawner implements PtySpawner {
-  readonly specs: PtySpawnSpec[] = [];
-  readonly processes: FakePtyProcess[] = [];
-  failWith: Error | null = null;
-
-  spawn(spec: PtySpawnSpec): PtyProcess {
-    if (this.failWith) throw this.failWith;
-    this.specs.push(spec);
-    const process = new FakePtyProcess();
-    this.processes.push(process);
-    return process;
-  }
-}
 
 function createRuntime(
   options: {
@@ -224,13 +187,13 @@ describe('TuiAgentsRuntime', () => {
     await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
     runtime.stopSession('conversation-1');
 
-    expect(spawner.processes[0]!.kill).toHaveBeenCalled();
+    expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => {
       expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-test']);
     });
 
     await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    runtime.deleteSession('conversation-1');
+    await runtime.deleteSession('conversation-1');
 
     await vi.waitFor(() => {
       expect(exec.exec).toHaveBeenCalledTimes(2);
@@ -271,7 +234,10 @@ describe('TuiAgentsRuntime', () => {
 
     await clock.advanceBy(1_200);
 
-    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
+    await vi.waitFor(() => {
+      expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
+    });
+    expectNoSessionResidue('conversation-1', leakContainers(runtime));
   });
 
   it('idle sweep skips the tmux spawn when no sessions are tracked', async () => {
@@ -311,7 +277,7 @@ describe('TuiAgentsRuntime', () => {
       '-F',
       '#{session_name}\t#{session_activity}',
     ]);
-    expect(spawner.processes[0]!.kill).not.toHaveBeenCalled();
+    expect(spawner.processes[0]!.killCount).toBe(0);
     expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
       'conversation-1'
     );
@@ -363,6 +329,62 @@ describe('TuiAgentsRuntime', () => {
     });
   });
 
+  it('stopSession retains scrollback, stays sweep-inert, and remains resumable', async () => {
+    const clock = createManualClock(0);
+    const { runtime, spawner } = createRuntime({
+      clock,
+      lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
+    });
+
+    await runtime.startSession(startInput());
+    spawner.processes[0]!.emitData('scrollback line\n');
+    runtime.stopSession('conversation-1');
+
+    const list = peek(runtime.sessionsLiveModel.get(undefined)!.states.list);
+    expect(list['conversation-1']).toMatchObject({ status: 'exited' });
+    const snapshot = await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    expect(JSON.stringify(snapshot)).toContain('scrollback line');
+
+    // The stopped config tombstone keeps the key sweep-inert: nothing is evicted.
+    await clock.advanceBy(2_400);
+    expect(
+      peek(runtime.sessionsLiveModel.get(undefined)!.states.list)['conversation-1']
+    ).toBeDefined();
+
+    await expect(runtime.startSession(startInput())).resolves.toEqual(ok({ outcome: 'started' }));
+    expect(spawner.processes).toHaveLength(2);
+  });
+
+  it('deleteSession evicts a running session without leaking per-key state', async () => {
+    const { runtime, spawner } = createRuntime();
+
+    await runtime.startSession(startInput());
+    spawner.processes[0]!.emitData('output\n');
+
+    await runtime.deleteSession('conversation-1');
+
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
+    expectNoSessionResidue('conversation-1', leakContainers(runtime));
+  });
+
+  it('aborts reconcile without suspending intents when the tmux listing fails', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      payload: startInput({ tmuxSessionName: 'emdash-test' }),
+    });
+    const exec = vi.fn(() => Promise.reject(new Error('tmux unavailable')));
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec } });
+
+    await runtime.reconcile();
+
+    expect(spawner.specs).toHaveLength(0);
+    expect(intents.snapshot()[0]).toMatchObject({
+      conversationId: 'conversation-1',
+      status: 'active',
+    });
+  });
+
   it('removes persisted TUI intent when a session is killed', async () => {
     const intents = createMemorySessionIntentStore();
     const { runtime, spawner } = createRuntime({ intents });
@@ -370,10 +392,11 @@ describe('TuiAgentsRuntime', () => {
     await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
 
-    runtime.killSession('conversation-1');
+    await runtime.killSession('conversation-1');
 
-    expect(spawner.processes[0]!.kill).toHaveBeenCalled();
+    expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
+    expectNoSessionResidue('conversation-1', leakContainers(runtime));
   });
 });
 
@@ -390,7 +413,6 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     expect(reports.started).toEqual([
       { conversationId: 'conversation-1', providerSessionId: null, resumeOutcome: null },
     ]);
-    expect(reports.activities).toContain('conversation-1');
   });
 
   it('reports the caller-declared emdash-chosen handle on a fresh spawn (spec §3.1)', async () => {
@@ -460,4 +482,44 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
       expect(reports.ended).toEqual(['conversation-1', 'conversation-1']);
     });
   });
+
+  it('reports session end when a running session is deleted', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime } = createRuntime({ conversationReports: reports });
+
+    await runtime.startSession(startInput());
+    await runtime.deleteSession('conversation-1');
+
+    expect(reports.ended).toEqual(['conversation-1']);
+  });
 });
+
+type RuntimeInternals = {
+  sessions: Map<string, unknown>;
+  logs: Map<string, unknown>;
+  configs: Map<string, unknown>;
+  generations: Map<string, unknown>;
+  unexpectedRespawns: Map<string, unknown>;
+  registry: { get(key: string): unknown };
+};
+
+/** Reflects over the runtime's per-key maps so the shared leak check can see them. */
+function leakContainers(runtime: TuiAgentsRuntime): LeakCheckContainer[] {
+  const internals = runtime as unknown as RuntimeInternals;
+  return [
+    mapContainer('sessions', internals.sessions),
+    mapContainer('logs', internals.logs),
+    mapContainer('configs', internals.configs),
+    mapContainer('generations', internals.generations),
+    mapContainer('unexpectedRespawns', internals.unexpectedRespawns),
+    { name: 'ptyRegistry', has: (key) => internals.registry.get(key) !== undefined },
+    {
+      name: 'sessionsList',
+      has: (key) => key in peek(runtime.sessionsLiveModel.get(undefined)!.states.list),
+    },
+    {
+      name: 'agentStatesList',
+      has: (key) => key in peek(runtime.agentStatesLiveModel.get(undefined)!.states.list),
+    },
+  ];
+}

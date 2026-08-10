@@ -19,6 +19,7 @@ function createTracker() {
   const tracker = new TuiAgentStates(
     sessions,
     agentStates,
+    () => 1_000,
     onSessionIdChanged,
     onAgentStateChanged
   );

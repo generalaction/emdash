@@ -26,6 +26,7 @@ export class TuiAgentStates {
   constructor(
     private readonly sessions: TuiSessionsListModel,
     private readonly agentStates: TuiAgentStatesListModel,
+    private readonly now: () => number,
     private readonly onProviderSessionIdChanged?: ProviderSessionIdChangedHandler,
     private readonly onAgentStateChanged?: AgentStateChangedHandler
   ) {}
@@ -173,7 +174,7 @@ export class TuiAgentStates {
         title: patch.title,
         message: patch.message,
         lastAssistantMessage: patch.lastAssistantMessage,
-        updatedAt: Date.now(),
+        updatedAt: this.now(),
       };
 
       if (

@@ -1,19 +1,12 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
 import { KeyedMutex } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
 import { formatCommandLine } from '#primitives/exec/api';
-import {
-  compileIdlePolicy,
-  createIdleSweeper,
-  createIoActivityTracker,
-  type IdlePolicy,
-  type IdleSweeper,
-  type IoActivitySnapshot,
-  type IoActivityTracker,
-} from '#primitives/io-activity/api';
 import type {
+  PersistedTuiAgentStartInput,
   TuiAgentStartInput,
   TuiInputError,
   TuiResumeOutcome,
@@ -53,13 +46,19 @@ import {
   type PtySession,
   type PtySpawnSpec,
 } from '#services/pty/api';
+import {
+  SESSION_IDLE_MS,
+  type ActivityFields,
+  type ConversationSessionLifecycle,
+  type SessionSnapshotJudgment,
+} from '#services/session-lifecycle/api';
+import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { TuiAgentStates } from './agent-state';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 
 const RESUME_FALLBACK_WINDOW_MS = 3_000;
 const RESPAWN_DELAY_MS = 500;
 const MAX_UNEXPECTED_RESPAWNS = 1;
-const DEFAULT_SESSION_IDLE_MS = 60 * 60_000;
 const BUSY_OUTPUT_WINDOW_MS = 60_000;
 
 type TuiAgentSession = {
@@ -86,16 +85,22 @@ export class TuiAgentsRuntime {
   private readonly hookServer: TuiHookServer;
   private readonly hookPipeline: TuiHookPipeline;
   private readonly workspaceTrust: TuiWorkspaceTrust;
-  private readonly sessionIdlePolicy: IdlePolicy;
-  private readonly idleSweeper: IdleSweeper;
-  private readonly activity = new Map<string, IoActivityTracker>();
+  private readonly clock: Clock;
+  private readonly lifecycle: ConversationSessionLifecycle;
   private tmuxActivity = new Map<string, number>();
   private readonly unexpectedRespawns = new Map<string, number>();
+  /**
+   * The session's tmux side can outlive the pty client; output inside tmux is
+   * invisible to the activity tracker, so `busy` keeps such sessions alive for
+   * the same window the idle policy grants tracker output.
+   */
+  private readonly tmuxKeepAliveMs: number;
   private readonly reports: ConversationLifecycleReporter;
 
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
     this.reports = deps.conversationReports ?? noopConversationLifecycleReporter;
     this.registry = new PtyRegistry(deps.spawner);
+    this.clock = deps.clock ?? systemClock;
     this.sessionsLiveModel = createTuiSessionsLiveModel();
     this.agentStatesLiveModel = createTuiAgentStatesLiveModel();
     this.sessionsList = createTuiSessionsListModel(this.sessionsLiveModel);
@@ -103,15 +108,14 @@ export class TuiAgentsRuntime {
     this.agentStates = new TuiAgentStates(
       this.sessionsList,
       this.agentStatesList,
+      () => this.clock.now(),
       (conversationId, providerSessionId) => {
-        const config = this.configs.get(conversationId);
-        if (config) this.persistActiveIntent(config.input);
+        this.lifecycle.saveIntent(conversationId);
         // Hook-driven session-id capture reports through the same surface as ACP rebinds.
-        this.reports.providerSessionId({ conversationId, providerSessionId });
+        this.lifecycle.providerSessionId(conversationId, { conversationId, providerSessionId });
       },
       (conversationId) => {
-        const config = this.configs.get(conversationId);
-        if (config) this.persistActiveIntent(config.input);
+        this.lifecycle.saveIntent(conversationId);
       }
     );
     this.hookInstaller = new AgentHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
@@ -134,12 +138,15 @@ export class TuiAgentsRuntime {
       logger: deps.logger,
     });
     this.hookServer = new TuiHookServer((raw) => this.hookPipeline.handle(raw), deps.logger);
-    this.sessionIdlePolicy = compileIdlePolicy(
-      deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: DEFAULT_SESSION_IDLE_MS }
-    );
-    this.idleSweeper = createIdleSweeper<string>({
-      ...(deps.clock ? { clock: deps.clock } : {}),
-      intervalMs: deps.lifecycle?.sweepIntervalMs ?? 60_000,
+    const sessionPolicy = deps.lifecycle?.session;
+    this.tmuxKeepAliveMs =
+      sessionPolicy?.kind === 'idle-after' ? sessionPolicy.outputMs : SESSION_IDLE_MS;
+    this.lifecycle = createSessionLifecycle<PersistedTuiAgentStartInput, void>({
+      name: 'TuiAgentsRuntime',
+      logger: deps.logger,
+      clock: this.clock,
+      idlePolicy: sessionPolicy,
+      sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
       beforeSweep: async () => {
         // Skip the tmux subprocess entirely when nothing is tracked; the sweep
         // below iterates the same (empty) config set.
@@ -149,17 +156,105 @@ export class TuiAgentsRuntime {
         }
         this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
       },
-      entries: () => Array.from(this.configs.keys()),
-      snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
-      policy: () => this.sessionIdlePolicy,
-      deactivate: (conversationId, reason) => {
-        this.deactivateSession(conversationId, reason);
+      entries: () => this.configs.keys(),
+      snapshot: (conversationId, activity) => this.lifecycleSnapshot(conversationId, activity),
+      syncListEntry: (conversationId, activity) =>
+        this.syncSessionActivity(conversationId, activity),
+      deactivate: async (conversationId, cause) => {
+        await this.deactivateSession(conversationId, cause);
       },
-      onError: (error, conversationId) => {
-        this.deps.logger.warn('TuiAgentsRuntime: idle sweep failed', {
-          conversationId,
-          error: String(error),
-        });
+      evictSteps: [
+        {
+          name: 'generation',
+          run: (key) => {
+            // Deleting (not bumping) both cancels in-flight spawns and clears the key.
+            this.generations.delete(key);
+          },
+        },
+        {
+          name: 'unexpected-respawns',
+          run: (key) => {
+            this.unexpectedRespawns.delete(key);
+          },
+        },
+        { name: 'tmux-session', run: (key) => this.killTmuxForConfig(this.configs.get(key)) },
+        {
+          name: 'pty-registry',
+          run: (key) => {
+            this.registry.dispose(key);
+          },
+        },
+        {
+          name: 'config',
+          run: (key) => {
+            this.configs.delete(key);
+          },
+        },
+        {
+          name: 'log',
+          run: (key) => {
+            this.logs.delete(key);
+          },
+        },
+        {
+          name: 'retained-session',
+          run: (key) => {
+            const active = this.sessions.get(key);
+            active?.output.reseed();
+            this.sessions.delete(key);
+          },
+        },
+        {
+          name: 'sessions-list-entry',
+          run: (key) => {
+            produceCell(this.sessionsList.states.list, (draft) => {
+              delete draft[key];
+            });
+          },
+        },
+        { name: 'agent-state', run: (key) => this.agentStates.clear(key) },
+      ],
+      conversation: {
+        intents: deps.intents,
+        reports: deps.conversationReports,
+        activePayload: (conversationId) => {
+          const config = this.configs.get(conversationId);
+          if (!config) return null;
+          const { initialPrompt: _initialPrompt, ...persisted } = config.input;
+          const sessionId = this.currentProviderSessionId(conversationId, config.input.sessionId);
+          const lastAgentState = this.agentStates.current(conversationId);
+          return {
+            payload: { ...persisted, sessionId, lastAgentState } as unknown as Serializable,
+            sessionId,
+          };
+        },
+        reconcile: {
+          precheck: async () => {
+            try {
+              // The prefetch doubles as the gate's liveness table; a listing
+              // failure vetoes the whole run (intents stay untouched).
+              this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+              return { ctx: undefined };
+            } catch (error) {
+              return { veto: true as const, error };
+            }
+          },
+          parse: (intent) => {
+            const parsed = persistedTuiAgentStartInputSchema.safeParse(intent.payload);
+            if (!parsed.success) return { suspend: 'reconcile-failed' };
+            if (parsed.data.lastAgentState) {
+              this.agentStates.restore(parsed.data.lastAgentState);
+            }
+            return { input: parsed.data };
+          },
+          gate: (input) => {
+            if (!input.tmuxSessionName || !this.tmuxActivity.has(input.tmuxSessionName)) {
+              return { suspend: 'process-lost' };
+            }
+            return { ok: true as const };
+          },
+          resume: (input) => this.resumeSession(input),
+        },
       },
     });
   }
@@ -176,7 +271,7 @@ export class TuiAgentsRuntime {
 
       const config: TuiSessionConfig = { input, intent: 'fresh' };
       this.configs.set(input.conversationId, config);
-      this.recordInputActivity(input.conversationId);
+      this.lifecycle.recordInput(input.conversationId);
       this.unexpectedRespawns.delete(input.conversationId);
 
       const generation = this.bumpGeneration(input.conversationId);
@@ -187,7 +282,6 @@ export class TuiAgentsRuntime {
       );
       if (!result.success) return result;
 
-      this.persistActiveIntent(input);
       return ok({ outcome: 'started' });
     });
   }
@@ -209,7 +303,7 @@ export class TuiAgentsRuntime {
         ...(input.sessionId ? {} : { resumeFallback: true }),
       };
       this.configs.set(input.conversationId, config);
-      this.recordInputActivity(input.conversationId);
+      this.lifecycle.recordInput(input.conversationId);
       this.unexpectedRespawns.delete(input.conversationId);
       this.setResumeState(input.conversationId, {
         requested: true,
@@ -225,7 +319,6 @@ export class TuiAgentsRuntime {
       );
       if (!result.success) return result;
 
-      this.persistActiveIntent(input);
       return ok({ outcome: input.sessionId ? 'resumed' : 'fresh-fallback' });
     });
   }
@@ -241,56 +334,29 @@ export class TuiAgentsRuntime {
     if (active) active.pty = null;
     this.markExited(conversationId, null);
     this.agentStates.resetToIdle(conversationId);
-    this.persistSuspendedIntent(conversationId, 'user');
+    // Suspend-but-retain: scrollback, config tombstone, and list entry survive;
+    // the stopped config keeps the key sweep-inert (snapshot returns null).
+    this.lifecycle.end(conversationId, 'user');
     return ok(undefined);
   }
 
-  deleteSession(conversationId: string): Result<void, TuiSessionControlError> {
-    this.bumpGeneration(conversationId);
-    const config = this.configs.get(conversationId);
-    this.unexpectedRespawns.delete(conversationId);
-    void this.killTmuxForConfig(config);
-    this.registry.dispose(conversationId);
-    this.configs.delete(conversationId);
-    this.logs.delete(conversationId);
-    const active = this.sessions.get(conversationId);
-    active?.output.reseed();
-    this.sessions.delete(conversationId);
-    produceCell(this.sessionsList.states.list, (draft) => {
-      delete draft[conversationId];
-    });
-    this.agentStates.clear(conversationId);
-    this.removePersistedIntent(conversationId);
+  async deleteSession(conversationId: string): Promise<Result<void, TuiSessionControlError>> {
+    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
     return ok(undefined);
   }
 
-  deactivateSession(conversationId: string, cause: string): Result<void, TuiSessionControlError> {
+  async deactivateSession(
+    conversationId: string,
+    cause: string
+  ): Promise<Result<void, TuiSessionControlError>> {
     const config = this.configs.get(conversationId);
     if (!config || config.intent === 'stopped') return ok(undefined);
-    if (cause === 'idle' && this.isSessionBusy(conversationId)) return ok(undefined);
-    this.bumpGeneration(conversationId);
-    this.unexpectedRespawns.delete(conversationId);
-    void this.killTmuxForConfig(config);
-    this.registry.dispose(conversationId);
-    this.configs.delete(conversationId);
-    this.logs.delete(conversationId);
-    this.activity.delete(conversationId);
-    const active = this.sessions.get(conversationId);
-    active?.output.reseed();
-    this.sessions.delete(conversationId);
-    produceCell(this.sessionsList.states.list, (draft) => {
-      delete draft[conversationId];
-    });
-    this.agentStates.clear(conversationId);
-    this.persistSuspendedIntent(conversationId, cause);
-    this.reports.sessionEnded(conversationId);
+    await this.lifecycle.evict(conversationId, { cause, intent: 'suspend' });
     return ok(undefined);
   }
 
-  killSession(conversationId: string): Result<void, TuiSessionControlError> {
-    const result = this.deactivateSession(conversationId, 'user');
-    if (!result.success) return result;
-    this.removePersistedIntent(conversationId);
+  async killSession(conversationId: string): Promise<Result<void, TuiSessionControlError>> {
+    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
     return ok(undefined);
   }
 
@@ -298,7 +364,7 @@ export class TuiAgentsRuntime {
     const active = this.sessions.get(conversationId);
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.write(data);
-    this.recordInputActivity(conversationId);
+    this.lifecycle.recordInput(conversationId);
     this.agentStates.markInputSubmitted(conversationId, active.provider, data);
     return ok(undefined);
   }
@@ -315,65 +381,22 @@ export class TuiAgentsRuntime {
     return {
       snapshot: async () => this.logFor(key.conversationId).snapshot(),
       subscribe: (cb) => {
-        const tracker = this.activityFor(key.conversationId);
-        tracker.attach();
+        this.lifecycle.attach(key.conversationId);
         const unsubscribe = this.logFor(key.conversationId).subscribe(cb);
         return () => {
-          tracker.detach();
-          this.syncSessionActivity(key.conversationId);
+          this.lifecycle.detach(key.conversationId);
           unsubscribe();
         };
       },
     };
   }
 
-  async reconcile(): Promise<void> {
-    const listed = await this.deps.intents.list();
-    if (!listed.success) {
-      this.deps.logger.warn('TuiAgentsRuntime: failed to load session intents', {
-        error: listed.error,
-      });
-      return;
-    }
-
-    let tmuxActivity: Map<string, number>;
-    try {
-      tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
-    } catch (error) {
-      this.deps.logger.warn('TuiAgentsRuntime: failed to reconcile tmux activity', {
-        error: String(error),
-      });
-      return;
-    }
-
-    for (const intent of listed.data) {
-      if (intent.status !== 'active') continue;
-      const parsed = persistedTuiAgentStartInputSchema.safeParse(intent.payload);
-      if (!parsed.success) {
-        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
-        continue;
-      }
-      const input = parsed.data;
-      if (input.lastAgentState) {
-        this.agentStates.restore(input.lastAgentState);
-      }
-      if (!input.tmuxSessionName || !tmuxActivity.has(input.tmuxSessionName)) {
-        this.persistSuspendedIntent(intent.conversationId, 'process-lost');
-        continue;
-      }
-      const result = await this.resumeSession(input);
-      if (!result.success) {
-        this.deps.logger.warn('TuiAgentsRuntime: failed to reconcile session intent', {
-          conversationId: intent.conversationId,
-          error: result.error,
-        });
-        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
-      }
-    }
+  reconcile(): Promise<void> {
+    return this.lifecycle.reconcile();
   }
 
   async dispose(): Promise<void> {
-    this.idleSweeper.dispose();
+    this.lifecycle.dispose();
     for (const conversationId of this.sessions.keys()) {
       this.bumpGeneration(conversationId);
     }
@@ -402,7 +425,7 @@ export class TuiAgentsRuntime {
             outcome: 'pending' as const,
           })
         : null;
-    const startedAt = Date.now();
+    const startedAt = this.clock.now();
     session.config = config;
     session.provider = provider;
     this.syncSessionState({
@@ -469,12 +492,12 @@ export class TuiAgentsRuntime {
         {
           output: session.output,
           onData: () => {
-            this.recordOutputActivity(config.input.conversationId);
+            this.lifecycle.recordOutput(config.input.conversationId);
           },
           onExit: (info) => {
             if (!this.isCurrentGeneration(config.input.conversationId, generation)) return;
             if (session.pty === pty) session.pty = null;
-            if (isResuming && Date.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS) {
+            if (isResuming && this.clock.now() - startedAt <= RESUME_FALLBACK_WINDOW_MS) {
               this.setResumeState(config.input.conversationId, {
                 requested: true,
                 outcome: 'fresh-fallback',
@@ -491,8 +514,12 @@ export class TuiAgentsRuntime {
             }
             this.markExited(config.input.conversationId, info);
             this.agentStates.resetToIdle(config.input.conversationId);
-            if (!this.maybeRespawnAfterUnexpectedExit(session, config, generation, info)) {
-              this.persistSuspendedIntent(config.input.conversationId, 'process-exited');
+            if (this.maybeRespawnAfterUnexpectedExit(session, config, generation, info)) {
+              // The respawn will report sessionStarted again; the active intent
+              // stays live so a crash mid-respawn still reconciles.
+              this.reports.sessionEnded(config.input.conversationId);
+            } else {
+              this.lifecycle.end(config.input.conversationId, 'process-exited');
             }
           },
           onStateChange: () => {
@@ -533,8 +560,8 @@ export class TuiAgentsRuntime {
     // Lifecycle report (spec §7.4): a resume spawn is optimistically 'loaded' (the CLI owns
     // replay; early exit triggers the fresh-fallback respawn below, which reports
     // 'replaced-by-new'); a fresh-fallback respawn means history was not restored; a plain
-    // fresh start is not a resume attempt at all.
-    this.reports.sessionStarted({
+    // fresh start is not a resume attempt at all. `started` also persists the active intent.
+    this.lifecycle.started(config.input.conversationId, {
       conversationId: config.input.conversationId,
       // A resume attempt (re)asserts the handle it spawned with. A fresh spawn's
       // provider-native id is unknown until hook capture, but the caller may declare an
@@ -637,12 +664,9 @@ export class TuiAgentsRuntime {
 
       const generation = this.bumpGeneration(conversationId);
       const result = await this.spawnInto(session, config, generation);
-      if (result.success) {
-        this.persistActiveIntent(config.input);
-        return;
-      }
+      if (result.success) return;
 
-      this.persistSuspendedIntent(conversationId, 'spawn-failed');
+      this.lifecycle.end(conversationId, 'spawn-failed');
       this.deps.logger.warn('TuiAgentsRuntime: respawn/fallback failed', {
         conversationId,
         error: result.error,
@@ -695,12 +719,12 @@ export class TuiAgentsRuntime {
   }
 
   private syncSessionState(state: TuiSessionState): void {
-    const activity = this.activity.get(state.conversationId)?.snapshot();
+    const activity = this.lifecycle.activity(state.conversationId);
     const next: TuiSessionState = { ...state };
-    if (activity?.lastInputAt !== null && activity?.lastInputAt !== undefined) {
+    if (activity.lastInputAt !== null) {
       next.lastInputAt = activity.lastInputAt;
     }
-    if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
+    if (activity.lastOutputAt !== null) {
       next.lastOutputAt = activity.lastOutputAt;
     }
     produceCell(this.sessionsList.states.list, (draft) => {
@@ -708,9 +732,7 @@ export class TuiAgentsRuntime {
     });
   }
 
-  private syncSessionActivity(conversationId: string): void {
-    const activity = this.activity.get(conversationId)?.snapshot();
-    if (!activity) return;
+  private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
     produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
@@ -719,94 +741,25 @@ export class TuiAgentsRuntime {
     });
   }
 
-  private activityFor(conversationId: string): IoActivityTracker {
-    let tracker = this.activity.get(conversationId);
-    if (!tracker) {
-      tracker = createIoActivityTracker(() => this.now());
-      this.activity.set(conversationId, tracker);
-    }
-    return tracker;
-  }
-
-  private recordInputActivity(conversationId: string): void {
-    this.activityFor(conversationId).recordInput();
-    this.syncSessionActivity(conversationId);
-    this.reports.activity(conversationId);
-  }
-
-  private recordOutputActivity(conversationId: string): void {
-    this.activityFor(conversationId).recordOutput();
-    this.syncSessionActivity(conversationId);
-    this.reports.activity(conversationId);
-  }
-
-  private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
+  private lifecycleSnapshot(
+    conversationId: string,
+    activity: ActivityFields
+  ): SessionSnapshotJudgment | null {
     const config = this.configs.get(conversationId);
     if (!config || config.intent === 'stopped') return null;
     const state = peek(this.sessionsList.states.list)[conversationId];
-    const activity = this.activityFor(conversationId).snapshot();
+    const now = this.clock.now();
     const tmuxLastOutputAt = config.input.tmuxSessionName
       ? this.tmuxActivity.get(config.input.tmuxSessionName)
       : undefined;
     const lastOutputAt = maxNullable(activity.lastOutputAt, tmuxLastOutputAt);
-    return {
-      running: state?.status === 'running',
-      busy: lastOutputAt !== null && this.now() - lastOutputAt < BUSY_OUTPUT_WINDOW_MS,
-      attachedClients: activity.attachedClients,
-      detachedAt: activity.detachedAt,
-      lastInputAt: activity.lastInputAt,
-      lastOutputAt,
-    };
-  }
-
-  private isSessionBusy(conversationId: string): boolean {
-    return this.lifecycleSnapshot(conversationId)?.busy ?? false;
-  }
-
-  private now(): number {
-    return this.deps.clock?.now() ?? Date.now();
-  }
-
-  private persistActiveIntent(input: TuiAgentStartInput): void {
-    const { initialPrompt: _initialPrompt, ...persisted } = input;
-    const sessionId = this.currentProviderSessionId(input.conversationId, input.sessionId);
-    const lastAgentState = this.agentStates.current(input.conversationId);
-    void this.deps.intents
-      .saveActive({
-        conversationId: input.conversationId,
-        sessionId,
-        payload: { ...persisted, sessionId, lastAgentState } as unknown as Serializable,
-      })
-      .then((result) => {
-        if (!result.success) {
-          this.deps.logger.warn('TuiAgentsRuntime: failed to persist active intent', {
-            conversationId: input.conversationId,
-            error: result.error,
-          });
-        }
-      });
-  }
-
-  private persistSuspendedIntent(conversationId: string, cause: string): void {
-    void this.deps.intents.markSuspended(conversationId, cause).then((result) => {
-      if (!result.success) {
-        this.deps.logger.warn('TuiAgentsRuntime: failed to persist suspended intent', {
-          conversationId,
-          error: result.error,
-        });
-      }
-    });
-  }
-
-  private removePersistedIntent(conversationId: string): void {
-    void this.deps.intents.remove(conversationId).then((result) => {
-      if (!result.success) {
-        this.deps.logger.warn('TuiAgentsRuntime: failed to remove session intent', {
-          conversationId,
-          error: result.error,
-        });
-      }
-    });
+    // Interactive busy window, plus tmux-side liveness: recent output inside the
+    // tmux session must keep the key alive exactly as long as the idle policy's
+    // output window would (it previously enriched the policy's lastOutputAt).
+    const busy =
+      (lastOutputAt !== null && now - lastOutputAt < BUSY_OUTPUT_WINDOW_MS) ||
+      (tmuxLastOutputAt !== undefined && now - tmuxLastOutputAt < this.tmuxKeepAliveMs);
+    return { running: state?.status === 'running', busy };
   }
 
   private setResumeState(
@@ -830,7 +783,7 @@ export class TuiAgentsRuntime {
         cols: config.input.cols,
         rows: config.input.rows,
         resume,
-        startedAt: Date.now(),
+        startedAt: this.clock.now(),
       };
     });
   }
@@ -844,7 +797,6 @@ export class TuiAgentsRuntime {
         ? { exitCode: info.exitCode, signal: info.signal ?? undefined }
         : undefined;
     });
-    this.reports.sessionEnded(conversationId);
   }
 
   private updateSessionSize(conversationId: string, cols: number, rows: number): void {

@@ -71,10 +71,13 @@ export class FakePtyProcess implements PtyProcess {
 export class FakePtySpawner implements PtySpawner {
   readonly specs: PtySpawnSpec[] = [];
   readonly processes: FakePtyProcess[] = [];
+  /** When set, the next spawn attempts throw instead of creating a process. */
+  failWith: Error | null = null;
 
   constructor(private readonly options: FakePtyOptions = {}) {}
 
   spawn(spec: PtySpawnSpec): PtyProcess {
+    if (this.failWith) throw this.failWith;
     this.specs.push(spec);
     const process = new FakePtyProcess(this.processes.length + 1, this.options);
     this.processes.push(process);

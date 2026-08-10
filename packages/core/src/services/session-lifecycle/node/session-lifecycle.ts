@@ -91,14 +91,14 @@ function createActivityTracker(now: () => number): ActivityTracker {
   };
 }
 
+export function createSessionLifecycle(
+  options: SessionLifecycleOptions<never, void> & { conversation?: undefined }
+): SessionLifecycle;
 export function createSessionLifecycle<TResume, TCtx = void>(
   options: SessionLifecycleOptions<TResume, TCtx> & {
     conversation: ConversationOptions<TResume, TCtx>;
   }
 ): ConversationSessionLifecycle;
-export function createSessionLifecycle(
-  options: SessionLifecycleOptions<never, void> & { conversation?: undefined }
-): SessionLifecycle;
 export function createSessionLifecycle<TResume, TCtx>(
   options: SessionLifecycleOptions<TResume, TCtx>
 ): ConversationSessionLifecycle {
