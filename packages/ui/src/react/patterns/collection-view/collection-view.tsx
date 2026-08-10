@@ -153,6 +153,15 @@ interface ShellRowProps {
   children: React.ReactNode;
 }
 
+/** Enter/Space on a focused row re-dispatches through the click path. */
+function handleRowKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  // Inner controls (menus, switches) own their keyboard handling.
+  if (event.target !== event.currentTarget) return;
+  event.preventDefault();
+  event.currentTarget.click();
+}
+
 /** The canonical row shell shared by both data modes. */
 function ShellRow({ selected = false, isLast, interactive, onClick, children }: ShellRowProps) {
   return (
@@ -163,6 +172,8 @@ function ShellRow({ selected = false, isLast, interactive, onClick, children }: 
       selected={selected}
       isLast={isLast}
       onClick={onClick}
+      // Interactive rows are keyboard-operable buttons, not bare divs.
+      {...(interactive ? { role: 'button', tabIndex: 0, onKeyDown: handleRowKeyDown } : {})}
     >
       {children}
     </ListView.Row>
