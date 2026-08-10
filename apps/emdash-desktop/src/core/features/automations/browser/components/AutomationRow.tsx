@@ -47,13 +47,12 @@ const RUN_STATUS_ICON: Record<
 interface AutomationRowProps {
   automation: Automation;
   onToggleEnabled?: (enabled: boolean) => void;
-  onClick?: () => void;
 }
 
+/** Row content (switch + two-line summary) — the CollectionView shell owns interaction. */
 export const AutomationRow = observer(function AutomationRow({
   automation,
   onToggleEnabled,
-  onClick,
 }: AutomationRowProps) {
   const availability = useAutomationTargetAvailability(automation.projectId);
   const runtimeAvailable = availability.data?.available === true;
@@ -88,12 +87,8 @@ export const AutomationRow = observer(function AutomationRow({
     : null;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      className="group flex cursor-pointer items-center gap-4 rounded-lg px-4 py-3 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none"
-    >
+    <div className="group flex w-full items-center gap-4 text-left">
+      {/* The enable switch is an explicit control — clicks must not reach the row. */}
       <div
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
