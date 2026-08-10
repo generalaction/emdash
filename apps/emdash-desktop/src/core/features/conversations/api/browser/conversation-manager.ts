@@ -26,7 +26,19 @@ import {
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { getConversationsClient } from './client';
 
+/**
+ * Supplies measured terminal dimensions for a conversation's PTY spawn.
+ * Injected by the workbench composition (which owns the pane layout); may wait
+ * briefly for the pane's first measurement. Resolves null when no measurement
+ * is available in time, in which case the spawn falls back to the backend
+ * default size.
+ */
+export type ConversationInitialSizeResolver = (
+  conversationId?: string
+) => Promise<{ cols: number; rows: number } | null>;
+
 export class ConversationManagerStore implements Disposable {
+  private _initialSizeResolver: ConversationInitialSizeResolver | null = null;
   private offAgentStatusChanged: (() => void) | null = null;
   private offTuiSessionState: (() => void) | null = null;
   private offAcpSessionState: (() => void) | null = null;
@@ -298,8 +310,35 @@ export class ConversationManagerStore implements Disposable {
     );
   }
 
+  /**
+   * Injected by the owning composition so PTY spawns can start at the pane's
+   * measured size instead of the backend default. Pass null to detach.
+   */
+  setInitialSizeResolver(resolver: ConversationInitialSizeResolver | null): void {
+    this._initialSizeResolver = resolver;
+  }
+
+  private async resolveInitialSize(
+    conversationId?: string
+  ): Promise<{ cols: number; rows: number } | undefined> {
+    const resolver = this._initialSizeResolver;
+    if (!resolver) return undefined;
+    try {
+      return (await resolver(conversationId)) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
-    const conversation = await (await getConversationsClient()).createConversation(params);
+    // ACP conversations start lazily and have no PTY, so skip the size wait.
+    const initialSize =
+      params.type === 'acp'
+        ? params.initialSize
+        : (params.initialSize ?? (await this.resolveInitialSize()));
+    const conversation = await (
+      await getConversationsClient()
+    ).createConversation({ ...params, initialSize });
     runInAction(() => {
       this.addConversation(conversation);
     });
@@ -307,12 +346,17 @@ export class ConversationManagerStore implements Disposable {
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {
+    // Hydrate is a no-op spawn-wise for ACP conversations; only PTY-backed
+    // conversations benefit from waiting on a pane measurement.
+    const isPty = this.conversations.get(conversationId)?.data.type !== 'acp';
+    const initialSize = isPty ? await this.resolveInitialSize(conversationId) : undefined;
     await (
       await getConversationsClient()
     ).hydrateConversation({
       projectId: this.projectId,
       taskId: this.taskId,
       conversationId,
+      initialSize,
     });
   }
 

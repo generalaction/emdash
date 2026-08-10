@@ -46,14 +46,20 @@ export function createConversationOperations(dependencies: {
       }),
     deleteConversation: (projectId: string, taskId: string, conversationId: string) =>
       deleteConversation(db, dependencies.runtimes, projectId, taskId, conversationId, telemetry),
-    hydrateConversation: (projectId: string, taskId: string, conversationId: string) =>
+    hydrateConversation: (
+      projectId: string,
+      taskId: string,
+      conversationId: string,
+      initialSize?: { cols: number; rows: number }
+    ) =>
       hydrateConversation(
         db,
         dependencies.taskSessions,
         projectId,
         taskId,
         conversationId,
-        telemetry
+        telemetry,
+        initialSize
       ),
     dehydrateConversation: (projectId: string, taskId: string, conversationId: string) =>
       dehydrateConversation(db, dependencies.taskSessions, projectId, taskId, conversationId),

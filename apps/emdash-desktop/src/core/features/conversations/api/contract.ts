@@ -148,7 +148,9 @@ export const conversationsContract = defineContract({
     output: z.void(),
   }),
   hydrateConversation: procedure({
-    input: conversationLocation,
+    input: conversationLocation.extend({
+      initialSize: z.object({ cols: z.number(), rows: z.number() }).optional(),
+    }),
     output: z.void(),
   }),
   dehydrateConversation: procedure({

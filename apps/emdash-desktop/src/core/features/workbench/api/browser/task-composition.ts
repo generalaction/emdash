@@ -1,5 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
-import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { computed, makeAutoObservable, observable, reaction, runInAction, when } from 'mobx';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { EditorViewStore } from '@core/features/editor/api/browser/task-editor/stores/editor-view-store';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
@@ -35,6 +35,7 @@ import {
 } from '@core/features/tasks/contributions/mementos';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { computeSeededGridDimensions } from '@core/features/terminals/api/browser/pty/seeded-grid-dimensions';
 import type { TerminalManagerStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import { TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
@@ -170,6 +171,11 @@ export class TaskComposition {
     });
     this._disposers.push(
       getNavigation().attachParticipant(taskRef, new TaskNavigationParticipant(this.paneLayout))
+    );
+    // Feed measured pane dimensions to conversation PTY spawns so the first
+    // spawn starts at the pane's real size instead of the backend default.
+    this._conversations.setInitialSizeResolver((conversationId) =>
+      resolveConversationInitialSize(this.paneLayout, conversationId)
     );
     this.terminalTabs = new TerminalTabViewStore(
       this._terminalSelectionHandle,
@@ -459,6 +465,7 @@ export class TaskComposition {
   }
 
   dispose(): void {
+    this._conversations.setInitialSizeResolver(null);
     this.suspend();
     this.releaseWorkspace();
     for (const dispose of this._disposers) dispose();
@@ -525,6 +532,37 @@ export class TaskComposition {
       });
     }
   }
+}
+
+const INITIAL_SIZE_MEASUREMENT_TIMEOUT_MS = 150;
+
+/**
+ * Waits briefly for the pane hosting the conversation tab (or the focused
+ * pane) to report its first pixel measurement, then converts it to cols/rows
+ * so the PTY can spawn at the pane's real size. Resolves null — leaving the
+ * spawn on the backend's default size — when no measurement lands in time.
+ */
+async function resolveConversationInitialSize(
+  paneLayout: TaskComposition['paneLayout'],
+  conversationId?: string
+): Promise<{ cols: number; rows: number } | null> {
+  // Yield one microtask: hydrate fires from inside the tab's initialize(),
+  // before the entry is registered on its pane, so an immediate scan would
+  // miss the tab and fall back to the focused pane.
+  await Promise.resolve();
+  const pane =
+    (conversationId
+      ? paneLayout.groups.find((group) => group.pane.hasOpenKey('conversation', conversationId))
+          ?.pane
+      : undefined) ?? paneLayout.focusedPane;
+  try {
+    await when(() => pane.dimensions !== null, { timeout: INITIAL_SIZE_MEASUREMENT_TIMEOUT_MS });
+  } catch {
+    return null;
+  }
+  const dimensions = pane.dimensions;
+  if (!dimensions) return null;
+  return computeSeededGridDimensions(dimensions.width, dimensions.height);
 }
 
 function sanitizeTerminalSelection(

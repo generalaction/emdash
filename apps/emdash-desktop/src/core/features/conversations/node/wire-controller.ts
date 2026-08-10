@@ -119,8 +119,8 @@ export function createConversationsWireController(
     createConversation: (input) => conversationOperations.createConversation(input),
     deleteConversation: ({ projectId, taskId, conversationId }) =>
       conversationOperations.deleteConversation(projectId, taskId, conversationId),
-    hydrateConversation: ({ projectId, taskId, conversationId }) =>
-      conversationOperations.hydrateConversation(projectId, taskId, conversationId),
+    hydrateConversation: ({ projectId, taskId, conversationId, initialSize }) =>
+      conversationOperations.hydrateConversation(projectId, taskId, conversationId, initialSize),
     dehydrateConversation: ({ projectId, taskId, conversationId }) =>
       conversationOperations.dehydrateConversation(projectId, taskId, conversationId),
     renameConversation: ({ conversationId, name }) =>

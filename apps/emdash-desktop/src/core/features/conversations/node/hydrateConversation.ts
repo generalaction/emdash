@@ -11,7 +11,8 @@ export async function hydrateConversation(
   projectId: string,
   taskId: string,
   conversationId: string,
-  telemetry: Pick<TelemetryService, 'capture'>
+  telemetry: Pick<TelemetryService, 'capture'>,
+  initialSize?: { cols: number; rows: number }
 ): Promise<void> {
   const [row] = await db
     .select()
@@ -34,6 +35,7 @@ export async function hydrateConversation(
     projectId,
     taskId,
     conversationId,
+    initialSize,
     telemetry,
     database: db,
     taskSessions,
