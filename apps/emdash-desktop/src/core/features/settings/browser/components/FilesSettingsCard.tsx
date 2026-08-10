@@ -1,4 +1,4 @@
-import { normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
+import { normalizeExclusionPatterns } from '@emdash/core/primitives/exclusion-policy/api';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { SeparatedList, Textarea } from '@emdash/ui/react/primitives';
 import React from 'react';

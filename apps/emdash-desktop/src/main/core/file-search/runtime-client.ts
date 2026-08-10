@@ -1,5 +1,5 @@
+import { normalizeExclusionPatterns } from '@emdash/core/primitives/exclusion-policy/api';
 import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
-import { normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
 import {
   formatAbsolute,
   portableRelativePathBasename,

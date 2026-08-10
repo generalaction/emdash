@@ -45,15 +45,10 @@
       "types": "./dist/primitives-host-api.d.mts",
       "default": "./dist/primitives-host-api.mjs"
     },
-    "./primitives/host-resource/api": {
-      "development": "./src/primitives/host-resource/api/index.ts",
-      "types": "./dist/primitives-host-resource-api.d.mts",
-      "default": "./dist/primitives-host-resource-api.mjs"
-    },
-    "./primitives/lib/api": {
-      "development": "./src/primitives/lib/api/index.ts",
-      "types": "./dist/primitives-lib-api.d.mts",
-      "default": "./dist/primitives-lib-api.mjs"
+    "./primitives/exclusion-policy/api": {
+      "development": "./src/primitives/exclusion-policy/api/index.ts",
+      "types": "./dist/primitives-exclusion-policy-api.d.mts",
+      "default": "./dist/primitives-exclusion-policy-api.mjs"
     },
     "./primitives/skills/api": {
       "development": "./src/primitives/skills/api/index.ts",
@@ -64,11 +59,6 @@
       "development": "./src/primitives/mcp/api/index.ts",
       "types": "./dist/primitives-mcp-api.d.mts",
       "default": "./dist/primitives-mcp-api.mjs"
-    },
-    "./primitives/acp-transcript/api": {
-      "development": "./src/primitives/acp-transcript/api/index.ts",
-      "types": "./dist/primitives-acp-transcript-api.d.mts",
-      "default": "./dist/primitives-acp-transcript-api.mjs"
     },
     "./primitives/exec/api": {
       "development": "./src/primitives/exec/api/index.ts",
@@ -95,20 +85,10 @@
       "types": "./dist/primitives-kv-node.d.mts",
       "default": "./dist/primitives-kv-node.mjs"
     },
-    "./primitives/agent-env/api": {
-      "development": "./src/primitives/agent-env/api/index.ts",
-      "types": "./dist/primitives-agent-env-api.d.mts",
-      "default": "./dist/primitives-agent-env-api.mjs"
-    },
     "./primitives/emdash-config/api": {
       "development": "./src/primitives/emdash-config/api/index.ts",
       "types": "./dist/primitives-emdash-config-api.d.mts",
       "default": "./dist/primitives-emdash-config-api.mjs"
-    },
-    "./primitives/plugin-fs/api": {
-      "development": "./src/primitives/plugin-fs/api/index.ts",
-      "types": "./dist/primitives-plugin-fs-api.d.mts",
-      "default": "./dist/primitives-plugin-fs-api.mjs"
     },
     "./primitives/versioned-schema/api": {
       "development": "./src/primitives/versioned-schema/api/index.ts",
@@ -135,20 +115,10 @@
       "types": "./dist/primitives-sqlite-store-node.d.mts",
       "default": "./dist/primitives-sqlite-store-node.mjs"
     },
-    "./primitives/sqlite-store/testing": {
-      "development": "./src/primitives/sqlite-store/testing/index.ts",
-      "types": "./dist/primitives-sqlite-store-testing.d.mts",
-      "default": "./dist/primitives-sqlite-store-testing.mjs"
-    },
     "./services/exec/api": {
       "development": "./src/services/exec/api/index.ts",
       "types": "./dist/services-exec-api.d.mts",
       "default": "./dist/services-exec-api.mjs"
-    },
-    "./services/exec/node": {
-      "development": "./src/services/exec/node/index.ts",
-      "types": "./dist/services-exec-node.d.mts",
-      "default": "./dist/services-exec-node.mjs"
     },
     "./services/shell-env/node": {
       "development": "./src/services/shell-env/node/index.ts",
@@ -159,11 +129,6 @@
       "development": "./src/services/pty/api/index.ts",
       "types": "./dist/services-pty-api.d.mts",
       "default": "./dist/services-pty-api.mjs"
-    },
-    "./services/pty/node": {
-      "development": "./src/services/pty/node/index.ts",
-      "types": "./dist/services-pty-node.d.mts",
-      "default": "./dist/services-pty-node.mjs"
     },
     "./services/host-dependencies/api": {
       "development": "./src/services/host-dependencies/api/index.ts",
@@ -180,11 +145,6 @@
       "types": "./dist/services-runtime-broker-api.d.mts",
       "default": "./dist/services-runtime-broker-api.mjs"
     },
-    "./services/agent-plugins/api": {
-      "development": "./src/services/agent-plugins/api/index.ts",
-      "types": "./dist/services-agent-plugins-api.d.mts",
-      "default": "./dist/services-agent-plugins-api.mjs"
-    },
     "./services/agent-plugins/api/plugins": {
       "development": "./src/services/agent-plugins/api/plugins/index.ts",
       "types": "./dist/services-agent-plugins-api-plugins.d.mts",
@@ -199,16 +159,6 @@
       "development": "./src/services/agent-plugins/api/plugins/capabilities/auth.ts",
       "types": "./dist/services-agent-plugins-api-plugins-capabilities-auth.d.mts",
       "default": "./dist/services-agent-plugins-api-plugins-capabilities-auth.mjs"
-    },
-    "./services/agent-plugins/api/spawn-context": {
-      "development": "./src/services/agent-plugins/api/spawn-context.ts",
-      "types": "./dist/services-agent-plugins-api-spawn-context.d.mts",
-      "default": "./dist/services-agent-plugins-api-spawn-context.mjs"
-    },
-    "./services/agent-plugins/node": {
-      "development": "./src/services/agent-plugins/node/index.ts",
-      "types": "./dist/services-agent-plugins-node.d.mts",
-      "default": "./dist/services-agent-plugins-node.mjs"
     },
     "./services/session-intents/api": {
       "development": "./src/services/session-intents/api/index.ts",
@@ -370,30 +320,15 @@
       "types": "./dist/runtimes-scripts-node.d.mts",
       "default": "./dist/runtimes-scripts-node.mjs"
     },
-    "./services/config-model/node": {
-      "development": "./src/services/config-model/node/index.ts",
-      "types": "./dist/services-config-model-node.d.mts",
-      "default": "./dist/services-config-model-node.mjs"
-    },
     "./services/preview-detection/api": {
       "development": "./src/services/preview-detection/api/index.ts",
       "types": "./dist/services-preview-detection-api.d.mts",
       "default": "./dist/services-preview-detection-api.mjs"
     },
-    "./services/preview-detection/node": {
-      "development": "./src/services/preview-detection/node/index.ts",
-      "types": "./dist/services-preview-detection-node.d.mts",
-      "default": "./dist/services-preview-detection-node.mjs"
-    },
     "./workspace-server": {
       "development": "./src/workspace-server/index.ts",
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"
-    },
-    "./workspace-server/wire": {
-      "development": "./src/workspace-server/wire/index.ts",
-      "types": "./dist/workspace-server-wire.d.mts",
-      "default": "./dist/workspace-server-wire.mjs"
     },
     "./package.json": "./package.json"
   },

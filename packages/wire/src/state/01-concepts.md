@@ -45,8 +45,8 @@ type Snapshot<T> = {
   `read` accumulates status into the running computation (§4).
 
 This is the same shape as SolidJS resource states
-(`pending/ready/refreshing/errored`) and the app's `Observed<T>` temperature
-model — cold/warm/hot is `loading`/`stale`/`live` with `observedAt` as the
+(`pending/ready/refreshing/errored`) and a cold/warm/hot temperature model —
+cold/warm/hot is `loading`/`stale`/`live`, with the observation time as the
 freshness timestamp.
 
 `revision` and `mutationIds` exist for the wire edge: they become the

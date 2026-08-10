@@ -8,9 +8,3 @@ export {
   type ExclusionMatcher,
   type ExclusionPolicyOptions,
 } from './exclusion-policy';
-
-export type Observed<T> = {
-  value: T;
-  observedAt: number;
-  source: 'probe' | 'operation-result' | 'log-event';
-};
