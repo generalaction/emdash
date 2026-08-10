@@ -80,18 +80,29 @@ export const TaskRow = observer(function TaskRow({
       onDelete={handleDelete}
     >
       <div className="group flex w-full items-center gap-2">
-        {/* The wrapper click carries the modifier keys the Checkbox callback drops. */}
+        {/*
+          Mouse clicks land on the wrapper (the checkbox is pointer-events-none)
+          so the real event's modifier keys reach `toggle`; keyboard activation
+          reaches the focusable checkbox itself and toggles via onCheckedChange.
+          The target check keeps the keyboard path from double-toggling through
+          the synthetic click that bubbles up.
+        */}
         <span
           onClick={(event) => {
             event.stopPropagation();
-            selection.toggle(id, event);
+            if (event.target === event.currentTarget) selection.toggle(id, event);
           }}
           className={cn(
-            'inline-flex cursor-pointer transition-opacity',
+            'inline-flex cursor-pointer transition-opacity focus-within:opacity-100',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
         >
-          <Checkbox checked={isSelected} className="pointer-events-none" aria-label="Select task" />
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => selection.toggle(id)}
+            className="pointer-events-none"
+            aria-label="Select task"
+          />
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>

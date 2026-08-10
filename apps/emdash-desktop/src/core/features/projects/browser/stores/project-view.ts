@@ -46,7 +46,7 @@ export class ProjectViewStore {
  * range they select follows the list's visible order, injected via
  * `attachOrderedIds` because this store outlives any single list view.
  */
-class TaskViewStore implements ExternalSelectionStore {
+export class TaskViewStore implements ExternalSelectionStore {
   selectedIds: Set<string> = new Set();
   private anchorId: string | null = null;
   private getOrderedIds: (() => string[]) | null = null;
