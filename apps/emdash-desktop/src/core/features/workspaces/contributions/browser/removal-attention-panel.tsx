@@ -2,12 +2,12 @@ import { Button, RelativeTime, Spinner, toast } from '@emdash/ui/react/primitive
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
 import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
-import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
+import { workspaceRowLabel } from './workspace-row-label';
 
 type RemovalAction = 'retry' | 'untrack';
 
@@ -67,7 +67,7 @@ export function WorkspaceRemovalAttentionPanel({
             <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-foreground-destructive" />
             <div className="min-w-0 text-xs">
               <div className="font-medium text-foreground">
-                Couldn't remove {removalRowLabel(row)}
+                Couldn't remove {workspaceRowLabel(row)}
               </div>
               <div className="truncate text-foreground-muted">
                 {row.removalStop && (
@@ -117,8 +117,4 @@ function RemovalActionButton({
       {label}
     </Button>
   );
-}
-
-function removalRowLabel(row: ProjectWorkspaceRow): string {
-  return row.branch ?? (basenameFromAnyPath(row.path) || row.path);
 }

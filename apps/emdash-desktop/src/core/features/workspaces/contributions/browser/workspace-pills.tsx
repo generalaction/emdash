@@ -1,11 +1,11 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
-import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspacePathIssue,
   type ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
+import { workspaceRowLabel } from './workspace-row-label';
 
 type PillTone = 'warning' | 'destructive';
 
@@ -134,7 +134,7 @@ export function PathIssueSummaryPill({
         <div className="flex flex-col gap-1">
           {issueRows.map((row) => (
             <div key={`${row.workspaceId ?? row.path}:${row.path}`} className="min-w-0">
-              <div className="font-medium">{worktreeLabel(row)}</div>
+              <div className="font-medium">{workspaceRowLabel(row)}</div>
               <div className="text-foreground-muted">
                 {pathIssueMessage(row.pathIssue, row.path)}
               </div>
@@ -151,12 +151,8 @@ function pathIssueSummary(rows: readonly ProjectWorkspaceRow[]): string | undefi
   const [first] = rows;
   if (rows.length === 1 && first?.pathIssue) {
     return first.pathIssue.kind === 'prunable'
-      ? `${worktreeLabel(first)} has a stale git record`
-      : `${worktreeLabel(first)} missing`;
+      ? `${workspaceRowLabel(first)} has a stale git record`
+      : `${workspaceRowLabel(first)} missing`;
   }
   return `${rows.length} worktrees need attention`;
-}
-
-function worktreeLabel(row: ProjectWorkspaceRow): string {
-  return row.branch ?? (basenameFromAnyPath(row.path) || row.path);
 }

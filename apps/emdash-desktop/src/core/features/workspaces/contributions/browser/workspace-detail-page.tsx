@@ -13,7 +13,6 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
-import { basenameFromAnyPath } from '@core/primitives/path-name/api/path-name';
 import type {
   ProjectWorkspaceGitStats,
   ProjectWorkspacePathIssue,
@@ -33,6 +32,7 @@ import { GitStatsCell } from './git-stats-cell';
 import { WorkspaceRemovalAttentionPanel } from './removal-attention-panel';
 import { RepositoryHeader } from './repository-header';
 import { PathIssueChip, RemovalPill } from './workspace-pills';
+import { workspaceRowLabel } from './workspace-row-label';
 import {
   WorkspacesEmptyState,
   WorkspacesErrorState,
@@ -401,7 +401,7 @@ function buildWorktreeItem({
   const { row } = joined;
   return {
     id: joined.key,
-    name: row.branch ?? (basenameFromAnyPath(row.path) || row.path),
+    name: workspaceRowLabel(row),
     path: row.path,
     iconType: 'worktree',
     status: joined.status satisfies WorkspaceIconStatus,
