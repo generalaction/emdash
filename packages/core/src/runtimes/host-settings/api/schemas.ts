@@ -13,6 +13,13 @@ export const hostSettingsSchema = z.object({
   worktreeRoot: z.string().optional(),
   /** Default tmux preference for terminal sessions on this host. */
   tmux: z.boolean().optional(),
+  /**
+   * File-watcher exclude globs applied at files-worker spawn (restart-applied).
+   * Unset means "use the code-level defaults" (DEFAULT_WATCHER_EXCLUDE); an
+   * empty array is a deliberate "exclude nothing". Defaults are never written
+   * to the store so "unset" stays distinct from "user chose this".
+   */
+  watcherExclude: z.array(z.string()).optional(),
 });
 
 export type HostSettings = z.infer<typeof hostSettingsSchema>;
@@ -34,6 +41,7 @@ export const updateHostSettingsInputSchema = z.object({
   shellSetup: z.string().nullable().optional(),
   worktreeRoot: z.string().nullable().optional(),
   tmux: z.boolean().nullable().optional(),
+  watcherExclude: z.array(z.string()).nullable().optional(),
 });
 
 export type UpdateHostSettingsInput = z.infer<typeof updateHostSettingsInputSchema>;

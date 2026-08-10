@@ -80,6 +80,40 @@ describe('host settings contract', () => {
     expect(onDisk).toEqual({ shellSetup: 'source ~/.nvm/nvm.sh', tmux: true });
   });
 
+  it('update writes watcherExclude and round-trips through get and the file', async () => {
+    const patterns = ['**/node_modules/**', '**/.cache/**'];
+    const updated = await wire.client.update({ watcherExclude: patterns });
+    expect(updated).toEqual({
+      success: true,
+      data: { settings: { watcherExclude: patterns }, parseError: false },
+    });
+
+    const got = await wire.client.get();
+    expect(got).toEqual({
+      success: true,
+      data: { settings: { watcherExclude: patterns }, parseError: false },
+    });
+
+    const onDisk = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as Record<string, unknown>;
+    expect(onDisk).toEqual({ watcherExclude: patterns });
+  });
+
+  it('watcherExclude keeps an empty array distinct from unset (null clears)', async () => {
+    await wire.client.update({ watcherExclude: [] });
+    const afterEmpty = await wire.client.get();
+    expect(afterEmpty).toEqual({
+      success: true,
+      data: { settings: { watcherExclude: [] }, parseError: false },
+    });
+
+    await wire.client.update({ watcherExclude: null });
+    const afterClear = await wire.client.get();
+    expect(afterClear).toEqual({
+      success: true,
+      data: { settings: {}, parseError: false },
+    });
+  });
+
   it('null clears a field; absent fields stay untouched', async () => {
     await wire.client.update({ shellSetup: 'setup', worktreeRoot: '/worktrees', tmux: false });
     const result = await wire.client.update({ shellSetup: null });
