@@ -49,6 +49,43 @@ Popup width is an explicit content decision rather than a positioning side effec
 `Combobox`, and `DropdownMenu` content support `trigger`, `content`, and
 `content-at-least-trigger` widths.
 
+## Page-level lists
+
+A page-level list of records is a **`CollectionView`**
+(`packages/ui/src/react/patterns/collection-view/`), full stop. Card grids, trees
+(`TreeView`), sidebars, popup pickers, and changed-files lists are different patterns.
+The reference renderings are the stories in
+`packages/ui/src/react/patterns/collection-view/collection-view.stories.tsx`; the full
+locked spec lives with the unify-list-views effort.
+
+- **One shell, two row styles**: every list is the same rounded card surface with soft
+  dividers, hover/selected states, and always-on virtualization. Row content is either
+  tabular `columns` (`CollectionViewColumn[]`, with `CollectionViewCell` for two-line
+  text cells) or freeform `renderRow` — exactly one of the two. There is no header row.
+- **State is opt-in**: pass `view` (a `createListView` instance, rendered inside its
+  `Root`) for search/filter/sort/sections/selection/pagination, or plain `items` +
+  `getItemKey` when no state layer is needed. Selection, sections, and loading/error
+  status auto-wire in view mode; `renderSectionHeader` overrides the default
+  label+count section header (for select-all headers and the like).
+- **Density** is a two-value axis: `default` (60px estimate) or `compact` (36px).
+  Taller measured content overrides via `estimateSize`; per-surface pixel tweaking is
+  not a thing.
+- **Toolbar and footer are slots**: put a `CollectionToolbar` (unchanged API) in
+  `toolbar`; floating bulk bars and banners built on `ListPopoverCard` go in `footer`.
+- **Sorting UI** is the shared `SortSelect` bound to `view.useSort()` — sort keys and
+  labels live in the sort spec, never re-declared in the UI.
+- **Multi-select mechanics are framework-given** (modifier-click toggle, shift-range);
+  the default presentation is a hover-revealed leading checkbox column plus a floating
+  `ListPopoverCard` bulk bar. Row click opens the item and never mutates.
+- **Row actions are tiered**: context menu for the full set, trailing ellipsis menu for
+  discoverability on management tables, hover buttons for at most 1–2 high-frequency
+  actions. Destructive actions go last, separated, destructive-styled, with a confirm
+  modal when irreversible.
+- **An empty state is mandatory** (`EmptyState` is the default content; rich
+  interactive empty states are allowed); `Spinner` is the loading default.
+- **Deprecations**: `ColumnList` and `ListPage` are superseded by `CollectionView`;
+  raw `ListView` chrome is an internal escape hatch, not a pattern for new surfaces.
+
 ## Settings pages
 
 Settings pages follow one canonical anatomy, built from the settings pattern family in

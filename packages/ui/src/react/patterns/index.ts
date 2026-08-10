@@ -1,5 +1,17 @@
 export { CollectionToolbar, type CollectionToolbarProps } from './collection-toolbar';
 
+export {
+  CollectionView,
+  CollectionViewCell,
+  SortSelect,
+  type CollectionViewCellProps,
+  type CollectionViewColumn,
+  type CollectionViewDensity,
+  type CollectionViewHandle,
+  type CollectionViewProps,
+  type SortSelectProps,
+} from './collection-view';
+
 export { ListView } from './list-view';
 export type {
   ListViewSection,
