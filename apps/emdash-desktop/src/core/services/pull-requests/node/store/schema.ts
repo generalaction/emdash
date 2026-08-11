@@ -7,12 +7,13 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+// Identity is intentionally absent (spec: github-git-settings §8): registration
+// only records *what* to sync; *as whom* is resolved by the desktop per sync.
 export const registeredRepositories = sqliteTable(
   'registered_repositories',
   {
     id: text('id').primaryKey(),
     repositoryUrl: text('repository_url').notNull(),
-    accountKey: text('account_key').notNull(),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -27,14 +28,13 @@ export const syncCursors = sqliteTable(
     repositoryId: text('repository_id')
       .notNull()
       .references(() => registeredRepositories.id, { onDelete: 'cascade' }),
-    accountKey: text('account_key').notNull(),
     kind: text('kind').notNull().$type<'full' | 'incremental'>(),
     lastUpdatedAt: text('last_updated_at').notNull(),
     pageCursor: text('page_cursor'),
     done: integer('done', { mode: 'boolean' }).notNull(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.repositoryId, table.accountKey, table.kind] }),
+    pk: primaryKey({ columns: [table.repositoryId, table.kind] }),
   })
 );
 

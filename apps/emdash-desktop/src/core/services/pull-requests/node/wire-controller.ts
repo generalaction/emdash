@@ -9,7 +9,7 @@ export function createPullRequestsWireController(service: PullRequestService): C
     getPullRequestsForBranch: (input) =>
       service.getPullRequestsForBranch(input.repositoryUrl, input.branch),
     getPullRequestByUrl: (input) => service.getPullRequestByUrl(input.repositoryUrl, input.url),
-    registerRepository: (input) => service.registerRepository(input.repositoryUrl, input.accountId),
+    registerRepository: (input) => service.registerRepository(input.repositoryUrl),
     unregisterRepository: (input, meta) =>
       service.runOperation('unregister-repository', meta.signal, () =>
         service.unregisterRepository(input.repositoryUrl)

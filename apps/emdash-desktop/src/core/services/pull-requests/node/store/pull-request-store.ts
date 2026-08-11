@@ -21,7 +21,6 @@ export type SyncCursor = {
 export type RegisteredRepository = {
   id: string;
   repositoryUrl: string;
-  accountId?: string;
 };
 
 type PullRequestDbRow = {
@@ -80,36 +79,27 @@ export type PullRequestCommentState = {
   lastFetchedAt: number;
 };
 
-const ACCOUNT_KEY_DEFAULT = 'default';
-
 export class PullRequestStore {
   constructor(private readonly handle: StoreHandle<SqliteConnection>) {}
 
-  registerRepository(repositoryUrl: string, accountId?: string): RegisteredRepository {
+  registerRepository(repositoryUrl: string): RegisteredRepository {
     const now = Date.now();
-    const accountKey = accountId?.trim() || ACCOUNT_KEY_DEFAULT;
-    const existing = this.handle.connection.get<{ id: string; accountKey: string }>(
-      `SELECT id, account_key AS accountKey
+    const existing = this.handle.connection.get<{ id: string }>(
+      `SELECT id
       FROM registered_repositories
       WHERE repository_url = ?`,
       [repositoryUrl]
     );
     const id = existing?.id ?? randomUUID();
-    this.handle.transaction(() => {
-      if (existing && existing.accountKey !== accountKey) {
-        this.handle.connection.run('DELETE FROM sync_cursors WHERE repository_id = ?', [id]);
-      }
-      this.handle.connection.run(
-        `INSERT INTO registered_repositories (
-          id, repository_url, account_key, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(repository_url) DO UPDATE SET
-          account_key = excluded.account_key,
-          updated_at = excluded.updated_at`,
-        [id, repositoryUrl, accountKey, now, now]
-      );
-    });
-    return { id, repositoryUrl, accountId: accountId?.trim() || undefined };
+    this.handle.connection.run(
+      `INSERT INTO registered_repositories (
+        id, repository_url, created_at, updated_at
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT(repository_url) DO UPDATE SET
+        updated_at = excluded.updated_at`,
+      [id, repositoryUrl, now, now]
+    );
+    return { id, repositoryUrl };
   }
 
   unregisterRepository(repositoryUrl: string): void {
@@ -127,42 +117,26 @@ export class PullRequestStore {
   }
 
   getRegisteredRepository(repositoryUrl: string): RegisteredRepository | null {
-    const row = this.handle.connection.get<{
-      id: string;
-      repositoryUrl: string;
-      accountKey: string;
-    }>(
-      `SELECT
-        id,
-        repository_url AS repositoryUrl,
-        account_key AS accountKey
-      FROM registered_repositories
-      WHERE repository_url = ?`,
-      [repositoryUrl]
+    return (
+      this.handle.connection.get<RegisteredRepository>(
+        `SELECT
+          id,
+          repository_url AS repositoryUrl
+        FROM registered_repositories
+        WHERE repository_url = ?`,
+        [repositoryUrl]
+      ) ?? null
     );
-    if (!row) return null;
-    return {
-      id: row.id,
-      repositoryUrl: row.repositoryUrl,
-      accountId: row.accountKey === ACCOUNT_KEY_DEFAULT ? undefined : row.accountKey,
-    };
   }
 
   listRegisteredRepositories(): RegisteredRepository[] {
-    return this.handle.connection
-      .all<{ id: string; repositoryUrl: string; accountKey: string }>(
-        `SELECT
-          id,
-          repository_url AS repositoryUrl,
-          account_key AS accountKey
-        FROM registered_repositories
-        ORDER BY repository_url`
-      )
-      .map((row) => ({
-        id: row.id,
-        repositoryUrl: row.repositoryUrl,
-        accountId: row.accountKey === ACCOUNT_KEY_DEFAULT ? undefined : row.accountKey,
-      }));
+    return this.handle.connection.all<RegisteredRepository>(
+      `SELECT
+        id,
+        repository_url AS repositoryUrl
+      FROM registered_repositories
+      ORDER BY repository_url`
+    );
   }
 
   getCursor(repositoryUrl: string, kind: SyncCursorKind): SyncCursor | null {
@@ -192,23 +166,15 @@ export class PullRequestStore {
 
   setCursor(repositoryUrl: string, kind: SyncCursorKind, cursor: SyncCursor): void {
     const repository = this.requireRegisteredRepository(repositoryUrl);
-    const accountKey = repository.accountId ?? ACCOUNT_KEY_DEFAULT;
     this.handle.connection.run(
       `INSERT INTO sync_cursors (
-        repository_id, account_key, kind, last_updated_at, page_cursor, done
-      ) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(repository_id, account_key, kind) DO UPDATE SET
+        repository_id, kind, last_updated_at, page_cursor, done
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(repository_id, kind) DO UPDATE SET
         last_updated_at = excluded.last_updated_at,
         page_cursor = excluded.page_cursor,
         done = excluded.done`,
-      [
-        repository.id,
-        accountKey,
-        kind,
-        cursor.lastUpdatedAt,
-        cursor.pageCursor ?? null,
-        cursor.done ? 1 : 0,
-      ]
+      [repository.id, kind, cursor.lastUpdatedAt, cursor.pageCursor ?? null, cursor.done ? 1 : 0]
     );
   }
 

@@ -30,18 +30,44 @@ export const githubAuthErrorSchema = z.discriminatedUnion('type', [
     message: z.string(),
     hint: z.string().optional(),
   }),
+  /**
+   * Fail-closed identity resolution failure (spec: github-git-settings §8): the
+   * effective account for the repository cannot be produced — a broken pin, a
+   * resolution error, or no open project referencing the repository. The sync
+   * is skipped; never run as a fallback identity.
+   */
+  z.object({
+    type: z.literal('account_unresolvable'),
+    host: z.string(),
+    message: z.string(),
+    hint: z.string().optional(),
+  }),
+  /** The project explicitly disabled GitHub (`githubAccount: { kind: 'none' }`). */
+  z.object({
+    type: z.literal('github_disabled'),
+    host: z.string(),
+    message: z.string(),
+    hint: z.string().optional(),
+  }),
 ]);
 
+/**
+ * The worker's per-sync identity request (spec: github-git-settings §8): the
+ * worker names only *what* it is about to sync; the desktop answers *as whom*
+ * through the blessed resolver and returns the matching token. Account changes
+ * apply on the next request — no persisted binding, no refresh events.
+ */
 export const githubAuthContract = defineContract({
   resolveAuth: fallible({
     input: z.object({
-      host: z.string(),
-      accountId: z.string().optional(),
+      repositoryUrl: z.string(),
     }),
     data: z.object({
       token: z.string(),
       host: z.string(),
       apiBaseUrl: z.string(),
+      /** Resolved account row id; used by the worker to key per-identity request lanes. */
+      accountId: z.string().optional(),
     }),
     error: githubAuthErrorSchema,
   }),

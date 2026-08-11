@@ -16,9 +16,9 @@ export const schemaSqlStatements = [
   'CREATE INDEX `idx_pull_requests_head_ref_name` ON `pull_requests` (`head_ref_name`);',
   'CREATE INDEX `idx_pull_requests_updated_at` ON `pull_requests` (`pull_request_updated_at`);',
   'CREATE TABLE `pull_request_users` (\n\t`user_id` text PRIMARY KEY NOT NULL,\n\t`user_name` text NOT NULL,\n\t`display_name` text,\n\t`avatar_url` text,\n\t`url` text,\n\t`user_updated_at` text,\n\t`user_created_at` text\n);\n',
-  'CREATE TABLE `registered_repositories` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`repository_url` text NOT NULL,\n\t`account_key` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);\n',
+  'CREATE TABLE `registered_repositories` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`repository_url` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);\n',
   'CREATE UNIQUE INDEX `idx_registered_repositories_url` ON `registered_repositories` (`repository_url`);',
-  'CREATE TABLE `sync_cursors` (\n\t`repository_id` text NOT NULL,\n\t`account_key` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`last_updated_at` text NOT NULL,\n\t`page_cursor` text,\n\t`done` integer NOT NULL,\n\tPRIMARY KEY(`repository_id`, `account_key`, `kind`),\n\tFOREIGN KEY (`repository_id`) REFERENCES `registered_repositories`(`id`) ON UPDATE no action ON DELETE cascade\n);\n',
+  'CREATE TABLE `sync_cursors` (\n\t`repository_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`last_updated_at` text NOT NULL,\n\t`page_cursor` text,\n\t`done` integer NOT NULL,\n\tPRIMARY KEY(`repository_id`, `kind`),\n\tFOREIGN KEY (`repository_id`) REFERENCES `registered_repositories`(`id`) ON UPDATE no action ON DELETE cascade\n);\n',
 ] as const;
 
-export const schemaFingerprint = 1667085039;
+export const schemaFingerprint = 1325138554;

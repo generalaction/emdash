@@ -13,7 +13,6 @@ import {
   pullRequestNumberInputSchema,
   pullRequestSchema,
   pullRequestUrlInputSchema,
-  registerRepositoryInputSchema,
   repositoryInputSchema,
   repositoryListInputSchema,
   syncChecksInputSchema,
@@ -51,7 +50,7 @@ export const pullRequestsContract = defineContract({
     error: pullRequestErrorSchema,
   }),
   registerRepository: fallible({
-    input: registerRepositoryInputSchema,
+    input: repositoryInputSchema,
     data: z.void(),
     error: pullRequestErrorSchema,
   }),

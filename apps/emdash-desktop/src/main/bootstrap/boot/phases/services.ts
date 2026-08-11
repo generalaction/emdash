@@ -88,6 +88,7 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { isServerUsable } from '@core/services/hosts/api';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import { bindPullRequestSyncIdentityResolver } from '@core/services/pull-requests/node/sync-identity';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import {
   createReconcileSweepTriggers,
@@ -497,8 +498,6 @@ export async function bootServices(
     getClient: getPullRequestsRuntimeClient,
     onProjectOpened: (handler) => projectManager.on('projectOpened', handler),
     onProjectClosed: (handler) => projectManager.on('projectClosed', handler),
-    onProjectSettingsChanged: (handler) =>
-      projectSettingsService.on('project-settings:changed', ({ projectId }) => handler(projectId)),
     onTaskProvisioned: (handler) => taskSessionManager.hooks.on('task:provisioned', handler),
     subscribeToProjectRemotes: (projectId, handler) => {
       const project = projectManager.getProject(projectId);
@@ -524,6 +523,12 @@ export async function bootServices(
     },
     resolveProjectAuthContext: (projectId) => projectGitHubAuth.resolve(projectId),
   });
+  // Answers the PR worker's per-sync "as whom" requests through the blessed
+  // resolver (spec: github-git-settings §8); before this binding, identity
+  // requests fail closed and the worker skips the sync.
+  bindPullRequestSyncIdentityResolver((repositoryUrl) =>
+    pullRequestsRegistration.resolveSyncIdentity(repositoryUrl)
+  );
   const githubRepositories = createGitHubRepositoryService(githubApiAuthService);
   const githubAuthPlugin = integrationPluginRegistry.get('github');
   const githubDeviceMethod = githubAuthPlugin?.capabilities.auth.methods.find(

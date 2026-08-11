@@ -1,7 +1,9 @@
-import type { Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
+import type { GitHubAuthError, PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type { PullRequestSyncIdentity } from './sync-identity';
 
 type PullRequestsRegistrationClient = Pick<
   PullRequestsRuntimeClient,
@@ -12,21 +14,40 @@ type PullRequestsRegistrationClient = Pick<
   | 'syncSingle'
 >;
 
+/**
+ * The blessed per-project account resolution (spec: github-git-settings §2).
+ * Success carries the effective account row id; failures are discriminated so
+ * sync-identity requests can fail closed with an honest status. The `type`
+ * field is consumed structurally to stay decoupled from the GitHub feature's
+ * error taxonomy.
+ */
+type ProjectAccountResolution = Result<
+  { accountId?: string },
+  {
+    type?: 'project_not_found' | 'unconfigured' | 'disabled' | 'account_selection_failed';
+    message: string;
+  }
+>;
+
 type PullRequestsRegistrationOptions = {
   getClient: () => Promise<PullRequestsRegistrationClient>;
   onProjectOpened(handler: (projectId: string) => void): () => void;
   onProjectClosed(handler: (projectId: string) => void): () => void;
-  onProjectSettingsChanged(handler: (projectId: string) => void): () => void;
   onTaskProvisioned(
     handler: (event: { projectId: string; branchName: string | undefined }) => void
   ): () => void;
   subscribeToProjectRemotes(projectId: string, handler: () => void): (() => void) | undefined;
   resolveProjectRepositoryUrls(projectId: string): Promise<string[]>;
-  resolveProjectAuthContext(
-    projectId: string
-  ): Promise<Result<{ accountId?: string }, { message: string }>>;
+  resolveProjectAuthContext(projectId: string): Promise<ProjectAccountResolution>;
 };
 
+/**
+ * Tells the pull-request worker *what* to sync (repository URLs per open
+ * project) and answers its per-sync "as whom" requests through the blessed
+ * resolver (spec: github-git-settings §8). No account is pushed into the
+ * worker — identity is resolved fresh on every sync, so account changes apply
+ * on the next sync without any event plumbing.
+ */
 export class PullRequestsRegistration implements Disposable {
   private readonly projectRepositoryUrls = new Map<string, string[]>();
   private readonly repositoryUnsubscribes = new Map<string, () => void>();
@@ -46,14 +67,6 @@ export class PullRequestsRegistration implements Disposable {
       this.options.onTaskProvisioned(({ projectId, branchName }) => {
         void this.onTaskProvisioned(projectId, branchName).catch((error) => {
           log.warn('PullRequestsRegistration: failed to refresh a provisioned task', {
-            projectId,
-            error: String(error),
-          });
-        });
-      }),
-      this.options.onProjectSettingsChanged((projectId) => {
-        void this.refreshProject(projectId).catch((error) => {
-          log.warn('PullRequestsRegistration: failed to refresh project settings', {
             projectId,
             error: String(error),
           });
@@ -88,18 +101,9 @@ export class PullRequestsRegistration implements Disposable {
     const repositoryUrls = await this.resolveRepositoryUrls(projectId);
     this.projectRepositoryUrls.set(projectId, repositoryUrls);
 
-    const authContext = await this.options.resolveProjectAuthContext(projectId);
-    const accountId = authContext.success ? authContext.data.accountId : undefined;
-    if (!authContext.success) {
-      log.warn('PullRequestsRegistration: failed to resolve project GitHub account', {
-        projectId,
-        error: authContext.error.message,
-      });
-    }
-
     const client = await this.options.getClient();
     for (const repositoryUrl of repositoryUrls) {
-      const result = await client.registerRepository({ repositoryUrl, accountId });
+      const result = await client.registerRepository({ repositoryUrl });
       if (!result.success) {
         log.warn('PullRequestsRegistration: failed to register repository', {
           projectId,
@@ -111,6 +115,41 @@ export class PullRequestsRegistration implements Disposable {
 
     const current = new Set(repositoryUrls);
     await this.cancelUnreferenced(previousUrls.filter((url) => !current.has(url)));
+  }
+
+  /**
+   * Answers the worker's per-sync "as whom" request: the effective account of
+   * an open project referencing the repository, resolved through the blessed
+   * resolver at call time. Fails closed — an unresolvable account (or a
+   * repository no open project references) yields an error, never a fallback
+   * identity.
+   */
+  async resolveSyncIdentity(
+    repositoryUrl: string
+  ): Promise<Result<PullRequestSyncIdentity, GitHubAuthError>> {
+    const host = parseRepositoryRef(repositoryUrl)?.host ?? 'unknown';
+    const projectIds = [...this.projectRepositoryUrls.entries()]
+      .filter(([, urls]) => urls.includes(repositoryUrl))
+      .map(([projectId]) => projectId);
+    if (projectIds.length === 0) {
+      return err({
+        type: 'account_unresolvable',
+        host,
+        message: 'No open project references this repository.',
+      });
+    }
+    let failure: { type?: string; message: string } | undefined;
+    for (const projectId of projectIds) {
+      const resolved = await this.options.resolveProjectAuthContext(projectId);
+      if (resolved.success) {
+        // The blessed resolver returns an account on success; treat a missing
+        // id defensively as "keep looking" rather than an implicit default.
+        if (resolved.data.accountId) return ok({ accountId: resolved.data.accountId });
+        continue;
+      }
+      failure ??= resolved.error;
+    }
+    return err(mapProjectAccountError(host, failure));
   }
 
   async onTaskProvisioned(projectId: string, branchName: string | undefined): Promise<void> {
@@ -185,5 +224,28 @@ export class PullRequestsRegistration implements Disposable {
 
   private isReferenced(repositoryUrl: string): boolean {
     return [...this.projectRepositoryUrls.values()].some((urls) => urls.includes(repositoryUrl));
+  }
+}
+
+function mapProjectAccountError(
+  host: string,
+  failure: { type?: string; message: string } | undefined
+): GitHubAuthError {
+  switch (failure?.type) {
+    case 'unconfigured':
+      return {
+        type: 'auth_required',
+        host,
+        message: failure.message,
+        hint: 'Connect a GitHub account from settings.',
+      };
+    case 'disabled':
+      return { type: 'github_disabled', host, message: failure.message };
+    default:
+      return {
+        type: 'account_unresolvable',
+        host,
+        message: failure?.message ?? 'No GitHub account resolved for this repository.',
+      };
   }
 }

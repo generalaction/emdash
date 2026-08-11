@@ -78,12 +78,9 @@ export class PullRequestsStore {
     await Promise.all([this.listView.store.reload(), this.loadFilterOptions()]);
   }
 
-  async registerRepository(repositoryUrl: string, accountId?: string) {
+  async registerRepository(repositoryUrl: string) {
     const normalizedUrl = normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl;
-    const result = await this.client.registerRepository({
-      repositoryUrl: normalizedUrl,
-      accountId,
-    });
+    const result = await this.client.registerRepository({ repositoryUrl: normalizedUrl });
     if (result.success) this.setRepositoryUrls([...this.repositoryUrls, normalizedUrl]);
     return result;
   }
