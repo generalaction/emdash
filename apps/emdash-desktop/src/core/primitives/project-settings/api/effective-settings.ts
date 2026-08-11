@@ -1,5 +1,6 @@
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
+import { normalizeWorktreeRootPath } from './worktree-root';
 
 /**
  * The blessed resolver (spec: github-git-settings §2).
@@ -58,8 +59,14 @@ export type StoredSettings = {
   project: StoredProjectGitSettings;
   /** Per-host default worktree root from host settings, if configured. */
   hostWorktreeRoot?: string | null;
-  /** Built-in worktree root for the host, e.g. `~/.emdash/worktrees`. */
+  /** Built-in worktree root for the host, e.g. `<home>/emdash/worktrees`. */
   builtInWorktreeRoot: string;
+  /**
+   * The host's home directory, for `~` expansion and validation of the
+   * worktree-root layers. Callers that consume `worktreeRoot` must supply it;
+   * without it the chain picks the first configured layer unvalidated.
+   */
+  homeDirectory?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -118,7 +125,12 @@ export function resolveEffectiveSettings(
       repoFacts,
       accounts
     ),
-    worktreeRoot: resolveWorktreeRoot(storedSettings),
+    worktreeRoot: resolveWorktreeRoot({
+      projectWorktreeRoot: storedSettings.project.worktreeRoot,
+      hostWorktreeRoot: storedSettings.hostWorktreeRoot,
+      builtInWorktreeRoot: storedSettings.builtInWorktreeRoot,
+      homeDirectory: storedSettings.homeDirectory,
+    }),
   };
 }
 
@@ -325,18 +337,59 @@ function resolveGithubAccount(
 // Worktree root: project override → host default → built-in
 // ---------------------------------------------------------------------------
 
-function resolveWorktreeRoot(storedSettings: StoredSettings): Resolved<string> {
-  if (storedSettings.project.worktreeRoot !== undefined) {
-    return { value: storedSettings.project.worktreeRoot, provenance: { kind: 'set' } };
+/**
+ * The worktree-root chain (spec §6): per-project override (`set`) → per-host
+ * default (`inferred` from "host default") → built-in root (`inferred` from
+ * "built-in default"). When `homeDirectory` is available, each configured
+ * layer is normalized (`~` expansion, absolute-path requirement); an unusable
+ * layer degrades to the next one with `broken-setting` provenance carrying
+ * the stale raw value — an invalid root warns, it never blocks creation.
+ *
+ * Exported so worktree placement resolves through the identical chain the
+ * settings page and the create-task preview render. No other worktree-root
+ * precedence code may exist.
+ */
+export function resolveWorktreeRoot(
+  layers: Pick<StoredSettings, 'hostWorktreeRoot' | 'builtInWorktreeRoot' | 'homeDirectory'> & {
+    projectWorktreeRoot?: string;
   }
-  if (storedSettings.hostWorktreeRoot != null) {
-    return {
-      value: storedSettings.hostWorktreeRoot,
+): Resolved<string> {
+  const chain: { raw: string; provenance: Provenance }[] = [];
+  if (layers.projectWorktreeRoot !== undefined) {
+    chain.push({ raw: layers.projectWorktreeRoot, provenance: { kind: 'set' } });
+  }
+  if (layers.hostWorktreeRoot != null) {
+    chain.push({
+      raw: layers.hostWorktreeRoot,
       provenance: { kind: 'inferred', from: 'host default' },
-    };
+    });
   }
-  return {
-    value: storedSettings.builtInWorktreeRoot,
+  chain.push({
+    raw: layers.builtInWorktreeRoot,
     provenance: { kind: 'inferred', from: 'built-in default' },
-  };
+  });
+
+  const homeDirectory = layers.homeDirectory;
+  if (homeDirectory == null) {
+    const [first] = chain;
+    return { value: first.raw, provenance: first.provenance };
+  }
+
+  let staleValue: string | null = null;
+  for (const layer of chain) {
+    const normalized = normalizeWorktreeRootPath(layer.raw, homeDirectory);
+    if (normalized === null) {
+      staleValue ??= layer.raw;
+      continue;
+    }
+    return staleValue === null
+      ? { value: normalized, provenance: layer.provenance }
+      : { value: normalized, provenance: { kind: 'broken-setting', staleValue } };
+  }
+  // Even the built-in layer failed to normalize (a non-absolute home); fall
+  // back to it raw rather than producing no placement at all.
+  const builtIn = chain.at(-1)!;
+  return staleValue === builtIn.raw || staleValue === null
+    ? { value: builtIn.raw, provenance: builtIn.provenance }
+    : { value: builtIn.raw, provenance: { kind: 'broken-setting', staleValue } };
 }
