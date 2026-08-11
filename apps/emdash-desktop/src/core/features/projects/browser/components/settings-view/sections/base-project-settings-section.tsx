@@ -1,4 +1,5 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
+import { deriveWorktreePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
 import {
   Alert,
   Button,
@@ -17,6 +18,10 @@ import {
   useEffectiveSettingsInputs,
 } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import {
+  asMounted,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
 } from '@core/features/projects/contributions/browser/github-account-select';
@@ -30,7 +35,11 @@ import type { ProvenanceFlavor } from '@core/features/projects/contributions/bro
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
-import type { Provenance, Resolved } from '@core/primitives/project-settings/api';
+import type {
+  Provenance,
+  Resolved,
+  WorktreeRootContext,
+} from '@core/primitives/project-settings/api';
 import { formatDefaultBranch } from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -47,7 +56,7 @@ const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
 type BaseProjectSettingsSectionProps = {
   projectId: string;
   form: FormState;
-  defaultWorktreeDirectory: string;
+  worktreeRootContext: WorktreeRootContext;
   projectType: Project['type'];
   remotes: GitRemote[];
   worktreeDirectoryError: string | null;
@@ -115,7 +124,7 @@ function brokenFallbackDisplay(resolved: Resolved<unknown> | null): string | nul
 export const BaseProjectSettingsSection = observer(function BaseProjectSettingsSection({
   projectId,
   form,
-  defaultWorktreeDirectory,
+  worktreeRootContext,
   projectType,
   remotes,
   worktreeDirectoryError,
@@ -128,6 +137,15 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
   const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
+  const inheritedWorktreeRoot =
+    worktreeRootContext.hostWorktreeRoot ?? worktreeRootContext.builtInWorktreeRoot;
+  const projectPath = asMounted(getProjectStore(projectId))?.data.path ?? null;
+  const effectiveWorktreeRoot = effective?.worktreeRoot.value ?? null;
+  const derivedPoolPath =
+    projectPath !== null && effectiveWorktreeRoot !== null
+      ? deriveWorktreePoolPath({ worktreeRoot: effectiveWorktreeRoot, repoPath: projectPath })
+      : null;
+
   const handleBrowseWorktreeDirectory = async () => {
     if (isBrowsingWorktreeDirectory) return;
 
@@ -138,7 +156,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       ).openSelectDirectoryDialog({
         title: 'Select worktree root',
         message: 'Choose the directory where worktrees should be created.',
-        defaultPath: form.worktreeDirectory || defaultWorktreeDirectory,
+        defaultPath: form.worktreeDirectory || (effectiveWorktreeRoot ?? inheritedWorktreeRoot),
       });
       if (result) {
         update('worktreeDirectory', result);
@@ -241,7 +259,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
             <Input
               aria-invalid={worktreeDirectoryError ? true : undefined}
               className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
-              placeholder={effective?.worktreeRoot.value ?? defaultWorktreeDirectory}
+              placeholder={effectiveWorktreeRoot ?? inheritedWorktreeRoot}
               value={form.worktreeDirectory}
               onChange={(e) => update('worktreeDirectory', e.target.value)}
             />
@@ -263,6 +281,12 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
             </Button>
           ) : null}
         </div>
+        {derivedPoolPath ? (
+          <span className="text-xs text-foreground-muted">
+            Worktrees for this repository go in{' '}
+            <code className="font-mono break-all">{derivedPoolPath}</code>
+          </span>
+        ) : null}
       </ProvenanceField>
 
       <Separator />

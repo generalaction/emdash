@@ -72,8 +72,9 @@ export class ProjectSettingsStore {
     return this.pageData.data?.storedGitSettings ?? null;
   }
 
-  get defaults(): ProjectSettingsPage['defaults'] | null {
-    return this.pageData.data?.defaults ?? null;
+  /** The worktree-root layers below the per-project override (spec §6). */
+  get worktreeRootContext(): ProjectSettingsPage['worktreeRootContext'] | null {
+    return this.pageData.data?.worktreeRootContext ?? null;
   }
 
   get writeTargets(): ProjectSettingsWriteTargetOption[] | null {

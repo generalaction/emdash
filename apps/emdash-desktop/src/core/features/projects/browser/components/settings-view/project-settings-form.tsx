@@ -25,7 +25,7 @@ export interface ProjectSettingsFormProps {
   projectType: Project['type'];
   initial: ProjectSettings;
   storedGitSettings: StoredProjectGitSettings;
-  defaults: ProjectSettingsPage['defaults'];
+  worktreeRootContext: ProjectSettingsPage['worktreeRootContext'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
@@ -48,7 +48,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectType,
   initial,
   storedGitSettings,
-  defaults,
+  worktreeRootContext,
   writeTargets,
   overrideState,
   configMigrations,
@@ -82,7 +82,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           <BaseProjectSettingsSection
             projectId={projectId}
             form={formModel.form}
-            defaultWorktreeDirectory={defaults.worktreeDirectory}
+            worktreeRootContext={worktreeRootContext}
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}

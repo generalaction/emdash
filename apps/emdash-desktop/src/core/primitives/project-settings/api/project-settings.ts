@@ -2,6 +2,7 @@ import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/e
 import type { Result } from '@emdash/shared';
 import z from 'zod';
 import type { StoredProjectGitSettings } from './effective-settings';
+import type { WorktreeRootContext } from './worktree-root';
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -97,9 +98,12 @@ export type ProjectSettingsPage = {
    * finishes.
    */
   storedGitSettings: StoredProjectGitSettings;
-  defaults: {
-    worktreeDirectory: string;
-  };
+  /**
+   * The worktree-root layers below the per-project override, split so the
+   * renderer resolves true provenance ("host default" vs "built-in default")
+   * with the identical resolver inputs execution uses (spec §6).
+   */
+  worktreeRootContext: WorktreeRootContext;
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
