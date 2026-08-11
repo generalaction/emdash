@@ -61,7 +61,7 @@ vi.mock('@main/host/browser/browser-partition-cleanup', () => ({
   cleanupLegacyBrowserPartitions: mocks.cleanupLegacyBrowserPartitions,
 }));
 vi.mock('@main/lib/logger', () => ({
-  log: { warn: vi.fn() },
+  log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../../core/background', () => ({
   runInBackground: mocks.runInBackground,
