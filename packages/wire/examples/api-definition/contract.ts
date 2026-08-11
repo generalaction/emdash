@@ -1,5 +1,4 @@
 import { ok } from '@emdash/shared';
-import { z } from 'zod';
 import {
   defineContract,
   liveModel,
@@ -7,7 +6,8 @@ import {
   liveLog,
   mutation,
   procedure,
-} from '../../src/index';
+} from '@emdash/wire/rpc';
+import { z } from 'zod';
 
 export const sessionKeySchema = z.object({ sessionId: z.string() });
 export const noteSchema = z.object({ id: z.string(), text: z.string() });

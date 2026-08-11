@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { clientHelloSchema } from '../versions/schemas';
 
-export const wireInitializeInputSchema = z.object({
-  protocolVersion: z.string(),
-});
+export const wireInitializeInputSchema = clientHelloSchema;
 
 export const wireServerInfoSchema = z.object({
   appVersion: z.string(),
@@ -18,7 +17,7 @@ export const wireInitializeResultSchema = z.object({
 });
 
 export const wireProtocolIncompatibleSchema = z.object({
-  code: z.literal('protocol-incompatible'),
+  type: z.literal('protocol-incompatible'),
   action: z.enum(['upgrade-client', 'upgrade-server']),
   clientProtocolVersion: z.string(),
   serverProtocolVersion: z.string(),

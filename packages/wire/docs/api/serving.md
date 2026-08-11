@@ -25,20 +25,21 @@ const controller = createController(
 
 The `impl` object is keyed by the contract shape. Procedures receive
 `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or a
-`LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s, or
-`LiveLogReplica`. Event streams use `createEventStreamHost()`, resolver functions,
-or `EventStreamClientHandle`s. Live model contracts use a `createLiveModelHost()`,
-`LiveModelClientHandle`, or `LiveModelReplica`.
+`LiveJobReplicaCache`. Live logs use resolver functions, `LiveLogClientHandle`s, or
+`LiveLogReplicaCache`. Event streams use `createEventStreamHost()`, resolver functions,
+or `EventStreamClientHandle`s. Live model contracts use `expose()` or an existing
+`LiveModelClientHandle`.
 
-Mutation idempotency is configured on `createLiveModelHost()`, not on the
+Mutation idempotency is configured on `expose()`, not on the
 controller. The controller only routes calls, snapshots, attachments, and live
 mutation procedure envelopes.
 
-Live model hosts are separate from the contract because live model instances are
-runtime resources. A controller can be created once, while conversations,
-sessions, or windows create and dispose keyed host instances over time.
+Live model state is separate from the contract because instances are runtime
+resources. A controller can be created once, while conversations, sessions, or
+windows create and dispose keyed state through `family()` and scoped `expose()`
+lifecycles.
 
-See [../../examples/controller/controller.ts](../../examples/controller/controller.ts).
+See the state bridge tests under `src/state/bridge/`.
 
 ## Serving
 
@@ -54,7 +55,7 @@ See [../../examples/controller/controller.ts](../../examples/controller/controll
 const pair = memoryTransportPair();
 const stop = serve(pair.right, controller, {
   logger,
-  instrumentation: loggerInstrumentation(logger),
+  instrumentation: { callEnd: (event) => logger.debug('call finished', event) },
 });
 ```
 
@@ -64,17 +65,14 @@ the transport disconnects or when the serve loop is disposed.
 
 ## Validation
 
-Controller validation is applied explicitly at the serving boundary with
-`withValidation(contract, controller, policy)`:
+Contract validation is built into `createController()`. Every controller
+validates by default, and the default is environment-sensitive: `'full'`
+(inputs + outputs) everywhere except production, `'inputs'` in production
+(`NODE_ENV === 'production'`). Pass `validate` to override:
 
 ```ts
-const controller = createController(notesApi, impl);
-const servedController = withValidation(
-  notesApi,
-  controller,
-  process.env.NODE_ENV === 'production' ? 'inputs' : 'full'
-);
-const stop = serve(pair.right, servedController);
+const controller = createController(notesApi, impl, { validate: 'inputs' });
+const stop = serve(pair.right, controller);
 ```
 
 Policies:
@@ -85,15 +83,16 @@ Policies:
 - `full`: includes `inputs`, then also parses procedure outputs, upload/download
   results, mutation results, and live job start results.
 
-Use `inputs` for production boundaries that receive values from another process
-or client. Inputs cross a trust boundary and should stay parsed even when output
-validation is too expensive. Use `full` in development and tests to catch handler
-contract drift quickly.
+The default rule applies identically to bare controllers, component instances,
+component workers, and tests (`createTestWire`), so a contract violation in a
+test fails the same way it would in dev. Production boundaries stay on
+`inputs`: values crossing a trust boundary are always parsed, while output
+validation is skipped where it is too expensive.
 
-`withValidation()` validates request/response values that pass through
+Validation covers request/response values that pass through
 `Controller.call()` and live topic keys passed to `Controller.resolveLive()`.
 Live job progress, result, error values, and event stream payloads are emitted
-later as live updates and are not intercepted by the middleware.
+later as live updates and are not intercepted.
 
 ## Connecting
 
@@ -109,6 +108,7 @@ const connection = connect(pair.left, { instrumentation });
 - `snapshot(topic)`.
 - `attach(topic, push, { onReattach? })`.
 - `onDisconnect(cb)`.
+- `dispose()` to release the logical connection without closing its transport.
 
 On disconnect, pending calls reject with `WireError` code `DISCONNECTED`.
 Existing attachments are retained locally. If the transport exposes
@@ -118,6 +118,12 @@ link is live and then calls each attachment's `onReattach` callback.
 Replicas use `onReattach` for live models, logs, and jobs to force a fresh
 snapshot after reattach. Direct client-handle consumers can use the same callback when
 they need to reseed UI state after reconnect.
+
+`dispose()` rejects pending calls, releases live attachments and blob channels, and
+unsubscribes the connection from transport events. It intentionally does not call
+`transport.close()`. This allows a short-lived application handshake connection to
+validate a candidate transport before handing that same transport to a stable
+reconnecting connection.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are
@@ -131,7 +137,7 @@ shape as the contract:
 ```ts
 const contractClient = client(notesApi, connection);
 
-const sessions = createLiveModelReplica(notesApi.session, contractClient.session, {
+const sessions = createLiveModelReplicaCache(notesApi.session, contractClient.session, {
   onChange: {
     notes: (state, meta) => {
       console.log('notes model:', state, meta.kind);
@@ -160,16 +166,17 @@ type ContractMutationInvocation<D, E> = {
 };
 ```
 
-`MutationCallOptions` lets callers provide a `mutationId` and retry policy:
+`MutationCallOptions` lets callers provide a `mutationId`, a per-call
+`timeoutMs` deadline override, and an explicit opt-in retry policy. There is no
+automatic retry; retries reuse the mutation id, so opted-in retries stay
+idempotent:
 
 ```ts
 await session.mutations.addNote({ text: 'Optimistic title' }, {
   mutationId: 'custom-mutation',
-  retry: { maxRetries: 1 },
+  retry: { schedule: retrySchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
 });
 ```
-
-See [../../examples/api-client/client.ts](../../examples/api-client/client.ts).
 
 ## Cancellation
 
@@ -233,8 +240,8 @@ Use explicit `createController()` composition when the hop needs local behavior:
 const upstreamConnection = connect(upstreamTransport);
 const upstream = client(workspaceApi, upstreamConnection);
 
-const conversations = createLiveModelReplica(workspaceApi.conversation, upstream.conversation, {
-  retentionMs: 10 * 60_000,
+const conversations = createLiveModelReplicaCache(workspaceApi.conversation, upstream.conversation, {
+  lingerMs: 10 * 60_000,
 });
 
 const controller = createController(workspaceApi, {
@@ -284,20 +291,54 @@ const contractClient = client(api, connect(pair.left));
 
 Opening the same session id closes the previous transport. `close(id)` closes
 one session and calls `transport.close?.()` after disposing the serve loop.
-`dispose()` closes all sessions and calls `controller.dispose?.()`.
+`dispose()` is async: it closes all sessions and awaits `controller.dispose?.()`.
 
-See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
+`Controller.dispose`, when present, returns `Promise<void>`. Wrappers such as
+validation, logging, session hubs, tests, process runtimes, and Electron exposure
+propagate that promise so LiveJobSource servers and resource hosts can finish shutdown
+before their owner reports disposed.
 
 ## Server-Side Call Helpers
 
-`deduplicateRequests(fn, options?)` wraps procedure implementations to share one
-in-flight promise for identical inputs:
+For the full middleware pattern, including handler middleware versus controller
+middleware, see [composable middleware](./middleware.md).
+
+`compose(target, middlewares)` from `@emdash/shared/requests` applies target-first
+middleware arrays to handlers or controllers. The first array entry is outermost:
+it sees the request first and settles last.
+
+```ts
+const loadStats = compose(
+  async (input, meta) => {
+    return await fetchStats(input.repo, { signal: meta.signal });
+  },
+  [
+    withTimeout({ timeoutMs: 20_000 }),
+    withRetry({ schedule, shouldRetry: isTransient }),
+    withTimeout({ timeoutMs: 5_000 }),
+  ]
+);
+
+const controller = createController(api, { loadStats });
+```
+
+In this example the outer timeout bounds the complete retry program, while the
+inner timeout bounds each attempt. Handler middleware must preserve the handler's
+shape. Procedure handlers receive `(input, meta)` and middleware should preserve
+all `meta` fields while deriving a replacement `meta.signal` when it needs
+cooperative cancellation.
+
+`deduplicate(options?)` from `@emdash/shared/requests` wraps procedure
+implementations to share one in-flight promise for identical inputs:
 
 ```ts
 const controller = createController(api, {
-  expensiveStats: deduplicateRequests(async (input) => {
-    return await loadStats(input.repo, input.branch);
-  }),
+  expensiveStats: compose(
+    async (input, meta) => {
+      return await loadStats(input.repo, input.branch, { signal: meta.signal });
+    },
+    [deduplicate({ key: (input) => `${input.repo}:${input.branch}` })]
+  ),
 });
 ```
 

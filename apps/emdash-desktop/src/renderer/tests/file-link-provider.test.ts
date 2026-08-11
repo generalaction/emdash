@@ -1,12 +1,12 @@
 import type { ILink } from '@xterm/xterm';
 import { describe, expect, it } from 'vitest';
-import { findFileLinks } from '@renderer/lib/pty/file-link-detection';
 import {
   ActivationModifierTracker,
   FileLinkProvider,
   isActivationModifierPressed,
   isPrimaryMouseButton,
-} from '@renderer/lib/pty/file-link-provider';
+} from '@core/features/terminals/api/browser/pty/file-link-provider';
+import { findFileLinks } from '@core/features/terminals/browser/pty/file-link-detection';
 
 class MockBufferLine {
   constructor(

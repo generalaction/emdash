@@ -21,11 +21,13 @@
  * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
-import { SURFACE_STATUSES } from '@theme/core/contract/roles';
+import { SURFACE_STATUSES } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
+// Relative import: the dts emitter rewrites aliased imports to a dangling
+// relative path, silently degrading the exported types.
+import { vars } from '../../theme/core/contract/contract.css';
 import { tokenVars } from '../../theme/tokens.css';
-import { vars } from '@theme/core/contract/contract.css';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 const vv = vars as unknown as Record<string, string>;

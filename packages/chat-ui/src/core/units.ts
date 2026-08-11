@@ -29,7 +29,7 @@
  */
 
 import type { Component } from 'solid-js';
-import type { ChatItem, PlanState, SyntheticItem } from '@/model';
+import type { ChatItem, PlanState, SyntheticItem, TerminalOutputSnapshot } from '@/model';
 import type { ChatCaches } from './caches';
 import type { MeasureCtx, RenderCtx } from './define';
 import type { Margin } from './spacing';
@@ -119,7 +119,7 @@ export type SegmentCtx = {
   active: boolean;
   plan: () => PlanState | null;
   pendingToolCallIds: () => Set<string>;
-  terminalOutputText: (terminalId: string) => string | null;
+  terminalOutput: (terminalId: string) => TerminalOutputSnapshot | null;
 };
 
 // ── UnitDef ───────────────────────────────────────────────────────────────────

@@ -26,8 +26,6 @@ export {
   unwrapGenAsync,
   unwrapOr,
   unwrapOrElse,
-  withAbort,
-  withTimeout,
   type BaseError,
   type DataOf,
   type Err,
@@ -37,16 +35,12 @@ export {
   type SerializedError,
 } from './result/index';
 export { Secret, secret, isSecret, reveal, REDACTED } from './secret';
-export { Emitter } from './emitter';
+export {
+  createEmitter,
+  type Emitter,
+  type EmitterOptions,
+  type EmitterSubscriberError,
+} from './emitter';
 export { isDeepEqual } from './deep-equal';
-export { once, toPendingLease, withLease } from './lifecycle';
-export type {
-  PendingLease,
-  IDisposable,
-  IInitializable,
-  ILifecycle,
-  IReleasable,
-  Lease,
-  Unsubscribe,
-} from './lifecycle';
-export { LifecycleMap, type LifecycleHooks, type LifecycleStatus } from './lifecycle-map';
+export { once, toPendingLease } from './lifecycle';
+export type { PendingLease, Lease, Unsubscribe } from './lifecycle';

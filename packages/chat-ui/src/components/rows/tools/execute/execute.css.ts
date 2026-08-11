@@ -35,6 +35,12 @@ export const executeSpacerLine = style({
   userSelect: 'none',
 });
 
+export const executeTruncatedLine = style({
+  color: vars.fgPassive,
+  fontStyle: 'italic',
+  userSelect: 'none',
+});
+
 globalStyle(`${executeLine} span`, {
   color: 'var(--shiki-light)',
 });

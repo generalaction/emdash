@@ -10,10 +10,23 @@ import type { VirtualListHandle } from '../virtual-list';
  * - `sync`: plain array or a reactive getter (e.g. `() => Array.from(store.items.values())`).
  *   If a getter is supplied and it reads MobX observables, `visibleItems` re-derives automatically.
  * - `async`: async loader called on mount (and on explicit `reload()`).
+ * - `external`: items *and* status/error mirror an externally owned fetcher (e.g. a
+ *   React Query result via `useQueryListSource`). The view never fetches; the owner
+ *   handles refetching, so `reload()` is a no-op. All getters are reactive reads —
+ *   back them with MobX observables. Status uses the store's own vocabulary:
+ *   `loading` only while there is no data yet (background refetches should stay
+ *   `idle` so stale rows keep showing), `error` routes to `errorSlot` when the
+ *   list is empty.
  */
 export type ListSource<T> =
   | { kind: 'sync'; items: T[] | (() => T[]) }
-  | { kind: 'async'; load: (signal: AbortSignal) => Promise<T[]> };
+  | { kind: 'async'; load: (signal: AbortSignal) => Promise<T[]> }
+  | {
+      kind: 'external';
+      items: () => T[];
+      status: () => 'idle' | 'loading' | 'error';
+      error?: () => unknown;
+    };
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -176,6 +189,7 @@ export interface SortApi<K extends string> {
 
 export interface PaginationApi {
   loadMore: () => void;
+  reload: () => void;
   isFetchingMore: boolean;
   hasMore: boolean;
 }
@@ -210,6 +224,7 @@ export interface ListViewSnapshot<T> {
   error?: unknown;
   visibleItems: T[];
   orderedIds: string[];
+  reload: () => Promise<void>;
 }
 
 // ── Context value types ───────────────────────────────────────────────────────

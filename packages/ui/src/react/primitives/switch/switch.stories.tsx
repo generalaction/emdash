@@ -28,6 +28,17 @@ export const Controlled: Story = {
   },
 };
 
+/** Base (32×18 px) vs SM (24×14 px) sizes. */
+export const Sizes: Story = {
+  render: () => (
+    <Box display="flex" alignItems="center" gap="3">
+      <Switch defaultChecked size="base" aria-label="Base size" />
+      <Switch defaultChecked size="sm" aria-label="Small size" />
+      <Switch size="sm" aria-label="Small size off" />
+    </Box>
+  ),
+};
+
 export const Disabled: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" className={s.w72}>
@@ -47,7 +58,7 @@ export const InFormRow: Story = {
       className={s.w72}
     >
       <Box display="flex" flexDirection="column" gap="1">
-        <span style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500 }}>Send telemetry</span>
+        <span style={{ fontSize: 'var(--em-text-sm)', fontWeight: 400 }}>Send telemetry</span>
         <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
           Anonymous usage data helps us improve.
         </span>

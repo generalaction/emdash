@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resyncRetry } from '../follower';
 import { LiveLogClient } from './client';
-import { LiveLog } from './server';
+import { LiveLogSource } from './source';
 
 function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
-  const server = new LiveLog({
+  const server = new LiveLogSource({
     generation: options.generation ?? 1000,
     maxBufferBytes: options.maxBufferBytes,
   });
   const onReset = vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
   const onAppend = vi.fn<(chunk: string) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
-  const client = new LiveLogClient({ refetchSnapshot, onReset, onAppend });
+  const client = new LiveLogClient({
+    refetchSnapshot,
+    onReset,
+    onAppend,
+    onResyncFailed: resyncRetry(),
+  });
 
   client.seed(server.snapshot());
   server.subscribe((update) => client.applyUpdate(update));
@@ -18,9 +24,9 @@ function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
   return { server, client, onReset, onAppend, refetchSnapshot };
 }
 
-describe('LiveLog', () => {
+describe('LiveLogSource', () => {
   it('emits envelope-correct append updates', () => {
-    const server = new LiveLog({ generation: 1000 });
+    const server = new LiveLogSource({ generation: 1000 });
     const updates: unknown[] = [];
     server.subscribe((update) => updates.push(update));
 
@@ -38,7 +44,7 @@ describe('LiveLog', () => {
   });
 
   it('snapshots the retained tail with offset and truncation metadata', () => {
-    const server = new LiveLog({ generation: 1000, maxBufferBytes: 5 });
+    const server = new LiveLogSource({ generation: 1000, maxBufferBytes: 5 });
 
     server.append('abc');
     server.append('de');
@@ -84,12 +90,17 @@ describe('LiveLogClient', () => {
   });
 
   it('refreshes from a fresh snapshot on demand', async () => {
-    const server = new LiveLog({ generation: 1000 });
+    const server = new LiveLogSource({ generation: 1000 });
     const onReset =
       vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
     const onAppend = vi.fn<(chunk: string) => void>();
     const refetchSnapshot = vi.fn(async () => server.snapshot());
-    const client = new LiveLogClient({ refetchSnapshot, onReset, onAppend });
+    const client = new LiveLogClient({
+      refetchSnapshot,
+      onReset,
+      onAppend,
+      onResyncFailed: resyncRetry(),
+    });
     client.seed(server.snapshot());
 
     server.append('offline output');

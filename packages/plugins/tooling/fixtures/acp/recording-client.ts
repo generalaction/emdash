@@ -34,8 +34,8 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { AcpProcessHost } from '@emdash/core/acp';
-import { AgentTerminalManager } from '@emdash/runtime/acp-agents';
+import type { AcpProcessHost } from '@emdash/core/runtimes/acp/api/transport';
+import { AgentTerminalManager } from '@emdash/core/runtimes/acp/node';
 import type { Recorder } from './recorder';
 
 /**
@@ -159,7 +159,7 @@ export function buildRecordingClient(
       if (!terminal) {
         throw new Error(`RecordingClient: terminal not found: ${params.terminalId}`);
       }
-      const snap = terminal.snapshot();
+      const snap = terminal.outputSnapshot();
       return {
         output: snap.output,
         truncated: snap.truncated,

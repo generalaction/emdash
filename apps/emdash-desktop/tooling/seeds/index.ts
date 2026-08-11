@@ -1,4 +1,4 @@
-import type { AppDb } from '@main/db/client';
+import type { AppDb } from '@core/services/app-db/node/db';
 import { baseline } from './baseline';
 import { empty } from './empty';
 

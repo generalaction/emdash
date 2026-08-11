@@ -19,8 +19,7 @@ export const positioner = style({
 export const menuContent = style({
   zIndex: 50,
   maxHeight: 'var(--available-height)',
-  width: 'var(--anchor-width)',
-  minWidth: '12rem',
+  maxWidth: 'var(--available-width)',
   transformOrigin: 'var(--transform-origin)',
   overflowX: 'hidden',
   overflowY: 'auto',
@@ -28,9 +27,24 @@ export const menuContent = style({
   backgroundColor: vars.surface,
   padding: '0.25rem',
   color: vars.foreground,
-  boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+  boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   outline: 'none',
   selectors: {
+    '&[data-width="trigger"]': {
+      width: 'var(--anchor-width)',
+      minWidth: '12rem',
+    },
+    '&[data-width="content"]': {
+      width: 'max-content',
+      minWidth: '12rem',
+    },
+    '&[data-width="content-at-least-trigger"]': {
+      width: 'max-content',
+      minWidth: 'max(12rem, var(--anchor-width))',
+    },
+    '&[data-slot="dropdown-menu-sub-content"][data-width="content"]': {
+      minWidth: '6rem',
+    },
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
     '&[data-open][data-side="bottom"]': { animation: `${kfPopupInSlideFromTop} 100ms both` },
     '&[data-open][data-side="top"]': { animation: `${kfPopupInSlideFromBottom} 100ms both` },
@@ -50,7 +64,7 @@ export const menuLabel = style({
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foregroundMuted,
   selectors: {
     '&[data-inset]': { paddingLeft: '2rem' },
@@ -174,12 +188,6 @@ export const menuSeparator = style({
   marginBottom: '0.25rem',
   height: '1px',
   backgroundColor: vars.border,
-});
-
-/** Overrides the default anchor-width sizing for sub-menus so they size to content. */
-export const subContentOverride = style({
-  width: 'auto',
-  minWidth: '6rem', // 96px
 });
 
 export const menuShortcut = style({

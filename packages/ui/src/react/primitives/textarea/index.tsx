@@ -1,6 +1,9 @@
-import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
+import { inputVariants } from '@styles/recipes/input';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { InputVariantProps } from '../../../styles/recipes/input';
 import { textareaOverride } from './textarea.css';
 
 export interface TextareaProps extends React.ComponentProps<'textarea'> {

@@ -1,23 +1,26 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAccountSession } from '@core/features/account/api/browser/useAccount';
+import { GithubContextProvider } from '@core/features/github/api/browser/github-context-provider';
+import { IntegrationsProvider } from '@core/features/integrations/contributions/browser/integrations-provider';
+import { useLegacyPortStatus } from '@core/features/legacy-port/api/browser/useLegacyPort';
+import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
+import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
+import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
+import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
+import { WorkspaceLayoutContextProvider } from '@core/features/workbench/contributions/browser/layout-provider';
+import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
+import { queryClient } from '@core/primitives/query/browser/query-client';
+import { reportAppQueriesSettled } from '@renderer/lib/boot/splash-gate';
 import { AppMenuEvents } from './app/app-menu-events';
+import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
-import { IntegrationsProvider } from './features/integrations/integrations-provider';
-import { Onboarding } from './features/onboarding/onboarding';
-import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
-import { useAccountSession } from './lib/hooks/useAccount';
-import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
-import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalRenderer } from './lib/modal/modal-renderer';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
-import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
-import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
-import { queryClient } from './lib/query-client';
-import { RightSidebarProvider } from './lib/ui/right-sidebar';
-import { TooltipProvider } from './lib/ui/tooltip';
 
 export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 
@@ -33,6 +36,13 @@ function AppContent() {
   const { data: legacyStatus, isLoading: legacyLoading } = useLegacyPortStatus();
 
   const isLoading = sessionLoading || legacyLoading;
+
+  const queriesReported = useRef(false);
+  useEffect(() => {
+    if (isLoading || queriesReported.current) return;
+    queriesReported.current = true;
+    reportAppQueriesSettled();
+  }, [isLoading]);
 
   // Computed once when queries first resolve while in onboarding. Never updated
   // after that so query refetches mid-onboarding (e.g. legacyPortStatus after
@@ -92,25 +102,26 @@ function AppContent() {
   };
 
   return (
-    <TooltipProvider delay={300}>
+    <Tooltip.Provider delay={300}>
       <WorkspaceLayoutContextProvider>
         <TerminalPoolProvider>
           <GithubContextProvider>
             <IntegrationsProvider>
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
-                <RightSidebarProvider>
+                <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
                   <ThemeProvider>
                     <ModalRenderer />
+                    <AppShutdownLifecycle />
                     {renderContent()}
                   </ThemeProvider>
-                </RightSidebarProvider>
+                </ExternalLinkProvider>
               </WorkspaceViewProvider>
             </IntegrationsProvider>
           </GithubContextProvider>
         </TerminalPoolProvider>
       </WorkspaceLayoutContextProvider>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 }
 

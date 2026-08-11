@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { once, toPendingLease, withLease, type Lease } from './lifecycle';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
+import { afterEach, describe, expect, it } from 'vitest';
+import { once, toPendingLease, type Lease } from './lifecycle';
+import { createStubLogger } from './testing';
 
 function leaseFor<T>(value: T, onRelease: () => void | Promise<void>): Lease<T> {
   return {
@@ -81,41 +83,6 @@ describe('once', () => {
   });
 });
 
-describe('withLease', () => {
-  it('releases the lease after a successful operation', async () => {
-    let released = false;
-
-    const result = await withLease(
-      leaseFor('value', () => {
-        released = true;
-      }),
-      (value) => value.toUpperCase()
-    );
-
-    expect(result).toBe('VALUE');
-    expect(released).toBe(true);
-  });
-
-  it('releases the lease when the operation throws', async () => {
-    let released = false;
-
-    await expect(
-      withLease(
-        Promise.resolve(
-          leaseFor('value', () => {
-            released = true;
-          })
-        ),
-        () => {
-          throw new Error('failed');
-        }
-      )
-    ).rejects.toThrow('failed');
-
-    expect(released).toBe(true);
-  });
-});
-
 describe('toPendingLease', () => {
   it('supports releasing before the lease promise resolves', async () => {
     let resolve!: (lease: Lease<string>) => void;
@@ -185,5 +152,30 @@ describe('toPendingLease', () => {
     await pending.release(); // one more after resolution
 
     expect(releaseCount).toBe(1);
+  });
+
+  describe('release failures', () => {
+    afterEach(() => {
+      setRootLogger(noopLogger);
+    });
+
+    it('reports release failures through the root logger instead of swallowing them', async () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+
+      const pending = toPendingLease(
+        Promise.resolve(
+          leaseFor('value', () => {
+            throw new Error('release boom');
+          })
+        )
+      );
+
+      await expect(pending.release()).resolves.toBeUndefined();
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.level).toBe('warn');
+      expect(calls[0]?.fields?.error).toBeInstanceOf(Error);
+    });
   });
 });

@@ -21,10 +21,13 @@ function DropdownMenuContent({
   alignOffset = 0,
   side = 'bottom',
   sideOffset = 4,
+  width = 'trigger',
   className,
   ...props
 }: MenuPrimitive.Popup.Props &
-  Pick<MenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  Pick<MenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'> & {
+    width?: 'trigger' | 'content' | 'content-at-least-trigger';
+  }) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
@@ -36,6 +39,7 @@ function DropdownMenuContent({
       >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
+          data-width={width}
           className={cx('surface-elevated', styles.menuContent, className)}
           {...props}
         />
@@ -121,11 +125,12 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cx(styles.subContentOverride, className)}
+      className={className}
       align={align}
       alignOffset={alignOffset}
       side={side}
       sideOffset={sideOffset}
+      width="content"
       {...props}
     />
   );

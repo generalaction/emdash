@@ -1,13 +1,23 @@
+import { Resizable, useCollapsiblePanelBinding } from '@emdash/ui/react/primitives';
 import { type ReactNode } from 'react';
-import { useDefaultLayout } from 'react-resizable-panels';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { cn } from '@renderer/utils/utils';
+import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
+// Resize floor (the released builds' value): dragging shrinks the sidebar only
+// down to this width; dragging past it snaps the collapsible panel's layout to
+// `collapsedSize` (0), which the binding's close-threshold check turns into a
+// semantic close.
 const LEFT_SIDEBAR_MIN_SIZE = '200px';
 const LEFT_SIDEBAR_MAX_SIZE = '30%';
 const MAIN_PANEL_MIN_SIZE = '30%';
+
+// Drag-to-close threshold for the left sidebar, in percent of the group.
+// 200px — the old resize floor — is at least 8% of the group on any window up
+// to 2500px wide, so every width the previous UI let a user settle at stays a
+// plain resize/restore, never a surprise close. Below 8% (~115px at 1440px)
+// the sidebar content is unusable, so a drag settling there reads as intent
+// to close rather than a resize.
+const LEFT_SIDEBAR_CLOSE_THRESHOLD = 8;
 
 interface WorkspaceLayoutProps {
   leftSidebar: ReactNode;
@@ -15,42 +25,46 @@ interface WorkspaceLayoutProps {
 }
 
 export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
-  const { leftPanelRef, syncLeftOpenFromPanel, isLeftOpen } = useWorkspaceLayoutContext();
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: 'workspace-outer',
-    storage: localStorage,
+  const { isLeftOpen, toggleLeftSidebar, layoutStorage, layoutKey } = useWorkspaceLayoutContext();
+  const binding = useCollapsiblePanelBinding({
+    storageKey: 'workspace-outer',
+    storage: layoutStorage,
+    panelIds: ['workspace-left', 'workspace-main'],
+    collapsiblePanelId: 'workspace-left',
+    open: isLeftOpen,
+    // Only reachable while open, so toggle is the semantic close command.
+    onCloseRequest: () => toggleLeftSidebar(),
+    closeThreshold: LEFT_SIDEBAR_CLOSE_THRESHOLD,
   });
 
   return (
-    <ResizablePanelGroup
+    <Resizable.Group
+      key={layoutKey}
       id="workspace-outer"
       orientation="horizontal"
-      className="h-full w-full overflow-hidden"
-      defaultLayout={defaultLayout}
-      onLayoutChanged={onLayoutChanged}
+      {...binding.groupProps}
     >
-      <ResizablePanel
-        id="workspace-left"
-        panelRef={leftPanelRef}
-        defaultSize={LEFT_PANEL_DEFAULT_SIZE}
-        minSize={LEFT_SIDEBAR_MIN_SIZE}
-        maxSize={LEFT_SIDEBAR_MAX_SIZE}
-        collapsedSize="0%"
-        onResize={syncLeftOpenFromPanel}
-        collapsible
-      >
-        {leftSidebar}
-      </ResizablePanel>
-      <ResizableHandle
-        className={cn(
-          'items-center justify-center bg-transparent transition-colors hover:bg-border/80',
-          isLeftOpen ? 'flex' : 'hidden'
-        )}
-      />
-      <ResizablePanel id="workspace-main" minSize={MAIN_PANEL_MIN_SIZE}>
+      {/* Closed = panel AND handle unmounted (sync contract: never program
+          the panels). */}
+      {isLeftOpen && (
+        <>
+          <Resizable.Panel
+            {...binding.collapsiblePanelProps}
+            defaultSize={binding.collapsiblePanelProps.defaultSize ?? LEFT_PANEL_DEFAULT_SIZE}
+            minSize={LEFT_SIDEBAR_MIN_SIZE}
+            maxSize={LEFT_SIDEBAR_MAX_SIZE}
+            collapsible
+            collapsedSize="0%"
+          >
+            {leftSidebar}
+          </Resizable.Panel>
+          <Resizable.Handle variant="ghost" />
+        </>
+      )}
+      <Resizable.Panel id="workspace-main" minSize={MAIN_PANEL_MIN_SIZE}>
         {mainContent}
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      </Resizable.Panel>
+    </Resizable.Group>
   );
 }
 

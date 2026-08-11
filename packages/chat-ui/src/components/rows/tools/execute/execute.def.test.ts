@@ -1,6 +1,6 @@
 import type { SegmentCtx } from '@core/units';
 import { describe, expect, it } from 'vitest';
-import type { ToolNode } from '@/model';
+import type { TerminalOutputSnapshot, ToolNode } from '@/model';
 import { executeFromItem } from './execute.presenter';
 
 function executeItem(overrides: Partial<Extract<ToolNode, { kind: 'execute-tool-call' }>> = {}) {
@@ -16,35 +16,59 @@ function executeItem(overrides: Partial<Extract<ToolNode, { kind: 'execute-tool-
   } satisfies Extract<ToolNode, { kind: 'execute-tool-call' }>;
 }
 
-function ctx(outputText: string | null): SegmentCtx {
+function ctx(snapshot: TerminalOutputSnapshot | null): SegmentCtx {
   return {
     caches: {} as SegmentCtx['caches'],
     expanded: () => false,
     active: false,
     plan: () => null,
     pendingToolCallIds: () => new Set<string>(),
-    terminalOutputText: () => outputText,
+    terminalOutput: () => snapshot,
   };
 }
 
+function snapshot(
+  lines: readonly string[],
+  overrides: Partial<TerminalOutputSnapshot> = {}
+): TerminalOutputSnapshot {
+  return { lines, truncated: false, version: 1, ...overrides };
+}
+
 describe('executeFromItem', () => {
-  it('passes static outputText through when no terminal id is present', () => {
-    expect(executeFromItem(executeItem({ outputText: 'static output' }), ctx(null))).toMatchObject({
+  it('splits static outputText into lines when no terminal output is live', () => {
+    expect(
+      executeFromItem(executeItem({ outputText: 'static output\nsecond line' }), ctx(null))
+    ).toMatchObject({
       command: 'echo ok',
-      outputText: 'static output',
+      outputLines: ['static output', 'second line'],
     });
   });
 
-  it('prefers live terminal output over stale tool output', () => {
+  it('reuses the same static split across calls for the same item (identity-stable)', () => {
+    const item = executeItem({ outputText: 'one\ntwo' });
+    const first = executeFromItem(item, ctx(null)).outputLines;
+    const second = executeFromItem(item, ctx(null)).outputLines;
+    expect(first).toBe(second);
+  });
+
+  it('passes the live line array through by reference (no join, no re-split)', () => {
+    const lines = ['live output', 'still going'];
+    const result = executeFromItem(
+      executeItem({ terminalId: 'term-1', outputText: 'stale output' }),
+      ctx(snapshot(lines, { version: 7 }))
+    );
+    expect(result.outputLines).toBe(lines);
+    expect(result.outputVersion).toBe(7);
+    expect(result.terminalId).toBe('term-1');
+  });
+
+  it('collapses upstream truncation into a single outputTruncated flag', () => {
     expect(
       executeFromItem(
-        executeItem({ terminalId: 'term-1', outputText: 'stale output' }),
-        ctx('live output')
+        executeItem({ terminalId: 'term-1' }),
+        ctx(snapshot(['tail'], { truncated: true }))
       )
-    ).toMatchObject({
-      outputText: 'live output',
-      terminalId: 'term-1',
-    });
+    ).toMatchObject({ outputTruncated: true });
   });
 
   it('falls back to static outputText when terminal output is unavailable', () => {
@@ -54,7 +78,7 @@ describe('executeFromItem', () => {
         ctx(null)
       )
     ).toMatchObject({
-      outputText: 'static fallback',
+      outputLines: ['static fallback'],
       terminalId: 'term-1',
     });
   });

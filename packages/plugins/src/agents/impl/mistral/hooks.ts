@@ -1,14 +1,12 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
 import {
   buildFlatTomlHookConfig,
+  configRoots,
+  envConfigRoot,
   makeNotificationHookCommand,
   makeStdinHookCommand,
-  readTomlConfig,
-  writeTomlConfig,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const MISTRAL_HOOKS_PATH = '.vibe/hooks.toml';
-export const MISTRAL_CONFIG_PATH = '.vibe/config.toml';
+export const MISTRAL_HOOKS_PATH = 'hooks.toml';
 
 const MISTRAL_HOOK_ENTRIES = [
   {
@@ -30,28 +28,9 @@ const MISTRAL_HOOK_ENTRIES = [
   },
 ];
 
-async function enableExperimentalHooks(fs: PluginFs): Promise<string[]> {
-  const config = await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
-  await writeTomlConfig(fs, MISTRAL_CONFIG_PATH, {
-    ...config,
-    enable_experimental_hooks: true,
-  });
-  return [MISTRAL_CONFIG_PATH];
-}
-
-async function disableExperimentalHooks(fs: PluginFs): Promise<void> {
-  const config = await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
-  const { enable_experimental_hooks: _removed, ...configWithoutExperimentalHooks } = config;
-  await writeTomlConfig(fs, MISTRAL_CONFIG_PATH, configWithoutExperimentalHooks);
-}
-
 export function buildMistralHookConfig() {
-  return buildFlatTomlHookConfig(MISTRAL_HOOKS_PATH, MISTRAL_HOOK_ENTRIES, {
-    beforeWrite: async (fs) => {
-      // Parse config.toml before touching hooks.toml so invalid TOML aborts without a partial write.
-      await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
-    },
-    afterWrite: enableExperimentalHooks,
-    afterDelete: disableExperimentalHooks,
-  });
+  return {
+    ...buildFlatTomlHookConfig(MISTRAL_HOOKS_PATH, MISTRAL_HOOK_ENTRIES),
+    resolveConfigRoots: configRoots(envConfigRoot('VIBE_HOME', '.vibe')),
+  };
 }

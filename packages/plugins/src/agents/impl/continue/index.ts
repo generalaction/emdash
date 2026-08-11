@@ -1,5 +1,8 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -22,18 +25,21 @@ export const plugin = definePlugin(
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
         linux: [
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
         windows: [
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
       },

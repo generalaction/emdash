@@ -25,11 +25,11 @@ current sequence; otherwise the client has missed an update and resyncs from
 
 ## Server
 
-`LiveState<T>` owns one authoritative state object. Mutate it with
+`LiveStateSource<T>` owns one authoritative state object. Mutate it with
 `produce()`, not by mutating the original object:
 
 ```ts
-const server = new LiveState<TaskListState>(
+const server = new LiveStateSource<TaskListState>(
   {
     tasks: [{ id: 'task-1', title: 'Read the plan', done: false }],
     filter: 'all',
@@ -64,7 +64,7 @@ const detach = await model.attach((update) => {
 });
 ```
 
-Wrap that live state client handle in `createLiveModelReplica()` when a process wants local
+Wrap that live state client handle in `createLiveModelReplicaCache()` when a process wants local
 state, mutation settling, ref counting, or a downstream `LiveSource`; see
 [replicas](./replicas.md#model-replicas).
 
@@ -81,6 +81,18 @@ The reported resync reasons are `generation`, `sequence-gap`, `patch-failed`,
 and `validation`. Schema validation is skipped when `NODE_ENV === 'production'`;
 the generation and sequence checks are the primary correctness mechanism.
 
+Every follower is constructed with a required resync failure policy that
+decides what happens when the snapshot refetch itself fails. Wire ships two
+canned policies: `resyncRetry({ schedule? })` retries on a bounded backoff
+until success or dispose, and `resyncMarkStale()` gives up while keeping
+staleness observable (`stale` on the client) until the next update or reattach
+triggers a fresh attempt. Production replicas use `resyncRetry`. Every failure
+fires the `resyncFailed` instrumentation event. `refresh()` resolves only when
+the follower is fresh: concurrent calls coalesce onto the in-flight resync and
+a trigger arriving mid-reseed re-runs the loop before resolution. Disposing a
+follower-based client rejects all of its pending waiters — including
+wait-forever waiters (`timeoutMs <= 0`) — with a disposed error.
+
 ## Cursor and Mutation Waiters
 
 `waitForCursor(cursor, timeoutMs?)` resolves when the client has reached a
@@ -90,29 +102,5 @@ authoritative.
 
 These waiters are used by mutation settling; see [mutations](./mutations.md).
 
-## BatchedLiveState
-
-`BatchedLiveState<T>` wraps a `LiveState<T>` and coalesces queued mutators
-into one `produce()` call:
-
-```ts
-const batched = new BatchedLiveState(server, microtaskScheduler, {
-  instrumentation,
-  logger,
-});
-
-batched.enqueue((draft) => {
-  draft.count += 1;
-});
-batched.enqueue((draft) => {
-  draft.updatedAt = Date.now();
-});
-```
-
-The default scheduler is `microtaskScheduler`. Use `timerScheduler(ms)` for a
-time-windowed trailing debounce. If the combined batch throws, server state is
-unchanged, the batch is dropped, and `batchDropped` instrumentation/logging is
-emitted.
-
-See [../../examples/live-state/client.ts](../../examples/live-state/client.ts)
-and [../../examples/batched-state/client.ts](../../examples/batched-state/client.ts).
+See [../../examples/state-kernel/client.ts](../../examples/state-kernel/client.ts)
+for an end-to-end example.

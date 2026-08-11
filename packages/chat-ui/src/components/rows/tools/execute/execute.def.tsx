@@ -7,7 +7,8 @@ import type { ProseBlock } from '@core/markdown/document';
 import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { ExecuteBody, type ExecuteDisplayLine } from './Execute';
+import { ExecuteBody } from './Execute';
+import { executeLines, maxOutputLineWidth, type ExecuteDisplayLine } from './execute-lines';
 
 export { executeFromItem } from './execute.presenter';
 
@@ -43,28 +44,6 @@ function chromeY(vars: ExecuteVars): number {
   return 3 * vars.border;
 }
 
-function commandLines(command: string): string[] {
-  return (command || '…').split('\n');
-}
-
-function outputLines(outputText: string | undefined): string[] {
-  if (!outputText) return [];
-  return outputText.replace(/\r\n/g, '\n').split('\n');
-}
-
-function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
-  const command = commandLines(item.command).map(
-    (line, index): ExecuteDisplayLine => ({
-      kind: 'command',
-      text: `${index === 0 ? '$' : ' '} ${line}`,
-    })
-  );
-  const output = outputLines(item.outputText).map(
-    (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
-  );
-  return output.length > 0 ? [...command, { kind: 'spacer', text: '' }, ...output] : command;
-}
-
 function executeBodyH(
   lines: ExecuteDisplayLine[],
   codeLineH: number,
@@ -78,34 +57,58 @@ function executeBodyH(
   return { bodyH, contentH };
 }
 
+function measureLineWidth(text: string, ctx: MeasureCtx): number {
+  const codeFonts = { ...ctx.theme.fonts, body: ctx.theme.fonts.code };
+  const block: ProseBlock = {
+    kind: 'prose',
+    id: 'execute-width',
+    variant: 'body',
+    runs: [{ kind: 'text', text }],
+  };
+  return measureProseNaturalWidth(block, codeFonts);
+}
+
+/**
+ * Max natural line width. Non-output display lines (command, truncation
+ * indicator) are few and measured directly; output lines are tracked as an
+ * incremental running max keyed on the live lines array, so per-update
+ * measurement cost is proportional to new lines only.
+ */
+function maxNaturalWidth(item: ChatExecute, lines: ExecuteDisplayLine[], ctx: MeasureCtx): number {
+  let max = 0;
+  for (const line of lines) {
+    if (line.kind === 'output') break; // output lines are contiguous at the end
+    if (line.text) max = Math.max(max, measureLineWidth(line.text, ctx));
+  }
+  if (item.outputLines) {
+    max = Math.max(
+      max,
+      maxOutputLineWidth(item.outputLines, ctx.theme.fonts, (text) => measureLineWidth(text, ctx))
+    );
+  }
+  return max;
+}
+
 function hasHorizontalOverflow(
+  item: ChatExecute,
   lines: ExecuteDisplayLine[],
   ctx: MeasureCtx,
   vars: ExecuteVars,
   verticalScrollbarW: number
 ): boolean {
   const availableWidth = ctx.width - 2 * vars.border - 2 * vars.linePadX - verticalScrollbarW;
-  const codeFonts = { ...ctx.theme.fonts, body: ctx.theme.fonts.code };
-
-  return lines.some((line) => {
-    const block: ProseBlock = {
-      kind: 'prose',
-      id: 'execute-width',
-      variant: 'body',
-      runs: [{ kind: 'text', text: line.text }],
-    };
-    return measureProseNaturalWidth(block, codeFonts) > availableWidth;
-  });
+  return maxNaturalWidth(item, lines, ctx) > availableWidth;
 }
 
 function scrollbarSpace(
+  item: ChatExecute,
   lines: ExecuteDisplayLine[],
   ctx: MeasureCtx,
   vars: ExecuteVars,
   hasVerticalOverflow: boolean
 ): number {
   const verticalScrollbarW = hasVerticalOverflow ? vars.scrollbarSize : 0;
-  return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW)
+  return hasHorizontalOverflow(item, lines, ctx, vars, verticalScrollbarW)
     ? vars.scrollbarGap + vars.scrollbarSize
     : 0;
 }
@@ -120,7 +123,9 @@ function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): nu
     vars
   );
   const hasVerticalOverflow = isExpanded && contentH > bodyH;
-  return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, hasVerticalOverflow) + chromeY(vars);
+  return (
+    vars.rowH + bodyH + scrollbarSpace(item, lines, ctx, vars, hasVerticalOverflow) + chromeY(vars)
+  );
 }
 
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
@@ -140,7 +145,9 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
     const geometry = bodyGeometry();
     const hasVerticalOverflow = isExpanded() && geometry.contentH > geometry.bodyH;
     const verticalScrollbarW = hasVerticalOverflow ? props.vars.scrollbarSize : 0;
-    return ctx ? hasHorizontalOverflow(lines(), ctx, props.vars, verticalScrollbarW) : false;
+    return ctx
+      ? hasHorizontalOverflow(props.data, lines(), ctx, props.vars, verticalScrollbarW)
+      : false;
   });
 
   const totalH = createMemo(() => {
@@ -191,7 +198,7 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
     // Approximate code line height — use a fixed fallback of 20px for estimate.
     const approxLineH = 20;
     const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
-    return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, false) + chromeY(vars);
+    return vars.rowH + bodyH + scrollbarSpace(item, lines, ctx, vars, false) + chromeY(vars);
   },
 
   measure(item, ctx, vars): number {

@@ -1,0 +1,936 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  createLiveJobReplicaCache,
+  LiveJobCancelledError,
+  LiveJobFailedError,
+} from '@emdash/wire/live';
+import { remote, type RemoteModel } from '@emdash/wire/state';
+import { makeObservable, observable, runInAction } from 'mobx';
+import { getGithubClient } from '@core/features/github/api/browser/client';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
+import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
+import {
+  MountedProject,
+  createUnmountedProject,
+  createUnregisteredProject,
+  isMountedProject,
+  isUnmountedProject,
+  isUnregisteredProject,
+  type ProjectCreationStage,
+  type ProjectStore,
+} from '@core/features/projects/api/browser/stores/project';
+import { projectSubject } from '@core/features/projects/contributions/subject';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { log } from '@core/primitives/logging/browser/logger';
+import { getMementoClient } from '@core/primitives/mementos/browser';
+import {
+  getNavigation,
+  getNavigationHistory,
+} from '@core/primitives/navigation/browser/navigation-selectors';
+import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
+import { splitNameWithOwner } from '@core/primitives/repository/api';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
+import type {
+  ModeData,
+  ProjectCreationCompletion,
+  ProjectCreationError,
+  ProjectType,
+  StartProjectCreationOptions,
+  StartProjectCreationResult,
+} from '../../../browser/stores/project-creation-types';
+
+interface ProjectMountAttempt {
+  readonly identity: object;
+  readonly promise: Promise<void>;
+}
+
+export class ProjectManagerStore {
+  projects = observable.map<string, ProjectStore>();
+  pendingCreationIds = observable.set<string>();
+  private _projectCreationJobs = new Map<string, { cancel(): Promise<void> }>();
+  private _projectMountAttempts = new Map<string, ProjectMountAttempt>();
+  private _loadPromise: Promise<void> | null = null;
+  private readonly _projectListScope: Scope = createScope({ label: 'project-list-replica' });
+  private _projectListRemote: RemoteModel<typeof projectsWireContract.projectList> | null = null;
+  private _lastSshRecoveryAttemptAt = 0;
+  private _disposed = false;
+  private readonly _handleOnline = (): void => {
+    this.retryDisconnectedSshProjects({ force: true });
+  };
+  private readonly _handleFocus = (): void => {
+    this.retryDisconnectedSshProjects();
+  };
+
+  constructor() {
+    makeObservable(this, { projects: observable, pendingCreationIds: observable });
+
+    globalThis.window?.addEventListener('online', this._handleOnline);
+    globalThis.window?.addEventListener('focus', this._handleFocus);
+  }
+
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._projectMountAttempts.clear();
+    runInAction(() => {
+      for (const project of this.projects.values()) project.mountedProject?.dispose();
+      this.projects.clear();
+    });
+    void this._projectListScope.dispose();
+    void this._projectListRemote?.dispose();
+    globalThis.window?.removeEventListener('online', this._handleOnline);
+    globalThis.window?.removeEventListener('focus', this._handleFocus);
+  }
+
+  onSshConnectionReady(connectionId: string): void {
+    this._mountDisconnectedSshProjects(connectionId);
+  }
+
+  /**
+   * Resolves once the first project-list snapshot has been applied, so callers
+   * can rely on the sidebar being populated. Project mounts start here but
+   * complete in the background; the boot gate awaits only the one project the
+   * last-active view needs via {@link mountProject}.
+   */
+  load(): Promise<void> {
+    if (!this._loadPromise) {
+      this._loadPromise = this._doLoad();
+    }
+    return this._loadPromise;
+  }
+
+  private async _doLoad(): Promise<void> {
+    const client = await getProjectsWireClient();
+    this._projectListRemote ??= remote(projectsWireContract.projectList, client.projectList, {
+      scope: this._projectListScope,
+      lingerMs: 15_000,
+    });
+    const member = this._projectListRemote(undefined);
+    const initialMounts = await new Promise<string[]>((resolve, reject) => {
+      let resolved = false;
+      observeReadableInAction(
+        member.states.list,
+        (current) => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          const toMount = this._applyProjectListSnapshot(current.value.projects);
+          if (resolved) {
+            void Promise.allSettled(toMount.map((id) => this._startOrReuseProjectMount(id, false)));
+            return;
+          }
+          resolved = true;
+          resolve(toMount);
+        },
+        { scope: this._projectListScope }
+      );
+    });
+    void Promise.allSettled(initialMounts.map((id) => this._startOrReuseProjectMount(id, false)));
+  }
+
+  private _applyProjectListSnapshot(rows: readonly (LocalProject | SshProject)[]): string[] {
+    if (this._disposed) return [];
+    const toMount: string[] = [];
+    const seen = new Set(rows.map((project) => project.id));
+    for (const project of rows) {
+      if (this._applyProjectSnapshot(project)) toMount.push(project.id);
+    }
+    runInAction(() => {
+      for (const [projectId, project] of this.projects) {
+        if (seen.has(projectId) || this.pendingCreationIds.has(projectId)) continue;
+        this.projects.delete(projectId);
+        this._projectMountAttempts.delete(projectId);
+        project.mountedProject?.dispose();
+      }
+    });
+    return toMount;
+  }
+
+  private _applyProjectSnapshot(project: LocalProject | SshProject): boolean {
+    let shouldMount = false;
+    runInAction(() => {
+      const current = this.projects.get(project.id);
+      if (!current) {
+        this.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
+        shouldMount = true;
+        return;
+      }
+      if (isUnregisteredProject(current)) {
+        current.transitionToUnmounted(project, { kind: 'idle' });
+        shouldMount = true;
+        return;
+      }
+      current.updateData(project);
+      if (isUnmountedProject(current) && current.unmounted.kind === 'idle') {
+        shouldMount = true;
+      }
+    });
+    return shouldMount;
+  }
+
+  private _applyProjectSnapshotAndEnsureMounted(project: LocalProject | SshProject): void {
+    if (!this._applyProjectSnapshot(project)) return;
+    void this._startOrReuseProjectMount(project.id, false).catch((error: unknown) => {
+      if (this._disposed) return;
+      log.error('Failed to mount observed project', { projectId: project.id, error });
+    });
+  }
+
+  async createProject(
+    projectType: ProjectType,
+    data: ModeData,
+    id?: string
+  ): Promise<string | undefined> {
+    const result = await this.startProjectCreation(projectType, data, { id });
+    if (result.kind === 'existing') return result.projectId;
+
+    const completion = await result.completion;
+    return completion.success ? result.projectId : undefined;
+  }
+
+  async startProjectCreation(
+    projectType: ProjectType,
+    data: ModeData,
+    options: StartProjectCreationOptions = {}
+  ): Promise<StartProjectCreationResult> {
+    const isSsh = projectType.type === 'ssh';
+    const projectId = options.id ?? crypto.randomUUID();
+    const targetPathResult =
+      data.mode === 'pick'
+        ? ok(data.path)
+        : await (
+            await getProjectsWireClient()
+          ).resolveRepositoryDestination({
+            host: isSsh ? hostRef('remote', projectType.connectionId) : LOCAL_HOST_REF,
+            name: data.name,
+            chosenDir: data.path,
+          });
+    if (!targetPathResult.success) {
+      runInAction(() => {
+        this.projects.set(
+          projectId,
+          createUnregisteredProject(
+            projectId,
+            data.name,
+            { kind: 'running', stage: initialCreationStage(data.mode) },
+            data.mode
+          )
+        );
+      });
+      this._markCreationError(projectId, targetPathResult.error);
+      return {
+        kind: 'creating',
+        projectId,
+        completion: Promise.resolve(err(targetPathResult.error)),
+      };
+    }
+    const targetPath = targetPathResult.data;
+    const inspection = await (
+      await getProjectsWireClient()
+    ).inspectProjectPath(
+      isSsh
+        ? { type: 'ssh', path: targetPath, connectionId: projectType.connectionId }
+        : { type: 'local', path: targetPath }
+    );
+    if (inspection.existingProject) {
+      return { kind: 'existing', projectId: inspection.existingProject.id };
+    }
+
+    runInAction(() => {
+      this.pendingCreationIds.add(projectId);
+      this.projects.set(
+        projectId,
+        createUnregisteredProject(
+          projectId,
+          data.name,
+          { kind: 'running', stage: initialCreationStage(data.mode) },
+          data.mode
+        )
+      );
+    });
+
+    const completion = this._doCreateProject(projectType, data, projectId, targetPath).finally(
+      () => {
+        runInAction(() => this.pendingCreationIds.delete(projectId));
+      }
+    );
+
+    return { kind: 'creating', projectId, completion };
+  }
+
+  private async _doCreateProject(
+    projectType: ProjectType,
+    data: ModeData,
+    projectId: string,
+    targetPath: string
+  ): Promise<ProjectCreationCompletion> {
+    const projectsClient = await getProjectsWireClient();
+    const isSsh = projectType.type === 'ssh';
+    const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
+    const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
+      data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
+
+    let result: ProjectCreationCompletion;
+    try {
+      switch (data.mode) {
+        case 'pick': {
+          const projectResult =
+            projectType.type === 'ssh'
+              ? await projectsClient.createProject({
+                  type: 'ssh',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                  connectionId: projectType.connectionId,
+                  initGitRepository: data.initGitRepository,
+                })
+              : await projectsClient.createProject({
+                  type: 'local',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                  initGitRepository: data.initGitRepository,
+                });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          const project = projectResult.data;
+          if (data.initGitRepository) {
+            await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
+          }
+          this._applyProjectSnapshotAndEnsureMounted(project);
+          result = ok();
+          break;
+        }
+
+        case 'clone': {
+          const projectResult = await this._createProjectFromRemote({
+            projectId,
+            host:
+              projectType.type === 'ssh'
+                ? { type: 'ssh', connectionId: projectType.connectionId }
+                : { type: 'local' },
+            mode: 'clone',
+            repositoryUrl: data.repositoryUrl,
+            targetPath,
+            name: data.name,
+          });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          this._applyProjectSnapshotAndEnsureMounted(projectResult.data);
+          result = ok();
+          break;
+        }
+
+        case 'new': {
+          const repoResult = await (
+            await getGithubClient()
+          ).createRepository({
+            name: data.repositoryName,
+            owner: data.repositoryOwner,
+            isPrivate: data.repositoryVisibility === 'private',
+            accountId: data.githubAccountId ?? undefined,
+          });
+          if (!repoResult.success) {
+            result = err({
+              type: 'repository-create-failed',
+              message: repoResult.error?.trim() || 'Repository creation failed',
+            });
+            break;
+          }
+          if (!repoResult.nameWithOwner || !repoResult.cloneUrl) {
+            result = err({
+              type: 'repository-response-incomplete',
+              message: 'Repository creation response was incomplete',
+            });
+            break;
+          }
+
+          const projectResult = await this._cloneAndCreateGitHubProject({
+            projectType,
+            projectId,
+            targetPath,
+            name: data.name,
+            cloneUrl: repoResult.cloneUrl,
+            repositoryNameWithOwner: repoResult.nameWithOwner,
+            githubAccountId: data.githubAccountId,
+          });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          const project = projectResult.data;
+          await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
+          this._applyProjectSnapshotAndEnsureMounted(project);
+          result = ok();
+          break;
+        }
+      }
+    } catch (error) {
+      this._markUnexpectedCreationError(projectId, error);
+      captureTelemetry('project_added', {
+        type: projectTelemetryType,
+        strategy: projectTelemetryStrategy,
+        success: false,
+      });
+      throw error;
+    }
+
+    if (!result.success) {
+      if (result.error.type === 'cancelled') {
+        this.removeUnregisteredProject(projectId);
+      } else {
+        this._markCreationError(projectId, result.error);
+      }
+    }
+    captureTelemetry('project_added', {
+      type: projectTelemetryType,
+      strategy: projectTelemetryStrategy,
+      success: result.success,
+    });
+    return result;
+  }
+
+  mountProject(projectId: string): Promise<void> {
+    return this._startOrReuseProjectMount(projectId, true);
+  }
+
+  private _startOrReuseProjectMount(projectId: string, retryFailed: boolean): Promise<void> {
+    if (this._disposed) return Promise.resolve();
+    const inFlight = this._projectMountAttempts.get(projectId);
+    if (inFlight) return inFlight.promise;
+    const project = this.projects.get(projectId);
+    if (!project || !isUnmountedProject(project)) return Promise.resolve();
+    if (!retryFailed && project.unmounted.kind !== 'idle') return Promise.resolve();
+
+    const identity = {};
+    const mountStartedAt = Date.now();
+    const promise = Promise.resolve()
+      .then(() => this._runProjectMountAttempt(projectId, identity))
+      .then(() => {
+        log.info('boot-timeline renderer', {
+          mark: 'project-mounted',
+          projectId,
+          durationMs: Date.now() - mountStartedAt,
+        });
+      })
+      .catch((err: unknown) => {
+        runInAction(() => {
+          if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+          const current = this.projects.get(projectId);
+          if (current && isUnmountedProject(current)) {
+            current.unmounted = {
+              kind: 'failed',
+              message: err instanceof Error ? err.message : String(err),
+            };
+          }
+        });
+        throw err;
+      })
+      .finally(() => {
+        if (this._isCurrentProjectMountAttempt(projectId, identity)) {
+          this._projectMountAttempts.delete(projectId);
+        }
+      });
+
+    this._projectMountAttempts.set(projectId, { identity, promise });
+    runInAction(() => {
+      project.unmounted = { kind: 'opening' };
+    });
+    return promise;
+  }
+
+  private async _runProjectMountAttempt(projectId: string, identity: object): Promise<void> {
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    const client = await getProjectsWireClient();
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    const openResult = await client.openProject({ projectId });
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+    if (!openResult.success) {
+      runInAction(() => {
+        if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+        const current = this.projects.get(projectId);
+        if (!current || !isUnmountedProject(current)) return;
+        if (openResult.error.type === 'path-not-found') {
+          current.unmounted = {
+            kind: 'failed',
+            message: openResult.error.path,
+            code: 'path-not-found',
+          };
+        } else if (openResult.error.type === 'ssh-disconnected') {
+          current.unmounted = {
+            kind: 'failed',
+            message: openResult.error.connectionId,
+            code: 'ssh-disconnected',
+          };
+        } else {
+          current.unmounted = { kind: 'failed', message: openResult.error.message };
+        }
+      });
+      return;
+    }
+
+    const current = this.projects.get(projectId);
+    if (!current || !isUnmountedProject(current)) return;
+    const projectData = current.data;
+    if (openResult.data.repositoryWorkspaceId) {
+      runInAction(() => {
+        if (this._isCurrentProjectMountAttempt(projectId, identity)) {
+          projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
+        }
+      });
+    }
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
+
+    const mountedProject = new MountedProject(projectData);
+    try {
+      await mountedProject.space.ready;
+    } catch (error) {
+      mountedProject.dispose();
+      throw error;
+    }
+    if (!this._isCurrentProjectMountAttempt(projectId, identity)) {
+      mountedProject.dispose();
+      return;
+    }
+
+    let installed = false;
+    runInAction(() => {
+      if (
+        this._isCurrentProjectMountAttempt(projectId, identity) &&
+        this.projects.get(projectId) === current &&
+        isUnmountedProject(current)
+      ) {
+        current.transitionToMounted(mountedProject);
+        installed = true;
+      } else {
+        mountedProject.dispose();
+      }
+    });
+    if (installed) {
+      void this._hydrateMountedProject(mountedProject).catch((error: unknown) => {
+        if (this.projects.get(projectId)?.mountedProject !== mountedProject) return;
+        log.error('Failed to hydrate mounted project tasks', { projectId, error });
+      });
+    }
+  }
+
+  private _isCurrentProjectMountAttempt(projectId: string, identity: object): boolean {
+    return this._projectMountAttempts.get(projectId)?.identity === identity;
+  }
+
+  private async _hydrateMountedProject(mountedProject: MountedProject): Promise<void> {
+    const taskManager = mountedProject.get(taskManagerStoreToken);
+    await taskManager.loadTasks();
+    if (
+      this._disposed ||
+      this.projects.get(mountedProject.data.id)?.mountedProject !== mountedProject
+    ) {
+      return;
+    }
+
+    const nav = getNavigation();
+    const navParams = nav.currentRef.params as {
+      projectId?: string;
+      taskId?: string;
+    };
+    const navTaskId =
+      nav.currentViewId === 'task' && navParams?.projectId === mountedProject.data.id
+        ? navParams.taskId
+        : undefined;
+    if (navTaskId) taskManager.provisionTask(navTaskId).catch(() => {});
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    const snapshot = this.projects.get(projectId);
+    const resumeMountOnFailure =
+      snapshot !== undefined &&
+      isUnmountedProject(snapshot) &&
+      snapshot.unmounted.kind === 'opening';
+    const taskIds = [...(snapshot?.mountedProject?.get(taskManagerStoreToken).tasks.keys() ?? [])];
+    const projectIds = [...this.projects.keys()];
+    const deletedIndex = projectIds.indexOf(projectId);
+    const adjacentProjectId =
+      projectIds[deletedIndex + 1] ?? projectIds[deletedIndex - 1] ?? undefined;
+    const current = getNavigation().currentRef;
+    const currentProjectId =
+      current.viewId === 'project' || current.viewId === 'task'
+        ? (current.params as { projectId?: string }).projectId
+        : undefined;
+    if (currentProjectId === projectId) {
+      getNavigation().navigate(
+        adjacentProjectId ? projectViewDef({ projectId: adjacentProjectId }) : homeViewDef()
+      );
+    }
+
+    runInAction(() => {
+      this.projects.delete(projectId);
+      this._projectMountAttempts.delete(projectId);
+    });
+    try {
+      const result = await (await getProjectsWireClient()).delete({ projectId });
+      if (!result.success) throw new Error(result.error.message);
+      for (const taskId of taskIds) {
+        getNavigation().invalidateSubject(taskSubject({ taskId }));
+      }
+      getNavigation().invalidateSubject(projectSubject({ projectId }));
+      // Unmounted projects do not expose their task IDs, so prune any remaining task refs by
+      // project parameter even when they could not be invalidated by subject above.
+      getNavigationHistory().prune((entry) => {
+        const params = entry.ref.params as { projectId?: string };
+        return params.projectId === projectId;
+      });
+      const mementos = getMementoClient();
+      const subjects = [
+        projectSubject({ projectId }),
+        ...taskIds.map((taskId) => taskSubject({ taskId })),
+      ];
+      const cleanupResults = await Promise.allSettled(
+        subjects.map(async (subject) => await mementos.deleteBySubject(subject))
+      );
+      for (const cleanupResult of cleanupResults) {
+        if (cleanupResult.status === 'rejected') mementos.reportError(cleanupResult.reason);
+      }
+      snapshot?.mountedProject?.dispose();
+    } catch (err) {
+      runInAction(() => {
+        if (snapshot) this.projects.set(projectId, snapshot);
+      });
+      if (resumeMountOnFailure) {
+        void this.mountProject(projectId).catch((error: unknown) => {
+          if (this._disposed) return;
+          log.error('Failed to resume project mount after deletion rollback', {
+            projectId,
+            error,
+          });
+        });
+      }
+      throw err;
+    }
+  }
+
+  retryDisconnectedSshProjects(options: { force?: boolean } = {}): void {
+    const now = Date.now();
+    if (!options.force && now - this._lastSshRecoveryAttemptAt < 5_000) return;
+
+    const connectionIds = new Set<string>();
+    for (const store of this.projects.values()) {
+      if (
+        isUnmountedProject(store) &&
+        store.unmounted.kind === 'failed' &&
+        store.unmounted.code === 'ssh-disconnected' &&
+        store.data.type === 'ssh'
+      ) {
+        connectionIds.add(store.data.connectionId);
+      }
+    }
+
+    if (connectionIds.size === 0) return;
+    this._lastSshRecoveryAttemptAt = now;
+
+    for (const connectionId of connectionIds) {
+      const state = getMachinesStore().stateFor(connectionId);
+      if (state === 'connected') {
+        this._mountDisconnectedSshProjects(connectionId);
+        continue;
+      }
+      if (state === 'connecting') continue;
+      void getMachinesStore()
+        .ensureConnected(connectionId, { force: true })
+        .then(() => {
+          if (getMachinesStore().stateFor(connectionId) === 'connected') {
+            this._mountDisconnectedSshProjects(connectionId);
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
+  private _mountDisconnectedSshProjects(connectionId: string): void {
+    for (const [projectId, store] of this.projects) {
+      if (
+        isUnmountedProject(store) &&
+        store.unmounted.kind === 'failed' &&
+        store.unmounted.code === 'ssh-disconnected' &&
+        store.data.type === 'ssh' &&
+        store.data.connectionId === connectionId
+      ) {
+        this.mountProject(projectId).catch(() => {});
+      }
+    }
+  }
+
+  async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
+    await (
+      await getProjectsWireClient()
+    ).updateProjectConnection({
+      projectId,
+      connectionId: newConnectionId,
+    });
+
+    const store = this.projects.get(projectId);
+    if (!store || !store.data || store.data.type !== 'ssh') return;
+
+    const newData: SshProject = { ...store.data, connectionId: newConnectionId };
+
+    void this._remountProject(projectId, newData).catch(() => {});
+  }
+
+  private _remountProject(projectId: string, nextData: LocalProject | SshProject): Promise<void> {
+    this._projectMountAttempts.delete(projectId);
+
+    runInAction(() => {
+      const current = this.projects.get(projectId);
+      if (!current || !current.data) return;
+      if (isMountedProject(current)) {
+        current.transitionToUnmounted(nextData, { kind: 'opening' });
+      } else if (isUnmountedProject(current)) {
+        current.updateData(nextData);
+        current.unmounted = { kind: 'opening' };
+      }
+    });
+
+    return this.mountProject(projectId);
+  }
+
+  removeUnregisteredProject(projectId: string): void {
+    runInAction(() => {
+      const store = this.projects.get(projectId);
+      if (store && isUnregisteredProject(store)) {
+        this.projects.delete(projectId);
+      }
+    });
+  }
+
+  cancelProjectCreation(projectId: string): void {
+    void this._projectCreationJobs.get(projectId)?.cancel();
+  }
+
+  private async _saveInitialGitHubAccountSetting(
+    projectId: string,
+    githubAccountId?: string
+  ): Promise<void> {
+    if (githubAccountId === undefined) return;
+
+    const result = await (
+      await getProjectsWireClient()
+    ).patchProjectSettings({
+      projectId,
+      patch: { githubAccountId },
+    });
+    if (!result.success) {
+      log.error('Failed to save initial GitHub account for project', {
+        projectId,
+        error: result.error,
+      });
+    }
+  }
+
+  private async _rollbackCreatedGitHubRepository(
+    nameWithOwner: string,
+    githubAccountId?: string
+  ): Promise<void> {
+    try {
+      const { owner, repo } = splitNameWithOwner(nameWithOwner);
+      const result = await (
+        await getGithubClient()
+      ).deleteRepository({
+        owner,
+        name: repo,
+        accountId: githubAccountId ?? undefined,
+      });
+      if (!result.success) {
+        log.error('Failed to delete GitHub repository after project creation failure', {
+          nameWithOwner,
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      log.error('Failed to delete GitHub repository after project creation failure', {
+        nameWithOwner,
+        error,
+      });
+    }
+  }
+
+  private async _createProjectFromRemote(opts: {
+    projectId: string;
+    host: { type: 'local' } | { type: 'ssh'; connectionId: string };
+    mode: 'clone' | 'new';
+    repositoryUrl: string;
+    targetPath: string;
+    name: string;
+  }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
+    const client = await getProjectsWireClient();
+    const jobs = createLiveJobReplicaCache(projectsWireContract.create, client.create);
+    const lease = await jobs.start({
+      projectId: opts.projectId,
+      host: opts.host,
+      mode: opts.mode,
+      repositoryUrl: opts.repositoryUrl,
+      targetPath: opts.targetPath,
+      name: opts.name,
+    });
+    const job = await lease.ready();
+    this._projectCreationJobs.set(opts.projectId, job);
+    const unsubscribe = job.onProgress((progress) => {
+      this._updatePhase(
+        opts.projectId,
+        progress.phase === 'registering' ? 'registering' : 'cloning',
+        progress
+      );
+    });
+
+    try {
+      return ok(await job.result);
+    } catch (error) {
+      return err(projectWireErrorToCreationError(error));
+    } finally {
+      unsubscribe();
+      if (this._projectCreationJobs.get(opts.projectId) === job) {
+        this._projectCreationJobs.delete(opts.projectId);
+      }
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private async _cloneAndCreateGitHubProject(opts: {
+    projectType: ProjectType;
+    projectId: string;
+    targetPath: string;
+    name: string;
+    cloneUrl: string;
+    repositoryNameWithOwner: string;
+    githubAccountId?: string;
+  }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
+    let result: Result<LocalProject | SshProject, ProjectCreationError>;
+    try {
+      result = await this._createProjectFromRemote({
+        projectId: opts.projectId,
+        host:
+          opts.projectType.type === 'ssh'
+            ? { type: 'ssh', connectionId: opts.projectType.connectionId }
+            : { type: 'local' },
+        mode: 'new',
+        repositoryUrl: opts.cloneUrl,
+        targetPath: opts.targetPath,
+        name: opts.name,
+      });
+    } catch (error) {
+      await this._rollbackCreatedGitHubRepository(
+        opts.repositoryNameWithOwner,
+        opts.githubAccountId
+      );
+      throw error;
+    }
+
+    if (!result.success) {
+      await this._rollbackCreatedGitHubRepository(
+        opts.repositoryNameWithOwner,
+        opts.githubAccountId
+      );
+    }
+    return result;
+  }
+
+  private _updatePhase(
+    id: string,
+    stage: ProjectCreationStage,
+    progress?: ProjectCreationProgress
+  ): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store && isUnregisteredProject(store)) {
+        store.updateCreationProgress(stage, progress);
+      }
+    });
+  }
+
+  private _markCreationError(id: string, error: ProjectCreationError): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store && isUnregisteredProject(store)) {
+        const message =
+          error.type === 'not-repository'
+            ? 'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+            : error.type === 'inspect-failed'
+              ? `Could not inspect directory: ${error.message}`
+              : error.message;
+        store.failCreation(message);
+      }
+    });
+  }
+
+  private _markUnexpectedCreationError(id: string, error: unknown): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store && isUnregisteredProject(store)) {
+        store.failCreation(error instanceof Error ? error.message : String(error));
+      }
+    });
+  }
+}
+
+function initialCreationStage(mode: ModeData['mode']): ProjectCreationStage {
+  switch (mode) {
+    case 'pick':
+      return 'registering';
+    case 'clone':
+      return 'cloning';
+    case 'new':
+      return 'creating-repo';
+  }
+}
+
+function projectWireErrorToCreationError(error: unknown): ProjectCreationError {
+  if (error instanceof LiveJobCancelledError) {
+    return { type: 'cancelled', message: 'Project creation was cancelled' };
+  }
+
+  const payload = error instanceof LiveJobFailedError ? error.error : error;
+  if (isRuntimeResolveError(payload)) return payload;
+  if (typeof payload === 'object' && payload !== null) {
+    const type = (payload as { type?: unknown }).type;
+    const message = (payload as { message?: unknown }).message;
+    const fallback = typeof message === 'string' ? message : 'Project creation failed';
+    if (type === 'cancelled') return { type: 'cancelled', message: fallback };
+    if (type === 'initialize-failed') return { type: 'initialize-failed', message: fallback };
+    if (type === 'not-repository') return { type: 'not-repository', path: '' };
+    if (type === 'inspect-failed') {
+      return {
+        type: 'inspect-failed',
+        path: '',
+        message: fallback,
+      };
+    }
+    if (type === 'invalid-directory') {
+      return {
+        type: 'invalid-directory',
+        path: '',
+        message: fallback,
+      };
+    }
+    return { type: 'clone-failed', message: fallback };
+  }
+  return {
+    type: 'clone-failed',
+    message: error instanceof Error ? error.message : String(error),
+  };
+}

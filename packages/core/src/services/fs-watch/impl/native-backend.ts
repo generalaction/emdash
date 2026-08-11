@@ -19,7 +19,11 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Wat
         onError,
         options.subscribe
       );
-      scope.add(() => native.dispose());
+      scope.add(() => {
+        // A Parcel subscribe can remain pending after the channel startup timeout. Start cleanup
+        // without making scope disposal wait for that promise; NativeWatch disposes a late result.
+        void native.dispose();
+      });
       await native.ready();
     },
   };

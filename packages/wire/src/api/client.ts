@@ -1,19 +1,19 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import { eventFromUpdate } from '../live/event-stream';
-import { createMutationId, type LiveMutationResult } from '../live/mutations';
-import type {
-  EventStreamSnapshotData,
-  LiveLogSnapshotData,
-  LiveSnapshot,
-  LiveSource,
-  LiveUpdate,
-} from '../live/protocol';
+import type { RetrySchedule } from '@emdash/shared/scheduling';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,
   type BlobDownloadHandle,
   type UploadFileValue,
 } from './blob-channel';
+import type {
+  EventStreamSnapshotData,
+  LiveLogSnapshotData,
+  LiveMutationResult,
+  LiveSnapshot,
+  LiveSource,
+  LiveUpdate,
+} from './channel';
 import type { AttachOptions, CallOptions, Connection } from './connect';
 import type {
   Contract,
@@ -49,20 +49,23 @@ import type {
   UploadFileResult,
 } from './define';
 import { isEndpointDef } from './define';
-import { WireError } from './protocol';
-import { encodeTopic } from './topics';
+import type { LiveEndpointKinds } from './endpoint-kinds';
+import type { WireError } from './protocol';
 
 export type MutationCallOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
   mutationId?: string;
-  retry?:
-    | false
-    | {
-        maxRetries?: number;
-        delayMs?: number;
-      };
+  /**
+   * Explicit opt-in retry on `DISCONNECTED`/`TIMEOUT` rejections. There is no
+   * automatic retry; mutation ids keep opted-in retries idempotent.
+   */
+  retry?: {
+    schedule: RetrySchedule;
+  };
 };
 
-export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
+export type ProcedureCallOptions = Pick<CallOptions, 'signal' | 'timeoutMs'>;
 export type FileUploadCallOptions = ProcedureCallOptions & {
   onProgress?: (progress: { sent: number; total?: number }) => void;
 };
@@ -200,26 +203,42 @@ export type ContractClient<Defs extends ContractDefinitions> = {
   [Name in Extract<keyof Defs, string>]: ContractEntryClient<Defs[Name]>;
 };
 
-export function client<Defs extends ContractDefinitions>(
+export type BuildClientOptions = ClientOptions & {
+  /** The single internal live endpoint-kind dispatch table. */
+  liveEndpoints: LiveEndpointKinds;
+};
+
+/**
+ * Core client engine. Builds procedure and blob endpoint callers itself and
+ * delegates live endpoint handles to the supplied dispatch table. The public
+ * `client` wrapper injects the table.
+ */
+export function buildClient<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   connection: Connection,
-  options: ClientOptions = {}
+  options: BuildClientOptions
 ): ContractClient<Defs> {
   const pathPrefix = options.pathPrefix ? [options.pathPrefix] : [];
-  return buildContractClient(contract, pathPrefix, connection) as ContractClient<Defs>;
+  return buildContractClient(
+    contract,
+    pathPrefix,
+    connection,
+    options.liveEndpoints
+  ) as ContractClient<Defs>;
 }
 
 function buildContractClient(
   contract: ContractDefinitions,
   pathPrefix: string[],
-  connection: Connection
+  connection: Connection,
+  liveEndpoints: LiveEndpointKinds
 ): Record<string, unknown> {
   const client: Record<string, unknown> = {};
 
   for (const [name, def] of Object.entries(contract)) {
     const fullPath = [...pathPrefix, name].join('.');
     if (!isEndpointDef(def)) {
-      client[name] = buildContractClient(def, [...pathPrefix, name], connection);
+      client[name] = buildContractClient(def, [...pathPrefix, name], connection, liveEndpoints);
       continue;
     }
 
@@ -266,16 +285,10 @@ function buildContractClient(
         };
         break;
       case 'liveJob':
-        client[name] = createLiveJobClientHandle(connection, def, fullPath);
-        break;
       case 'liveLog':
-        client[name] = createLiveLogClientHandle(connection, def);
-        break;
       case 'eventStream':
-        client[name] = createEventStreamClientHandle(connection, def);
-        break;
       case 'liveModel':
-        client[name] = createLiveModelClientHandle(connection, fullPath, def);
+        client[name] = liveEndpoints.createEndpointClient(def, fullPath, connection);
         break;
     }
   }
@@ -283,88 +296,11 @@ function buildContractClient(
   return client;
 }
 
-function createLiveLogClientHandle<Def extends LiveLogEndpointDef>(
+/** Builds the generic per-topic handle every live endpoint kind hands out. */
+export function createLiveClientHandle<T>(
   connection: Connection,
-  def: Def
-): LiveLogClientHandle<Def> {
-  return {
-    kind: 'liveLogClientHandle',
-    def,
-    handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
-  };
-}
-
-function createEventStreamClientHandle<Def extends EventStreamEndpointDef>(
-  connection: Connection,
-  def: Def
-): EventStreamClientHandle<Def> {
-  return {
-    kind: 'eventStreamClientHandle',
-    def,
-    handle: (key) => createLiveClientHandle(connection, encodeTopic(def.id, key)),
-    subscribe(key, options) {
-      return connection.attach(
-        encodeTopic(def.id, key),
-        (update) => options.onEvent(eventFromUpdate<EventStreamEvent<Def>>(update)),
-        {
-          onReattach: options.onGap,
-          onReattachError: options.onError,
-        }
-      );
-    },
-  };
-}
-
-function createLiveJobClientHandle<Def extends LiveJobEndpointDef>(
-  connection: Connection,
-  def: Def,
-  path: string
-): LiveJobClientHandle<Def> {
-  return {
-    kind: 'liveJobClientHandle',
-    def,
-    async start(input) {
-      return (await connection.call(`${path}.start`, input)) as { jobId: string };
-    },
-    async cancel(jobId) {
-      await connection.call(`${path}.cancel`, { jobId });
-    },
-    handle(jobId) {
-      return createLiveClientHandle(connection, encodeTopic(def.id, { jobId }));
-    },
-  };
-}
-
-function createLiveModelClientHandle<Def extends LiveModelDef>(
-  connection: Connection,
-  path: string,
-  def: Def
-): LiveModelClientHandle<Def> {
-  return {
-    kind: 'liveModelClientHandle',
-    def,
-    state(key: unknown, name: string) {
-      const state = def.states[name];
-      return createLiveClientHandle(connection, encodeTopic(state.id, key));
-    },
-    mutate(
-      name: string,
-      envelope: { key: unknown; input: unknown; mutationId?: string },
-      options?: MutationCallOptions
-    ) {
-      const mutationId = envelope.mutationId ?? options?.mutationId ?? createMutationId();
-      return callMutationWithRetry(
-        connection,
-        `${path}.${name}`,
-        envelope,
-        mutationId,
-        options ?? {}
-      ) as Promise<LiveMutationResult<never, never>>;
-    },
-  } as unknown as LiveModelClientHandle<Def>;
-}
-
-function createLiveClientHandle<T>(connection: Connection, topic: string): LiveClientHandle<T> {
+  topic: string
+): LiveClientHandle<T> {
   return {
     topic,
     snapshot: () => connection.snapshot(topic) as Promise<LiveSnapshot<T>>,
@@ -382,51 +318,9 @@ function createLiveClientHandle<T>(connection: Connection, topic: string): LiveC
   };
 }
 
-async function callMutationWithRetry(
-  connection: Connection,
-  path: string,
-  input: unknown,
-  mutationId: string,
-  options: MutationCallOptions
-): Promise<unknown> {
-  const retry = normalizeRetry(options.retry);
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await connection.call(path, addMutationId(input, mutationId));
-    } catch (error) {
-      if (!shouldRetryMutation(error, attempt, retry.maxRetries)) throw error;
-      await delay(retry.delayMs);
-    }
-  }
-}
-
-function normalizeRetry(retry: MutationCallOptions['retry']): {
-  maxRetries: number;
-  delayMs: number;
-} {
-  if (retry === false) return { maxRetries: 0, delayMs: 0 };
-  return {
-    maxRetries: retry?.maxRetries ?? 2,
-    delayMs: retry?.delayMs ?? 0,
-  };
-}
-
-function shouldRetryMutation(error: unknown, attempt: number, maxRetries: number): boolean {
-  return error instanceof WireError && error.code === 'DISCONNECTED' && attempt < maxRetries;
-}
-
-function delay(ms: number): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function createRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `wire_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-}
-
-function addMutationId(input: unknown, mutationId: string): unknown {
-  return { ...(input as { key: unknown; input: unknown }), mutationId };
 }
 
 export function isLiveLogClientHandle(value: unknown): value is LiveLogClientHandle {

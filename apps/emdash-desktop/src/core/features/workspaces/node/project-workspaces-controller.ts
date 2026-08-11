@@ -1,0 +1,25 @@
+import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import { deleteProjectWorkspaces } from './operations/delete-project-workspaces';
+import {
+  listHostWorkspaceGroups,
+  type WorkspaceGroupsHostKey,
+} from './operations/list-host-workspace-groups';
+import type { ListProjectWorkspacesDependencies } from './operations/list-project-workspaces';
+import { measureProjectWorkspaces } from './operations/measure-project-workspaces';
+
+export type ProjectWorkspaceOperationDependencies = ListProjectWorkspacesDependencies & {
+  taskService: Pick<TaskService, 'deleteTask'>;
+};
+
+export function createProjectWorkspaceOperations(
+  dependencies: ProjectWorkspaceOperationDependencies
+) {
+  return {
+    listHostWorkspaceGroups: (hostKey: WorkspaceGroupsHostKey) =>
+      listHostWorkspaceGroups(dependencies, hostKey),
+    measureProjectWorkspaces: (input: Parameters<typeof measureProjectWorkspaces>[1]) =>
+      measureProjectWorkspaces(dependencies, input),
+    deleteProjectWorkspaces: (input: Parameters<typeof deleteProjectWorkspaces>[1]) =>
+      deleteProjectWorkspaces(dependencies, input),
+  };
+}

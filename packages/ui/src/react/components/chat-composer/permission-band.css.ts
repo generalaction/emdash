@@ -37,7 +37,7 @@ export const bandLabel = style({
 });
 
 export const bandLabelStrong = style({
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

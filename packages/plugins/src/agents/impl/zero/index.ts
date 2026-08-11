@@ -1,5 +1,11 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildStandardCommand,
+  npmDependency,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -16,7 +22,7 @@ export const plugin = definePlugin(
     },
     hostDependency: npmDependency({ id: 'zero', package: '@gitlawb/zero' }),
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'stateless',

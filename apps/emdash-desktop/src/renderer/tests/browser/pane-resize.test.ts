@@ -14,9 +14,12 @@ import { action, makeObservable, observable, runInAction } from 'mobx';
  * overhead.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
-import { computeGridDimensions, measureTerminalCell } from '@renderer/lib/pty/pty-dimensions';
-import { createResizeScheduler } from '@renderer/lib/pty/resize-scheduler';
+import {
+  computeGridDimensions,
+  measureTerminalCell,
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
+import { createResizeScheduler } from '@core/features/terminals/browser/pty/resize-scheduler';
+import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 
 // ── Minimal observable sink ───────────────────────────────────────────────────
 
@@ -267,7 +270,7 @@ describe('PaneDimensionProvider single-source measurement', () => {
 // so the bySession registry is exercised end-to-end.
 
 async function getPtyModule() {
-  return import('@renderer/lib/pty/pty');
+  return import('@core/features/terminals/api/browser/pty/pty');
 }
 
 describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
@@ -301,16 +304,20 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   // ── Registry lifecycle ───────────────────────────────────────────────────────
 
+  const noopConnector = () => ({
+    connect: () => () => {},
+  });
+
   it('registers a FrontendPty in bySession on construction', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
-    const pty = new FrontendPty('session-a');
+    const pty = new FrontendPty('session-a', undefined, undefined, undefined, noopConnector());
     expect(FrontendPty.bySession.get('session-a')).toBe(pty);
     expect(getFrontendPty('session-a')).toBe(pty);
   });
 
   it('removes a FrontendPty from bySession on dispose', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
-    const pty = new FrontendPty('session-b');
+    const pty = new FrontendPty('session-b', undefined, undefined, undefined, noopConnector());
     expect(getFrontendPty('session-b')).toBe(pty);
     pty.dispose();
     expect(getFrontendPty('session-b')).toBeUndefined();
@@ -323,14 +330,14 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   // ── Scheduler fan-out resizes background grids ────────────────────────────────
   // Simulates the exact flush function used by usePtyPaneResize:
-  //   rpc.pty.resize(id) + getFrontendPty(id)?.terminal.resize(cols, rows)
+  //   runtime resize(id) + getFrontendPty(id)?.terminal.resize(cols, rows)
   // Verifies that both the active and background terminal grids are updated.
 
   it('scheduler flush resizes all registered terminal grids', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
 
-    const ptyA = new FrontendPty('fan-a');
-    const ptyB = new FrontendPty('fan-b');
+    const ptyA = new FrontendPty('fan-a', undefined, undefined, undefined, noopConnector());
+    const ptyB = new FrontendPty('fan-b', undefined, undefined, undefined, noopConnector());
 
     // Seeded from Terminal constructor defaults.
     const initialCols = ptyA.terminal.cols;
@@ -342,7 +349,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
     // Mirror the scheduler flush in usePtyPaneResize, but replace rpc with a spy.
     const scheduler = createResizeScheduler<{ cols: number; rows: number }>((dims) => {
       for (const id of sessionIds) {
-        resizeSpy(id, dims.cols, dims.rows); // stands in for rpc.pty.resize
+        resizeSpy(id, dims.cols, dims.rows); // stands in for runtime resize
         const term = getFrontendPty(id)?.terminal;
         if (term && (term.cols !== dims.cols || term.rows !== dims.rows)) {
           term.resize(dims.cols, dims.rows);
@@ -367,7 +374,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   it('scheduler fan-out no-ops for sessions already at the target size', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
-    const pty = new FrontendPty('fan-noop');
+    const pty = new FrontendPty('fan-noop', undefined, undefined, undefined, noopConnector());
     const targetCols = 80;
     const targetRows = 24;
     pty.terminal.resize(targetCols, targetRows);
@@ -390,8 +397,20 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   it('disposed terminal is absent from registry and skipped in fan-out', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
-    const ptyA = new FrontendPty('fan-disposed-a');
-    const ptyB = new FrontendPty('fan-disposed-b');
+    const ptyA = new FrontendPty(
+      'fan-disposed-a',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
+    const ptyB = new FrontendPty(
+      'fan-disposed-b',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
 
     ptyA.dispose();
 
@@ -424,7 +443,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   it('parked terminal has correct grid dims before re-mount', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
-    const pty = new FrontendPty('fan-parked');
+    const pty = new FrontendPty('fan-parked', undefined, undefined, undefined, noopConnector());
 
     // Terminal starts parked in the off-screen host (initial state after construction).
     // Use trailingMs=0 so both schedule calls fire synchronously on the leading

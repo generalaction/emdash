@@ -13,49 +13,40 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
+    "./rpc": {
+      "development": "./src/rpc/index.ts",
+      "types": "./dist/rpc.d.mts",
+      "default": "./dist/rpc.mjs"
     },
     "./live": {
+      "development": "./src/live/index.ts",
       "types": "./dist/live.d.mts",
       "default": "./dist/live.mjs"
     },
-    "./api": {
-      "types": "./dist/api.d.mts",
-      "default": "./dist/api.mjs"
+    "./state": {
+      "development": "./src/state/index.ts",
+      "types": "./dist/state.d.mts",
+      "default": "./dist/state.mjs"
     },
-    "./observability": {
-      "types": "./dist/observability.d.mts",
-      "default": "./dist/observability.mjs"
-    },
-    "./testing": {
-      "types": "./dist/testing.d.mts",
-      "default": "./dist/testing.mjs"
-    },
-    "./util": {
-      "types": "./dist/util.d.mts",
-      "default": "./dist/util.mjs"
-    },
-    "./util/mobx": {
+    "./mobx": {
+      "development": "./src/live/mobx/index.ts",
       "types": "./dist/mobx.d.mts",
       "default": "./dist/mobx.mjs"
     },
-    "./util/process-runtime": {
-      "types": "./dist/process-runtime.d.mts",
-      "default": "./dist/process-runtime.mjs"
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "types": "./dist/testing.d.mts",
+      "default": "./dist/testing.mjs"
     },
     "./worker": {
+      "development": "./src/worker/index.ts",
       "types": "./dist/worker.d.mts",
       "default": "./dist/worker.mjs"
     },
-    "./process": {
-      "types": "./dist/process.d.mts",
-      "default": "./dist/process.mjs"
-    },
-    "./process/node": {
-      "types": "./dist/process-node.d.mts",
-      "default": "./dist/process-node.mjs"
+    "./worker/node": {
+      "development": "./src/worker/node/index.ts",
+      "types": "./dist/worker-node.d.mts",
+      "default": "./dist/worker-node.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -63,28 +54,17 @@
     "dev": "tsdown --watch",
     "build": "tsdown",
     "test": "vitest run",
-    "example:live-state": "tsx examples/live-state/client.ts",
-    "example:batched-state": "tsx examples/batched-state/client.ts",
+    "example:state-kernel": "tsx examples/state-kernel/client.ts",
     "example:live-log": "tsx examples/live-log/client.ts",
     "example:event-stream": "tsx examples/event-stream/client.ts",
-    "example:live-job": "tsx examples/live-job/client.ts",
     "example:scope": "tsx examples/scope/client.ts",
-    "example:managed-source": "tsx examples/managed-source/client.ts",
+    "example:mailbox": "tsx examples/mailbox/client.ts",
+    "example:resource-cache": "tsx examples/resource-cache/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
-    "example:contract": "tsx examples/contract/client.ts",
-    "example:api-definition": "tsx examples/api-definition/inspect.ts",
-    "example:controller": "tsx examples/controller/controller.ts",
-    "example:api-client": "tsx examples/api-client/client.ts",
-    "example:group": "tsx examples/group/client.ts",
     "example:dedupe": "tsx examples/dedupe/server.ts",
     "example:job-contract": "tsx examples/job-contract/client.ts",
-    "example:mutation-idempotency": "tsx examples/mutation-idempotency/client.ts",
-    "example:multi-window": "tsx examples/multi-window/client.ts",
-    "example:logging": "tsx examples/logging/client.ts",
-    "example:replica": "tsx examples/replica/client.ts",
-    "example:process": "tsx examples/process/client.ts",
-    "example:optimistic-live-model": "tsx examples/optimistic-live-model/client.ts",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
+    "example:api-definition": "tsx examples/api-definition/inspect.ts",
+    "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"

@@ -1,5 +1,5 @@
+import type { SurfaceStatusName } from '@emdash/theme';
 import { cx } from '@styles/utilities/cx';
-import type { SurfaceStatusName } from '@theme/core/contract/roles';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircleIcon, InfoIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
 import { Surface } from '../surface/surface';
@@ -28,6 +28,14 @@ function AlertDescription({ className, ...props }: React.HTMLAttributes<HTMLPara
       {...props}
     />
   );
+}
+
+/**
+ * AlertAction — free-form action slot pinned to the alert's top-right corner
+ * (e.g. a "Fix" or "Retry" button). The root reserves horizontal room for it.
+ */
+function AlertAction({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div data-slot="alert-action" className={cx(styles.alertAction, className)} {...props} />;
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -73,4 +81,5 @@ export const Alert = {
   Root: AlertRoot,
   Title: AlertTitle,
   Description: AlertDescription,
+  Action: AlertAction,
 };

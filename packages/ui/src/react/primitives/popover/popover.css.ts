@@ -28,7 +28,7 @@ export const popupContent = style({
   padding: '1rem',
   fontSize: tokenVars.textSm,
   color: vars.foreground,
-  boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1)',
+  boxShadow: vars.shadowSm,
   outline: 'none',
   selectors: {
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },

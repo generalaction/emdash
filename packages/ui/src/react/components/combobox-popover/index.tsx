@@ -30,6 +30,8 @@ export interface ComboboxPopoverProps<T> {
   renderTrigger: (selected: T | null) => React.ReactNode;
   /** Optional title/label for the trigger button. */
   triggerTitle?: (selected: T | null) => string | undefined;
+  /** Optional id used to associate the trigger with an external form label. */
+  triggerId?: string;
   /**
    * Render the content of each list row.
    * Receives the item; the row wrapper (hover/selected states) is provided by
@@ -47,6 +49,8 @@ export interface ComboboxPopoverProps<T> {
   className?: string;
   contentClassName?: string;
   contentStyle?: React.CSSProperties;
+  contentWidth?: 'trigger' | 'content' | 'content-at-least-trigger';
+  onOpenChange?: (open: boolean) => void;
   /** Side for the detail hover card relative to the list popup. Defaults to 'right'. */
   detailSide?: 'top' | 'bottom' | 'left' | 'right';
   /** Align for the detail hover card. Defaults to 'start'. */
@@ -76,6 +80,7 @@ export function ComboboxPopover<T>({
   filter,
   renderTrigger,
   triggerTitle,
+  triggerId,
   renderItem,
   renderItemDetail,
   renderFooter,
@@ -84,6 +89,8 @@ export function ComboboxPopover<T>({
   className,
   contentClassName,
   contentStyle,
+  contentWidth = 'trigger',
+  onOpenChange,
   detailSide = 'right',
   detailAlign = 'start',
   appearance = 'control',
@@ -105,6 +112,11 @@ export function ComboboxPopover<T>({
     [itemToLabel]
   );
 
+  function updateOpen(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
+
   function handleOpenChange(next: boolean, eventDetails: ComboboxRootChangeEventDetails) {
     if (disabled) return;
     // Interactions inside the hover card OR inside any other nested interactive
@@ -117,14 +129,14 @@ export function ComboboxPopover<T>({
       return;
     }
     if (!next) hoverCard.close();
-    setOpen(next);
+    updateOpen(next);
   }
 
   function handleValueChange(item: T | null) {
     if (!item || disabled) return;
     hoverCard.close();
     onValueChange(itemToKey(item));
-    setOpen(false);
+    updateOpen(false);
   }
 
   return (
@@ -139,6 +151,7 @@ export function ComboboxPopover<T>({
       autoHighlight
     >
       <Combobox.Trigger
+        id={triggerId}
         disabled={disabled}
         title={triggerTitleValue}
         aria-label={triggerTitleValue}
@@ -154,6 +167,7 @@ export function ComboboxPopover<T>({
 
       <Combobox.Content
         ref={setAnchorEl}
+        width={contentWidth}
         className={cx(styles.contentMinWidth, contentClassName)}
         style={contentStyle}
       >

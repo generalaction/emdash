@@ -5,7 +5,7 @@ sits on top of the existing tooling — `tsdown`, `electron-vite`, `vitest`, `ox
 `oxfmt` — and adds dependency-ordered execution, input hashing, and output caching
 without requiring any structural changes to packages.
 
-No `project.json` files exist. Nx infers all five projects from `package.json`
+No `project.json` files exist. Nx infers every workspace project from `package.json`
 `workspace:*` dependencies and runs each project's existing `package.json` scripts
 as Nx targets.
 
@@ -19,10 +19,14 @@ Nx derives this graph from `workspace:*` dependency references:
 
 ```
 @emdash/shared    (leaf)
-@emdash/core      -> shared
-@emdash/plugins   -> core -> shared
-@emdash/ui        (leaf)
-@emdash/emdash-desktop -> shared, core, plugins, ui
+@emdash/theme     (leaf)
+@emdash/wire      -> shared
+@emdash/core      -> shared, wire
+@emdash/plugins   -> core, shared
+@emdash/chat-ui   -> core, shared
+@emdash/ui        -> chat-ui, shared, theme
+@emdash/workspace-server -> core, plugins, shared, wire
+@emdash/emdash-desktop   -> chat-ui, core, plugins, shared, ui, wire
 ```
 
 The `dependsOn: ["^build"]` default in `nx.json` means "build all upstream packages
@@ -74,8 +78,7 @@ nx test @emdash/shared
 nx typecheck @emdash/emdash-desktop
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
-nx storybook @emdash/ui
-nx theme:build @emdash/ui
+nx build:theme @emdash/ui
 ```
 
 **Run affected with a custom base:**
@@ -130,7 +133,7 @@ Cached output directories per project:
 - `package`, `package:mac`, `package:linux`, `package:win` — electron-builder
   produces native platform artifacts and handles its own incremental logic.
 - `rebuild` — Electron native module rebuild depends on the local Electron ABI.
-- `run:docker-ssh`, `db:generate`, `db:reset` — side-effecting operations.
+- `db:generate`, `db:reset` — side-effecting operations.
 - `dev`, `format` — long-running or write-output operations.
 
 **Bust the cache when needed:**
@@ -148,8 +151,14 @@ The `code-consistency-check.yml` workflow uses `nrwl/nx-set-shas@v4` to set
 runs:
 
 ```bash
-pnpm nx affected -t format:check typecheck lint
+pnpm nx affected -t format:check typecheck lint test
 ```
+
+The test gate runs with `EMDASH_TEST_SKIP_BROWSER=1` (the Playwright-backed
+`browser` Vitest projects are skipped in CI) and after an explicit
+`pnpm --dir apps/emdash-desktop/tooling/node-deps install`, since the workflow's
+`--ignore-scripts` install skips the postinstall that normally provisions the
+native side project.
 
 This means only the projects touched by the PR (and their dependents) are checked.
 A PR that modifies only `packages/ui` will not re-run typecheck for the desktop app

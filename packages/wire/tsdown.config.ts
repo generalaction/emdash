@@ -2,17 +2,13 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    index: 'src/index.ts',
+    rpc: 'src/rpc/index.ts',
     live: 'src/live/index.ts',
-    api: 'src/api/index.ts',
-    observability: 'src/observability/index.ts',
+    state: 'src/state/index.ts',
+    mobx: 'src/live/mobx/index.ts',
     testing: 'src/testing/index.ts',
-    util: 'src/util/index.ts',
-    mobx: 'src/util/mobx/index.ts',
-    'process-runtime': 'src/util/process-runtime/index.ts',
     worker: 'src/worker/index.ts',
-    process: 'src/process/index.ts',
-    'process-node': 'src/process/node/index.ts',
+    'worker-node': 'src/worker/node/index.ts',
   },
   format: ['esm'],
   dts: true,

@@ -1,0 +1,416 @@
+import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
+import { deriveWorktreePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  Select,
+  Separator,
+  Switch,
+} from '@emdash/ui/react/primitives';
+import { Folder, Github } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useState, type ReactNode } from 'react';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import {
+  resolveRendererEffectiveSettings,
+  useEffectiveSettingsInputs,
+} from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import {
+  asMounted,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import {
+  GITHUB_CONNECT_ACCOUNT_OPTION,
+  GITHUB_INFERRED_NONE_OPTION,
+  GitHubAccountSelectItem,
+  GitHubAccountSelectLabel,
+  GitHubZeroAccountSelectItems,
+} from '@core/features/projects/contributions/browser/github-account-select';
+import {
+  BrokenSettingNotice,
+  ProvenanceBadge,
+  ProvenanceSourceLine,
+  ResetProvenanceButton,
+} from '@core/features/projects/contributions/browser/settings-provenance';
+import type { ProvenanceFlavor } from '@core/features/projects/contributions/browser/settings-provenance-labels';
+import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
+import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import type {
+  AgentGitCredentialsSetting,
+  Provenance,
+  Resolved,
+  WorktreeRootContext,
+} from '@core/primitives/project-settings/api';
+import { formatDefaultBranch } from '@core/primitives/project-settings/api';
+import type { Project } from '@core/primitives/projects/api';
+import { cn } from '@core/primitives/styling/browser/cn';
+import {
+  formToStoredGitSettings,
+  storedDefaultBranchToBranchRef,
+  type FormState,
+  type FormUpdate,
+} from '../project-settings-form-model';
+
+/** File-local Select option encodings; never stored or exported. */
+const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
+
+const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label: string }[] = [
+  { value: 'effective-account', label: 'Effective account' },
+  { value: 'system', label: 'System' },
+  { value: 'none', label: 'None' },
+];
+
+type BaseProjectSettingsSectionProps = {
+  projectId: string;
+  form: FormState;
+  worktreeRootContext: WorktreeRootContext;
+  projectType: Project['type'];
+  remotes: GitRemote[];
+  worktreeDirectoryError: string | null;
+  update: FormUpdate;
+};
+
+/**
+ * Per-field provenance treatment (spec: github-git-settings §9, prototype
+ * Variant A): label + badge + reset affordance, source line for inferred
+ * values, broken-setting warning below the label row. Provenance is resolved
+ * over the *pending* form state so edits preview exactly what a save would
+ * resolve to.
+ */
+function ProvenanceField({
+  label,
+  description,
+  resolved,
+  flavor = 'inferred',
+  isExplicit,
+  onReset,
+  children,
+}: {
+  label: string;
+  description: string;
+  resolved: Resolved<unknown> | null;
+  flavor?: ProvenanceFlavor;
+  /** Whether the form currently holds an explicit value (shows the reset affordance). */
+  isExplicit: boolean;
+  onReset: () => void;
+  children: ReactNode;
+}) {
+  const provenance: Provenance | null = resolved?.provenance ?? null;
+  return (
+    <Field.Root>
+      <div className="flex items-center gap-2">
+        <Field.Label>{label}</Field.Label>
+        {provenance ? <ProvenanceBadge provenance={provenance} flavor={flavor} /> : null}
+        {provenance && isExplicit ? (
+          <ResetProvenanceButton flavor={flavor} onReset={onReset} />
+        ) : null}
+      </div>
+      <Field.Description className="text-foreground-muted">{description}</Field.Description>
+      {provenance?.kind === 'broken-setting' ? (
+        <BrokenSettingNotice
+          staleValue={provenance.staleValue}
+          effectiveValue={brokenFallbackDisplay(resolved)}
+        />
+      ) : null}
+      {children}
+      {provenance ? <ProvenanceSourceLine provenance={provenance} /> : null}
+    </Field.Root>
+  );
+}
+
+function brokenFallbackDisplay(resolved: Resolved<unknown> | null): string | null {
+  const value = resolved?.value ?? null;
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && 'branch' in value) {
+    return formatDefaultBranch(value as { remote: string | null; branch: string });
+  }
+  return String(value);
+}
+
+export const BaseProjectSettingsSection = observer(function BaseProjectSettingsSection({
+  projectId,
+  form,
+  worktreeRootContext,
+  projectType,
+  remotes,
+  worktreeDirectoryError,
+  update,
+}: BaseProjectSettingsSectionProps) {
+  const inputs = useEffectiveSettingsInputs(projectId);
+  const effective = inputs
+    ? resolveRendererEffectiveSettings(inputs, formToStoredGitSettings(form))
+    : null;
+  const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
+  const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
+
+  const inheritedWorktreeRoot =
+    worktreeRootContext.hostWorktreeRoot ?? worktreeRootContext.builtInWorktreeRoot;
+  const projectPath = asMounted(getProjectStore(projectId))?.data.path ?? null;
+  const effectiveWorktreeRoot = effective?.worktreeRoot.value ?? null;
+  const derivedPoolPath =
+    projectPath !== null && effectiveWorktreeRoot !== null
+      ? deriveWorktreePoolPath({ worktreeRoot: effectiveWorktreeRoot, repoPath: projectPath })
+      : null;
+
+  const handleBrowseWorktreeDirectory = async () => {
+    if (isBrowsingWorktreeDirectory) return;
+
+    setIsBrowsingWorktreeDirectory(true);
+    try {
+      const result = await (
+        await getHostClient()
+      ).openSelectDirectoryDialog({
+        title: 'Select worktree root',
+        message: 'Choose the directory where worktrees should be created.',
+        defaultPath: form.worktreeDirectory || (effectiveWorktreeRoot ?? inheritedWorktreeRoot),
+      });
+      if (result) {
+        update('worktreeDirectory', result);
+      }
+    } finally {
+      setIsBrowsingWorktreeDirectory(false);
+    }
+  };
+
+  const accountProvenance = effective?.githubAccount.provenance ?? null;
+  const accountUnresolvable = accountProvenance?.kind === 'unresolvable';
+  // Zero-account picker state (spec §5): only "Inferred (none)" + Connect.
+  const zeroAccounts = inputs !== null && accounts.length === 0;
+  const accountSelectValue =
+    form.githubAccount === undefined
+      ? zeroAccounts
+        ? GITHUB_INFERRED_NONE_OPTION
+        : ''
+      : form.githubAccount.kind === 'none'
+        ? EXPLICIT_NO_ACCOUNT_OPTION
+        : form.githubAccount.accountId;
+
+  const effectiveDefaultBranchRef: GitBranchRef | null = storedDefaultBranchToBranchRef(
+    effective?.defaultBranch.value ?? undefined,
+    remotes
+  );
+
+  return (
+    <>
+      <ProvenanceField
+        label="GitHub account"
+        description="Used for pull requests and issues in this project."
+        resolved={effective?.githubAccount ?? null}
+        isExplicit={form.githubAccount !== undefined}
+        onReset={() => update('githubAccount', undefined)}
+      >
+        {accountUnresolvable ? (
+          <Alert.Root status="destructive">
+            <Alert.Title>Account no longer available</Alert.Title>
+            <Alert.Description>
+              The GitHub account set for this project is no longer connected or does not match this
+              repository's host. GitHub features stay paused until you pick an account or reset to
+              inferred.
+            </Alert.Description>
+          </Alert.Root>
+        ) : null}
+        <Select.Root
+          value={accountSelectValue}
+          onValueChange={(value) => {
+            if (!value) return;
+            if (value === GITHUB_CONNECT_ACCOUNT_OPTION) {
+              void openGithubConnectModal({});
+              return;
+            }
+            if (value === GITHUB_INFERRED_NONE_OPTION) {
+              update('githubAccount', undefined);
+              return;
+            }
+            update(
+              'githubAccount',
+              value === EXPLICIT_NO_ACCOUNT_OPTION
+                ? { kind: 'none' }
+                : { kind: 'account', accountId: value }
+            );
+          }}
+        >
+          <Select.Trigger className="w-full min-w-0">
+            {effective?.githubAccount.value ? (
+              <GitHubAccountSelectLabel account={effective.githubAccount.value} />
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                {accountUnresolvable ? (
+                  <span className="flex min-w-0 items-center gap-2 truncate">
+                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
+                    <span className="shrink-0 text-sm text-foreground-muted">
+                      No longer connected
+                    </span>
+                  </span>
+                ) : (
+                  <span className="min-w-0 truncate">No GitHub account</span>
+                )}
+              </div>
+            )}
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            {zeroAccounts ? (
+              <GitHubZeroAccountSelectItems />
+            ) : (
+              <>
+                <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                    <span className="relative -top-px shrink-0">No GitHub account</span>
+                  </div>
+                </Select.Item>
+                {accounts.map((account) => (
+                  <GitHubAccountSelectItem key={account.accountId} account={account} />
+                ))}
+              </>
+            )}
+          </Select.Content>
+        </Select.Root>
+      </ProvenanceField>
+
+      <Separator />
+
+      <ProvenanceField
+        label="Worktree root"
+        description="Where task worktrees are created."
+        resolved={effective?.worktreeRoot ?? null}
+        flavor="inherited"
+        isExplicit={form.worktreeDirectory.trim() !== ''}
+        onReset={() => update('worktreeDirectory', '')}
+      >
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Input
+              aria-invalid={worktreeDirectoryError ? true : undefined}
+              className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
+              placeholder={effectiveWorktreeRoot ?? inheritedWorktreeRoot}
+              value={form.worktreeDirectory}
+              onChange={(e) => update('worktreeDirectory', e.target.value)}
+            />
+            {worktreeDirectoryError ? (
+              <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-foreground-error">
+                {worktreeDirectoryError}
+              </span>
+            ) : null}
+          </div>
+          {projectType === 'local' ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isBrowsingWorktreeDirectory}
+              onClick={handleBrowseWorktreeDirectory}
+            >
+              <Folder data-icon="inline-start" className="size-4" />
+              Browse
+            </Button>
+          ) : null}
+        </div>
+        {derivedPoolPath ? (
+          <span className="text-xs text-foreground-muted">
+            Worktrees for this repository go in{' '}
+            <code className="font-mono break-all">{derivedPoolPath}</code>
+          </span>
+        ) : null}
+      </ProvenanceField>
+
+      <Separator />
+
+      <ProvenanceField
+        label="Default branch"
+        description="The branch new tasks are created from by default."
+        resolved={effective?.defaultBranch ?? null}
+        isExplicit={form.defaultBranch !== null}
+        onReset={() => update('defaultBranch', null)}
+      >
+        <ProjectBranchSelector
+          projectId={projectId}
+          value={form.defaultBranch ?? effectiveDefaultBranchRef ?? undefined}
+          onValueChange={(branch: GitBranchRef) => update('defaultBranch', branch)}
+        />
+      </ProvenanceField>
+
+      <Separator />
+
+      <ProvenanceField
+        label="Base remote"
+        description="Used for fetching remote branches, choosing task base branches and targeting pull requests."
+        resolved={effective?.baseRemote ?? null}
+        isExplicit={form.baseRemote.trim() !== ''}
+        onReset={() => update('baseRemote', '')}
+      >
+        <RemoteSelector
+          remotes={remotes}
+          value={form.baseRemote || (effective?.baseRemote.value ?? '')}
+          onValueChange={(value) => update('baseRemote', value)}
+          className="w-full"
+        />
+      </ProvenanceField>
+
+      <Separator />
+
+      <ProvenanceField
+        label="Push remote"
+        description="Used when publishing task branches and pushing commits."
+        resolved={effective?.pushRemote ?? null}
+        isExplicit={form.pushRemote.trim() !== ''}
+        onReset={() => update('pushRemote', '')}
+      >
+        <RemoteSelector
+          remotes={remotes}
+          value={form.pushRemote || (effective?.pushRemote.value ?? '')}
+          onValueChange={(value) => update('pushRemote', value)}
+          className="w-full"
+        />
+      </ProvenanceField>
+
+      <Separator />
+
+      <Field.Root>
+        <Field.Label>Agent git credentials</Field.Label>
+        <Field.Description className="text-foreground-muted">
+          Which git credentials agent and terminal sessions use in this project. Effective account
+          wires the account above, system keeps your machine's credentials, none disables credential
+          helpers in sessions.
+        </Field.Description>
+        <Select.Root
+          value={form.agentGitCredentials}
+          onValueChange={(value) => {
+            if (!value) return;
+            update('agentGitCredentials', value as AgentGitCredentialsSetting);
+          }}
+        >
+          <Select.Trigger className="w-full min-w-0">
+            {AGENT_GIT_CREDENTIALS_OPTIONS.find(
+              (option) => option.value === form.agentGitCredentials
+            )?.label ?? 'Effective account'}
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            {AGENT_GIT_CREDENTIALS_OPTIONS.map((option) => (
+              <Select.Item key={option.value} value={option.value}>
+                {option.label}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
+
+      <Separator />
+
+      <Field.Root orientation="horizontal">
+        <div className="flex flex-1 flex-col gap-1">
+          <Field.Label>Enable tmux</Field.Label>
+          <Field.Description className="text-foreground-muted">
+            Run the agent session inside a tmux session.
+          </Field.Description>
+        </div>
+        <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
+      </Field.Root>
+    </>
+  );
+});

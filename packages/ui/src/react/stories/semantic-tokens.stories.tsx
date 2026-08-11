@@ -1,6 +1,6 @@
+import { SEMANTIC_VARS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { SEMANTIC_VARS } from '@theme/core/contract/semantic-template';
 import React, { useEffect, useRef } from 'react';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
@@ -151,7 +151,6 @@ function TokenRow({ varName }: { varName: string }) {
         borderColor="border"
         background="background"
         fontSize="sm"
-        fontWeight="semibold"
         style={{ color: `var(${varName})` }}
       >
         Aa
@@ -205,7 +204,6 @@ function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
             borderStyle: 'solid',
             borderColor: 'border',
             paddingBottom: '1',
-            fontWeight: 'semibold',
             color: 'foregroundMuted',
             textTransform: 'uppercase',
           }),
@@ -229,9 +227,7 @@ function SemanticTokenGrid() {
   return (
     <Box display="flex" flexDirection="column" gap="8" background="background" padding="6">
       <Box>
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Semantic Color Tokens
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Semantic Color Tokens</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Every semantic CSS custom property defined in{' '}
           <code
@@ -279,7 +275,6 @@ export const BothModes: Story = {
           px="6"
           py="3"
           fontSize="sm"
-          fontWeight="medium"
           color="foreground"
         >
           Light
@@ -295,7 +290,6 @@ export const BothModes: Story = {
           px="6"
           py="3"
           fontSize="sm"
-          fontWeight="medium"
           color="foreground"
         >
           Dark

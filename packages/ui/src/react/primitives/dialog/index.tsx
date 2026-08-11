@@ -1,12 +1,11 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Button } from '@react/primitives/button';
-import { ScrollContainer } from '@react/primitives/scroll-container';
 import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './dialog.css';
 
-export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 // ── Root parts ────────────────────────────────────────────────────────────────
 
@@ -42,6 +41,7 @@ function DialogContent({
   className,
   children,
   size = 'md',
+  onKeyDownCapture,
   ...props
 }: DialogPrimitive.Popup.Props & { size?: DialogSize }) {
   return (
@@ -50,7 +50,16 @@ function DialogContent({
       <div className={styles.positioner}>
         <DialogPrimitive.Popup
           data-slot="dialog-content"
-          className={cx('surface-base', styles.content({ size }), className)}
+          className={cx('surface-elevated', styles.content({ size }), className)}
+          onKeyDownCapture={(event) => {
+            // The global `app.confirm` keybinding (modifier+Enter) already drives
+            // confirm buttons inside dialogs; swallow the browser default so the
+            // focused control doesn't handle the same press a second time.
+            if ((event.metaKey || event.ctrlKey || event.altKey) && event.key === 'Enter') {
+              event.preventDefault();
+            }
+            onKeyDownCapture?.(event);
+          }}
           {...props}
         >
           {children}
@@ -76,7 +85,7 @@ function DialogHeader({
           render={
             <Button
               variant="ghost"
-              size="sm"
+              size="xs"
               icon
               aria-label="Close"
               className={styles.closeButtonOverride}
@@ -90,35 +99,60 @@ function DialogHeader({
   );
 }
 
+function toCssSize(size: number | string | undefined): string | undefined {
+  return typeof size === 'number' ? `${size}px` : size;
+}
+
 function DialogBody({
   className,
   children,
   style,
+  height,
   maxHeight,
   topFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  /** Fixed body height; when omitted the body fills the dialog content. */
+  height?: number | string;
   maxHeight?: number | string;
   topFade?: boolean;
 }) {
   return (
-    <ScrollContainer
-      maxHeight={maxHeight}
-      topFade={topFade}
-      style={{ minHeight: 0, ...style }}
-      viewportClassName={cx(styles.body, className)}
+    <div
+      data-slot="dialog-body"
+      className={cx(
+        'scroll-fade',
+        'scroll-fade__viewport',
+        !topFade && 'sf-no-top',
+        styles.body,
+        className
+      )}
+      style={{
+        height: toCssSize(height) ?? '100%',
+        minHeight: 0,
+        maxHeight: toCssSize(maxHeight),
+        ...style,
+      }}
     >
       {children}
-    </ScrollContainer>
+    </div>
   );
 }
 
-function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
+function DialogFooter({
+  className,
+  children,
+  showCloseButton = false,
+  ...props
+}: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
     <div data-slot="dialog-footer" className={cx(styles.footer, className)} {...props}>
       {children}
+      {showCloseButton && (
+        <DialogPrimitive.Close render={<Button variant="secondary" />}>Close</DialogPrimitive.Close>
+      )}
     </div>
   );
 }
@@ -128,6 +162,16 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cx(styles.title, className)}
+      {...props}
+    />
+  );
+}
+
+function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cx(styles.description, className)}
       {...props}
     />
   );
@@ -144,4 +188,5 @@ export const Dialog = {
   Body: DialogBody,
   Footer: DialogFooter,
   Title: DialogTitle,
+  Description: DialogDescription,
 };

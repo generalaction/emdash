@@ -17,11 +17,23 @@ export const comboboxContent = style([
   popupShadowSm,
   {
     maxHeight: 'var(--available-height)',
-    width: 'var(--anchor-width)',
     maxWidth: 'var(--available-width)',
-    minWidth: 'var(--anchor-width)',
     overflow: 'hidden',
     padding: '2px',
+    selectors: {
+      '&[data-width="trigger"]': {
+        width: 'var(--anchor-width)',
+        minWidth: 'var(--anchor-width)',
+      },
+      '&[data-width="content"]': {
+        width: 'max-content',
+        minWidth: '11.25rem',
+      },
+      '&[data-width="content-at-least-trigger"]': {
+        width: 'max-content',
+        minWidth: 'max(11.25rem, var(--anchor-width))',
+      },
+    },
   },
 ]);
 
@@ -49,6 +61,10 @@ export const comboboxItem = style([
       '&[data-selected]': { backgroundColor: vars.surfaceSelected },
       '&[data-highlighted]': { color: vars.foreground },
       '&[data-disabled]': { pointerEvents: 'none', opacity: 0.5 },
+      '&[data-disabled][data-hoverable-when-disabled]': {
+        pointerEvents: 'auto',
+        cursor: 'not-allowed',
+      },
     },
   },
 ]);
@@ -143,7 +159,7 @@ export const comboboxChip = style({
   paddingLeft: '0.375rem',
   paddingRight: '0.375rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   whiteSpace: 'nowrap',
   color: vars.foreground,
   selectors: {

@@ -28,16 +28,23 @@ pnpm run test
   - `fixtures` — fixture generator, run via `pnpm run db:fixtures`
   - `migrations` — `src/main/db/tests/migrations/**`, run via `pnpm run test:migrations`
   - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via Playwright
-- `pnpm run test` runs the `node`, `main-db`, `migrations`, and `browser` projects.
+- `pnpm run test` runs every project except `fixtures` (`node`, `main-db`,
+  `migrations`, `scripts`, and `browser`). Setting `EMDASH_TEST_SKIP_BROWSER=1`
+  omits the Playwright-backed `browser` project (CI does this).
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 
 ## CI Notes
 
 - `.github/workflows/code-consistency-check.yml` uses `nx affected` to enforce
-  format:check, typecheck, and lint only for projects touched by the PR. Nx
+  format:check, typecheck, lint, and test only for projects touched by the PR. Nx
   computes the affected set using `nrwl/nx-set-shas` and the PR base/head SHAs.
-- Tests are still expected locally before merging even though they are not enabled in that workflow yet.
+- CI installs with `--ignore-scripts`, so the workflow explicitly installs the
+  native side project (`pnpm --dir apps/emdash-desktop/tooling/node-deps install`)
+  for the DB-backed Vitest projects, and sets `EMDASH_TEST_SKIP_BROWSER=1` to
+  skip the Playwright-backed `browser` projects (app and chat-ui) until browser
+  provisioning is proven stable in CI.
+- The full suite (including `browser` projects) is still expected locally before merging.
 
 ## Focused Validation
 

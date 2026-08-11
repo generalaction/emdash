@@ -1,11 +1,13 @@
-import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
+  configRoots,
   defaultHookEventParser,
+  homeConfigRoot,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const QODER_SETTINGS_PATH = '.qoder/settings.local.json';
+export const QODER_SETTINGS_PATH = 'settings.json';
 
 function parseQoderHookEvent(eventType: string, body: Record<string, unknown>): CanonicalHookEvent {
   if (eventType === 'notification' && body.hook_event_name === 'PermissionRequest') {
@@ -40,6 +42,7 @@ export function buildQoderHookConfig() {
       { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
       { hookKey: 'StopFailure', command: makeStdinHookCommand('error') },
     ]),
+    resolveConfigRoots: configRoots(homeConfigRoot('.qoder')),
     parseHookEvent: parseQoderHookEvent,
   };
 }

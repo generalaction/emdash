@@ -1,3 +1,17 @@
+export { CollectionToolbar, type CollectionToolbarProps } from './collection-toolbar';
+
+export {
+  CollectionView,
+  CollectionViewCell,
+  SortSelect,
+  type CollectionViewCellProps,
+  type CollectionViewColumn,
+  type CollectionViewDensity,
+  type CollectionViewHandle,
+  type CollectionViewProps,
+  type SortSelectProps,
+} from './collection-view';
+
 export { ListView } from './list-view';
 export type {
   ListViewSection,
@@ -21,6 +35,7 @@ export {
   byField,
   chainComparators,
   useClientListFilter,
+  useQueryListSource,
   defineSearch,
   defineFilter,
   defineSort,
@@ -32,6 +47,8 @@ export type {
   Comparator,
   TextMatcherOptions,
   ClientListFilterOptions,
+  ExternalListSource,
+  QueryResultLike,
   ListViewSpec,
   ListSource,
   SearchSpec,
@@ -61,12 +78,28 @@ export type {
   SortKeyOf,
 } from './list-view';
 
+export { TreeView, buildVisibleTreeRows, isChainExpanded, isTreeBranch } from './tree-view';
+export type {
+  BuildVisibleTreeRowsOptions,
+  TreeNode,
+  TreeRow,
+  TreeViewHandle,
+  TreeViewProps,
+} from './tree-view';
+
 export { PageLayout } from './page-layout';
 export type {
   PageLayoutProps,
   PageSidebarProps,
   PageContentProps,
   PageNavItem,
+  PageNavDivider,
+  PageNavSection,
+  PageSidebarMenuItem,
   PageSidebarMenuProps,
   PageHeaderProps,
 } from './page-layout';
+
+export { SettingsCard, type SettingsCardProps } from './settings';
+export { SettingsRow, type SettingsRowProps } from './settings';
+export { SettingsSection, type SettingsSectionProps } from './settings';

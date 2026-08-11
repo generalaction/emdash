@@ -1,6 +1,7 @@
-import { Emitter } from '@emdash/shared';
-import { createManagedSource, createScope, type Scope } from '@emdash/wire/util';
-import type { IWatchService, WatchEvent } from '../api';
+import { createEmitter, type Emitter } from '@emdash/shared';
+import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout } from '@emdash/shared/scheduling';
+import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
 
@@ -8,8 +9,11 @@ export type CreateWatchServiceOptions = {
   backend: WatchBackend;
   scope?: Scope;
   graceMs?: number;
+  startupTimeoutMs?: number;
   onError?: WatchOnError;
 };
+
+const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 
 type WatchChannel = {
   events: Emitter<WatchEvent[]>;
@@ -23,26 +27,33 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
   const consumers = new Set<Scope>();
   let disposed = false;
 
-  const channels = createManagedSource<WatchKey, WatchChannel>({
+  const channels = createResourceCache<WatchKey, WatchChannel>({
     key: watchKey,
     scope: serviceScope,
     label: 'channels',
-    graceMs: options.graceMs ?? 0,
+    idleTtlMs: options.graceMs ?? 0,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
-      const events = new Emitter<WatchEvent[]>();
-      const resync = new Emitter<void>();
+      const events = createEmitter<WatchEvent[]>();
+      const resync = createEmitter<void>();
       scope.add(() => {
         events.clear();
         resync.clear();
       });
-      await options.backend.subscribe(
-        key,
+      await runWithTimeout(
+        () =>
+          options.backend.subscribe(
+            key,
+            {
+              events: (batch) => events.emit(batch),
+              resync: () => resync.emit(),
+            },
+            scope
+          ),
         {
-          events: (batch) => events.emit(batch),
-          resync: () => resync.emit(),
-        },
-        scope
+          timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
+          signal: scope.signal,
+        }
       );
       return { events, resync };
     },

@@ -114,3 +114,50 @@ export const Disabled: Story = {
     </Box>
   ),
 };
+
+export const HoverableDisabledItem: Story = {
+  render: function Render() {
+    const [hovered, setHovered] = React.useState(false);
+
+    return (
+      <Box className={s.w64}>
+        <Combobox.Root defaultOpen>
+          <Combobox.Input placeholder="Search agents…" showTrigger />
+          <Combobox.Content>
+            <Combobox.List>
+              <Combobox.Item value="installed">Installed agent</Combobox.Item>
+              <Combobox.Item
+                value="uninstalled"
+                disabled
+                hoverableWhenDisabled
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+              >
+                Uninstalled agent
+              </Combobox.Item>
+            </Combobox.List>
+          </Combobox.Content>
+        </Combobox.Root>
+        <Box>{hovered ? 'Showing uninstalled agent details' : 'Hover the disabled item'}</Box>
+      </Box>
+    );
+  },
+};
+
+export const ContentAtLeastTriggerWidth: Story = {
+  render: () => (
+    <Box className={s.w48}>
+      <Combobox.Root>
+        <Combobox.Input placeholder="Search fruits…" showTrigger />
+        <Combobox.Content width="content-at-least-trigger">
+          <Combobox.List>
+            <Combobox.Item value="apple">Apple</Combobox.Item>
+            <Combobox.Item value="dragon-fruit">
+              Dragon fruit with a much longer display label
+            </Combobox.Item>
+          </Combobox.List>
+        </Combobox.Content>
+      </Combobox.Root>
+    </Box>
+  ),
+};

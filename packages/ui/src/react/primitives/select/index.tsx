@@ -1,8 +1,10 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
-import type { ControlVariantProps } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import { TriggerButton } from '../trigger-button';
 import * as styles from './select.css';
 
@@ -65,13 +67,16 @@ function SelectContent({
   sideOffset = 4,
   align = 'center',
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  alignItemWithTrigger = false,
+  width = 'content-at-least-trigger',
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
-  >) {
+  > & {
+    width?: 'trigger' | 'content' | 'content-at-least-trigger';
+  }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -85,6 +90,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
+          data-width={width}
           className={cx('surface-elevated', styles.selectContent, className)}
           {...props}
         >

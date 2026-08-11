@@ -32,14 +32,15 @@ function createAppDb(): Database.Database {
     CREATE TABLE projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
-      ssh_connection_id TEXT,
       repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
+
+    CREATE UNIQUE INDEX idx_projects_repository_workspace_id ON projects(repository_workspace_id)
+      WHERE repository_workspace_id IS NOT NULL AND deleted_at IS NULL;
 
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
@@ -55,32 +56,40 @@ function createAppDb(): Database.Database {
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       is_pinned INTEGER NOT NULL DEFAULT 0,
-      workspace_provider TEXT,
       workspace_id TEXT,
-      workspace_provider_data TEXT,
-      workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
-      automation_run_id TEXT
+      automation_run_id TEXT,
+      deleted_at TEXT
     );
 
     CREATE TABLE workspaces (
       id TEXT PRIMARY KEY,
-      key TEXT,
       type TEXT NOT NULL,
-      data TEXT,
-      path TEXT,
-      lines_added INTEGER,
-      lines_deleted INTEGER,
       kind TEXT,
       location TEXT,
       ssh_connection_id TEXT,
+      parent_id TEXT,
+      path TEXT,
       config TEXT,
-      branch_name TEXT,
+      origin TEXT,
+      observed_status TEXT,
+      observed_git TEXT,
+      last_create_outcome TEXT,
+      last_removal_attempt TEXT,
+      script_outcomes TEXT,
+      runtime_overlay TEXT,
+      last_activated_at INTEGER,
+      observed_at INTEGER,
+      deletion_tombstone TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      untracked_at TEXT
     );
 
-    CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_local_path ON workspaces(path)
+      WHERE location = 'local' AND untracked_at IS NULL AND path IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_remote_path ON workspaces(ssh_connection_id, path)
+      WHERE location = 'remote' AND untracked_at IS NULL AND path IS NOT NULL;
 
     CREATE TABLE conversations (
       id TEXT PRIMARY KEY,
@@ -256,19 +265,17 @@ describe('runLegacyPort', () => {
     expect(importedTask.workspace_id).toBeTruthy();
 
     const importedWorkspace = appDb
-      .prepare(`SELECT kind, location, type, branch_name, config FROM workspaces WHERE id = ?`)
+      .prepare(`SELECT kind, location, type, config FROM workspaces WHERE id = ?`)
       .get(importedTask.workspace_id) as {
       kind: string;
       location: string;
       type: string;
-      branch_name: string;
       config: string;
     };
     expect(importedWorkspace).toMatchObject({
       kind: 'worktree',
       location: 'local',
       type: 'local',
-      branch_name: 'feature/legacy-1',
     });
     expect(JSON.parse(importedWorkspace.config)).toEqual({
       version: '2',
@@ -352,19 +359,16 @@ describe('runLegacyPort', () => {
       CREATE TABLE projects (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        path TEXT NOT NULL UNIQUE,
-        workspace_provider TEXT NOT NULL DEFAULT 'local',
         base_ref TEXT,
-        ssh_connection_id TEXT,
+        repository_workspace_id TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT
       );
     `);
     appDb
-      .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
-      )
-      .run('existing-project', 'Existing Project', '/existing/repo', 'local', 'main');
+      .prepare(`INSERT INTO projects (id, name, base_ref) VALUES (?, ?, ?)`)
+      .run('existing-project', 'Existing Project', 'main');
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-port-rollback-'));
     tempDirs.push(tmpDir);
@@ -375,16 +379,16 @@ describe('runLegacyPort', () => {
 
     await runLegacyPort(tmpDir, { appDb, stateStore });
 
-    const projects = appDb
-      .prepare(`SELECT id, name, path FROM projects ORDER BY id ASC`)
-      .all() as Array<{ id: string; name: string; path: string }>;
+    const projects = appDb.prepare(`SELECT id, name FROM projects ORDER BY id ASC`).all() as Array<{
+      id: string;
+      name: string;
+    }>;
 
     expect(await stateStore.getStatus()).toBeNull();
     expect(projects).toEqual([
       {
         id: 'existing-project',
         name: 'Existing Project',
-        path: '/existing/repo',
       },
     ]);
   });

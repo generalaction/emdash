@@ -207,11 +207,7 @@ export const BothModes: Story = {
         defaultTheme="light"
         className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
       >
-        <p
-          className={cx(
-            sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' })
-          )}
-        >
+        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', color: 'foreground' }))}>
           Light mode
         </p>
         <ScrollFade
@@ -236,11 +232,7 @@ export const BothModes: Story = {
         defaultTheme="dark"
         className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
       >
-        <p
-          className={cx(
-            sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' })
-          )}
-        >
+        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', color: 'foreground' }))}>
           Dark mode
         </p>
         <ScrollFade

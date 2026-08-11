@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendInitialConversationText,
   buildFinalPrompt,
-} from '@renderer/features/tasks/create-task-modal/initial-conversation-text';
+} from '@core/features/tasks/browser/create-task-modal/initial-conversation-text';
 
 describe('appendInitialConversationText', () => {
   it('uses the selected text when the prompt is empty', () => {

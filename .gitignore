@@ -8,6 +8,8 @@ out/
 apps/*/out/
 apps/*/release/
 apps/*/dist/
+apps/workspace-server/dist-artifacts/
+apps/workspace-server/runtime-deps/node_modules/
 
 # Temporary electron-builder deploy directories (created by scripts/release/build.ts)
 .emdash-deploy-*/
@@ -69,6 +71,7 @@ Thumbs.db
 .notes/
 .notes
 .claude/
+.scratch/
 
 # Checkouts directory
 .checkouts/
@@ -81,12 +84,16 @@ Thumbs.db
 
 apps/*/src/main/appConfig.json
 
-# Per-developer dev database (use pnpm run db:dev)
+# Stray per-developer dev databases from older setups (dev DBs now live in the
+# platform user-data dir or at EMDASH_DB_FILE; reset with pnpm run db:reset)
 apps/*/tooling/db/dev.db
 apps/*/tooling/db/dev.db-wal
 apps/*/tooling/db/dev.db-shm
 
-# Isolated better-sqlite3 for system Node (installed by pnpm run db:setup / postinstall)
+# Stray local databases at the repo root
+/tooling/db/
+
+# Isolated better-sqlite3 for system Node (installed by postinstall)
 apps/*/tooling/node-deps/node_modules/
 .pi/extensions/emdash-hook.ts
 .opencode/plugins/emdash-notifications.js

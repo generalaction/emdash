@@ -20,6 +20,7 @@ const nativeAcpProviders: Array<{
     env: { AUGMENT_DISABLE_AUTO_UPDATE: '1' },
   },
   { id: 'cline', args: ['--acp'] },
+  { id: 'codebuddy', args: ['--acp'] },
   { id: 'copilot', args: ['--acp'] },
   { id: 'cursor', args: ['acp'] },
   { id: 'devin', args: ['acp'] },

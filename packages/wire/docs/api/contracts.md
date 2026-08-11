@@ -67,9 +67,9 @@ disconnects, unknown paths, and uncaught handler exceptions. See
 ### `mutation`
 
 `mutation({ input, data, error }, handler?)` defines a live-state mutation shape.
-Mutations are members of `liveModel()` definitions. They usually provide the
-inline handler in the contract because
-`OptimisticLiveModel` can run the same pure handler on the client.
+Mutations are members of `liveModel()` definitions. Optimistic previews should use
+shared reducer functions with the `optimistic()` bridge rather than contract-local
+client models.
 
 `mutation()` is for operations that must settle live model cursors. Use
 `procedure()` for calls that do not update live models and `liveJob()` for
@@ -78,8 +78,8 @@ long-running work.
 ### `liveLog`
 
 `liveLog({ key })` declares a keyed text log endpoint. It is served by a
-`LiveLog` resolver and consumed through a `LiveLogClientHandle` or a
-`LiveLogReplica`.
+`LiveLogSource` resolver and consumed through a `LiveLogClientHandle` or a
+`LiveLogReplicaCache`.
 
 ### `eventStream`
 
@@ -215,26 +215,30 @@ The final mount path determines ids and procedure paths:
 This lets packages define small contracts locally and compose them into a larger
 workspace API without an extra namespace argument.
 
-## Group Instances
+## Live Model Providers
 
-On the server, create a host for the group contract, then create instances as
-keyed resources appear:
+On the server, implement a live model endpoint with a `LiveModelProvider`. The
+usual way to build one is `expose()` from `@emdash/wire/state`, which resolves
+each contract state to a kernel readable per key:
 
 ```ts
-const conversations = createLiveModelHost(api.conversation);
-const instance = conversations.create(key, {
-  state: { title: 'Initial' },
-  usage: { tokens: 0 },
-});
+const conversations = expose(
+  api.conversation,
+  {
+    state: (key) => conversationState(key),
+    usage: (key) => conversationUsage(key),
+  },
+  { mutations }
+);
 ```
 
-Then expose the group by passing the host in the implementation object:
+Then bind the endpoint by passing the provider in the implementation object:
 
 ```ts
 const controller = createController(api, { conversation: conversations });
 ```
 
 The live model client handle exposes `state(key, name)` for member handles and
-`mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplica()`
+`mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplicaCache()`
 when a process wants local state, ref counting, and mutation settling. See
 [serving](./serving.md#typed-clients).

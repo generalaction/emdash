@@ -1,4 +1,4 @@
-import { sshConnections } from '@main/db/schema';
+import { sshConnections } from '@core/services/app-db/node/schema';
 import { log } from '@main/lib/logger';
 import {
   makeSshFingerprint,

@@ -1,5 +1,6 @@
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+import { Text } from '../../primitives/typography/Text';
 import * as styles from './page-header.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -71,8 +72,14 @@ function PageHeader({
   const body = (
     <div className={styles.header}>
       <div className={styles.titleBlock} style={titleBlockStyle}>
-        <h2 className={styles.title}>{title}</h2>
-        {description && <p className={styles.description}>{description}</p>}
+        <Text as="h2" variant="h1" tone="default">
+          {title}
+        </Text>
+        {description && (
+          <Text as="p" variant="description" tone="muted">
+            {description}
+          </Text>
+        )}
       </div>
       {actions && (
         <div className={styles.actions} style={actionsStyle}>

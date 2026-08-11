@@ -9,7 +9,7 @@ import {
   invalidateCellMetricsCache,
   measureDimensions,
   measureTerminalCell,
-} from '@renderer/lib/pty/pty-dimensions';
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

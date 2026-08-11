@@ -14,11 +14,6 @@ const devSchema = z.object({
   POSTHOG_HOST: z.string().optional(),
 });
 
-const runtimeSchema = z.object({
-  TELEMETRY_ENABLED: z.string().optional(),
-  INSTALL_SOURCE: z.string().optional(),
-});
-
 function parseSection<T extends z.ZodRawShape>(
   schema: z.ZodObject<T>,
   source: Record<string, unknown>,
@@ -37,5 +32,4 @@ export const env = {
   dev: import.meta.env.DEV
     ? parseSection(devSchema, process.env, 'dev')
     : ({} as z.infer<typeof devSchema>),
-  runtime: parseSection(runtimeSchema, process.env, 'runtime'),
 };

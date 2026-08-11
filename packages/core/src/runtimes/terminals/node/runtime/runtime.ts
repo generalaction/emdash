@@ -1,0 +1,553 @@
+import { err, ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { LiveLogSource } from '@emdash/wire/live';
+import { type LeasedLiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
+import { cell, expose, peek, type Cell } from '@emdash/wire/state';
+import type { IExecutionContext } from '#primitives/exec/api';
+import { resourceKeyFromFileRef, type HostFileRef } from '#primitives/path/api';
+import type {
+  ResolvedShellProfile,
+  TerminalShellAvailability,
+  TerminalShellId,
+  TerminalShellResolver,
+} from '#primitives/terminal-shell/api';
+import {
+  terminalsContract,
+  type KillTmuxSessionsInput,
+  type ShellAvailabilityFailedError,
+  type StartTerminalInput,
+  type StartTerminalSpec,
+  type TerminalDevServer,
+  type TerminalKey,
+  type TerminalNotFoundError,
+  type TerminalRuntimeError,
+  type TerminalSessionState,
+  type TerminalStartFailedError,
+} from '#runtimes/terminals/api';
+import {
+  wireTerminalUrlDetector,
+  type DetectedPreviewUrl,
+  type TerminalPortProbe,
+} from '#services/preview-detection/node';
+import {
+  buildTerminalEnv,
+  killTmuxSession,
+  makeTmuxSessionName,
+  resolveLocalPtySpawn,
+  PtyRegistry,
+  type PtySession,
+  type PtySpawner,
+} from '#services/pty/api';
+import type {
+  ActivityFields,
+  DeactivationCause,
+  IdlePolicyConfig,
+  SessionLifecycle,
+  SessionSnapshotJudgment,
+} from '#services/session-lifecycle/api';
+import { createSessionLifecycle } from '#services/session-lifecycle/node';
+
+const DEFAULT_COLS = 80;
+const DEFAULT_ROWS = 24;
+
+type SessionsCell = Cell<Record<string, TerminalSessionState>>;
+type DevServersCell = Cell<Record<string, TerminalDevServer>>;
+
+type InteractiveTerminalConfig = {
+  key: TerminalKey;
+  spec: StartTerminalSpec;
+};
+
+type PreviewOutputSource = {
+  emitData(chunk: string): void;
+  emitExit(): void;
+  dispose(): void;
+};
+
+export type TerminalsRuntimeOptions = {
+  spawner: PtySpawner;
+  exec?: IExecutionContext;
+  scope?: Scope;
+  clock?: Clock;
+  portProbe?: TerminalPortProbe;
+  lifecycle?: TerminalsRuntimeLifecycleOptions;
+  shellResolver?: TerminalShellResolver;
+  logger?: Logger;
+};
+
+export type TerminalsRuntimeLifecycleOptions = {
+  terminal?: IdlePolicyConfig;
+  sweepIntervalMs?: number;
+};
+
+export class TerminalsRuntime {
+  private readonly sessionsList: SessionsCell = cell({});
+  private readonly devServersList: DevServersCell = cell({});
+  readonly sessionsHost: LeasedLiveModelProvider<typeof terminalsContract.sessions> = expose(
+    terminalsContract.sessions,
+    { list: this.sessionsList },
+    { publish: { list: 'diff' } }
+  );
+  readonly devServersHost: LeasedLiveModelProvider<typeof terminalsContract.devServers> = expose(
+    terminalsContract.devServers,
+    { list: this.devServersList },
+    { publish: { list: 'diff' } }
+  );
+
+  private readonly registry: PtyRegistry;
+  private readonly exec: IExecutionContext | undefined;
+  private readonly scope: Scope;
+  private readonly clock: Clock;
+  private readonly portProbe: TerminalPortProbe | undefined;
+  private readonly shellResolver: TerminalShellResolver | undefined;
+  private readonly logger: Logger;
+  private readonly lifecycle: SessionLifecycle;
+  private readonly logs = new Map<string, LiveLogSource>();
+  private readonly sessionKeys = new Map<string, TerminalKey>();
+  private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
+  private readonly startCounts = new Map<string, number>();
+  private readonly previewSources = new Map<string, PreviewOutputSource>();
+
+  constructor(options: TerminalsRuntimeOptions) {
+    this.registry = new PtyRegistry(options.spawner, {
+      onSessionChanged: (key, session) => this.syncSession(key, session),
+    });
+    this.exec = options.exec;
+    this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
+    this.clock = options.clock ?? systemClock;
+    this.portProbe = options.portProbe;
+    this.shellResolver = options.shellResolver;
+    this.logger = options.logger ?? noopLogger;
+    this.lifecycle = createSessionLifecycle({
+      name: 'TerminalsRuntime',
+      logger: this.logger,
+      clock: this.clock,
+      scope: this.scope,
+      // User shells never idle out by default; the sweeper is policy-inert by design.
+      idlePolicy: options.lifecycle?.terminal ?? { kind: 'always' },
+      ...(options.lifecycle?.sweepIntervalMs !== undefined
+        ? { sweepIntervalMs: options.lifecycle.sweepIntervalMs }
+        : {}),
+      entries: () => this.sessionKeys.keys(),
+      snapshot: (sessionKey) => this.lifecycleSnapshot(sessionKey),
+      syncListEntry: (sessionKey, activity) => this.syncActivity(sessionKey, activity),
+      deactivate: (sessionKey, cause) => this.killSession(sessionKey, cause),
+      evictSteps: [
+        { name: 'preview-detection', run: (key) => this.closePreviewSource(key) },
+        {
+          name: 'pty-registry',
+          run: (key) => {
+            this.registry.dispose(key);
+          },
+        },
+        {
+          name: 'output-log',
+          run: (key) => {
+            this.logs.delete(key);
+          },
+        },
+        {
+          name: 'session-key',
+          run: (key) => {
+            this.sessionKeys.delete(key);
+          },
+        },
+        {
+          name: 'interactive-config',
+          run: (key) => {
+            this.interactiveConfigs.delete(key);
+          },
+        },
+        {
+          name: 'start-count',
+          run: (key) => {
+            this.startCounts.delete(key);
+          },
+        },
+        { name: 'sessions-list-entry', run: (key) => this.removeSessionListEntry(key) },
+      ],
+    });
+    this.scope.add(() => this.dispose());
+  }
+
+  async start(input: StartTerminalInput): Promise<Result<void, TerminalStartFailedError>> {
+    const sessionKey = sessionKeyFor(input.key);
+    const existing = this.registry.get(sessionKey);
+    if (existing && !existing.exited) return ok(undefined);
+    if (existing) {
+      // Restart of a retained exited terminal: evict-then-create. The start
+      // count survives eviction so the renderer still sees a restart.
+      const startCount = this.startCounts.get(sessionKey) ?? 0;
+      await this.lifecycle.evict(sessionKey, { cause: 'restart' });
+      if (startCount > 0) this.startCounts.set(sessionKey, startCount);
+    }
+
+    this.sessionKeys.set(sessionKey, input.key);
+    this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
+
+    try {
+      await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
+      return ok(undefined);
+    } catch (error) {
+      await this.lifecycle.evict(sessionKey, { cause: 'start-failed' });
+      return err({
+        type: 'terminal-start-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async getShellAvailability(): Promise<
+    Result<TerminalShellAvailability[], ShellAvailabilityFailedError>
+  > {
+    if (!this.shellResolver) {
+      return err({
+        type: 'shell-availability-failed',
+        message: 'No shell resolver is configured for this terminals runtime',
+      });
+    }
+    try {
+      return ok(await this.shellResolver.getAvailability());
+    } catch (error) {
+      return err({
+        type: 'shell-availability-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  outputLog(key: TerminalKey): LiveSource {
+    const source = this.logFor(key);
+    const sessionKey = sessionKeyFor(key);
+    return {
+      snapshot: () => source.snapshot(),
+      subscribe: (cb) => {
+        this.lifecycle.attach(sessionKey);
+        const unsubscribe = source.subscribe(cb);
+        return () => {
+          unsubscribe();
+          this.lifecycle.detach(sessionKey);
+        };
+      },
+    };
+  }
+
+  sendInput(key: TerminalKey, data: string): Result<void, TerminalNotFoundError> {
+    const sessionKey = sessionKeyFor(key);
+    if (!this.registry.write(sessionKey, data)) {
+      return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
+    }
+    this.lifecycle.recordInput(sessionKey);
+    return ok(undefined);
+  }
+
+  resize(key: TerminalKey, cols: number, rows: number): Result<void, TerminalNotFoundError> {
+    const sessionKey = sessionKeyFor(key);
+    if (!this.registry.resize(sessionKey, cols, rows)) {
+      return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
+    }
+    this.sessionsList.update((previous) => {
+      const session = previous[sessionKey];
+      if (!session) return previous;
+      return {
+        ...previous,
+        [sessionKey]: { ...session, cols, rows },
+      };
+    });
+    return ok(undefined);
+  }
+
+  async kill(key: TerminalKey): Promise<Result<void, TerminalNotFoundError>> {
+    const sessionKey = sessionKeyFor(key);
+    if (!this.sessionKeys.has(sessionKey)) {
+      return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
+    }
+    await this.killSession(sessionKey, 'user');
+    return ok(undefined);
+  }
+
+  async killTmuxSessions(
+    input: KillTmuxSessionsInput
+  ): Promise<Result<void, TerminalRuntimeError>> {
+    if (process.platform === 'win32' || !this.exec) return ok(undefined);
+    for (const name of input.sessionNames) {
+      await killTmuxSession(this.exec, name);
+    }
+    return ok(undefined);
+  }
+
+  dispose(): void {
+    this.lifecycle.dispose();
+    this.registry.killAll();
+    this.logs.clear();
+    for (const source of this.previewSources.values()) source.dispose();
+    this.previewSources.clear();
+    void this.sessionsHost.dispose();
+    void this.devServersHost.dispose();
+  }
+
+  /**
+   * Full teardown for close/kill, sweeper deactivation, and workspace
+   * deactivation (which arrives per key through `kill`). Process *exit* does
+   * NOT come here — exited entries are retained with scrollback until close,
+   * restart, or workspace deactivation.
+   */
+  private async killSession(sessionKey: string, cause: DeactivationCause): Promise<void> {
+    await this.killTmuxForSession(sessionKey);
+    await this.lifecycle.evict(sessionKey, { cause });
+  }
+
+  private async spawnInteractiveTerminal(
+    sessionKey: string,
+    key: TerminalKey,
+    spec: StartTerminalSpec
+  ): Promise<PtySession> {
+    const log = this.logFor(key);
+    const startCount = (this.startCounts.get(sessionKey) ?? 0) + 1;
+    this.startCounts.set(sessionKey, startCount);
+    this.sessionKeys.set(sessionKey, key);
+
+    const shellProfile = await this.resolveShellProfile(key, spec.shellIntent);
+    const env = buildTerminalEnv({
+      shellProfile,
+      overrides: spec.env,
+      gitCredentials: spec.gitCredentials,
+    });
+    const resolved = resolveLocalPtySpawn({
+      intent: {
+        kind: 'interactive-shell',
+        cwd: spec.cwd,
+        shellProfile,
+        shellSetup: spec.shellSetup,
+        tmuxSessionName: spec.tmux ? makeTmuxSessionName(sessionKey) : undefined,
+      },
+      platform: process.platform,
+      env,
+    });
+
+    return await this.registry.create(
+      sessionKey,
+      {
+        command: resolved.command,
+        args: resolved.args,
+        cwd: resolved.cwd,
+        env,
+        cols: spec.cols ?? DEFAULT_COLS,
+        rows: spec.rows ?? DEFAULT_ROWS,
+      },
+      {
+        output: log,
+        onData: (chunk) => {
+          this.lifecycle.recordOutput(sessionKey);
+          this.previewSourceFor(sessionKey, key).emitData(chunk);
+        },
+        onExit: () => this.handleInteractiveExit(sessionKey),
+      }
+    );
+  }
+
+  private handleInteractiveExit(sessionKey: string): void {
+    this.closePreviewSource(sessionKey);
+  }
+
+  private async resolveShellProfile(
+    key: TerminalKey,
+    intent: TerminalShellId | undefined
+  ): Promise<ResolvedShellProfile | undefined> {
+    if (!intent || !this.shellResolver) return undefined;
+    return await this.shellResolver.resolveWithSystemFallback({
+      intent,
+      onFallback: (event) =>
+        this.logger.warn('terminals: falling back to system shell', {
+          terminalId: key.id,
+          shell: event.shell,
+          message: event.message,
+        }),
+    });
+  }
+
+  private async killTmuxForSession(sessionKey: string): Promise<void> {
+    const config = this.interactiveConfigs.get(sessionKey);
+    if (!config?.spec.tmux || process.platform === 'win32' || !this.exec) return;
+    await killTmuxSession(this.exec, makeTmuxSessionName(sessionKey));
+  }
+
+  private logFor(key: TerminalKey): LiveLogSource {
+    const id = sessionKeyFor(key);
+    let log = this.logs.get(id);
+    if (!log) {
+      log = new LiveLogSource();
+      this.logs.set(id, log);
+    }
+    return log;
+  }
+
+  private syncSession(key: string, session: PtySession | null): void {
+    this.sessionsList.update((previous) => {
+      if (!session) {
+        this.closePreviewSource(key);
+        const existing = previous[key];
+        if (!existing) return previous;
+        return {
+          ...previous,
+          [key]: {
+            ...existing,
+            status: 'exited',
+            exitedAt: existing.exitedAt ?? this.clock.now(),
+          },
+        };
+      }
+      const terminalKey = this.sessionKeys.get(key);
+      if (!terminalKey) return previous;
+      const exit = session.exitStatus ?? undefined;
+      const existing = previous[key];
+      const activity = this.lifecycle.activity(key);
+      const state: TerminalSessionState = {
+        key: terminalKey,
+        status: session.exited ? 'exited' : 'running',
+        startCount: this.startCounts.get(key) ?? existing?.startCount ?? 1,
+        tmux: this.interactiveConfigs.get(key)?.spec.tmux,
+        pid: session.getPid(),
+        cols: session.spec.cols,
+        rows: session.spec.rows,
+        startedAt: session.startedAt,
+        exitedAt: session.exited ? (existing?.exitedAt ?? this.clock.now()) : undefined,
+        lastInputAt: activity.lastInputAt ?? existing?.lastInputAt,
+        lastOutputAt: activity.lastOutputAt ?? existing?.lastOutputAt,
+        exit:
+          exit !== undefined
+            ? {
+                exitCode: exit.exitCode,
+                signal: exit.signal,
+              }
+            : undefined,
+      };
+      return {
+        ...previous,
+        [key]: state,
+      };
+    });
+  }
+
+  private syncActivity(sessionKey: string, activity: ActivityFields): void {
+    this.sessionsList.update((previous) => {
+      const session = previous[sessionKey];
+      if (!session) return previous;
+      return {
+        ...previous,
+        [sessionKey]: {
+          ...session,
+          lastInputAt: activity.lastInputAt ?? session.lastInputAt,
+          lastOutputAt: activity.lastOutputAt ?? session.lastOutputAt,
+        },
+      };
+    });
+  }
+
+  private lifecycleSnapshot(sessionKey: string): SessionSnapshotJudgment | null {
+    const session = peek(this.sessionsList)[sessionKey];
+    if (!session || session.status !== 'running') return null;
+    return { running: true, busy: false };
+  }
+
+  private removeSessionListEntry(sessionKey: string): void {
+    this.sessionsList.update((previous) => omitKey(previous, sessionKey));
+  }
+
+  private previewSourceFor(sessionKey: string, key: TerminalKey): PreviewOutputSource {
+    const existing = this.previewSources.get(sessionKey);
+    if (existing) return existing;
+
+    const dataHandlers: Array<(chunk: string) => void> = [];
+    const exitHandlers: Array<() => void> = [];
+    const stopDetector = wireTerminalUrlDetector({
+      pty: {
+        onData(handler) {
+          dataHandlers.push(handler);
+        },
+        onExit(handler) {
+          exitHandlers.push(handler);
+        },
+      },
+      ...(this.portProbe ? { portProbe: this.portProbe } : {}),
+      onDetected: (server) => this.upsertDevServer(sessionKey, key, server),
+      onSourceClosed: (event) => {
+        if (event.reason === 'local-probe-failed') {
+          this.removeDevServer(sessionKey, event.server);
+        } else {
+          this.pruneDevServersForSession(sessionKey);
+        }
+      },
+    });
+
+    const source: PreviewOutputSource = {
+      emitData(chunk) {
+        for (const handler of dataHandlers) handler(chunk);
+      },
+      emitExit() {
+        for (const handler of exitHandlers) handler();
+      },
+      dispose: stopDetector,
+    };
+    this.previewSources.set(sessionKey, source);
+    return source;
+  }
+
+  private closePreviewSource(sessionKey: string): void {
+    const source = this.previewSources.get(sessionKey);
+    if (source) {
+      source.emitExit();
+      source.dispose();
+      this.previewSources.delete(sessionKey);
+    }
+    this.pruneDevServersForSession(sessionKey);
+  }
+
+  private upsertDevServer(sessionKey: string, key: TerminalKey, server: DetectedPreviewUrl): void {
+    const id = devServerKeyFor(sessionKey, server);
+    const record: TerminalDevServer = {
+      key,
+      protocol: server.protocol,
+      host: server.host,
+      port: server.port,
+      urlPath: server.urlPath,
+      detectedAt: this.clock.now(),
+    };
+    this.devServersList.update((previous) => ({
+      ...previous,
+      [id]: record,
+    }));
+  }
+
+  private removeDevServer(sessionKey: string, server: DetectedPreviewUrl): void {
+    const id = devServerKeyFor(sessionKey, server);
+    this.devServersList.update((previous) => omitKey(previous, id));
+  }
+
+  private pruneDevServersForSession(sessionKey: string): void {
+    const prefix = `${sessionKey}:`;
+    this.devServersList.update((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(prefix)))
+    );
+  }
+}
+
+function scopeKeyFor(workspace: HostFileRef): string {
+  return resourceKeyFromFileRef(workspace);
+}
+
+function sessionKeyFor(key: TerminalKey): string {
+  return `${scopeKeyFor(key.workspace)}:${key.id}`;
+}
+
+function devServerKeyFor(sessionKey: string, server: DetectedPreviewUrl): string {
+  return `${sessionKey}:${server.protocol}:${server.port}`;
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const { [key]: _removed, ...rest } = record;
+  return rest;
+}

@@ -28,9 +28,7 @@ export const Scale: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="6" padding="4">
       <Box>
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Radius scale
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Radius scale</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Each swatch uses{' '}
           <code className={cx(sx({ fontFamily: 'mono' }))}>border-radius: var(--em-radius-*)</code>.
@@ -55,7 +53,6 @@ export const Scale: Story = {
                   sx({
                     fontFamily: 'mono',
                     fontSize: 'xs',
-                    fontWeight: 'medium',
                     color: 'foreground',
                   })
                 )}
@@ -83,9 +80,7 @@ export const InContext: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="6" padding="4">
       <Box>
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Tokens in use
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Tokens in use</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Buttons use <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-lg</code> (base) and{' '}
           <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-md</code> (sm). Inputs use{' '}

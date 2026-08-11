@@ -43,32 +43,39 @@ export default defineConfig({
           include: [],
         },
       },
-      {
-        // Measurement contract tests and benchmarks — need real browser layout.
-        // Benchmarks live here (not in node) because measure.bench.ts imports
-        // from REGISTRY which transitively uses solid-js/web.
-        extends: true,
-        test: {
-          name: 'browser',
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            instances: [{ browser: 'chromium' }],
-          },
-          include: ['src/**/*.contract.test.tsx'],
-          setupFiles: ['src/tests/contract-setup.ts'],
-        },
-        benchmark: {
-          include: ['src/**/*.bench.ts'],
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            instances: [{ browser: 'chromium' }],
-          },
-        },
-      },
+      // The browser project is omitted entirely when EMDASH_TEST_SKIP_BROWSER
+      // is set: CI runs without it until Playwright browser provisioning is
+      // proven stable there (see .github/workflows/code-consistency-check.yml).
+      ...(process.env.EMDASH_TEST_SKIP_BROWSER
+        ? []
+        : [
+            {
+              // Measurement contract tests and benchmarks — need real browser layout.
+              // Benchmarks live here (not in node) because measure.bench.ts imports
+              // from REGISTRY which transitively uses solid-js/web.
+              extends: true as const,
+              test: {
+                name: 'browser',
+                browser: {
+                  enabled: true,
+                  provider: playwright(),
+                  headless: true,
+                  instances: [{ browser: 'chromium' }],
+                },
+                include: ['src/**/*.contract.test.tsx'],
+                setupFiles: ['src/tests/contract-setup.ts'],
+              },
+              benchmark: {
+                include: ['src/**/*.bench.ts'],
+                browser: {
+                  enabled: true,
+                  provider: playwright(),
+                  headless: true,
+                  instances: [{ browser: 'chromium' }],
+                },
+              },
+            },
+          ]),
       {
         // Performance + memory tests — informational only, excluded from `pnpm test`.
         // Run with `pnpm --filter @emdash/chat-ui run test:perf`.

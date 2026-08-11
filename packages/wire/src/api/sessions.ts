@@ -6,7 +6,7 @@ import { serve } from './serve';
 export type WireSessionHub = {
   open(sessionId: string | number, transport: WireTransport): Unsubscribe;
   close(sessionId: string | number): void;
-  dispose(): void;
+  dispose(): Promise<void>;
 };
 
 type SessionRecord = {
@@ -38,9 +38,9 @@ export function createWireSessionHub(controller: Controller): WireSessionHub {
       return () => close(key);
     },
     close,
-    dispose() {
+    async dispose() {
       for (const key of [...sessions.keys()]) close(key);
-      controller.dispose?.();
+      await controller.dispose?.();
     },
   };
 }

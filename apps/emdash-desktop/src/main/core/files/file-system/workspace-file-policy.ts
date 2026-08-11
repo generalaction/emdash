@@ -1,139 +1,125 @@
-import path from 'node:path';
-import { type FileError, type IFileSystem } from '@emdash/core/files';
-import { err, ok, type Result } from '@emdash/shared';
 import {
-  basenameMachinePath,
-  containsMachinePath,
-  dirnameMachinePath,
-  isAbsoluteMachinePath,
-  joinMachinePath,
-} from '../path-utils';
+  absoluteBasename,
+  absoluteDirname,
+  containsAbsolute,
+  joinAbsolute,
+  parsePortableRelativePath,
+  type PortableRelativePath,
+} from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
+import { err, ok, type Result } from '@emdash/shared';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';
+import type { FilesClientScope } from '../runtime-client';
 
 export type WorkspacePathResolution = {
   path: string;
 };
 
 const machinePathOperations = {
-  basename: basenameMachinePath,
-  contains: containsMachinePath,
-  dirname: dirnameMachinePath,
-  join: joinMachinePath,
+  basename: (input: string) => absoluteBasename(hostPathFromNative(input)),
+  contains: (parent: string, child: string) =>
+    containsAbsolute(hostPathFromNative(parent), hostPathFromNative(child)),
+  dirname: (input: string) => {
+    const parsed = hostPathFromNative(input);
+    return nativePathFromHost(absoluteDirname(parsed) ?? parsed);
+  },
+  join: (base: string, ...segments: string[]) => {
+    const relative = parsePortableRelativePath(segments.join('/'), {
+      unicodeNormalization: 'preserve',
+    });
+    if (!relative.success) throw new Error(relative.error.message);
+    const joined = joinAbsolute(hostPathFromNative(base), relative.data);
+    if (!joined.success) throw new Error(joined.error.message);
+    return nativePathFromHost(joined.data);
+  },
 };
 
 export function resolveWorkspacePath(
   workspacePath: string,
   filePath: string,
   options: { allowEmpty?: boolean } = {}
-): Result<WorkspacePathResolution, FileError> {
-  let absPath: string;
-  if (isAbsoluteMachinePath(filePath)) {
-    absPath = filePath;
-  } else {
+): Result<WorkspacePathResolution, FsError> {
+  let root;
+  try {
+    root = hostPathFromNative(workspacePath);
+  } catch (error) {
+    return invalidPathError(workspacePath, error instanceof Error ? error.message : String(error));
+  }
+
+  let candidate;
+  try {
+    candidate = hostPathFromNative(filePath);
+  } catch {
     const relativePath = normalizeRelativePath(filePath, options);
     if (!relativePath.success) return relativePath;
-    absPath = joinMachinePath(workspacePath, relativePath.data);
+    const joined = joinAbsolute(root, relativePath.data);
+    if (!joined.success) return invalidPathError(filePath, joined.error.message);
+    candidate = joined.data;
   }
 
-  if (!containsMachinePath(workspacePath, absPath)) {
-    return err({
-      type: 'invalid-path',
-      path: filePath,
-      message: 'Path must be inside the workspace',
-    });
+  if (!containsAbsolute(root, candidate)) {
+    return invalidPathError(filePath, 'Path must be inside the workspace');
   }
 
-  return ok({ path: absPath });
+  return ok({ path: nativePathFromHost(candidate) });
 }
 
 export async function assertWorkspaceWriteAllowed(
-  fileSystem: IFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   filePath: string
-): Promise<Result<WorkspacePathResolution, FileError>> {
+): Promise<Result<WorkspacePathResolution, FsError>> {
   const resolved = resolveWorkspacePath(workspacePath, filePath);
   if (!resolved.success) return resolved;
-  const contained = await isWorkspaceRealPathContained(
-    fileSystem,
-    workspacePath,
-    resolved.data.path
-  );
-  if (!contained.success) return contained;
-  if (!contained.data) return pathEscapeError(filePath);
-  return resolved;
-}
-
-export async function assertWorkspaceRemoveAllowed(
-  fileSystem: IFileSystem,
-  workspacePath: string,
-  filePath: string
-): Promise<Result<WorkspacePathResolution, FileError>> {
-  const resolved = resolveWorkspacePath(workspacePath, filePath);
-  if (!resolved.success) return resolved;
-  const parentPath = dirnameMachinePath(resolved.data.path);
-  const contained = await isWorkspaceRealPathContained(fileSystem, workspacePath, parentPath);
+  const contained = await isWorkspaceRealPathContained(files, workspacePath, resolved.data.path);
   if (!contained.success) return contained;
   if (!contained.data) return pathEscapeError(filePath);
   return resolved;
 }
 
 export async function assertWorkspaceDirectoryTargetAllowed(
-  fileSystem: IFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   dirPath: string
-): Promise<Result<WorkspacePathResolution, FileError>> {
+): Promise<Result<WorkspacePathResolution, FsError>> {
   const resolved = resolveWorkspacePath(workspacePath, dirPath, { allowEmpty: true });
   if (!resolved.success) return resolved;
-  const contained = await isWorkspaceRealPathContained(
-    fileSystem,
-    workspacePath,
-    resolved.data.path
-  );
+  const contained = await isWorkspaceRealPathContained(files, workspacePath, resolved.data.path);
   if (!contained.success) return contained;
   if (!contained.data) return pathEscapeError(dirPath);
   return resolved;
 }
 
 async function isWorkspaceRealPathContained(
-  fileSystem: IFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   candidatePath: string
-): Promise<Result<boolean, FileError>> {
-  return isRealPathContainedByRealPath(
-    fileSystem,
-    machinePathOperations,
-    workspacePath,
-    candidatePath,
-    {
-      candidateErrorMode: 'error',
-    }
-  );
+): Promise<Result<boolean, FsError>> {
+  return isRealPathContainedByRealPath(files, machinePathOperations, workspacePath, candidatePath, {
+    candidateErrorMode: 'error',
+  });
 }
 
 function normalizeRelativePath(
   filePath: string,
   options: { allowEmpty?: boolean }
-): Result<string, FileError> {
-  if (filePath.includes('\0')) return invalidPathError(filePath, 'Path contains a null byte');
-  const normalized = path.posix.normalize(filePath.replace(/\\/g, '/'));
-  if (normalized === '.') {
-    if (options.allowEmpty) return ok('');
+): Result<PortableRelativePath, FsError> {
+  const parsed = parsePortableRelativePath(filePath.replaceAll('\\', '/'), {
+    unicodeNormalization: 'preserve',
+  });
+  if (!parsed.success) return invalidPathError(filePath, parsed.error.message);
+  if (parsed.data === '' && !options.allowEmpty) {
     return invalidPathError(filePath, 'Path must not be empty');
   }
-  if (path.posix.isAbsolute(normalized) || path.win32.isAbsolute(normalized)) {
-    return invalidPathError(filePath, 'Path must be relative');
-  }
-  const parts = normalized.split('/').filter(Boolean);
-  if (parts.includes('..'))
-    return invalidPathError(filePath, 'Parent path segments are not allowed');
-  return ok(parts.join('/'));
+  return ok(parsed.data);
 }
 
-function pathEscapeError(inputPath: string): Result<never, FileError> {
+function pathEscapeError(inputPath: string): Result<never, FsError> {
   return invalidPathError(inputPath, 'Path resolves outside the workspace');
 }
 
-function invalidPathError(inputPath: string, message: string): Result<never, FileError> {
+function invalidPathError(inputPath: string, message: string): Result<never, FsError> {
   return err({
     type: 'invalid-path',
     path: inputPath,

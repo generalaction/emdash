@@ -1,17 +1,25 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type {
+  CanonicalHookEvent,
+  HookRegistration,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   EMDASH_MARKER,
+  EMDASH_HOOK_POSIX_GUARD,
+  EMDASH_HOOK_VERSION_MARKER,
   buildNestedEntry,
+  configRoots,
   defaultHookEventParser,
   filterUserHooks,
+  homeConfigRoot,
+  hookMapFromConfig,
   makeWindowsPowerShellHookCommand,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
+export const GROK_HOOKS_PATH = 'hooks/emdash.json';
 
 function makeGrokSessionStartCommand(): string {
   if (process.platform === 'win32') {
@@ -31,7 +39,7 @@ function makeGrokSessionStartCommand(): string {
     return makeWindowsPowerShellHookCommand(script);
   }
   return (
-    'curl -sf -X POST ' +
+    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
     '-H "Content-Type: application/json" ' +
     '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
@@ -73,42 +81,44 @@ function parseGrokHookEvent(eventType: string, body: Record<string, unknown>): C
 export function buildGrokHookConfig() {
   const specs = hookEntries();
   return {
+    resolveConfigRoots: configRoots(homeConfigRoot('.grok')),
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = specs.some(({ hookKey }) => {
+      const hooks = hookMapFromConfig(config, GROK_HOOKS_PATH);
+      const installed = specs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildNestedEntry(command))
+        );
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, GROK_HOOKS_PATH);
       for (const { hookKey, command } of specs) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        hooks[hookKey] = [
-          ...filterUserHooks(existing as Record<string, unknown>[]),
-          buildNestedEntry(command),
-        ];
+        hooks[hookKey] = [...filterUserHooks(existing), buildNestedEntry(command)];
       }
       await writeJsonConfig(fs, GROK_HOOKS_PATH, { ...config, hooks });
       return [GROK_HOOKS_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, GROK_HOOKS_PATH);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, GROK_HOOKS_PATH, { ...config, hooks });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return specs.some(({ hookKey }) => {
+      const hooks = hookMapFromConfig(config, GROK_HOOKS_PATH);
+      return specs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildNestedEntry(command))
+        );
       });
     },
     parseHookEvent: parseGrokHookEvent,

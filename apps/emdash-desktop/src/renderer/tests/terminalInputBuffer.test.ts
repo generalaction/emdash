@@ -3,7 +3,7 @@ import {
   isRealTaskInput,
   SubmittedInputBuffer,
   TerminalInputBuffer,
-} from '@renderer/lib/pty/pty-input-buffer';
+} from '@core/features/terminals/browser/pty/pty-input-buffer';
 
 describe('TerminalInputBuffer', () => {
   it('captures a message after Enter + confirmSubmit', () => {

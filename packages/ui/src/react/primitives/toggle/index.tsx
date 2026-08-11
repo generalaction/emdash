@@ -1,14 +1,18 @@
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle';
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group';
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { controlVariants } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import { toggleGroup as toggleGroupClass } from './toggle.css';
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
-export interface ToggleProps
-  extends TogglePrimitive.Props, Pick<ControlVariantProps, 'size' | 'tone'> {
+export interface ToggleProps extends TogglePrimitive.Props {
+  size?: ControlVariantProps['size'];
+  tone?: ControlVariantProps['tone'];
   icon?: boolean;
 }
 
@@ -45,9 +49,13 @@ function ToggleGroupRoot({ className, ...props }: ToggleGroupProps) {
 
 const ToggleGroupItem = React.forwardRef<
   HTMLButtonElement,
-  TogglePrimitive.Props & Pick<ControlVariantProps, 'size' | 'tone'> & { icon?: boolean }
+  TogglePrimitive.Props & {
+    size?: ControlVariantProps['size'];
+    tone?: ControlVariantProps['tone'];
+    icon?: boolean;
+  }
 >(function ToggleGroupItem(
-  { className, size = 'sm', tone = 'neutral', icon = false, ...props },
+  { className, size = 'xs', tone = 'neutral', icon = false, ...props },
   ref
 ) {
   return (

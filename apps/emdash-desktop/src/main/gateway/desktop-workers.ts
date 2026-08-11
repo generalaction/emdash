@@ -1,0 +1,525 @@
+import { join } from 'node:path';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import { acpWorkerSpec } from '@emdash/core/runtimes/acp/node';
+import {
+  agentConfigContract,
+  type AgentConfigContract,
+} from '@emdash/core/runtimes/agent-config/api';
+import { agentConfigWorkerSpec } from '@emdash/core/runtimes/agent-config/node';
+import {
+  automationsContract,
+  type AutomationsContract,
+} from '@emdash/core/runtimes/automations/api';
+import { automationsWorkerSpec } from '@emdash/core/runtimes/automations/node';
+import {
+  conversationsContract,
+  type ConversationsContract,
+} from '@emdash/core/runtimes/conversations/api';
+import { conversationsWorkerSpec } from '@emdash/core/runtimes/conversations/node';
+import { fileSearchContract, type FileSearchContract } from '@emdash/core/runtimes/file-search/api';
+import { fileSearchWorkerSpec } from '@emdash/core/runtimes/file-search/node';
+import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/api';
+import { filesWorkerSpec } from '@emdash/core/runtimes/files/node';
+import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
+import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
+import {
+  hostSettingsContract,
+  type HostSettingsContract,
+} from '@emdash/core/runtimes/host-settings/api';
+import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
+import {
+  resourceUsageContract,
+  type ResourceUsageContract,
+} from '@emdash/core/runtimes/resource-usage/api';
+import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
+import { scriptsContract, type ScriptsContract } from '@emdash/core/runtimes/scripts/api';
+import { scriptsWorkerSpec } from '@emdash/core/runtimes/scripts/node';
+import { terminalsContract, type TerminalsContract } from '@emdash/core/runtimes/terminals/api';
+import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
+import { tuiAgentsContract, type TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import { tuiAgentsWorkerSpec } from '@emdash/core/runtimes/tui-agents/node';
+import {
+  workspaceRegistryContract,
+  type WorkspaceRegistryContract,
+} from '@emdash/core/runtimes/workspace-registry/api';
+import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
+import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
+import { NodeExecutionContext } from '@emdash/core/services/exec/api';
+import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
+import {
+  CORE_DEPENDENCIES,
+  createHostDependenciesComponent,
+  type HostDependenciesContract,
+} from '@emdash/core/services/host-dependencies/node';
+import { pluginRegistry } from '@emdash/plugins/agents';
+import type { Unsubscribe } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import { queuedClient, type ContractClient } from '@emdash/wire/rpc';
+import {
+  createVitalsCollectingSpawner,
+  createWireWorkerHost,
+  type WireWorker,
+  type WireWorkerState,
+} from '@emdash/wire/worker';
+import { childProcessSpawner } from '@emdash/wire/worker/node';
+import { app } from 'electron';
+import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
+import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
+import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
+import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
+import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
+import { mementosWireContract, type MementosWireContract } from '@core/primitives/mementos/api';
+import { mementosComponent } from '@core/services/mementos/node';
+import { pullRequestsContract, type PullRequestsContract } from '@core/services/pull-requests/api';
+import { pullRequestsComponent } from '@core/services/pull-requests/node';
+import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
+import { resolvePullRequestSyncIdentity } from '@core/services/pull-requests/node/sync-identity';
+import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
+import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
+import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
+import { getGitExecutable } from '@main/core/utils/exec';
+import { getAppDb } from '@main/db/instance';
+import { desktopKeyValueStore } from '@main/db/kv';
+import { resolveDatabasePath } from '@main/db/path';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
+import { isUserEnvResolved, refreshUserEnv } from '@main/lib/userEnv';
+import { desktopWorkerPath } from './worker-paths';
+
+export type AcpRuntimeClient = ContractClient<AcpApiContract>;
+export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
+export type AutomationsRuntimeClient = ContractClient<AutomationsContract>;
+export type ConversationsRuntimeClient = ContractClient<ConversationsContract>;
+export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
+export type FilesRuntimeClient = ContractClient<FilesContract>;
+export type GitRuntimeClient = ContractClient<GitContract>;
+export type HostSettingsRuntimeClient = ContractClient<HostSettingsContract>;
+export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
+export type ScriptsRuntimeClient = ContractClient<ScriptsContract>;
+export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type MementosRuntimeClient = ContractClient<MementosWireContract>;
+export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
+export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
+export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
+export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryContract>;
+
+export type DesktopRuntimeClients = {
+  readonly acp: AcpRuntimeClient;
+  readonly agentConfig: AgentConfigRuntimeClient;
+  readonly automations: AutomationsRuntimeClient;
+  readonly conversations: ConversationsRuntimeClient;
+  readonly fileSearch: FileSearchRuntimeClient;
+  readonly files: FilesRuntimeClient;
+  readonly git: GitRuntimeClient;
+  readonly hostDependencies: HostDependenciesClient;
+  readonly hostSettings: HostSettingsRuntimeClient;
+  readonly mementos: MementosRuntimeClient;
+  readonly pullRequests: PullRequestsRuntimeClient;
+  readonly resourceUsage: ResourceUsageRuntimeClient;
+  readonly scripts: ScriptsRuntimeClient;
+  readonly terminals: TerminalsRuntimeClient;
+  readonly tuiAgents: TuiAgentsRuntimeClient;
+  readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
+};
+
+/**
+ * Worker status visibility for consumers that project agent liveness into the
+ * renderer. The backing worker may not exist yet when a consumer subscribes
+ * (workers spawn behind the window under the window-first boot); the
+ * subscription attaches as soon as the worker materializes.
+ */
+export type WorkerStatusSource = {
+  onStateChanged(cb: (state: WireWorkerState) => void): Unsubscribe;
+};
+
+export type DesktopRuntimeWorkers = {
+  readonly acp: WorkerStatusSource;
+  readonly tuiAgents: WorkerStatusSource;
+};
+
+export type DesktopWorkersHandle = {
+  readonly clients: DesktopRuntimeClients;
+  readonly workers: DesktopRuntimeWorkers;
+  /**
+   * Activate per-worker vitals self-sampling (telemetry-sampled sessions
+   * only). Reaches every live worker and any worker spawned later.
+   */
+  startVitalsSampling(intervalMs: number): void;
+  /** Toggle verbose per-spawn logging in every live and future worker. */
+  setSpawnLogging(enabled: boolean): void;
+  dispose(): Promise<void>;
+};
+
+export type StartDesktopWorkersDeps = {
+  readonly scope: Scope;
+  getFilesSettings(): Promise<{ watcherExclude: string[] }>;
+};
+
+/**
+ * Creates every desktop worker and returns immediately with queueing
+ * (barrier-style) clients: callers never wait for worker readiness here —
+ * every client call internally awaits its own worker's `ready()` and a spawn
+ * failure rejects that worker's queued and future calls (ticket 01's
+ * queueing). Worker readiness continues to settle in the background.
+ *
+ * Security ordering: workers inherit `process.env` at spawn, so the
+ * login-shell env capture must have completed before this function runs (see
+ * agents/risky-areas/pty.md). This is asserted, not assumed.
+ */
+export async function startDesktopWorkers(
+  deps: StartDesktopWorkersDeps
+): Promise<DesktopWorkersHandle> {
+  if (!isUserEnvResolved()) {
+    throw new Error(
+      'Desktop workers must not be created before the login-shell environment capture ' +
+        'completes: workers inherit process.env at spawn (PTY security ordering).'
+    );
+  }
+  const workerScope = deps.scope.child('wire-workers');
+  const vitalsSpawner = createVitalsCollectingSpawner(childProcessSpawner(), {
+    onReport: (workerName, vitals) => {
+      telemetryService.capture('perf_vitals', { process_name: `worker_${workerName}`, ...vitals });
+    },
+  });
+  const host = createWireWorkerHost({
+    scope: workerScope,
+    processSpawner: vitalsSpawner,
+    logger: log,
+  });
+  try {
+    const handle = startDesktopWorkersWithHost(deps, workerScope, host);
+    return {
+      ...handle,
+      startVitalsSampling: (intervalMs) => vitalsSpawner.startSampling(intervalMs),
+      setSpawnLogging: (enabled) => vitalsSpawner.setSpawnLogging(enabled),
+    };
+  } catch (error) {
+    await workerScope.dispose(error);
+    throw error;
+  }
+}
+
+function startDesktopWorkersWithHost(
+  deps: StartDesktopWorkersDeps,
+  workerScope: Scope,
+  host: ReturnType<typeof createWireWorkerHost>
+): Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'> {
+  const workersStartedAt = Date.now();
+  // Logs readiness timing and observes rejection so a background readiness
+  // failure never surfaces as an unhandled rejection: the failure reaches
+  // callers through the queued clients' per-call rejections.
+  const timedReady = <T>(name: string, ready: Promise<T>): Promise<T> => {
+    const tracked = ready.then((value) => {
+      log.info('boot-timeline worker ready', {
+        worker: name,
+        sinceWorkersStartMs: Date.now() - workersStartedAt,
+      });
+      return value;
+    });
+    tracked.catch((error: unknown) => {
+      log.error('boot-timeline worker readiness failed', { worker: name, error });
+    });
+    return tracked;
+  };
+  const hostDependencies = createHostDependenciesComponent({
+    store: desktopKeyValueStore,
+    exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),
+    logger: log,
+  }).create({
+    scope: workerScope,
+    dependencies: {},
+    config: {
+      hostId: 'local',
+      definitions: [
+        ...CORE_DEPENDENCIES,
+        ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
+      ],
+    },
+  });
+  const fsWatchWorker = host.create(
+    ...fsWatchWorkerSpec({ executable: desktopWorkerPath('fs-watch'), env: process.env })
+  );
+  const conversationsWorker = host.create(
+    ...conversationsWorkerSpec({
+      executable: desktopWorkerPath('conversations'),
+      env: process.env,
+      databasePath: join(app.getPath('userData'), 'conversations.db'),
+    })
+  );
+  const conversationsReady = timedReady('conversations', conversationsWorker.ready());
+  const acpStart = conversationsReady.then(async (conversations) => {
+    const worker = host.create(
+      ...acpWorkerSpec({
+        pluginRegistry,
+        logger: log,
+        executable: desktopWorkerPath('acp'),
+        env: process.env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
+        },
+        attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
+        intentsFilePath: sessionIntentFilePaths().acp,
+      })
+    );
+    return { client: await worker.ready(), worker };
+  });
+  const agentConfigWorker = host.create(
+    ...agentConfigWorkerSpec({
+      pluginRegistry,
+      logger: log,
+      executable: desktopWorkerPath('agent-config'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+      },
+    })
+  );
+  const mementosWorker = host.create(mementosComponent, {
+    name: 'mementos',
+    executable: desktopWorkerPath('mementos'),
+    env: process.env,
+    dependencies: {},
+    config: {
+      databasePath: join(app.getPath('userData'), 'mementos.db'),
+      sweepPolicies: mementoSweepPolicies,
+    },
+  });
+  const pullRequestsWorker = host.create(pullRequestsComponent, {
+    name: 'pull-requests',
+    executable: desktopWorkerPath('pull-requests'),
+    env: process.env,
+    dependencies: {
+      // Identity is resolved per request through the seam bound during services
+      // boot (spec: github-git-settings §8); until then requests fail closed.
+      githubAuth: createPullRequestsGitHubAuthController(
+        new GitHubApiAuthService(providerAccountRegistry),
+        githubApiBaseUrlForHost,
+        resolvePullRequestSyncIdentity
+      ),
+    },
+    config: {
+      databasePath: join(app.getPath('userData'), 'pull-requests.db'),
+      incrementalIntervalMs: 5 * 60_000,
+    },
+  });
+  const terminalsWorker = host.create(
+    ...terminalsWorkerSpec({
+      executable: desktopWorkerPath('terminals'),
+      env: process.env,
+      lifecycle: {
+        terminal: { kind: 'always' },
+      },
+    })
+  );
+  const resourceUsageWorker = host.create(
+    ...resourceUsageWorkerSpec({
+      executable: desktopWorkerPath('resource-usage'),
+      env: process.env,
+    })
+  );
+  const hostSettingsWorker = host.create(
+    ...hostSettingsWorkerSpec({
+      executable: desktopWorkerPath('host-settings'),
+      env: process.env,
+      settingsPath: join(app.getPath('userData'), 'host-settings.json'),
+    })
+  );
+  const hostSettingsReady = timedReady('host-settings', hostSettingsWorker.ready());
+  const scriptsReady = timedReady(
+    'scripts',
+    hostSettingsReady.then(async (hostSettings) => {
+      const worker = host.create(
+        ...scriptsWorkerSpec({
+          executable: desktopWorkerPath('scripts'),
+          env: process.env,
+          dependencies: { hostSettings },
+        })
+      );
+      return await worker.ready();
+    })
+  );
+
+  const watcherReady = timedReady('fs-watch', fsWatchWorker.ready());
+  const acpReady = timedReady(
+    'acp',
+    acpStart.then((result) => result.client)
+  );
+  const agentConfigReady = timedReady('agent-config', agentConfigWorker.ready());
+  const mementosReady = timedReady('mementos', mementosWorker.ready());
+  const pullRequestsReady = timedReady('pull-requests', pullRequestsWorker.ready());
+  const resourceUsageReady = timedReady('resource-usage', resourceUsageWorker.ready());
+  const terminalsReady = timedReady('terminals', terminalsWorker.ready());
+  const filesReady = timedReady(
+    'files',
+    watcherReady.then(async (watcher) => {
+      const filesSettings = await deps.getFilesSettings();
+      const worker = host.create(
+        ...filesWorkerSpec({
+          executable: desktopWorkerPath('files'),
+          env: process.env,
+          dependencies: { watcher },
+          watchIgnore: filesSettings.watcherExclude,
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const fileSearchReady = timedReady(
+    'file-search',
+    watcherReady.then(async (watcher) => {
+      const worker = host.create(
+        ...fileSearchWorkerSpec({
+          executable: desktopWorkerPath('file-search'),
+          env: process.env,
+          dependencies: { watcher },
+          databasePath: resolveFileSearchDatabasePath(),
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const gitReady = timedReady(
+    'git',
+    watcherReady.then(async (watcher) => {
+      const worker = host.create(
+        ...gitWorkerSpec({
+          executable: desktopWorkerPath('git'),
+          env: process.env,
+          dependencies: {
+            watcher,
+            hostDependencies: hostDependencies.client.resolver,
+          },
+          gitExecutable: getGitExecutable(),
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const tuiAgentsReady = timedReady(
+    'tui-agents',
+    conversationsReady.then(async (conversations) => {
+      const worker = host.create(
+        ...tuiAgentsWorkerSpec({
+          pluginRegistry,
+          logger: log,
+          executable: desktopWorkerPath('tui-agents'),
+          env: process.env,
+          dependencies: {
+            hostDependencies: hostDependencies.client.resolver,
+            conversations,
+          },
+          intentsFilePath: sessionIntentFilePaths().tuiAgents,
+        })
+      );
+      return { client: await worker.ready(), worker };
+    })
+  );
+  const workspaceRegistryReady = timedReady(
+    'workspace-registry',
+    Promise.all([watcherReady, acpReady, terminalsReady, tuiAgentsReady, scriptsReady]).then(
+      async ([watcher, acp, terminals, tuiAgents, scripts]) => {
+        const worker = host.create(
+          ...workspaceRegistryWorkerSpec({
+            executable: desktopWorkerPath('workspace-registry'),
+            env: process.env,
+            dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client, scripts },
+            databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+          })
+        );
+        return await worker.ready();
+      }
+    )
+  );
+  const automationsWorkerRef: { current: WireWorker<AutomationsContract> | undefined } = {
+    current: undefined,
+  };
+  const automationsReady = timedReady(
+    'automations',
+    Promise.all([workspaceRegistryReady, acpReady, tuiAgentsReady, conversationsReady]).then(
+      async ([workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
+        const paths = automationRuntimePaths(resolveDatabasePath());
+        const worker = host.create(
+          ...automationsWorkerSpec({
+            executable: desktopWorkerPath('automations'),
+            env: process.env,
+            dependencies: {
+              workspaceRegistry,
+              // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
+              // live in the app db, so the main process answers for the worker.
+              creationAdmission: createAutomationCreationAdmissionController(getAppDb),
+              acpSessions: acp,
+              tuiSessions: tuiAgents.client,
+              conversationIndex: conversationsClient,
+            },
+            dbFile: paths.dbFile,
+          })
+        );
+        automationsWorkerRef.current = worker;
+        return { client: await worker.ready(), worker };
+      }
+    )
+  );
+
+  let disposePromise: Promise<void> | undefined;
+  return {
+    clients: {
+      acp: queuedClient(acpApiContract, () => acpReady),
+      agentConfig: queuedClient(agentConfigContract, () => agentConfigReady),
+      automations: queuedClient(automationsContract, () =>
+        automationsReady.then((result) => result.client)
+      ),
+      conversations: queuedClient(conversationsContract, () => conversationsReady),
+      fileSearch: queuedClient(fileSearchContract, () => fileSearchReady),
+      files: queuedClient(filesContract, () => filesReady),
+      git: queuedClient(gitContract, () => gitReady),
+      hostDependencies: hostDependencies.client,
+      hostSettings: queuedClient(hostSettingsContract, () => hostSettingsReady),
+      mementos: queuedClient(mementosWireContract, () => mementosReady),
+      pullRequests: queuedClient(pullRequestsContract, () => pullRequestsReady),
+      resourceUsage: queuedClient(resourceUsageContract, () => resourceUsageReady),
+      scripts: queuedClient(scriptsContract, () => scriptsReady),
+      terminals: queuedClient(terminalsContract, () => terminalsReady),
+      tuiAgents: queuedClient(tuiAgentsContract, () =>
+        tuiAgentsReady.then((result) => result.client)
+      ),
+      workspaceRegistry: queuedClient(workspaceRegistryContract, () => workspaceRegistryReady),
+    },
+    workers: {
+      acp: deferredWorkerStatus(acpStart.then((result) => result.worker)),
+      tuiAgents: deferredWorkerStatus(tuiAgentsReady.then((result) => result.worker)),
+    },
+    dispose() {
+      disposePromise ??= (async () => {
+        // The automations worker persists run state; stop it gracefully first
+        // when it materialized. A still-pending creation chain must not stall
+        // shutdown — host disposal tears down whatever exists.
+        if (automationsWorkerRef.current) await automationsWorkerRef.current.stop();
+        await host.dispose();
+      })();
+      return disposePromise;
+    },
+  };
+}
+
+function deferredWorkerStatus(worker: Promise<WorkerStatusSource>): WorkerStatusSource {
+  return {
+    onStateChanged(cb) {
+      let disposed = false;
+      let unsubscribe: Unsubscribe | undefined;
+      worker
+        .then((resolved) => {
+          if (disposed) return;
+          unsubscribe = resolved.onStateChanged(cb);
+        })
+        .catch(() => {
+          // The worker never materialized; the failure reaches consumers
+          // through its queued client calls, not through status updates.
+        });
+      return () => {
+        disposed = true;
+        unsubscribe?.();
+      };
+    },
+  };
+}

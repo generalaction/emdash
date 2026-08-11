@@ -139,4 +139,10 @@ export interface PromptEditorProps {
    */
   onCommand?: (item: CommandItem) => void;
   className?: string;
+  /**
+   * Extra class for the portaled mention/command suggestion popups. They mount
+   * under <body>, so hosts that scope theming to a subtree (e.g. the
+   * ChatComposer contract bridge) must carry the scope class onto them.
+   */
+  popupClassName?: string;
 }

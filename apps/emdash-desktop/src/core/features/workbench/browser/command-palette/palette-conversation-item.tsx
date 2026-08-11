@@ -1,0 +1,27 @@
+import { AgentStatus } from '@emdash/ui/react/components';
+import { Command } from 'cmdk';
+import { observer } from 'mobx-react-lite';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
+import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { PALETTE_ITEM_CLASS } from './palette-item-styles';
+
+export const PaletteConversationItem = observer(function PaletteConversationItem({
+  conv,
+  value,
+  onSelect,
+}: {
+  conv: ConversationStore;
+  value: string;
+  onSelect: () => void;
+}) {
+  const title = formatConversationTitleForDisplay(conv.data.providerId, conv.data.title ?? '');
+
+  return (
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+      <AgentIcon id={conv.data.providerId} size={16} />
+      <span className="flex-1 truncate">{title}</span>
+      <AgentStatus status={conv.indicatorStatus} />
+    </Command.Item>
+  );
+});

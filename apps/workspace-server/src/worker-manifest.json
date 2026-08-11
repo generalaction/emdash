@@ -1,6 +1,0 @@
-{
-  "acp": {
-    "entry": "src/acp/runtime-entry.ts",
-    "file": "acp-runtime.mjs"
-  }
-}

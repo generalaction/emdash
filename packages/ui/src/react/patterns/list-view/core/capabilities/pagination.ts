@@ -1,6 +1,12 @@
 import { action, makeObservable, observable, runInAction } from 'mobx';
 import type { PaginationSpec } from '../types';
 
+type PaginationLifecycle = {
+  onStart?: (isInitialPage: boolean) => void;
+  onSuccess?: () => void;
+  onError?: (error: unknown) => void;
+};
+
 /**
  * PaginationSlice — manages infinite-scroll state.
  *
@@ -14,7 +20,10 @@ export class PaginationSlice<T> {
   private cursor: string | null = null;
   private controller: AbortController | null = null;
 
-  constructor(readonly spec: PaginationSpec<T>) {
+  constructor(
+    readonly spec: PaginationSpec<T>,
+    private readonly lifecycle: PaginationLifecycle = {}
+  ) {
     makeObservable(this, {
       accumulatedItems: observable.ref,
       isFetchingMore: observable,
@@ -50,6 +59,7 @@ export class PaginationSlice<T> {
     runInAction(() => {
       this.isFetchingMore = true;
     });
+    this.lifecycle.onStart?.(this.accumulatedItems.length === 0);
 
     try {
       const { items, nextCursor } = await this.spec.loadMore(this.cursor, controller.signal);
@@ -60,12 +70,22 @@ export class PaginationSlice<T> {
         this.hasMore = nextCursor !== null;
         this.isFetchingMore = false;
       });
-    } catch {
+      this.lifecycle.onSuccess?.();
+    } catch (error) {
       if (controller.signal.aborted) return;
       runInAction(() => {
         this.isFetchingMore = false;
       });
+      this.lifecycle.onError?.(error);
     }
+  }
+
+  /**
+   * Aborts the current request, clears accumulated pages, and loads page one.
+   */
+  async reload(): Promise<void> {
+    this.reset();
+    await this.loadMore();
   }
 
   dispose(): void {

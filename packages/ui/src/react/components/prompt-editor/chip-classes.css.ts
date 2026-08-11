@@ -11,7 +11,7 @@ import { vars } from '@theme/core/contract/contract.css';
 globalStyle('.mention-chip', {
   display: 'inline',
   fontSize: '0.75rem',
-  fontWeight: 500,
+  fontWeight: 400,
   borderRadius: '0.125rem',
   paddingLeft: '0.25rem',
   paddingRight: '0.25rem',
@@ -27,7 +27,7 @@ globalStyle('.mention-chip', {
 globalStyle('.slash-command-chip', {
   display: 'inline',
   fontSize: '0.75rem',
-  fontWeight: 500,
+  fontWeight: 400,
   borderRadius: '0.125rem',
   paddingLeft: '0.25rem',
   paddingRight: '0.25rem',

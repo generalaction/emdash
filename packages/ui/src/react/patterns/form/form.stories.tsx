@@ -78,11 +78,12 @@ function VerticalFormDemo() {
 
           <form.AppField name="authType">
             {(f) => (
-              <f.SelectField
-                label="Auth type"
+              <f.RadioGroupField
+                label="Authentication"
+                layout="row"
                 options={[
                   { value: 'password', label: 'Password' },
-                  { value: 'key', label: 'SSH Key' },
+                  { value: 'key', label: 'SSH key' },
                   { value: 'agent', label: 'Agent' },
                 ]}
               />

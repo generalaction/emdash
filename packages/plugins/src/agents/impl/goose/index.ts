@@ -1,4 +1,7 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildGooseHookConfig } from './hooks';
 import { icon } from './icon';
@@ -22,7 +25,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['session', 'start', 'stop', 'tool-use', 'tool-use-failure'],
     },
     hostDependency: {

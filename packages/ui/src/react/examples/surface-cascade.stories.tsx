@@ -1,12 +1,7 @@
+import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_SCOPES, SURFACE_STATUSES } from '@emdash/theme';
+import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import {
-  SURFACE_LEVELS,
-  SURFACE_ROLES,
-  SURFACE_SCOPES,
-  SURFACE_STATUSES,
-} from '@theme/core/contract/roles';
-import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
 import { Alert } from '../primitives/alert';
@@ -33,14 +28,7 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
   const isEmphasis = level.includes('emphasis');
   return (
     <Box display="flex" flexDirection="column" gap="1.5">
-      <p
-        className={cx(
-          sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
-          s.text10px
-        )}
-      >
-        {label}
-      </p>
+      <p className={cx(sx({ fontFamily: 'mono', color: 'foreground' }), s.text10px)}>{label}</p>
       <Box
         className={s.h10}
         width="full"
@@ -362,11 +350,7 @@ export const StatusSurfaces: Story = {
   render: () => (
     <Box display="grid" className={s.cols1} gap="6" padding="6">
       <Box>
-        <p
-          className={cx(
-            sx({ marginBottom: '1', fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' })
-          )}
-        >
+        <p className={cx(sx({ marginBottom: '1', fontSize: 'sm', color: 'foreground' }))}>
           Status surfaces — tinted rooms using the cascade
         </p>
         <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
@@ -385,7 +369,6 @@ export const StatusSurfaces: Story = {
             sx({
               marginBottom: '3',
               fontSize: 'sm',
-              fontWeight: 'medium',
               color: 'foregroundMuted',
             })
           )}
@@ -395,12 +378,7 @@ export const StatusSurfaces: Story = {
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_STATUSES.map((status) => (
             <Box key={status} display="flex" flexDirection="column" gap="1.5">
-              <p
-                className={cx(
-                  sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
-                  s.text10px
-                )}
-              >
+              <p className={cx(sx({ fontFamily: 'mono', color: 'foreground' }), s.text10px)}>
                 {status}
               </p>
               <Box
@@ -441,7 +419,7 @@ function PaperRoom() {
   return (
     <Box background="background" padding="6" className={s.spaceY6}>
       <Box>
-        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>
           Paper — primary content / tab background
         </p>
         <p
@@ -505,7 +483,6 @@ export const StatusLevelMatrix: Story = {
               className={cx(
                 sx({
                   fontSize: 'sm',
-                  fontWeight: 'semibold',
                   color: 'foreground',
                   marginBottom: '3',
                 })
@@ -582,9 +559,7 @@ export const BothModes: Story = {
         defaultTheme="light"
         className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
       >
-        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
-          Light mode
-        </p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Light mode</p>
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
@@ -600,9 +575,7 @@ export const BothModes: Story = {
         defaultTheme="dark"
         className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
       >
-        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
-          Dark mode
-        </p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Dark mode</p>
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />

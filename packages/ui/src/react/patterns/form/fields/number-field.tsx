@@ -1,5 +1,7 @@
-import { Input, type InputProps } from '@react/primitives/input';
 import * as React from 'react';
+// Relative import: the dts emitter rewrites aliased imports to a dangling
+// relative path, silently degrading the prop types.
+import { Input, type InputProps } from '../../../primitives/input';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
 

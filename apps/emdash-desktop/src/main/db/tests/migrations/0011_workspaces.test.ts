@@ -18,7 +18,7 @@ describe('0011 workspaces migration', () => {
     expect(tables.map((t) => t.name)).toContain('workspaces');
   });
 
-  it('workspaces table has all expected columns including git stats', async () => {
+  it('workspaces table has all expected columns at head', async () => {
     fixture = await openFixture('pre-0011');
 
     const columns = fixture.sqlite.prepare(`PRAGMA table_info(workspaces)`).all() as {
@@ -30,58 +30,30 @@ describe('0011 workspaces migration', () => {
 
     const colNames = columns.map((c) => c.name);
     expect(colNames).toContain('id');
-    expect(colNames).toContain('key');
     expect(colNames).toContain('type');
-    expect(colNames).toContain('data');
     expect(colNames).toContain('path');
-    expect(colNames).toContain('lines_added');
-    expect(colNames).toContain('lines_deleted');
     expect(colNames).toContain('created_at');
     expect(colNames).toContain('updated_at');
+    // Pull-scan git stat columns were retired at head in favor of observed_git.
+    expect(colNames).not.toContain('lines_added');
+    expect(colNames).not.toContain('lines_deleted');
 
     const typeCol = columns.find((c) => c.name === 'type')!;
     expect(typeCol.notnull).toBe(1);
-
-    const keyCol = columns.find((c) => c.name === 'key')!;
-    expect(keyCol.notnull).toBe(0);
-
-    const linesAdded = columns.find((c) => c.name === 'lines_added')!;
-    expect(linesAdded.notnull).toBe(0);
-    expect(linesAdded.dflt_value).toBeNull();
-
-    const linesDeleted = columns.find((c) => c.name === 'lines_deleted')!;
-    expect(linesDeleted.notnull).toBe(0);
-    expect(linesDeleted.dflt_value).toBeNull();
   });
 
-  it('workspaces table has a partial unique index on key', async () => {
+  it('workspace key column and index are retired at head', async () => {
     fixture = await openFixture('pre-0011');
 
     const indexes = fixture.sqlite
-      .prepare(`SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='workspaces'`)
-      .all() as { name: string; sql: string }[];
+      .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='workspaces'`)
+      .all() as { name: string }[];
+    expect(indexes.map((i) => i.name)).not.toContain('idx_workspaces_key');
 
-    const keyIndex = indexes.find((i) => i.name === 'idx_workspaces_key');
-    expect(keyIndex).toBeDefined();
-    expect(keyIndex!.sql).toMatch(/where/i);
-    expect(keyIndex!.sql).toMatch(/is not null/i);
-  });
-
-  it('lines_added and lines_deleted default to null for new rows', async () => {
-    fixture = await openFixture('pre-0011');
-
-    fixture.sqlite
-      .prepare(
-        `INSERT INTO workspaces (id, type, created_at, updated_at) VALUES ('test-ws', 'local', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-      )
-      .run();
-
-    const row = fixture.sqlite
-      .prepare(`SELECT lines_added, lines_deleted FROM workspaces WHERE id = 'test-ws'`)
-      .get() as { lines_added: number | null; lines_deleted: number | null };
-
-    expect(row.lines_added).toBeNull();
-    expect(row.lines_deleted).toBeNull();
+    const columns = fixture.sqlite.prepare(`PRAGMA table_info(workspaces)`).all() as {
+      name: string;
+    }[];
+    expect(columns.map((c) => c.name)).not.toContain('key');
   });
 
   it('existing data is preserved after migration', async () => {

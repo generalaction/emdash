@@ -8,6 +8,8 @@
     "sharedGlobals": [
       "{workspaceRoot}/.oxlintrc.json",
       "{workspaceRoot}/.oxfmtrc.json",
+      "{workspaceRoot}/tooling/oxlint/**/*",
+      "{workspaceRoot}/tooling/scripts/**/*",
       "{workspaceRoot}/pnpm-lock.yaml"
     ]
   },
@@ -39,7 +41,10 @@
         "^build"
       ],
       "inputs": [
-        "default"
+        "default",
+        {
+          "env": "EMDASH_TEST_SKIP_BROWSER"
+        }
       ],
       "cache": true
     },
@@ -56,6 +61,11 @@
       "cache": true
     },
     "dev": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "storybook": {
       "dependsOn": [
         "^build"
       ]

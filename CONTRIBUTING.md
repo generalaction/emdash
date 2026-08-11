@@ -9,20 +9,24 @@ and the conventions contributors should follow before opening a PR.
 ### Prerequisites
 
 - Git
-- Node.js `24.14.0` from `.nvmrc`
-- `pnpm@10.28.2`
+- Any reasonably recent `pnpm` (install via Homebrew, `npm install -g pnpm`, or
+  `curl -fsSL https://get.pnpm.io/install.sh | sh -`)
 - Optional, but useful for integration work:
   - GitHub CLI (`gh`)
   - At least one supported coding agent CLI
-  - Docker, when working on SSH development infrastructure
+  - Docker, when working on remote development infrastructure
 
-Use the pinned toolchain where possible:
+That is the whole toolchain requirement. `package.json` pins both the package
+manager (`packageManager: pnpm@10.28.2`) and the Node runtime
+(`devEngines.runtime` with `onFail: "download"`), so any pnpm on PATH swaps
+itself to the pinned version and provisions the pinned Node — checksummed in
+`pnpm-lock.yaml` — when it runs in this repo. You do not need nvm, corepack, or
+a preinstalled Node of the right version.
 
-```bash
-nvm use
-corepack enable
-pnpm --version
-```
+If you use [mise](https://mise.jdx.dev) for toolchain auto-switching, the
+committed `mise.toml` pins node and pnpm for you; it is optional and required
+by nothing. `.nvmrc` remains as a compatibility hint for other version
+managers.
 
 ### Get The Source
 
@@ -40,6 +44,10 @@ From the repo root:
 ```bash
 pnpm install
 ```
+
+This single command provisions the pinned pnpm and Node if needed, installs
+dependencies, and prepares the native modules — after it succeeds the machine
+is ready for every dev flow.
 
 This repository is a pnpm workspace. The Electron app is in
 `apps/emdash-desktop/`, and shared workspace packages live in `packages/`.
@@ -68,14 +76,6 @@ cd apps/emdash-desktop
 pnpm run dev
 ```
 
-From `apps/emdash-desktop/`, `pnpm run d` is a convenience command that runs
-`pnpm install` and then starts `pnpm run dev` for the desktop app:
-
-```bash
-cd apps/emdash-desktop
-pnpm run d
-```
-
 Important distinction:
 
 - `pnpm run dev` from the repo root starts the workspace package watchers and the
@@ -96,9 +96,9 @@ This is a pnpm workspace monorepo.
 - `apps/emdash-desktop/src/main/` - Electron main process, RPC controllers,
   services, database, PTY, SSH, Git, GitHub, updates, and integrations
 - `apps/emdash-desktop/src/preload/` - typed Electron preload bridge
-- `apps/emdash-desktop/src/renderer/` - React renderer app
-- `apps/emdash-desktop/src/shared/` - shared app IPC, provider, event, MCP,
-  skills, and domain types
+- `apps/emdash-desktop/src/renderer/` - React composition shell and shared browser infrastructure
+- `apps/emdash-desktop/src/core/` - vertical slices with APIs, Node implementations, browser UI,
+  contributions, and manifests
 - `apps/emdash-desktop/drizzle/` - generated Drizzle migrations and metadata
 - `apps/emdash-desktop/scripts/` - release, verification, and build scripts
 - `packages/core/` - transport-agnostic core runtime primitives
@@ -134,8 +134,7 @@ Individual project targets are addressable from the root without `cd`:
 ```bash
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
-nx storybook @emdash/ui
-nx theme:build @emdash/ui
+nx build:theme @emdash/ui
 ```
 
 See `agents/workflows/nx.md` for a full explanation of the Nx setup.
@@ -143,7 +142,6 @@ See `agents/workflows/nx.md` for a full explanation of the Nx setup.
 Useful app-local commands from `apps/emdash-desktop/`:
 
 ```bash
-pnpm run d              # install dependencies, then start the desktop app
 pnpm run dev            # start electron-vite dev for the desktop app only
 pnpm run dev:debug      # start with debug logging
 pnpm run dev:main       # watch the Electron main process
@@ -176,9 +174,10 @@ pnpm run typecheck
 pnpm run test
 ```
 
-There are no pre-commit hooks. CI enforces format:check, typecheck, and lint via
-`nx affected` — only projects touched by the PR are checked. Tests are still
-expected locally even when a specific CI workflow does not run the full test suite.
+There are no pre-commit hooks. CI enforces format:check, typecheck, lint, and
+test via `nx affected` — only projects touched by the PR are checked. The
+Playwright-backed `browser` Vitest projects are skipped in CI, so the full
+local suite is still expected before merging.
 
 ## Development Workflow
 
@@ -246,7 +245,7 @@ Main process:
 
 Renderer:
 
-- Feature UI lives under `src/renderer/features/<feature>/`.
+- Feature UI lives under `src/core/features/<feature>/browser/`.
 - Shared renderer primitives, stores, hooks, commands, PTY, Monaco, modal
   infrastructure, and UI live under `src/renderer/lib/`.
 - Renderer RPC calls go through `rpc` from `src/renderer/lib/ipc.ts`.
@@ -266,9 +265,9 @@ State and stores:
 - State guards should check `kind !== 'ready'` rather than enumerate non-ready
   states.
 - Task selectors live in
-  `src/renderer/features/tasks/stores/task-selectors.ts`.
+  `src/core/features/tasks/browser/stores/task-selectors.ts`.
 - Project selectors live in
-  `src/renderer/features/projects/stores/project-selectors.ts`.
+  `src/core/features/projects/browser/stores/project-selectors.ts`.
 
 ## Database And Migrations
 
@@ -307,7 +306,6 @@ Database rules:
 - Run focused database validation from `apps/emdash-desktop/` when relevant:
 
 ```bash
-pnpm run db:setup
 pnpm run db:fixtures
 pnpm run test:migrations
 ```
@@ -370,13 +368,14 @@ pnpm run rebuild
 
 This is especially relevant for `better-sqlite3` and `node-pty`.
 
-## Docker SSH Development
+## Remote Development Stack
 
-When working on Docker-backed SSH development infrastructure, start it from
-`apps/emdash-desktop/`:
+The workspace-server stack (`apps/workspace-server/docker-compose.yaml`) is the
+only Docker-backed remote-dev stack. When working on SSH/remote development
+infrastructure, start it from `apps/workspace-server/`:
 
 ```bash
-pnpm run run:docker-ssh
+pnpm run run:docker-remote
 ```
 
 Read `agents/workflows/remote-development.md` and `agents/risky-areas/ssh.md`

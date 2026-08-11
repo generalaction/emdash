@@ -7,41 +7,40 @@
   "author": "",
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
   "exports": {
     "./agents": {
+      "development": "./src/agents/registry.ts",
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
     },
     "./agents/types": {
+      "development": "./src/agents/types.ts",
       "types": "./dist/agents/types.d.mts",
       "default": "./dist/agents/types.mjs"
     },
     "./integrations": {
+      "development": "./src/integrations/index.ts",
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"
     },
     "./issues": {
+      "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
     }
   },
   "scripts": {
-    "dev": "tsdown --watch",
-    "build": "tsdown",
+    "dev": "tsdown --config-loader tsx --watch",
+    "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
+    "lint": "oxlint src",
     "typecheck": "tsgo --noEmit",
     "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "^0.54.1",
-    "@agentclientprotocol/codex-acp": "^1.0.2",
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
@@ -61,8 +60,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@emdash/runtime": "workspace:*",
-    "@emdash/wire": "workspace:*",
+    "@agentclientprotocol/claude-agent-acp": "^0.54.1",
+    "@agentclientprotocol/codex-acp": "^1.0.2",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",

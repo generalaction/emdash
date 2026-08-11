@@ -180,6 +180,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     queryCommands,
     onCommand,
     className,
+    popupClassName,
   },
   ref
 ) {
@@ -397,6 +398,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
             ref={mentionPopupRef}
             items={mentionPopupItems}
             anchorRect={mentionSuggestion.rect}
+            className={popupClassName}
             onSelect={(popupItem) => {
               const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
               if (original) mentionSuggestion.onSelect(original);
@@ -410,6 +412,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
             ref={commandPopupRef}
             items={commandPopupItems}
             anchorRect={commandSuggestion.rect}
+            className={popupClassName}
             stacked
             onSelect={(popupItem) => {
               const original = commandSuggestion.items.find((c) => c.id === popupItem.id);

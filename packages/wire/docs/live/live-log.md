@@ -6,11 +6,11 @@ need to attach late and still see recent context.
 
 ## Server
 
-`LiveLog` stores a bounded text buffer. `append(chunk)` emits
+`LiveLogSource` stores a bounded text buffer. `append(chunk)` emits
 `{ chunk }` deltas to subscribers and updates the retained snapshot:
 
 ```ts
-const server = new LiveLog({ generation: 3000, maxBufferBytes: 12 });
+const server = new LiveLogSource({ generation: 3000, maxBufferBytes: 12 });
 
 export function appendLine(line: string): void {
   server.append(`${line}\n`);
@@ -56,14 +56,14 @@ const detach = await output.attach((update) => {
 });
 ```
 
-Use `createLiveLogReplica()` when a process wants a retained local buffer that can
+Use `createLiveLogReplicaCache()` when a process wants a retained local buffer that can
 also be served downstream. Without a custom sink, the replica keeps an eager
-bounded `LiveLog` buffer and `text()` remains readable. With a custom `LogSink`,
+bounded `LiveLogSource` buffer and `text()` remains readable. With a custom `LogSink`,
 the sink owns storage; readable `LogStore`s add `text()`, while write-only sinks
 can stream directly into xterm without a duplicate text buffer.
 
-`LiveLogClient` tracks the followed generation/sequence plus the UTF-8 byte
-offset already written to its sink. On reconnect or explicit `refresh()`, it
+The replica's internal log follower tracks the followed generation/sequence
+plus the UTF-8 byte offset already written to its sink. On reconnect or explicit `refresh()`, it
 splices from the retained snapshot when the generation still matches, appending
 only missing bytes instead of resetting rendered output. Generation changes or
 evicted gaps still reset the sink from the retained snapshot.
