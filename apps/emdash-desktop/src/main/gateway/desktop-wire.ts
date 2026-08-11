@@ -92,6 +92,12 @@ function deferredLiveSource(topic: string): LiveSource {
   };
 }
 
+/**
+ * Lease-style counterpart of {@link deferredLiveSource}. An unknown topic
+ * surfaces as UNKNOWN_TOPIC, matching `requireLiveLease` in the wire server —
+ * the two deferred variants intentionally mirror their routed counterparts'
+ * error codes.
+ */
 function deferredLiveLease(topic: string): PendingLease<LiveSource> {
   let inner: PendingLease<LiveSource> | null | undefined;
   const acquired = controllersPromise.then((controllers) => {

@@ -89,16 +89,7 @@ export async function main(): Promise<void> {
  */
 async function observeBackendBootFailure(config: AppConfig, error: unknown): Promise<void> {
   recordBootFailure(config);
-  try {
-    const { getMainWindow } = await import('@main/host/window');
-    const window = getMainWindow();
-    if (window && !window.isDestroyed()) window.destroy();
-  } catch (teardownError) {
-    log.warn('Failed to destroy the main window after a boot failure', {
-      error: teardownError,
-      bootError: error,
-    });
-  }
+  await destroyMainWindowBeforeRecovery('boot failure', { bootError: error });
   try {
     // Idempotent: finishBoot's own failure path already disposed the scope; a
     // window-phase failure (before finishBoot ran) is cleaned up here.
@@ -124,19 +115,29 @@ function registerBootEscapeHandler(): void {
       return;
     }
     if (action === 'open-recovery') {
-      try {
-        const { getMainWindow } = await import('@main/host/window');
-        const window = getMainWindow();
-        if (window && !window.isDestroyed()) window.destroy();
-      } catch (teardownError) {
-        log.warn('boot escape hatch: failed to destroy the main window', {
-          error: teardownError,
-        });
-      }
+      await destroyMainWindowBeforeRecovery('boot escape hatch');
       const { enterSafeMode } = await import('./core/recovery');
       await enterSafeMode(new Error('Recovery was requested from the boot escape hatch'));
     }
   });
+}
+
+/**
+ * Safe mode opens a standalone recovery window, so the (possibly visible) main
+ * window must go away first. Best-effort: a teardown failure is logged and
+ * recovery proceeds anyway.
+ */
+async function destroyMainWindowBeforeRecovery(
+  reason: string,
+  extra?: Record<string, unknown>
+): Promise<void> {
+  try {
+    const { getMainWindow } = await import('@main/host/window');
+    const window = getMainWindow();
+    if (window && !window.isDestroyed()) window.destroy();
+  } catch (teardownError) {
+    log.warn(`${reason}: failed to destroy the main window`, { error: teardownError, ...extra });
+  }
 }
 
 /**
