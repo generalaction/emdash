@@ -86,6 +86,23 @@ describe('AcpAuthLoginBinding', () => {
     });
   });
 
+  it('cancels the login when startLogin throws client-side', async () => {
+    // A client-side failure (e.g. response validation) after the server
+    // already started the login must not leak a running login PTY.
+    const client = runtimeClient.current as ReturnType<typeof createClient>;
+    client.startLogin.mockRejectedValue(new Error('client-side validation failed'));
+
+    await expect(AcpAuthLoginBinding.create(createArgs())).rejects.toThrow(
+      'client-side validation failed'
+    );
+
+    expect(client.cancelLogin).toHaveBeenCalledTimes(1);
+    expect(client.cancelLogin).toHaveBeenCalledWith({
+      host: LOCAL_HOST_REF,
+      providerId: 'provider',
+    });
+  });
+
   it('honors dispose(false) without cancelling the login', async () => {
     const client = runtimeClient.current as ReturnType<typeof createClient>;
     const binding = await AcpAuthLoginBinding.create(createArgs());

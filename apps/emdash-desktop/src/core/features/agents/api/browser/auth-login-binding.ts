@@ -37,6 +37,16 @@ export class AcpAuthLoginBinding {
     const cancellation = { cancelOnDispose: true };
     try {
       const client = await getAgentsClient();
+      // Registered before startLogin: if the call succeeds server-side but
+      // throws client-side (e.g. response validation), disposal must still
+      // cancel the login PTY on the host. Cancelling a login that never
+      // started is a harmless no-op error.
+      scope.add(() => {
+        if (!cancellation.cancelOnDispose) return;
+        return client
+          .cancelLogin({ host: args.host, providerId: args.providerId })
+          .then(() => undefined);
+      });
       const result = await client.startLogin(
         {
           host: args.host,
@@ -46,13 +56,6 @@ export class AcpAuthLoginBinding {
         { signal: scope.signal }
       );
       if (!result.success) throw new Error(errorMessage(result));
-
-      scope.add(() => {
-        if (!cancellation.cancelOnDispose) return;
-        return client
-          .cancelLogin({ host: args.host, providerId: args.providerId })
-          .then(() => undefined);
-      });
 
       const key = { host: args.host, providerId: args.providerId };
       const auth = remote(agentsContract.auth, client.auth, {

@@ -99,26 +99,26 @@ function DialogHeader({
   );
 }
 
+function toCssSize(size: number | string | undefined): string | undefined {
+  return typeof size === 'number' ? `${size}px` : size;
+}
+
 function DialogBody({
   className,
   children,
   style,
+  height,
   maxHeight,
   topFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  /** Fixed body height; when omitted the body fills the dialog content. */
+  height?: number | string;
   maxHeight?: number | string;
   topFade?: boolean;
 }) {
-  const resolvedMaxHeight =
-    maxHeight === undefined
-      ? undefined
-      : typeof maxHeight === 'number'
-        ? `${maxHeight}px`
-        : maxHeight;
-
   return (
     <div
       data-slot="dialog-body"
@@ -129,7 +129,12 @@ function DialogBody({
         styles.body,
         className
       )}
-      style={{ height: '100%', minHeight: 0, maxHeight: resolvedMaxHeight, ...style }}
+      style={{
+        height: toCssSize(height) ?? '100%',
+        minHeight: 0,
+        maxHeight: toCssSize(maxHeight),
+        ...style,
+      }}
     >
       {children}
     </div>

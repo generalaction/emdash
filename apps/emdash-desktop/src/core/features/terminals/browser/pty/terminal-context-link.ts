@@ -1,6 +1,6 @@
 import type { ILink, Terminal } from '@xterm/xterm';
+import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { findFileLinks, type BufferLike } from './file-link-detection';
-import { getCellMetrics } from './xterm-cell-metrics';
 
 const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
 

@@ -5,6 +5,7 @@ import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/bro
 import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { usePaneSizingContext } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -22,7 +23,6 @@ import {
   shouldPasteToTerminal,
 } from './pty-keybindings';
 import { getTerminalContextLink } from './terminal-context-link';
-import { getCellMetrics } from './xterm-cell-metrics';
 
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);

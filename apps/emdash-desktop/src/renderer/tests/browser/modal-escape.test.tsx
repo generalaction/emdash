@@ -136,20 +136,23 @@ describe('Modal Escape routing', () => {
     });
     await flushOpen();
     expect(modalStore.stack).toHaveLength(2);
+    const [bottomKey, topKey] = modalStore.stack.map((entry) => entry.key);
 
     await act(async () => {
       dispatchEscape();
     });
 
-    const closingStates = modalStore.stack.map((entry) => entry.closing);
-    expect(closingStates).toEqual([false, true]);
+    // The top modal is closing (or already unmounted, depending on exit
+    // animation timing); the bottom modal must be untouched and still open.
+    const topEntry = modalStore.stack.find((entry) => entry.key === topKey);
+    expect(topEntry?.closing ?? true).toBe(true);
+    expect(modalStore.stack.find((entry) => entry.key === bottomKey)?.closing).toBe(false);
     expect(modalStore.isOpen).toBe(true);
 
-    // Wait for the top modal's exit animation to finish so it unmounts and
-    // the modal beneath becomes top of the stack again.
+    // Wait for the top modal to unmount so the one beneath becomes top again.
     await act(async () => {
       await vi.waitFor(() => {
-        expect(modalStore.stack).toHaveLength(1);
+        expect(modalStore.stack.map((entry) => entry.key)).toEqual([bottomKey]);
       });
     });
     await flushOpen();

@@ -15,15 +15,13 @@ import {
   TERMINAL_LINE_HEIGHT,
   TERMINAL_PADDING_PX,
 } from '@core/features/terminals/api/browser/pty/pty';
-import {
-  computeGridDimensions,
-  measureTerminalCell,
-} from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { getCellMetrics } from '@core/features/terminals/api/browser/pty/xterm-cell-metrics';
 import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
+import { planLoginGrid, type LoginHostSize } from './login-terminal-grid';
 
 export type AgentSignInModalArgs = {
   providerId: string;
@@ -68,6 +66,8 @@ export function AgentSignInModal({
 
     let disposed = false;
     let animationFrame: number | null = null;
+    let metricsRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastAppliedHostSize: LoginHostSize | null = null;
     const terminal = createLoginTerminal();
     terminal.open(terminalHost);
     styleLoginTerminal(terminal);
@@ -76,13 +76,39 @@ export function AgentSignInModal({
     const inputDisposable = terminal.onData((data) => {
       bindingRef.current?.sendInput(data);
     });
-    const resize = () => {
+    const resize = (force = false, metricsRetries = 0) => {
       if (disposed) return;
-      resizeLoginTerminal(terminal, terminalHost, bindingRef.current);
+      const cell = getCellMetrics(terminal);
+      if (!cell) {
+        // Cold path: xterm's font measurement may not be populated on the
+        // first call right after open. Bounded retry to avoid a loop.
+        if (metricsRetries < 5) {
+          if (metricsRetryTimer !== null) clearTimeout(metricsRetryTimer);
+          metricsRetryTimer = setTimeout(() => resize(force, metricsRetries + 1), 100);
+        }
+        return;
+      }
+      const hostSize: LoginHostSize = {
+        width: terminalHost.clientWidth,
+        height: terminalHost.clientHeight,
+      };
+      const dims = planLoginGrid({
+        hostSize,
+        cellWidth: cell.width,
+        cellHeight: cell.height,
+        paddingPx: TERMINAL_PADDING_PX,
+        lastAppliedHostSize: force ? null : lastAppliedHostSize,
+      });
+      if (!dims) return;
+      lastAppliedHostSize = hostSize;
+      if (terminal.cols !== dims.cols || terminal.rows !== dims.rows) {
+        terminal.resize(dims.cols, dims.rows);
+      }
+      bindingRef.current?.resize(dims.cols, dims.rows);
     };
     const observer = new ResizeObserver(() => {
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
-      animationFrame = requestAnimationFrame(resize);
+      animationFrame = requestAnimationFrame(() => resize());
     });
     observer.observe(terminalHost);
     resize();
@@ -100,7 +126,9 @@ export function AgentSignInModal({
         }
         bindingRef.current = binding;
         setReady(true);
-        resize();
+        // Force so the fresh PTY converges to the measured grid even though
+        // the host size has not changed since the mount-time resize.
+        resize(true);
       },
       (err: unknown) => {
         if (!disposed) setError(err instanceof Error ? err.message : String(err));
@@ -110,6 +138,7 @@ export function AgentSignInModal({
     return () => {
       disposed = true;
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      if (metricsRetryTimer !== null) clearTimeout(metricsRetryTimer);
       observer.disconnect();
       inputDisposable.dispose();
       void bindingRef.current?.dispose();
@@ -147,7 +176,7 @@ export function AgentSignInModal({
         <Dialog.Title>Sign in to {providerName}</Dialog.Title>
         {machineName && <Dialog.Description>on {machineName}</Dialog.Description>}
       </Dialog.Header>
-      <Dialog.Body className="h-[520px] p-0">
+      <Dialog.Body height={520} className="p-0">
         <div className="relative h-full">
           <div
             ref={terminalHostRef}
@@ -183,6 +212,7 @@ export const agentSignInModal = defineModal<void>()({
 
 function createLoginTerminal(): Terminal {
   const terminal = new Terminal({
+    // Placeholder grid until the mount-time resize measures the real cells.
     cols: 120,
     rows: 32,
     // Short-lived login flow: a screenful of context is plenty.
@@ -219,30 +249,4 @@ function styleLoginTerminal(terminal: Terminal): void {
   element.style.boxSizing = 'border-box';
   element.style.padding = `${TERMINAL_PADDING_PX}px`;
   element.style.backgroundColor = 'var(--xterm-bg)';
-}
-
-function resizeLoginTerminal(
-  terminal: Terminal,
-  host: HTMLElement,
-  binding: AcpAuthLoginBinding | null
-): void {
-  const cell = measureTerminalCell(
-    buildTerminalFontFamily(),
-    TERMINAL_FONT_SIZE_DEFAULT,
-    TERMINAL_LINE_HEIGHT,
-    TERMINAL_LETTER_SPACING
-  );
-  if (!cell) return;
-  const dims = computeGridDimensions({
-    widthPx: host.clientWidth,
-    heightPx: host.clientHeight,
-    cellWidth: cell.width,
-    cellHeight: cell.height,
-    paddingPx: TERMINAL_PADDING_PX,
-  });
-  if (!dims) return;
-  if (terminal.cols !== dims.cols || terminal.rows !== dims.rows) {
-    terminal.resize(dims.cols, dims.rows);
-  }
-  binding?.resize(dims.cols, dims.rows);
 }

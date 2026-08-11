@@ -1,5 +1,6 @@
 import '@emdash/ui/style.css';
 import { Button, Dialog } from '@emdash/ui/react/primitives';
+import { page } from '@vitest/browser/context';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -58,5 +59,34 @@ describe('Dialog layout', () => {
       footer!.getBoundingClientRect().top + 0.5
     );
     expect(popup!.scrollHeight).toBeLessThanOrEqual(popup!.clientHeight);
+  });
+
+  it('honors an explicit body height instead of sizing to content', async () => {
+    // Tall enough that the popup's max-height cannot shrink the fixed body.
+    await page.viewport(1024, 800);
+    await act(async () => {
+      root.render(
+        <Dialog.Root open>
+          <Dialog.Content size="lg">
+            <Dialog.Header>
+              <Dialog.Title>Fixed-height dialog</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body height={520}>
+              <p>Short content</p>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button>Footer action</Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Root>
+      );
+    });
+
+    const body = document.querySelector<HTMLElement>('[data-slot="dialog-body"]');
+
+    expect(body).not.toBeNull();
+    // offsetHeight: the popup's zoom-in animation scales the border box, so
+    // getBoundingClientRect would under-report until the animation finishes.
+    expect(body!.offsetHeight).toBe(520);
   });
 });
