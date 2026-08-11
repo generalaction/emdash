@@ -343,9 +343,11 @@ pnpm run test
 - Team-owned runtime settings live in each workspace's `.emdash.json`:
   `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
   `scripts.teardown`, and `shellSetup` (a per-workspace override of the host default).
-- Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
-  `pushRemote`, and `tmux` are DB-backed, not `.emdash.json`.
-- The workspace registry owns lifecycle and file-handling config. Per-host personal config
+- Project overrides such as `worktreeRoot`, `defaultBranch`, `baseRemote`, `pushRemote`,
+  `githubAccount`, `agentGitCredentials`, and `tmux` are DB-backed, not `.emdash.json`. Effective
+  tmux resolves through project override > host default > app default; it is not seeded from a
+  default at project creation.
+- The workspace registry owns lifecycle and file-handling config. Host-local personal config
   (`preservePatterns`, scripts, and auto-run toggles) is versioned JSON on the repository or
   directory project-root record; worktrees resolve against their project root's personal config.
 - Read registry-owned config through the keyed `projectConfig` live model or `getProjectConfig`.
@@ -385,6 +387,7 @@ pnpm run test
 - [Agent docs map](agents/README.md)
 - [Quickstart](agents/quickstart.md)
 - [Architecture overview](agents/architecture/overview.md)
+- [Settings ownership and precedence](agents/architecture/settings.md)
 - [Main process architecture](agents/architecture/main-process.md)
 - [Renderer architecture](agents/architecture/renderer.md)
 - [Shared modules](agents/architecture/shared.md)
