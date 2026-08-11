@@ -84,7 +84,7 @@ export const footer = style({
   gap: '0.5rem',
   borderTop: `1px solid ${vars.border}`,
   padding: '0.75rem',
-  backgroundColor: vars.surfaceBaseEmphasis,
+  backgroundColor: vars.surfaceEmphasis,
   '@media': {
     '(min-width: 640px)': {
       flexDirection: 'row',

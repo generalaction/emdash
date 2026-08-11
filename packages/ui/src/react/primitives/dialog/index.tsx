@@ -50,7 +50,7 @@ function DialogContent({
       <div className={styles.positioner}>
         <DialogPrimitive.Popup
           data-slot="dialog-content"
-          className={cx('surface-base', styles.content({ size }), className)}
+          className={cx('surface-elevated', styles.content({ size }), className)}
           onKeyDownCapture={(event) => {
             // The global `app.confirm` keybinding (modifier+Enter) already drives
             // confirm buttons inside dialogs; swallow the browser default so the
