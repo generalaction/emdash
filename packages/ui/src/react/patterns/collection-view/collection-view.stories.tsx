@@ -616,7 +616,9 @@ export const AutomationsFreeform: Story = {
 
 // ══ 5 · Empty / loading / error states ═══════════════════════════════════════
 // The three free-form slots. An empty state is mandatory; `EmptyState` is the
-// default empty/error content and `Spinner` the loading default.
+// default empty/error content and `Spinner` the loading default. Custom
+// `EmptyState` slot content should pass `bare` — the card paints its own
+// surface, so the component's panel background would patch over it.
 
 const loadingView = createListView({
   getItemId: (t: TaskFixture) => t.id,
@@ -649,7 +651,9 @@ export const States: Story = {
           items={[] as TaskFixture[]}
           getItemKey={(t) => t.id}
           columns={TASK_COLUMNS}
-          emptySlot={<EmptyState label="No tasks" description="Create a task to get started" />}
+          emptySlot={
+            <EmptyState bare label="No tasks" description="Create a task to get started" />
+          }
         />
       </StateCard>
       <StateCard label="loadingSlot (state mode)">
@@ -657,7 +661,7 @@ export const States: Story = {
           <CollectionView
             view={loadingView}
             columns={TASK_COLUMNS}
-            emptySlot={<EmptyState label="No tasks" />}
+            emptySlot={<EmptyState bare label="No tasks" />}
             loadingSlot={
               <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
                 <Spinner />
@@ -671,10 +675,49 @@ export const States: Story = {
           <CollectionView
             view={errorView}
             columns={TASK_COLUMNS}
-            emptySlot={<EmptyState label="No tasks" />}
-            errorSlot={<EmptyState label="Could not load tasks" description="Sync failed" />}
+            emptySlot={<EmptyState bare label="No tasks" />}
+            errorSlot={<EmptyState bare label="Could not load tasks" description="Sync failed" />}
           />
         </errorView.Root>
+      </StateCard>
+    </div>
+  ),
+};
+
+// ══ 5b · Default slots ════════════════════════════════════════════════════════
+// No slot props at all: the built-in defaults (bare `EmptyState`, `Spinner`)
+// render correctly on the card surface out of the box.
+
+const defaultLoadingView = createListView({
+  getItemId: (t: TaskFixture) => t.id,
+  source: { kind: 'async', load: () => new Promise<TaskFixture[]>(() => {}) },
+});
+
+const defaultErrorView = createListView({
+  getItemId: (t: TaskFixture) => t.id,
+  source: { kind: 'async', load: () => Promise.reject(new Error('Sync failed')) },
+});
+
+export const DefaultSlots: Story = {
+  name: '5b · Default slots (no slot props)',
+  render: () => (
+    <div style={{ display: 'flex', gap: '1rem', width: '60rem', maxWidth: '100%' }}>
+      <StateCard label="default empty">
+        <CollectionView
+          items={[] as TaskFixture[]}
+          getItemKey={(t) => t.id}
+          columns={TASK_COLUMNS}
+        />
+      </StateCard>
+      <StateCard label="default loading">
+        <defaultLoadingView.Root>
+          <CollectionView view={defaultLoadingView} columns={TASK_COLUMNS} />
+        </defaultLoadingView.Root>
+      </StateCard>
+      <StateCard label="default error">
+        <defaultErrorView.Root>
+          <CollectionView view={defaultErrorView} columns={TASK_COLUMNS} />
+        </defaultErrorView.Root>
       </StateCard>
     </div>
   ),

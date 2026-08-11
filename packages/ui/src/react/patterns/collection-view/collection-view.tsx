@@ -110,7 +110,8 @@ type AnyItem = any;
 
 const DENSITY_ESTIMATE: Record<CollectionViewDensity, number> = { default: 60, compact: 36 };
 
-const DEFAULT_EMPTY_SLOT = <EmptyState label="No items" />;
+// Default slots render `bare` because the card already paints its own surface.
+const DEFAULT_EMPTY_SLOT = <EmptyState bare label="No items" />;
 const DEFAULT_LOADING_SLOT = (
   <div className={styles.loading}>
     <Spinner />
@@ -276,7 +277,7 @@ const StateBody = observer(function StateBody({
       emptySlot={emptySlot ?? DEFAULT_EMPTY_SLOT}
       loadingSlot={loadingSlot ?? DEFAULT_LOADING_SLOT}
       errorSlot={
-        errorSlot ?? <EmptyState label="Something went wrong" description={errorMessage} />
+        errorSlot ?? <EmptyState bare label="Something went wrong" description={errorMessage} />
       }
       renderSection={renderSectionHeader}
       renderItem={(item, index) => (
