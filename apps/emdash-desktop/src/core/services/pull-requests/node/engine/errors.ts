@@ -49,9 +49,12 @@ export function mapAuthError(error: GitHubAuthError): PullRequestError {
     // Fail closed (spec: github-git-settings §8): an unresolvable identity skips
     // the operation with a surfaced status — never a fallback identity.
     case 'account_unresolvable':
-      return { type: 'github_account_resolution_failed', message: error.message };
+      return { type: 'github_account_not_found', message: error.message };
+    // Explicit "no account" is intent, not an error (§7 reporting matrix); the
+    // renderer shows the quiet disabled state, this status only records that
+    // the sync did not run.
     case 'github_disabled':
-      return { type: 'github_account_disabled', message: error.message };
+      return { type: 'sync_failed', message: error.message };
   }
 }
 

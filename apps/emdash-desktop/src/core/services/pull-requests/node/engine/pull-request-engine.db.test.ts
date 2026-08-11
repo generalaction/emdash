@@ -94,7 +94,7 @@ describe('PullRequestEngine', () => {
 
     expect(result).toEqual(
       err({
-        type: 'github_account_resolution_failed',
+        type: 'github_account_not_found',
         message: 'The pinned GitHub account no longer exists.',
       })
     );
@@ -103,7 +103,7 @@ describe('PullRequestEngine', () => {
     expect(states.at(-1)).toMatchObject({
       phase: 'error',
       kind: 'full',
-      error: { type: 'github_account_resolution_failed' },
+      error: { type: 'github_account_not_found' },
     });
   });
 
@@ -130,7 +130,7 @@ describe('PullRequestEngine', () => {
 
     await expect(engine.sync(repositoryUrl, new AbortController().signal)).resolves.toEqual(
       err({
-        type: 'github_account_disabled',
+        type: 'sync_failed',
         message: 'GitHub is disabled for this project.',
       })
     );

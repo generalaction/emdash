@@ -1,6 +1,6 @@
 import { isLocalHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -506,14 +506,27 @@ export async function bootServices(
         ),
       ];
     },
+    // Translates resolver provenance into the registration's structural
+    // contract so per-sync identity fails closed with an honest status
+    // (spec: github-git-settings §7/§8).
     resolveProjectAuthContext: async (projectId) => {
       const account = await resolveProjectGitHubAccount(projectId);
-      if (account.value === null && account.provenance.kind === 'unresolvable') {
-        log.warn('Pinned GitHub account is unresolvable; registering repository without one', {
-          projectId,
-        });
+      if (account.value !== null) return ok({ accountId: account.value.accountId });
+      switch (account.provenance.kind) {
+        case 'set':
+          return err({ type: 'disabled', message: 'GitHub is disabled for this project.' });
+        case 'unresolvable':
+        case 'broken-setting':
+          return err({
+            type: 'account_selection_failed',
+            message: 'The selected GitHub account is no longer connected.',
+          });
+        default:
+          return err({
+            type: 'unconfigured',
+            message: 'No GitHub account is configured for this project.',
+          });
       }
-      return ok({ accountId: account.value?.accountId });
     },
   });
   // Answers the PR worker's per-sync "as whom" requests through the blessed
