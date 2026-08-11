@@ -6,6 +6,7 @@ import {
   type EffectiveSettings,
   type RepoFacts,
   type StoredProjectGitSettings,
+  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import { getProjectSettingsStore } from '../stores/project-selectors';
 import { buildRendererRepoFacts } from './renderer-repo-facts';
@@ -22,13 +23,11 @@ export type EffectiveSettingsInputs = {
   repoFacts: RepoFacts;
   accounts: GitHubAccountSummary[];
   /**
-   * Worktree-root layers below the per-project override. Until worktree
-   * placement plumbing (ticket 07) splits the layers over the Wire, the
-   * page's collapsed default (per-host default falling back to the built-in
-   * root) stands in for the host layer.
+   * The worktree-root layers below the per-project override plus the host
+   * home directory, shipped node-side over the Wire (`worktreeRootContext` on
+   * the settings page) so preview and execution resolve identical inputs.
    */
-  hostWorktreeRoot: string | null;
-  builtInWorktreeRoot: string;
+  worktreeRootContext: WorktreeRootContext;
 };
 
 export function resolveRendererEffectiveSettings(
@@ -38,8 +37,9 @@ export function resolveRendererEffectiveSettings(
   return resolveEffectiveSettings(
     {
       project: storedGitSettings,
-      hostWorktreeRoot: inputs.hostWorktreeRoot,
-      builtInWorktreeRoot: inputs.builtInWorktreeRoot,
+      hostWorktreeRoot: inputs.worktreeRootContext.hostWorktreeRoot,
+      builtInWorktreeRoot: inputs.worktreeRootContext.builtInWorktreeRoot,
+      homeDirectory: inputs.worktreeRootContext.homeDirectory,
     },
     inputs.repoFacts,
     inputs.accounts
@@ -67,8 +67,7 @@ export function useEffectiveSettingsInputs(projectId: string): EffectiveSettings
       remoteHead: repo?.remoteHeadBranch ?? null,
     }),
     accounts,
-    hostWorktreeRoot: page.defaults.worktreeDirectory,
-    builtInWorktreeRoot: page.defaults.worktreeDirectory,
+    worktreeRootContext: page.worktreeRootContext,
   };
 }
 

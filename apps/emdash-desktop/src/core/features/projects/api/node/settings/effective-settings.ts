@@ -1,4 +1,5 @@
 import { log } from '@emdash/shared/logger';
+import { eq } from 'drizzle-orm';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   legacyBaseProjectSettingsSchema,
@@ -6,7 +7,10 @@ import {
   type EffectiveSettings,
   type RepoFacts,
   type StoredProjectGitSettings,
+  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { projectSettings } from '@core/services/app-db/node/schema';
 import { migrateStoredBaseProjectSettings } from '../../../node/settings/stored-settings-migration';
 
 /**
@@ -21,7 +25,7 @@ export type RepoFactsSource = {
 
 export type ProjectEffectiveSettingsSource = {
   getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-  getDefaultWorktreeDirectory(): Promise<string>;
+  getWorktreeRootContext(): Promise<WorktreeRootContext>;
 };
 
 export type ResolveProjectEffectiveSettingsOptions = {
@@ -50,13 +54,18 @@ export type ResolveProjectEffectiveSettingsOptions = {
 export async function resolveProjectEffectiveSettings(
   options: ResolveProjectEffectiveSettingsOptions
 ): Promise<EffectiveSettings> {
-  const [stored, facts, builtInWorktreeRoot] = await Promise.all([
+  const [stored, facts, worktreeRootContext] = await Promise.all([
     options.settings.getStoredGitSettings(),
     options.repoFacts.get(),
-    options.settings.getDefaultWorktreeDirectory(),
+    options.settings.getWorktreeRootContext(),
   ]);
   const effective = resolveEffectiveSettings(
-    { project: stored, builtInWorktreeRoot },
+    {
+      project: stored,
+      hostWorktreeRoot: worktreeRootContext.hostWorktreeRoot,
+      builtInWorktreeRoot: worktreeRootContext.builtInWorktreeRoot,
+      homeDirectory: worktreeRootContext.homeDirectory,
+    },
     facts ?? { remotes: [], localBranches: [] },
     options.accounts ?? []
   );
@@ -65,7 +74,7 @@ export async function resolveProjectEffectiveSettings(
 }
 
 function warnAboutBrokenSettings(effective: EffectiveSettings, projectId?: string): void {
-  for (const field of ['baseRemote', 'pushRemote', 'defaultBranch'] as const) {
+  for (const field of ['baseRemote', 'pushRemote', 'defaultBranch', 'worktreeRoot'] as const) {
     const resolved = effective[field];
     if (resolved.provenance.kind !== 'broken-setting') continue;
     log.warn(`Stale ${field} setting no longer matches the repository; using inferred fallback`, {
@@ -88,4 +97,32 @@ export function storedGitSettingsFromRow(
 ): StoredProjectGitSettings {
   const raw = legacyBaseProjectSettingsSchema.parse(JSON.parse(baseProjectSettingsJson));
   return migrateStoredBaseProjectSettings(raw, repoFacts).next;
+}
+
+/**
+ * Stored git settings for a possibly-unmounted project, straight from the
+ * project-settings row via `storedGitSettingsFromRow`. Worktree placement
+ * uses this before projects mount (e.g. automation deploys at boot); mounted
+ * projects should read the settings provider instead. An unreadable row
+ * degrades to "nothing stored" — never a blocked flow.
+ */
+export async function loadStoredGitSettings(
+  db: AppDb,
+  projectId: string
+): Promise<StoredProjectGitSettings> {
+  const [row] = await db
+    .select({ base: projectSettings.baseProjectSettingsJson })
+    .from(projectSettings)
+    .where(eq(projectSettings.projectId, projectId))
+    .limit(1);
+  if (!row) return {};
+  try {
+    return storedGitSettingsFromRow(row.base, null);
+  } catch (error) {
+    log.warn('Failed to read stored project git settings row; treating as unset', {
+      projectId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
 }

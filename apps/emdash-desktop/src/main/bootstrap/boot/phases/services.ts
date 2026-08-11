@@ -46,6 +46,7 @@ import {
 import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { loadStoredGitSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import {
@@ -65,10 +66,7 @@ import {
   createWorkspaceLifecycleParticipants,
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/api/node/lifecycle-participants';
-import {
-  loadProjectWorktreeDirectory,
-  WorkspacePlacementResolver,
-} from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
@@ -226,7 +224,17 @@ export async function bootServices(
     broker: runtimes,
     getSettings: () => appSettingsService,
     findProjectByPath: (host, projectPath) => getProjectByPath(db, host, projectPath),
-    loadProjectWorktreeDirectory: (projectId) => loadProjectWorktreeDirectory(db, projectId),
+    // The stored per-project worktree-root override through the one settings
+    // provider model (spec: github-git-settings §6): the mounted provider when
+    // the project is open, the shared row reader before it mounts (automation
+    // deploys resolve placement at boot).
+    getStoredProjectWorktreeRoot: async (projectId) => {
+      const mounted = projectManager.getProject(projectId);
+      const stored = mounted
+        ? await mounted.settings.getStoredGitSettings()
+        : await loadStoredGitSettings(db, projectId);
+      return stored.worktreeRoot;
+    },
   });
   const lifecycleParticipants = createWorkspaceLifecycleParticipants({
     registerFileSearchRoot: fileSearchRuntime.registerRoot,
@@ -256,16 +264,9 @@ export async function bootServices(
     ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>
       ensureAbsoluteDir(async () => client, rootPath, absolutePath, options),
     runtimes,
-    getProjectDefaults: async () => {
-      const [localProject, project] = await Promise.all([
-        appSettingsService.get('localProject'),
-        appSettingsService.get('project'),
-      ]);
-      return {
-        defaultWorktreeDirectory: localProject.defaultWorktreeDirectory,
-        tmuxByDefault: project.tmuxByDefault,
-      };
-    },
+    getProjectDefaults: async () => ({
+      tmuxByDefault: (await appSettingsService.get('project')).tmuxByDefault,
+    }),
     migrateAppWorktreeRoot: async () => {
       const local = await runtimes.client(LOCAL_HOST_REF);
       if (!local.success) throw new Error('local host runtime unavailable');

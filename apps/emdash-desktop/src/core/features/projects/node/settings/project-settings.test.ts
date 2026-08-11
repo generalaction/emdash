@@ -61,7 +61,12 @@ function makeLocalProvider(
     'main',
     makeLocalConfigFiles(projectPath),
     {
-      defaultWorktreeDirectory: () => Promise.resolve('/tmp/emdash/worktrees'),
+      worktreeRootContext: () =>
+        Promise.resolve({
+          hostWorktreeRoot: '/tmp/emdash/worktrees',
+          builtInWorktreeRoot: '/tmp/emdash/worktrees',
+          homeDirectory: '/tmp',
+        }),
       getProjectDefaults: () => Promise.resolve({ tmuxByDefault: false }),
       storage: storageMockState.storage!,
       ...options,
@@ -275,8 +280,11 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const provider = makeLocalProvider(projectPath);
 
     await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
-    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
-    await expect(provider.getWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+    await expect(provider.getWorktreeRootContext()).resolves.toEqual({
+      hostWorktreeRoot: '/tmp/emdash/worktrees',
+      builtInWorktreeRoot: '/tmp/emdash/worktrees',
+      homeDirectory: '/tmp',
+    });
   });
 
   it('migrates legacy remote setting to baseRemote', async () => {
@@ -314,8 +322,9 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
     const expectedOverride = fs.realpathSync(expectedOverridePath);
     await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
-    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
-    await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
+    await expect(provider.getWorktreeRootContext()).resolves.toMatchObject({
+      hostWorktreeRoot: '/tmp/emdash/worktrees',
+    });
   });
 
   it('stores the selected GitHub account as base project settings', async () => {

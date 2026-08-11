@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
-
-const WORKTREE_POOL_HASH_LENGTH = 8;
+import { deriveWorktreePoolPath as derivePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
 
 export type DeriveWorktreePoolPathOptions = {
   worktreesRoot: string;
@@ -12,21 +10,20 @@ export function defaultRepositoriesRoot(homeDirectory: string): string {
   return pathApiFor(homeDirectory).join(homeDirectory, 'emdash', 'repositories');
 }
 
-export function defaultWorktreesRoot(homeDirectory: string): string {
-  return pathApiFor(homeDirectory).join(homeDirectory, 'emdash', 'worktrees');
-}
+// The built-in worktree root lives in the portable resolver module
+// (`builtInWorktreeRootFor` in @core/primitives/project-settings/api) so
+// placement, the settings page, and the create-task preview share one
+// definition.
 
+/**
+ * Delegates to the one portable pool derivation (workspace-registry API) that
+ * worktree payload compilation and the renderer previews also use.
+ */
 export function deriveWorktreePoolPath({
   worktreesRoot,
   repoPath,
 }: DeriveWorktreePoolPathOptions): string {
-  const pathApi = pathApiFor(worktreesRoot);
-  const repoBasename = pathApi.basename(repoPath) || 'repository';
-  const repoHash = createHash('sha256')
-    .update(repoPath)
-    .digest('hex')
-    .slice(0, WORKTREE_POOL_HASH_LENGTH);
-  return pathApi.join(worktreesRoot, `${repoBasename}-${repoHash}`);
+  return derivePoolPath({ worktreeRoot: worktreesRoot, repoPath });
 }
 
 function pathApiFor(absolutePath: string): typeof path.posix {

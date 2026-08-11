@@ -64,7 +64,7 @@ function makeResolver(options: {
     findProjectByPath: vi.fn(async (_host, candidate) =>
       registeredPaths.has(candidate) ? project : undefined
     ),
-    loadProjectWorktreeDirectory: vi.fn(async () => options.projectOverride),
+    getStoredProjectWorktreeRoot: vi.fn(async () => options.projectOverride),
   });
   return { resolver, broker, exists, getHomeDir };
 }
@@ -160,6 +160,36 @@ describe('WorkspacePlacementResolver', () => {
     });
   });
 
+  it('degrades an unusable project override to the host worktree root', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      hostWorktreeRoot: '~/host-worktrees',
+      projectOverride: 'relative/never-works',
+    });
+
+    const result = await resolver.resolveWorktreePool(project);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: expect.stringMatching(/^\/home\/jona\/host-worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
+  it('degrades unusable project and host roots to the built-in root', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      hostWorktreeRoot: 'also-relative',
+      projectOverride: 'relative/never-works',
+    });
+
+    const result = await resolver.resolveWorktreePool(project);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: expect.stringMatching(/^\/home\/jona\/emdash\/worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
   it('resolves a new path under an existing parent', async () => {
     const { resolver, exists } = makeResolver({ home: '/home/jona' });
 
@@ -217,7 +247,7 @@ describe('WorkspacePlacementResolver', () => {
       } as never,
       getSettings: () => ({ getWithMeta: vi.fn() }) as never,
       findProjectByPath: vi.fn(),
-      loadProjectWorktreeDirectory: vi.fn(),
+      getStoredProjectWorktreeRoot: vi.fn(),
     });
 
     await expect(resolver.resolveRepositoryDestination(LOCAL_HOST_REF, 'repo')).resolves.toEqual(

@@ -103,7 +103,12 @@ function makeProvider(options: {
     options.defaultBranchFallback ?? 'origin/main',
     makeConfigFiles(projectPath),
     {
-      defaultWorktreeDirectory: () => Promise.resolve('/tmp/emdash/worktrees'),
+      worktreeRootContext: () =>
+        Promise.resolve({
+          hostWorktreeRoot: '/tmp/emdash/worktrees',
+          builtInWorktreeRoot: '/tmp/emdash/worktrees',
+          homeDirectory: '/tmp',
+        }),
       getProjectDefaults: () => Promise.resolve({ tmuxByDefault: false }),
       storage: options.storage ?? rowStorage!.storage,
       getRepoFacts: options.getRepoFacts,

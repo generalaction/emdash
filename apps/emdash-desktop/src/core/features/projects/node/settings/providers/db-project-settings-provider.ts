@@ -15,6 +15,7 @@ import {
   type ShareableProjectSettings,
   type StoredBaseProjectSettings,
   type StoredProjectGitSettings,
+  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -64,7 +65,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     private readonly options: DbProjectSettingsProviderOptions
   ) {}
 
-  protected abstract defaultWorktreeDirectory(): Promise<string>;
+  protected abstract worktreeRootContext(): Promise<WorktreeRootContext>;
 
   protected abstract validateWorktreeDirectory(
     worktreeDirectory: string | undefined
@@ -341,25 +342,8 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
   }
 
-  async getDefaultWorktreeDirectory(): Promise<string> {
-    return this.defaultWorktreeDirectory();
-  }
-
-  async getWorktreeDirectory(): Promise<string> {
-    const settings = await this.get();
-    const defaultWorktreeDirectory = await this.getDefaultWorktreeDirectory();
-    if (settings.worktreeDirectory) {
-      const normalized = await this.normalizeStoredWorktreeDirectory(settings.worktreeDirectory);
-      if (normalized.success) {
-        return normalized.data;
-      }
-      log.warn('ProjectSettingsProvider: invalid worktreeDirectory, falling back to default', {
-        worktreeDirectory: settings.worktreeDirectory,
-        defaultWorktreeDirectory,
-        error: normalized.error.type,
-      });
-    }
-    return defaultWorktreeDirectory;
+  async getWorktreeRootContext(): Promise<WorktreeRootContext> {
+    return this.worktreeRootContext();
   }
 }
 

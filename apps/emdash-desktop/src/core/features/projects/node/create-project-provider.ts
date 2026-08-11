@@ -20,7 +20,10 @@ import {
   nativePathFromHost,
   relativeRuntimePath,
 } from '@core/primitives/desktop-runtime/api';
-import type { EffectiveSettings } from '@core/primitives/project-settings/api';
+import {
+  builtInWorktreeRootFor,
+  type EffectiveSettings,
+} from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -65,7 +68,6 @@ export type CreateProjectProviderDependencies = {
   ): Promise<Result<void, FsError>>;
   runtimes: Pick<RuntimeBroker, 'client'>;
   getProjectDefaults(): Promise<{
-    defaultWorktreeDirectory: string;
     tmuxByDefault: boolean;
   }>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
@@ -131,9 +133,20 @@ export async function createProvider(
         storage: new ProjectSettingsRepository(dependencies.db),
         getRepoFacts: () => repoFacts.get(),
         migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
-        defaultWorktreeDirectory: async () =>
-          (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ??
-          (await dependencies.getProjectDefaults()).defaultWorktreeDirectory,
+        // The worktree-root layers below the per-project override (spec §6),
+        // all answered on the project's own host: the host-settings default
+        // and the built-in root under the host home. The retired desktop-wide
+        // default is deliberately absent — a desktop path applied to SSH
+        // hosts was a latent bug.
+        worktreeRootContext: async () => {
+          const homeDirectory = nativePathFromHost((await filesClient.getHomeDir()).path);
+          return {
+            hostWorktreeRoot:
+              (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ?? null,
+            builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory),
+            homeDirectory,
+          };
+        },
         worktreeDirectoryFileSystem: {
           mkdir: async (targetPath, options) => {
             const result = await dependencies.ensureAbsoluteDir(

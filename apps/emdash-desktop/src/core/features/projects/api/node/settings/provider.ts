@@ -3,6 +3,7 @@ import type {
   ProjectSettings,
   ProjectSettingsPatch,
   StoredProjectGitSettings,
+  WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 export type { ProjectSettingsPatch };
@@ -15,10 +16,13 @@ export interface ProjectSettingsProvider {
    * facts — never from local fallbacks.
    */
   getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-  getDefaultWorktreeDirectory(): Promise<string>;
-  getWorktreeDirectory(): Promise<string>;
-  /** Stored explicit git choices (absence = infer) — the resolver input. */
-  getStoredGitSettings(): Promise<StoredProjectGitSettings>;
+  /**
+   * The worktree-root layers below the per-project override (spec §6):
+   * per-host default, built-in root, and the host home directory. The
+   * resolver input for `worktreeRoot`; shipped to the renderer unchanged so
+   * provenance ("host default" vs "built-in default") stays honest.
+   */
+  getWorktreeRootContext(): Promise<WorktreeRootContext>;
   get(): Promise<ProjectSettings>;
   update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>>;
   patch(patch: ProjectSettingsPatch): Promise<Result<void, UpdateProjectSettingsError>>;

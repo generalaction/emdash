@@ -426,5 +426,72 @@ describe('resolveEffectiveSettings', () => {
         provenance: { kind: 'inferred', from: 'built-in default' },
       });
     });
+
+    describe('with a home directory (validated chain)', () => {
+      const home = { homeDirectory: '/home/me' };
+
+      it('expands ~ in the per-project override against the host home', () => {
+        const result = resolveEffectiveSettings(
+          stored({ worktreeRoot: '~/fast-worktrees' }, home),
+          facts(),
+          []
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/home/me/fast-worktrees',
+          provenance: { kind: 'set' },
+        });
+      });
+
+      it('normalizes redundant path segments in a configured root', () => {
+        const result = resolveEffectiveSettings(
+          stored({ worktreeRoot: '/tmp//pool/../worktrees/' }, home),
+          facts(),
+          []
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/tmp/worktrees',
+          provenance: { kind: 'set' },
+        });
+      });
+
+      it('degrades an invalid project override to the host default with broken-setting', () => {
+        const result = resolveEffectiveSettings(
+          stored(
+            { worktreeRoot: 'relative/worktrees' },
+            { ...home, hostWorktreeRoot: '/host/worktrees' }
+          ),
+          facts(),
+          []
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/host/worktrees',
+          provenance: { kind: 'broken-setting', staleValue: 'relative/worktrees' },
+        });
+      });
+
+      it('degrades an invalid host default to the built-in root with broken-setting', () => {
+        const result = resolveEffectiveSettings(
+          stored({}, { ...home, hostWorktreeRoot: 'not-absolute' }),
+          facts(),
+          []
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/home/me/.emdash/worktrees',
+          provenance: { kind: 'broken-setting', staleValue: 'not-absolute' },
+        });
+      });
+
+      it('carries the first broken layer when several layers are invalid', () => {
+        const result = resolveEffectiveSettings(
+          stored({ worktreeRoot: 'bad-project' }, { ...home, hostWorktreeRoot: 'bad-host' }),
+          facts(),
+          []
+        );
+        expect(result.worktreeRoot).toEqual({
+          value: '/home/me/.emdash/worktrees',
+          provenance: { kind: 'broken-setting', staleValue: 'bad-project' },
+        });
+      });
+    });
   });
 });

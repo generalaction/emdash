@@ -17,7 +17,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
   const store = getProjectSettingsStore(projectId);
   const settings = store?.settings;
   const storedGitSettings = store?.storedGitSettings;
-  const defaults = store?.defaults;
+  const worktreeRootContext = store?.worktreeRootContext;
   const writeTargets = store?.writeTargets;
   const overrideState = store?.overrideState;
   const configMigrations = store?.configMigrations;
@@ -27,7 +27,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
     !store ||
     !settings ||
     !storedGitSettings ||
-    !defaults ||
+    !worktreeRootContext ||
     !writeTargets ||
     !overrideState ||
     !configMigrations
@@ -46,7 +46,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
       projectType={mounted.data.type}
       initial={settings}
       storedGitSettings={storedGitSettings}
-      defaults={defaults}
+      worktreeRootContext={worktreeRootContext}
       writeTargets={writeTargets}
       overrideState={overrideState}
       configMigrations={configMigrations}
