@@ -1,4 +1,8 @@
-import { createListView, createTextMatcher } from '@emdash/ui/react/patterns';
+import {
+  createListView,
+  createTextMatcher,
+  type ExternalListSource,
+} from '@emdash/ui/react/patterns';
 import type { AgentPayload } from '@core/primitives/agents/api';
 
 export const AGENTS_SECTION_INSTALLED = 'Installed';
@@ -22,19 +26,20 @@ export function agentSectionLabel(agent: AgentListItem): string {
 }
 
 /**
- * The list-view state layer for the CLI agents list: sync source fed by a
- * reactive getter (the component wraps query data in an observable box so the
- * pipeline re-derives), name-sorted, with immediate search over the agent name
- * and the three fixed Installed / Recommended / Not installed sections (empty
- * sections are dropped by the grouping pipeline).
+ * The list-view state layer for the CLI agents list: an externally owned source
+ * (the component bridges its query via `useQueryListSource`) whose items the
+ * model name-sorts, with immediate search over the agent name and the three
+ * fixed Installed / Recommended / Not installed sections (empty sections are
+ * dropped by the grouping pipeline).
  */
-export function createAgentsListView<T extends AgentListItem>(getAgents: () => readonly T[]) {
+export function createAgentsListView<T extends AgentListItem>(source: ExternalListSource<T>) {
   return createListView({
     getItemId: (agent: T) => agent.id,
     source: {
-      kind: 'sync',
+      ...source,
       items: () =>
-        getAgents()
+        source
+          .items()
           .slice()
           .sort((left, right) => left.name.localeCompare(right.name)),
     },

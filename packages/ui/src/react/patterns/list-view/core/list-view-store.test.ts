@@ -1,3 +1,4 @@
+import { observable, runInAction } from 'mobx';
 import { describe, expect, it, vi } from 'vitest';
 import { byField } from '../comparators';
 import { createTextMatcher } from '../matching';
@@ -282,5 +283,116 @@ describe('ListViewStore — reactive sync source', () => {
     items.push(AGENTS[2]!);
     // The getter is re-called on each computed access.
     expect(store.visibleItems).toHaveLength(3);
+  });
+});
+
+describe('ListViewStore — external source', () => {
+  interface ExternalState {
+    items: Agent[];
+    status: 'idle' | 'loading' | 'error';
+    error: unknown;
+  }
+
+  function createExternalStore(initial: Partial<ExternalState> = {}) {
+    const state = observable.object<ExternalState>(
+      { items: [], status: 'loading', error: undefined, ...initial },
+      { items: observable.ref },
+      { deep: false }
+    );
+    const spec: ListViewSpec<Agent> = {
+      getItemId: (a) => a.id,
+      source: {
+        kind: 'external',
+        items: () => state.items,
+        status: () => state.status,
+        error: () => state.error,
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    return { store, state };
+  }
+
+  it('mirrors status and error from the external getters after initialize', () => {
+    const { store, state } = createExternalStore();
+    store.initialize();
+
+    expect(store.status).toBe('loading');
+
+    runInAction(() => {
+      state.items = AGENTS;
+      state.status = 'idle';
+    });
+    expect(store.status).toBe('idle');
+    expect(store.visibleItems).toEqual(AGENTS);
+
+    const failure = new Error('boom');
+    runInAction(() => {
+      state.status = 'error';
+      state.error = failure;
+    });
+    expect(store.status).toBe('error');
+    expect(store.error).toBe(failure);
+
+    // Leaving the error state clears the mirrored error.
+    runInAction(() => {
+      state.status = 'idle';
+    });
+    expect(store.error).toBeUndefined();
+
+    store.dispose();
+  });
+
+  it('keeps items visible while status is error (stale rows on refetch failure)', () => {
+    const { store, state } = createExternalStore({ items: AGENTS, status: 'idle' });
+    store.initialize();
+
+    runInAction(() => {
+      state.status = 'error';
+      state.error = new Error('refetch failed');
+    });
+    expect(store.status).toBe('error');
+    expect(store.visibleItems).toEqual(AGENTS);
+
+    store.dispose();
+  });
+
+  it('runs the sync pipeline over external items', () => {
+    const state = observable.object(
+      { items: AGENTS, status: 'idle' as const },
+      { items: observable.ref },
+      { deep: false }
+    );
+    const spec: ListViewSpec<Agent> = {
+      getItemId: (a) => a.id,
+      source: { kind: 'external', items: () => state.items, status: () => state.status },
+      search: {
+        kind: 'sync',
+        predicate: createTextMatcher((a: Agent) => a.name),
+        debounceMs: 0,
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.initialize();
+
+    store.search!.setQuery('claude');
+    expect(store.visibleItems).toEqual([AGENTS[0]]);
+
+    store.dispose();
+  });
+
+  it('stops mirroring after dispose and reload is a no-op', async () => {
+    const { store, state } = createExternalStore({ items: AGENTS, status: 'idle' });
+    store.initialize();
+
+    await store.reload();
+    expect(store.status).toBe('idle');
+
+    store.dispose();
+    runInAction(() => {
+      state.status = 'error';
+      state.error = new Error('after dispose');
+    });
+    expect(store.status).toBe('idle');
+    expect(store.error).toBeUndefined();
   });
 });

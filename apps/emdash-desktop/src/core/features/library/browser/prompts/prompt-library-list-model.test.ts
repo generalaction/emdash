@@ -5,10 +5,13 @@ import { createPromptLibraryListView } from './prompt-library-list-model';
 
 describe('createPromptLibraryListView', () => {
   it('keeps stored order and searches title and prompt body', () => {
-    const view = createPromptLibraryListView(() => [
-      prompt('b', 'Review checklist', 'Walk the diff for missing tests'),
-      prompt('a', 'Bug triage', 'Reproduce, then bisect the regression'),
-    ]);
+    const view = createPromptLibraryListView({
+      kind: 'sync',
+      items: [
+        prompt('b', 'Review checklist', 'Walk the diff for missing tests'),
+        prompt('a', 'Bug triage', 'Reproduce, then bisect the regression'),
+      ],
+    });
     const search = (query: string) => {
       view.store.search!.setQuery(query);
       return view.store.orderedIds;
@@ -22,7 +25,7 @@ describe('createPromptLibraryListView', () => {
 
   it('re-derives when the observable source changes', () => {
     const box = observable.box<PromptLibraryPrompt[]>([], { deep: false });
-    const view = createPromptLibraryListView(() => box.get());
+    const view = createPromptLibraryListView({ kind: 'sync', items: () => box.get() });
 
     expect(view.store.orderedIds).toEqual([]);
     runInAction(() => box.set([prompt('a', 'Bug triage', 'Reproduce it')]));

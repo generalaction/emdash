@@ -1,9 +1,14 @@
-import { CollectionToolbar, CollectionView, PageLayout } from '@emdash/ui/react/patterns';
-import { Button, Sheet, Spinner, toast } from '@emdash/ui/react/primitives';
+import { EmptyState } from '@emdash/ui/react/components';
+import {
+  CollectionToolbar,
+  CollectionView,
+  PageLayout,
+  useQueryListSource,
+} from '@emdash/ui/react/patterns';
+import { Button, Sheet, toast } from '@emdash/ui/react/primitives';
 import { Plus } from 'lucide-react';
-import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
@@ -36,15 +41,8 @@ export function AutomationsView() {
   const { navigate } = useNavigate();
   const { params, setParams } = useCurrentViewParams(automationsViewDef);
 
-  // Bridge query data into the view's sync source: seed the box so the first
-  // render sees data, and update before paint to avoid an empty flash.
-  const [itemsBox] = useState(() =>
-    observable.box<Automation[]>(automations.data ?? [], { deep: false })
-  );
-  const [view] = useState(() => createAutomationsListView(() => itemsBox.get()));
-  useLayoutEffect(() => {
-    runInAction(() => itemsBox.set(automations.data ?? []));
-  }, [automations.data, itemsBox]);
+  const source = useQueryListSource(automations, (rows: Automation[]) => rows);
+  const [view] = useState(() => createAutomationsListView(source));
 
   const hasAutomations = (automations.data?.length ?? 0) > 0;
 
@@ -123,17 +121,20 @@ export function AutomationsView() {
                 onItemClick={(automation) =>
                   navigate(automationsViewDef({ automationId: automation.id }))
                 }
+                // The slot element is built on every render even though it only
+                // shows on error — guard so a null error is never formatted.
+                errorSlot={
+                  automations.isError ? (
+                    <EmptyState
+                      bare
+                      label="Could not load automations."
+                      description={formatAutomationError(automations.error)}
+                    />
+                  ) : undefined
+                }
                 emptySlot={
-                  automations.isPending ? (
-                    <AutomationsLoadingState />
-                  ) : automations.isError ? (
-                    <div className="p-8 text-center text-sm text-foreground-muted">
-                      Could not load automations. {formatAutomationError(automations.error)}
-                    </div>
-                  ) : hasAutomations ? (
-                    <div className="p-8 text-center text-sm text-foreground-muted">
-                      No automations match your search.
-                    </div>
+                  hasAutomations ? (
+                    <EmptyState bare label="No automations match your search." />
                   ) : (
                     <AutomationTemplatesEmptyState
                       templates={emptyStateAutomationTemplates}
@@ -197,13 +198,3 @@ const AutomationsToolbar = observer(function AutomationsToolbar({
     />
   );
 });
-
-// The view's sync source is never "loading", so the query's pending state
-// routes through the empty slot rather than CollectionView's loadingSlot.
-function AutomationsLoadingState() {
-  return (
-    <div className="flex min-h-48 items-center justify-center p-8">
-      <Spinner />
-    </div>
-  );
-}

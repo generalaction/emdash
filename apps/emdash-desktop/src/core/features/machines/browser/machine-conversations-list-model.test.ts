@@ -7,7 +7,7 @@ import { createMachineConversationsListView } from './machine-conversations-list
 describe('createMachineConversationsListView', () => {
   it('re-derives from the reactive getter when items change', () => {
     const box = observable.box<MachineConversationItem[]>([], { deep: false });
-    const view = createMachineConversationsListView(() => box.get());
+    const view = createMachineConversationsListView({ kind: 'sync', items: () => box.get() });
 
     expect(view.store.visibleItems).toEqual([]);
 
@@ -26,7 +26,7 @@ describe('createMachineConversationsListView', () => {
       ],
       { deep: false }
     );
-    const view = createMachineConversationsListView(() => box.get());
+    const view = createMachineConversationsListView({ kind: 'sync', items: () => box.get() });
     const search = (query: string) => {
       view.store.search!.setQuery(query);
       return view.store.orderedIds;
