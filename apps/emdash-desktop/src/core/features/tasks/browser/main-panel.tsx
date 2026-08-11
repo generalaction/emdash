@@ -267,6 +267,12 @@ function useDelayedVisible(delayMs: number): boolean {
 // to close rather than a resize.
 const SIDEBAR_CLOSE_THRESHOLD = 8;
 
+// Resize floor (the released builds' value): dragging shrinks the sidebar only
+// down to this width; dragging past it snaps the collapsible panel's layout to
+// `collapsedSize` (0), which the binding's close-threshold check turns into a
+// semantic close.
+const SIDEBAR_MIN_SIZE = '280px';
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const taskView = useTaskComposition();
   // Zen is workspace-chrome data; the task sidebar hides while zen is active
@@ -309,7 +315,10 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
             <Resizable.Panel
               {...sidebarBinding.collapsiblePanelProps}
               defaultSize={sidebarBinding.collapsiblePanelProps.defaultSize ?? '25%'}
+              minSize={SIDEBAR_MIN_SIZE}
               maxSize="50%"
+              collapsible
+              collapsedSize="0%"
             >
               <TaskSidebar />
             </Resizable.Panel>

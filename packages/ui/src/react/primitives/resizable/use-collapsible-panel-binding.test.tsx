@@ -70,6 +70,20 @@ describe('useCollapsiblePanelBinding', () => {
       expect(storage.getItem(STORAGE_KEY)).toBe(JSON.stringify({ main: 70, side: 30 }));
     });
 
+    it('requests close when the library snaps a collapsible panel to its 0% collapsedSize', () => {
+      const { storage, onCloseRequest, view } = setup();
+
+      act(() => view.result.current.groupProps.onLayoutChanged({ main: 70, side: 30 }));
+      // Hosts that set `minSize` + `collapsible` + `collapsedSize="0%"` never
+      // settle at intermediate slivers: dragging below `minSize` makes the
+      // library snap the layout straight to 0.
+      act(() => view.result.current.groupProps.onLayoutChanged({ main: 100, side: 0 }));
+
+      expect(onCloseRequest).toHaveBeenCalledTimes(1);
+      // The snapped-to-0 layout must never be persisted; the last good size stays.
+      expect(storage.getItem(STORAGE_KEY)).toBe(JSON.stringify({ main: 70, side: 30 }));
+    });
+
     it('never persists layouts reported while closed (mount/unmount reflows)', () => {
       const { storage, onCloseRequest, view } = setup({ open: false });
 

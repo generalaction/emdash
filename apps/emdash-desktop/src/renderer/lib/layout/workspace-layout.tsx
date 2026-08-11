@@ -3,6 +3,11 @@ import { type ReactNode } from 'react';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
+// Resize floor (the released builds' value): dragging shrinks the sidebar only
+// down to this width; dragging past it snaps the collapsible panel's layout to
+// `collapsedSize` (0), which the binding's close-threshold check turns into a
+// semantic close.
+const LEFT_SIDEBAR_MIN_SIZE = '200px';
 const LEFT_SIDEBAR_MAX_SIZE = '30%';
 const MAIN_PANEL_MIN_SIZE = '30%';
 
@@ -46,7 +51,10 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
           <Resizable.Panel
             {...binding.collapsiblePanelProps}
             defaultSize={binding.collapsiblePanelProps.defaultSize ?? LEFT_PANEL_DEFAULT_SIZE}
+            minSize={LEFT_SIDEBAR_MIN_SIZE}
             maxSize={LEFT_SIDEBAR_MAX_SIZE}
+            collapsible
+            collapsedSize="0%"
           >
             {leftSidebar}
           </Resizable.Panel>
