@@ -19,6 +19,7 @@ import {
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type { ConfiguredRemotes } from '@core/primitives/git/api';
 import {
+  bareRefName,
   projectDefaultBranchToBranch,
   resolveConfiguredRemotes,
   resolveDefaultBranch,
@@ -93,6 +94,7 @@ export class GitRepositoryStore {
       defaultBranchPreference: computed,
       defaultBranch: computed,
       remotes: computed,
+      remoteHeadBranch: computed,
       loading: computed,
       canonicalRepositoryUrl: computed,
       providerRepository: computed,
@@ -221,6 +223,16 @@ export class GitRepositoryStore {
 
   get remotes(): GitRemote[] {
     return this.remotesState?.remotes ?? [];
+  }
+
+  /**
+   * Remote HEAD of the base remote, when the default-branch lookup has
+   * resolved it. Feeds the effective-settings repo facts; null degrades
+   * default-branch inference to the well-known candidates.
+   */
+  get remoteHeadBranch(): { remote: string; branch: string } | null {
+    const head = this.gitDefaultBranch?.trim();
+    return head ? { remote: this.baseRemote.name, branch: bareRefName(head) } : null;
   }
 
   get canonicalRepositoryUrl(): string | null {
