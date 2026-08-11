@@ -138,14 +138,11 @@ export async function createWorkspaceServerRuntimeHost(
       settingsPath: paths.hostSettingsFile,
     })
   );
-  const scriptsPromise = hostSettingsPromise.then((hostSettings) =>
-    workerHost.spawn(
-      ...scriptsWorkerSpec({
-        executable: workspaceWorkerPath('scripts'),
-        env,
-        dependencies: { hostSettings },
-      })
-    )
+  const scriptsPromise = workerHost.spawn(
+    ...scriptsWorkerSpec({
+      executable: workspaceWorkerPath('scripts'),
+      env,
+    })
   );
   const acpPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(
@@ -247,7 +244,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...workspaceRegistryWorkerSpec({
       executable: workspaceWorkerPath('workspace-registry'),
       env,
-      dependencies: { watcher, acp, terminals, tuiAgents, scripts },
+      dependencies: { watcher, acp, terminals, tuiAgents, scripts, hostSettings },
       databasePath: paths.workspaceRegistryDatabase,
     })
   );

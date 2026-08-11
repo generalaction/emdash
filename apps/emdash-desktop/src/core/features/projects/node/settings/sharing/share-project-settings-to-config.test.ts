@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { ShareableProjectSettings } from '@core/primitives/project-settings/api';
 import { filesClientScope, type FilesClientScope } from '@core/services/runtime-broker/node/files';
-import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,
   resolveAllProjectSettingsTargets,
@@ -128,34 +127,24 @@ describe('shareProjectSettingsToConfig', () => {
   it('writes selected shareable project settings to .emdash.json', async () => {
     const fileSystem = createMemoryFileSystem();
     const write = fileSystem.writeText;
-    const patch = vi.fn().mockResolvedValue({ success: true });
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          defaultBranch: 'origin/main',
-          baseRemote: 'origin',
-          tmux: true,
-          preservePatterns: ['.env', '.env.local'],
-          scripts: {
-            setup: 'pnpm install',
-            run: 'pnpm dev',
-          },
-        }),
-        patch,
+    const localSettings = {
+      preservePatterns: ['.env', '.env.local'],
+      scripts: {
+        setup: 'pnpm install',
+        run: 'pnpm dev',
       },
     };
 
     const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns', 'scripts.setup', 'scripts.run'],
-      },
-      [projectTarget(fileSystem)]
+      projectTarget(fileSystem),
+      ['preservePatterns', 'scripts.setup', 'scripts.run'],
+      localSettings
     );
 
-    expect(result.success).toBe(true);
+    expect(result).toEqual({
+      success: true,
+      data: ['preservePatterns', 'scripts.setup', 'scripts.run'],
+    });
     expect(write).toHaveBeenCalledWith(
       configPath,
       `${JSON.stringify(
@@ -170,8 +159,26 @@ describe('shareProjectSettingsToConfig', () => {
         2
       )}\n`
     );
-    expect(patch).toHaveBeenCalledWith({
-      clearShareableFields: ['preservePatterns', 'scripts.setup', 'scripts.run'],
+  });
+
+  it('writes supplied personal settings and returns exactly the written fields', async () => {
+    const fileSystem = createMemoryFileSystem();
+    const result = await shareProjectSettingsToConfig(
+      projectTarget(fileSystem),
+      ['preservePatterns', 'scripts.prepare', 'scripts.run'],
+      {
+        preservePatterns: [],
+        scripts: { prepare: 'pnpm install', run: 'pnpm dev' },
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      data: ['preservePatterns', 'scripts.prepare', 'scripts.run'],
+    });
+    expect(JSON.parse(fileSystem.content('.emdash.json') ?? '{}')).toEqual({
+      preservePatterns: [],
+      scripts: { prepare: 'pnpm install', run: 'pnpm dev' },
     });
   });
 
@@ -180,31 +187,9 @@ describe('shareProjectSettingsToConfig', () => {
     let shareableSettings: ShareableProjectSettings = {
       preservePatterns: ['.env', '.env.local'],
     };
-    const project = {
-      settings: {
-        get: vi.fn().mockImplementation(() => Promise.resolve(shareableSettings)),
-        patch: vi.fn().mockImplementation(({ clearShareableFields }) => {
-          if (clearShareableFields.includes('preservePatterns')) {
-            shareableSettings = {};
-          }
-          if (clearShareableFields.includes('scripts.run')) {
-            shareableSettings = {};
-          }
-          return Promise.resolve({ success: true });
-        }),
-      },
-    };
-    const targets = [projectTarget(fileSystem)];
+    const target = projectTarget(fileSystem);
 
-    await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns'],
-      },
-      targets as never
-    );
+    await shareProjectSettingsToConfig(target, ['preservePatterns'], shareableSettings);
 
     shareableSettings = {
       scripts: {
@@ -212,15 +197,7 @@ describe('shareProjectSettingsToConfig', () => {
       },
     };
 
-    const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['scripts.run'],
-      },
-      targets as never
-    );
+    const result = await shareProjectSettingsToConfig(target, ['scripts.run'], shareableSettings);
 
     expect(result.success).toBe(true);
     expect(JSON.parse(fileSystem.content('.emdash.json') ?? '{}')).toEqual({
@@ -231,64 +208,35 @@ describe('shareProjectSettingsToConfig', () => {
     });
   });
 
-  it('only clears fields that were actually written to .emdash.json', async () => {
+  it('only returns fields that were actually written to .emdash.json', async () => {
     const fileSystem = createMemoryFileSystem({
       '.emdash.json': JSON.stringify({ preservePatterns: ['.env'] }),
     });
     const write = fileSystem.writeText;
-    const patch = vi.fn().mockResolvedValue({ success: true });
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          preservePatterns: ['.env.local'],
-        }),
-        patch,
-      },
-    };
 
     const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns', 'scripts.run'],
-      },
-      [projectTarget(fileSystem)]
+      projectTarget(fileSystem),
+      ['preservePatterns', 'scripts.run'],
+      { preservePatterns: ['.env.local'] }
     );
 
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: true, data: ['preservePatterns'] });
     expect(write).toHaveBeenCalledWith(
       configPath,
       `${JSON.stringify({ preservePatterns: ['.env.local'] }, null, 2)}\n`
     );
-    expect(patch).toHaveBeenCalledWith({
-      clearShareableFields: ['preservePatterns'],
-    });
   });
 
   it('returns an error when the filesystem reports an unsuccessful write', async () => {
-    const patch = vi.fn();
     const fileSystem = createMemoryFileSystem();
     vi.mocked(fileSystem.client.fs.writeFile).mockResolvedValue(
       err({ type: 'io' as const, path: '.emdash.json', message: 'permission denied' })
     );
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          preservePatterns: ['.env'],
-        }),
-        patch,
-      },
-    };
 
     const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns'],
-      },
-      [projectTarget(fileSystem)]
+      projectTarget(fileSystem),
+      ['preservePatterns'],
+      { preservePatterns: ['.env'] }
     );
 
     expect(result).toEqual({
@@ -298,65 +246,14 @@ describe('shareProjectSettingsToConfig', () => {
         message: 'Could not write .emdash.json: permission denied',
       },
     });
-    expect(patch).not.toHaveBeenCalled();
-  });
-
-  it('returns an error when clearing shared fields fails after writing config', async () => {
-    const fileSystem = createMemoryFileSystem({
-      '.emdash.json': `${JSON.stringify({ shellSetup: 'old setup' }, null, 2)}\n`,
-    });
-    const write = fileSystem.writeText;
-    const patch = vi.fn().mockResolvedValue({
-      success: false,
-      error: { type: 'error' },
-    });
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          preservePatterns: ['.env'],
-        }),
-        patch,
-      },
-    };
-
-    const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns'],
-      },
-      [projectTarget(fileSystem)]
-    );
-
-    expect(result).toEqual({
-      success: false,
-      error: {
-        type: 'write-config-failed',
-        message: 'Wrote .emdash.json, but failed to clear shared project settings.',
-      },
-    });
-    expect(write).toHaveBeenCalledTimes(1);
   });
 
   it('returns the read/parse failure when existing .emdash.json cannot be parsed', async () => {
     const fileSystem = createMemoryFileSystem({ '.emdash.json': '{ invalid json' });
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          preservePatterns: ['.env'],
-        }),
-      },
-    };
-
     const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns'],
-      },
-      [projectTarget(fileSystem)]
+      projectTarget(fileSystem),
+      ['preservePatterns'],
+      { preservePatterns: ['.env'] }
     );
 
     if (result.success) {
@@ -381,23 +278,10 @@ describe('shareProjectSettingsToConfig', () => {
         etag: 'test-etag',
       })
     );
-    const project = {
-      settings: {
-        get: vi.fn().mockResolvedValue({
-          preservePatterns: ['.env'],
-        }),
-        patch: vi.fn(),
-      },
-    };
-
     const result = await shareProjectSettingsToConfig(
-      workspaceIdentity,
-      project as never,
-      {
-        target: { type: 'project' },
-        fields: ['preservePatterns'],
-      },
-      [projectTarget(fileSystem)]
+      projectTarget(fileSystem),
+      ['preservePatterns'],
+      { preservePatterns: ['.env'] }
     );
 
     expect(result).toEqual({
@@ -408,30 +292,6 @@ describe('shareProjectSettingsToConfig', () => {
       },
     });
     expect(fileSystem.writeText).not.toHaveBeenCalled();
-  });
-
-  it('returns target resolution failures instead of rejecting the RPC', async () => {
-    await expect(
-      shareProjectSettingsToConfig(
-        workspaceIdentity,
-        {
-          settings: {
-            get: vi.fn(),
-          },
-        } as never,
-        {
-          target: { type: 'task', taskId: 'task-1' },
-          fields: ['preservePatterns'],
-        },
-        []
-      )
-    ).resolves.toEqual({
-      success: false,
-      error: {
-        type: 'write-config-failed',
-        message: 'Could not resolve the selected working copy.',
-      },
-    });
   });
 
   it('includes task worktrees from git branch discovery, not only active workspaces', async () => {
@@ -472,12 +332,18 @@ describe('shareProjectSettingsToConfig', () => {
     );
 
     expect(targets).toEqual([
-      { type: 'project', label: 'Repo Name', path: '/repo' },
+      {
+        type: 'project',
+        label: 'Repo Name',
+        path: '/repo',
+        configPath: '/repo/.emdash.json',
+      },
       {
         type: 'task',
         taskId: 'task-1',
         label: 'Task One',
         path: '/external/worktrees/task-one',
+        configPath: '/external/worktrees/task-one/.emdash.json',
       },
     ]);
     expect(findTaskWorktree).toHaveBeenCalledWith('emdash/task-one');
@@ -548,26 +414,23 @@ describe('shareProjectSettingsToConfig', () => {
       project as never
     );
     const targets = getProjectSettingsWriteTargets(resolvedTargets);
-    const overrideState = await computeProjectSettingsOverrideState(resolvedTargets);
-
     expect(targets).toEqual([
-      { type: 'project', label: 'Repo Name', path: '/repo' },
+      {
+        type: 'project',
+        label: 'Repo Name',
+        path: '/repo',
+        configPath: '/repo/.emdash.json',
+      },
       {
         type: 'task',
         taskId: 'task-2',
         label: 'Task Two',
         path: '/repo/.emdash/worktrees/task-two',
+        configPath: '/repo/.emdash/worktrees/task-two/.emdash.json',
+        sourceWorkspaceId: 'worktree-workspace',
       },
     ]);
     expect(findTaskWorktree).not.toHaveBeenCalled();
-    expect(overrideState['scripts.run']).toEqual([
-      { label: 'Repo Name', path: '/repo', value: 'root run' },
-      {
-        label: 'Task Two',
-        path: '/repo/.emdash/worktrees/task-two',
-        value: 'worktree run',
-      },
-    ]);
   });
 
   it('skips task target resolution when the project row no longer exists', async () => {
@@ -588,75 +451,15 @@ describe('shareProjectSettingsToConfig', () => {
       await resolveAllProjectSettingsTargets(db, workspaceIdentity, project as never)
     );
 
-    expect(targets).toEqual([{ type: 'project', label: 'Project repository', path: '/repo' }]);
+    expect(targets).toEqual([
+      {
+        type: 'project',
+        label: 'Project repository',
+        path: '/repo',
+        configPath: '/repo/.emdash.json',
+      },
+    ]);
     expect(mocks.select).toHaveBeenCalledTimes(1);
     expect(findTaskWorktree).not.toHaveBeenCalled();
-  });
-
-  it('detects workspace setting overrides from .emdash.json files', async () => {
-    const projectFs = createMemoryFileSystem({
-      '.emdash.json': JSON.stringify({
-        preservePatterns: ['.env', '.env.local'],
-        scripts: {
-          setup: 'pnpm install',
-          run: 'pnpm dev',
-          teardown: 'docker compose down',
-        },
-      }),
-    });
-    const project = projectFixture(projectFs, {
-      findTaskWorktree: vi.fn(),
-    });
-    mocks.select
-      .mockReturnValueOnce({
-        from: () => ({
-          where: () => ({
-            limit: vi.fn().mockResolvedValue([{ name: 'Repo Name' }]),
-          }),
-        }),
-      })
-      .mockReturnValueOnce({
-        from: () => ({
-          leftJoin: () => ({
-            where: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      });
-
-    await expect(
-      computeProjectSettingsOverrideState(
-        await resolveAllProjectSettingsTargets(db, workspaceIdentity, project as never)
-      )
-    ).resolves.toEqual({
-      preservePatterns: [
-        {
-          label: 'Repo Name',
-          path: '/repo',
-          value: '.env\n.env.local',
-        },
-      ],
-      'scripts.prepare': [],
-      'scripts.setup': [
-        {
-          label: 'Repo Name',
-          path: '/repo',
-          value: 'pnpm install',
-        },
-      ],
-      'scripts.run': [
-        {
-          label: 'Repo Name',
-          path: '/repo',
-          value: 'pnpm dev',
-        },
-      ],
-      'scripts.teardown': [
-        {
-          label: 'Repo Name',
-          path: '/repo',
-          value: 'docker compose down',
-        },
-      ],
-    });
   });
 });

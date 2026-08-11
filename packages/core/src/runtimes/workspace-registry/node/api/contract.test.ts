@@ -2,8 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createScope } from '@emdash/shared/concurrency';
 import { ManualClock } from '@emdash/shared/testing';
-import { remote, snapshot } from '@emdash/wire/state';
+import { pin, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
@@ -137,7 +138,11 @@ describe('workspace registry contract', () => {
         createdAt: 10_000,
         updatedAt: 10_000,
         lastObservedAt: 10_000,
-        config: null,
+        config: {
+          scripts: { prepare: false, setup: false, run: false, teardown: false },
+          preservePatterns: [],
+          parseError: false,
+        },
         runtime: null,
       },
     });
@@ -157,6 +162,36 @@ describe('workspace registry contract', () => {
     await fs.mkdir(sub);
     const subCreated = await wire.client.createWorkspace({ workspaceId: 'ws-sub', path: sub });
     expect(subCreated).toMatchObject({ success: true, data: { kind: 'directory' } });
+  });
+
+  it('persists personal config and legacy imports for directory project roots', async () => {
+    const directoryPath = path.join(root, 'plain-directory-config');
+    await fs.mkdir(directoryPath);
+    await wire.client.createWorkspace({ workspaceId: 'ws-directory-config', path: directoryPath });
+
+    const patched = await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-directory-config',
+      patch: { scripts: { setup: 'personal setup' } },
+    });
+    expect(patched).toMatchObject({
+      success: true,
+      data: {
+        repositoryId: 'ws-directory-config',
+        personalConfig: { scripts: { setup: 'personal setup' } },
+      },
+    });
+
+    const imported = await wire.client.importLegacyLifecycleSettings({
+      workspaceId: 'ws-directory-config',
+      settings: { scripts: { setup: 'legacy setup', run: 'legacy run' } },
+    });
+    expect(imported).toMatchObject({
+      success: true,
+      data: {
+        personalConfig: { scripts: { setup: 'personal setup', run: 'legacy run' } },
+        legacyDesktopSettingsMigrated: true,
+      },
+    });
   });
 
   it('createWorkspace on a worktree auto-registers the parent repository as adopted', async () => {
@@ -203,6 +238,350 @@ describe('workspace registry contract', () => {
     expect(divergent).toMatchObject({
       success: false,
       error: { type: 'immutable-field-mismatch', workspaceId: 'ws-1' },
+    });
+  });
+
+  it('resolves each worktree team config and preserves personal config on record writes', async () => {
+    const repoPath = await makeRepo(root, 'config-repo');
+    await fs.writeFile(
+      path.join(repoPath, '.emdash.json'),
+      JSON.stringify({
+        preservePatterns: ['repo/**'],
+        scripts: { setup: 'repo setup', run: 'repo run' },
+      })
+    );
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-config-repo', path: repoPath })).success
+    ).toBe(true);
+
+    const worktreePath = await makeWorktree(repoPath, root, 'config-wt');
+    await fs.writeFile(
+      path.join(worktreePath, '.emdash.json'),
+      JSON.stringify({
+        preservePatterns: ['worktree/**'],
+        scripts: { setup: 'worktree setup', run: 'worktree run' },
+      })
+    );
+    expect(
+      (
+        await wire.client.createWorkspace({
+          workspaceId: 'ws-config-wt',
+          path: worktreePath,
+        })
+      ).success
+    ).toBe(true);
+
+    const patched = await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-config-wt',
+      patch: { scripts: { setup: 'personal setup' } },
+    });
+    expect(patched).toMatchObject({
+      success: true,
+      data: {
+        repositoryId: 'ws-config-repo',
+        resolved: {
+          preservePatterns: { value: ['worktree/**'], from: 'team' },
+          setup: { value: 'personal setup', from: 'personal' },
+          run: { value: 'worktree run', from: 'team' },
+        },
+      },
+    });
+
+    // Observation writes intentionally exclude personalConfig, so scans cannot erase
+    // personal settings while updating the durable workspace record.
+    const store = new WorkspaceRecordStore(handle);
+    const repository = store.get('ws-config-repo');
+    if (!repository) throw new Error('repository record missing');
+    store.update({ ...repository, updatedAt: 11_000 });
+
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const repositoryConfig = await wire.client.getProjectConfig({
+      workspaceId: 'ws-config-repo',
+    });
+    const worktreeConfig = await wire.client.getProjectConfig({ workspaceId: 'ws-config-wt' });
+    expect(repositoryConfig).toMatchObject({
+      success: true,
+      data: {
+        resolved: {
+          setup: { value: 'personal setup', from: 'personal' },
+          run: { value: 'repo run', from: 'team' },
+        },
+      },
+    });
+    expect(worktreeConfig).toMatchObject({
+      success: true,
+      data: {
+        resolved: {
+          setup: { value: 'personal setup', from: 'personal' },
+          run: { value: 'worktree run', from: 'team' },
+        },
+        personalConfig: { scripts: { setup: 'personal setup' } },
+        sources: {
+          preservePatterns: expect.arrayContaining([
+            expect.objectContaining({
+              workspaceId: 'ws-config-repo',
+              value: ['repo/**'],
+            }),
+            expect.objectContaining({
+              workspaceId: 'ws-config-wt',
+              value: ['worktree/**'],
+            }),
+          ]),
+          run: expect.arrayContaining([
+            expect.objectContaining({ workspaceId: 'ws-config-repo', value: 'repo run' }),
+            expect.objectContaining({ workspaceId: 'ws-config-wt', value: 'worktree run' }),
+          ]),
+        },
+      },
+    });
+  });
+
+  it('publishes the initial project config snapshot for a workspace key', async () => {
+    const workspacePath = path.join(root, 'live-config');
+    await fs.mkdir(workspacePath);
+    await fs.writeFile(
+      path.join(workspacePath, '.emdash.json'),
+      JSON.stringify({ scripts: { setup: 'team setup' } })
+    );
+    await wire.client.createWorkspace({ workspaceId: 'ws-live-config', path: workspacePath });
+
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig);
+    const current = configs({ workspaceId: 'ws-live-config' }).states.current;
+    try {
+      await current.refresh();
+      expect(snapshot(current).value).toMatchObject({
+        workspaceId: 'ws-live-config',
+        repositoryId: 'ws-live-config',
+        resolved: {
+          setup: { value: 'team setup', from: 'team' },
+          autoRunSetup: { value: true, from: 'built-in' },
+        },
+      });
+    } finally {
+      await configs.dispose();
+    }
+  });
+
+  it('updates the project config model after personal config patches and imports', async () => {
+    const workspacePath = path.join(root, 'live-personal');
+    await fs.mkdir(workspacePath);
+    await wire.client.createWorkspace({ workspaceId: 'ws-live-personal', path: workspacePath });
+
+    const scope = createScope({ label: 'project-config-personal-test' });
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig, {
+      scope,
+    });
+    const current = configs({ workspaceId: 'ws-live-personal' }).states.current;
+    pin(scope, [current]);
+    await current.refresh();
+
+    await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-live-personal',
+      patch: { scripts: { setup: 'personal setup' } },
+    });
+
+    try {
+      await eventually(async () => {
+        expect(snapshot(current).value?.resolved.setup).toEqual({
+          value: 'personal setup',
+          from: 'personal',
+        });
+      });
+      await wire.client.importLegacyLifecycleSettings({
+        workspaceId: 'ws-live-personal',
+        settings: { scripts: { teardown: 'imported teardown' } },
+      });
+      await eventually(async () => {
+        expect(snapshot(current).value?.resolved.teardown).toEqual({
+          value: 'imported teardown',
+          from: 'personal',
+        });
+      });
+    } finally {
+      await scope.dispose();
+    }
+  });
+
+  it('updates the project config model after the team file changes', async () => {
+    const workspacePath = path.join(root, 'live-team');
+    await fs.mkdir(workspacePath);
+    await fs.writeFile(
+      path.join(workspacePath, '.emdash.json'),
+      JSON.stringify({ scripts: { setup: 'first setup' } })
+    );
+    await wire.client.createWorkspace({ workspaceId: 'ws-live-team', path: workspacePath });
+
+    const scope = createScope({ label: 'project-config-team-test' });
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig, {
+      scope,
+    });
+    const current = configs({ workspaceId: 'ws-live-team' }).states.current;
+    pin(scope, [current]);
+    await current.refresh();
+
+    await fs.writeFile(
+      path.join(workspacePath, '.emdash.json'),
+      JSON.stringify({ scripts: { setup: 'second setup' } })
+    );
+    await wire.client.refresh({ workspaceId: 'ws-live-team' });
+
+    try {
+      await eventually(async () => {
+        expect(snapshot(current).value?.resolved.setup).toEqual({
+          value: 'second setup',
+          from: 'team',
+        });
+      });
+    } finally {
+      await scope.dispose();
+    }
+  });
+
+  it('updates the project config model after host settings change', async () => {
+    wire.dispose();
+    runtime.dispose();
+    let shellSetup = 'first host setup';
+    runtime = new WorkspaceRegistryRuntime({
+      handle,
+      clock,
+      getHostSettings: async () => ({ shellSetup }),
+    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const workspacePath = path.join(root, 'live-host');
+    await fs.mkdir(workspacePath);
+    await wire.client.createWorkspace({ workspaceId: 'ws-live-host', path: workspacePath });
+
+    const scope = createScope({ label: 'project-config-host-test' });
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig, {
+      scope,
+    });
+    const current = configs({ workspaceId: 'ws-live-host' }).states.current;
+    pin(scope, [current]);
+    await current.refresh();
+    expect(snapshot(current).value?.resolved.shellSetup).toEqual({
+      value: 'first host setup',
+      from: 'host-default',
+    });
+
+    shellSetup = 'second host setup';
+    runtime.hostSettingsChanged();
+
+    try {
+      await eventually(async () => {
+        expect(snapshot(current).value?.resolved.shellSetup).toEqual({
+          value: 'second host setup',
+          from: 'host-default',
+        });
+      });
+    } finally {
+      await scope.dispose();
+    }
+  });
+
+  it('updates project config sources when project membership changes', async () => {
+    const repoPath = await makeRepo(root, 'live-membership');
+    await fs.writeFile(
+      path.join(repoPath, '.emdash.json'),
+      JSON.stringify({ scripts: { setup: 'shared setup' } })
+    );
+    git(repoPath, 'add', '.emdash.json');
+    git(repoPath, 'commit', '-m', 'add config');
+    await wire.client.createWorkspace({ workspaceId: 'ws-live-membership', path: repoPath });
+
+    const scope = createScope({ label: 'project-config-membership-test' });
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig, {
+      scope,
+    });
+    const current = configs({ workspaceId: 'ws-live-membership' }).states.current;
+    pin(scope, [current]);
+    await current.refresh();
+    expect(snapshot(current).value?.sources.setup).toHaveLength(1);
+
+    const created = await wire.client.createWorktree({
+      workspaceId: 'wt-live-membership',
+      repositoryId: 'ws-live-membership',
+      path: path.join(root, 'live-membership-worktree'),
+      branch: 'live-membership-worktree',
+      baseRef: 'main',
+      preservePatterns: [],
+      pushBranch: false,
+    });
+    expect(created.success).toBe(true);
+
+    try {
+      await eventually(async () => {
+        expect(snapshot(current).value?.sources.setup).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ workspaceId: 'ws-live-membership' }),
+            expect.objectContaining({ workspaceId: 'wt-live-membership' }),
+          ])
+        );
+      });
+      await wire.client.deleteWorkspace({ workspaceId: 'wt-live-membership' });
+      await eventually(async () => {
+        expect(snapshot(current).value?.sources.setup).toEqual([
+          expect.objectContaining({ workspaceId: 'ws-live-membership' }),
+        ]);
+      });
+    } finally {
+      await scope.dispose();
+    }
+  });
+
+  it('imports legacy lifecycle settings only once and persists the marker separately', async () => {
+    const repoPath = await makeRepo(root, 'legacy-config-repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-legacy-config', path: repoPath });
+    await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-legacy-config',
+      patch: { scripts: { setup: 'personal setup' }, autoRunRun: true },
+    });
+
+    const imported = await wire.client.importLegacyLifecycleSettings({
+      workspaceId: 'ws-legacy-config',
+      settings: {
+        scripts: { setup: 'legacy setup', teardown: 'legacy teardown' },
+        autoRunSetup: false,
+        autoRunRun: false,
+      },
+    });
+    expect(imported).toMatchObject({
+      success: true,
+      data: {
+        personalConfig: {
+          scripts: { setup: 'personal setup', teardown: 'legacy teardown' },
+          autoRunSetup: false,
+          autoRunRun: true,
+        },
+        legacyDesktopSettingsMigrated: true,
+      },
+    });
+
+    await wire.client.importLegacyLifecycleSettings({
+      workspaceId: 'ws-legacy-config',
+      settings: { scripts: { run: 'late legacy run' } },
+    });
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const restarted = await wire.client.getProjectConfig({ workspaceId: 'ws-legacy-config' });
+    expect(restarted).toMatchObject({
+      success: true,
+      data: {
+        personalConfig: {
+          scripts: { setup: 'personal setup', teardown: 'legacy teardown' },
+        },
+        legacyDesktopSettingsMigrated: true,
+      },
+    });
+    expect(restarted).not.toMatchObject({
+      data: { personalConfig: { scripts: { run: 'late legacy run' } } },
     });
   });
 
@@ -270,6 +649,10 @@ describe('workspace registry contract', () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktreePath = await makeWorktree(repoPath, root, 'hand-made');
+    await fs.writeFile(
+      path.join(worktreePath, '.emdash.json'),
+      JSON.stringify({ scripts: { run: 'adopted run' } })
+    );
 
     await wire.client.refresh({});
     let records = await listRecords();
@@ -280,6 +663,7 @@ describe('workspace registry contract', () => {
       parentId: 'ws-repo',
       gitAdminName: 'hand-made',
       observedStatus: 'present',
+      config: { scripts: { run: true }, parseError: false },
     });
 
     // Deleted on disk: the adopted record follows the disk and disappears.
@@ -364,13 +748,23 @@ describe('workspace registry contract', () => {
     git(repoPath, 'push', '-u', 'origin', 'main');
     // Gitignored artifacts: only the ones named in preservePatterns ride the
     // background copy; everything else ignored stays behind.
-    await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\nnode_modules/\n');
-    await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
+    await fs.writeFile(path.join(repoPath, '.gitignore'), '.env*\nnode_modules/\n');
+    await fs.writeFile(
+      path.join(repoPath, '.emdash.json'),
+      JSON.stringify({ preservePatterns: ['.env.team'] })
+    );
+    await fs.writeFile(path.join(repoPath, '.env.personal'), 'PERSONAL=1\n');
+    await fs.writeFile(path.join(repoPath, '.env.team'), 'TEAM=1\n');
+    await fs.writeFile(path.join(repoPath, '.env.input'), 'INPUT=1\n');
     await fs.mkdir(path.join(repoPath, 'node_modules', 'dep'), { recursive: true });
     await fs.writeFile(path.join(repoPath, 'node_modules', 'dep', 'index.js'), 'ok\n');
-    git(repoPath, 'add', '.gitignore');
+    git(repoPath, 'add', '.gitignore', '.emdash.json');
     git(repoPath, 'commit', '-m', 'ignore env');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-repo',
+      patch: { preservePatterns: ['.env.personal'] },
+    });
 
     const worktreePath = path.join(root, 'feature-wt');
     const created = await wire.client.createWorktree({
@@ -379,7 +773,7 @@ describe('workspace registry contract', () => {
       branch: 'feature/new',
       baseRef: 'main',
       path: worktreePath,
-      preservePatterns: ['.env'],
+      preservePatterns: ['.env.input'],
       pushBranch: true,
     });
     // The verb returns at agent-spawnable: worktree checked out, background pending.
@@ -411,7 +805,9 @@ describe('workspace registry contract', () => {
         status: 'succeeded',
       });
     });
-    await fs.access(path.join(created.data.path, '.env'));
+    await fs.access(path.join(created.data.path, '.env.personal'));
+    await expect(fs.access(path.join(created.data.path, '.env.team'))).rejects.toThrow();
+    await expect(fs.access(path.join(created.data.path, '.env.input'))).rejects.toThrow();
     // The unnamed ignored artifact (node_modules) is deliberately not copied.
     await expect(fs.access(path.join(created.data.path, 'node_modules'))).rejects.toThrow();
     // The copy step records the matched entry count for the Activity description.

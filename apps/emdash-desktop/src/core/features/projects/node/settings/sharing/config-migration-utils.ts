@@ -7,9 +7,9 @@ import type {
   ShareableProjectSettings,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
+import type { ProjectConfigMigrationWriter } from './config-migration';
 import { CONFIG_FILE } from './workspace-config-file';
 
 type ScriptField = Extract<ShareableProjectSettingsWriteField, `scripts.${string}`>;
@@ -69,14 +69,15 @@ export async function applyProjectConfigMigration(
   project: ProjectProvider,
   request: MigrateProjectConfigRequest,
   data: MigrationSettingsData,
-  migration: ProjectConfigMigration
+  migration: ProjectConfigMigration,
+  writer: ProjectConfigMigrationWriter
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   if (request.destination === 'local') {
-    const currentSettings = await project.settings.get();
-    const shareableSettings = mergeShareableProjectSettings(currentSettings, data.settings);
-    const updateResult = await project.settings.update({
-      ...currentSettings,
-      ...shareableSettings,
+    const updateResult = await writer.patchPersonalConfig({
+      ...(data.settings.preservePatterns !== undefined
+        ? { preservePatterns: [...data.settings.preservePatterns] }
+        : {}),
+      ...(data.settings.scripts ? { scripts: { ...data.settings.scripts } } : {}),
     });
     if (!updateResult.success) return updateResult;
     return ok(migration);
@@ -92,7 +93,7 @@ export async function applyProjectConfigMigration(
     return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);
   }
 
-  const clearResult = await project.settings.patch({ clearShareableFields: data.fields });
+  const clearResult = await writer.clearPersonalFields(data.fields);
   if (!clearResult.success) {
     log.warn('Failed to clear imported local project settings', clearResult.error);
     return writeConfigFailed(`Wrote ${CONFIG_FILE}, but failed to clear local project settings.`);

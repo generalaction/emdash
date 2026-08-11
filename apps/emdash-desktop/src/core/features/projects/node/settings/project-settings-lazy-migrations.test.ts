@@ -90,7 +90,6 @@ function makeProvider(options: {
   baseJson?: string;
   storage?: ProjectSettingsStorage;
   getRepoFacts?: () => Promise<RepoFacts | null>;
-  migrateAppWorktreeRoot?: () => Promise<void>;
   defaultBranchFallback?: string;
 }) {
   const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-lazy-migrations-'));
@@ -112,7 +111,6 @@ function makeProvider(options: {
       getProjectDefaults: () => Promise.resolve({ tmuxByDefault: false }),
       storage: options.storage ?? rowStorage!.storage,
       getRepoFacts: options.getRepoFacts,
-      migrateAppWorktreeRoot: options.migrateAppWorktreeRoot,
       worktreeDirectoryFileSystem: {
         mkdir: async () => ok(),
         realPath: async (targetPath) => ok(targetPath),
@@ -123,6 +121,41 @@ function makeProvider(options: {
 }
 
 describe('lazy settings migrations in the provider', () => {
+  it('keeps partial legacy lifecycle values retryable while exposing only current settings', async () => {
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: JSON.stringify({
+        worktreeDirectory: '/tmp/legacy-worktrees',
+        autoRunSetupScriptOnTaskCreation: false,
+      }),
+      shareableProjectSettingsJson: JSON.stringify({
+        preservePatterns: [],
+      }),
+      legacyConfigMigratedAt: new Date().toISOString(),
+    };
+    const originalRow = structuredClone(row);
+    const update = vi.fn(async (_projectId: string, patch: Partial<StoredProjectSettings>) => {
+      Object.assign(row, patch);
+    });
+    const storage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update,
+    };
+    const { provider } = makeProvider({ storage });
+
+    const settings = await provider.get();
+
+    expect(settings).toMatchObject({ worktreeDirectory: '/tmp/legacy-worktrees' });
+    expect(settings).not.toHaveProperty('autoRunSetupScriptOnTaskCreation');
+    expect(settings).not.toHaveProperty('preservePatterns');
+    expect(row).toEqual(originalRow);
+    expect(update).not.toHaveBeenCalled();
+    await expect(provider.readLegacyLifecycleSettings()).resolves.toEqual({
+      preservePatterns: [],
+      autoRunSetup: false,
+    });
+  });
+
   it('reads a row with all legacy forms back in the new model and rewrites it', async () => {
     const { provider, projectId, rowStorage } = makeProvider({
       baseJson: JSON.stringify({
@@ -233,21 +266,6 @@ describe('lazy settings migrations in the provider', () => {
     // No explicit choices: the effective questions are the resolver's job
     // (spec: github-git-settings §2), fed by this empty stored view.
     await expect(provider.getStoredGitSettings()).resolves.toEqual({});
-  });
-
-  it('runs the app worktree-root migration once per provider and retries failures', async () => {
-    let calls = 0;
-    const migrateAppWorktreeRoot = vi.fn(async () => {
-      calls += 1;
-      if (calls === 1) throw new Error('host settings unavailable');
-    });
-    const { provider } = makeProvider({ migrateAppWorktreeRoot });
-
-    await provider.get(); // fails, swallowed
-    await provider.get(); // retried, succeeds
-    await provider.get(); // done, not called again
-
-    expect(migrateAppWorktreeRoot).toHaveBeenCalledTimes(2);
   });
 
   it('persists updates in the stored model', async () => {

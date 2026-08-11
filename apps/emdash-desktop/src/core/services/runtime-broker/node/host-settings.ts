@@ -21,10 +21,3 @@ export async function hostSettingsDefaults(
   }
   return state.data.settings;
 }
-
-/** Workspace `.emdash.json` shellSetup overrides this; the project DB field was retired. */
-export async function hostDefaultShellSetup(
-  hostSettings: HostSettingsReader
-): Promise<string | undefined> {
-  return (await hostSettingsDefaults(hostSettings)).shellSetup;
-}

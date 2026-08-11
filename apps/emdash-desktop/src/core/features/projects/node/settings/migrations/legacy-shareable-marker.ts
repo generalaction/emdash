@@ -1,5 +1,5 @@
 import type { ShareableProjectSettings } from '@core/primitives/project-settings/api';
-import { compactUndefined, parseJsonObject } from './project-settings-json';
+import { compactUndefined, parseJsonObject } from '../project-settings-json';
 
 const LEGACY_SHAREABLE_CONFIG_MIGRATED_AT = '__legacyShareableConfigMigratedAt';
 

@@ -30,7 +30,7 @@ function stripTarget(target: ProjectSettingsWriteTargetOption): ProjectSettingsW
 export function stripResolvedTarget(
   target: ProjectSettingsResolvedTarget
 ): ProjectSettingsWriteTargetOption {
-  const { configPath: _configPath, files: _files, ...option } = target;
+  const { files: _files, ...option } = target;
   return option;
 }
 
@@ -82,6 +82,7 @@ async function resolveTaskTarget(
     taskId: task.id,
     label: task.name,
     path: targetPath,
+    ...(task.workspaceId ? { sourceWorkspaceId: task.workspaceId } : {}),
     files: resolvedFiles,
     configPath: configPath ?? project.configPathForDirectory(targetPath),
   };
@@ -104,6 +105,9 @@ export async function resolveAllProjectSettingsTargets(
     path: project.repoPath,
     files: project.files,
     configPath: project.projectConfigPath,
+    ...(project.project?.repositoryWorkspaceId
+      ? { sourceWorkspaceId: project.project.repositoryWorkspaceId }
+      : {}),
   };
   if (!projectRow) return [projectTarget];
 
@@ -154,6 +158,7 @@ export async function resolveProjectSettingsTarget(
       workspaceId: request.target.workspaceId,
       label: 'Workspace',
       path: workspace.path,
+      sourceWorkspaceId: request.target.workspaceId,
       files: filesClientScope(project.files.client, workspace.path),
       configPath: project.configPathForDirectory(workspace.path),
     };

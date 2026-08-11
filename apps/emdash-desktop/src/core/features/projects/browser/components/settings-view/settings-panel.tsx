@@ -1,4 +1,4 @@
-import { Spinner } from '@emdash/ui/react/primitives';
+import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import {
   asMounted,
@@ -15,23 +15,29 @@ export const SettingsPanel = observer(function SettingsPanel() {
   } = useCurrentViewParams(projectViewDef);
   const mounted = asMounted(getProjectStore(projectId));
   const store = getProjectSettingsStore(projectId);
-  const settings = store?.settings;
-  const storedGitSettings = store?.storedGitSettings;
-  const worktreeRootContext = store?.worktreeRootContext;
-  const writeTargets = store?.writeTargets;
-  const overrideState = store?.overrideState;
+  const domains = store?.domains;
   const configMigrations = store?.configMigrations;
 
-  if (
-    !mounted ||
-    !store ||
-    !settings ||
-    !storedGitSettings ||
-    !worktreeRootContext ||
-    !writeTargets ||
-    !overrideState ||
-    !configMigrations
-  ) {
+  if ((!domains || !configMigrations) && store?.pageData.error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium">Could not load project settings</p>
+          <p className="text-sm text-foreground-muted">{store.pageData.error}</p>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={store.pageData.loading}
+          onClick={() => void store.load()}
+        >
+          {store.pageData.loading ? 'Retrying…' : 'Retry'}
+        </Button>
+      </div>
+    );
+  }
+
+  if (!mounted || !store || !domains || !configMigrations) {
     return (
       <div className="flex items-center justify-center py-10">
         <Spinner />
@@ -44,11 +50,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
       key={projectId}
       projectId={projectId}
       projectType={mounted.data.type}
-      initial={settings}
-      storedGitSettings={storedGitSettings}
-      worktreeRootContext={worktreeRootContext}
-      writeTargets={writeTargets}
-      overrideState={overrideState}
+      domains={domains}
       configMigrations={configMigrations}
       onSuccess={() => {}}
       save={(s) => store.save(s)}

@@ -48,7 +48,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import { archiveTask } from '../../node/operations/archiveTask';
-import { createTask } from '../../node/operations/createTask';
+import { createTask, resolveProjectPreservePatterns } from '../../node/operations/createTask';
 import {
   deleteTask,
   type DeleteTaskInput,
@@ -265,11 +265,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           id: workspaceRow.id,
           host: access.data.identity.host,
           path: workspaceRow.path,
-          configPath: project.configPathForDirectory(workspaceRow.path),
           files: access.data.files,
-          settings: project.settings,
           tuiAgents: access.data.client.tuiAgents,
-          hostSettings: access.data.client.hostSettings,
+          workspaceRegistry: access.data.client.workspaceRegistry,
         },
         project.projectId,
         project.repoPath,
@@ -378,8 +376,16 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'The repository has no git remotes, so a pull request cannot be checked out.',
       });
     }
+    const preservePatterns = workspaceRow.parentId
+      ? await resolveProjectPreservePatterns(project, workspaceRow.parentId)
+      : null;
+    if (preservePatterns === null) {
+      return err({
+        stage: 'replay',
+        message: 'The project configuration could not be resolved.',
+      });
+    }
     const gitPlan = compileWorktreeGitPlan(config.git, { baseRemote });
-    const settings = await project.settings.get();
     const workspacePath = workspaceRow.path;
     return this.dependencies.creations.run(workspaceRow.id, () =>
       createWorktreeThroughRegistry(this.dependencies.runtimes, {
@@ -390,7 +396,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         branch: gitPlan.branch,
         ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
         path: workspacePath,
-        preservePatterns: settings.preservePatterns ?? [],
+        preservePatterns,
         pushBranch: gitPlan.pushBranch,
         ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
       })

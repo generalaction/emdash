@@ -1,16 +1,9 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { LiveLogSource } from '@emdash/wire/live';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire/rpc';
 import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
-import {
-  EMDASH_CONFIG_FILE,
-  parseEmdashConfig,
-  type EmdashScriptsConfig,
-} from '#primitives/emdash-config/api';
-import { readConfigFile } from '#services/config-model/node';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
@@ -38,29 +31,8 @@ const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const OUTPUT_TAIL_CAP = 16 * 1024;
 
-/** The workspace's script/shellSetup configuration, resolved fresh at each start. */
-export type WorkspaceScriptsConfig = {
-  scripts?: EmdashScriptsConfig;
-  shellSetup?: string;
-};
-
-/** The production config reader: the workspace's `.emdash.json`, read leniently. */
-export async function readWorkspaceScriptsConfig(
-  workspacePath: string
-): Promise<WorkspaceScriptsConfig> {
-  const entry = await readConfigFile(
-    path.join(workspacePath, EMDASH_CONFIG_FILE),
-    parseEmdashConfig
-  );
-  return { scripts: entry.data.scripts, shellSetup: entry.data.shellSetup };
-}
-
 export type ScriptsRuntimeOptions = {
   spawner: PtySpawner;
-  /** Reads the workspace's `.emdash.json` (the shared lenient reader in production). */
-  readConfig: (workspacePath: string) => Promise<WorkspaceScriptsConfig>;
-  /** The host-settings default shellSetup; `.emdash.json` overrides it when present. */
-  defaultShellSetup?: () => Promise<string | undefined>;
   /** Test seam for the dev-server URL detector's port liveness probe. */
   portProbe?: TerminalPortProbe;
   now?: () => number;
@@ -113,19 +85,16 @@ export class ScriptsRuntime {
   );
 
   private readonly registry: PtyRegistry;
-  private readonly readConfig: (workspacePath: string) => Promise<WorkspaceScriptsConfig>;
-  private readonly defaultShellSetup: (() => Promise<string | undefined>) | undefined;
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly now: () => number;
   private readonly logger: Logger;
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly active = new Map<string, ActiveRun>();
   private readonly previewSources = new Map<string, PreviewSource>();
+  private disposed = false;
 
   constructor(options: ScriptsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner);
-    this.readConfig = options.readConfig;
-    this.defaultShellSetup = options.defaultShellSetup;
     this.portProbe = options.portProbe;
     this.now = options.now ?? Date.now;
     this.logger = options.logger ?? noopLogger;
@@ -139,16 +108,6 @@ export class ScriptsRuntime {
         message: `Script '${input.script}' is already running for this workspace — stop it first`,
       });
     }
-
-    const config = await this.readConfig(input.workspacePath);
-    const command = config.scripts?.[input.script];
-    if (!command) {
-      return err({
-        type: 'script-not-configured',
-        message: `No '${input.script}' script is configured in .emdash.json`,
-      });
-    }
-    const shellSetup = config.shellSetup ?? (await this.defaultShellSetup?.());
 
     // Worker env verbatim + the host-derived EMDASH_* vars; deliberately no
     // CI=1 injection (spec: env parity — a documented breaking change).
@@ -168,8 +127,8 @@ export class ScriptsRuntime {
       session = await this.registry.create(
         runKey,
         spawnSpec({
-          command,
-          shellSetup,
+          command: input.command,
+          shellSetup: input.shellSetup,
           cwd: input.workspacePath,
           env,
           cols: input.cols ?? DEFAULT_COLS,
@@ -313,6 +272,7 @@ export class ScriptsRuntime {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const run of this.active.values()) {
       if (run.timer) clearTimeout(run.timer);
     }
@@ -331,6 +291,9 @@ export class ScriptsRuntime {
     runId: string,
     update: (current: ScriptRunState) => ScriptRunState
   ): void {
+    // PTY data/exit events may arrive after killAll returns. The state family is
+    // already gone during shutdown, so those late callbacks are intentionally inert.
+    if (this.disposed) return;
     this.runStates({ workspacePath: key.workspacePath }).update((previous) => {
       const current = previous[key.script];
       // A newer run may have replaced this one; never clobber it with stale data.
@@ -452,7 +415,7 @@ function notRunning(script: ScriptKind): ScriptRunNotFoundError {
 
 function spawnSpec(input: {
   command: string;
-  shellSetup: string | undefined;
+  shellSetup: string;
   cwd: string;
   env: Record<string, string>;
   cols: number;

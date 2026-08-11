@@ -1,31 +1,35 @@
-import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { err, ok, type Result } from '@emdash/shared';
-import { watchFileContent } from '@core/features/files/api/browser/file-content';
+import type { ProjectConfigState } from '@emdash/core/runtimes/workspace-registry/api';
+import { ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
+import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import {
   type MigrateProjectConfigRequest,
-  type MigrateProjectConfigResult,
   type ProjectConfigMigration,
-  type ProjectSettings,
-  type ProjectSettingsOverrideState,
-  type ProjectSettingsPage,
-  type ProjectSettingsWriteTargetOption,
-  type StoredProjectGitSettings,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import {
+  projectConfigDomainsFromState,
+  type MigrateProjectConfigResult,
+  type ProjectSettingsDomainPatch,
+  type ProjectSettingsDomains,
+  type ProjectSettingsPage,
+} from '../../project-settings-page';
+import { projectsWireContract } from '../../wire-contract';
 import { getProjectsWireClient } from '../client';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;
-  private _unsubscribeConfigWatch: () => void = () => {};
-  private readonly _unsubscribeSettingsChanged: () => void;
+  private readonly _configScope: Scope;
+  private _projectConfig: ProjectConfigState | null = null;
+  private _projectConfigRemote: RemoteModel<typeof projectsWireContract.projectConfig> | null =
+    null;
   private _disposed = false;
 
-  constructor(
-    private readonly projectId: string,
-    repositoryConfigFileRef?: HostFileRef
-  ) {
+  constructor(private readonly projectId: string) {
+    this._configScope = createScope({ label: `project-settings-config:${projectId}` });
     this.pageData = new Resource(async () => {
       const result = await (await getProjectsWireClient()).getProjectSettingsPage({ projectId });
       if (!result.success) {
@@ -38,51 +42,20 @@ export class ProjectSettingsStore {
       return result.data;
     }, [{ kind: 'demand' }]);
 
-    if (repositoryConfigFileRef) {
-      void watchFileContent(repositoryConfigFileRef, () => {
-        this.pageData.invalidate();
-      })
-        .then((unsubscribe) => {
-          if (this._disposed) unsubscribe();
-          else this._unsubscribeConfigWatch = unsubscribe;
-        })
-        .catch(() => {});
-    }
-
-    let unsubscribe: (() => void) | undefined;
-    void getProjectsWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.events.subscribe(undefined, {
-        onEvent: (event) => {
-          if (event.projectId === projectId) this.pageData.invalidate();
-        },
-        onGap: () => this.pageData.invalidate(),
-      });
-      if (this._disposed) nextUnsubscribe();
-      else unsubscribe = nextUnsubscribe;
+    makeObservable<this, '_projectConfig'>(this, {
+      _projectConfig: observable.ref,
+      domains: computed,
     });
-    this._unsubscribeSettingsChanged = () => unsubscribe?.();
+    this.bindProjectConfig();
   }
 
-  get settings(): ProjectSettings | null {
-    return this.pageData.data?.settings ?? null;
-  }
-
-  /** Stored explicit git choices (absence = infer) — the resolver input. */
-  get storedGitSettings(): StoredProjectGitSettings | null {
-    return this.pageData.data?.storedGitSettings ?? null;
-  }
-
-  /** The worktree-root layers below the per-project override (spec §6). */
-  get worktreeRootContext(): ProjectSettingsPage['worktreeRootContext'] | null {
-    return this.pageData.data?.worktreeRootContext ?? null;
-  }
-
-  get writeTargets(): ProjectSettingsWriteTargetOption[] | null {
-    return this.pageData.data?.writeTargets ?? null;
-  }
-
-  get overrideState(): ProjectSettingsOverrideState | null {
-    return this.pageData.data?.overrideState ?? null;
+  get domains(): ProjectSettingsDomains | null {
+    const domains = this.pageData.data?.domains;
+    if (!domains || !this._projectConfig) return domains ?? null;
+    return {
+      ...domains,
+      ...projectConfigDomainsFromState(this._projectConfig, domains.lifecycle.writeTargets),
+    };
   }
 
   get configMigrations(): ProjectConfigMigration[] | null {
@@ -98,24 +71,18 @@ export class ProjectSettingsStore {
     return this.pageData.data;
   }
 
-  /**
-   * Persists the settings, then reloads the page so callers see the canonical
-   * stored model (node may lazily demote values matching inference on read).
-   */
   async save(
-    settings: ProjectSettings
+    patch: ProjectSettingsDomainPatch
   ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
     const result = await (
       await getProjectsWireClient()
     ).updateProjectSettings({
       projectId: this.projectId,
-      settings,
+      patch,
     });
     if (!result.success) return result;
-    await this.pageData.load();
-    const page = this.pageData.data;
-    if (!page) return err({ type: 'error' });
-    return ok(page);
+    this.pageData.setValue(result.data);
+    return ok(result.data);
   }
 
   async writeConfigToRepo(
@@ -150,8 +117,33 @@ export class ProjectSettingsStore {
 
   dispose(): void {
     this._disposed = true;
-    this._unsubscribeConfigWatch();
-    this._unsubscribeSettingsChanged();
+    void this._configScope.dispose();
+    void this._projectConfigRemote?.dispose();
     this.pageData.dispose();
+  }
+
+  private bindProjectConfig(): void {
+    void getProjectsWireClient()
+      .then((client) => {
+        if (this._disposed) return;
+        const config = remote(projectsWireContract.projectConfig, client.projectConfig, {
+          scope: this._configScope,
+        });
+        const current = config({ projectId: this.projectId }).states.current;
+        pin(this._configScope, [current]);
+        observe(
+          current,
+          (snapshot) => {
+            if (snapshot.value === undefined) return;
+            runInAction(() => {
+              this._projectConfig = snapshot.value ?? null;
+            });
+          },
+          { scope: this._configScope, immediate: true }
+        );
+        this._projectConfigRemote = config;
+        if (this._disposed) void config.dispose();
+      })
+      .catch(() => {});
   }
 }

@@ -1,8 +1,9 @@
+import { promises as fs } from 'node:fs';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { scriptsContract } from '#runtimes/scripts/api';
-import { ScriptsRuntime, type WorkspaceScriptsConfig } from '#runtimes/scripts/node/runtime';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { scriptsContract, startScriptRunInputSchema } from '#runtimes/scripts/api';
+import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
 import { FakePtySpawner } from '#services/pty/testing';
 import { createScriptsController } from './controller';
 
@@ -13,20 +14,11 @@ describe('scripts runtime contract', () => {
   let spawner: FakePtySpawner;
   let runtime: ScriptsRuntime;
   let wire: TestWire<typeof scriptsContract>;
-  let config: WorkspaceScriptsConfig;
-  let hostShellSetup: string | undefined;
 
   beforeEach(() => {
     spawner = new FakePtySpawner();
-    config = {
-      scripts: { prepare: 'echo prepare', setup: 'pnpm install', run: 'pnpm dev' },
-      shellSetup: undefined,
-    };
-    hostShellSetup = undefined;
     runtime = new ScriptsRuntime({
       spawner,
-      readConfig: async () => config,
-      defaultShellSetup: async () => hostShellSetup,
       portProbe: async () => true,
     });
     wire = createTestWire(scriptsContract, createScriptsController(runtime));
@@ -49,14 +41,37 @@ describe('scripts runtime contract', () => {
   }
 
   function start(script: 'prepare' | 'setup' | 'run', overrides: Record<string, unknown> = {}) {
+    const commands = {
+      prepare: 'echo prepare',
+      setup: 'pnpm install',
+      run: 'pnpm dev',
+    };
     return wire.client.start({
       workspacePath: WORKSPACE,
       script,
       provenance: 'activation',
       facts: FACTS,
+      command: commands[script],
+      shellSetup: '',
       ...overrides,
     });
   }
+
+  it('requires callers to supply command and resolved shellSetup', () => {
+    const input = {
+      workspacePath: WORKSPACE,
+      script: 'setup',
+      provenance: 'manual',
+      facts: FACTS,
+      command: 'pnpm install',
+      shellSetup: '',
+    };
+    expect(startScriptRunInputSchema.safeParse(input).success).toBe(true);
+    const { command: _command, ...withoutCommand } = input;
+    expect(startScriptRunInputSchema.safeParse(withoutCommand).success).toBe(false);
+    const { shellSetup: _shellSetup, ...withoutShellSetup } = input;
+    expect(startScriptRunInputSchema.safeParse(withoutShellSetup).success).toBe(false);
+  });
 
   it('runs a script to success: spawn spec, run state, exit code, and tail retention', async () => {
     const started = await start('setup', { provenance: 'manual' });
@@ -147,10 +162,10 @@ describe('scripts runtime contract', () => {
     expect(runs.setup?.status).toBe('succeeded');
   });
 
-  it('start fails cleanly when the script is not configured', async () => {
-    config = { scripts: { setup: 'x' } };
-    const result = await start('prepare');
-    expect(!result.success && result.error.type).toBe('script-not-configured');
+  it('executes the supplied command', async () => {
+    const result = await start('setup', { command: 'echo personal setup' });
+    expect(result.success).toBe(true);
+    expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe('echo personal setup');
   });
 
   it('stop and wait on a workspace with no runs return not-found', async () => {
@@ -194,13 +209,19 @@ describe('scripts runtime contract', () => {
     }
   });
 
-  it('shellSetup: .emdash.json overrides the host default; host default applies otherwise', async () => {
-    hostShellSetup = 'source /etc/host-profile';
-    await start('setup');
-    expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe('source /etc/host-profile\npnpm install');
-
-    config = { ...config, shellSetup: 'source ~/.workspace-profile' };
-    await start('prepare');
-    expect(spawner.specs[1]!.args?.slice(-1)[0]).toBe('source ~/.workspace-profile\necho prepare');
+  it('uses exactly the supplied command and shellSetup without reading config files', async () => {
+    const readFile = vi.spyOn(fs, 'readFile');
+    try {
+      await start('setup', {
+        command: 'echo supplied command',
+        shellSetup: 'source /supplied/profile',
+      });
+      expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe(
+        'source /supplied/profile\necho supplied command'
+      );
+      expect(readFile).not.toHaveBeenCalled();
+    } finally {
+      readFile.mockRestore();
+    }
   });
 });

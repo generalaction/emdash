@@ -54,6 +54,7 @@ export type ConfigModelOptions<T> = {
 export class ConfigModel<T> {
   private readonly entries = new Map<string, T>();
   private readonly reads = new Map<string, Promise<T>>();
+  private readonly revisions = new Map<string, number>();
   private readonly options: ConfigModelOptions<T>;
   private disposed = false;
 
@@ -65,22 +66,29 @@ export class ConfigModel<T> {
     return this.entries.get(key);
   }
 
+  /** Seeds a known fallback without reading or firing change side effects. */
+  seed(key: string, entry: T): void {
+    if (!this.disposed && !this.entries.has(key)) this.entries.set(key, entry);
+  }
+
   /** Coalesced: concurrent refreshes of one key share a single read. */
   refresh(key: string, source: string): Promise<T> {
     const inFlight = this.reads.get(key);
     if (inFlight) return inFlight;
+    const revision = this.revisions.get(key) ?? 0;
     const read = (async () => {
       const entry = await this.options.read(key, source);
       // Reads are often fire-and-forget; a disposed model must never store or
-      // fire callbacks into a torn-down host.
-      if (this.disposed) return entry;
+      // fire callbacks into a torn-down host. A delete also invalidates any read
+      // already in flight so removal cannot resurrect a stale model entry.
+      if (this.disposed || (this.revisions.get(key) ?? 0) !== revision) return entry;
       const previous = this.entries.get(key);
       this.entries.set(key, entry);
       const changed = previous === undefined || JSON.stringify(previous) !== JSON.stringify(entry);
       if (changed) this.options.onChanged?.(key, entry, previous, source);
       return entry;
     })().finally(() => {
-      this.reads.delete(key);
+      if (this.reads.get(key) === read) this.reads.delete(key);
     });
     this.reads.set(key, read);
     return read;
@@ -88,6 +96,8 @@ export class ConfigModel<T> {
 
   delete(key: string): void {
     this.entries.delete(key);
+    this.revisions.set(key, (this.revisions.get(key) ?? 0) + 1);
+    this.reads.delete(key);
   }
 
   dispose(): void {

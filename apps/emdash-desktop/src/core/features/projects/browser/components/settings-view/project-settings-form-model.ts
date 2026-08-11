@@ -8,28 +8,33 @@ import type {
   StoredGithubAccount,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
+import type {
+  ProjectFileHandlingDomainSnapshot,
+  ProjectGitIdentityDomainSnapshot,
+  ProjectLifecycleDomainSnapshot,
+  ProjectPlacementDomainSnapshot,
+  ProjectSettingsDomainPatch,
+  ProjectSettingsDomains,
+} from '../../../api/project-settings-page';
 import {
   SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
   SHAREABLE_FIELD_DESCRIPTORS,
-  SHAREABLE_FIELD_FORM_KEY,
 } from './shareable-project-settings-fields';
 
-/**
- * Git fields hold the stored model semantics (spec: github-git-settings §3):
- * empty string / null / undefined mean "not set — infer live"; provenance
- * over the pending form state comes from running the blessed resolver via
- * `formToStoredGitSettings`.
- */
-export type FormState = {
-  preservePatterns: string;
-  tmux: boolean;
-  autoRunSetupScriptOnTaskCreation: boolean;
-  autoRunRunScriptOnTaskCreation: boolean;
+export type LifecycleFormState = {
+  autoRunSetupScriptOnTaskCreation: boolean | undefined;
+  autoRunRunScriptOnTaskCreation: boolean | undefined;
   scriptPrepare: string;
   scriptSetup: string;
   scriptRun: string;
   scriptTeardown: string;
-  worktreeDirectory: string;
+};
+
+export type FileHandlingFormState = {
+  preservePatterns: string;
+};
+
+export type GitIdentityFormState = {
   defaultBranch: GitBranchRef | null;
   baseRemote: string;
   pushRemote: string;
@@ -37,11 +42,26 @@ export type FormState = {
   agentGitCredentials: AgentGitCredentialsSetting;
 };
 
-export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+export type PlacementFormState = {
+  tmux: boolean;
+  worktreeDirectory: string;
+};
 
-function normalizeScript(val: string | string[] | undefined): string {
-  if (Array.isArray(val)) return val.join('\n');
-  return val ?? '';
+export type FormState = {
+  lifecycle: LifecycleFormState;
+  fileHandling: FileHandlingFormState;
+  gitIdentity: GitIdentityFormState;
+  placement: PlacementFormState;
+};
+
+export type FormSection = keyof FormState;
+export type FormFieldPath = {
+  [S in FormSection]: `${S}.${Extract<keyof FormState[S], string>}`;
+}[FormSection];
+export type FormUpdate<T> = <K extends keyof T>(key: K, value: T[K]) => void;
+
+function normalizeScript(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value.join('\n') : (value ?? '');
 }
 
 function blankToUndefined(value: string): string | undefined {
@@ -68,90 +88,289 @@ function branchRefToStoredDefaultBranch(ref: GitBranchRef): StoredDefaultBranch 
     : { remote: null, branch: ref.branch };
 }
 
+export function lifecycleToForm(domain: ProjectLifecycleDomainSnapshot): LifecycleFormState {
+  return {
+    autoRunSetupScriptOnTaskCreation: domain.personal.autoRunSetup,
+    autoRunRunScriptOnTaskCreation: domain.personal.autoRunRun,
+    scriptPrepare: normalizeScript(domain.personal.scripts?.prepare),
+    scriptSetup: normalizeScript(domain.personal.scripts?.setup),
+    scriptRun: normalizeScript(domain.personal.scripts?.run),
+    scriptTeardown: normalizeScript(domain.personal.scripts?.teardown),
+  };
+}
+
+export function fileHandlingToForm(
+  domain: ProjectFileHandlingDomainSnapshot
+): FileHandlingFormState {
+  return { preservePatterns: (domain.personal.preservePatterns ?? []).join('\n') };
+}
+
+export function gitIdentityToForm(
+  domain: ProjectGitIdentityDomainSnapshot,
+  remotes: { name: string; url: string }[]
+): GitIdentityFormState {
+  return {
+    defaultBranch: storedDefaultBranchToBranchRef(domain.stored.defaultBranch, remotes),
+    baseRemote: domain.stored.baseRemote ?? '',
+    pushRemote: domain.stored.pushRemote ?? '',
+    githubAccount: domain.stored.githubAccount,
+    agentGitCredentials: domain.stored.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
+  };
+}
+
+export function placementToForm(domain: ProjectPlacementDomainSnapshot): PlacementFormState {
+  return {
+    tmux: domain.stored.tmux ?? false,
+    worktreeDirectory: domain.stored.worktreeRoot ?? '',
+  };
+}
+
+export function projectSettingsDomainsToForm(
+  domains: ProjectSettingsDomains,
+  remotes: { name: string; url: string }[]
+): FormState {
+  return {
+    lifecycle: lifecycleToForm(domains.lifecycle),
+    fileHandling: fileHandlingToForm(domains.fileHandling),
+    gitIdentity: gitIdentityToForm(domains.gitIdentity, remotes),
+    placement: placementToForm(domains.placement),
+  };
+}
+
+function isTouched(
+  touchedFields: ReadonlySet<FormFieldPath> | undefined,
+  field: FormFieldPath
+): boolean {
+  return !touchedFields || touchedFields.has(field);
+}
+
+export function lifecycleToPatch(
+  form: LifecycleFormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch['lifecycle'] | undefined {
+  const scripts: NonNullable<
+    NonNullable<ProjectSettingsDomainPatch['lifecycle']>['personal']['scripts']
+  > = {};
+  const scriptFields = {
+    prepare: ['scriptPrepare', form.scriptPrepare],
+    setup: ['scriptSetup', form.scriptSetup],
+    run: ['scriptRun', form.scriptRun],
+    teardown: ['scriptTeardown', form.scriptTeardown],
+  } as const;
+  for (const [script, [field, value]] of Object.entries(scriptFields) as [
+    keyof typeof scriptFields,
+    (typeof scriptFields)[keyof typeof scriptFields],
+  ][]) {
+    if (!isTouched(touchedFields, `lifecycle.${field}`)) continue;
+    scripts[script] = blankToUndefined(value) ?? null;
+  }
+
+  const personal: NonNullable<ProjectSettingsDomainPatch['lifecycle']>['personal'] = {};
+  if (Object.keys(scripts).length > 0) personal.scripts = scripts;
+  if (isTouched(touchedFields, 'lifecycle.autoRunSetupScriptOnTaskCreation')) {
+    personal.autoRunSetup = form.autoRunSetupScriptOnTaskCreation ?? null;
+  }
+  if (isTouched(touchedFields, 'lifecycle.autoRunRunScriptOnTaskCreation')) {
+    personal.autoRunRun = form.autoRunRunScriptOnTaskCreation ?? null;
+  }
+  return Object.keys(personal).length > 0 ? { personal } : undefined;
+}
+
+export function fileHandlingToPatch(
+  form: FileHandlingFormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch['fileHandling'] | undefined {
+  if (!isTouched(touchedFields, 'fileHandling.preservePatterns')) return undefined;
+  const preservePatterns = parsePreservePatterns(form.preservePatterns);
+  return {
+    personal: { preservePatterns: preservePatterns.length > 0 ? preservePatterns : null },
+  };
+}
+
+export function gitIdentityToPatch(
+  form: GitIdentityFormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch['gitIdentity'] | undefined {
+  const stored: NonNullable<ProjectSettingsDomainPatch['gitIdentity']>['stored'] = {};
+  if (isTouched(touchedFields, 'gitIdentity.defaultBranch')) {
+    stored.defaultBranch = form.defaultBranch
+      ? branchRefToStoredDefaultBranch(form.defaultBranch)
+      : null;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.baseRemote')) {
+    stored.baseRemote = blankToUndefined(form.baseRemote) ?? null;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.pushRemote')) {
+    const pushRemote =
+      form.pushRemote.trim() && form.pushRemote.trim() !== form.baseRemote.trim()
+        ? form.pushRemote.trim()
+        : undefined;
+    stored.pushRemote = pushRemote ?? null;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.githubAccount')) {
+    stored.githubAccount = form.githubAccount ?? null;
+  }
+  if (isTouched(touchedFields, 'gitIdentity.agentGitCredentials')) {
+    stored.agentGitCredentials =
+      form.agentGitCredentials === DEFAULT_AGENT_GIT_CREDENTIALS ? null : form.agentGitCredentials;
+  }
+  return Object.keys(stored).length > 0 ? { stored } : undefined;
+}
+
+export function placementToPatch(
+  form: PlacementFormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch['placement'] | undefined {
+  const stored: NonNullable<ProjectSettingsDomainPatch['placement']>['stored'] = {};
+  if (isTouched(touchedFields, 'placement.worktreeDirectory')) {
+    stored.worktreeRoot = blankToUndefined(form.worktreeDirectory) ?? null;
+  }
+  if (isTouched(touchedFields, 'placement.tmux')) stored.tmux = form.tmux;
+  return Object.keys(stored).length > 0 ? { stored } : undefined;
+}
+
+export function formToProjectSettingsDomainPatch(
+  form: FormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch {
+  const lifecycle = lifecycleToPatch(form.lifecycle, touchedFields);
+  const fileHandling = fileHandlingToPatch(form.fileHandling, touchedFields);
+  const gitIdentity = gitIdentityToPatch(form.gitIdentity, touchedFields);
+  const placement = placementToPatch(form.placement, touchedFields);
+  return {
+    ...(lifecycle ? { lifecycle } : {}),
+    ...(fileHandling ? { fileHandling } : {}),
+    ...(gitIdentity ? { gitIdentity } : {}),
+    ...(placement ? { placement } : {}),
+  };
+}
+
+function parsePreservePatterns(value: string): string[] {
+  return value
+    .split('\n')
+    .map((pattern) => pattern.trim())
+    .filter(Boolean);
+}
+
+export function effectiveAutoRunToggleValue(
+  personalValue: boolean | undefined,
+  resolvedValue: boolean
+): boolean {
+  return personalValue ?? resolvedValue;
+}
+
+/** Compatibility conversion for the remaining legacy settings-hook payload. */
 export function settingsToForm(
-  s: ProjectSettings,
+  settings: ProjectSettings,
   storedGitSettings: StoredProjectGitSettings,
   remotes: { name: string; url: string }[]
 ): FormState {
   return {
-    preservePatterns: (s.preservePatterns ?? []).join('\n'),
-    tmux: s.tmux ?? false,
-    autoRunSetupScriptOnTaskCreation: s.autoRunSetupScriptOnTaskCreation ?? true,
-    autoRunRunScriptOnTaskCreation: s.autoRunRunScriptOnTaskCreation ?? false,
-    scriptPrepare: normalizeScript(s.scripts?.prepare),
-    scriptSetup: normalizeScript(s.scripts?.setup),
-    scriptRun: normalizeScript(s.scripts?.run),
-    scriptTeardown: normalizeScript(s.scripts?.teardown),
-    worktreeDirectory: storedGitSettings.worktreeRoot ?? '',
-    defaultBranch: storedDefaultBranchToBranchRef(storedGitSettings.defaultBranch, remotes),
-    baseRemote: storedGitSettings.baseRemote ?? '',
-    pushRemote: storedGitSettings.pushRemote ?? '',
-    githubAccount: storedGitSettings.githubAccount,
-    agentGitCredentials: s.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
+    lifecycle: {
+      autoRunSetupScriptOnTaskCreation: settings.autoRunSetupScriptOnTaskCreation ?? true,
+      autoRunRunScriptOnTaskCreation: settings.autoRunRunScriptOnTaskCreation ?? false,
+      scriptPrepare: normalizeScript(settings.scripts?.prepare),
+      scriptSetup: normalizeScript(settings.scripts?.setup),
+      scriptRun: normalizeScript(settings.scripts?.run),
+      scriptTeardown: normalizeScript(settings.scripts?.teardown),
+    },
+    fileHandling: {
+      preservePatterns: (settings.preservePatterns ?? []).join('\n'),
+    },
+    gitIdentity: {
+      defaultBranch: storedDefaultBranchToBranchRef(storedGitSettings.defaultBranch, remotes),
+      baseRemote: storedGitSettings.baseRemote ?? '',
+      pushRemote: storedGitSettings.pushRemote ?? '',
+      githubAccount: storedGitSettings.githubAccount,
+      agentGitCredentials:
+        settings.agentGitCredentials ??
+        storedGitSettings.agentGitCredentials ??
+        DEFAULT_AGENT_GIT_CREDENTIALS,
+    },
+    placement: {
+      tmux: settings.tmux ?? false,
+      worktreeDirectory: storedGitSettings.worktreeRoot ?? '',
+    },
   };
 }
 
-export function formToSettings(f: FormState): ProjectSettings {
+export function formToSettings(form: FormState): ProjectSettings {
+  const { lifecycle, fileHandling, gitIdentity, placement } = form;
   let defaultBranch: ProjectSettings['defaultBranch'];
-  if (f.defaultBranch) {
+  if (gitIdentity.defaultBranch) {
     defaultBranch =
-      f.defaultBranch.type === 'remote'
-        ? `${f.defaultBranch.remote.name}/${f.defaultBranch.branch}`
-        : f.defaultBranch.branch;
+      gitIdentity.defaultBranch.type === 'remote'
+        ? `${gitIdentity.defaultBranch.remote.name}/${gitIdentity.defaultBranch.branch}`
+        : gitIdentity.defaultBranch.branch;
   }
-  const preservePatterns = f.preservePatterns
-    .split('\n')
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const preservePatterns = parsePreservePatterns(fileHandling.preservePatterns);
   const scripts = {
-    prepare: blankToUndefined(f.scriptPrepare),
-    setup: blankToUndefined(f.scriptSetup),
-    run: blankToUndefined(f.scriptRun),
-    teardown: blankToUndefined(f.scriptTeardown),
+    prepare: blankToUndefined(lifecycle.scriptPrepare),
+    setup: blankToUndefined(lifecycle.scriptSetup),
+    run: blankToUndefined(lifecycle.scriptRun),
+    teardown: blankToUndefined(lifecycle.scriptTeardown),
   };
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
-    tmux: f.tmux,
-    ...(f.autoRunSetupScriptOnTaskCreation ? {} : { autoRunSetupScriptOnTaskCreation: false }),
-    ...(f.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),
+    tmux: placement.tmux,
+    ...(lifecycle.autoRunSetupScriptOnTaskCreation
+      ? {}
+      : { autoRunSetupScriptOnTaskCreation: false }),
+    ...(lifecycle.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),
     scripts: hasScripts ? scripts : undefined,
-    worktreeDirectory: blankToUndefined(f.worktreeDirectory),
+    worktreeDirectory: blankToUndefined(placement.worktreeDirectory),
     defaultBranch,
-    baseRemote: blankToUndefined(f.baseRemote),
+    baseRemote: blankToUndefined(gitIdentity.baseRemote),
     pushRemote:
-      f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
-        ? f.pushRemote.trim()
+      gitIdentity.pushRemote.trim() &&
+      gitIdentity.pushRemote.trim() !== gitIdentity.baseRemote.trim()
+        ? gitIdentity.pushRemote.trim()
         : undefined,
-    ...(f.githubAccount !== undefined
-      ? { githubAccountId: f.githubAccount.kind === 'account' ? f.githubAccount.accountId : null }
+    ...(gitIdentity.githubAccount !== undefined
+      ? {
+          githubAccountId:
+            gitIdentity.githubAccount.kind === 'account'
+              ? gitIdentity.githubAccount.accountId
+              : null,
+        }
       : {}),
-    // Absence means the default (effective-account); only deviations persist.
-    ...(f.agentGitCredentials !== DEFAULT_AGENT_GIT_CREDENTIALS
-      ? { agentGitCredentials: f.agentGitCredentials }
+    ...(gitIdentity.agentGitCredentials !== DEFAULT_AGENT_GIT_CREDENTIALS
+      ? { agentGitCredentials: gitIdentity.agentGitCredentials }
       : {}),
   };
 }
 
-/**
- * The pending form state as resolver input: only explicit choices, blank
- * meaning "infer". Runs the same drop-if-blank rules as `formToSettings` so
- * the provenance preview matches exactly what a save would persist.
- */
-export function formToStoredGitSettings(f: FormState): StoredProjectGitSettings {
-  const baseRemote = blankToUndefined(f.baseRemote);
+export function formToStoredGitSettings(
+  form: Pick<FormState, 'gitIdentity' | 'placement'>
+): StoredProjectGitSettings {
+  const { gitIdentity, placement } = form;
+  const baseRemote = blankToUndefined(gitIdentity.baseRemote);
   const pushRemote =
-    f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
-      ? f.pushRemote.trim()
+    gitIdentity.pushRemote.trim() && gitIdentity.pushRemote.trim() !== gitIdentity.baseRemote.trim()
+      ? gitIdentity.pushRemote.trim()
       : undefined;
-  const worktreeRoot = blankToUndefined(f.worktreeDirectory);
+  const worktreeRoot = blankToUndefined(placement.worktreeDirectory);
   return {
     ...(baseRemote !== undefined ? { baseRemote } : {}),
     ...(pushRemote !== undefined ? { pushRemote } : {}),
-    ...(f.defaultBranch ? { defaultBranch: branchRefToStoredDefaultBranch(f.defaultBranch) } : {}),
-    ...(f.githubAccount !== undefined ? { githubAccount: f.githubAccount } : {}),
+    ...(gitIdentity.defaultBranch
+      ? { defaultBranch: branchRefToStoredDefaultBranch(gitIdentity.defaultBranch) }
+      : {}),
+    ...(gitIdentity.githubAccount !== undefined
+      ? { githubAccount: gitIdentity.githubAccount }
+      : {}),
     ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
   };
+}
+
+export function shareableFieldFormValue(
+  form: FormState,
+  field: ShareableProjectSettingsWriteField
+): string {
+  if (field === 'preservePatterns') return form.fileHandling.preservePatterns;
+  const key = SHAREABLE_FIELD_DESCRIPTOR_BY_ID[field].formKey;
+  return form.lifecycle[key as keyof LifecycleFormState] as string;
 }
 
 export function normalizeShareableFieldValue(
@@ -163,10 +382,10 @@ export function normalizeShareableFieldValue(
 
 export function getAvailableWriteFields(form: FormState): ShareableProjectSettingsWriteField[] {
   return SHAREABLE_FIELD_DESCRIPTORS.map((descriptor) => descriptor.id).filter((field) =>
-    String(form[SHAREABLE_FIELD_FORM_KEY[field]]).trim()
+    shareableFieldFormValue(form, field).trim()
   );
 }
 
-export function areFormStatesEqual(a: FormState, b: FormState): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+export function areFormStatesEqual(left: FormState, right: FormState): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }

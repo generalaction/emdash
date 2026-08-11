@@ -326,19 +326,13 @@ function startDesktopWorkersWithHost(
     })
   );
   const hostSettingsReady = timedReady('host-settings', hostSettingsWorker.ready());
-  const scriptsReady = timedReady(
-    'scripts',
-    hostSettingsReady.then(async (hostSettings) => {
-      const worker = host.create(
-        ...scriptsWorkerSpec({
-          executable: desktopWorkerPath('scripts'),
-          env: process.env,
-          dependencies: { hostSettings },
-        })
-      );
-      return await worker.ready();
+  const scriptsWorker = host.create(
+    ...scriptsWorkerSpec({
+      executable: desktopWorkerPath('scripts'),
+      env: process.env,
     })
   );
+  const scriptsReady = timedReady('scripts', scriptsWorker.ready());
 
   const watcherReady = timedReady('fs-watch', fsWatchWorker.ready());
   const acpReady = timedReady(
@@ -417,19 +411,31 @@ function startDesktopWorkersWithHost(
   );
   const workspaceRegistryReady = timedReady(
     'workspace-registry',
-    Promise.all([watcherReady, acpReady, terminalsReady, tuiAgentsReady, scriptsReady]).then(
-      async ([watcher, acp, terminals, tuiAgents, scripts]) => {
-        const worker = host.create(
-          ...workspaceRegistryWorkerSpec({
-            executable: desktopWorkerPath('workspace-registry'),
-            env: process.env,
-            dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client, scripts },
-            databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
-          })
-        );
-        return await worker.ready();
-      }
-    )
+    Promise.all([
+      watcherReady,
+      acpReady,
+      terminalsReady,
+      tuiAgentsReady,
+      scriptsReady,
+      hostSettingsReady,
+    ]).then(async ([watcher, acp, terminals, tuiAgents, scripts, hostSettings]) => {
+      const worker = host.create(
+        ...workspaceRegistryWorkerSpec({
+          executable: desktopWorkerPath('workspace-registry'),
+          env: process.env,
+          dependencies: {
+            watcher,
+            acp,
+            terminals,
+            tuiAgents: tuiAgents.client,
+            scripts,
+            hostSettings,
+          },
+          databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+        })
+      );
+      return await worker.ready();
+    })
   );
   const automationsWorkerRef: { current: WireWorker<AutomationsContract> | undefined } = {
     current: undefined,

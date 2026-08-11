@@ -1,19 +1,18 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
-import { ok, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import {
   resolveProjectEffectiveSettings,
   type RepoFactsSource,
 } from '@core/features/projects/api/node/settings/effective-settings';
-import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { Workspace } from '@core/features/workspaces/api/node/workspace';
 import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import type { Task } from '@core/primitives/tasks/api';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
-import { hostDefaultShellSetup } from '@core/services/runtime-broker/node/host-settings';
+import { getProjectConfigEnsuringRegistration } from './registry-verbs';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 
@@ -30,6 +29,19 @@ export type TaskProviderOpts = {
   taskEnvVars: Record<string, string>;
 };
 
+export type ResolveTaskEnvError = {
+  type: 'setup-failed';
+  stepKind: 'resolve-project-config';
+  stepErrorType: string;
+  message: string;
+};
+
+export type ResolvedTaskEnv = {
+  taskEnvVars: Record<string, string>;
+  tmuxEnabled: boolean;
+  shellSetup?: string;
+};
+
 export async function buildTaskProviders(
   opts: TaskProviderOpts,
   createConversationProvider: (options: TaskProviderOpts) => ConversationProvider
@@ -41,26 +53,28 @@ export async function buildTaskProviders(
 
 export async function resolveTaskEnv(
   task: Pick<Task, 'id' | 'name'>,
-  workspace: Pick<Workspace, 'path' | 'files' | 'configPath' | 'hostSettings'>,
+  workspace: Pick<Workspace, 'id' | 'path' | 'workspaceRegistry'>,
   projectPath: string,
   settings: ProjectSettingsProvider,
   repoFacts: RepoFactsSource
-): Promise<{
-  taskEnvVars: Record<string, string>;
-  tmuxEnabled: boolean;
-  shellSetup?: string;
-}> {
-  const projectSettings = await settings.get();
+): Promise<Result<ResolvedTaskEnv, ResolveTaskEnvError>> {
   // Effective default branch through the blessed resolver (spec:
   // github-git-settings §2); null (unresolvable) omits the env var.
   const effective = await resolveProjectEffectiveSettings({ settings, repoFacts });
   const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-  const taskLevelSettings = await getEffectiveTaskSettings({
-    projectSettings: settings,
-    taskFiles: workspace.files,
-    taskConfigPath: workspace.configPath,
-  });
-  return {
+  const [placement, projectConfig] = await Promise.all([
+    settings.getStoredPlacementSettings(),
+    getProjectConfigEnsuringRegistration(workspace.workspaceRegistry, workspace.id, workspace.path),
+  ]);
+  if (!projectConfig.success) {
+    return err({
+      type: 'setup-failed',
+      stepKind: 'resolve-project-config',
+      stepErrorType: projectConfig.error.type,
+      message: `Could not resolve project config for workspace ${workspace.id} (${projectConfig.error.type})`,
+    });
+  }
+  return ok({
     taskEnvVars: getTaskEnvVars({
       taskId: task.id,
       taskName: task.name,
@@ -69,10 +83,7 @@ export async function resolveTaskEnv(
       defaultBranch,
       portSeed: workspace.path,
     }),
-    tmuxEnabled: projectSettings.tmux ?? false,
-    // Workspace .emdash.json overrides the per-host default (host-settings runtime);
-    // the per-project DB shellSetup field was retired.
-    shellSetup:
-      taskLevelSettings.shellSetup ?? (await hostDefaultShellSetup(workspace.hostSettings)),
-  };
+    tmuxEnabled: placement.tmux ?? false,
+    shellSetup: projectConfig.data.resolved.shellSetup?.value,
+  });
 }

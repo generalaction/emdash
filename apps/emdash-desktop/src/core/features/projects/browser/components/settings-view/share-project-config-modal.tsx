@@ -7,13 +7,13 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type {
-  ProjectSettingsPage,
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type { ProjectSettingsPage } from '../../../api/project-settings-page';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';

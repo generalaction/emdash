@@ -9,6 +9,13 @@ type WorkspaceActivation = NonNullable<WorkspaceRuntimeOverlay['activation']>;
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
 type ScriptStepScript = 'prepare' | 'setup' | 'run';
 
+export type ActivationLifecycleConfig = {
+  scripts: EmdashScriptsConfig;
+  shellSetup: string;
+  autoRunSetup: boolean;
+  autoRunRun: boolean;
+};
+
 /** A durable transition of one activation script's lifecycle step. */
 export type WorkspaceScriptStepState = {
   status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
@@ -55,6 +62,11 @@ export type WorkspaceActivationManagerOptions = {
    * the file directly (standalone/test use only).
    */
   readScripts?: (id: string, workspacePath: string) => Promise<EmdashScriptsConfig>;
+  /** Canonical resolver seam. Takes precedence over the legacy test-only readScripts seam. */
+  resolveLifecycleConfig?: (
+    id: string,
+    workspacePath: string
+  ) => Promise<ActivationLifecycleConfig>;
   clock?: Clock;
   logger?: Logger;
   teardownTimeoutMs?: number;
@@ -62,6 +74,7 @@ export type WorkspaceActivationManagerOptions = {
 
 type ActiveState = {
   workspacePath: string;
+  shellSetup: string;
   controller: AbortController;
   /** Resolves when the background setup → run chain settles (success or not). */
   background: Promise<void>;
@@ -78,7 +91,10 @@ export class WorkspaceActivationManager {
   private readonly options: WorkspaceActivationManagerOptions;
   private readonly runner: WorkspaceScriptRunner;
   private readonly awaitArtifacts: (id: string) => Promise<void>;
-  private readonly readScripts: (id: string, workspacePath: string) => Promise<EmdashScriptsConfig>;
+  private readonly resolveLifecycleConfig: (
+    id: string,
+    workspacePath: string
+  ) => Promise<ActivationLifecycleConfig>;
   private readonly clock: Clock;
   private readonly logger: Logger;
   private readonly teardownTimeoutMs: number;
@@ -88,7 +104,14 @@ export class WorkspaceActivationManager {
     this.options = options;
     this.runner = options.runner;
     this.awaitArtifacts = options.awaitArtifacts ?? (async () => undefined);
-    this.readScripts = options.readScripts ?? readWorkspaceScripts;
+    this.resolveLifecycleConfig =
+      options.resolveLifecycleConfig ??
+      (async (id, workspacePath) => ({
+        scripts: await (options.readScripts ?? readWorkspaceScripts)(id, workspacePath),
+        shellSetup: '',
+        autoRunSetup: true,
+        autoRunRun: true,
+      }));
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
     this.teardownTimeoutMs = options.teardownTimeoutMs ?? DEFAULT_SCRIPT_TIMEOUT_MS;
@@ -102,7 +125,12 @@ export class WorkspaceActivationManager {
   async activate(id: string, workspacePath: string): Promise<void> {
     if (this.active.has(id)) return;
 
-    const scripts = await this.readScripts(id, workspacePath);
+    const policy = await this.resolveLifecycleConfig(id, workspacePath);
+    const scripts: EmdashScriptsConfig = {
+      ...policy.scripts,
+      ...(policy.autoRunSetup ? {} : { setup: undefined }),
+      ...(policy.autoRunRun ? {} : { run: undefined }),
+    };
     // Overwrite, not append: the durable timeline shows this activation's runs only.
     this.options.resetScriptSteps(
       id,
@@ -111,6 +139,7 @@ export class WorkspaceActivationManager {
     const controller = new AbortController();
     const state: ActiveState = {
       workspacePath,
+      shellSetup: policy.shellSetup,
       controller,
       background: Promise.resolve(),
       activation: {
@@ -166,11 +195,13 @@ export class WorkspaceActivationManager {
     await state.background;
 
     let teardownFailure: { message: string } | null = null;
-    const scripts = await this.readScripts(id, state.workspacePath);
+    const policy = await this.resolveLifecycleConfig(id, state.workspacePath);
+    const scripts = policy.scripts;
     if (scripts.teardown) {
       const outcome = await this.runner.run({
         id: 'teardown',
         command: scripts.teardown,
+        shellSetup: policy.shellSetup,
         cwd: state.workspacePath,
         timeoutMs: this.teardownTimeoutMs,
       });
@@ -246,6 +277,7 @@ export class WorkspaceActivationManager {
     const outcome = await this.runner.run({
       id: script,
       command,
+      shellSetup: state.shellSetup,
       cwd: state.workspacePath,
       signal: state.controller.signal,
       // Run scripts are dev-server-shaped: bounded only by deactivation, not a timeout.

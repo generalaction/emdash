@@ -5,6 +5,7 @@ import {
   workspaceCreationSchema,
   workspaceGitObservationsSchema,
   workspaceLifecycleSchema,
+  personalProjectConfigSchema,
   workspaceRemovalAttemptSchema,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
@@ -12,6 +13,7 @@ import {
   type WorkspaceLifecycle,
   type WorkspaceLifecycleStep,
   type WorkspaceRemovalAttempt,
+  type PersonalProjectConfig,
 } from '../../api/schemas';
 
 const storedCreation = defineVersionedSchema()
@@ -34,6 +36,10 @@ const storedGitObservations = defineVersionedSchema()
 
 const storedRemovalAttempt = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceRemovalAttemptSchema }))
+  .build();
+
+const storedPersonalProjectConfig = defineVersionedSchema()
+  .initial('1', z.object({ version: z.literal('1'), value: personalProjectConfigSchema }))
   .build();
 
 // The pre-lifecycle shape of the `background` column (v1): fixed per-step slots with a
@@ -141,6 +147,14 @@ export function serializeLifecyclePayload(lifecycle: WorkspaceLifecycle): string
 
 export function parseLifecyclePayload(payload: string): WorkspaceLifecycle {
   return parseVersioned(storedLifecycle, payload, 'lifecycle steps');
+}
+
+export function serializePersonalProjectConfigPayload(config: PersonalProjectConfig): string {
+  return storedPersonalProjectConfig.serialize({ version: '1', value: config });
+}
+
+export function parsePersonalProjectConfigPayload(payload: string): PersonalProjectConfig {
+  return parseVersioned(storedPersonalProjectConfig, payload, 'personal config');
 }
 
 type VersionedEnvelope<T> = {

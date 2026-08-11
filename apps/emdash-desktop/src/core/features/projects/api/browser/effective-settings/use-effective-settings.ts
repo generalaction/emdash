@@ -55,14 +55,17 @@ export function useEffectiveSettingsInputs(projectId: string): EffectiveSettings
   const settingsStore = getProjectSettingsStore(projectId);
   const repo = getGitRepositoryStore(projectId);
   const { data: accounts } = useGitHubAccounts();
-  const page = settingsStore?.pageData.data ?? null;
-  if (!page || !accounts) return null;
+  const domains = settingsStore?.domains ?? null;
+  if (!domains || !accounts) return null;
   if (repo?.loading) return null;
   return {
-    storedGitSettings: page.storedGitSettings,
+    storedGitSettings: {
+      ...domains.gitIdentity.stored,
+      ...domains.placement.stored,
+    },
     repoFacts: repo?.repoFacts ?? { remotes: [], localBranches: [] },
     accounts,
-    worktreeRootContext: page.worktreeRootContext,
+    worktreeRootContext: domains.placement.layers,
   };
 }
 

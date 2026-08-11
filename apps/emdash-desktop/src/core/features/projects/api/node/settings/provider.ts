@@ -1,12 +1,15 @@
 import type { Result } from '@emdash/shared';
 import type {
   ProjectSettings,
-  ProjectSettingsPatch,
   StoredProjectGitSettings,
   WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-export type { ProjectSettingsPatch };
+import type { ProjectSettingsDomainPatch } from '../../project-settings-page';
+
+export type StoredPlacementSettings = {
+  tmux?: boolean;
+};
 
 export interface ProjectSettingsProvider {
   /**
@@ -23,8 +26,12 @@ export interface ProjectSettingsProvider {
    * provenance ("host default" vs "built-in default") stays honest.
    */
   getWorktreeRootContext(): Promise<WorktreeRootContext>;
+  /** Explicit DB-owned placement settings consumed by execution flows. */
+  getStoredPlacementSettings(): Promise<StoredPlacementSettings>;
   get(): Promise<ProjectSettings>;
   update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>>;
-  patch(patch: ProjectSettingsPatch): Promise<Result<void, UpdateProjectSettingsError>>;
+  patch(
+    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'placement'>
+  ): Promise<Result<void, UpdateProjectSettingsError>>;
   ensure(): Promise<void>;
 }

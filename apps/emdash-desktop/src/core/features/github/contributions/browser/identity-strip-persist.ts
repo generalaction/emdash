@@ -14,9 +14,13 @@ export async function persistProjectGitHubAccount(
 ): Promise<void> {
   const result = await (
     await getProjectsWireClient()
-  ).patchProjectSettings({
+  ).updateProjectSettings({
     projectId,
-    patch: { githubAccountId: accountId },
+    patch: {
+      gitIdentity: {
+        stored: { githubAccount: { kind: 'account', accountId } },
+      },
+    },
   });
   if (!result.success) {
     log.error('Failed to persist GitHub account selection', { projectId, error: result.error });

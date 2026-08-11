@@ -11,7 +11,7 @@ import {
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, type FilesClientScope } from '@core/services/runtime-broker/node/files';
 import { parseJsonObject } from '../project-settings-json';
-import type { ProjectConfigMigrator } from './config-migration';
+import type { ProjectConfigMigrationWriter, ProjectConfigMigrator } from './config-migration';
 import {
   applyProjectConfigMigration,
   errorMessage,
@@ -133,7 +133,8 @@ async function readSupersetMigrationData(
 
 async function migrateSupersetConfig(
   project: ProjectProvider,
-  request: MigrateProjectConfigRequest
+  request: MigrateProjectConfigRequest,
+  writer: ProjectConfigMigrationWriter
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
     const data = await readSupersetMigrationData(project, project.files);
@@ -142,7 +143,7 @@ async function migrateSupersetConfig(
       return writeConfigFailed('No supported Superset settings were found.');
     }
 
-    return await applyProjectConfigMigration(project, request, data, migration);
+    return await applyProjectConfigMigration(project, request, data, migration, writer);
   } catch (error) {
     log.warn('Failed to migrate Superset config to project config', { error });
     return writeConfigFailed(errorMessage(error));

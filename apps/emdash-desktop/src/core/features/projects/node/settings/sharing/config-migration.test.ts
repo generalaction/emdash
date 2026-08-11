@@ -1,10 +1,11 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
+import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import {
   inspectProjectConfigMigrations,
-  migrateProjectConfigFromProvider,
+  migrateProjectConfigFromProvider as migrateProjectConfigFromProviderWithWriter,
 } from './config-migration';
 
 vi.mock('@emdash/shared/logger', () => ({
@@ -79,7 +80,51 @@ function createProject(files: ReturnType<typeof createFs>, settings: Record<stri
     resolveProjectPath: (relativePath: string) => join(repoPath, relativePath),
     configPathForDirectory: (directoryPath: string) => join(directoryPath, '.emdash.json'),
     settings,
-  } as never;
+  } as unknown as ProjectProvider;
+}
+
+async function migrateProjectConfigFromProvider(
+  project: ReturnType<typeof createProject>,
+  request: {
+    provider: 'conductor' | 'superset' | 'paseo' | 'codex';
+    destination: 'local' | 'shared';
+  }
+) {
+  const settings = project.settings as {
+    get?: () => Promise<Record<string, unknown>>;
+    update?: (settings: Record<string, unknown>) => Promise<{ success: boolean }>;
+    patch?: (patch: { clearShareableFields: string[] }) => Promise<{ success: boolean }>;
+    patchPersonalConfig?: (patch: Record<string, unknown>) => Promise<{ success: boolean }>;
+    clearPersonalFields?: (fields: string[]) => Promise<{ success: boolean }>;
+  };
+  return migrateProjectConfigFromProviderWithWriter(project, request, {
+    patchPersonalConfig: async (patch) => {
+      if (settings.patchPersonalConfig) {
+        const result = await settings.patchPersonalConfig(patch);
+        return result.success ? ok() : err({ type: 'error' as const });
+      }
+      const current = (await settings.get?.()) ?? {};
+      const result = await settings.update?.({
+        ...current,
+        ...patch,
+        ...(patch.scripts
+          ? {
+              scripts: {
+                ...((current.scripts as Record<string, unknown> | undefined) ?? {}),
+                ...patch.scripts,
+              },
+            }
+          : {}),
+      });
+      return result?.success !== false ? ok() : err({ type: 'error' as const });
+    },
+    clearPersonalFields: async (fields) => {
+      const result = settings.clearPersonalFields
+        ? await settings.clearPersonalFields(fields)
+        : await settings.patch?.({ clearShareableFields: fields });
+      return result?.success !== false ? ok() : err({ type: 'error' as const });
+    },
+  });
 }
 
 describe('config migration', () => {
@@ -195,27 +240,19 @@ describe('config migration', () => {
       }),
       '.worktreeinclude': '.env\n.env.local\n',
     });
-    const update = vi.fn().mockResolvedValue({ success: true });
+    const patchPersonalConfig = vi.fn().mockResolvedValue({ success: true });
 
     const result = await migrateProjectConfigFromProvider(
       createProject(fs, {
-        get: vi.fn().mockResolvedValue({
-          shellSetup: 'source .envrc',
-          scripts: {
-            setup: 'pnpm install',
-          },
-        }),
-        update,
+        patchPersonalConfig,
       }),
       { provider: 'conductor', destination: 'local' }
     );
 
     expect(result.success).toBe(true);
     expect(fs.writeText).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledWith({
-      shellSetup: 'source .envrc',
+    expect(patchPersonalConfig).toHaveBeenCalledWith({
       scripts: {
-        setup: 'pnpm install',
         run: 'pnpm dev',
       },
       preservePatterns: ['.env', '.env.local'],

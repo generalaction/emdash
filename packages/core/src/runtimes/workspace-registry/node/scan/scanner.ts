@@ -230,6 +230,7 @@ export class RegistryScanner {
       this.logger.warn?.(
         `workspace registry scan of '${repository.path}' failed: ${String(error)}`
       );
+      await this.landing.refreshConfig(repository.id, repository.path);
       await this.landing.observation(repository.id, { observedStatus: 'present', git: null }, now);
       return settled;
     }
@@ -258,6 +259,11 @@ export class RegistryScanner {
       const child = byPath ?? byAdmin;
       if (child) {
         settled.add(child.id);
+        const git = await this.observe.full(canonicalPath, listing, {
+          untrackedCache: this.untrackedCacheFor(child.id),
+          remoteUrlCache,
+        });
+        await this.landing.refreshConfig(child.id, canonicalPath);
         await this.landing.observation(
           child.id,
           {
@@ -265,14 +271,10 @@ export class RegistryScanner {
             path: canonicalPath,
             gitAdminName: listing.adminName ?? child.gitAdminName,
             observedStatus: 'present',
-            git: await this.observe.full(canonicalPath, listing, {
-              untrackedCache: this.untrackedCacheFor(child.id),
-              remoteUrlCache,
-            }),
+            git,
           },
           now
         );
-        await this.landing.refreshConfig(child.id, canonicalPath);
         continue;
       }
 
@@ -299,10 +301,7 @@ export class RegistryScanner {
         updatedAt: now,
         lastObservedAt: now,
       };
-      if (await this.landing.adoption(adopted)) {
-        settled.add(adopted.id);
-        await this.landing.refreshConfig(adopted.id, adopted.path);
-      }
+      if (await this.landing.adoption(adopted)) settled.add(adopted.id);
     }
 
     for (const child of children) {
@@ -311,35 +310,37 @@ export class RegistryScanner {
       if (await isDirectory(child.path)) {
         // On disk but no longer listed by the repository (e.g. pruned admin data):
         // observe it directly rather than asserting it gone.
+        const git = await this.observe.full(child.path, undefined, {
+          untrackedCache: this.untrackedCacheFor(child.id),
+          remoteUrlCache,
+        });
+        await this.landing.refreshConfig(child.id, child.path);
         await this.landing.observation(
           child.id,
           {
             observedStatus: 'present',
-            git: await this.observe.full(child.path, undefined, {
-              untrackedCache: this.untrackedCacheFor(child.id),
-              remoteUrlCache,
-            }),
+            git,
           },
           now
         );
-        await this.landing.refreshConfig(child.id, child.path);
         continue;
       }
       await this.landing.vanished(child.id, now);
     }
 
+    const repositoryGit = await this.observe.full(repository.path, undefined, {
+      untrackedCache: this.untrackedCacheFor(repository.id),
+      remoteUrlCache,
+    });
+    await this.landing.refreshConfig(repository.id, repository.path);
     await this.landing.observation(
       repository.id,
       {
         observedStatus: 'present',
-        git: await this.observe.full(repository.path, undefined, {
-          untrackedCache: this.untrackedCacheFor(repository.id),
-          remoteUrlCache,
-        }),
+        git: repositoryGit,
       },
       now
     );
-    await this.landing.refreshConfig(repository.id, repository.path);
     return settled;
   }
 
@@ -352,6 +353,7 @@ export class RegistryScanner {
       return;
     }
     const git = await this.observe.refs(record.path, record.git);
+    await this.landing.refreshConfig(record.id, record.path);
     await this.landing.observation(record.id, { observedStatus: 'present', git }, now);
   }
 
@@ -368,8 +370,8 @@ export class RegistryScanner {
         : await this.observe.full(record.path, undefined, {
             untrackedCache: this.untrackedCacheFor(record.id),
           });
-    await this.landing.observation(record.id, { observedStatus: 'present', git }, now);
     await this.landing.refreshConfig(record.id, record.path);
+    await this.landing.observation(record.id, { observedStatus: 'present', git }, now);
   }
 
   /** The scan lane's serializer; see the `scanQueue` field for the design intent. */

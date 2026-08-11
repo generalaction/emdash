@@ -370,7 +370,7 @@ export class GitRepositoryStore {
 
   /** Stored explicit git choices (absence = infer) — the resolver input. */
   private get storedGitSettings(): StoredProjectGitSettings {
-    return this.settingsStore.storedGitSettings ?? {};
+    return this.settingsStore.domains?.gitIdentity.stored ?? {};
   }
 
   /** Repo facts from the synced live model alone (remote HEADs from refs). */

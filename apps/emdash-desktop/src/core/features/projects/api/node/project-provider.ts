@@ -21,6 +21,7 @@ import {
 import type {
   GitRuntimeClient,
   TerminalsRuntimeClient,
+  WorkspaceRegistryRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 
@@ -73,6 +74,7 @@ export type ProjectProviderTransport = {
    */
   readonly configPathForDirectory: (directoryPath: string) => string;
   readonly settings: ProjectSettingsProvider;
+  readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
   /** Per-project repo-facts cache (spec: github-git-settings §2). */
   readonly repoFacts: RepoFactsSource;
 };
@@ -91,6 +93,7 @@ export class ProjectProvider implements Disposable {
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   readonly terminals: TerminalsRuntimeClient;
+  readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
   /** Workspace type for worktree tasks on this project's host. */
   readonly defaultWorkspaceType: WorkspaceType;
 
@@ -114,6 +117,7 @@ export class ProjectProvider implements Disposable {
     this.projectId = project.id;
     this.repoPath = project.path;
     this.settings = transport.settings;
+    this.workspaceRegistry = transport.workspaceRegistry;
     this.repoFacts = transport.repoFacts;
     this.files = transport.files;
     this.projectConfigPath = transport.projectConfigPath;

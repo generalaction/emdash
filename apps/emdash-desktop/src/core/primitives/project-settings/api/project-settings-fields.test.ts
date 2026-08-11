@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectSettings } from './project-settings';
-import { hasConfiguredShareableProjectSettings } from './project-settings-fields';
+import {
+  hasConfiguredShareableProjectSettings,
+  tombstonePatchFor,
+} from './project-settings-fields';
 
 // The list emdash used to seed into new projects before the defaults were removed
 // (workspace-lifecycle-v2); rows created back then still carry it.
@@ -48,5 +51,18 @@ describe('hasConfiguredShareableProjectSettings', () => {
     };
 
     expect(hasConfiguredShareableProjectSettings(settings)).toBe(true);
+  });
+});
+
+describe('tombstonePatchFor', () => {
+  it('combines flat share field identities into one nested personal-config patch', () => {
+    expect(tombstonePatchFor(['preservePatterns', 'scripts.prepare', 'scripts.run'])).toEqual({
+      preservePatterns: null,
+      scripts: { prepare: null, run: null },
+    });
+  });
+
+  it('returns an empty patch when no fields were written', () => {
+    expect(tombstonePatchFor([])).toEqual({});
   });
 });

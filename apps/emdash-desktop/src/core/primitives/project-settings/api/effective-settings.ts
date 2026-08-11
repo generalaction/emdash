@@ -1,5 +1,6 @@
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
+import type { AgentGitCredentialsSetting } from './project-settings';
 import { normalizeWorktreeRootPath } from './worktree-root';
 
 /**
@@ -47,6 +48,7 @@ export type StoredProjectGitSettings = {
   baseRemote?: string;
   pushRemote?: string;
   githubAccount?: StoredGithubAccount;
+  agentGitCredentials?: AgentGitCredentialsSetting;
   /** Per-project worktree root override. */
   worktreeRoot?: string;
 };

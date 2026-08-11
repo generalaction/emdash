@@ -1,9 +1,11 @@
+import type { PatchPersonalProjectConfigInput } from '@emdash/core/runtimes/workspace-registry/api';
 import type { Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import type {
   MigrateProjectConfigRequest,
   ProjectConfigMigration,
+  ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import {
@@ -18,6 +20,15 @@ import { paseoConfigMigrator } from './paseo-config-migration';
 import { supersetConfigMigrator } from './superset-config-migration';
 import { CONFIG_FILE } from './workspace-config-file';
 
+export type ProjectConfigMigrationWriter = {
+  patchPersonalConfig(
+    patch: PatchPersonalProjectConfigInput['patch']
+  ): Promise<Result<void, UpdateProjectSettingsError>>;
+  clearPersonalFields(
+    fields: ShareableProjectSettingsWriteField[]
+  ): Promise<Result<void, UpdateProjectSettingsError>>;
+};
+
 export type ProjectConfigMigrator = {
   provider: ProjectConfigMigration['provider'];
   inspect: (
@@ -26,7 +37,8 @@ export type ProjectConfigMigrator = {
   ) => Promise<ProjectConfigMigration | null>;
   migrate: (
     project: ProjectProvider,
-    request: MigrateProjectConfigRequest
+    request: MigrateProjectConfigRequest,
+    writer: ProjectConfigMigrationWriter
   ) => Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>>;
 };
 
@@ -68,7 +80,8 @@ export async function inspectProjectConfigMigrations(
 
 export async function migrateProjectConfigFromProvider(
   project: ProjectProvider,
-  request: MigrateProjectConfigRequest
+  request: MigrateProjectConfigRequest,
+  writer: ProjectConfigMigrationWriter
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
     const configPath = projectConfigPath(project);
@@ -87,7 +100,7 @@ export async function migrateProjectConfigFromProvider(
     );
     if (!migrator) return writeConfigFailed('Unsupported config provider.');
 
-    return await migrator.migrate(project, request);
+    return await migrator.migrate(project, request, writer);
   } catch (error) {
     log.warn(`Failed to migrate ${request.provider} config to project config`, { error });
     return writeConfigFailed(errorMessage(error));

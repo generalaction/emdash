@@ -1,8 +1,6 @@
 import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { StoredProjectGitSettings } from './effective-settings';
-import type { WorktreeRootContext } from './worktree-root';
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -64,31 +62,11 @@ export const storedBaseProjectSettingsSchema = z.object({
   githubAccount: storedGithubAccountSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
-  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
-  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
 });
 
 export type StoredBaseProjectSettings = z.infer<typeof storedBaseProjectSettingsSchema>;
 
-/**
- * Permissive read schema for stored base-settings rows: accepts every legacy
- * form (bare-string/`{name, remote}` defaultBranch, `githubAccountId`,
- * `worktreeDirectory`, pre-baseRemote `remote`) alongside the new stored
- * model. The settings provider migrates rows lazily on read; every other
- * reader of the raw JSON must parse with this schema.
- */
-export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
-  remote: z.string().optional(),
-  defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
-  worktreeRoot: z.string().trim().optional(),
-  githubAccount: storedGithubAccountSchema.optional(),
-});
-
-export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;
-
 export const projectSettingsSchema = baseProjectSettingsSchema.merge(emdashConfigSchema);
-
-export const legacyProjectConfigSchema = legacyBaseProjectSettingsSchema.merge(emdashConfigSchema);
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
@@ -98,32 +76,6 @@ export type ProjectSettingsLoadError =
 
 export type ProjectSettingsLoadResult = Result<ProjectSettings, ProjectSettingsLoadError>;
 
-export type ProjectSettingsPatch = {
-  clearShareableFields?: ShareableProjectSettingsWriteField[];
-  githubAccountId?: string | null;
-};
-
-export type ProjectSettingsPage = {
-  settings: ProjectSettings;
-  /**
-   * Stored explicit git choices in the new model (absence = infer) — the
-   * renderer's resolver input (spec: github-git-settings §2). The legacy
-   * `settings` view stays for the non-git fields until the resolver adoption
-   * finishes.
-   */
-  storedGitSettings: StoredProjectGitSettings;
-  /**
-   * The worktree-root layers below the per-project override, split so the
-   * renderer resolves true provenance ("host default" vs "built-in default")
-   * with the identical resolver inputs execution uses (spec §6).
-   */
-  worktreeRootContext: WorktreeRootContext;
-  writeTargets: ProjectSettingsWriteTargetOption[];
-  overrideState: ProjectSettingsOverrideState;
-  configMigrations: ProjectConfigMigration[];
-  shouldPromptConfigMigration: boolean;
-};
-
 export type ProjectSettingsWriteTarget =
   | { type: 'project' }
   | { type: 'task'; taskId: string }
@@ -132,6 +84,9 @@ export type ProjectSettingsWriteTarget =
 export type ProjectSettingsWriteTargetOption = ProjectSettingsWriteTarget & {
   label: string;
   path: string;
+  configPath: string;
+  /** Registry workspace represented by this working-directory target, when known. */
+  sourceWorkspaceId?: string;
 };
 
 // shellSetup is deliberately absent: the per-project DB field was retired in favor
@@ -156,17 +111,6 @@ export type WriteProjectConfigRequest = {
   fields: ShareableProjectSettingsWriteField[];
 };
 
-export type ProjectSettingsOverrideSource = {
-  label: string;
-  path: string;
-  value: string;
-};
-
-export type ProjectSettingsOverrideState = Record<
-  ShareableProjectSettingsWriteField,
-  ProjectSettingsOverrideSource[]
->;
-
 export type ProjectConfigMigrationProvider = 'conductor' | 'superset' | 'paseo' | 'codex';
 
 export type ProjectConfigMigration = {
@@ -183,18 +127,3 @@ export type MigrateProjectConfigRequest = {
   provider: ProjectConfigMigrationProvider;
   destination: ProjectConfigMigrationDestination;
 };
-
-export type MigrateProjectConfigResult = {
-  page: ProjectSettingsPage;
-  migration: ProjectConfigMigration;
-};
-
-export function emptyProjectSettingsOverrideState(): ProjectSettingsOverrideState {
-  return {
-    preservePatterns: [],
-    'scripts.prepare': [],
-    'scripts.setup': [],
-    'scripts.run': [],
-    'scripts.teardown': [],
-  };
-}

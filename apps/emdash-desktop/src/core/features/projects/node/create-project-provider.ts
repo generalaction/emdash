@@ -42,6 +42,7 @@ import {
 } from '@core/services/runtime-broker/node/git';
 import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
+import { migrateProjectSettingsOnMount } from './settings/migrations/migrate-project-settings-on-mount';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
 import { createRepoFactsCache } from './settings/repo-facts';
@@ -132,7 +133,6 @@ export async function createProvider(
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
         getRepoFacts: () => repoFacts.get(),
-        migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
         // The worktree-root layers below the per-project override (spec §6),
         // all answered on the project's own host: the host-settings default
         // and the built-in root under the host home. The retired desktop-wide
@@ -167,7 +167,10 @@ export async function createProvider(
         },
       }
     );
-    await settings.ensure({ git: gitInspector });
+    await settings.ensure();
+    await migrateProjectSettingsOnMount(project, settings, runtime.data.workspaceRegistry, {
+      migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
+    });
 
     const repositoryService = dependencies.createGitRepository(git, repository, () =>
       resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
@@ -186,6 +189,7 @@ export async function createProvider(
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
       settings,
+      workspaceRegistry: runtime.data.workspaceRegistry,
       repoFacts,
     };
     const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>

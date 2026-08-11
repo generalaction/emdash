@@ -11,7 +11,7 @@ import {
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, type FilesClientScope } from '@core/services/runtime-broker/node/files';
-import type { ProjectConfigMigrator } from './config-migration';
+import type { ProjectConfigMigrationWriter, ProjectConfigMigrator } from './config-migration';
 import {
   addScript,
   applyProjectConfigMigration,
@@ -124,7 +124,8 @@ async function readCodexMigrationData(
 
 async function migrateCodexConfig(
   project: ProjectProvider,
-  request: MigrateProjectConfigRequest
+  request: MigrateProjectConfigRequest,
+  writer: ProjectConfigMigrationWriter
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
     const data = await readCodexMigrationData(project, project.files);
@@ -133,7 +134,7 @@ async function migrateCodexConfig(
       return writeConfigFailed('No supported Codex settings were found.');
     }
 
-    return await applyProjectConfigMigration(project, request, data, migration);
+    return await applyProjectConfigMigration(project, request, data, migration, writer);
   } catch (error) {
     log.warn('Failed to migrate Codex config to project config', { error });
     return writeConfigFailed(errorMessage(error));

@@ -2,7 +2,6 @@ import { log } from '@emdash/shared/logger';
 import { eq } from 'drizzle-orm';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
-  legacyBaseProjectSettingsSchema,
   resolveEffectiveSettings,
   type EffectiveSettings,
   type RepoFacts,
@@ -11,7 +10,8 @@ import {
 } from '@core/primitives/project-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
-import { migrateStoredBaseProjectSettings } from '../../../node/settings/stored-settings-migration';
+import { legacyBaseProjectSettingsSchema } from '../../../node/settings/migrations/legacy-stored-project-settings';
+import { migrateStoredBaseProjectSettings } from '../../../node/settings/migrations/stored-settings';
 
 /**
  * The per-project repo-facts cache surface (spec: github-git-settings §2):

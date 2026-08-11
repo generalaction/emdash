@@ -13,7 +13,6 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
-import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import {
   terminalsContract,
   type TerminalCreateResult,
@@ -38,8 +37,6 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primitives/terminals/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
-import { filesClientScope } from '@core/services/runtime-broker/node/files';
-import { hostDefaultShellSetup } from '@core/services/runtime-broker/node/host-settings';
 import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
@@ -315,8 +312,6 @@ async function resolveTerminalContext(
   }
 
   return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
-    const taskFiles = filesClientScope(client.files, identity.path);
-    const projectSettings = await project.settings.get();
     // Effective default branch through the blessed resolver (spec:
     // github-git-settings §2); null (unresolvable) omits the env var.
     const effective = await resolveProjectEffectiveSettings({
@@ -324,11 +319,18 @@ async function resolveTerminalContext(
       repoFacts: project.repoFacts,
     });
     const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-    const taskLevelSettings = await getEffectiveTaskSettings({
-      projectSettings: project.settings,
-      taskFiles,
-      taskConfigPath: project.configPathForDirectory(identity.path),
-    });
+    const [placement, projectConfig] = await Promise.all([
+      project.settings.getStoredPlacementSettings(),
+      client.workspaceRegistry.getProjectConfig({ workspaceId: identity.workspaceId }),
+    ]);
+    if (!projectConfig.success) {
+      return err(
+        terminalError(
+          'missing-workspace',
+          `Workspace ${identity.workspaceId} has no project configuration`
+        )
+      );
+    }
     const gitCredentials = await options.resolveSessionGitCredentials({
       projectId: terminal.projectId,
       host: identity.host,
@@ -340,11 +342,8 @@ async function resolveTerminalContext(
         identity,
         makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
       ),
-      tmuxEnabled: projectSettings.tmux ?? false,
-      // Workspace .emdash.json overrides the per-host default (host-settings runtime);
-      // the per-project DB shellSetup field was retired.
-      shellSetup:
-        taskLevelSettings.shellSetup ?? (await hostDefaultShellSetup(client.hostSettings)),
+      tmuxEnabled: placement.tmux ?? false,
+      shellSetup: projectConfig.data.resolved.shellSetup?.value,
       taskEnvVars: getTaskEnvVars({
         taskId: terminal.taskId,
         taskName: taskRow.name,
