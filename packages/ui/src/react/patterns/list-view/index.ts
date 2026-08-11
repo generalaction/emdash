@@ -72,6 +72,9 @@ export type { Comparator } from './comparators';
 export { useClientListFilter } from './use-client-list-filter';
 export type { ClientListFilterOptions } from './use-client-list-filter';
 
+export { useQueryListSource } from './use-query-list-source';
+export type { ExternalListSource, QueryResultLike } from './use-query-list-source';
+
 // ── Headless state factory (createListView) ───────────────────────────────────
 
 export { createListView } from './core/create-list-view';
