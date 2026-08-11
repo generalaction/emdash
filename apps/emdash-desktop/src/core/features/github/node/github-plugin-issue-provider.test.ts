@@ -8,13 +8,13 @@ const {
   mockGetDefaultAccountId,
   mockResolveSecret,
   mockResolve,
-  mockAuthContext,
+  mockResolveProjectAccount,
 } = vi.hoisted(() => ({
   mockListAccounts: vi.fn(),
   mockGetDefaultAccountId: vi.fn(),
   mockResolveSecret: vi.fn(),
   mockResolve: vi.fn(),
-  mockAuthContext: vi.fn(),
+  mockResolveProjectAccount: vi.fn(),
 }));
 
 vi.mock('@core/features/github/api/node/services/github-repository-resolver', () => ({
@@ -45,8 +45,22 @@ const dependencies = {
   accounts,
   auth: new GitHubApiAuthService(accounts as never),
   logger: log,
-  resolveProjectAuthContext: mockAuthContext,
+  resolveProjectGitHubAccount: mockResolveProjectAccount,
 };
+
+function resolvedAccount(accountId: string, host: string) {
+  return {
+    value: {
+      accountId,
+      host,
+      login: 'octocat',
+      avatarUrl: '',
+      credentialSource: 'secure_storage' as const,
+      isDefault: false,
+    },
+    provenance: { kind: 'set' as const },
+  };
+}
 
 const repository = {
   host: 'github.com',
@@ -98,7 +112,10 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolve.mockResolvedValue({ success: true, data: repository });
-    mockAuthContext.mockResolvedValue({ success: true, data: undefined });
+    mockResolveProjectAccount.mockResolvedValue({
+      value: null,
+      provenance: { kind: 'inferred', from: 'no host-matching account' },
+    });
   });
 
   it('requires a connected account', async () => {
@@ -113,7 +130,7 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
 
   it('reports a missing pinned account by id', async () => {
     mockListAccounts.mockResolvedValue([]);
-    mockAuthContext.mockResolvedValue({ success: true, data: { accountId: 'github.com:42' } });
+    mockResolveProjectAccount.mockResolvedValue(resolvedAccount('github.com:42', 'github.com'));
     const { plugin } = makePlugin();
     const provider = createGitHubPluginIssueProvider(plugin, dependencies);
 
@@ -131,7 +148,9 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
     mockListAccounts.mockResolvedValue([
       providerAccountRow('ghe.example.com:7', 'ghe.example.com', 'octocat'),
     ]);
-    mockAuthContext.mockResolvedValue({ success: true, data: { accountId: 'ghe.example.com:7' } });
+    mockResolveProjectAccount.mockResolvedValue(
+      resolvedAccount('ghe.example.com:7', 'ghe.example.com')
+    );
     const { plugin } = makePlugin();
     const provider = createGitHubPluginIssueProvider(plugin, dependencies);
 
@@ -196,6 +215,104 @@ describe('createGitHubPluginIssueProvider account resolution', () => {
       expect.objectContaining({ repositoryUrl: repository.repositoryUrl })
     );
     expect(result).toMatchObject({ success: true });
+  });
+
+  it('reports explicit none as a quiet disabled state, not an error re-encoding', async () => {
+    mockListAccounts.mockResolvedValue([
+      providerAccountRow('github.com:42', 'github.com', 'octocat'),
+    ]);
+    mockResolveProjectAccount.mockResolvedValue({ value: null, provenance: { kind: 'set' } });
+    const { plugin } = makePlugin();
+    const provider = createGitHubPluginIssueProvider(plugin, dependencies);
+
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'account_unavailable',
+        provenance: { kind: 'set' },
+        accountsConnected: true,
+        message: 'GitHub is disabled for this project.',
+      },
+    });
+  });
+
+  it('reports inferred-absent with zero accounts as the connect state', async () => {
+    mockListAccounts.mockResolvedValue([]);
+    mockResolveProjectAccount.mockResolvedValue({
+      value: null,
+      provenance: { kind: 'inferred', from: 'no host-matching account' },
+    });
+    const { plugin } = makePlugin();
+    const provider = createGitHubPluginIssueProvider(plugin, dependencies);
+
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'account_unavailable',
+        provenance: { kind: 'inferred' },
+        accountsConnected: false,
+      },
+    });
+  });
+
+  it('silently defaults per repository host when inference is absent but accounts exist', async () => {
+    mockListAccounts.mockResolvedValue([
+      providerAccountRow('github.com:42', 'github.com', 'octocat'),
+    ]);
+    mockGetDefaultAccountId.mockResolvedValue('github.com:42');
+    mockResolveSecret.mockResolvedValue('gho_token');
+    mockResolveProjectAccount.mockResolvedValue({
+      value: null,
+      provenance: { kind: 'inferred', from: 'no host-matching account' },
+    });
+    const { plugin, listIssues } = makePlugin();
+    const provider = createGitHubPluginIssueProvider(plugin, dependencies);
+
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
+    expect(result).toMatchObject({ success: true });
+    expect(listIssues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: expect.objectContaining({ accessToken: 'gho_token' }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it('fails closed on an unresolvable pin instead of falling back to another account', async () => {
+    mockListAccounts.mockResolvedValue([
+      providerAccountRow('github.com:42', 'github.com', 'octocat'),
+    ]);
+    mockResolveProjectAccount.mockResolvedValue({
+      value: null,
+      provenance: { kind: 'unresolvable' },
+    });
+    const { plugin, listIssues } = makePlugin();
+    const provider = createGitHubPluginIssueProvider(plugin, dependencies);
+
+    const result = await provider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: repository.repositoryUrl,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'account_unavailable',
+        provenance: { kind: 'unresolvable' },
+        accountsConnected: true,
+      },
+    });
+    expect(listIssues).not.toHaveBeenCalled();
   });
 
   it('maps unsupported hosts from the repository resolver', async () => {
