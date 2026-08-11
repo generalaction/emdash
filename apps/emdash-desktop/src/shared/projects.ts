@@ -91,6 +91,7 @@ export type UpdateProjectSettingsError =
   | { type: 'project-not-found' }
   | { type: 'invalid-settings' }
   | { type: 'invalid-worktree-directory' }
+  | { type: 'setup-script-already-configured' }
   | { type: 'write-config-failed'; message: string }
   | { type: 'error' };
 
