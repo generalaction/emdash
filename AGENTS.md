@@ -340,17 +340,32 @@ pnpm run test
   `src/core/features/mcp/browser/`.
 - Skills types and validation live in Core primitives; skills UI and service code live in
   `src/core/features/skills/browser/` and `src/core/features/skills/node/`.
-- Worktree runtime settings can be supplied through `.emdash.json`:
- `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
- `scripts.teardown`, and `shellSetup` (a per-workspace override of the host default).
+- Team-owned runtime settings live in each workspace's `.emdash.json`:
+  `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
+  `scripts.teardown`, and `shellSetup` (a per-workspace override of the host default).
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
   `pushRemote`, and `tmux` are DB-backed, not `.emdash.json`.
+- The workspace registry owns lifecycle and file-handling config. Per-host personal config
+  (`preservePatterns`, scripts, and auto-run toggles) is versioned JSON on the repository or
+  directory project-root record; worktrees resolve against their project root's personal config.
+- Read registry-owned config through the keyed `projectConfig` live model or `getProjectConfig`.
+  It exposes raw personal/team layers, team-file sources, and one `{ value, from }` result per
+  field. Applicable precedence is personal > that workspace's `.emdash.json` > host default >
+  built-in; arrays replace rather than merge.
 - Per-host defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
   runtime (`packages/core/src/runtimes/host-settings/`), stored as JSON in the host's
   emdash data directory and editable from the machines/system settings UI.
-- Lifecycle scripts run in the scripts runtime (`packages/core/src/runtimes/scripts/`);
-  the workspace registry sequences activation scripts through it and observes runs into
-  durable lifecycle steps.
+- Desktop project settings compose self-contained domain snapshots: the registry owns
+  lifecycle/file handling, while desktop DB and host-settings domains own Git identity and
+  placement. Forms edit raw layers with explicit per-domain patches; there is no merged settings
+  bag to persist.
+- The scripts runtime is a strict executor: callers must provide resolved `command` and
+  `shellSetup`; it never reads config files or host defaults. The workspace registry resolves and
+  sequences lifecycle commands, then observes runs into durable lifecycle steps.
+- Desktop settings migrations are centralized under
+  `src/core/features/projects/node/settings/migrations/` and run in order from the project-mount
+  entry point. Legacy schemas and readers stay migration-only; destination markers make imports
+  idempotent and retryable.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
   `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
