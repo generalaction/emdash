@@ -50,11 +50,14 @@ jobs:
           done
 
       - name: Install native test dependencies
-        # The install above keeps --ignore-scripts, so the postinstall that
-        # normally provisions the anchored native side project never runs.
-        # The app's main-db/fixtures/migrations Vitest projects need the
-        # system-Node better-sqlite3 copy from that side project.
-        run: pnpm --dir apps/emdash-desktop/tooling/node-deps install --frozen-lockfile
+        # The install above keeps --ignore-scripts, so lifecycle scripts that
+        # provision native modules never run. Two are needed for tests:
+        # - the anchored native side project (system-Node better-sqlite3 copy)
+        #   used by the app's main-db/fixtures/migrations Vitest projects
+        # - node-pty's prebuild download, used by PTY-dependent worker specs
+        run: |
+          pnpm --dir apps/emdash-desktop/tooling/node-deps install --frozen-lockfile
+          pnpm rebuild node-pty
 
       - name: Run affected checks
         run: pnpm nx affected -t format:check typecheck lint test

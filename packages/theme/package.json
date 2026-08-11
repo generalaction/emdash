@@ -43,8 +43,8 @@
   },
   "scripts": {
     "dev": "tsdown --watch",
-    "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css && tsdown",
-    "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css",
+    "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts && tsdown",
+    "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts",
     "watch:theme": "tsx --watch src/core/codegen/run.ts",
     "test": "vitest run",
     "lint": "oxlint src",
