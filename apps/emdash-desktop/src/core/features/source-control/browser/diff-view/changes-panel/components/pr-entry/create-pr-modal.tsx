@@ -20,6 +20,7 @@ import {
   identityStripView,
 } from '@core/features/github/contributions/browser/identity-strip-state';
 import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { BranchDisplay } from '@core/features/source-control/contributions/browser/branch-display';
@@ -87,7 +88,8 @@ export const CreatePrModal = observer(function CreatePrModal({
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const needsPush = !isOnRemote || aheadCount > 0;
-  const projectRemoteName = repo?.baseRemote.name ?? 'origin';
+  const baseRemoteResolution = repo?.effectiveGitSettings.baseRemote ?? null;
+  const projectRemoteName = repo?.baseRemote?.name ?? null;
   const fallbackRepository = useMemo(() => parseRepositoryRef(repositoryUrl), [repositoryUrl]);
   const targetRemotes = useMemo(
     () =>
@@ -141,7 +143,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       }
 
       const baseRepository = parseRepositoryRef(targetRepositoryUrl);
-      const headRepository = repo?.pushRemote.url ? parseRepositoryRef(repo.pushRemote.url) : null;
+      const headRepository = repo?.pushRemote?.url ? parseRepositoryRef(repo.pushRemote.url) : null;
       const head =
         baseRepository &&
         headRepository &&
@@ -185,6 +187,12 @@ export const CreatePrModal = observer(function CreatePrModal({
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
+        {baseRemoteResolution?.provenance.kind === 'broken-setting' ? (
+          <BrokenSettingNotice
+            staleValue={baseRemoteResolution.provenance.staleValue}
+            effectiveValue={baseRemoteResolution.value}
+          />
+        ) : null}
         <div className="flex flex-col items-center gap-2">
           <BranchDisplay
             label="Head Branch"

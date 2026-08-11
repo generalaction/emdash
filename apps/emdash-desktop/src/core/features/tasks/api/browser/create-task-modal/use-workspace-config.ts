@@ -323,8 +323,16 @@ export function useWorkspaceConfig(opts: {
     const git = resolvedConfig.git;
     if (resolvedConfig.workspace.kind === 'repository-instance' || git.kind === 'none') return [];
     const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
-    const baseRemote = repo?.baseRemote?.name ?? 'origin';
-    const plan = compileWorktreeGitPlan(git, { baseRemote });
+    const baseRemote = repo?.baseRemote?.name ?? null;
+    let plan;
+    try {
+      plan = compileWorktreeGitPlan(git, { baseRemote });
+    } catch {
+      // PR-sourced plans need a base remote; node-side createTask refuses in
+      // the same case, so the preview shows no steps instead of a plan that
+      // execution would reject.
+      return [];
+    }
     if (plan.branch.trim() === '') return [];
     return describeWorktreeGitPlan(plan, { preservePatterns: preservePatterns ?? [] });
   }, [resolvedConfig, projectId, preservePatterns]);

@@ -26,7 +26,8 @@ export function resolveCreatePrTargetRemote({
   fallbackRepositoryUrl,
 }: {
   options: ReadonlyArray<TargetRemote>;
-  projectRemoteName: string;
+  /** The effective base remote from the blessed resolver; null when the repository has none. */
+  projectRemoteName: string | null;
   selectedRemoteName?: string;
   fallbackRepositoryUrl?: string;
 }): TargetRemote | undefined {
@@ -35,7 +36,10 @@ export function resolveCreatePrTargetRemote({
     : undefined;
   if (selected) return selected;
 
-  const projectRemote = options.find((option) => option.remote.name === projectRemoteName);
+  const projectRemote =
+    projectRemoteName !== null
+      ? options.find((option) => option.remote.name === projectRemoteName)
+      : undefined;
   if (projectRemote) return projectRemote;
 
   const fallbackRepository = parseRepositoryRef(fallbackRepositoryUrl);

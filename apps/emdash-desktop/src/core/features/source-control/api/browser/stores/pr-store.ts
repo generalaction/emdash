@@ -80,9 +80,11 @@ export class PrStore {
   async updatePrCheckout(): Promise<MergeResult> {
     const pr = this.currentPr;
     if (!pr) return { success: false, error: 'No pull request is associated with this task' };
-    const instruction = compilePrUpdateInstruction(pr, {
-      baseRemote: this.gitRepositoryStore.baseRemote.name,
-    });
+    const baseRemote = this.gitRepositoryStore.baseRemote;
+    if (baseRemote === null) {
+      return { success: false, error: 'This repository has no git remotes to fetch the PR from' };
+    }
+    const instruction = compilePrUpdateInstruction(pr, { baseRemote: baseRemote.name });
     if (!instruction) return { success: false, error: 'Could not determine the PR number' };
     const project = asMounted(getProjectStore(this.projectId));
     if (!project) return { success: false, error: 'The project is not available' };
@@ -253,6 +255,11 @@ export class PrStore {
     const first = await tryRange();
     if (first) return first;
 
+    // Without a base remote there is nothing to fetch the PR from — an
+    // honest skip instead of a fabricated remote name.
+    const baseRemote = this.gitRepositoryStore.baseRemote;
+    if (baseRemote === null) return [];
+
     await this.gitRepositoryStore.fetchRemote();
     const prNumber = getPrNumber(pr);
     if (prNumber) {
@@ -262,7 +269,7 @@ export class PrStore {
         headRepositoryUrl: pr.headRepositoryUrl,
         localBranch: pr.headRefName,
         isFork: isForkPr(pr),
-        configuredRemote: this.gitRepositoryStore.baseRemote.name,
+        configuredRemote: baseRemote.name,
       });
     }
 

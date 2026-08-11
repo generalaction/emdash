@@ -16,8 +16,10 @@ import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browse
 import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
 import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
 import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
@@ -80,7 +82,12 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     handleOwnerChange,
   } = useGitHubRepositoryOwnerSelect(githubAccountId);
   const repositoryStore = getGitRepositoryStore(projectId);
-  const selectedRemote = repositoryStore?.pushRemote.name ?? 'origin';
+  const pushRemoteResolution = repositoryStore?.effectiveGitSettings.pushRemote ?? null;
+  // The effective push remote when one resolves; otherwise this modal is
+  // creating the repository's first remote, and DEFAULT_REMOTE_NAME is the
+  // conventional name for a brand-new remote (a naming default, not
+  // resolution).
+  const selectedRemote = repositoryStore?.pushRemote?.name ?? DEFAULT_REMOTE_NAME;
   // Creating a GitHub repository genuinely requires an account (fail closed);
   // linking an existing remote proceeds on system credentials (spec §5).
   const canSubmitCreateRepository =
@@ -267,6 +274,13 @@ export const AddRemoteModal = observer(function AddRemoteModal({
             </Field.Root>
           </Field.Group>
         )}
+
+        {pushRemoteResolution?.provenance.kind === 'broken-setting' ? (
+          <BrokenSettingNotice
+            staleValue={pushRemoteResolution.provenance.staleValue}
+            effectiveValue={pushRemoteResolution.value}
+          />
+        ) : null}
 
         {resolvedAccount && accounts ? (
           <GitHubIdentityStrip

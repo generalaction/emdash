@@ -29,11 +29,13 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   showRemoteSelectorFooter = false,
 }: ProjectBranchSelectorProps) {
   const repo = getGitRepositoryStore(projectId);
+  // The effective base remote from the resolver; undefined at zero remotes,
+  // which simply hides the remote-selector footer (no remote branches exist).
   const selectedRemoteName =
     remoteName ??
     (value?.type === 'remote' ? value.remote.name : undefined) ??
-    repo?.baseRemote.name ??
-    'origin';
+    repo?.baseRemote?.name ??
+    undefined;
 
   const branches: GitBranchRef[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
   const canSelectRemote = showRemoteSelectorFooter && remoteName === undefined;
