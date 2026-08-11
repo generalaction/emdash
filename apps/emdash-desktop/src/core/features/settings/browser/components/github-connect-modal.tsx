@@ -121,8 +121,16 @@ export function GithubConnectModal() {
 
   const connectDeviceFlow = () => {
     setError(null);
-    void openDeviceFlow({});
+    // Completing this modal when the device flow succeeds resumes whatever the
+    // connect flow interrupted (spec: github-git-settings §5): a modal that
+    // launched connect from its identity strip stays open underneath the stack
+    // and becomes topmost again. A dismissed device flow keeps this modal open
+    // so the user can retry another method.
+    const deviceFlowOutcome = openDeviceFlow({});
     void deviceFlowMutation.mutateAsync();
+    void deviceFlowOutcome.then((outcome) => {
+      if (outcome.success) modal.complete();
+    });
   };
 
   return (
