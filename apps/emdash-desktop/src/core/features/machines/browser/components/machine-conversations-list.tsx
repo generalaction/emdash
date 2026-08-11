@@ -1,15 +1,16 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import {
   CollectionToolbar,
   CollectionView,
   CollectionViewCell,
+  useQueryListSource,
   type CollectionViewColumn,
 } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Spinner, toast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
-import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useWorkspaceGroups } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
@@ -116,16 +117,18 @@ export function MachineConversationsList({
     [conversationsQuery.data, knownWorkspacePaths]
   );
 
-  // Bridge query data into the view's sync source: the getter reads this box,
-  // so the list pipeline re-derives whenever fresh rows arrive. Seeded at mount
-  // and updated before paint so fresh data never flashes the empty state.
-  const [itemsBox] = useState(() =>
-    observable.box<MachineConversationItem[]>(items, { deep: false })
+  // `items` joins the conversations query with workspace observations, so it
+  // stands in for the query's data; loading/error come from the query itself.
+  const source = useQueryListSource(
+    {
+      data: items,
+      isLoading: conversationsQuery.isLoading,
+      isError: conversationsQuery.isError,
+      error: conversationsQuery.error,
+    },
+    (rows) => rows
   );
-  const [view] = useState(() => createMachineConversationsListView(() => itemsBox.get()));
-  useLayoutEffect(() => {
-    runInAction(() => itemsBox.set(items));
-  }, [items, itemsBox]);
+  const [view] = useState(() => createMachineConversationsListView(source));
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: machineConversationsQueryKey(scope) });
@@ -204,14 +207,26 @@ export function MachineConversationsList({
             hostReachable={hostReachable}
           />
         }
+        errorSlot={
+          <EmptyState
+            bare
+            label="Could not load conversations."
+            description={
+              conversationsQuery.error instanceof Error
+                ? conversationsQuery.error.message
+                : String(conversationsQuery.error)
+            }
+          />
+        }
         emptySlot={
-          conversationsQuery.isLoading ? (
-            <ConversationsLoadingState />
-          ) : conversationsQuery.isError ? (
-            <ConversationsErrorState error={conversationsQuery.error} />
-          ) : (
-            <ConversationsEmptyState searching={items.length > 0} />
-          )
+          <EmptyState
+            bare
+            label={
+              items.length > 0
+                ? 'No conversations match the current search.'
+                : 'No conversations on this machine.'
+            }
+          />
         }
       />
     </view.Root>
@@ -347,35 +362,5 @@ function Pill({
     >
       {children}
     </span>
-  );
-}
-
-function ConversationsLoadingState() {
-  return (
-    <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner size="sm" />
-      Loading conversations
-    </div>
-  );
-}
-
-function ConversationsErrorState({ error }: { error: unknown }) {
-  return (
-    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
-      <div className="text-foreground-destructive">Could not load conversations.</div>
-      <div className="max-w-md text-center text-xs text-foreground-muted">
-        {error instanceof Error ? error.message : String(error)}
-      </div>
-    </div>
-  );
-}
-
-function ConversationsEmptyState({ searching }: { searching: boolean }) {
-  return (
-    <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
-      {searching
-        ? 'No conversations match the current search.'
-        : 'No conversations on this machine.'}
-    </div>
   );
 }

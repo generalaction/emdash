@@ -1,16 +1,16 @@
-import { createListView, createTextMatcher } from '@emdash/ui/react/patterns';
+import { createListView, createTextMatcher, type ListSource } from '@emdash/ui/react/patterns';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 
 /**
- * The list-view state layer for the prompt library: sync source fed by a
- * reactive getter (the component wraps query data in an observable box so the
- * pipeline re-derives) plus immediate client-side search over the title and
- * the prompt body. Items keep the library's stored order.
+ * The list-view state layer for the prompt library: an externally owned source
+ * (the component bridges its query via `useQueryListSource`) plus immediate
+ * client-side search over the title and the prompt body. Items keep the
+ * library's stored order.
  */
-export function createPromptLibraryListView(getPrompts: () => PromptLibraryPrompt[]) {
+export function createPromptLibraryListView(source: ListSource<PromptLibraryPrompt>) {
   return createListView({
     getItemId: (prompt: PromptLibraryPrompt) => prompt.id,
-    source: { kind: 'sync', items: getPrompts },
+    source,
     search: {
       kind: 'sync',
       predicate: createTextMatcher((prompt: PromptLibraryPrompt) => [prompt.title, prompt.prompt]),

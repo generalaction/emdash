@@ -20,6 +20,7 @@ import { log } from '@main/lib/logger';
 import { runInBackground } from '../../core/background';
 import { writeBootingMarker } from '../../core/boot-guard';
 import type { AppConfig } from '../../core/config';
+import { step } from '../../core/phase';
 import { setWorkspaceIdentityService } from '../../core/service-instances';
 
 export type DatabaseBundle = {
@@ -40,7 +41,7 @@ export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
   let published = false;
   let editorBuffer: EditorBufferService | undefined;
   try {
-    await initializeDatabase(client.sqlite);
+    await step('db-initialize', () => initializeDatabase(client.sqlite));
     setAppDb(client);
     published = true;
     const workspaceIdentity = createWorkspaceIdentityService({ db: client.db });
@@ -55,7 +56,8 @@ export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
       contributions: appSettingsContributions,
     });
     setWorkspaceIdentityService(workspaceIdentity);
-    await runStartupRepairs(client.db, editorBuffer);
+    const buffer = editorBuffer;
+    await step('db-startup-repairs', () => runStartupRepairs(client.db, buffer));
     return {
       appSettings,
       db: client.db,

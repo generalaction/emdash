@@ -5,6 +5,10 @@ import { markUserDataConfigured } from '../../core/config';
 
 export function applyIdentity(config: AppConfig): void {
   app.setName(config.identity.productName);
-  app.setPath('userData', join(app.getPath('appData'), config.identity.userDataDirName));
+  // EMDASH_USER_DATA_DIR redirects the whole profile (DB, logs, mementos) to an
+  // isolated directory — used by the boot-measurement harness and scratch profiles.
+  const userDataPath =
+    config.userDataDir ?? join(app.getPath('appData'), config.identity.userDataDirName);
+  app.setPath('userData', userDataPath);
   markUserDataConfigured();
 }

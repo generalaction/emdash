@@ -140,6 +140,9 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
     if (src.kind === 'sync') {
       return typeof src.items === 'function' ? src.items() : src.items;
     }
+    if (src.kind === 'external') {
+      return src.items();
+    }
     return this._asyncSourceItems;
   }
 
@@ -197,6 +200,7 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
 
   /**
    * Re-fetches externally owned data without changing search, filter, or sort state.
+   * No-op for `external` sources — their owner (e.g. React Query) handles refetching.
    */
   async reload(): Promise<void> {
     if (this.pagination) {
@@ -224,6 +228,23 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
     }
     if (this.spec.source.kind === 'async' && !this.pagination) {
       void this.reload();
+    }
+
+    // External sources own fetching; mirror their status/error into the store
+    // so the framework's loading/error slots route from `store.status`.
+    if (this.spec.source.kind === 'external') {
+      const source = this.spec.source;
+      const dispose = reaction(
+        () => ({ status: source.status(), error: source.error?.() }),
+        ({ status, error }) => {
+          runInAction(() => {
+            this.status = status;
+            this.error = status === 'error' ? error : undefined;
+          });
+        },
+        { fireImmediately: true }
+      );
+      this.disposers.push(dispose);
     }
 
     // When search/filter/sort changes, reset pagination and load page 1.

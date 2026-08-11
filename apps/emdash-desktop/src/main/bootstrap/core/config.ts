@@ -20,6 +20,7 @@ export type AppConfig = {
   identity: AppIdentityConfig;
   isDev: boolean;
   dbFile: string | undefined;
+  userDataDir: string | undefined;
   disableNativeDb: boolean;
   telemetryEnabled: boolean;
   installSource: string | undefined;
@@ -42,6 +43,7 @@ const telemetryEnabled = z
 const rawAppConfigSchema = z
   .object({
     emdashDbFile: z.string().trim().min(1, 'Database path cannot be empty').optional(),
+    emdashUserDataDir: z.string().trim().min(1, 'User data directory cannot be empty').optional(),
     emdashDisableNativeDb: flagIsOne,
     telemetryEnabled,
     installSource: z.string().trim().min(1, 'Install source cannot be empty').optional(),
@@ -50,6 +52,7 @@ const rawAppConfigSchema = z
   .transform(
     (config): Omit<AppConfig, 'identity' | 'isDev'> => ({
       dbFile: config.emdashDbFile,
+      userDataDir: config.emdashUserDataDir,
       disableNativeDb: config.emdashDisableNativeDb,
       telemetryEnabled: config.telemetryEnabled,
       installSource: config.installSource,

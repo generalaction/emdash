@@ -1,5 +1,5 @@
 import type { WorkspaceIconStatus, WorkspaceIconType } from '@emdash/ui/react/components';
-import { createListView, createTextMatcher } from '@emdash/ui/react/patterns';
+import { createListView, createTextMatcher, type ListSource } from '@emdash/ui/react/patterns';
 import type { WorkspaceRowsGroup } from '@core/features/workspaces/api/browser/use-workspace-rows';
 import { aggregateWorkspaceStatus } from '@core/features/workspaces/api/browser/workspace-runtime-status';
 
@@ -18,14 +18,14 @@ export interface WorkspacesListItem {
 }
 
 /**
- * The list-view state layer for the workspaces list: sync source fed by a
- * reactive getter (wrap query data in an observable so the pipeline re-derives)
- * plus immediate client-side search over name and path.
+ * The list-view state layer for the workspaces list: an externally owned source
+ * (the component bridges its query via `useQueryListSource`) plus immediate
+ * client-side search over name and path.
  */
-export function createWorkspacesListView(getItems: () => WorkspacesListItem[]) {
+export function createWorkspacesListView(source: ListSource<WorkspacesListItem>) {
   return createListView({
     getItemId: (item: WorkspacesListItem) => item.id,
-    source: { kind: 'sync', items: getItems },
+    source,
     search: {
       kind: 'sync',
       predicate: createTextMatcher((item: WorkspacesListItem) => [item.name, item.path]),

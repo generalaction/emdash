@@ -5,10 +5,10 @@ import { createAutomationsListView } from './automations-list-model';
 
 describe('createAutomationsListView', () => {
   it('keeps source order and searches by name', () => {
-    const view = createAutomationsListView(() => [
-      automation('b', 'Nightly triage'),
-      automation('a', 'Changelog digest'),
-    ]);
+    const view = createAutomationsListView({
+      kind: 'sync',
+      items: [automation('b', 'Nightly triage'), automation('a', 'Changelog digest')],
+    });
     const search = (query: string) => {
       view.store.search!.setQuery(query);
       return view.store.orderedIds;
@@ -22,7 +22,7 @@ describe('createAutomationsListView', () => {
 
   it('re-derives when the observable source changes', () => {
     const box = observable.box<Automation[]>([], { deep: false });
-    const view = createAutomationsListView(() => box.get());
+    const view = createAutomationsListView({ kind: 'sync', items: () => box.get() });
 
     expect(view.store.orderedIds).toEqual([]);
     runInAction(() => box.set([automation('a', 'Nightly triage')]));

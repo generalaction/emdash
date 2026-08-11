@@ -1,10 +1,10 @@
+import { CollectionView, SortSelect } from '@emdash/ui/react/patterns';
 import {
   Button,
   ContextMenu,
   Input,
   Popover,
   SearchInput,
-  Select,
   ToggleGroup,
 } from '@emdash/ui/react/primitives';
 import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
@@ -25,16 +25,13 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
-import type { PullRequestSort } from '@core/services/pull-requests/api';
+import {
+  usePullRequestsStore,
+  type PullRequestListView,
+} from '@root/src/core/services/pull-requests/browser';
+import { PrRow } from './pr-row';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';
-import { PrVirtualList } from './pr-virtual-list';
-
-const SORT_OPTIONS: { value: PullRequestSort; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'recently-updated', label: 'Recently Updated' },
-];
 
 function FilterButton({
   label,
@@ -241,6 +238,35 @@ export const PullRequestView = observer(function PullRequestView() {
   );
 });
 
+/** The shared sort control, bound to the view's sort slice (needs Root context). */
+const PrSortSelect = observer(function PrSortSelect({ view }: { view: PullRequestListView }) {
+  const sort = view.useSort();
+  return <SortSelect sort={sort} />;
+});
+
+function PrErrorState({ error }: { error: string | null }) {
+  return (
+    <div className="flex flex-col items-center gap-1 p-6 text-center">
+      <p className="text-sm font-medium">Could not load pull requests</p>
+      {error && <p className="text-sm text-foreground-muted">{error}</p>}
+    </div>
+  );
+}
+
+/** Search bound directly to the view's search slice (needs Root context). */
+const PrSearchInput = observer(function PrSearchInput({ view }: { view: PullRequestListView }) {
+  const searchRef = useSearchFocusHotkeys();
+  const search = view.useSearch();
+  return (
+    <SearchInput
+      ref={searchRef}
+      placeholder="Search by title, branch, or number..."
+      value={search.query}
+      onChange={(e) => search.setQuery(e.target.value)}
+    />
+  );
+});
+
 const PullRequestViewContent = observer(function PullRequestViewContent({
   projectId,
   repositoryUrl,
@@ -248,11 +274,10 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
   projectId: string;
   repositoryUrl: string;
 }) {
+  const store = usePullRequestsStore();
+  const view = store.listView;
   const {
     statusFilter,
-    sortFilter,
-    query,
-    setQuery,
     syncing,
     selectedAuthorLogin,
     setSelectedAuthorLogin,
@@ -261,16 +286,11 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedAssigneeLogin,
     setSelectedAssigneeLogin,
     handleStatusChange,
-    handleSortChange,
     handleRefresh,
     handleForceFullSync,
     removeLabel,
     prs,
-    loading,
     error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
     authorItems,
     assigneeItems,
     labelItems,
@@ -279,135 +299,142 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedLabelItems,
     hasPills,
   } = usePrViewState(repositoryUrl);
-  const searchRef = useSearchFocusHotkeys();
 
-  return (
-    <div className="relative flex h-full min-h-0 w-full flex-col">
-      {/* ── Header controls ── */}
-      <div className="flex flex-col gap-4 border-b border-border pb-2">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <ToggleGroup.Root
-            value={[statusFilter]}
-            onValueChange={(values) => {
-              const next = values.find((v) => v !== statusFilter) ?? statusFilter;
-              handleStatusChange(next as StatusFilter);
-            }}
-          >
-            <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
-            <ToggleGroup.Item value="not-open">Closed</ToggleGroup.Item>
-          </ToggleGroup.Root>
+  const toolbar = (
+    <div className="flex flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <ToggleGroup.Root
+          value={[statusFilter]}
+          onValueChange={(values) => {
+            const next = values.find((v) => v !== statusFilter) ?? statusFilter;
+            handleStatusChange(next as StatusFilter);
+          }}
+        >
+          <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
+          <ToggleGroup.Item value="not-open">Closed</ToggleGroup.Item>
+        </ToggleGroup.Root>
 
-          <div className="flex items-center gap-2">
-            <SearchInput
-              ref={searchRef}
-              placeholder="Search by title, branch, or number..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <ContextMenu.Root>
-              <ContextMenu.Trigger>
-                <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
-                  <motion.div
-                    animate={syncing ? { rotate: 360 } : {}}
-                    transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
-                  >
-                    <RefreshCw className="size-3.5" />
-                  </motion.div>
-                </Button>
-              </ContextMenu.Trigger>
-              <ContextMenu.Content>
-                <ContextMenu.Item onClick={handleForceFullSync} disabled={syncing}>
-                  <RefreshCw className="size-4" />
-                  Force full sync
-                </ContextMenu.Item>
-              </ContextMenu.Content>
-            </ContextMenu.Root>
-          </div>
-        </div>
-
-        {/* ── Sort + filter row ── */}
-        <div className="flex flex-col flex-wrap gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-foreground-passive">Sort</span>
-              <Select.Root value={sortFilter} onValueChange={handleSortChange}>
-                <Select.Trigger
-                  size="sm"
-                  className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
+        <div className="flex items-center gap-2">
+          <PrSearchInput view={view} />
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
+                <motion.div
+                  animate={syncing ? { rotate: 360 } : {}}
+                  transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
                 >
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  {SORT_OPTIONS.map(({ value, label }) => (
-                    <Select.Item key={value} value={value}>
-                      {label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-foreground-passive">Filter by</span>
-              <UserFilterPopover
-                label="Author"
-                items={authorItems}
-                selected={selectedAuthorLogin}
-                onChange={setSelectedAuthorLogin}
-              />
-              <LabelFilterPopover
-                items={labelItems}
-                selected={selectedLabelNames}
-                onChange={setSelectedLabelNames}
-              />
-              <UserFilterPopover
-                label="Assignee"
-                items={assigneeItems}
-                selected={selectedAssigneeLogin}
-                onChange={setSelectedAssigneeLogin}
-              />
-            </div>
-          </div>
-
-          {/* ── Active filter pills ── */}
-          {hasPills && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {selectedAuthorItem && (
-                <FilterPill
-                  label={selectedAuthorItem.label}
-                  avatarUrl={selectedAuthorItem.avatarUrl}
-                  onRemove={() => setSelectedAuthorLogin(null)}
-                />
-              )}
-              {selectedLabelItems.map((l) => (
-                <FilterPill
-                  key={l.value}
-                  label={l.label}
-                  color={l.color}
-                  onRemove={() => removeLabel(l.value)}
-                />
-              ))}
-              {selectedAssigneeItem && (
-                <FilterPill
-                  label={selectedAssigneeItem.label}
-                  avatarUrl={selectedAssigneeItem.avatarUrl}
-                  onRemove={() => setSelectedAssigneeLogin(null)}
-                />
-              )}
-            </div>
-          )}
+                  <RefreshCw className="size-3.5" />
+                </motion.div>
+              </Button>
+            </ContextMenu.Trigger>
+            <ContextMenu.Content>
+              <ContextMenu.Item onClick={handleForceFullSync} disabled={syncing}>
+                <RefreshCw className="size-4" />
+                Force full sync
+              </ContextMenu.Item>
+            </ContextMenu.Content>
+          </ContextMenu.Root>
         </div>
       </div>
-      <PrVirtualList
-        prs={prs}
-        projectId={projectId}
-        loading={loading}
-        error={error}
-        hasNextPage={hasNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
-      />
-      <PrSyncStatusCard repositoryUrl={repositoryUrl} manualError={prs.length > 0 ? error : null} />
+
+      {/* ── Sort + filter row ── */}
+      <div className="flex flex-col flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-foreground-passive">Sort</span>
+            <PrSortSelect view={view} />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-foreground-passive">Filter by</span>
+            <UserFilterPopover
+              label="Author"
+              items={authorItems}
+              selected={selectedAuthorLogin}
+              onChange={setSelectedAuthorLogin}
+            />
+            <LabelFilterPopover
+              items={labelItems}
+              selected={selectedLabelNames}
+              onChange={setSelectedLabelNames}
+            />
+            <UserFilterPopover
+              label="Assignee"
+              items={assigneeItems}
+              selected={selectedAssigneeLogin}
+              onChange={setSelectedAssigneeLogin}
+            />
+          </div>
+        </div>
+
+        {/* ── Active filter pills ── */}
+        {hasPills && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {selectedAuthorItem && (
+              <FilterPill
+                label={selectedAuthorItem.label}
+                avatarUrl={selectedAuthorItem.avatarUrl}
+                onRemove={() => setSelectedAuthorLogin(null)}
+              />
+            )}
+            {selectedLabelItems.map((l) => (
+              <FilterPill
+                key={l.value}
+                label={l.label}
+                color={l.color}
+                onRemove={() => removeLabel(l.value)}
+              />
+            ))}
+            {selectedAssigneeItem && (
+              <FilterPill
+                label={selectedAssigneeItem.label}
+                avatarUrl={selectedAssigneeItem.avatarUrl}
+                onRemove={() => setSelectedAssigneeLogin(null)}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
+  );
+
+  return (
+    <view.Root>
+      <CollectionView
+        view={view}
+        // Rows are not click targets (a PR has no in-app destination); the
+        // hover actions inside PrRow carry the interactions, revealed via the
+        // wrapper's `group`.
+        renderRow={(pr) => (
+          <div className="group w-full">
+            <PrRow pr={pr} projectId={projectId} />
+          </div>
+        )}
+        estimateSize={84}
+        toolbar={toolbar}
+        footer={
+          <PrSyncStatusCard
+            repositoryUrl={repositoryUrl}
+            manualError={prs.length > 0 ? error : null}
+          />
+        }
+        errorSlot={<PrErrorState error={error} />}
+        // Refresh/sync failures don't set the list view's error status, so an
+        // empty list surfaces them here — matching the old error-before-empty
+        // precedence.
+        emptySlot={
+          error ? (
+            <PrErrorState error={error} />
+          ) : (
+            <div className="flex flex-col items-center gap-1 p-6 text-center">
+              <p className="text-sm font-medium">No pull requests</p>
+              <p className="text-sm text-foreground-muted">
+                No pull requests available or none that match this filter
+              </p>
+            </div>
+          )
+        }
+      />
+    </view.Root>
   );
 });

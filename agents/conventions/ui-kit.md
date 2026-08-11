@@ -82,9 +82,24 @@ locked spec lives with the unify-list-views effort.
   actions. Destructive actions go last, separated, destructive-styled, with a confirm
   modal when irreversible.
 - **An empty state is mandatory** (`EmptyState` is the default content; rich
-  interactive empty states are allowed); `Spinner` is the loading default.
-- **Deprecations**: `ColumnList` and `ListPage` are superseded by `CollectionView`;
-  raw `ListView` chrome is an internal escape hatch, not a pattern for new surfaces.
+  interactive empty states are allowed); `Spinner` is the loading default. Custom
+  `EmptyState` slot content must pass `bare` — the card paints its own surface, so
+  the component's panel background would patch over it.
+- **Query-backed lists use `useQueryListSource`**: when the data comes from React
+  Query, bridge the query result into the view with
+  `useQueryListSource(query, buildItems)` (an `external` list source) instead of
+  `observable.box` bridges or hand-rolled loading/error branches. Routing is then
+  framework-owned: `loading` + no rows → `loadingSlot`; `error` + no rows →
+  `errorSlot`; rows present → rows render even during refetch or on refetch failure
+  (stale rows stay, silently — surfaces that must announce a refetch failure add
+  their own `footer` banner); no rows and idle → `emptySlot`. The toolbar is always
+  visible, including while loading. `reload()` is a no-op for these views — refetch
+  through the query owner.
+- **Removed**: `ColumnList` and `ListPage` no longer exist — `CollectionView` replaced
+  both (its `columns`/`CollectionViewColumn`/`CollectionViewCell` vocabulary is the
+  former `ColumnList` shape). Raw `ListView` chrome remains exported as an internal
+  escape hatch for surfaces that cannot fit the shell (for example the workbench
+  sidebar lists); it is not a pattern for new page surfaces.
 
 ## Settings pages
 

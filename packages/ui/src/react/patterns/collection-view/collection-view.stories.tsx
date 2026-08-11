@@ -22,7 +22,15 @@ import { Spinner } from '../../primitives/spinner';
 import { Switch } from '../../primitives/switch';
 import { ToggleGroup } from '../../primitives/toggle';
 import { CollectionToolbar } from '../collection-toolbar';
-import { byField, createListView, createTextMatcher, defineFilter, defineSort } from '../list-view';
+import {
+  byField,
+  createListView,
+  createTextMatcher,
+  defineFilter,
+  defineSort,
+  useQueryListSource,
+  type ExternalListSource,
+} from '../list-view';
 import { CollectionView, CollectionViewCell, type CollectionViewColumn } from './collection-view';
 import { SortSelect } from './sort-select';
 
@@ -262,8 +270,8 @@ export const TaskView: Story = {
 };
 
 // ══ 2 · Worktrees table — shortcut mode with a trailing actions column ═══════
-// The old ColumnList call-site shape survives unchanged: plain items, columns,
-// no state layer — plus the ellipsis-menu column the real worktrees table has.
+// The simplest call-site shape: plain items, columns, no state layer — plus
+// the ellipsis-menu column the real worktrees table has.
 
 interface WorktreeFixture {
   id: string;
@@ -616,7 +624,9 @@ export const AutomationsFreeform: Story = {
 
 // ══ 5 · Empty / loading / error states ═══════════════════════════════════════
 // The three free-form slots. An empty state is mandatory; `EmptyState` is the
-// default empty/error content and `Spinner` the loading default.
+// default empty/error content and `Spinner` the loading default. Custom
+// `EmptyState` slot content must pass `bare` — the card paints its own
+// surface, so the component's panel background would patch over it.
 
 const loadingView = createListView({
   getItemId: (t: TaskFixture) => t.id,
@@ -649,7 +659,9 @@ export const States: Story = {
           items={[] as TaskFixture[]}
           getItemKey={(t) => t.id}
           columns={TASK_COLUMNS}
-          emptySlot={<EmptyState label="No tasks" description="Create a task to get started" />}
+          emptySlot={
+            <EmptyState bare label="No tasks" description="Create a task to get started" />
+          }
         />
       </StateCard>
       <StateCard label="loadingSlot (state mode)">
@@ -657,7 +669,7 @@ export const States: Story = {
           <CollectionView
             view={loadingView}
             columns={TASK_COLUMNS}
-            emptySlot={<EmptyState label="No tasks" />}
+            emptySlot={<EmptyState bare label="No tasks" />}
             loadingSlot={
               <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
                 <Spinner />
@@ -671,13 +683,140 @@ export const States: Story = {
           <CollectionView
             view={errorView}
             columns={TASK_COLUMNS}
-            emptySlot={<EmptyState label="No tasks" />}
-            errorSlot={<EmptyState label="Could not load tasks" description="Sync failed" />}
+            emptySlot={<EmptyState bare label="No tasks" />}
+            errorSlot={<EmptyState bare label="Could not load tasks" description="Sync failed" />}
           />
         </errorView.Root>
       </StateCard>
     </div>
   ),
+};
+
+// ══ 5b · Default slots ════════════════════════════════════════════════════════
+// No slot props at all: the built-in defaults (bare `EmptyState`, `Spinner`)
+// render correctly on the card surface out of the box.
+
+const defaultLoadingView = createListView({
+  getItemId: (t: TaskFixture) => t.id,
+  source: { kind: 'async', load: () => new Promise<TaskFixture[]>(() => {}) },
+});
+
+const defaultErrorView = createListView({
+  getItemId: (t: TaskFixture) => t.id,
+  source: { kind: 'async', load: () => Promise.reject(new Error('Sync failed')) },
+});
+
+export const DefaultSlots: Story = {
+  name: '5b · Default slots (no slot props)',
+  render: () => (
+    <div style={{ display: 'flex', gap: '1rem', width: '60rem', maxWidth: '100%' }}>
+      <StateCard label="default empty">
+        <CollectionView
+          items={[] as TaskFixture[]}
+          getItemKey={(t) => t.id}
+          columns={TASK_COLUMNS}
+        />
+      </StateCard>
+      <StateCard label="default loading">
+        <defaultLoadingView.Root>
+          <CollectionView view={defaultLoadingView} columns={TASK_COLUMNS} />
+        </defaultLoadingView.Root>
+      </StateCard>
+      <StateCard label="default error">
+        <defaultErrorView.Root>
+          <CollectionView view={defaultErrorView} columns={TASK_COLUMNS} />
+        </defaultErrorView.Root>
+      </StateCard>
+    </div>
+  ),
+};
+
+// ══ 5c · External source (query-backed) ═══════════════════════════════════════
+// `useQueryListSource` mirrors a query result (React Query-shaped) into the
+// view: loading/error route through the view's own status and the default
+// slots, stale rows stay visible when a refetch fails, and the toolbar stays
+// visible throughout. The buttons simulate the query lifecycle.
+
+type QueryPhase = 'loading' | 'ready' | 'load-error' | 'refetch-error';
+
+const QUERY_PHASES: { value: QueryPhase; label: string }[] = [
+  { value: 'loading', label: 'Loading' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'load-error', label: 'Load error' },
+  { value: 'refetch-error', label: 'Refetch error' },
+];
+
+function buildQueryBackedView(source: ExternalListSource<TaskFixture>) {
+  return createListView({
+    getItemId: (t: TaskFixture) => t.id,
+    source,
+    search: {
+      kind: 'sync' as const,
+      predicate: createTextMatcher((t: TaskFixture) => t.name),
+      debounceMs: 0,
+    },
+  });
+}
+
+function QueryBackedStory() {
+  const [phase, setPhase] = React.useState<QueryPhase>('loading');
+
+  const hasData = phase === 'ready' || phase === 'refetch-error';
+  const source = useQueryListSource<TaskFixture[], TaskFixture>(
+    {
+      data: hasData ? TASKS.slice(0, 6) : undefined,
+      isLoading: phase === 'loading',
+      isError: phase === 'load-error' || phase === 'refetch-error',
+      error: phase === 'load-error' || phase === 'refetch-error' ? new Error('Sync failed') : null,
+    },
+    (rows) => rows
+  );
+  const [view] = React.useState(() => buildQueryBackedView(source));
+
+  return (
+    <view.Root>
+      <div style={{ width: '46rem', height: '24rem', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', paddingBottom: '0.75rem' }}>
+          <ToggleGroup.Root
+            multiple={false}
+            value={[phase]}
+            onValueChange={([value]) => value && setPhase(value as QueryPhase)}
+          >
+            {QUERY_PHASES.map((p) => (
+              <ToggleGroup.Item key={p.value} value={p.value}>
+                {p.label}
+              </ToggleGroup.Item>
+            ))}
+          </ToggleGroup.Root>
+        </div>
+        <CollectionView
+          view={view}
+          columns={TASK_COLUMNS}
+          toolbar={<QueryBackedToolbar view={view} />}
+        />
+      </div>
+    </view.Root>
+  );
+}
+
+const QueryBackedToolbar = observer(function QueryBackedToolbar({
+  view,
+}: {
+  view: ReturnType<typeof buildQueryBackedView>;
+}) {
+  const search = view.useSearch();
+  return (
+    <CollectionToolbar
+      searchValue={search.query}
+      onSearchValueChange={search.setQuery}
+      searchPlaceholder="Search tasks… (visible in every phase)"
+    />
+  );
+});
+
+export const QueryBacked: Story = {
+  name: '5c · External source (query-backed)',
+  render: () => <QueryBackedStory />,
 };
 
 // ══ 6 · Section header override ══════════════════════════════════════════════

@@ -47,7 +47,21 @@ import { initNotificationDeliveryListener } from '@root/src/core/services/notifi
 import { App } from './App';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
+const bootstrapStartedAt = performance.now();
+let lastBootMarkAt = bootstrapStartedAt;
+function bootMark(mark: string): void {
+  const now = performance.now();
+  log.info('boot-timeline renderer', {
+    mark,
+    sincePageStartMs: Math.round(now),
+    sinceBootstrapMs: Math.round(now - bootstrapStartedAt),
+    sincePreviousMarkMs: Math.round(now - lastBootMarkAt),
+  });
+  lastBootMarkAt = now;
+}
+
 async function bootstrap() {
+  bootMark('bootstrap-start');
   // Core owns wire access through the seeded-connection seam; seed it before
   // React mounts so any slice can reach the wire without host imports.
   seedDesktopWire();
@@ -84,18 +98,25 @@ async function bootstrap() {
     onError: (error) => log.error('Memento operation failed:', error),
   });
   const mementoClient = await initMementos();
+  bootMark('mementos-initialized');
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
   await Promise.all([
-    monacoBootstrap.init().catch((error: unknown) => {
-      log.warn('[monaco-bootstrap] init failed:', error);
-    }),
-    getProjectManagerStore().load(),
+    monacoBootstrap
+      .init()
+      .catch((error: unknown) => {
+        log.warn('[monaco-bootstrap] init failed:', error);
+      })
+      .then(() => bootMark('monaco-ready')),
+    getProjectManagerStore()
+      .load()
+      .then(() => bootMark('projects-loaded')),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
   ]);
+  bootMark('parallel-load-complete');
 
   for (const contribution of featureViewRuntimes) registerViewRuntime(contribution);
   assertViewRuntimesComplete(viewCatalog);
@@ -104,6 +125,7 @@ async function bootstrap() {
   const legacyNavigationHandle = appSpace.handle(workbenchNavigationMemento);
   const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
   await appSpace.ready;
+  bootMark('memento-handles-ready');
   getNavigation().attachMemento(historyHandle, legacyNavigationHandle);
   getSidebarStore().attachMemento(sidebarHandle);
   if (!sidebarHandle.hasStoredValue) getSidebarStore().expandAllProjects();
@@ -119,6 +141,7 @@ async function bootstrap() {
       </MementoClientProvider>
     </ErrorBoundary>
   );
+  bootMark('react-render-called');
 }
 
 bootstrap().catch((error: unknown) => {

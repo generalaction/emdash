@@ -1,6 +1,6 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccountSession } from '@core/features/account/api/browser/useAccount';
 import { GithubContextProvider } from '@core/features/github/api/browser/github-context-provider';
 import { IntegrationsProvider } from '@core/features/integrations/contributions/browser/integrations-provider';
@@ -11,6 +11,7 @@ import { Onboarding } from '@core/features/workbench/browser/onboarding/onboardi
 import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
 import { WorkspaceLayoutContextProvider } from '@core/features/workbench/contributions/browser/layout-provider';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
+import { log } from '@core/primitives/logging/browser/logger';
 import { queryClient } from '@core/primitives/query/browser/query-client';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
@@ -35,6 +36,16 @@ function AppContent() {
   const { data: legacyStatus, isLoading: legacyLoading } = useLegacyPortStatus();
 
   const isLoading = sessionLoading || legacyLoading;
+
+  const bootReadyLogged = useRef(false);
+  useEffect(() => {
+    if (isLoading || bootReadyLogged.current) return;
+    bootReadyLogged.current = true;
+    log.info('boot-timeline renderer', {
+      mark: 'app-content-ready',
+      sincePageStartMs: Math.round(performance.now()),
+    });
+  }, [isLoading]);
 
   // Computed once when queries first resolve while in onboarding. Never updated
   // after that so query refetches mid-onboarding (e.g. legacyPortStatus after

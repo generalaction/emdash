@@ -9,15 +9,24 @@ export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   description?: string;
   /** Optional call-to-action rendered below the text stack. */
   action?: React.ReactNode;
+  /**
+   * Render without the panel background, for containers that paint their own
+   * surface (for example `CollectionView`'s card).
+   */
+  bare?: boolean;
 }
 
 /**
  * EmptyState — centered label/description/action stack for empty panels,
  * lists, and tabs. Fills its container (height 100%).
  */
-function EmptyState({ label, description, action, className, ...props }: EmptyStateProps) {
+function EmptyState({ label, description, action, bare, className, ...props }: EmptyStateProps) {
   return (
-    <div data-slot="empty-state" className={cx(styles.root, className)} {...props}>
+    <div
+      data-slot="empty-state"
+      className={cx(styles.root, bare && styles.bare, className)}
+      {...props}
+    >
       <div className={styles.content}>
         <h2 className={styles.label}>{label}</h2>
         {description && <p className={styles.description}>{description}</p>}

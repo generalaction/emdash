@@ -140,13 +140,6 @@ export {
   type StatusIconSize,
 } from './status-icon/status-icon';
 export {
-  ColumnList,
-  ColumnListCell,
-  type ColumnListCellProps,
-  type ColumnListColumn,
-  type ColumnListProps,
-} from './column-list/column-list';
-export {
   SteppedLoader,
   SteppedLoaderProgress,
   type StepStatus,

@@ -27,8 +27,9 @@ export function ProjectPullRequestsProvider({
     void getPullRequestsRuntimeClient()
       .then(async (client) => {
         if (disposed) return;
+        // The list view's lifecycle (initialize/dispose) is owned by the
+        // `view.Root` the PR view renders, not by this provider.
         createdStore = new PullRequestsStore(client, stableRepositoryUrls);
-        createdStore.listView.store.initialize();
         await createdStore.ready;
         if (disposed) {
           await createdStore.dispose();

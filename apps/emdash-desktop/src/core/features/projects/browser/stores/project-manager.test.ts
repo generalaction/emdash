@@ -133,7 +133,7 @@ vi.mock('@core/primitives/telemetry/browser/telemetry-client', () => ({
 }));
 
 vi.mock('@core/primitives/logging/browser/logger', () => ({
-  log: { error: mocks.logError },
+  log: { error: mocks.logError, info: vi.fn() },
 }));
 
 function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
