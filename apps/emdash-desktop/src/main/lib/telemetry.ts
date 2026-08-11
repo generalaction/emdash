@@ -157,6 +157,12 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
       'duration_ms',
       'error_step',
       'error_code',
+      // Boot watchdog / boot guardrails.
+      'stuck_phase',
+      'backend_completed',
+      'window_loaded',
+      'window_visible_ms',
+      'usable_workspace_ms',
       // Performance vitals (sampled sessions): numbers only, fixed key set.
       'process_name',
       'rss_mb',
@@ -404,7 +410,8 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
     // zero timers/observers when this is false.
     this.perfSampled = this.isEnabled() && Math.random() < PERF_SESSION_SAMPLE_RATE;
 
-    void this.posthogCapture('app_started');
+    // app_started is captured by the boot report (bootstrap/core/boot-report)
+    // once boot settles, so it can carry the boot durations.
     void this.checkDailyActiveUser();
 
     // Heartbeat: write lastHeartbeatTs to KV every 60 s so crash recovery can

@@ -6,7 +6,7 @@ import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { setAgentStatusConversationEventPublisher } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
-import { installDesktopWire } from '@main/gateway/desktop-wire';
+import { installDesktopWire, registerDesktopWireControllers } from '@main/gateway/desktop-wire';
 import { createDesktopDevServerBridgeParticipant } from '@main/gateway/dev-server-bridge';
 import { log } from '@main/lib/logger';
 import { appScope } from '../../core/app-scope';
@@ -21,7 +21,8 @@ export function installGateway(
   services: ServicesBundle,
   runtimes: DesktopRuntimes
 ): void {
-  installDesktopWire(controllers);
+  installDesktopWire();
+  registerDesktopWireControllers(controllers);
   const devServerBridgeParticipant = createDesktopDevServerBridgeParticipant(
     runtimes.broker,
     database.workspaceIdentity

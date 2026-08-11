@@ -16,7 +16,13 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { clearBootFailureMarker, observePreviousBoot, writeBootingMarker } from './boot-guard';
+import {
+  clearBootFailureMarker,
+  clearBootMarkerIfStillBooting,
+  observePreviousBoot,
+  recordBootFailure,
+  writeBootingMarker,
+} from './boot-guard';
 
 const productionConfig = {
   isDev: false,
@@ -49,6 +55,33 @@ describe('boot guard', () => {
     clearBootFailureMarker();
 
     expect(existsSync(join(mocks.userDataPath, 'boot-state.json'))).toBe(false);
+    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 0 });
+  });
+
+  it('counts an observed backend failure without waiting for the next launch', () => {
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig);
+
+    // The failure is already counted; the next launch must not double count.
+    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
+  });
+
+  it('keeps recorded failures across a quit but clears an in-progress marker', () => {
+    // Launch 1: backend fails, failure recorded, user quits the recovery window.
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig);
+    clearBootMarkerIfStillBooting();
+    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 1 });
+
+    // Launch 2: same again — two consecutive failures survive the quits.
+    writeBootingMarker(productionConfig);
+    recordBootFailure(productionConfig);
+    clearBootMarkerIfStillBooting();
+    expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 2 });
+
+    // A quit while still booting is a user abort, not a failure.
+    writeBootingMarker(productionConfig);
+    clearBootMarkerIfStillBooting();
     expect(observePreviousBoot(productionConfig)).toEqual({ booting: false, failures: 0 });
   });
 

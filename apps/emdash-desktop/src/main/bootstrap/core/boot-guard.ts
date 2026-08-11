@@ -40,6 +40,29 @@ export function markBootSuccessful(): void {
   clearBootFailureMarker();
 }
 
+/**
+ * Converts the in-progress booting marker into a counted failure at the moment
+ * the backend fails. Without this eager write, the failure would only be
+ * counted if the process died uncleanly: quitting the recovery window fires
+ * the quit cleanup, and an unguarded cleanup would erase the evidence the
+ * crash-loop guard needs to open recovery instead of the main window.
+ */
+export function recordBootFailure(config: AppConfig): void {
+  if (config.isDev) return;
+  const state = readBootState();
+  writeBootState({ booting: false, failures: state.failures + 1 });
+}
+
+/**
+ * Quit-time cleanup: a quit while boot is still in progress is a user abort,
+ * not a failure, so the marker is cleared. A recorded failure
+ * (`booting: false`, `failures > 0`) must survive the quit so consecutive
+ * failures are counted across launches.
+ */
+export function clearBootMarkerIfStillBooting(): void {
+  if (readBootState().booting) clearBootFailureMarker();
+}
+
 export function clearBootFailureMarker(): void {
   try {
     rmSync(bootStatePath(), { force: true });
@@ -71,7 +94,7 @@ function readBootState(): BootState {
 function registerQuitCleanup(): void {
   if (quitCleanupRegistered) return;
   quitCleanupRegistered = true;
-  app.once('before-quit', clearBootFailureMarker);
+  app.once('before-quit', clearBootMarkerIfStillBooting);
 }
 
 function writeBootState(state: BootState): void {

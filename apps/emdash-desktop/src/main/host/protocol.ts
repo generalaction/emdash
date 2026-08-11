@@ -14,6 +14,9 @@ export function registerAppScheme(): void {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        // Let Blink persist V8 code cache for app:// scripts, so repeat
+        // launches skip recompiling the renderer bundle.
+        codeCache: true,
       },
     },
   ]);

@@ -156,6 +156,7 @@ export { applyValidation, type ValidatePolicy } from '../api/validation';
 export { type LeasedLiveModelProvider } from '../live/replica/leased-provider';
 export { type LiveModelMutationEnvelope, type LiveModelProvider } from '../live/replica/provider';
 export { client } from './client';
+export { queuedClient } from './queued-client';
 export { createController, type ContractImpl, type CreateControllerOptions } from './controller';
 export { forwardContractImpl, forwardController } from './forward';
 export {

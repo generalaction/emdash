@@ -24,9 +24,9 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   logInfo: vi.fn(),
   logWarn: vi.fn(),
+  resolveUserEnv: vi.fn(),
   runtimes: vi.fn(),
   services: vi.fn(),
-  window: vi.fn(),
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -35,6 +35,9 @@ vi.mock('@main/lib/logger', () => ({
     info: mocks.logInfo,
     warn: mocks.logWarn,
   },
+}));
+vi.mock('@main/lib/userEnv', () => ({
+  resolveUserEnv: mocks.resolveUserEnv,
 }));
 vi.mock('@main/db/instance', () => ({
   closeAppDb: mocks.closeAppDb,
@@ -55,7 +58,6 @@ vi.mock('./phases/gateway', () => ({ installGateway: mocks.gateway }));
 vi.mock('./phases/infrastructure', () => ({ bootInfrastructure: mocks.infrastructure }));
 vi.mock('./phases/runtimes', () => ({ bootRuntimes: mocks.runtimes }));
 vi.mock('./phases/services', () => ({ bootServices: mocks.services }));
-vi.mock('./phases/window', () => ({ bootWindow: mocks.window }));
 
 import { finishBoot } from './index';
 
@@ -74,31 +76,46 @@ describe('finishBoot', () => {
     const error = new Error('background setup failed');
     mocks.background.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).resolves.toBeUndefined();
+    await expect(finishBoot({} as never)).resolves.toBeUndefined();
 
-    expect(mocks.window).toHaveBeenCalledOnce();
     expect(mocks.logWarn).toHaveBeenCalledWith('Non-critical boot phase failed; continuing', {
       phase: 'background-tasks',
       error,
     });
   });
 
+  it('captures the user env before the backend chain', async () => {
+    await expect(finishBoot({} as never)).resolves.toBeUndefined();
+
+    const order = (mock: { mock: { invocationCallOrder: number[] } }) =>
+      mock.mock.invocationCallOrder[0]!;
+    expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.database));
+    expect(order(mocks.database)).toBeLessThan(order(mocks.runtimes));
+    // PTY security ordering: workers inherit process.env at spawn, so env
+    // capture must complete before the runtimes phase spawns workers.
+    expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.runtimes));
+  });
+
   it('rethrows a critical step failure and stops boot', async () => {
     const error = new Error('database unavailable');
     mocks.database.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).rejects.toBe(error);
+    await expect(finishBoot({} as never)).rejects.toBe(error);
 
     expect(mocks.infrastructure).not.toHaveBeenCalled();
     expect(mocks.services).not.toHaveBeenCalled();
-    expect(mocks.window).not.toHaveBeenCalled();
+    expect(mocks.appScopeDispose).toHaveBeenCalledWith(error);
+    // bootDatabase cleans up its own partial resources; there is nothing for
+    // finishBoot to close when the database bundle never materialized.
+    expect(mocks.closeAppDb).not.toHaveBeenCalled();
+    expect(bundles.database.editorBuffer.dispose).not.toHaveBeenCalled();
   });
 
   it('disposes composed resources when a later critical step fails', async () => {
     const error = new Error('services unavailable');
     mocks.services.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).rejects.toBe(error);
+    await expect(finishBoot({} as never)).rejects.toBe(error);
 
     expect(mocks.appScopeDispose).toHaveBeenCalledWith(error);
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();
