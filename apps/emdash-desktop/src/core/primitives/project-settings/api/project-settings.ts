@@ -1,6 +1,7 @@
 import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+import type { StoredProjectGitSettings } from './effective-settings';
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -89,6 +90,13 @@ export type ProjectSettingsPatch = {
 
 export type ProjectSettingsPage = {
   settings: ProjectSettings;
+  /**
+   * Stored explicit git choices in the new model (absence = infer) — the
+   * renderer's resolver input (spec: github-git-settings §2). The legacy
+   * `settings` view stays for the non-git fields until the resolver adoption
+   * finishes.
+   */
+  storedGitSettings: StoredProjectGitSettings;
   defaults: {
     worktreeDirectory: string;
   };
