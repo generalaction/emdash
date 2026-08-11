@@ -22,8 +22,11 @@ import {
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import {
+  GITHUB_CONNECT_ACCOUNT_OPTION,
+  GITHUB_INFERRED_NONE_OPTION,
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
+  GitHubZeroAccountSelectItems,
 } from '@core/features/projects/contributions/browser/github-account-select';
 import {
   BrokenSettingNotice,
@@ -34,6 +37,7 @@ import {
 import type { ProvenanceFlavor } from '@core/features/projects/contributions/browser/settings-provenance-labels';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import type {
   Provenance,
@@ -135,6 +139,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
     ? resolveRendererEffectiveSettings(inputs, formToStoredGitSettings(form))
     : null;
   const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const inheritedWorktreeRoot =
@@ -168,9 +173,13 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
   const accountProvenance = effective?.githubAccount.provenance ?? null;
   const accountUnresolvable = accountProvenance?.kind === 'unresolvable';
+  // Zero-account picker state (spec §5): only "Inferred (none)" + Connect.
+  const zeroAccounts = inputs !== null && accounts.length === 0;
   const accountSelectValue =
     form.githubAccount === undefined
-      ? ''
+      ? zeroAccounts
+        ? GITHUB_INFERRED_NONE_OPTION
+        : ''
       : form.githubAccount.kind === 'none'
         ? EXPLICIT_NO_ACCOUNT_OPTION
         : form.githubAccount.accountId;
@@ -203,6 +212,14 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
           value={accountSelectValue}
           onValueChange={(value) => {
             if (!value) return;
+            if (value === GITHUB_CONNECT_ACCOUNT_OPTION) {
+              void openGithubConnectModal({});
+              return;
+            }
+            if (value === GITHUB_INFERRED_NONE_OPTION) {
+              update('githubAccount', undefined);
+              return;
+            }
             update(
               'githubAccount',
               value === EXPLICIT_NO_ACCOUNT_OPTION
@@ -231,15 +248,21 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
             )}
           </Select.Trigger>
           <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span className="relative -top-px shrink-0">No GitHub account</span>
-              </div>
-            </Select.Item>
-            {accounts.map((account) => (
-              <GitHubAccountSelectItem key={account.accountId} account={account} />
-            ))}
+            {zeroAccounts ? (
+              <GitHubZeroAccountSelectItems />
+            ) : (
+              <>
+                <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                    <span className="relative -top-px shrink-0">No GitHub account</span>
+                  </div>
+                </Select.Item>
+                {accounts.map((account) => (
+                  <GitHubAccountSelectItem key={account.accountId} account={account} />
+                ))}
+              </>
+            )}
           </Select.Content>
         </Select.Root>
       </ProvenanceField>

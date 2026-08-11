@@ -1,5 +1,5 @@
 import { Badge, Select } from '@emdash/ui/react/primitives';
-import { Github } from 'lucide-react';
+import { Github, Plus } from 'lucide-react';
 import type { GitHubAccountSummary, GitHubCredentialSource } from '@core/primitives/github/api';
 
 export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
@@ -8,6 +8,38 @@ export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
   device_flow: 'Device flow',
   secure_storage: 'Saved token',
 };
+
+/**
+ * Select option encodings for the zero-account picker state (spec:
+ * github-git-settings §5): with no accounts connected the dropdown offers
+ * only "Inferred (none)" plus a Connect entry — never a dead list or an
+ * explicit-none sentinel. The values are UI-only encodings the surrounding
+ * select intercepts; they are never stored.
+ */
+export const GITHUB_INFERRED_NONE_OPTION = '__inferred_no_github_account__';
+export const GITHUB_CONNECT_ACCOUNT_OPTION = '__connect_github_account__';
+
+export function GitHubZeroAccountSelectItems() {
+  return (
+    <>
+      <Select.Item value={GITHUB_INFERRED_NONE_OPTION} className="py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+          <span className="relative -top-px min-w-0 truncate">Inferred (none)</span>
+          <span className="text-muted-foreground relative -top-px shrink-0 text-xs">
+            No account connected
+          </span>
+        </div>
+      </Select.Item>
+      <Select.Item value={GITHUB_CONNECT_ACCOUNT_OPTION} className="py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Plus className="text-muted-foreground h-4 w-4 shrink-0" />
+          <span className="relative -top-px shrink-0">Connect GitHub account…</span>
+        </div>
+      </Select.Item>
+    </>
+  );
+}
 
 export function GitHubAccountSelectItem({ account }: { account: GitHubAccountSummary }) {
   return (
