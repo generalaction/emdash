@@ -143,10 +143,6 @@ export const repositoryInputSchema = z.object({
   repositoryUrl: z.string(),
 });
 
-export const registerRepositoryInputSchema = repositoryInputSchema.extend({
-  accountId: z.string().optional(),
-});
-
 export const repositoryListInputSchema = z.object({
   repositoryUrls: z.array(z.string()).min(1),
 });

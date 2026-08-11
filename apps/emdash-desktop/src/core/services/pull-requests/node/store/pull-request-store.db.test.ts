@@ -23,6 +23,17 @@ describe('pull request schema', () => {
     expect(fingerprintDerivedSchema(statements)).toBe(schemaFingerprint);
   });
 
+  it('persists no account binding (identity is a per-sync runtime parameter)', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const columnNames = (table: string) =>
+      handle.connection
+        .all<{ name: string }>(`PRAGMA table_info(${table})`)
+        .map((column) => column.name);
+    expect(columnNames('registered_repositories')).not.toContain('account_key');
+    expect(columnNames('sync_cursors')).not.toContain('account_key');
+  });
+
   it('rebuilds derived data when the fingerprint changes', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'emdash-pr-store-'));
     cleanups.push(async () => await rm(directory, { recursive: true, force: true }));

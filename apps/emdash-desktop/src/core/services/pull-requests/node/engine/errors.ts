@@ -46,6 +46,12 @@ export function mapAuthError(error: GitHubAuthError): PullRequestError {
         accountId: error.accountId,
         message: error.message,
       };
+    // Fail closed (spec: github-git-settings §8): an unresolvable identity skips
+    // the operation with a surfaced status — never a fallback identity.
+    case 'account_unresolvable':
+      return { type: 'github_account_resolution_failed', message: error.message };
+    case 'github_disabled':
+      return { type: 'github_account_disabled', message: error.message };
   }
 }
 
