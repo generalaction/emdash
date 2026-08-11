@@ -36,6 +36,7 @@ export type McpCreateTaskInput = {
   branchName?: string;
   baseBranch?: string;
   chatUi?: boolean;
+  autoApprove?: boolean;
 };
 
 export type McpCreateTaskResult = {
@@ -47,6 +48,10 @@ export type McpCreateTaskResult = {
   provider: AgentProviderId | null;
   model: string | null;
   conversationType: ConversationType | 'none';
+  // Null when no conversation is started. False when the caller asked for
+  // auto-approve but the provider has no such mode, so the caller can tell that
+  // the request was dropped.
+  autoApprove: boolean | null;
   workspacePath: string;
 };
 
@@ -78,6 +83,20 @@ async function resolveProvider(
   }
   const configured = await appSettingsService.get('defaultAgent');
   return ok(isValidProviderId(configured) ? configured : DEFAULT_AGENT_ID);
+}
+
+/**
+ * Mirrors the new-task modal: an explicit request wins over the app default,
+ * and both are ignored for providers without an auto-approve mode.
+ */
+async function resolveAutoApprove(
+  provider: AgentProviderId,
+  requested: boolean | undefined
+): Promise<boolean> {
+  if (getPlugin(provider).capabilities.autoApprove.kind !== 'supported') return false;
+  if (requested !== undefined) return requested;
+  const tasks = await appSettingsService.get('tasks');
+  return tasks.autoApproveByDefault;
 }
 
 /**
@@ -254,6 +273,7 @@ export async function createTaskFromPrompt(
       provider: null,
       model: null,
       conversationType: 'none',
+      autoApprove: null,
       workspacePath: provision.data.path,
     });
   }
@@ -265,6 +285,7 @@ export async function createTaskFromPrompt(
     (input.chatUi ?? false) && acpSupported ? 'acp' : 'pty';
   const conversationId = randomUUID();
   const initialQueue = [{ text: prompt }];
+  const autoApprove = await resolveAutoApprove(provider, input.autoApprove);
 
   try {
     await createConversation({
@@ -275,6 +296,7 @@ export async function createTaskFromPrompt(
       title: taskName,
       isInitialConversation: true,
       type: conversationType,
+      autoApprove,
       ...(model && { model }),
       ...(conversationType === 'acp' ? { initialQueue } : { initialPrompt: prompt }),
     });
@@ -311,6 +333,7 @@ export async function createTaskFromPrompt(
     provider,
     model: model ?? null,
     conversationType,
+    autoApprove,
     workspacePath: provision.data.path,
   });
 }

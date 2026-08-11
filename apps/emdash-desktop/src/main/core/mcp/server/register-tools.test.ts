@@ -235,6 +235,15 @@ describe('create_task', () => {
     expect(JSON.parse(result.text)).toEqual({ taskId: 't1', branchName: 'b1' });
   });
 
+  it('forwards autoApprove to the create flow', async () => {
+    mocks.createTaskFromPrompt.mockResolvedValue(ok({ taskId: 't1', branchName: 'b1' }));
+    const client = await connectClient();
+    await callTool(client, 'create_task', { projectId: 'p1', prompt: 'go', autoApprove: true });
+    expect(mocks.createTaskFromPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ autoApprove: true })
+    );
+  });
+
   it('surfaces validation errors as tool errors', async () => {
     mocks.createTaskFromPrompt.mockResolvedValue(err('Unknown provider "x"'));
     const client = await connectClient();

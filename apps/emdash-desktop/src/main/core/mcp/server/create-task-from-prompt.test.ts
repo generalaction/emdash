@@ -108,7 +108,11 @@ const SELECTABLE_MODELS = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getPlugin.mockReturnValue({
-    capabilities: { models: SELECTABLE_MODELS, acp: { kind: 'supported' } },
+    capabilities: {
+      models: SELECTABLE_MODELS,
+      acp: { kind: 'supported' },
+      autoApprove: { kind: 'supported' },
+    },
   });
   mocks.isValidProviderId.mockImplementation((id: string) => id === 'claude' || id === 'codex');
   mocks.listPlugins.mockReturnValue([
@@ -240,8 +244,18 @@ describe('createTaskFromPrompt', () => {
     mocks.createConversation.mockResolvedValue(undefined);
     mocks.startSession.mockResolvedValue(ok(undefined));
     mocks.getAcpRuntimeClient.mockResolvedValue({ startSession: mocks.startSession });
-    mocks.settingsGet.mockResolvedValue('claude');
+    mockSettings();
   });
+
+  /** Stubs the two app settings the flow reads: the default agent and task defaults. */
+  function mockSettings({
+    defaultAgent = 'claude',
+    autoApproveByDefault = false,
+  }: { defaultAgent?: string; autoApproveByDefault?: boolean } = {}) {
+    mocks.settingsGet.mockImplementation(async (key: string) =>
+      key === 'tasks' ? { autoApproveByDefault } : defaultAgent
+    );
+  }
 
   it('creates an idle task without a conversation when no prompt is given', async () => {
     const result = await createTaskFromPrompt({ projectId: 'p1' });
@@ -251,6 +265,7 @@ describe('createTaskFromPrompt', () => {
         conversationType: 'none',
         provider: null,
         model: null,
+        autoApprove: null,
         workspacePath: '/tmp/worktree',
       });
     }
@@ -303,7 +318,7 @@ describe('createTaskFromPrompt', () => {
   });
 
   it('falls back to the default agent when no provider is given', async () => {
-    mocks.settingsGet.mockResolvedValue('codex');
+    mockSettings({ defaultAgent: 'codex' });
     const result = await createTaskFromPrompt({ projectId: 'p1', prompt: 'go' });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.provider).toBe('codex');
@@ -333,7 +348,11 @@ describe('createTaskFromPrompt', () => {
 
   it('falls back to pty when chatUi is set but the provider lacks acp support', async () => {
     mocks.getPlugin.mockReturnValue({
-      capabilities: { models: SELECTABLE_MODELS, acp: { kind: 'unsupported' } },
+      capabilities: {
+        models: SELECTABLE_MODELS,
+        acp: { kind: 'unsupported' },
+        autoApprove: { kind: 'supported' },
+      },
     });
     const result = await createTaskFromPrompt({ ...INPUT, chatUi: true });
     expect(result.success).toBe(true);
@@ -346,6 +365,55 @@ describe('createTaskFromPrompt', () => {
     if (result.success) expect(result.data.model).toBe('claude-sonnet-5');
     expect(mocks.createConversation).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'claude-sonnet-5' })
+    );
+  });
+
+  it('starts the agent with permission prompts when autoApprove is not given', async () => {
+    const result = await createTaskFromPrompt(INPUT);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.autoApprove).toBe(false);
+    expect(mocks.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ autoApprove: false })
+    );
+  });
+
+  it('skips permission prompts when autoApprove is set', async () => {
+    const result = await createTaskFromPrompt({ ...INPUT, autoApprove: true });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.autoApprove).toBe(true);
+    expect(mocks.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ autoApprove: true })
+    );
+  });
+
+  it('falls back to the auto-approve-by-default task setting', async () => {
+    mockSettings({ autoApproveByDefault: true });
+    const result = await createTaskFromPrompt(INPUT);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.autoApprove).toBe(true);
+  });
+
+  it('lets an explicit autoApprove override the app default', async () => {
+    mockSettings({ autoApproveByDefault: true });
+    const result = await createTaskFromPrompt({ ...INPUT, autoApprove: false });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.autoApprove).toBe(false);
+  });
+
+  it('ignores autoApprove for a provider without an auto-approve mode', async () => {
+    mocks.getPlugin.mockReturnValue({
+      capabilities: {
+        models: SELECTABLE_MODELS,
+        acp: { kind: 'supported' },
+        autoApprove: { kind: 'unsupported' },
+      },
+    });
+    const result = await createTaskFromPrompt({ ...INPUT, autoApprove: true });
+    expect(result.success).toBe(true);
+    // Reported back as false so the caller can see the request was dropped.
+    if (result.success) expect(result.data.autoApprove).toBe(false);
+    expect(mocks.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ autoApprove: false })
     );
   });
 
@@ -390,6 +458,7 @@ describe('createTaskFromPrompt', () => {
       provider: 'claude',
       model: null,
       conversationType: 'pty',
+      autoApprove: false,
       workspacePath: '/tmp/worktree',
     });
     expect(mocks.notifyTaskCreated).toHaveBeenCalled();

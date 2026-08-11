@@ -172,6 +172,15 @@ export function buildEmdashMcpServer(): McpServer {
             'Start the conversation in the chat UI instead of a terminal (requires an ' +
               'ACP-capable provider); defaults to false, matching the new-task modal'
           ),
+        autoApprove: z
+          .boolean()
+          .optional()
+          .describe(
+            'Run the agent with permission prompts skipped, so it executes commands and edits ' +
+              "without asking. Defaults to the app's auto-approve-by-default task setting, and " +
+              'is ignored for providers without an auto-approve mode. The response reports the ' +
+              'value that was applied'
+          ),
       },
       annotations: { destructiveHint: false, openWorldHint: false },
     },
