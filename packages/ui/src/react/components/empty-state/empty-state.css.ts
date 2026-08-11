@@ -21,6 +21,14 @@ export const root = style({
   },
 });
 
+export const bare = style({
+  '@layer': {
+    recipes: {
+      backgroundColor: 'transparent',
+    },
+  },
+});
+
 export const content = style({
   '@layer': {
     recipes: {

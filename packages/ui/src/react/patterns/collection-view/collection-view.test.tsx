@@ -63,6 +63,7 @@ import type { SortApi } from '../list-view';
 import { createListView } from '../list-view';
 import { CollectionView, CollectionViewCell, type CollectionViewColumn } from './collection-view';
 import { SortSelect } from './sort-select';
+import * as emptyStateStyles from '../../components/empty-state/empty-state.css';
 
 interface Fixture {
   id: string;
@@ -158,11 +159,13 @@ describe('CollectionView shortcut mode', () => {
     expect(screen.getByText('Nothing here')).toBeTruthy();
   });
 
-  it('falls back to the default empty state when no emptySlot is given', () => {
+  it('falls back to the default empty state, rendered bare on the card surface', () => {
     render(
       <CollectionView items={[]} getItemKey={(item: Fixture) => item.id} columns={NAME_COLUMNS} />
     );
-    expect(screen.getByText('No items')).toBeTruthy();
+    const slot = screen.getByText('No items').closest('[data-slot="empty-state"]');
+    expect(slot).toBeTruthy();
+    expect(slot?.className).toContain(emptyStateStyles.bare);
   });
 
   it('exposes the density on the root element', () => {
@@ -287,6 +290,24 @@ describe('CollectionView state mode', () => {
     );
     expect(screen.getByText('One:2')).toBeTruthy();
     expect(screen.getByText('Two:1')).toBeTruthy();
+  });
+
+  it('defaults the error slot to a bare EmptyState with the error message', async () => {
+    const view = createListView({
+      getItemId: (item: Fixture) => item.id,
+      source: { kind: 'async', load: () => Promise.reject(new Error('boom')) },
+    });
+
+    render(
+      <view.Root>
+        <CollectionView view={view} columns={NAME_COLUMNS} />
+      </view.Root>
+    );
+
+    const label = await screen.findByText('Something went wrong');
+    expect(screen.getByText('boom')).toBeTruthy();
+    const slot = label.closest('[data-slot="empty-state"]');
+    expect(slot?.className).toContain(emptyStateStyles.bare);
   });
 
   it('renders toolbar and footer slots', () => {

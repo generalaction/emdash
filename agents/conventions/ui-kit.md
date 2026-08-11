@@ -82,7 +82,9 @@ locked spec lives with the unify-list-views effort.
   actions. Destructive actions go last, separated, destructive-styled, with a confirm
   modal when irreversible.
 - **An empty state is mandatory** (`EmptyState` is the default content; rich
-  interactive empty states are allowed); `Spinner` is the loading default.
+  interactive empty states are allowed); `Spinner` is the loading default. Custom
+  `EmptyState` slot content must pass `bare` — the card paints its own surface, so
+  the component's panel background would patch over it.
 - **Removed**: `ColumnList` and `ListPage` no longer exist — `CollectionView` replaced
   both (its `columns`/`CollectionViewColumn`/`CollectionViewCell` vocabulary is the
   former `ColumnList` shape). Raw `ListView` chrome remains exported as an internal
