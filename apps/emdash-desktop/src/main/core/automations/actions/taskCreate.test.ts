@@ -369,6 +369,36 @@ describe('executeTaskCreate', () => {
     });
   });
 
+  it('uses ACP for unattended providers whose PTY prompt requires keystroke injection', async () => {
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Complete the full assignment',
+          provider: 'kimi',
+          autoApprove: true,
+          type: 'pty',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'kimi',
+        initialQueue: [{ text: 'Complete the full assignment' }],
+        type: 'acp',
+      })
+    );
+    expect(mockAcpStartSession).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        providerId: 'kimi',
+        initialQueue: [{ text: 'Complete the full assignment' }],
+      }),
+    });
+  });
+
   it('opens the project when it is not loaded', async () => {
     vi.mocked(projectManager.getProject)
       .mockReturnValueOnce(undefined)
