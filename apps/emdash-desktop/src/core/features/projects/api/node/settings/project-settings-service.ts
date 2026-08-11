@@ -154,6 +154,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     project: ProjectProvider
   ): Promise<ProjectSettingsPage> {
     const settings = await project.settings.get();
+    const storedGitSettings = await project.settings.getStoredGitSettings();
     const defaults = {
       worktreeDirectory: await project.settings.getDefaultWorktreeDirectory(),
     };
@@ -169,6 +170,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
       : await inspectProjectConfigMigrations(project);
     return {
       settings,
+      storedGitSettings,
       defaults,
       writeTargets,
       overrideState,

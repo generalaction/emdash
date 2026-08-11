@@ -1,8 +1,10 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { projectDefaultBranchToBranch } from '@core/primitives/git/api';
 import type {
   ProjectSettings,
   ShareableProjectSettingsWriteField,
+  StoredDefaultBranch,
+  StoredGithubAccount,
+  StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import {
   SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
@@ -10,6 +12,12 @@ import {
   SHAREABLE_FIELD_FORM_KEY,
 } from './shareable-project-settings-fields';
 
+/**
+ * Git fields hold the stored model semantics (spec: github-git-settings §3):
+ * empty string / null / undefined mean "not set — infer live"; provenance
+ * over the pending form state comes from running the blessed resolver via
+ * `formToStoredGitSettings`.
+ */
 export type FormState = {
   preservePatterns: string;
   tmux: boolean;
@@ -23,7 +31,7 @@ export type FormState = {
   defaultBranch: GitBranchRef | null;
   baseRemote: string;
   pushRemote: string;
-  githubAccountId: string | null | undefined;
+  githubAccount: StoredGithubAccount | undefined;
 };
 
 export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
@@ -38,22 +46,30 @@ function blankToUndefined(value: string): string | undefined {
   return trimmed || undefined;
 }
 
-function githubAccountIdToSettings(value: string | null | undefined): string | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  return value.trim() || null;
+export function storedDefaultBranchToBranchRef(
+  stored: StoredDefaultBranch | undefined,
+  remotes: { name: string; url: string }[]
+): GitBranchRef | null {
+  if (!stored) return null;
+  if (stored.remote === null) return { type: 'local', branch: stored.branch };
+  const remote = remotes.find((candidate) => candidate.name === stored.remote) ?? {
+    name: stored.remote,
+    url: '',
+  };
+  return { type: 'remote', branch: stored.branch, remote };
+}
+
+function branchRefToStoredDefaultBranch(ref: GitBranchRef): StoredDefaultBranch {
+  return ref.type === 'remote'
+    ? { remote: ref.remote.name, branch: ref.branch }
+    : { remote: null, branch: ref.branch };
 }
 
 export function settingsToForm(
   s: ProjectSettings,
-  baseRemote: string,
+  storedGitSettings: StoredProjectGitSettings,
   remotes: { name: string; url: string }[]
 ): FormState {
-  const baseRemoteMeta = remotes.find((remote) => remote.name === baseRemote) ?? {
-    name: baseRemote,
-    url: '',
-  };
-
   return {
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     tmux: s.tmux ?? false,
@@ -63,11 +79,11 @@ export function settingsToForm(
     scriptSetup: normalizeScript(s.scripts?.setup),
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
-    worktreeDirectory: s.worktreeDirectory ?? '',
-    defaultBranch: projectDefaultBranchToBranch(s.defaultBranch, baseRemoteMeta, remotes) ?? null,
-    baseRemote: s.baseRemote ?? '',
-    pushRemote: s.pushRemote ?? '',
-    githubAccountId: Object.hasOwn(s, 'githubAccountId') ? (s.githubAccountId ?? null) : undefined,
+    worktreeDirectory: storedGitSettings.worktreeRoot ?? '',
+    defaultBranch: storedDefaultBranchToBranchRef(storedGitSettings.defaultBranch, remotes),
+    baseRemote: storedGitSettings.baseRemote ?? '',
+    pushRemote: storedGitSettings.pushRemote ?? '',
+    githubAccount: storedGitSettings.githubAccount,
   };
 }
 
@@ -89,7 +105,6 @@ export function formToSettings(f: FormState): ProjectSettings {
     run: blankToUndefined(f.scriptRun),
     teardown: blankToUndefined(f.scriptTeardown),
   };
-  const githubAccountId = githubAccountIdToSettings(f.githubAccountId);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
@@ -104,7 +119,30 @@ export function formToSettings(f: FormState): ProjectSettings {
       f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
         ? f.pushRemote.trim()
         : undefined,
-    ...(githubAccountId !== undefined ? { githubAccountId } : {}),
+    ...(f.githubAccount !== undefined
+      ? { githubAccountId: f.githubAccount.kind === 'account' ? f.githubAccount.accountId : null }
+      : {}),
+  };
+}
+
+/**
+ * The pending form state as resolver input: only explicit choices, blank
+ * meaning "infer". Runs the same drop-if-blank rules as `formToSettings` so
+ * the provenance preview matches exactly what a save would persist.
+ */
+export function formToStoredGitSettings(f: FormState): StoredProjectGitSettings {
+  const baseRemote = blankToUndefined(f.baseRemote);
+  const pushRemote =
+    f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
+      ? f.pushRemote.trim()
+      : undefined;
+  const worktreeRoot = blankToUndefined(f.worktreeDirectory);
+  return {
+    ...(baseRemote !== undefined ? { baseRemote } : {}),
+    ...(pushRemote !== undefined ? { pushRemote } : {}),
+    ...(f.defaultBranch ? { defaultBranch: branchRefToStoredDefaultBranch(f.defaultBranch) } : {}),
+    ...(f.githubAccount !== undefined ? { githubAccount: f.githubAccount } : {}),
+    ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
   };
 }
 
