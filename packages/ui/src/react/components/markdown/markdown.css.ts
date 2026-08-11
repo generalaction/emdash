@@ -28,6 +28,11 @@ export const strong = style({
 export const taskCheckbox = style({
   marginRight: '0.5rem',
   verticalAlign: 'middle',
+  pointerEvents: 'none',
+  selectors: {
+    // readOnly instead of disabled so the checked state keeps full contrast.
+    '&:checked': { accentColor: vars.foregroundInfo },
+  },
 });
 
 export const listItem = style({

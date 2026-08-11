@@ -256,11 +256,17 @@ function useFullComponents(
         );
       },
       strong: ({ children }: WithChildren) => <strong className={styles.strong}>{children}</strong>,
-      input: ({ checked, ...props }: React.ComponentPropsWithoutRef<'input'>) => (
+      input: ({
+        checked,
+        disabled: _disabled,
+        ...props
+      }: React.ComponentPropsWithoutRef<'input'>) => (
         <input
           type="checkbox"
           checked={checked}
-          disabled
+          readOnly
+          aria-disabled="true"
+          tabIndex={-1}
           className={styles.taskCheckbox}
           {...props}
         />

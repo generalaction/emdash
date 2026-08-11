@@ -21,7 +21,9 @@ import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 const SCROLLBACK_LINES = 10_000;
 
 export const TERMINAL_PADDING_PX = 8;
-export const TERMINAL_LINE_HEIGHT = 1.2;
+// The DOM renderer cannot draw custom contiguous block glyphs. Keep xterm's
+// default line height so ANSI block QR codes have no vertical seams.
+export const TERMINAL_LINE_HEIGHT = 1;
 export const TERMINAL_LETTER_SPACING = 0;
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────

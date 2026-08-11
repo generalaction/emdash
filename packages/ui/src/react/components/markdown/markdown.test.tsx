@@ -119,13 +119,18 @@ describe('Markdown', () => {
   });
 
   describe('task lists', () => {
-    it('renders task-list checkboxes disabled', () => {
+    it('renders task-list checkboxes read-only instead of disabled', () => {
       const { container } = render(<Markdown variant="full" content={'- [x] done\n- [ ] todo'} />);
       const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
       expect(checkboxes.length).toBe(2);
       for (const checkbox of checkboxes) {
-        expect(checkbox.disabled).toBe(true);
+        expect(checkbox.disabled).toBe(false);
+        expect(checkbox.readOnly).toBe(true);
+        expect(checkbox.getAttribute('aria-disabled')).toBe('true');
+        expect(checkbox.tabIndex).toBe(-1);
       }
+      expect(checkboxes[0]!.checked).toBe(true);
+      expect(checkboxes[1]!.checked).toBe(false);
     });
   });
 

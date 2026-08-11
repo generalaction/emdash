@@ -190,4 +190,5 @@ export const createConversationModal = defineModal<{
 }>()({
   id: 'createConversationModal',
   component: CreateConversationModal,
+  ignoreOutsidePressAfterWindowBlur: true,
 });
