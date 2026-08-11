@@ -2,7 +2,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Dialog } from '@emdash/ui/react/primitives';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
@@ -15,6 +15,7 @@ import {
 import { modalStore, type ModalStackEntry } from '@core/primitives/modals/react/modal-store';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 
 type RuntimeModalEntry = {
@@ -90,6 +91,15 @@ const ModalDialog = observer(function ModalDialog({
     }),
   } satisfies ViewScopeImpl<typeof modalScope>;
   const { attachRef, instance } = useViewScope(modalScope(), implementation);
+
+  // Activate the scope explicitly: the focus-based activation races the
+  // data-view-scope attribute (Base UI moves initial focus before the second
+  // render stamps it), leaving Escape dead until a click inside the popup.
+  // Gated on isTop so a newly stacked modal wins and the modal beneath
+  // re-activates when it becomes top again.
+  useLayoutEffect(() => {
+    if (instance && isTop) scopes.activate(instance);
+  }, [instance, isTop]);
 
   const completeModal = useCallback(
     (result: unknown) => modalStore.completeEntry(entry.key, result),

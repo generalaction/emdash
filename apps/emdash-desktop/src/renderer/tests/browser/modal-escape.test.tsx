@@ -1,0 +1,163 @@
+import '@emdash/ui/style.css';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
+import { ThemeProvider } from '@core/primitives/theme/browser/theme-provider';
+import { scopes } from '@core/primitives/view-scopes/browser';
+import { KeybindingDispatcher } from '@renderer/lib/keybindings/keybinding-dispatcher';
+import { ModalRenderer } from '@renderer/lib/modal/modal-renderer';
+
+beforeAll(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+function dispatchEscape() {
+  const target = document.activeElement ?? document.body;
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+}
+
+function openConfirmModal(title: string) {
+  return modalStore.open('confirmActionModal', {
+    title,
+    description: 'Escape routing test modal.',
+    confirmLabel: 'Confirm',
+  });
+}
+
+async function flushOpen() {
+  // Let Base UI mount the popup and run its initial-focus pass.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+}
+
+describe('Modal Escape routing', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  let detachKeybindings: () => void;
+
+  beforeEach(async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const dispatcher = new KeybindingDispatcher(
+      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
+      scopes,
+      { os: 'linux' }
+    );
+    detachKeybindings = dispatcher.attach(window);
+    await act(async () => {
+      root.render(
+        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+          <ModalRenderer />
+        </ThemeProvider>
+      );
+    });
+  });
+
+  afterEach(async () => {
+    detachKeybindings?.();
+    for (const entry of [...modalStore.stack]) {
+      modalStore.removeEntry(entry.key);
+    }
+    await act(async () => root.unmount());
+    host.remove();
+  });
+
+  it('closes a freshly opened modal on Escape without a prior click', async () => {
+    await act(async () => {
+      void openConfirmModal('Fresh modal');
+    });
+    await flushOpen();
+    expect(modalStore.isOpen).toBe(true);
+
+    await act(async () => {
+      dispatchEscape();
+    });
+
+    expect(modalStore.isOpen).toBe(false);
+  });
+
+  it('closes a modal on Escape after clicking inside it (control)', async () => {
+    await act(async () => {
+      void openConfirmModal('Clicked modal');
+    });
+    await flushOpen();
+
+    const popup = document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
+    expect(popup).not.toBeNull();
+    await act(async () => {
+      popup!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    });
+
+    await act(async () => {
+      dispatchEscape();
+    });
+
+    expect(modalStore.isOpen).toBe(false);
+  });
+
+  it('ignores Escape while a close guard is active', async () => {
+    await act(async () => {
+      void openConfirmModal('Guarded modal');
+    });
+    await flushOpen();
+
+    await act(async () => {
+      modalStore.setCloseGuard(true);
+    });
+
+    await act(async () => {
+      dispatchEscape();
+    });
+
+    expect(modalStore.isOpen).toBe(true);
+  });
+
+  it('closes only the top modal of a stack, then the one beneath', async () => {
+    await act(async () => {
+      void openConfirmModal('Bottom modal');
+    });
+    await flushOpen();
+    await act(async () => {
+      void openConfirmModal('Top modal');
+    });
+    await flushOpen();
+    expect(modalStore.stack).toHaveLength(2);
+
+    await act(async () => {
+      dispatchEscape();
+    });
+
+    const closingStates = modalStore.stack.map((entry) => entry.closing);
+    expect(closingStates).toEqual([false, true]);
+    expect(modalStore.isOpen).toBe(true);
+
+    // Wait for the top modal's exit animation to finish so it unmounts and
+    // the modal beneath becomes top of the stack again.
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(modalStore.stack).toHaveLength(1);
+      });
+    });
+    await flushOpen();
+
+    await act(async () => {
+      dispatchEscape();
+    });
+
+    expect(modalStore.isOpen).toBe(false);
+  });
+});
