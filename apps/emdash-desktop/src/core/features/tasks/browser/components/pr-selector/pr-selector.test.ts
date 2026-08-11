@@ -13,6 +13,7 @@ import { PrSelector } from './pr-selector';
 const mocks = vi.hoisted(() => ({
   listPullRequests: vi.fn(),
   sync: vi.fn(),
+  accountState: vi.fn(),
 }));
 
 vi.mock('@core/services/pull-requests/api/client', () => ({
@@ -21,6 +22,19 @@ vi.mock('@core/services/pull-requests/api/client', () => ({
     sync: mocks.sync,
   }),
 }));
+
+vi.mock('@core/features/github/contributions/browser/account-state', async () => {
+  const React = await import('react');
+  return {
+    useBlockingGitHubAccountState: () => mocks.accountState(),
+    GitHubAccountStateEmpty: ({ state }: { state: { kind: string; message?: string } }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': `account-state-${state.kind}` },
+        state.message ?? ''
+      ),
+  };
+});
 
 vi.mock('@core/services/pull-requests/browser/components/pr-status-icon', async () => {
   const React = await import('react');
@@ -193,6 +207,7 @@ describe('PrSelector', () => {
     vi.useFakeTimers();
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
     mocks.sync.mockResolvedValue({ success: true });
+    mocks.accountState.mockReturnValue(null);
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -339,8 +354,8 @@ describe('PrSelector', () => {
     mocks.sync.mockResolvedValue({
       success: false,
       error: {
-        type: 'github_account_disabled',
-        message: 'GitHub API is disabled for this project.',
+        type: 'sync_failed',
+        message: 'GitHub sync failed for this repository.',
       },
     });
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
@@ -361,12 +376,72 @@ describe('PrSelector', () => {
     });
 
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('GitHub API is disabled for this project.');
+      expect(container.textContent).toContain('GitHub sync failed for this repository.');
     });
     expect(container.textContent).toContain('Sync failed');
     expect(container.textContent).toContain('Search PR');
     expect(container.querySelector('[data-slot="list-popover-card"]')).not.toBeNull();
     expect(container.querySelector('[data-status="destructive"]')).not.toBeNull();
     expect(container.textContent).not.toContain('No open pull requests');
+  });
+
+  function renderSelector() {
+    return act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(PrSelector, {
+            value: null,
+            onValueChange: vi.fn(),
+            projectId: PROJECT_ID,
+            repositoryUrl: REPOSITORY_URL,
+          })
+        )
+      );
+    });
+  }
+
+  it('renders a quiet disabled state and does not sync when GitHub is explicitly off', async () => {
+    mocks.accountState.mockReturnValue({
+      kind: 'disabled',
+      message: 'GitHub is disabled for this project.',
+    });
+    mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
+
+    await renderSelector();
+
+    expect(container.querySelector('[data-testid="account-state-disabled"]')).not.toBeNull();
+    expect(container.textContent).toContain('GitHub is disabled for this project.');
+    expect(container.querySelector('[data-status="destructive"]')).toBeNull();
+    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(mocks.listPullRequests).not.toHaveBeenCalled();
+  });
+
+  it('fails closed without syncing when the pinned account is unresolvable', async () => {
+    mocks.accountState.mockReturnValue({
+      kind: 'unresolvable',
+      message: 'The selected GitHub account is no longer connected.',
+    });
+
+    await renderSelector();
+
+    expect(container.querySelector('[data-testid="account-state-unresolvable"]')).not.toBeNull();
+    expect(container.textContent).toContain('The selected GitHub account is no longer connected.');
+    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(mocks.listPullRequests).not.toHaveBeenCalled();
+  });
+
+  it('renders the connect state when no GitHub accounts are connected', async () => {
+    mocks.accountState.mockReturnValue({
+      kind: 'connect',
+      message: 'Connect a GitHub account to get started.',
+    });
+
+    await renderSelector();
+
+    expect(container.querySelector('[data-testid="account-state-connect"]')).not.toBeNull();
+    expect(container.textContent).toContain('Connect a GitHub account to get started.');
+    expect(mocks.sync).not.toHaveBeenCalled();
   });
 });

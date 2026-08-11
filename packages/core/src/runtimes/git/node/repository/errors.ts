@@ -84,17 +84,6 @@ export const repositoryFailures = {
     );
   },
 
-  isMissingRef(error: unknown): boolean {
-    const failure = gitFailure(error);
-    if (failure.exitCode !== 128) return false;
-    const message = failure.message.toLowerCase();
-    return (
-      message.includes('needed a single revision') ||
-      message.includes('unknown revision') ||
-      message.includes('not a valid object name')
-    );
-  },
-
   isMissingSymbolicRef(error: unknown): boolean {
     const failure = gitFailure(error);
     return (

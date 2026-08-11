@@ -40,7 +40,7 @@ describe('GitHubDeviceFlowService', () => {
       success: true,
       user,
       account: {
-        id: 'github.com:42',
+        accountId: 'github.com:42',
         credentialSource: 'device_flow',
       },
     });

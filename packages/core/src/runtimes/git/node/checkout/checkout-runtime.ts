@@ -21,6 +21,7 @@ import {
 } from '#runtimes/git/api';
 import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
 import { expectedGitCommandError } from '#runtimes/git/node/api/errors';
+import { credentialOperationEnv } from '#runtimes/git/node/exec/operation-context';
 import type { CheckoutResource } from './checkout-resource';
 
 type CheckoutModel = typeof gitCheckoutContract.model;
@@ -121,13 +122,18 @@ export class GitCheckoutRuntime {
       checkout.push(input.options, {
         signal: context.signal,
         onProgress: context.progress,
+        env: credentialOperationEnv(input.credentials),
       })
     );
   }
 
   pull(input: PullJobInput, context: LiveJobContext<GitTransferProgress>) {
     return this.run(input, (checkout) =>
-      checkout.pull({ signal: context.signal, onProgress: context.progress })
+      checkout.pull({
+        signal: context.signal,
+        onProgress: context.progress,
+        env: credentialOperationEnv(input.credentials),
+      })
     );
   }
 

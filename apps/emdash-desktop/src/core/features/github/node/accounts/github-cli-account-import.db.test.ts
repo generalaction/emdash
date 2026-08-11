@@ -74,7 +74,10 @@ describe('GitHubCliAccountImportService', () => {
 
     const imported = await service.importAccounts();
 
-    expect(imported.map((account) => account.id)).toEqual(['github.com:42', 'github.com:84']);
+    expect(imported.map((account) => account.accountId)).toEqual([
+      'github.com:42',
+      'github.com:84',
+    ]);
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
       'gho_monalisa'
     );
@@ -163,7 +166,7 @@ describe('GitHubCliAccountImportService', () => {
 
     const imported = await service.importAccounts();
 
-    expect(imported.map((account) => account.id)).toEqual(['github.com:42']);
+    expect(imported.map((account) => account.accountId)).toEqual(['github.com:42']);
     await expect(fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).resolves.toHaveLength(1);
   });
 
@@ -186,7 +189,7 @@ describe('GitHubCliAccountImportService', () => {
 
     const imported = await service.importAccounts();
 
-    expect(imported.map((account) => account.id)).toEqual(['ghe.example.com:168']);
+    expect(imported.map((account) => account.accountId)).toEqual(['ghe.example.com:168']);
     expect(getAuthenticatedUser).toHaveBeenCalledWith('ghes_enterprise', 'ghe.example.com');
     await expect(
       fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'ghe.example.com:168')
@@ -212,7 +215,7 @@ describe('GitHubCliAccountImportService', () => {
 
     const imported = await service.importAccounts();
 
-    expect(imported.map((account) => account.id)).toEqual(['ghe.example.com:168']);
+    expect(imported.map((account) => account.accountId)).toEqual(['ghe.example.com:168']);
     expect(getAuthenticatedUser).toHaveBeenCalledWith('ghes_enterprise', 'ghe.example.com');
   });
 
@@ -228,7 +231,7 @@ describe('GitHubCliAccountImportService', () => {
         avatarUrl: '',
       },
     });
-    await fixture.registry.removeAccount(GITHUB_PROVIDER_ID, account.id);
+    await fixture.registry.removeAccount(GITHUB_PROVIDER_ID, account.accountId);
     const service = makeService(
       JSON.stringify({
         hosts: {
@@ -246,7 +249,7 @@ describe('GitHubCliAccountImportService', () => {
     );
 
     await expect(service.importAccounts()).resolves.toMatchObject([
-      { id: 'github.com:42', credentialSource: 'cli' },
+      { accountId: 'github.com:42', credentialSource: 'cli' },
     ]);
     await expect(fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).resolves.toHaveLength(1);
   });

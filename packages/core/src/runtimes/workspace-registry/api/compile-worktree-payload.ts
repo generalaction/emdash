@@ -26,17 +26,25 @@ export type CompiledWorktreePayload = {
   preservePatterns: string[];
 };
 
+/**
+ * The per-repository worktree pool under a worktree root:
+ * `<root>/<repo-basename>-<sha256(repoPath) first 8 hex>`. Portable and pure —
+ * execution (worktree payload compilation, placement) and renderer previews
+ * (settings page, create-task destination) must all derive pools through this
+ * one definition.
+ */
+export function deriveWorktreePoolPath(input: { worktreeRoot: string; repoPath: string }): string {
+  const separator = pathSeparatorFor(input.worktreeRoot);
+  const repositoryName = basename(input.repoPath, separator) || 'repository';
+  const repositoryHash = sha256Hex(input.repoPath).slice(0, WORKTREE_POOL_HASH_LENGTH);
+  return joinPath(input.worktreeRoot, separator, `${repositoryName}-${repositoryHash}`);
+}
+
 export function compileWorktreePayload(
   input: CompileWorktreePayloadInput
 ): CompiledWorktreePayload {
   const separator = pathSeparatorFor(input.worktreeRoot);
-  const repositoryName = basename(input.repoPath, separator) || 'repository';
-  const repositoryHash = sha256Hex(input.repoPath).slice(0, WORKTREE_POOL_HASH_LENGTH);
-  const worktreePoolPath = joinPath(
-    input.worktreeRoot,
-    separator,
-    `${repositoryName}-${repositoryHash}`
-  );
+  const worktreePoolPath = deriveWorktreePoolPath(input);
 
   return {
     worktreePath: joinPath(worktreePoolPath, separator, sanitizeBranchName(input.branchName)),

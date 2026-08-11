@@ -32,7 +32,7 @@ describe('github account helpers', () => {
 
     expect(status).toBe('created');
     expect(account).toMatchObject({
-      id: 'github.com:42',
+      accountId: 'github.com:42',
       providerAccountId: '42',
       host: 'github.com',
       login: 'monalisa',
@@ -49,7 +49,7 @@ describe('github account helpers', () => {
     const { account, status } = await upsert('mona', '42');
 
     expect(status).toBe('updated');
-    expect(account).toMatchObject({ id: 'github.com:42', login: 'mona' });
+    expect(account).toMatchObject({ accountId: 'github.com:42', login: 'mona' });
     await expect(fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).resolves.toHaveLength(1);
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
       'gho_mona'
@@ -59,7 +59,7 @@ describe('github account helpers', () => {
   it('normalizes www.github.com account hosts to github.com', async () => {
     const { account } = await upsert('monalisa', '42', 'www.github.com');
 
-    expect(account.id).toBe('github.com:42');
+    expect(account.accountId).toBe('github.com:42');
     expect(account.host).toBe('github.com');
   });
 
@@ -67,8 +67,8 @@ describe('github account helpers', () => {
     const dotCom = await upsert('monalisa', '42', 'github.com');
     const enterprise = await upsert('enterprise-monalisa', '42', 'ghe.example.com');
 
-    expect(dotCom.account.id).toBe('github.com:42');
-    expect(enterprise.account.id).toBe('ghe.example.com:42');
+    expect(dotCom.account.accountId).toBe('github.com:42');
+    expect(enterprise.account.accountId).toBe('ghe.example.com:42');
     await expect(fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).resolves.toHaveLength(2);
   });
 
@@ -77,7 +77,7 @@ describe('github account helpers', () => {
 
     const [row] = await fixture.registry.listAccounts(GITHUB_PROVIDER_ID);
     expect(toGitHubAccount(row)).toEqual({
-      id: 'github.com:42',
+      accountId: 'github.com:42',
       providerAccountId: '42',
       host: 'github.com',
       login: 'monalisa',
@@ -100,7 +100,7 @@ describe('github account helpers', () => {
         updatedAt: 2,
       })
     ).toEqual({
-      id: 'ghe.example.com:42',
+      accountId: 'ghe.example.com:42',
       providerAccountId: '42',
       host: 'ghe.example.com',
       login: '',

@@ -4,28 +4,28 @@ import { hostFileRef } from '@emdash/core/primitives/path/api';
 import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
+import { storedGitSettingsFromRow } from '@core/features/projects/api/node/settings/effective-settings';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { Automation, AutomationDefinitionError } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import {
-  baseProjectSettingsSchema,
-  legacyBaseProjectSettingsSchema,
-} from '@core/primitives/project-settings/api';
+import { resolveEffectiveSettings, type RepoFacts } from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
 
 type DeploymentProjectSettings = {
-  baseRemote: string;
+  baseRemote: string | null;
   preservePatterns: string[];
-  pushRemote: string;
+  pushRemote: string | null;
 };
 
 export async function buildAutomationDeployment(
   dependencies: {
     db: AppDb;
     getProjectById(projectId: string): Promise<Project | undefined>;
+    /** Repository facts for the blessed resolver; null degrades to inference-less resolution. */
+    getRepoFacts(project: Project): Promise<RepoFacts | null>;
     resolveWorkspace(workspaceId: string): Promise<WorkspaceIdentity | null>;
     resolveWorktreePool(project: Project): Promise<Result<string, { message: string }>>;
   },
@@ -78,10 +78,19 @@ async function buildAutomationDeploymentOnce(
   }
 
   const taskWorkspace = automation.taskConfig.workspaceConfig;
-  const settings = await loadDeploymentProjectSettings(dependencies.db, project.id);
+  const settings = await loadDeploymentProjectSettings(dependencies, project);
 
   let workspace: AutomationDeployment['workspace'];
   if (taskWorkspace.workspace.kind === 'new-worktree') {
+    // Effective values through the blessed resolver (spec: github-git-settings
+    // §2); a repository without remotes cannot run worktree automations.
+    const baseRemote = settings.baseRemote;
+    if (baseRemote === null) {
+      return err({
+        type: 'workspace-not-supported',
+        message: 'The project repository has no git remotes; worktree automations need one.',
+      });
+    }
     const pool = await dependencies.resolveWorktreePool(project);
     if (!pool.success) return err(runtimeUnavailable(pool.error));
     if (taskWorkspace.git.kind === 'create-branch') {
@@ -89,7 +98,7 @@ async function buildAutomationDeploymentOnce(
         kind: 'worktree',
         repository: hostFileRef(projectHost, hostPathFromNative(project.path)),
         worktreePoolPath: hostPathFromNative(pool.data),
-        baseRemote: settings.baseRemote,
+        baseRemote,
         preservePatterns: settings.preservePatterns,
         git: {
           kind: 'create-branch',
@@ -102,7 +111,7 @@ async function buildAutomationDeploymentOnce(
         kind: 'worktree',
         repository: hostFileRef(projectHost, hostPathFromNative(project.path)),
         worktreePoolPath: hostPathFromNative(pool.data),
-        baseRemote: settings.baseRemote,
+        baseRemote,
         preservePatterns: settings.preservePatterns,
         git: { kind: 'use-branch', branchName: taskWorkspace.git.branchName },
       };
@@ -188,45 +197,48 @@ function runtimeUnavailable(error: unknown): AutomationDefinitionError {
   };
 }
 
+/**
+ * Effective base/push remote for a deployment through the blessed resolver
+ * (spec: github-git-settings §2) over the stored row (migrated in memory,
+ * no write-back) and the injected repository facts. Runs at boot before
+ * projects are mounted, so it reads the row directly instead of a mounted
+ * settings provider.
+ */
 async function loadDeploymentProjectSettings(
-  db: AppDb,
-  projectId: string
+  dependencies: Parameters<typeof buildAutomationDeployment>[0],
+  project: Project
 ): Promise<DeploymentProjectSettings> {
-  const [row] = await db
+  const [row] = await dependencies.db
     .select({
       base: projectSettings.baseProjectSettingsJson,
       shareable: projectSettings.shareableProjectSettingsJson,
     })
     .from(projectSettings)
-    .where(eq(projectSettings.projectId, projectId))
+    .where(eq(projectSettings.projectId, project.id))
     .limit(1);
 
-  if (!row) {
-    return {
-      baseRemote: 'origin',
-      preservePatterns: [],
-      pushRemote: 'origin',
-    };
+  const facts = await dependencies.getRepoFacts(project);
+  let stored = {};
+  let preservePatterns: string[] = [];
+  if (row) {
+    try {
+      stored = storedGitSettingsFromRow(row.base, facts);
+      preservePatterns = emdashConfigSchema.parse(JSON.parse(row.shareable)).preservePatterns ?? [];
+    } catch {
+      stored = {};
+    }
   }
 
-  try {
-    const legacyBase = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
-    const { remote, ...withoutLegacyRemote } = legacyBase;
-    const base = baseProjectSettingsSchema.parse({
-      ...withoutLegacyRemote,
-      baseRemote: withoutLegacyRemote.baseRemote ?? remote,
-    });
-    const shareable = emdashConfigSchema.parse(JSON.parse(row.shareable));
-    return {
-      baseRemote: base.baseRemote ?? 'origin',
-      preservePatterns: shareable.preservePatterns ?? [],
-      pushRemote: base.pushRemote ?? base.baseRemote ?? 'origin',
-    };
-  } catch {
-    return {
-      baseRemote: 'origin',
-      preservePatterns: [],
-      pushRemote: 'origin',
-    };
-  }
+  const effective = resolveEffectiveSettings(
+    // The worktree pool comes from resolveWorktreePool, so the resolver's
+    // worktreeRoot output is unused here.
+    { project: stored, builtInWorktreeRoot: '' },
+    facts ?? { remotes: [], localBranches: [] },
+    []
+  );
+  return {
+    baseRemote: effective.baseRemote.value,
+    preservePatterns,
+    pushRemote: effective.pushRemote.value,
+  };
 }

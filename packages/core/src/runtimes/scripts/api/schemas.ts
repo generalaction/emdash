@@ -37,7 +37,7 @@ export const scriptWorkspaceFactsSchema = z.object({
   repositoryPath: z.string().min(1).optional(),
   /** The checked-out branch — EMDASH_TASK_NAME derives from it (falls back to the directory name). */
   branch: z.string().min(1).optional(),
-  /** The base/default branch — becomes EMDASH_DEFAULT_BRANCH (falls back to 'main'). */
+  /** The base/default branch — becomes EMDASH_DEFAULT_BRANCH (omitted when unknown). */
   defaultBranch: z.string().min(1).optional(),
 });
 

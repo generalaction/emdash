@@ -1,6 +1,8 @@
 import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+import type { StoredProjectGitSettings } from './effective-settings';
+import type { WorktreeRootContext } from './worktree-root';
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -11,12 +13,25 @@ export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
 
 export type ShareableProjectSettings = EmdashConfig;
 
+/**
+ * Per-project git credential behavior for agent/terminal PTY sessions
+ * (spec: github-git-settings §4). Absence means the default,
+ * `effective-account`; emdash's own git operations are unaffected by this
+ * setting and always authenticate as the effective account.
+ */
+export const agentGitCredentialsSettingSchema = z.enum(['effective-account', 'system', 'none']);
+
+export type AgentGitCredentialsSetting = z.infer<typeof agentGitCredentialsSettingSchema>;
+
+export const DEFAULT_AGENT_GIT_CREDENTIALS: AgentGitCredentialsSetting = 'effective-account';
+
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   githubAccountId: z.string().trim().min(1).nullable().optional(),
+  agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),
@@ -24,9 +39,52 @@ export const baseProjectSettingsSchema = z.object({
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
 
+// --- Stored model (spec: github-git-settings §10) -------------------------
+// The persisted per-project base settings after lazy migration. Only explicit
+// user choices are stored; absence of a field always means "infer". The
+// resolver-facing types live in ./effective-settings.
+
+export const storedDefaultBranchSchema = z.object({
+  /** Remote the branch lives on; `null` means a local branch. */
+  remote: z.string().nullable(),
+  branch: z.string(),
+});
+
+export const storedGithubAccountSchema = z.union([
+  z.object({ kind: z.literal('account'), accountId: z.string().trim().min(1) }),
+  z.object({ kind: z.literal('none') }),
+]);
+
+export const storedBaseProjectSettingsSchema = z.object({
+  /** Renamed from the legacy `worktreeDirectory` key. */
+  worktreeRoot: z.string().trim().optional(),
+  defaultBranch: storedDefaultBranchSchema.optional(),
+  baseRemote: z.string().optional(),
+  pushRemote: z.string().optional(),
+  githubAccount: storedGithubAccountSchema.optional(),
+  agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
+  tmux: z.boolean().optional(),
+  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
+  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
+});
+
+export type StoredBaseProjectSettings = z.infer<typeof storedBaseProjectSettingsSchema>;
+
+/**
+ * Permissive read schema for stored base-settings rows: accepts every legacy
+ * form (bare-string/`{name, remote}` defaultBranch, `githubAccountId`,
+ * `worktreeDirectory`, pre-baseRemote `remote`) alongside the new stored
+ * model. The settings provider migrates rows lazily on read; every other
+ * reader of the raw JSON must parse with this schema.
+ */
 export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
   remote: z.string().optional(),
+  defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
+  worktreeRoot: z.string().trim().optional(),
+  githubAccount: storedGithubAccountSchema.optional(),
 });
+
+export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;
 
 export const projectSettingsSchema = baseProjectSettingsSchema.merge(emdashConfigSchema);
 
@@ -47,9 +105,19 @@ export type ProjectSettingsPatch = {
 
 export type ProjectSettingsPage = {
   settings: ProjectSettings;
-  defaults: {
-    worktreeDirectory: string;
-  };
+  /**
+   * Stored explicit git choices in the new model (absence = infer) — the
+   * renderer's resolver input (spec: github-git-settings §2). The legacy
+   * `settings` view stays for the non-git fields until the resolver adoption
+   * finishes.
+   */
+  storedGitSettings: StoredProjectGitSettings;
+  /**
+   * The worktree-root layers below the per-project override, split so the
+   * renderer resolves true provenance ("host default" vs "built-in default")
+   * with the identical resolver inputs execution uses (spec §6).
+   */
+  worktreeRootContext: WorktreeRootContext;
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];

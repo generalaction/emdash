@@ -73,6 +73,7 @@ import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsContract, type PullRequestsContract } from '@core/services/pull-requests/api';
 import { pullRequestsComponent } from '@core/services/pull-requests/node';
 import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
+import { resolvePullRequestSyncIdentity } from '@core/services/pull-requests/node/sync-identity';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
@@ -289,9 +290,12 @@ function startDesktopWorkersWithHost(
     executable: desktopWorkerPath('pull-requests'),
     env: process.env,
     dependencies: {
+      // Identity is resolved per request through the seam bound during services
+      // boot (spec: github-git-settings §8); until then requests fail closed.
       githubAuth: createPullRequestsGitHubAuthController(
         new GitHubApiAuthService(providerAccountRegistry),
-        githubApiBaseUrlForHost
+        githubApiBaseUrlForHost,
+        resolvePullRequestSyncIdentity
       ),
     },
     config: {

@@ -7,6 +7,7 @@ import { buildAutomationDeployment } from './deployment-builder';
 
 const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
+  getRepoFacts: vi.fn(),
   resolveWorkspace: vi.fn(),
   select: vi.fn(),
   rows: [] as unknown[][],
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 const dependencies = {
   db: { select: mocks.select } as never,
   getProjectById: mocks.getProjectById,
+  getRepoFacts: mocks.getRepoFacts,
   resolveWorkspace: mocks.resolveWorkspace,
   resolveWorktreePool: mocks.resolveWorktreePool,
 };
@@ -71,6 +73,13 @@ beforeEach(() => {
     type: 'local',
     path: '/repo',
     repositoryWorkspaceId: 'repository-workspace',
+  });
+  mocks.getRepoFacts.mockResolvedValue({
+    remotes: [
+      { name: 'origin', host: 'github.com', headBranch: 'main', branches: ['main'] },
+      { name: 'fork', host: 'github.com', headBranch: null, branches: [] },
+    ],
+    localBranches: ['main'],
   });
   mocks.resolveWorktreePool.mockResolvedValue({
     success: true,
@@ -160,6 +169,33 @@ describe('buildAutomationDeployment', () => {
           },
         },
       },
+    });
+  });
+
+  it('degrades a stale stored baseRemote to the inferred remote', async () => {
+    mocks.rows.push([
+      {
+        base: JSON.stringify({ baseRemote: 'gone' }),
+        shareable: JSON.stringify({}),
+      },
+    ]);
+
+    const result = await buildAutomationDeployment(dependencies, automationFixture());
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { workspace: { baseRemote: 'origin' } },
+    });
+  });
+
+  it('refuses worktree automations when the repository has no remotes', async () => {
+    mocks.getRepoFacts.mockResolvedValue({ remotes: [], localBranches: ['main'] });
+
+    const result = await buildAutomationDeployment(dependencies, automationFixture());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'workspace-not-supported' },
     });
   });
 

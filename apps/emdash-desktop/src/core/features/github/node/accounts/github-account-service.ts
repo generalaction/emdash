@@ -4,6 +4,7 @@ import type {
 } from '@core/primitives/github/api';
 import {
   GITHUB_PROVIDER_ID,
+  listGitHubAccountSummaries,
   toGitHubAccount,
   type GitHubAccount,
   type GitHubAccountStore,
@@ -25,18 +26,12 @@ export class GitHubAccountService {
   ) {}
 
   async listAccounts(): Promise<GitHubAccountSummary[]> {
-    const [accounts, defaultAccountId] = await Promise.all([
-      this.accountStore.listAccounts(GITHUB_PROVIDER_ID),
-      this.accountStore.getDefaultAccountId(GITHUB_PROVIDER_ID),
-    ]);
-    return accounts
-      .map(toGitHubAccount)
-      .map((account) => this.toAccountSummary(account, defaultAccountId));
+    return listGitHubAccountSummaries(this.accountStore);
   }
 
   async importCliAccounts(): Promise<Extract<GitHubImportCliAccountsResponse, { success: true }>> {
     const imported = await this.cliAccountImporter.importAccounts();
-    const importedAccountIds = [...new Set(imported.map((account) => account.id))];
+    const importedAccountIds = [...new Set(imported.map((account) => account.accountId))];
     return {
       success: true,
       accounts: await this.listAccounts(),
@@ -55,7 +50,7 @@ export class GitHubAccountService {
     if (!removed) return null;
 
     const account = toGitHubAccount(removed);
-    this.clearCachedClients(account.host, account.id);
+    this.clearCachedClients(account.host, account.accountId);
     return this.listAccounts();
   }
 
@@ -64,12 +59,12 @@ export class GitHubAccountService {
     defaultAccountId: string | null
   ): GitHubAccountSummary {
     return {
-      accountId: account.id,
+      accountId: account.accountId,
       host: account.host,
       login: account.login,
       avatarUrl: account.avatarUrl,
       credentialSource: account.credentialSource,
-      isDefault: account.id === defaultAccountId,
+      isDefault: account.accountId === defaultAccountId,
     };
   }
 }

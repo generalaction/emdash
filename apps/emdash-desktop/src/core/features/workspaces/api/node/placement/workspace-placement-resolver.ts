@@ -7,31 +7,21 @@ import type {
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import { eq } from 'drizzle-orm';
 import {
   fileKeyForAbsolutePath,
   hostPathFromNative,
   nativePathFromHost,
 } from '@core/primitives/desktop-runtime/api';
 import { safePathSegment } from '@core/primitives/path-name/api';
-import {
-  legacyBaseProjectSettingsSchema,
-  type BaseProjectSettings,
-} from '@core/primitives/project-settings/api';
+import { builtInWorktreeRootFor, resolveWorktreeRoot } from '@core/primitives/project-settings/api';
 import {
   projectHostRef,
   type Project,
   type ProjectPlacementError,
 } from '@core/primitives/projects/api';
-import type { AppDb } from '@core/services/app-db/node/db';
-import { projectSettings } from '@core/services/app-db/node/schema';
 import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import type { AppSettingsService } from '@core/services/settings/node';
-import {
-  defaultRepositoriesRoot,
-  defaultWorktreesRoot,
-  deriveWorktreePoolPath,
-} from './placement-defaults';
+import { defaultRepositoriesRoot, deriveWorktreePoolPath } from './placement-defaults';
 
 export type WorkspacePlacementError = ProjectPlacementError;
 
@@ -43,7 +33,13 @@ type PlacementResolverDependencies = {
   broker: RuntimeBrokerLike;
   getSettings: () => Pick<AppSettingsService, 'getWithMeta'>;
   findProjectByPath(host: HostRef, path: string): Promise<Project | undefined>;
-  loadProjectWorktreeDirectory: (projectId: string) => Promise<string | undefined>;
+  /**
+   * The stored per-project worktree-root override, from the one settings
+   * provider model (spec: github-git-settings §6): the mounted provider's
+   * `getStoredGitSettings()` when the project is open, the shared row reader
+   * (`loadStoredGitSettings`) before it mounts. Never a raw-JSON side read.
+   */
+  getStoredProjectWorktreeRoot: (projectId: string) => Promise<string | undefined>;
 };
 
 export class WorkspacePlacementResolver {
@@ -59,18 +55,29 @@ export class WorkspacePlacementResolver {
     const homeResult = await this.getHomeDirectory(host);
     if (!homeResult.success) return homeResult;
 
-    // Precedence: per-project DB override, then the per-host default (host-settings
-    // runtime), then the desktop-wide app setting, then the built-in default.
-    const configuredRoot =
-      (await this.dependencies.loadProjectWorktreeDirectory(project.id)) ??
-      (await this.getHostWorktreeRoot(host)) ??
-      (await this.getExplicitAppRoot('defaultWorktreeDirectory'));
-    const rootResult = configuredRoot
-      ? resolveConfiguredRoot(configuredRoot, homeResult.data)
-      : ok(defaultWorktreesRoot(homeResult.data));
-    if (!rootResult.success) return rootResult;
-
-    return rootResult;
+    // The blessed worktree-root chain (spec: github-git-settings §6):
+    // per-project override → per-host default → built-in root, resolved by the
+    // same portable function the settings page and create-task preview use.
+    // Invalid configured roots degrade inside the chain with a warning here —
+    // placement is never blocked by a stale root setting.
+    const [projectWorktreeRoot, hostWorktreeRoot] = await Promise.all([
+      this.dependencies.getStoredProjectWorktreeRoot(project.id),
+      this.getHostWorktreeRoot(host),
+    ]);
+    const resolved = resolveWorktreeRoot({
+      projectWorktreeRoot,
+      hostWorktreeRoot: hostWorktreeRoot ?? null,
+      builtInWorktreeRoot: builtInWorktreeRootFor(homeResult.data),
+      homeDirectory: homeResult.data,
+    });
+    if (resolved.provenance.kind === 'broken-setting') {
+      log.warn('Configured worktree root is unusable; degrading to the next layer', {
+        projectId: project.id,
+        staleValue: resolved.provenance.staleValue,
+        fallback: resolved.value,
+      });
+    }
+    return ok(resolved.value);
   }
 
   async resolveWorktreePool(project: Project): Promise<Result<string, WorkspacePlacementError>> {
@@ -175,34 +182,9 @@ export class WorkspacePlacementResolver {
     return (await hostSettingsDefaults(session.data.hostSettings)).worktreeRoot;
   }
 
-  private async getExplicitAppRoot(
-    field: 'defaultProjectsDirectory' | 'defaultWorktreeDirectory'
-  ): Promise<string | undefined> {
+  private async getExplicitAppRoot(field: 'defaultProjectsDirectory'): Promise<string | undefined> {
     const { overrides } = await this.dependencies.getSettings().getWithMeta('localProject');
     return Object.hasOwn(overrides, field) ? overrides[field] : undefined;
-  }
-}
-
-export async function loadProjectWorktreeDirectory(
-  appDb: AppDb,
-  projectId: string
-): Promise<string | undefined> {
-  const [row] = await appDb
-    .select({ base: projectSettings.baseProjectSettingsJson })
-    .from(projectSettings)
-    .where(eq(projectSettings.projectId, projectId))
-    .limit(1);
-  if (!row) return undefined;
-
-  try {
-    const parsed: BaseProjectSettings = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
-    return parsed.worktreeDirectory;
-  } catch (error) {
-    log.warn('Failed to read worktree placement override; using the host default', {
-      projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
   }
 }
 

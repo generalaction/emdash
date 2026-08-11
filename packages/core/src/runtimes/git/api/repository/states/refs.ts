@@ -50,8 +50,20 @@ export const gitTagSchema = z.object({
 });
 export type GitTag = z.infer<typeof gitTagSchema>;
 
+export const gitRemoteHeadSchema = z.object({
+  remote: z.string(),
+  branch: z.string(),
+});
+export type GitRemoteHead = z.infer<typeof gitRemoteHeadSchema>;
+
 export const gitRefsStateSchema = z.object({
   branches: z.array(gitBranchSchema),
   tags: z.array(gitTagSchema),
+  /**
+   * Branches the remotes' HEADs point at, read from the local
+   * `refs/remotes/<remote>/HEAD` symbolic refs (no network). Optional for
+   * wire compatibility with runtimes that predate the field.
+   */
+  remoteHeads: z.array(gitRemoteHeadSchema).optional(),
 });
 export type GitRefsState = z.infer<typeof gitRefsStateSchema>;

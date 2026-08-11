@@ -113,7 +113,13 @@ export class GitRepository {
     }
   }
 
-  async getDefaultBranch(remote = 'origin'): Promise<string> {
+  /**
+   * The branch the remote's HEAD points at: the local symbolic ref when
+   * present, else a network `remote show` lookup. Honestly absent (`null`)
+   * when neither knows it — inference over well-known candidates belongs to
+   * the blessed resolver, not this primitive.
+   */
+  async getDefaultBranch(remote: string): Promise<string | null> {
     try {
       const { stdout } = await this.exec.exec([
         'symbolic-ref',
@@ -137,11 +143,7 @@ export class GitRepository {
       if (!repositoryFailures.isRemoteUnavailable(error)) throw error;
     }
 
-    for (const candidate of ['main', 'master', 'develop', 'trunk']) {
-      if (await this.branchExistsLocally(candidate)) return candidate;
-    }
-
-    return 'main';
+    return null;
   }
 
   async fetchPrForReview(
@@ -195,7 +197,7 @@ export class GitRepository {
         return ok(undefined);
       }
 
-      const remote = options.configuredRemote ?? 'origin';
+      const remote = options.configuredRemote;
       await execGitWithProgress(
         this.exec,
         [
@@ -240,16 +242,6 @@ export class GitRepository {
       return ok(undefined);
     } catch (error) {
       return commandFailed(error);
-    }
-  }
-
-  private async branchExistsLocally(branch: string): Promise<boolean> {
-    try {
-      await this.exec.exec(['rev-parse', '--verify', `refs/heads/${branch}`]);
-      return true;
-    } catch (error) {
-      if (!repositoryFailures.isMissingRef(error)) throw error;
-      return false;
     }
   }
 }

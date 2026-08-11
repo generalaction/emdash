@@ -1,6 +1,7 @@
 import type { IssueError } from '@emdash/plugins/issues';
 import type { Result } from '@emdash/shared';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import type { Provenance } from '@core/primitives/project-settings/api';
 
 export type IssueProviderType = LinkedIssue['provider'];
 
@@ -19,9 +20,24 @@ export type ConnectionStatus = {
 
 export type ConnectionStatusMap = Record<IssueProviderType, ConnectionStatus>;
 
+/**
+ * The project's GitHub account resolution produced no usable account. Carries
+ * the blessed resolver's provenance (spec: github-git-settings §7) so
+ * surfaces render the reporting matrix instead of a re-encoded error
+ * vocabulary: `set` is the explicit "GitHub disabled" intent, `inferred`
+ * means inference found nothing (only sent when no accounts are connected),
+ * and `unresolvable` is a dangling or host-mismatched pin (fail closed).
+ */
+export type IssueAccountUnavailableError = {
+  type: 'account_unavailable';
+  provenance: Provenance;
+  /** Whether any GitHub accounts are connected at all. */
+  accountsConnected: boolean;
+  message: string;
+};
+
 export type IssueAccountError =
-  | { type: 'no_account_selected'; message: string }
-  | { type: 'account_disabled'; message: string }
+  | IssueAccountUnavailableError
   | { type: 'account_not_found'; host?: string; accountId?: string; message: string }
   | {
       type: 'account_host_mismatch';

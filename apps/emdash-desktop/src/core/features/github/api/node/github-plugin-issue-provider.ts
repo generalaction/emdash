@@ -2,16 +2,21 @@ import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { match, P } from 'ts-pattern';
+import {
+  GITHUB_ACCOUNT_UNRESOLVABLE_MESSAGE,
+  GITHUB_CONNECT_MESSAGE,
+  GITHUB_DISABLED_MESSAGE,
+} from '@core/features/github/api/account-reporting';
 import type {
   GitHubApiAuthContext,
   GitHubApiAuthService,
 } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
-import type { ProjectGitHubAuthContextError } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
+import type { ProjectGitHubAccountResolver } from '@core/features/github/api/node/services/project-github-account-resolver';
 import {
   GITHUB_PROVIDER_ID,
-  toGitHubAccount,
+  listGitHubAccountSummaries,
 } from '@core/features/github/node/accounts/github-accounts';
 import type {
   IssueProvider,
@@ -37,27 +42,49 @@ export type GitHubIssueProviderDependencies = {
   accounts: Pick<ProviderAccountStore, 'getDefaultAccountId' | 'listAccounts'>;
   auth: GitHubApiAuthService;
   logger: Logger;
-  resolveProjectAuthContext(
-    projectId: string
-  ): Promise<Result<GitHubApiAuthContext, ProjectGitHubAuthContextError>>;
+  resolveProjectGitHubAccount: ProjectGitHubAccountResolver;
 };
 
+/**
+ * Applies the §7 reporting matrix over the blessed resolver's provenance
+ * (spec: github-git-settings): explicit none and dangling pins fail closed
+ * with an `account_unavailable` payload carrying the provenance; the
+ * inferred-absent case is only reported when no accounts are connected —
+ * otherwise it is the silent default and token resolution infers per
+ * repository host downstream.
+ */
 async function resolveIssueAuthContext(
   dependencies: GitHubIssueProviderDependencies,
   projectId: string | undefined
 ): Promise<Result<GitHubApiAuthContext | undefined, IssueListError>> {
   if (!projectId) return ok(undefined);
-  const authContext = await dependencies.resolveProjectAuthContext(projectId);
-  if (authContext.success) return ok(authContext.data);
-  if (authContext.error.type === 'unconfigured') {
-    return err({ type: 'no_account_selected', message: authContext.error.message });
+  const account = await dependencies.resolveProjectGitHubAccount(projectId);
+  if (account.value !== null) return ok({ accountId: account.value.accountId });
+
+  const accountsConnected =
+    (await dependencies.accounts.listAccounts(GITHUB_PROVIDER_ID)).length > 0;
+  if (account.provenance.kind === 'set') {
+    return err({
+      type: 'account_unavailable',
+      provenance: account.provenance,
+      accountsConnected,
+      message: GITHUB_DISABLED_MESSAGE,
+    });
   }
-  if (authContext.error.type === 'disabled') {
-    return err({ type: 'account_disabled', message: authContext.error.message });
+  if (account.provenance.kind === 'inferred' && accountsConnected) return ok(undefined);
+  if (account.provenance.kind === 'inferred') {
+    return err({
+      type: 'account_unavailable',
+      provenance: account.provenance,
+      accountsConnected: false,
+      message: GITHUB_CONNECT_MESSAGE,
+    });
   }
   return err({
-    type: 'generic',
-    message: `Unable to resolve GitHub account for project: ${authContext.error.message}`,
+    type: 'account_unavailable',
+    provenance: account.provenance,
+    accountsConnected,
+    message: GITHUB_ACCOUNT_UNRESOLVABLE_MESSAGE,
   });
 }
 
@@ -100,15 +127,12 @@ async function getDefaultLinkedAccountConnection(
   dependencies: GitHubIssueProviderDependencies,
   capabilities: IssueProviderCapabilities
 ) {
-  const defaultAccountId = await dependencies.accounts.getDefaultAccountId(GITHUB_PROVIDER_ID);
-  if (!defaultAccountId) return null;
-
-  const account = (await dependencies.accounts.listAccounts(GITHUB_PROVIDER_ID))
-    .map(toGitHubAccount)
-    .find((candidate) => candidate.id === defaultAccountId);
+  const account = (await listGitHubAccountSummaries(dependencies.accounts)).find(
+    (candidate) => candidate.isDefault
+  );
   if (!account) return null;
 
-  const token = await dependencies.auth.getToken(account.host, { accountId: account.id });
+  const token = await dependencies.auth.getToken(account.host, { accountId: account.accountId });
   if (!token.success) return null;
 
   return {

@@ -12,6 +12,15 @@ import {
 import { ChevronDown, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
+import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
+import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
+import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
+import {
+  identityStripBlocksAction,
+  identityStripView,
+} from '@core/features/github/contributions/browser/identity-strip-state';
+import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
+import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { BranchDisplay } from '@core/features/source-control/contributions/browser/branch-display';
@@ -19,7 +28,8 @@ import { ProjectBranchSelector } from '@core/features/source-control/contributio
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import { useModalController } from '@core/manifests/browser/modal-api';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
@@ -47,6 +57,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   workspaceId,
 }: CreatePrModalArgs) {
   const { complete } = useModalController('createPrModal');
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
@@ -54,12 +65,31 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [isCreating, setIsCreating] = useState(false);
   const [createActionId, setCreateActionId] = useState('push-and-create');
   const [error, setError] = useState<string | null>(null);
+  const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
   const repo = getGitRepositoryStore(projectId);
+  // Identity strip inputs (spec §9): the resolver's effective account plus the
+  // per-action override. Create-PR is fail-closed (spec §5/§7): while the
+  // inputs load or when no account resolves, the primary action stays blocked.
+  const effective = useEffectiveSettings(projectId);
+  const { data: accounts } = useGitHubAccounts();
+  const resolvedAccount = effective?.githubAccount ?? null;
+  const identityBlocked =
+    !resolvedAccount ||
+    !accounts ||
+    identityStripBlocksAction(identityStripView(resolvedAccount, accountOverride, accounts), true);
+  // The PR execution path resolves *as whom* node-side from the stored
+  // per-project setting, so a popover selection persists immediately (the
+  // popover says so) instead of riding a per-action parameter.
+  const handleSelectAccount = (account: GitHubAccountSummary) => {
+    setAccountOverride(account);
+    void persistProjectGitHubAccount(projectId, account.accountId);
+  };
   const defaultBranch = repo?.defaultBranch;
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const needsPush = !isOnRemote || aheadCount > 0;
-  const projectRemoteName = repo?.baseRemote.name ?? 'origin';
+  const baseRemoteResolution = repo?.effectiveGitSettings.baseRemote ?? null;
+  const projectRemoteName = repo?.baseRemote?.name ?? null;
   const fallbackRepository = useMemo(() => parseRepositoryRef(repositoryUrl), [repositoryUrl]);
   const targetRemotes = useMemo(
     () =>
@@ -113,7 +143,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       }
 
       const baseRepository = parseRepositoryRef(targetRepositoryUrl);
-      const headRepository = repo?.pushRemote.url ? parseRepositoryRef(repo.pushRemote.url) : null;
+      const headRepository = repo?.pushRemote?.url ? parseRepositoryRef(repo.pushRemote.url) : null;
       const head =
         baseRepository &&
         headRepository &&
@@ -157,6 +187,12 @@ export const CreatePrModal = observer(function CreatePrModal({
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
+        {baseRemoteResolution?.provenance.kind === 'broken-setting' ? (
+          <BrokenSettingNotice
+            staleValue={baseRemoteResolution.provenance.staleValue}
+            effectiveValue={baseRemoteResolution.value}
+          />
+        ) : null}
         <div className="flex flex-col items-center gap-2">
           <BranchDisplay
             label="Head Branch"
@@ -233,6 +269,18 @@ export const CreatePrModal = observer(function CreatePrModal({
             />
           </Field.Root>
         </Field.Group>
+        {resolvedAccount && accounts ? (
+          <GitHubIdentityStrip
+            action="Creating PR"
+            resolved={resolvedAccount}
+            accounts={accounts}
+            override={accountOverride}
+            persistence="project"
+            accountRequired
+            onSelect={handleSelectAccount}
+            onConnect={() => void openGithubConnectModal({})}
+          />
+        ) : null}
         {error && (
           <Alert.Root status="destructive">
             <Alert.Title>Failed to create pull request</Alert.Title>
@@ -246,7 +294,7 @@ export const CreatePrModal = observer(function CreatePrModal({
             size="sm"
             loading={isCreating}
             loadingLabel="Creating..."
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim()}
+            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || identityBlocked}
             options={[
               {
                 id: 'push-and-create',
@@ -268,7 +316,13 @@ export const CreatePrModal = observer(function CreatePrModal({
             variant="primary"
             size="sm"
             onClick={() => void doCreate(false)}
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
+            disabled={
+              !hasGitHubRemote ||
+              !selectedBase?.branch ||
+              !title.trim() ||
+              isCreating ||
+              identityBlocked
+            }
           >
             {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
           </ConfirmButton>

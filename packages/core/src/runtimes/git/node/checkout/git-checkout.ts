@@ -168,20 +168,19 @@ export class GitCheckout {
     context: GitOperationContext = {}
   ): Promise<Result<{ output: string }, PushError>> {
     try {
-      const { stdout, stderr } = await execGitWithProgress(
-        this.exec,
-        [
-          'push',
-          '--progress',
-          ...(options.force ? ['--force-with-lease'] : []),
-          ...(options.setUpstream
-            ? ['--set-upstream', options.remote ?? 'origin', 'HEAD']
-            : options.remote
-              ? [options.remote]
-              : []),
-        ],
-        context
-      );
+      const args = ['push', '--progress'];
+      if (options.force) args.push('--force-with-lease');
+      if (options.setUpstream) {
+        // Callers resolve the remote (blessed resolver; spec: github-git-settings
+        // §2) — this layer never invents one.
+        if (options.remote === undefined) {
+          throw new Error('git push --set-upstream requires an explicit remote');
+        }
+        args.push('--set-upstream', options.remote, 'HEAD');
+      } else if (options.remote) {
+        args.push(options.remote);
+      }
+      const { stdout, stderr } = await execGitWithProgress(this.exec, args, context);
       return ok({ output: (stdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;

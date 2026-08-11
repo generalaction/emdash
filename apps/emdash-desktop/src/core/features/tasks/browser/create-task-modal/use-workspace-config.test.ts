@@ -13,8 +13,16 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 
+// The hook reads only `baseRemote` from the repository store; individual tests
+// null it out to exercise the honest no-remote degrade.
+const repositoryStoreMock = vi.hoisted(() => ({
+  current: { baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' } } as {
+    baseRemote: { name: string; url: string } | null;
+  } | null,
+}));
+
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
-  getGitRepositoryStore: () => undefined,
+  getGitRepositoryStore: () => repositoryStoreMock.current,
 }));
 // The real module transitively imports monaco, which cannot load in the node project.
 // The mocked project defines preservePatterns, so previews include copy-artifacts.
@@ -109,6 +117,9 @@ describe('useWorkspaceConfig branch selection', () => {
   beforeEach(() => {
     latestState = undefined;
     branchNameMock.current = 'generated-task-branch';
+    repositoryStoreMock.current = {
+      baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+    };
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
@@ -254,6 +265,15 @@ describe('useWorkspaceConfig branch selection', () => {
     expect(latestState?.setupSteps[0]?.description).toBe(
       'Fetch refs/pull/7/head from origin into pr/7/fix/thing'
     );
+  });
+
+  it('renders an empty preview for a PR checkout when the repository has no remotes', async () => {
+    repositoryStoreMock.current = { baseRemote: null };
+    await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' }, { pr: makePr() });
+
+    // PR-sourced plans need a base remote to fetch PR heads from; node-side
+    // createTask refuses in the same case, so the preview promises nothing.
+    expect(latestState?.setupSteps).toEqual([]);
   });
 
   it('renders an empty preview when the PR preset has no PR selected yet', async () => {

@@ -13,6 +13,7 @@ import {
   type ProjectSettingsPage,
   type ProjectSettingsWriteTargetOption,
   type ShareableProjectSettingsWriteField,
+  type StoredProjectGitSettings,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -33,13 +34,15 @@ import {
 
 type UseProjectSettingsFormArgs = {
   initial: ProjectSettings;
-  baseRemote: string;
+  storedGitSettings: StoredProjectGitSettings;
   remotes: GitRemote[];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
+  save: (
+    settings: ProjectSettings
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
@@ -62,7 +65,7 @@ function resolveFormSnapshot(snapshot: FormSnapshot, baseline: FormState): FormS
 
 export function useProjectSettingsForm({
   initial,
-  baseRemote,
+  storedGitSettings,
   remotes,
   writeTargets,
   overrideState,
@@ -76,8 +79,8 @@ export function useProjectSettingsForm({
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
   const { toast } = useToast();
   const baseline = useMemo(
-    () => settingsToForm(initial, baseRemote, remotes),
-    [initial, baseRemote, remotes]
+    () => settingsToForm(initial, storedGitSettings, remotes),
+    [initial, storedGitSettings, remotes]
   );
   const [formSnapshot, setFormSnapshot] = useState<FormSnapshot>({
     baseline,
@@ -136,7 +139,11 @@ export function useProjectSettingsForm({
     const result = await save(formToSettings(form)).catch(() => err({ type: 'error' }));
 
     if (result.success) {
-      const canonicalForm = settingsToForm(result.data, baseRemote, remotes);
+      const canonicalForm = settingsToForm(
+        result.data.settings,
+        result.data.storedGitSettings,
+        remotes
+      );
       setWorktreeDirectoryError(null);
       setFormSnapshot({
         baseline: canonicalForm,
@@ -156,7 +163,7 @@ export function useProjectSettingsForm({
 
     setWorktreeDirectoryError(null);
     setSaveStatus('error');
-  }, [baseRemote, form, onSuccess, remotes, save]);
+  }, [form, onSuccess, remotes, save]);
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
@@ -168,7 +175,11 @@ export function useProjectSettingsForm({
       writeConfigToRepo,
     }).then((outcome) => {
       if (!outcome.success) return;
-      const nextForm = settingsToForm(outcome.data.page.settings, baseRemote, remotes);
+      const nextForm = settingsToForm(
+        outcome.data.page.settings,
+        outcome.data.page.storedGitSettings,
+        remotes
+      );
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
@@ -179,7 +190,6 @@ export function useProjectSettingsForm({
     });
   }, [
     availableWriteFields,
-    baseRemote,
     canShareConfig,
     defaultSelectedWriteFields,
     initialWriteTarget,
@@ -200,7 +210,7 @@ export function useProjectSettingsForm({
     }).then((outcome) => {
       if (!outcome.success) return;
       const { page, migration } = outcome.data;
-      const nextForm = settingsToForm(page.settings, baseRemote, remotes);
+      const nextForm = settingsToForm(page.settings, page.storedGitSettings, remotes);
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
@@ -212,7 +222,6 @@ export function useProjectSettingsForm({
       onSuccess();
     });
   }, [
-    baseRemote,
     canImportConfig,
     configMigrations,
     importDisabled,

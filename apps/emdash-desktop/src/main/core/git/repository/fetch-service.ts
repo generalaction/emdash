@@ -3,7 +3,7 @@ import {
   type FetchError,
   type RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
-import { err, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-client';
 import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
@@ -20,7 +20,8 @@ export class GitRepositoryFetchService {
   constructor(
     private readonly git: GitRuntimeClient,
     private readonly repository: RepositorySelector,
-    private readonly getRemote: () => Promise<string | undefined>
+    /** Resolver-backed effective base remote; `null` means no remotes exist. */
+    private readonly getRemote: () => Promise<string | null>
   ) {}
 
   /** Start the background fetch loop: immediate fetch, then every `intervalMs`. */
@@ -40,6 +41,8 @@ export class GitRepositoryFetchService {
     if (this._inflight) return this._inflight;
     this._inflight = this.getRemote()
       .then(async (remote) => {
+        // No remotes resolved — nothing to fetch (never a literal fallback).
+        if (remote === null) return ok(undefined);
         return runGitJob(gitContract.repository.fetch, this.git.repository.fetch, {
           ...this.repository,
           remote,

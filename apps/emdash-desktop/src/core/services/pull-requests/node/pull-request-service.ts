@@ -174,10 +174,10 @@ export class PullRequestService {
     }
   }
 
-  registerRepository(repositoryUrl: string, accountId?: string): Result<void, PullRequestError> {
+  registerRepository(repositoryUrl: string): Result<void, PullRequestError> {
     const normalized = normalizeRepositoryUrl(repositoryUrl);
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
-    this.options.store.registerRepository(normalized, accountId);
+    this.options.store.registerRepository(normalized);
     this.syncStateValues.set(normalized, this.syncStateValues.get(normalized) ?? idleSyncState());
     void this.syncWithPriority(normalized, requestPriorities.background);
     return ok();

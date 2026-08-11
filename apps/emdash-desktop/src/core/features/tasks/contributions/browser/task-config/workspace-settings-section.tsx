@@ -7,6 +7,7 @@ import type { WorkspacePanelProps } from '@core/features/tasks/browser/task-conf
 import { PrNewBranchPanel } from '@core/features/tasks/browser/task-config/pr-new-branch-panel';
 import { UseExistingPanel } from '@core/features/tasks/browser/task-config/use-existing-panel';
 import { WorkspacePresetPicker } from '@core/features/tasks/browser/task-config/workspace-preset-picker';
+import { WorktreeDestinationPreview } from '@core/features/tasks/browser/task-config/worktree-destination-preview';
 import { useTaskState } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
@@ -91,6 +92,12 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
           </Collapsible.Panel>
         )}
       </Collapsible.Root>
+      {projectId ? (
+        <WorktreeDestinationPreview
+          projectId={projectId}
+          workspaceConfig={workspaceConfig.resolvedConfig}
+        />
+      ) : null}
     </div>
   );
 }

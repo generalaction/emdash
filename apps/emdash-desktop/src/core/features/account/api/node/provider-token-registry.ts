@@ -1,19 +1,13 @@
-export type ProviderAccountPayload = {
-  providerId: string;
-  providerAccountId: string;
-  host: string;
-  login: string;
-  avatarUrl: string;
-};
+import type { ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
 
 export type ProviderTokenPayload = {
   accessToken: string;
-  providerAccount?: ProviderAccountPayload;
+  providerAccount?: ProviderAccountIdentity;
 };
 
 export type ProviderTokenDispatchResult = {
   providerAccountStatus?: 'created' | 'updated';
-  providerAccount?: ProviderAccountPayload;
+  providerAccount?: ProviderAccountIdentity;
 };
 
 type ProviderTokenHandler = (

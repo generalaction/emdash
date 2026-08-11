@@ -59,6 +59,8 @@ export function BranchSelector({
   const showRemoteFooter = selectedRemoteName !== undefined;
   const activeRemoteName =
     showRemoteFooter && open ? (draftRemoteName ?? selectedRemoteName) : selectedRemoteName;
+  // Defined exactly when the footer renders (selectedRemoteName is set).
+  const footerRemoteName = activeRemoteName ?? selectedRemoteName;
 
   const localCount = useMemo(() => branches.filter((b) => b.type === 'local').length, [branches]);
   const remoteCount = useMemo(
@@ -197,11 +199,11 @@ export function BranchSelector({
         <Combobox.Empty>
           {branches.length === 0 ? 'no branches exist' : 'no results'}
         </Combobox.Empty>
-        {showRemoteFooter && (
+        {footerRemoteName !== undefined && (
           <div className="border-t border-border">
             <RemoteSelector
               remotes={remotes ?? []}
-              value={activeRemoteName ?? selectedRemoteName ?? 'origin'}
+              value={footerRemoteName}
               onOpenChange={(nextOpen) => {
                 keepOpenForRemoteSelectRef.current = true;
                 if (nextOpen) {

@@ -1,8 +1,9 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { useId } from 'react';
-import { GithubAuthDisclaimer } from '@core/features/integrations/contributions/browser/github-auth-disclaimer';
+import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type { Resolved } from '@core/primitives/project-settings/api';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';
 import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
@@ -74,29 +75,38 @@ export function CreateNewPanel({
   connectionId,
   state,
   getProjectsClient,
-  showGithubAuthDisclaimer,
   accounts,
   selectedAccount,
+  defaultAccount,
   onAccountChange,
-  onOpenAccountSettings,
+  onConnectGithub,
   ensureDefaultRoot,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: NewModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
-  showGithubAuthDisclaimer: boolean;
   accounts: GitHubAccountSummary[];
   selectedAccount: GitHubAccountSummary | null;
+  /** The default-account inference the strip shows when nothing is chosen. */
+  defaultAccount: GitHubAccountSummary | null;
   onAccountChange: (accountId: string) => void;
-  onOpenAccountSettings: () => void;
+  onConnectGithub: () => void;
   ensureDefaultRoot: boolean;
 }) {
   const repositoryNameId = useId();
 
-  if (showGithubAuthDisclaimer) {
-    return <GithubAuthDisclaimer onOpenAccountSettings={onOpenAccountSettings} />;
-  }
+  // No project exists yet, so the strip previews the same inference the
+  // resolver would make (the default account) instead of resolver output;
+  // there is no per-project setting to remember into.
+  const resolvedAccount: Resolved<GitHubAccountSummary | null> = {
+    value: defaultAccount,
+    provenance: { kind: 'inferred', from: 'default account' },
+  };
+  const overrideAccount =
+    selectedAccount && selectedAccount.accountId !== defaultAccount?.accountId
+      ? selectedAccount
+      : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -163,6 +173,16 @@ export function CreateNewPanel({
           />
         </Field.Root>
       </Field.Group>
+      <GitHubIdentityStrip
+        action="Creating repository"
+        resolved={resolvedAccount}
+        accounts={accounts}
+        override={overrideAccount}
+        persistence="action-only"
+        accountRequired
+        onSelect={(account) => onAccountChange(account.accountId)}
+        onConnect={onConnectGithub}
+      />
     </div>
   );
 }

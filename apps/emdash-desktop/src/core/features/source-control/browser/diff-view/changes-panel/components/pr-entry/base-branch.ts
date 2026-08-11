@@ -37,7 +37,8 @@ export function resolveInitialBaseBranch(
   branches: GitBranchRef[],
   preferredBase: GitBranchRef | undefined,
   defaultBranch: GitBranchRef | undefined,
-  projectRemoteName: string
+  /** The effective base remote; null (no remotes) matches no remote branches. */
+  projectRemoteName: string | null
 ): GitBranchRef | undefined {
   const projectRemoteBranches = branches.filter(
     (branch) => branch.type === 'remote' && branch.remote.name === projectRemoteName

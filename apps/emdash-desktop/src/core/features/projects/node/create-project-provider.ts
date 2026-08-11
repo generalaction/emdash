@@ -7,19 +7,23 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { log } from '@emdash/shared/logger';
 import {
   ProjectProvider,
   type GitRepositoryFetchPort,
   type GitRepositoryPort,
   type ProjectProviderTransport,
 } from '@core/features/projects/api/node/project-provider';
+import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
   hostPathFromNative,
   nativePathFromHost,
   relativeRuntimePath,
 } from '@core/primitives/desktop-runtime/api';
+import {
+  builtInWorktreeRootFor,
+  type EffectiveSettings,
+} from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -40,6 +44,7 @@ import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-se
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
+import { createRepoFactsCache } from './settings/repo-facts';
 
 export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
@@ -48,12 +53,12 @@ export type CreateProjectProviderDependencies = {
   createGitRepository(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    settings: HostProjectSettingsProvider
+    resolveEffectiveSettings: () => Promise<EffectiveSettings>
   ): GitRepositoryPort;
   createGitRepositoryFetch(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    getBaseRemote: () => Promise<string>
+    getBaseRemote: () => Promise<string | null>
   ): GitRepositoryFetchPort;
   ensureAbsoluteDir(
     client: FilesRuntimeClient,
@@ -63,11 +68,16 @@ export type CreateProjectProviderDependencies = {
   ): Promise<Result<void, FsError>>;
   runtimes: Pick<RuntimeBroker, 'client'>;
   getProjectDefaults(): Promise<{
-    defaultWorktreeDirectory: string;
     tmuxByDefault: boolean;
   }>;
-  backfillGitHubAccount(provider: ProjectProvider): Promise<void>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
+  /**
+   * Lazy migration 5 (spec: github-git-settings §10): one-time move of the
+   * app-wide defaultWorktreeDirectory into the local host default. Injected
+   * from the composition root since it spans app settings and the local
+   * host-settings runtime.
+   */
+  migrateAppWorktreeRoot?: () => Promise<void>;
 };
 
 export async function createProvider(
@@ -105,6 +115,7 @@ export async function createProvider(
         }
       },
     };
+    const repoFacts = createRepoFactsCache(git, repository, hasRepository);
     const settings = new HostProjectSettingsProvider(
       project.id,
       project.path,
@@ -120,9 +131,22 @@ export async function createProvider(
             (await dependencies.getProjectDefaults()).tmuxByDefault,
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
-        defaultWorktreeDirectory: async () =>
-          (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ??
-          (await dependencies.getProjectDefaults()).defaultWorktreeDirectory,
+        getRepoFacts: () => repoFacts.get(),
+        migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
+        // The worktree-root layers below the per-project override (spec §6),
+        // all answered on the project's own host: the host-settings default
+        // and the built-in root under the host home. The retired desktop-wide
+        // default is deliberately absent — a desktop path applied to SSH
+        // hosts was a latent bug.
+        worktreeRootContext: async () => {
+          const homeDirectory = nativePathFromHost((await filesClient.getHomeDir()).path);
+          return {
+            hostWorktreeRoot:
+              (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ?? null,
+            builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory),
+            homeDirectory,
+          };
+        },
         worktreeDirectoryFileSystem: {
           mkdir: async (targetPath, options) => {
             const result = await dependencies.ensureAbsoluteDir(
@@ -145,7 +169,9 @@ export async function createProvider(
     );
     await settings.ensure({ git: gitInspector });
 
-    const repositoryService = dependencies.createGitRepository(git, repository, settings);
+    const repositoryService = dependencies.createGitRepository(git, repository, () =>
+      resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
+    );
 
     ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 
@@ -160,6 +186,7 @@ export async function createProvider(
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
       settings,
+      repoFacts,
     };
     const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>
       repositoryService.getBaseRemote()
@@ -178,7 +205,6 @@ export async function createProvider(
       dependencies.taskSessions,
       () => {}
     );
-    await backfillGitHubAccount(dependencies, provider);
     return ok(provider);
   } catch (error) {
     return err(toCreateProviderError(error));
@@ -188,18 +214,4 @@ export async function createProvider(
 function toCreateProviderError(error: unknown): CreateProviderError {
   if (isRuntimeResolveError(error)) return error;
   return { type: 'error', message: error instanceof Error ? error.message : String(error) };
-}
-
-async function backfillGitHubAccount(
-  dependencies: CreateProjectProviderDependencies,
-  provider: ProjectProvider
-): Promise<void> {
-  try {
-    await dependencies.backfillGitHubAccount(provider);
-  } catch (error) {
-    log.warn('createProvider: failed to backfill project GitHub account', {
-      projectId: provider.projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }

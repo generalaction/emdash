@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
 import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
@@ -13,7 +14,12 @@ export const fetchPrForReviewOptionsSchema = z.object({
   headRepositoryUrl: z.string(),
   localBranch: z.string(),
   isFork: z.boolean(),
-  configuredRemote: z.string().optional(),
+  /**
+   * The effective base remote, resolved by the caller (blessed resolver;
+   * spec: github-git-settings §2) — this layer never invents one. Unused for
+   * fork PRs, which fetch through a dedicated fork remote.
+   */
+  configuredRemote: z.string(),
 });
 export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSchema>;
 
@@ -23,16 +29,19 @@ export const fetchJobInputSchema = repositorySelectorSchema.extend({
   remote: z.string().optional(),
   refspec: z.string().optional(),
   force: z.boolean().optional(),
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
 
 export const publishBranchJobInputSchema = repositorySelectorSchema.extend({
   branchName: z.string(),
   remote: z.string().optional(),
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type PublishBranchJobInput = z.infer<typeof publishBranchJobInputSchema>;
 
 export const fetchPrForReviewJobInputSchema = repositorySelectorSchema.extend({
   options: fetchPrForReviewOptionsSchema,
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchPrForReviewJobInput = z.infer<typeof fetchPrForReviewJobInputSchema>;

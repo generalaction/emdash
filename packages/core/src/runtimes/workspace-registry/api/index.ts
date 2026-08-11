@@ -1,5 +1,6 @@
 export {
   compileWorktreePayload,
+  deriveWorktreePoolPath,
   type CompiledWorktreePayload,
   type CompileWorktreePayloadInput,
 } from './compile-worktree-payload';

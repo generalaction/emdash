@@ -1,7 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
-import type { IssueProviderType } from '@core/primitives/issue-providers/api';
+import type {
+  IssueAccountUnavailableError,
+  IssueProviderType,
+} from '@core/primitives/issue-providers/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 const INITIAL_FETCH_LIMIT = 50;
@@ -13,6 +16,13 @@ export interface UseIssuesResult {
   issues: LinkedIssue[];
   isLoading: boolean;
   error: string | null;
+  /**
+   * The project's GitHub account resolution produced no usable account
+   * (spec: github-git-settings §7). Carried separately from `error` so
+   * surfaces render the reporting matrix (quiet disabled/connect states,
+   * fail-closed unresolvable pin) instead of a generic error message.
+   */
+  accountUnavailable: IssueAccountUnavailableError | null;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   isSearching: boolean;
@@ -123,8 +133,12 @@ export function useIssues(
 
   const activeResult = isActiveSearch ? searchIssues : initialIssues;
   const activeQueryError = isActiveSearch ? searchError : initialError;
+  const accountUnavailable =
+    activeResult && !activeResult.success && activeResult.error.type === 'account_unavailable'
+      ? activeResult.error
+      : null;
   const error =
-    activeResult && !activeResult.success
+    activeResult && !activeResult.success && !accountUnavailable
       ? activeResult.error.message
       : activeQueryError instanceof Error
         ? activeQueryError.message
@@ -134,6 +148,7 @@ export function useIssues(
     issues,
     isLoading: isLoadingInitial,
     error,
+    accountUnavailable,
     searchTerm,
     setSearchTerm,
     isSearching: isActiveSearch && isSearching,

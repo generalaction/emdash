@@ -47,10 +47,12 @@ export type {
 export type {
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
+  GitOperationCredentials,
   GitPathInspection,
   GitRepositoryInfo,
   GitTransferProgress,
 } from '#runtimes/git/api/schemas';
+export { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
 export type {
   BlameHunk,
   BlameResult,
@@ -116,6 +118,7 @@ export {
   gitLocalBranchRefSchema,
   gitRefsStateSchema,
   gitRemoteBranchRefSchema,
+  gitRemoteHeadSchema,
   gitRemoteSchema,
   gitTagSchema,
   type GitBranch,
@@ -124,6 +127,7 @@ export {
   type GitRefsState,
   type GitRemote,
   type GitRemoteBranchRef,
+  type GitRemoteHead,
   type GitTag,
   type LocalBranch,
   type RemoteBranch,

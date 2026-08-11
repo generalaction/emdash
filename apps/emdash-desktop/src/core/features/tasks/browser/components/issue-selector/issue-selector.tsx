@@ -4,6 +4,11 @@ import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import {
+  githubAccountReportingState,
+  type GitHubAccountReportingState,
+} from '@core/features/github/api/account-reporting';
+import { GitHubAccountStateEmpty } from '@core/features/github/contributions/browser/account-state';
+import {
   getIntegrationName,
   isIssueIntegration,
 } from '@core/features/integrations/api/browser/integration-display';
@@ -142,6 +147,7 @@ export const IssueSelector = observer(function IssueSelector({
   const {
     issues,
     error,
+    accountUnavailable,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,
@@ -150,6 +156,16 @@ export const IssueSelector = observer(function IssueSelector({
     handleSetSearchTerm,
     setSelectedIssueProvider,
   } = useIssueSearch(repositoryUrl, projectPath, projectId);
+
+  // §7 reporting matrix over the resolver provenance the Wire payload
+  // carries (spec: github-git-settings §7). Silent rows never cross the
+  // Wire, so any payload here renders a visible state.
+  const accountState: GitHubAccountReportingState | null = accountUnavailable
+    ? githubAccountReportingState(
+        accountUnavailable.provenance,
+        accountUnavailable.accountsConnected
+      )
+    : null;
 
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);
@@ -278,9 +294,13 @@ export const IssueSelector = observer(function IssueSelector({
               disabled={!hasAnyIntegration}
             />
             <Combobox.Empty>
-              <span className={cn(error && 'text-foreground-error')}>
-                {error ?? 'No issues found'}
-              </span>
+              {accountState && accountState.kind !== 'silent' ? (
+                <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+              ) : (
+                <span className={cn(error && 'text-foreground-error')}>
+                  {error ?? 'No issues found'}
+                </span>
+              )}
             </Combobox.Empty>
             <Combobox.List>
               {(issue: LinkedIssue) => {

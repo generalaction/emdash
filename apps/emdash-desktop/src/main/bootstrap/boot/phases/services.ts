@@ -1,5 +1,6 @@
-import { isLocalHostRef } from '@emdash/core/primitives/host/api';
+import { isLocalHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import { err, ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -16,27 +17,25 @@ import { createConversationDeletionSweepKind } from '@core/features/conversation
 import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
 import { ConversationSyncService } from '@core/features/conversations/node/sync/conversation-sync-service';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
+import {
+  createGitCredentialsService,
+  type GitCredentialsService,
+} from '@core/features/github/api/node/services/git-credentials-service';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
-import { ProjectGitHubAuthContextResolver } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
-import { GitHubAccountBackfillService } from '@core/features/github/node/accounts/github-account-backfill';
-import { GitHubAccountReconciliationService } from '@core/features/github/node/accounts/github-account-reconciliation';
+import { createProjectGitHubAccountResolver } from '@core/features/github/api/node/services/project-github-account-resolver';
 import { GitHubAccountService } from '@core/features/github/node/accounts/github-account-service';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
-import {
-  GitHubKvAccountBackfillService,
-  type LegacyKvGitHubAccount,
-} from '@core/features/github/node/accounts/github-kv-account-backfill';
+import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
 import { githubEvents } from '@core/features/github/node/event-host';
+import { GitCredentialServer } from '@core/features/github/node/services/git-credential-server';
 import {
   defaultGitHubDeviceAuthFactory,
   GitHubDeviceFlowService,
 } from '@core/features/github/node/services/github-device-flow-service';
 import { githubIdentityClient } from '@core/features/github/node/services/github-identity-client';
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
-import { setLegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store-instance';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
-import { ProjectGitHubAccountBackfillService } from '@core/features/github/node/services/project-github-account-backfill';
 import { createGitHubRepositoryService } from '@core/features/github/node/services/repo-service';
 import {
   IntegrationConnectionService,
@@ -52,12 +51,15 @@ import {
 import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { loadStoredGitSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import {
   getProjectById,
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
+import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/app-worktree-root-migration';
+import { createRepoFactsCache } from '@core/features/projects/node/settings/repo-facts';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -69,10 +71,7 @@ import {
   createWorkspaceLifecycleParticipants,
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/api/node/lifecycle-participants';
-import {
-  loadProjectWorktreeDirectory,
-  WorkspacePlacementResolver,
-} from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
@@ -80,16 +79,20 @@ import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
+import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
+import { projectHostRef } from '@core/primitives/projects/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { isServerUsable } from '@core/services/hosts/api';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import { bindPullRequestSyncIdentityResolver } from '@core/services/pull-requests/node/sync-identity';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import {
   createReconcileSweepTriggers,
   installReconcileSweepTriggers,
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
+import { repositorySelector } from '@core/services/runtime-broker/node/git';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { createHostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
@@ -139,20 +142,18 @@ type JiraKVSchema = { creds: { siteUrl?: string; email?: string } };
 type InstanceKVSchema = { connection: { instanceUrl?: string } };
 type PlaneKVSchema = { connection: { apiBaseUrl?: string; workspaceSlug?: string } };
 type GitHubKVSchema = { tokenSource: string };
-type GitHubAccountsKVSchema = {
-  accounts: LegacyKvGitHubAccount[];
-  defaultAccountId: string | null;
-};
 
 export type ServicesBundle = {
   readonly account: ReturnType<typeof createEmdashAccountService>;
   readonly automations: AutomationsService;
   readonly github: {
     account: GitHubAccountService;
+    cliImport: GitHubCliAccountImportService;
     deviceFlow: GitHubDeviceFlowService;
-    reconciliation: GitHubAccountReconciliationService;
+    legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
+  readonly gitCredentials: GitCredentialsService;
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostAttachments: HostAttachmentRegistry;
@@ -231,7 +232,17 @@ export async function bootServices(
     broker: runtimes,
     getSettings: () => appSettingsService,
     findProjectByPath: (host, projectPath) => getProjectByPath(db, host, projectPath),
-    loadProjectWorktreeDirectory: (projectId) => loadProjectWorktreeDirectory(db, projectId),
+    // The stored per-project worktree-root override through the one settings
+    // provider model (spec: github-git-settings §6): the mounted provider when
+    // the project is open, the shared row reader before it mounts (automation
+    // deploys resolve placement at boot).
+    getStoredProjectWorktreeRoot: async (projectId) => {
+      const mounted = projectManager.getProject(projectId);
+      const stored = mounted
+        ? await mounted.settings.getStoredGitSettings()
+        : await loadStoredGitSettings(db, projectId);
+      return stored.worktreeRoot;
+    },
   });
   const lifecycleParticipants = createWorkspaceLifecycleParticipants({
     registerFileSearchRoot: fileSearchRuntime.registerRoot,
@@ -250,30 +261,50 @@ export async function bootServices(
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
     getTaskSettings: () => appSettingsService.get('tasks'),
     getTerminalColorEnv,
+    // Late-bound: the git-credentials service is constructed further down in
+    // this phase; sessions only call this after boot completes.
+    resolveSessionGitCredentials: (params: { projectId: string; host: HostRef }) =>
+      gitCredentials.resolveSessionSpec(params),
   };
-  const githubAccountBackfill = new ProjectGitHubAccountBackfillService(providerAccountRegistry);
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createGitRepository: (client, repository, settings) =>
-      new GitRepositoryService(client, repository, settings),
+    createGitRepository: (client, repository, resolveEffectiveSettings) =>
+      new GitRepositoryService(client, repository, resolveEffectiveSettings),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
       new GitRepositoryFetchService(client, repository, getBaseRemote),
     ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>
       ensureAbsoluteDir(async () => client, rootPath, absolutePath, options),
     runtimes,
-    getProjectDefaults: async () => {
-      const [localProject, project] = await Promise.all([
-        appSettingsService.get('localProject'),
-        appSettingsService.get('project'),
-      ]);
-      return {
-        defaultWorktreeDirectory: localProject.defaultWorktreeDirectory,
-        tmuxByDefault: project.tmuxByDefault,
-      };
-    },
-    backfillGitHubAccount: async (provider) => {
-      await githubAccountBackfill.backfillProject(provider);
+    getProjectDefaults: async () => ({
+      tmuxByDefault: (await appSettingsService.get('project')).tmuxByDefault,
+    }),
+    migrateAppWorktreeRoot: async () => {
+      const local = await runtimes.client(LOCAL_HOST_REF);
+      if (!local.success) throw new Error('local host runtime unavailable');
+      const hostSettings = local.data.hostSettings;
+      await migrateAppWorktreeRootToLocalHostDefault({
+        getAppDefaultWorktreeDirectoryOverride: async () => {
+          const { overrides } = await appSettingsService.getWithMeta('localProject');
+          return Object.hasOwn(overrides, 'defaultWorktreeDirectory')
+            ? overrides.defaultWorktreeDirectory
+            : undefined;
+        },
+        clearAppDefaultWorktreeDirectory: () =>
+          appSettingsService.resetField('localProject', 'defaultWorktreeDirectory'),
+        localHostSettings: {
+          getWorktreeRoot: async () => {
+            const state = await hostSettings.get();
+            return state.success
+              ? { success: true, worktreeRoot: state.data.settings.worktreeRoot }
+              : { success: false };
+          },
+          setWorktreeRoot: async (worktreeRoot) => {
+            const result = await hostSettings.update({ worktreeRoot });
+            return { success: result.success };
+          },
+        },
+      });
     },
   });
   const projectSettingsService = new ProjectSettingsService({
@@ -358,6 +389,25 @@ export async function bootServices(
         {
           db,
           getProjectById: (projectId) => getProjectById(db, projectId),
+          // Repo facts for the blessed resolver: the mounted project's cache
+          // when available, otherwise a transient one-shot cache (deploys run
+          // at boot, before projects mount).
+          getRepoFacts: async (project) => {
+            const mounted = projectManager.getProject(project.id);
+            if (mounted) return mounted.repoFacts.get();
+            const runtime = await runtimes.client(projectHostRef(project));
+            if (!runtime.success) return null;
+            const cache = createRepoFactsCache(
+              runtime.data.git,
+              repositorySelector(project.path),
+              true
+            );
+            try {
+              return await cache.get();
+            } finally {
+              await cache.dispose();
+            }
+          },
           resolveWorkspace: (workspaceId) => workspaceIdentity.resolve(workspaceId),
           resolveWorktreePool: (project) => workspacePlacement.resolveWorktreePool(project),
         },
@@ -419,7 +469,6 @@ export async function bootServices(
     getTokenSource: () => githubKV.get('tokenSource'),
     clearTokenSource: () => githubKV.del('tokenSource'),
   });
-  setLegacyGitHubTokenMigrationStore(legacyGitHubTokens);
   const githubCliImporter = new GitHubCliAccountImportService(
     providerAccountRegistry,
     runLocalCommand,
@@ -431,8 +480,30 @@ export async function bootServices(
     clearOctokitCache
   );
   const githubApiAuthService = new GitHubApiAuthService(providerAccountRegistry);
-  const projectGitHubAuth = new ProjectGitHubAuthContextResolver({
+  const resolveProjectGitHubAccount = createProjectGitHubAccountResolver({
     projects: projectManager,
+    listAccounts: () => githubAccountService.listAccounts(),
+  });
+  // Emdash git credential helper (spec: github-git-settings §4): loopback
+  // server holding tokens desktop-side plus the policy seam consumed by the
+  // terminals/source-control controllers and TUI sessions.
+  const gitCredentialServer = new GitCredentialServer({
+    resolveProjectGitHubAccount,
+    listAccounts: () => githubAccountService.listAccounts(),
+    getToken: (host, context) => githubApiAuthService.getToken(host, context),
+    logger: log,
+  });
+  appScope.add(() => {
+    gitCredentialServer.stop();
+  });
+  const gitCredentials = createGitCredentialsService({
+    getAgentGitCredentialsSetting: async (projectId) => {
+      const settings = await projectManager.getProject(projectId)?.settings.get();
+      return settings?.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
+    },
+    resolveProjectGitHubAccount,
+    listAccounts: () => githubAccountService.listAccounts(),
+    channels: gitCredentialServer,
     logger: log,
   });
   const issueProviders = createIssueProviderRegistry({
@@ -440,15 +511,13 @@ export async function bootServices(
       accounts: providerAccountRegistry,
       auth: githubApiAuthService,
       logger: log,
-      resolveProjectAuthContext: (projectId) => projectGitHubAuth.resolve(projectId),
+      resolveProjectGitHubAccount,
     },
   });
   const pullRequestsRegistration = new PullRequestsRegistration({
     getClient: getPullRequestsRuntimeClient,
     onProjectOpened: (handler) => projectManager.on('projectOpened', handler),
     onProjectClosed: (handler) => projectManager.on('projectClosed', handler),
-    onProjectSettingsChanged: (handler) =>
-      projectSettingsService.on('project-settings:changed', ({ projectId }) => handler(projectId)),
     onTaskProvisioned: (handler) => taskSessionManager.hooks.on('task:provisioned', handler),
     subscribeToProjectRemotes: (projectId, handler) => {
       const project = projectManager.getProject(projectId);
@@ -472,8 +541,35 @@ export async function bootServices(
         ),
       ];
     },
-    resolveProjectAuthContext: (projectId) => projectGitHubAuth.resolve(projectId),
+    // Translates resolver provenance into the registration's structural
+    // contract so per-sync identity fails closed with an honest status
+    // (spec: github-git-settings §7/§8).
+    resolveProjectAuthContext: async (projectId) => {
+      const account = await resolveProjectGitHubAccount(projectId);
+      if (account.value !== null) return ok({ accountId: account.value.accountId });
+      switch (account.provenance.kind) {
+        case 'set':
+          return err({ type: 'disabled', message: 'GitHub is disabled for this project.' });
+        case 'unresolvable':
+        case 'broken-setting':
+          return err({
+            type: 'account_selection_failed',
+            message: 'The selected GitHub account is no longer connected.',
+          });
+        default:
+          return err({
+            type: 'unconfigured',
+            message: 'No GitHub account is configured for this project.',
+          });
+      }
+    },
   });
+  // Answers the PR worker's per-sync "as whom" requests through the blessed
+  // resolver (spec: github-git-settings §8); before this binding, identity
+  // requests fail closed and the worker skips the sync.
+  bindPullRequestSyncIdentityResolver((repositoryUrl) =>
+    pullRequestsRegistration.resolveSyncIdentity(repositoryUrl)
+  );
   const githubRepositories = createGitHubRepositoryService(githubApiAuthService);
   const githubAuthPlugin = integrationPluginRegistry.get('github');
   const githubDeviceMethod = githubAuthPlugin?.capabilities.auth.methods.find(
@@ -492,27 +588,21 @@ export async function bootServices(
       scopes: githubDeviceMethod.scopes,
     },
   });
-  const githubAccountsKV = new KV<GitHubAccountsKVSchema>('githubAccounts');
-  const githubKvBackfill = new GitHubKvAccountBackfillService(providerAccountRegistry, {
-    getAccounts: () => githubAccountsKV.get('accounts'),
-    getDefaultAccountId: () => githubAccountsKV.get('defaultAccountId'),
-    clear: () => githubAccountsKV.clear(),
-  });
-  const githubLegacyBackfill = new GitHubAccountBackfillService(
+  // Run-once upgrade step (spec: github-git-settings §10): the legacy
+  // single-token import lives behind an app-DB done-flag instead of a
+  // recurring startup backfill. The KV github-account backfill retired into
+  // Drizzle data migration 0046.
+  const githubLegacyTokenImport = new GitHubLegacyTokenImportStep(
+    db,
     providerAccountRegistry,
     legacyGitHubTokens,
     githubIdentityClient
   );
-  const githubReconciliation = new GitHubAccountReconciliationService({
-    kvBackfill: githubKvBackfill,
-    legacyBackfill: githubLegacyBackfill,
-    cliImporter: githubCliImporter,
-    logger: log,
-  });
   const githubServices = {
     account: githubAccountService,
+    cliImport: githubCliImporter,
     deviceFlow: githubDeviceFlow,
-    reconciliation: githubReconciliation,
+    legacyTokenImport: githubLegacyTokenImport,
     repositories: githubRepositories,
   };
   setCoreServiceInstances({
@@ -698,6 +788,7 @@ export async function bootServices(
     account: accountService,
     automations: automationsService,
     github: githubServices,
+    gitCredentials,
     hostIsReachable,
     hostAttachments,
     issueProviders,

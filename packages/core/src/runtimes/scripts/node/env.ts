@@ -4,10 +4,12 @@ import type { ScriptWorkspaceFacts } from '../api/schemas';
 /**
  * The host-side script env builder (spec: activation-scripts-via-terminals, env and
  * shellSetup): one builder serves activation and manual runs, so parity holds by
- * construction. All six `EMDASH_*` vars derive from workspace facts — no desktop-DB
+ * construction. The `EMDASH_*` vars derive from workspace facts — no desktop-DB
  * lookups, no `process.env` merge, and deliberately no `CI=1` (a documented
- * breaking change). PATH etc. come from the login shell (`$SHELL -lc`) re-sourcing
- * profiles, not from this map.
+ * breaking change). `EMDASH_DEFAULT_BRANCH` is omitted when the fact is unknown
+ * rather than invented (spec: github-git-settings §12.1, matching the desktop
+ * task-env builder). PATH etc. come from the login shell (`$SHELL -lc`)
+ * re-sourcing profiles, not from this map.
  */
 export function buildScriptEnv(
   workspacePath: string,
@@ -19,7 +21,7 @@ export function buildScriptEnv(
     EMDASH_TASK_NAME: taskName,
     EMDASH_TASK_PATH: workspacePath,
     EMDASH_ROOT_PATH: facts.repositoryPath ?? workspacePath,
-    EMDASH_DEFAULT_BRANCH: facts.defaultBranch ?? 'main',
+    ...(facts.defaultBranch !== undefined ? { EMDASH_DEFAULT_BRANCH: facts.defaultBranch } : {}),
     EMDASH_PORT: String(basePortFor(workspacePath)),
   };
 }

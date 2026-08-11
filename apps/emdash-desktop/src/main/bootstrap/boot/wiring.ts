@@ -72,6 +72,7 @@ export function createDesktopWireOptions(
       deviceFlowService: github.deviceFlow,
       repositoryService: github.repositories,
     },
+    gitCredentials: services.gitCredentials,
     hostOperations: {
       openExternal: ({ url }) => appOperations.openExternal(url),
       openPath: ({ path }) => appOperations.openPath(path),

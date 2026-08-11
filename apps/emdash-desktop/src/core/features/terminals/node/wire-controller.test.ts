@@ -23,6 +23,7 @@ const controllerDeps = {
   terminalShell: {
     getColorEnv: vi.fn(async () => ({})),
   } as never,
+  resolveSessionGitCredentials: vi.fn(async () => undefined),
 };
 
 describe('createTerminalsWireController', () => {

@@ -173,6 +173,13 @@ type GqlCheckNode = GqlCheckRunNode | GqlStatusContextNode;
 
 export class PullRequestEngine {
   private readonly requestLanes = new Map<string, RequestLane>();
+  /**
+   * Last identity each repository was accessed as, keyed by repository URL and
+   * held in memory only — the store no longer persists an account binding.
+   * Cursors track what one identity has seen, so an identity change invalidates
+   * them; the next sync rebuilds the repository's view from scratch.
+   */
+  private readonly lastAccessIdentities = new Map<string, string>();
 
   constructor(private readonly options: PullRequestEngineOptions) {}
 
@@ -967,12 +974,16 @@ export class PullRequestEngine {
         repositoryUrl: repository.repositoryUrl,
       });
     }
+    // Identity is a per-request runtime parameter (spec: github-git-settings §8):
+    // the desktop resolves "as whom" through the blessed resolver on every call,
+    // so account changes apply on the very next sync with no event plumbing.
     const auth = await this.options.githubAuth.resolveAuth(
-      { host: repository.host, accountId: registered.accountId },
+      { repositoryUrl: repository.repositoryUrl },
       { signal }
     );
     if (!auth.success) return err(mapAuthError(auth.error));
-    const lane = this.getRequestLane(repository.host, registered.accountId);
+    this.resetCursorsOnIdentityChange(repository.repositoryUrl, auth.data.accountId);
+    const lane = this.getRequestLane(repository.host, auth.data.accountId);
     const octokit =
       this.options.createOctokit?.({
         token: auth.data.token,
@@ -990,6 +1001,15 @@ export class PullRequestEngine {
       });
     this.observeOctokitRateLimits(octokit, lane);
     return ok({ octokit, lane });
+  }
+
+  private resetCursorsOnIdentityChange(repositoryUrl: string, accountId: string | undefined): void {
+    const identity = accountId ?? '';
+    const previous = this.lastAccessIdentities.get(repositoryUrl);
+    if (previous !== undefined && previous !== identity) {
+      this.options.store.clearCursors(repositoryUrl);
+    }
+    this.lastAccessIdentities.set(repositoryUrl, identity);
   }
 
   private parseRepository(repositoryUrl: string): Result<RepositoryRef, PullRequestError> {

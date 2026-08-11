@@ -1,9 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  GITHUB_ACCOUNT_STATE_QUERY_KEY,
-  GITHUB_ACCOUNTS_QUERY_KEY,
-  ISSUE_CONNECTION_STATUS_QUERY_KEY,
-} from '@core/features/github/api/browser/useGithubAccounts';
+import { invalidateGitHubAccountState } from '@core/features/github/api/browser/useGithubAccounts';
 import { getAccountClient } from './client';
 
 export const ACCOUNT_SESSION_KEY = ['account:session'] as const;
@@ -25,9 +21,7 @@ export function useAccountSignIn() {
       (await getAccountClient()).signIn({ provider }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...ACCOUNT_SESSION_KEY] });
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      invalidateGitHubAccountState(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['feature-flags'] });
     },
   });
@@ -39,9 +33,7 @@ export function useAccountLinkProvider() {
     mutationFn: async (provider: string | undefined) =>
       (await getAccountClient()).linkProviderAccount({ provider }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      invalidateGitHubAccountState(queryClient);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: [...ACCOUNT_SESSION_KEY] });

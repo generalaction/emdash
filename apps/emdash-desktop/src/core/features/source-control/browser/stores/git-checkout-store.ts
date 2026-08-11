@@ -272,7 +272,9 @@ export class GitCheckoutStore {
 
   async push() {
     const client = await getSourceControlClient();
-    const remote = getGitRepositoryStore(this.projectId)?.pushRemote.name;
+    // Null push remote (no remotes) degrades to a push without an explicit
+    // remote — the same behavior as when the repository store is missing.
+    const remote = getGitRepositoryStore(this.projectId)?.pushRemote?.name;
     return runDesktopLiveJob(sourceControlContract.checkout.push, client.checkout.push, {
       ...checkoutSelector(this.workspaceId),
       options: remote ? { remote } : undefined,

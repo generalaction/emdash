@@ -1,4 +1,4 @@
-import type { ProviderAccountPayload } from '@core/features/account/api/node/provider-token-registry';
+import type { ProviderAccountIdentity } from '@core/primitives/provider-accounts/api';
 
 export interface AccountUser {
   userId: string;
@@ -25,7 +25,7 @@ export interface SignInResult {
 export interface LinkProviderAccountResult {
   provider: string;
   providerAccountStatus?: 'created' | 'updated';
-  providerAccount?: ProviderAccountPayload;
+  providerAccount?: ProviderAccountIdentity;
 }
 
 export interface SessionState {
@@ -37,7 +37,7 @@ export interface SessionState {
 export interface AuthProviderToken {
   accessToken: string;
   providerId: string;
-  providerAccount?: ProviderAccountPayload;
+  providerAccount?: ProviderAccountIdentity;
 }
 
 export interface SignInExchange {

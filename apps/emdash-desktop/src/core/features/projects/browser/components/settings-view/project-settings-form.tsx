@@ -11,6 +11,7 @@ import type {
   ProjectSettingsOverrideState,
   ProjectSettingsPage,
   ProjectSettingsWriteTargetOption,
+  StoredProjectGitSettings,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { Project, UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -23,12 +24,15 @@ export interface ProjectSettingsFormProps {
   projectId: string;
   projectType: Project['type'];
   initial: ProjectSettings;
-  defaults: ProjectSettingsPage['defaults'];
+  storedGitSettings: StoredProjectGitSettings;
+  worktreeRootContext: ProjectSettingsPage['worktreeRootContext'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
+  save: (
+    settings: ProjectSettings
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
@@ -43,7 +47,8 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   projectType,
   initial,
-  defaults,
+  storedGitSettings,
+  worktreeRootContext,
   writeTargets,
   overrideState,
   configMigrations,
@@ -54,10 +59,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 }: ProjectSettingsFormProps) {
   const repo = getGitRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
-  const baseRemote = repo?.baseRemote.name ?? 'origin';
   const formModel = useProjectSettingsForm({
     initial,
-    baseRemote,
+    storedGitSettings,
     remotes,
     writeTargets,
     overrideState,
@@ -78,7 +82,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           <BaseProjectSettingsSection
             projectId={projectId}
             form={formModel.form}
-            defaultWorktreeDirectory={defaults.worktreeDirectory}
+            worktreeRootContext={worktreeRootContext}
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}

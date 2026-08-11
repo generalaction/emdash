@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
   requestPriorities,
@@ -64,6 +64,112 @@ describe('PullRequestEngine', () => {
     expect(store.getCursor(repositoryUrl, 'full')?.done).toBe(true);
     expect(store.getCursor(repositoryUrl, 'full')?.lastUpdatedAt).toBe('2026-01-02T00:00:00.000Z');
     expect(states.at(-1)).toMatchObject({ phase: 'idle', kind: 'full', synced: 1 });
+  });
+
+  it('skips the sync with a surfaced error status when identity is unresolvable', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    store.registerRepository(repositoryUrl);
+    const graphql = vi.fn();
+    const states: SyncState[] = [];
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: {
+        resolveAuth: async () =>
+          err({
+            type: 'account_unresolvable',
+            host: 'github.com',
+            message: 'The pinned GitHub account no longer exists.',
+          }),
+      },
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+      onSyncState: (_repositoryUrl, state) => states.push(state),
+    });
+
+    const result = await engine.sync(repositoryUrl, new AbortController().signal);
+
+    expect(result).toEqual(
+      err({
+        type: 'github_account_not_found',
+        message: 'The pinned GitHub account no longer exists.',
+      })
+    );
+    expect(graphql).not.toHaveBeenCalled();
+    expect(store.getCursor(repositoryUrl, 'full')).toBeNull();
+    expect(states.at(-1)).toMatchObject({
+      phase: 'error',
+      kind: 'full',
+      error: { type: 'github_account_not_found' },
+    });
+  });
+
+  it('surfaces an explicitly disabled GitHub account instead of syncing', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    store.registerRepository(repositoryUrl);
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: {
+        resolveAuth: async () =>
+          err({
+            type: 'github_disabled',
+            host: 'github.com',
+            message: 'GitHub is disabled for this project.',
+          }),
+      },
+      logger,
+      createOctokit: () => fakeOctokit(vi.fn()),
+    });
+
+    await expect(engine.sync(repositoryUrl, new AbortController().signal)).resolves.toEqual(
+      err({
+        type: 'sync_failed',
+        message: 'GitHub is disabled for this project.',
+      })
+    );
+  });
+
+  it('invalidates sync cursors when the resolved identity changes', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    store.registerRepository(repositoryUrl);
+    store.setCursor(repositoryUrl, 'full', {
+      lastUpdatedAt: '2026-01-01T00:00:00.000Z',
+      done: true,
+    });
+    let accountId = 'account-1';
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: {
+        resolveAuth: async () =>
+          ok({
+            token: 'test-token',
+            host: 'github.com',
+            apiBaseUrl: 'https://api.github.com',
+            accountId,
+          }),
+      },
+      logger,
+      createOctokit: () =>
+        fakeOctokit(vi.fn(async () => ({ repository: { pullRequest: gqlPullRequest() } }))),
+    });
+
+    await engine.syncSingle(repositoryUrl, 42, new AbortController().signal);
+    expect(store.getCursor(repositoryUrl, 'full')?.done).toBe(true);
+
+    accountId = 'account-2';
+    await engine.syncSingle(repositoryUrl, 42, new AbortController().signal);
+    expect(store.getCursor(repositoryUrl, 'full')).toBeNull();
   });
 
   it('aborts an in-flight request without advancing its cursor', async () => {
@@ -603,7 +709,7 @@ describe('PullRequestEngine', () => {
     closeHandles.push(() => handle.close());
     const store = new PullRequestStore(handle);
     const repositoryUrl = 'https://github.com/emdash/emdash';
-    store.registerRepository(repositoryUrl, 'account-1');
+    store.registerRepository(repositoryUrl);
     const graphql = vi
       .fn()
       .mockRejectedValueOnce(Object.assign(new Error('Unavailable'), { status: 503 }))
@@ -622,7 +728,7 @@ describe('PullRequestEngine', () => {
     const { logger } = createStubLogger();
     const engine = createEngine({
       store,
-      githubAuth: fakeGitHubAuth(),
+      githubAuth: fakeGitHubAuth('account-1'),
       logger,
       createOctokit: () => fakeOctokit(graphql),
       createScheduler,
@@ -788,13 +894,14 @@ function fakeRateGate(): RateGate {
   };
 }
 
-function fakeGitHubAuth(): ContractClient<GitHubAuthContract> {
+function fakeGitHubAuth(accountId?: string): ContractClient<GitHubAuthContract> {
   return {
     resolveAuth: async () =>
       ok({
         token: 'test-token',
         host: 'github.com',
         apiBaseUrl: 'https://api.github.com',
+        accountId,
       }),
   };
 }

@@ -3,20 +3,16 @@ import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { observe, remote } from '@emdash/wire/state';
-import { resolveConfiguredRemotes } from '@core/primitives/git/api';
-import type { ProjectSettings } from '@core/primitives/project-settings/api';
+import type { EffectiveSettings } from '@core/primitives/project-settings/api';
 import type { ProjectRemoteState } from '@core/primitives/projects/api';
 import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
-
-type GitRepositorySettingsProvider = {
-  get(): Promise<ProjectSettings>;
-};
 
 export class GitRepositoryService {
   constructor(
     private readonly client: GitRuntimeClient,
     private readonly selector: RepositorySelector,
-    private readonly settings: GitRepositorySettingsProvider
+    /** The project's blessed-resolver output (spec: github-git-settings §2). */
+    private readonly resolveEffectiveSettings: () => Promise<EffectiveSettings>
   ) {}
 
   subscribeRemotes(cb: (update: GitRemotesState) => void): Unsubscribe {
@@ -37,24 +33,12 @@ export class GitRepositoryService {
     };
   }
 
-  async getConfiguredRemotes(): Promise<{ baseRemote: string; pushRemote: string }> {
-    const [settings, remotes] = await Promise.all([
-      this.settings.get().catch(() => undefined),
-      this.client.repository.model
-        .state(this.selector, 'remotes')
-        .snapshot()
-        .then((snapshot) => snapshot.data)
-        .catch(() => ({ remotes: [] })),
-    ]);
-    const configured = resolveConfiguredRemotes(settings, remotes.remotes);
-    return {
-      baseRemote: configured.baseRemote.name,
-      pushRemote: configured.pushRemote.name,
-    };
-  }
-
-  async getBaseRemote(): Promise<string> {
-    return (await this.getConfiguredRemotes()).baseRemote;
+  /**
+   * The effective base remote through the blessed resolver (spec:
+   * github-git-settings §2). `null` means the repository has no remotes.
+   */
+  async getBaseRemote(): Promise<string | null> {
+    return (await this.resolveEffectiveSettings()).baseRemote.value;
   }
 
   async getRemoteState(): Promise<ProjectRemoteState> {
@@ -63,7 +47,8 @@ export class GitRepositoryService {
         await this.client.repository.model.state(this.selector, 'remotes').snapshot()
       ).data.remotes;
       const remoteName = await this.getBaseRemote();
-      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      const remoteUrl =
+        remoteName !== null ? remotes.find((r) => r.name === remoteName)?.url : undefined;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {
       return { hasRemote: false, selectedRemoteUrl: null };

@@ -5,14 +5,17 @@ import type {
   ProjectSettingsPatch,
   ProjectSettingsProvider,
 } from '@core/features/projects/api/node/settings/provider';
-import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
   projectSettingsSchema,
   type BaseProjectSettings,
   type ProjectSettings,
+  type RepoFacts,
   type ShareableProjectSettings,
+  type StoredBaseProjectSettings,
+  type StoredProjectGitSettings,
+  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -25,26 +28,45 @@ import { serializeShareableProjectSettings } from '../legacy-shareable-migration
 import { compactUndefined, readJson } from '../project-settings-json';
 import type { ProjectSettingsStorage } from '../project-settings-storage';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
+import {
+  legacyBaseSettingsToStored,
+  migrateStoredBaseProjectSettings,
+  toLegacyBaseSettingsView,
+} from '../stored-settings-migration';
 
 export type DbProjectSettingsProviderOptions = {
   git?: ProjectSettingsGitInspector;
   getProjectDefaults(): Promise<{ tmuxByDefault: boolean }>;
   storage: ProjectSettingsStorage;
+  /**
+   * Repository facts for the lazy demote-if-matches-inference migration
+   * (spec: github-git-settings §10). Absent or failing means demotion is
+   * skipped this read and retried on the next one.
+   */
+  getRepoFacts?: () => Promise<RepoFacts | null>;
+  /**
+   * Migration 5: one-time move of the app-wide defaultWorktreeDirectory into
+   * the local host default. Injected because it needs app settings and the
+   * local host-settings runtime, which this provider must not depend on.
+   */
+  migrateAppWorktreeRoot?: () => Promise<void>;
 };
 
 export abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
   private legacyMigrationPromise: Promise<void> | undefined;
+  private appWorktreeRootMigrated = false;
 
   protected constructor(
     private readonly projectId: string,
     protected readonly projectPath: string,
-    protected readonly defaultBranchFallback: string = 'main',
+    /** Creation-time base ref (creation provenance); null when unknown. */
+    protected readonly defaultBranchFallback: string | null,
     private readonly configFiles: FilesClientScope | undefined,
     private readonly joinProjectPath: (rootPath: string, relPath: string) => string,
     private readonly options: DbProjectSettingsProviderOptions
   ) {}
 
-  protected abstract defaultWorktreeDirectory(): Promise<string>;
+  protected abstract worktreeRootContext(): Promise<WorktreeRootContext>;
 
   protected abstract validateWorktreeDirectory(
     worktreeDirectory: string | undefined
@@ -54,14 +76,15 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     worktreeDirectory: string
   ): Promise<Result<string, UpdateProjectSettingsError>>;
 
-  protected async initialBaseProjectSettings(): Promise<BaseProjectSettings> {
-    const defaultBranch = this.defaultBranchFallback.trim() || 'main';
+  /**
+   * New rows carry only explicit choices (spec: github-git-settings §10):
+   * defaultBranch/baseRemote are no longer seeded — the branch detected at
+   * creation survives only as creation provenance (`defaultBranchFallback`).
+   * Only the tmux default is still materialized.
+   */
+  protected async initialBaseProjectSettings(): Promise<StoredBaseProjectSettings> {
     const projectDefaults = await this.options.getProjectDefaults();
-    return {
-      defaultBranch,
-      baseRemote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',
-      tmux: projectDefaults.tmuxByDefault,
-    };
+    return { tmux: projectDefaults.tmuxByDefault };
   }
 
   private projectFilePath(relPath: string): string {
@@ -83,36 +106,98 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
 
   private async readSettingsRow(): Promise<{
     base: BaseProjectSettings;
+    stored: StoredBaseProjectSettings;
     shareable: ShareableProjectSettings;
     legacyConfigMigratedAt: string | null;
   }> {
     await this.ensureRow();
     await this.migrateLegacyConfigIfNeeded();
+    await this.migrateAppWorktreeRootIfNeeded();
     const row = await this.options.storage.get(this.projectId);
     if (!row) {
+      const stored = await this.initialBaseProjectSettings();
       return {
-        base: await this.initialBaseProjectSettings(),
+        base: toLegacyBaseSettingsView(stored),
+        stored,
         shareable: {},
         legacyConfigMigratedAt: null,
       };
     }
-    const baseSettings = readJson(
+    const raw = readJson(
       row.baseProjectSettingsJson,
       legacyBaseProjectSettingsSchema,
       'base project settings'
     );
-    const { remote, ...canonicalBaseSettings } = baseSettings;
+    const stored = await this.migrateStoredModelIfNeeded(raw);
 
     return {
-      base: baseProjectSettingsSchema.parse({
-        ...canonicalBaseSettings,
-        baseRemote: canonicalBaseSettings.baseRemote ?? remote,
-      }),
+      base: toLegacyBaseSettingsView(stored),
+      stored,
       shareable: withoutRetiredShellSetup(
         readJson(row.shareableProjectSettingsJson, emdashConfigSchema, 'shareable project settings')
       ),
       legacyConfigMigratedAt: row.legacyConfigMigratedAt,
     };
+  }
+
+  /**
+   * Lazy read-path migrations (spec: github-git-settings §10): converts a raw
+   * row to the stored model and writes the migrated row back when it changed.
+   * A failed write-back degrades to the in-memory migrated view and retries
+   * on the next read.
+   */
+  private async migrateStoredModel(
+    raw: ReturnType<typeof legacyBaseProjectSettingsSchema.parse>
+  ): Promise<{ next: StoredBaseProjectSettings; changed: boolean }> {
+    const needsFacts =
+      raw.defaultBranch !== undefined || raw.baseRemote !== undefined || raw.remote !== undefined;
+    const repoFacts = needsFacts ? await this.loadRepoFacts() : null;
+    return migrateStoredBaseProjectSettings(raw, repoFacts);
+  }
+
+  private async migrateStoredModelIfNeeded(
+    raw: ReturnType<typeof legacyBaseProjectSettingsSchema.parse>
+  ): Promise<StoredBaseProjectSettings> {
+    const { next, changed } = await this.migrateStoredModel(raw);
+    if (changed) {
+      try {
+        await this.options.storage.update(this.projectId, {
+          baseProjectSettingsJson: JSON.stringify(compactUndefined(next)),
+        });
+      } catch (error) {
+        log.warn('Failed to write back migrated project settings; retrying next read', {
+          projectId: this.projectId,
+          error,
+        });
+      }
+    }
+    return next;
+  }
+
+  private async loadRepoFacts(): Promise<RepoFacts | null> {
+    if (!this.options.getRepoFacts) return null;
+    try {
+      return await this.options.getRepoFacts();
+    } catch (error) {
+      log.warn('Failed to load repo facts for settings migration; skipping demotion', {
+        projectId: this.projectId,
+        error,
+      });
+      return null;
+    }
+  }
+
+  private async migrateAppWorktreeRootIfNeeded(): Promise<void> {
+    if (this.appWorktreeRootMigrated || !this.options.migrateAppWorktreeRoot) return;
+    try {
+      await this.options.migrateAppWorktreeRoot();
+      this.appWorktreeRootMigrated = true;
+    } catch (error) {
+      log.warn('App worktree-root migration failed; retrying next read', {
+        projectId: this.projectId,
+        error,
+      });
+    }
   }
 
   private async migrateLegacyConfigIfNeeded(git = this.options.git): Promise<void> {
@@ -154,6 +239,22 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     return projectSettingsSchema.parse({ ...base, ...shareable });
   }
 
+  /**
+   * The stored git settings in the new model (spec: github-git-settings §2):
+   * only explicit user choices, absence = infer. This is the resolver input;
+   * adoption code should consume this instead of the legacy `get()` view.
+   */
+  async getStoredGitSettings(): Promise<StoredProjectGitSettings> {
+    const { stored } = await this.readSettingsRow();
+    return {
+      ...(stored.defaultBranch !== undefined ? { defaultBranch: stored.defaultBranch } : {}),
+      ...(stored.baseRemote !== undefined ? { baseRemote: stored.baseRemote } : {}),
+      ...(stored.pushRemote !== undefined ? { pushRemote: stored.pushRemote } : {}),
+      ...(stored.githubAccount !== undefined ? { githubAccount: stored.githubAccount } : {}),
+      ...(stored.worktreeRoot !== undefined ? { worktreeRoot: stored.worktreeRoot } : {}),
+    };
+  }
+
   async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
     const parsed = projectSettingsSchema.safeParse(settings);
     if (!parsed.success) {
@@ -169,7 +270,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
     nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
 
-    const base = baseProjectSettingsSchema.parse(nextSettings);
+    const base = legacyBaseSettingsToStored(baseProjectSettingsSchema.parse(nextSettings));
     const shareable = withoutRetiredShellSetup(emdashConfigSchema.parse(nextSettings));
 
     try {
@@ -193,11 +294,15 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       await this.ensure();
       const row = await this.options.storage.get(this.projectId);
       const base = row
-        ? readJson(
-            row.baseProjectSettingsJson,
-            legacyBaseProjectSettingsSchema,
-            'base project settings'
-          )
+        ? (
+            await this.migrateStoredModel(
+              readJson(
+                row.baseProjectSettingsJson,
+                legacyBaseProjectSettingsSchema,
+                'base project settings'
+              )
+            )
+          ).next
         : await this.initialBaseProjectSettings();
       const shareable = row
         ? withoutRetiredShellSetup(
@@ -213,12 +318,17 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         SHAREABLE_FIELD_ACCESSORS[field].clear(shareable);
       }
 
-      const nextBase = baseProjectSettingsSchema.parse({
-        ...base,
-        ...(Object.hasOwn(patch, 'githubAccountId')
-          ? { githubAccountId: patch.githubAccountId }
-          : {}),
-      });
+      const nextBase: StoredBaseProjectSettings = { ...base };
+      if (Object.hasOwn(patch, 'githubAccountId')) {
+        if (patch.githubAccountId === undefined) {
+          delete nextBase.githubAccount;
+        } else {
+          nextBase.githubAccount =
+            patch.githubAccountId === null
+              ? { kind: 'none' }
+              : { kind: 'account', accountId: patch.githubAccountId };
+        }
+      }
 
       await this.options.storage.update(this.projectId, {
         baseProjectSettingsJson: JSON.stringify(compactUndefined(nextBase)),
@@ -233,44 +343,8 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
   }
 
-  async getDefaultBranch(): Promise<string> {
-    const settings = await this.get();
-    const branch = settings.defaultBranch;
-    if (!branch) return this.defaultBranchFallback;
-    if (typeof branch === 'string') return branch;
-    const remote = settings.baseRemote ?? 'origin';
-    return `${remote}/${branch.name}`;
-  }
-
-  async getBaseRemote(): Promise<string> {
-    const settings = await this.get();
-    return settings.baseRemote ?? 'origin';
-  }
-
-  async getPushRemote(): Promise<string> {
-    const settings = await this.get();
-    return settings.pushRemote ?? settings.baseRemote ?? 'origin';
-  }
-
-  async getDefaultWorktreeDirectory(): Promise<string> {
-    return this.defaultWorktreeDirectory();
-  }
-
-  async getWorktreeDirectory(): Promise<string> {
-    const settings = await this.get();
-    const defaultWorktreeDirectory = await this.getDefaultWorktreeDirectory();
-    if (settings.worktreeDirectory) {
-      const normalized = await this.normalizeStoredWorktreeDirectory(settings.worktreeDirectory);
-      if (normalized.success) {
-        return normalized.data;
-      }
-      log.warn('ProjectSettingsProvider: invalid worktreeDirectory, falling back to default', {
-        worktreeDirectory: settings.worktreeDirectory,
-        defaultWorktreeDirectory,
-        error: normalized.error.type,
-      });
-    }
-    return defaultWorktreeDirectory;
+  async getWorktreeRootContext(): Promise<WorktreeRootContext> {
+    return this.worktreeRootContext();
   }
 }
 
