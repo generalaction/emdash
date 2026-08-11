@@ -157,6 +157,10 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
       'duration_ms',
       'error_step',
       'error_code',
+      // Boot watchdog / boot guardrails.
+      'stuck_phase',
+      'backend_completed',
+      'window_loaded',
       // Performance vitals (sampled sessions): numbers only, fixed key set.
       'process_name',
       'rss_mb',

@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
   resolveUserEnv: vi.fn(),
   runtimes: vi.fn(),
   services: vi.fn(),
-  window: vi.fn(),
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -59,7 +58,6 @@ vi.mock('./phases/gateway', () => ({ installGateway: mocks.gateway }));
 vi.mock('./phases/infrastructure', () => ({ bootInfrastructure: mocks.infrastructure }));
 vi.mock('./phases/runtimes', () => ({ bootRuntimes: mocks.runtimes }));
 vi.mock('./phases/services', () => ({ bootServices: mocks.services }));
-vi.mock('./phases/window', () => ({ bootWindow: mocks.window }));
 
 import { finishBoot } from './index';
 
@@ -78,21 +76,19 @@ describe('finishBoot', () => {
     const error = new Error('background setup failed');
     mocks.background.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).resolves.toBeUndefined();
+    await expect(finishBoot({} as never)).resolves.toBeUndefined();
 
-    expect(mocks.window).toHaveBeenCalledOnce();
     expect(mocks.logWarn).toHaveBeenCalledWith('Non-critical boot phase failed; continuing', {
       phase: 'background-tasks',
       error,
     });
   });
 
-  it('creates the window first, then env capture, then the backend chain', async () => {
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).resolves.toBeUndefined();
+  it('captures the user env before the backend chain', async () => {
+    await expect(finishBoot({} as never)).resolves.toBeUndefined();
 
     const order = (mock: { mock: { invocationCallOrder: number[] } }) =>
       mock.mock.invocationCallOrder[0]!;
-    expect(order(mocks.window)).toBeLessThan(order(mocks.resolveUserEnv));
     expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.database));
     expect(order(mocks.database)).toBeLessThan(order(mocks.runtimes));
     // PTY security ordering: workers inherit process.env at spawn, so env
@@ -104,10 +100,8 @@ describe('finishBoot', () => {
     const error = new Error('database unavailable');
     mocks.database.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).rejects.toBe(error);
+    await expect(finishBoot({} as never)).rejects.toBe(error);
 
-    // Window-first boot: the window already exists when the backend fails.
-    expect(mocks.window).toHaveBeenCalledOnce();
     expect(mocks.infrastructure).not.toHaveBeenCalled();
     expect(mocks.services).not.toHaveBeenCalled();
     expect(mocks.appScopeDispose).toHaveBeenCalledWith(error);
@@ -121,7 +115,7 @@ describe('finishBoot', () => {
     const error = new Error('services unavailable');
     mocks.services.mockRejectedValue(error);
 
-    await expect(finishBoot({} as never, { windowPhaseReady: false })).rejects.toBe(error);
+    await expect(finishBoot({} as never)).rejects.toBe(error);
 
     expect(mocks.appScopeDispose).toHaveBeenCalledWith(error);
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();

@@ -1,5 +1,15 @@
 import { log } from '@main/lib/logger';
 
+/**
+ * Stack of currently running `step()` names (outermost first). The boot
+ * watchdog reads it to report which phase a hung boot is stuck in.
+ */
+const activeSteps: string[] = [];
+
+export function activeBootSteps(): readonly string[] {
+  return activeSteps;
+}
+
 export interface Phase<Context> {
   readonly name: string;
   readonly critical?: boolean;
@@ -28,6 +38,7 @@ export async function runPhase<Context>(phase: Phase<Context>, context: Context)
 export async function step<T>(name: string, run: () => T | Promise<T>): Promise<T> {
   const startedAt = Date.now();
   log.info('Lifecycle phase started', { phase: name });
+  activeSteps.push(name);
   try {
     const result = await run();
     log.info('Lifecycle phase completed', {
@@ -42,6 +53,9 @@ export async function step<T>(name: string, run: () => T | Promise<T>): Promise<
       error,
     });
     throw error;
+  } finally {
+    const index = activeSteps.lastIndexOf(name);
+    if (index !== -1) activeSteps.splice(index, 1);
   }
 }
 

@@ -28,7 +28,6 @@ const mocks = vi.hoisted(() => {
     resetStaleTuiAgentStatuses: vi.fn(),
     runInBackground: vi.fn(),
     setWorkspaceIdentityService: vi.fn(),
-    writeBootingMarker: vi.fn(),
   };
 });
 
@@ -65,9 +64,6 @@ vi.mock('@main/lib/logger', () => ({
 }));
 vi.mock('../../core/background', () => ({
   runInBackground: mocks.runInBackground,
-}));
-vi.mock('../../core/boot-guard', () => ({
-  writeBootingMarker: mocks.writeBootingMarker,
 }));
 vi.mock('../../core/service-instances', () => ({
   setWorkspaceIdentityService: mocks.setWorkspaceIdentityService,

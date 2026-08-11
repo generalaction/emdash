@@ -40,6 +40,12 @@ export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifica
 
 export type TelemetryEventProperties = {
   app_started: EmptyProps;
+  /** Boot watchdog (~60 s) fired before both boot success signals arrived. */
+  boot_watchdog_triggered: {
+    stuck_phase: string;
+    backend_completed: boolean;
+    window_loaded: boolean;
+  };
   app_closed: { was_crash?: boolean };
   app_window_focused: EmptyProps;
   app_window_unfocused: EmptyProps;

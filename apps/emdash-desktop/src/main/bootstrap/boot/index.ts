@@ -12,17 +12,17 @@ import { installGateway } from './phases/gateway';
 import { bootInfrastructure } from './phases/infrastructure';
 import { bootRuntimes } from './phases/runtimes';
 import { bootServices } from './phases/services';
-import { bootWindow } from './phases/window';
-import type { BootSignals } from './types';
 
-export async function finishBoot(config: AppConfig, signals: BootSignals): Promise<void> {
+/**
+ * The backend half of the window-first boot: the main window was already
+ * created by the bootstrap entry (before this module's chunk even loaded), and
+ * everything here runs behind it. Renderer wire traffic queues until
+ * controllers register (see desktop-wire), and worker client calls queue until
+ * each worker is ready.
+ */
+export async function finishBoot(config: AppConfig): Promise<void> {
   let database: DatabaseBundle | undefined;
   try {
-    // Window-first boot: the main window is created and starts loading
-    // immediately; the whole backend chain below runs behind it. Renderer
-    // wire traffic queues until controllers register (see desktop-wire), and
-    // worker client calls queue until each worker is ready.
-    await step('window', () => bootWindow(signals));
     // The login-shell env capture must complete before any worker spawns:
     // workers inherit process.env at spawn, and spawning earlier would leak an
     // incomplete environment into every PTY for the whole session (PTY

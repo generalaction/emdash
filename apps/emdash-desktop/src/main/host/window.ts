@@ -4,7 +4,7 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
-import { markBootSuccessful } from '@main/bootstrap/core/boot-guard';
+import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
   isShutdownInProgress,
   shouldAllowWindowClose,
@@ -69,7 +69,9 @@ export function createMainWindow(): BrowserWindow {
       mark: 'window-did-finish-load',
       sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
     });
-    markBootSuccessful();
+    // One of the two boot success signals; the crash-loop marker clears only
+    // when the backend chain has also finished (see boot-status).
+    reportBootSuccessSignal('window-load');
   });
 
   if (process.platform !== 'darwin') {

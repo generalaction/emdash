@@ -15,4 +15,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   requestWirePort: (channel: string) => requestWirePort({ ipcRenderer, window }, { channel }),
+  // Boot-watchdog escape hatch. This cannot ride the wire: a hung backend
+  // means the wire gateway may never register controllers, so the loading
+  // state needs a direct channel to learn the boot is stuck.
+  onBootStuck: (callback: (payload: { stuckPhase: string }) => void) => {
+    const listener = (_event: unknown, payload: { stuckPhase: string }) => callback(payload);
+    ipcRenderer.on('emdash:boot-stuck', listener);
+    return () => {
+      ipcRenderer.removeListener('emdash:boot-stuck', listener);
+    };
+  },
 });

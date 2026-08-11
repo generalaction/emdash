@@ -3,6 +3,7 @@ declare global {
     electronAPI: {
       getPathForFile: (file: File) => string;
       requestWirePort: (channel: string) => Promise<void>;
+      onBootStuck: (callback: (payload: { stuckPhase: string }) => void) => () => void;
     };
   }
 }
