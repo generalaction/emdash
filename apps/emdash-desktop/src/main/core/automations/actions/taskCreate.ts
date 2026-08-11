@@ -63,6 +63,22 @@ function resolveAutomationAgentAutoApprove(
   return getPlugin(provider).capabilities.autoApprove.kind === 'supported' ? true : configured;
 }
 
+function resolveAutomationConversationType(
+  provider: AgentProviderId,
+  configured: 'pty' | 'acp' | undefined
+): 'pty' | 'acp' {
+  if (configured === 'acp' || !isValidProviderId(provider)) return configured ?? 'pty';
+
+  const capabilities = getPlugin(provider).capabilities;
+  // Background runs cannot recover when a TUI misses synthetic paste/Enter delivery. ACP gives
+  // the prompt to the provider as a structured first turn and acknowledges session startup.
+  if (capabilities.prompt.kind === 'keystroke' && capabilities.acp.kind === 'supported') {
+    return 'acp';
+  }
+
+  return 'pty';
+}
+
 async function buildAutomationInitialQueue(
   automation: Automation,
   projectId: string,
@@ -141,7 +157,10 @@ export async function executeTaskCreate(
     const provider = (automation.conversationConfig?.provider ||
       (await appSettingsService.get('defaultAgent')) ||
       DEFAULT_AGENT_ID) as AgentProviderId;
-    const conversationType = automation.conversationConfig?.type ?? 'pty';
+    const conversationType = resolveAutomationConversationType(
+      provider,
+      automation.conversationConfig?.type
+    );
     const initialQueue =
       conversationType === 'acp'
         ? await buildAutomationInitialQueue(automation, projectId, prompt)
