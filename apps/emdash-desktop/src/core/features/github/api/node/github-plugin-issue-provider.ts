@@ -11,7 +11,7 @@ import { githubRepositoryResolver } from '@core/features/github/api/node/service
 import type { ProjectGitHubAuthContextError } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
 import {
   GITHUB_PROVIDER_ID,
-  toGitHubAccount,
+  listGitHubAccountSummaries,
 } from '@core/features/github/node/accounts/github-accounts';
 import type {
   IssueProvider,
@@ -100,12 +100,9 @@ async function getDefaultLinkedAccountConnection(
   dependencies: GitHubIssueProviderDependencies,
   capabilities: IssueProviderCapabilities
 ) {
-  const defaultAccountId = await dependencies.accounts.getDefaultAccountId(GITHUB_PROVIDER_ID);
-  if (!defaultAccountId) return null;
-
-  const account = (await dependencies.accounts.listAccounts(GITHUB_PROVIDER_ID))
-    .map(toGitHubAccount)
-    .find((candidate) => candidate.accountId === defaultAccountId);
+  const account = (await listGitHubAccountSummaries(dependencies.accounts)).find(
+    (candidate) => candidate.isDefault
+  );
   if (!account) return null;
 
   const token = await dependencies.auth.getToken(account.host, { accountId: account.accountId });

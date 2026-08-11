@@ -1,12 +1,7 @@
 import type { Result } from '@emdash/shared';
-import type { ProjectSettings } from '@core/primitives/project-settings/api';
-import { normalizeRepositoryHost, parseRepositoryRef } from '@core/primitives/repository/api';
-import {
-  GITHUB_PROVIDER_ID,
-  toGitHubAccount,
-  type GitHubAccount,
-  type GitHubAccountStore,
-} from '../accounts/github-accounts';
+import { resolveAccountForHost, type ProjectSettings } from '@core/primitives/project-settings/api';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
+import { listGitHubAccountSummaries, type GitHubAccountStore } from '../accounts/github-accounts';
 
 type AccountLookup = Pick<GitHubAccountStore, 'getDefaultAccountId' | 'listAccounts'>;
 
@@ -51,24 +46,9 @@ export class ProjectGitHubAccountBackfillService {
   }
 
   private async selectAccountIdForHost(host: string): Promise<string | null> {
-    const normalizedHost = normalizeRepositoryHost(host);
-    const [accounts, defaultAccountId] = await Promise.all([
-      this.accountLookup.listAccounts(GITHUB_PROVIDER_ID),
-      this.accountLookup.getDefaultAccountId(GITHUB_PROVIDER_ID),
-    ]);
-    const hostAccounts = accounts
-      .map(toGitHubAccount)
-      .filter((account) => normalizeRepositoryHost(account.host) === normalizedHost);
-    if (hostAccounts.length === 0) return null;
-
-    const defaultAccount = hostAccounts.find((account) => account.accountId === defaultAccountId);
-    return defaultAccount?.accountId ?? this.oldestAccount(hostAccounts)?.accountId ?? null;
-  }
-
-  private oldestAccount(accounts: GitHubAccount[]): GitHubAccount | undefined {
-    return accounts.reduce<GitHubAccount | undefined>((oldest, account) => {
-      if (!oldest || account.connectedAt < oldest.connectedAt) return account;
-      return oldest;
-    }, undefined);
+    // The single blessed "default account for host" inference (spec:
+    // github-git-settings §2/§11) — no local oldest-account tiebreaks.
+    const accounts = await listGitHubAccountSummaries(this.accountLookup);
+    return resolveAccountForHost(host, accounts).value?.accountId ?? null;
   }
 }

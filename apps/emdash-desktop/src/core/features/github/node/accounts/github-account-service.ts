@@ -4,6 +4,7 @@ import type {
 } from '@core/primitives/github/api';
 import {
   GITHUB_PROVIDER_ID,
+  listGitHubAccountSummaries,
   toGitHubAccount,
   type GitHubAccount,
   type GitHubAccountStore,
@@ -25,13 +26,7 @@ export class GitHubAccountService {
   ) {}
 
   async listAccounts(): Promise<GitHubAccountSummary[]> {
-    const [accounts, defaultAccountId] = await Promise.all([
-      this.accountStore.listAccounts(GITHUB_PROVIDER_ID),
-      this.accountStore.getDefaultAccountId(GITHUB_PROVIDER_ID),
-    ]);
-    return accounts
-      .map(toGitHubAccount)
-      .map((account) => this.toAccountSummary(account, defaultAccountId));
+    return listGitHubAccountSummaries(this.accountStore);
   }
 
   async importCliAccounts(): Promise<Extract<GitHubImportCliAccountsResponse, { success: true }>> {

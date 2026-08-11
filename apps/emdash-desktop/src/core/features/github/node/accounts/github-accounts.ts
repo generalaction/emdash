@@ -44,6 +44,27 @@ export function normalizeGitHubHost(host: string): string {
   return normalizeRepositoryHost(host) || 'github.com';
 }
 
+/**
+ * The connected GitHub accounts as the shared summary shape (with the store's
+ * default flag) — the account input every blessed-resolver call site uses.
+ */
+export async function listGitHubAccountSummaries(
+  store: Pick<GitHubAccountStore, 'listAccounts' | 'getDefaultAccountId'>
+): Promise<GitHubAccountSummary[]> {
+  const [accounts, defaultAccountId] = await Promise.all([
+    store.listAccounts(GITHUB_PROVIDER_ID),
+    store.getDefaultAccountId(GITHUB_PROVIDER_ID),
+  ]);
+  return accounts.map(toGitHubAccount).map((account) => ({
+    accountId: account.accountId,
+    host: account.host,
+    login: account.login,
+    avatarUrl: account.avatarUrl,
+    credentialSource: account.credentialSource,
+    isDefault: account.accountId === defaultAccountId,
+  }));
+}
+
 /** Map a generic provider account to the flat GitHub shape. */
 export function toGitHubAccount(account: ProviderAccount): GitHubAccount {
   // accountId convention is `${host}:${providerAccountId}`; used as a fallback

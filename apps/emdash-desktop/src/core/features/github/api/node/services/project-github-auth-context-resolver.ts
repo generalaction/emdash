@@ -1,6 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { GitHubApiAuthContext } from '@core/features/github/api/node/services/github-api-auth-service';
-import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
+import {
+  resolveProjectEffectiveSettings,
+  type ProjectEffectiveSettingsSource,
+  type RepoFactsSource,
+} from '@core/features/projects/api/node/settings/effective-settings';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 
 export type ProjectGitHubAuthContextError =
   | {
@@ -25,7 +30,8 @@ export type ProjectGitHubAuthContextError =
     };
 
 type ProjectGitHubAuthContextProject = {
-  settings: Pick<ProjectSettingsProvider, 'get'>;
+  settings: ProjectEffectiveSettingsSource;
+  repoFacts: RepoFactsSource;
 };
 
 type ProjectLookup = {
@@ -40,10 +46,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Resolves the GitHub account a project's API calls run as, through the
+ * blessed resolver (spec: github-git-settings §2): an explicit pin or the
+ * host-matching inference. A dangling or host-mismatched pin fails closed —
+ * the flow errors instead of proceeding as a different identity.
+ */
 export class ProjectGitHubAuthContextResolver {
   constructor(
     private readonly deps: {
       projects: ProjectLookup;
+      listAccounts(): Promise<GitHubAccountSummary[]>;
       logger: WarningLogger;
     }
   ) {}
@@ -61,32 +74,36 @@ export class ProjectGitHubAuthContextResolver {
     }
 
     try {
-      const settings = await project.settings.get();
-      if (!Object.hasOwn(settings, 'githubAccountId')) {
-        return err({
-          type: 'unconfigured',
-          projectId,
-          message: 'No GitHub account is configured for this project.',
-        });
+      const effective = await resolveProjectEffectiveSettings({
+        settings: project.settings,
+        repoFacts: project.repoFacts,
+        accounts: await this.deps.listAccounts(),
+        projectId,
+      });
+      const account = effective.githubAccount;
+      if (account.value !== null) {
+        return ok({ accountId: account.value.accountId });
       }
-
-      if (settings.githubAccountId === null) {
+      if (account.provenance.kind === 'set') {
         return err({
           type: 'disabled',
           projectId,
           message: 'GitHub API is disabled for this project.',
         });
       }
-
-      const accountId = settings.githubAccountId?.trim() || null;
-      if (!accountId) {
+      if (account.provenance.kind === 'unresolvable') {
         return err({
-          type: 'unconfigured',
+          type: 'account_selection_failed',
           projectId,
-          message: 'No GitHub account is configured for this project.',
+          message:
+            'The pinned GitHub account no longer exists or does not match the repository host.',
         });
       }
-      return ok({ accountId });
+      return err({
+        type: 'unconfigured',
+        projectId,
+        message: 'No connected GitHub account matches this project.',
+      });
     } catch (error) {
       const message = errorMessage(error);
       this.deps.logger.warn('Failed to resolve project GitHub account selection', {

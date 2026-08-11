@@ -124,7 +124,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     return {
       url: data.html_url,
       cloneUrl: data.clone_url,
-      defaultBranch: data.default_branch || 'main',
+      defaultBranch: data.default_branch,
       nameWithOwner: data.full_name,
     };
   }

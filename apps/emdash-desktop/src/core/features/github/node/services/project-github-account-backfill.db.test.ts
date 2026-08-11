@@ -120,7 +120,9 @@ describe('ProjectGitHubAccountBackfillService', () => {
     expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:252' });
   });
 
-  it('uses the oldest host account when the default is on a different host', async () => {
+  it('skips ambiguous hosts: several host accounts and the default elsewhere', async () => {
+    // The blessed "default account for host" inference (spec: github-git-settings
+    // §2/§11) has no oldest-account tiebreak: ambiguity means no inference.
     await upsertAccount('42'); // github.com default
     await upsertAccount('168', 'ghe.example.com');
     await upsertAccount('252', 'ghe.example.com');
@@ -128,12 +130,9 @@ describe('ProjectGitHubAccountBackfillService', () => {
       selectedRemoteUrl: 'https://ghe.example.com/acme/repo',
     });
 
-    await expect(service.backfillProject(project)).resolves.toEqual({
-      status: 'updated',
-      accountId: 'ghe.example.com:168',
-    });
+    await expect(service.backfillProject(project)).resolves.toEqual({ status: 'skipped' });
 
-    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:168' });
+    expect(settings.patch).not.toHaveBeenCalled();
   });
 
   it('does not backfill projects when no account exists for the remote host', async () => {
