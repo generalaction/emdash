@@ -98,7 +98,10 @@ export function parseRunLog(text: string): RunResult {
       continue;
     }
 
-    if (entry.msg === 'boot-timeline worker ready' && typeof entry.sinceWorkersStartMs === 'number') {
+    if (
+      entry.msg === 'boot-timeline worker ready' &&
+      typeof entry.sinceWorkersStartMs === 'number'
+    ) {
       result.workerReadyMs[String(entry.worker)] = entry.sinceWorkersStartMs;
       continue;
     }
@@ -164,20 +167,23 @@ function appEnv(profile: Profile, logFile: string): NodeJS.ProcessEnv {
 
 function createFixtureRepo(dir: string, index: number): void {
   fs.mkdirSync(dir, { recursive: true });
-  const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
   git('init', '-b', 'main');
-  fs.writeFileSync(path.join(dir, 'README.md'), `# bench-project-${index}\n\nBoot benchmark fixture.\n`);
-  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   fs.writeFileSync(
-    path.join(dir, 'src', 'index.ts'),
-    `export const projectIndex = ${index};\n`
+    path.join(dir, 'README.md'),
+    `# bench-project-${index}\n\nBoot benchmark fixture.\n`
   );
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'index.ts'), `export const projectIndex = ${index};\n`);
   git('add', '-A');
   git(
-    '-c', 'user.name=boot-bench',
-    '-c', 'user.email=boot-bench@example.invalid',
-    'commit', '-m', 'fixture commit'
+    '-c',
+    'user.name=boot-bench',
+    '-c',
+    'user.email=boot-bench@example.invalid',
+    'commit',
+    '-m',
+    'fixture commit'
   );
 }
 
@@ -193,7 +199,10 @@ function seedProjects(profile: Profile): void {
       `INSERT INTO project_settings (project_id) VALUES ('${projectId}');`
     );
   }
-  execFileSync('sqlite3', [profile.dbFile], { input: statements.join('\n'), stdio: ['pipe', 'pipe', 'inherit'] });
+  execFileSync('sqlite3', [profile.dbFile], {
+    input: statements.join('\n'),
+    stdio: ['pipe', 'pipe', 'inherit'],
+  });
 }
 
 // --- app lifecycle ----------------------------------------------------------
@@ -277,7 +286,12 @@ function sleep(ms: number): Promise<void> {
 // --- main -------------------------------------------------------------------
 
 function parseArgs(argv: string[]) {
-  const args = { app: undefined as string | undefined, runs: 5, reset: false, profile: undefined as string | undefined };
+  const args = {
+    app: undefined as string | undefined,
+    runs: 5,
+    reset: false,
+    profile: undefined as string | undefined,
+  };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--app') args.app = argv[++i];
     else if (argv[i] === '--runs') args.runs = Number(argv[++i]);
@@ -340,7 +354,8 @@ async function main(): Promise<void> {
       WARMUP_TIMEOUT_MS
     );
     await stopApp(child);
-    if (!booted) throw new Error(`Warm-up boot did not finish within ${WARMUP_TIMEOUT_MS}ms (${warmupLog})`);
+    if (!booted)
+      throw new Error(`Warm-up boot did not finish within ${WARMUP_TIMEOUT_MS}ms (${warmupLog})`);
     seedProjects(profile);
     console.log('Fixture profile ready.');
   }
@@ -398,7 +413,8 @@ function fmt(value: number | undefined): string {
   return value === undefined ? 'n/a' : `${value}ms`;
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectRun) {
   main().catch((error: unknown) => {
     console.error(error);

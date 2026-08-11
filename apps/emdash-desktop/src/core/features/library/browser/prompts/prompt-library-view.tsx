@@ -1,9 +1,13 @@
-import { CollectionToolbar, CollectionView, PageLayout } from '@emdash/ui/react/patterns';
-import { Button, DropdownMenu, Spinner, toast } from '@emdash/ui/react/primitives';
+import {
+  CollectionToolbar,
+  CollectionView,
+  PageLayout,
+  useQueryListSource,
+} from '@emdash/ui/react/patterns';
+import { Button, DropdownMenu, toast } from '@emdash/ui/react/primitives';
 import { EllipsisIcon, LibraryIcon, Pencil, Plus, Trash2 } from 'lucide-react';
-import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
@@ -97,15 +101,20 @@ export function PromptLibraryView() {
 
   const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
 
-  // Bridge query data into the view's sync source: seed the box so the first
-  // render sees data, and update before paint to avoid an empty flash.
-  const [itemsBox] = useState(() =>
-    observable.box<PromptLibraryPrompt[]>(promptLibrary, { deep: false })
+  // The prompt-library hook swallows query errors (optimistic updates roll
+  // back instead), so only data and loading are mirrored into the view. While
+  // loading, `value` is a fresh `[]` each render — pass undefined instead so
+  // the snapshot stays stable.
+  const source = useQueryListSource(
+    {
+      data: isPromptLibraryLoading ? undefined : promptLibrary,
+      isLoading: isPromptLibraryLoading,
+      isError: false,
+      error: null,
+    },
+    (rows: PromptLibraryPrompt[]) => rows
   );
-  const [view] = useState(() => createPromptLibraryListView(() => itemsBox.get()));
-  useLayoutEffect(() => {
-    runInAction(() => itemsBox.set(promptLibrary));
-  }, [promptLibrary, itemsBox]);
+  const [view] = useState(() => createPromptLibraryListView(source));
 
   const upsertPrompt = (prompt: PromptLibraryPrompt, successTitle: string) => {
     const exists = promptLibrary.some((item) => item.id === prompt.id);
@@ -171,13 +180,7 @@ export function PromptLibraryView() {
           onItemClick={(prompt) => {
             if (!isDisabled) editPrompt(prompt);
           }}
-          emptySlot={
-            isPromptLibraryLoading ? (
-              <PromptsLoadingState />
-            ) : (
-              <PromptsEmptyState hasPrompts={promptLibrary.length > 0} />
-            )
-          }
+          emptySlot={<PromptsEmptyState hasPrompts={promptLibrary.length > 0} />}
         />
       </view.Root>
     </div>
@@ -211,16 +214,8 @@ const PromptsToolbar = observer(function PromptsToolbar({
   );
 });
 
-// The view's sync source is never "loading", so the query's pending state
-// routes through the empty slot rather than CollectionView's loadingSlot.
-function PromptsLoadingState() {
-  return (
-    <div className="flex min-h-48 items-center justify-center p-8">
-      <Spinner />
-    </div>
-  );
-}
-
+// Icon-bearing empty state — `EmptyState` has no icon slot, so this stays
+// custom under the rich-states carve-out.
 function PromptsEmptyState({ hasPrompts }: { hasPrompts: boolean }) {
   return (
     <div className="flex min-h-48 flex-col items-center justify-center p-8 text-center">

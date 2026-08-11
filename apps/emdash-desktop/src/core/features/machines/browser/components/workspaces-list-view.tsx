@@ -1,23 +1,18 @@
-import { WorkspaceIcon } from '@emdash/ui/react/components';
+import { EmptyState, WorkspaceIcon } from '@emdash/ui/react/components';
 import {
   CollectionToolbar,
   CollectionView,
   CollectionViewCell,
+  useQueryListSource,
   type CollectionViewColumn,
 } from '@emdash/ui/react/patterns';
 import { Button, RelativeTime } from '@emdash/ui/react/primitives';
 import { PlusIcon } from 'lucide-react';
-import { observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 import type { WorkspacesScope } from '@core/features/workspaces/api/browser/use-workspace-groups';
 import { useWorkspaceRows } from '@core/features/workspaces/api/browser/use-workspace-rows';
-import {
-  WorkspacesEmptyState,
-  WorkspacesErrorState,
-  WorkspacesLoadingState,
-  WorkspacesOfflineState,
-} from '@core/features/workspaces/contributions/browser/workspace-states';
+import { WorkspacesOfflineState } from '@core/features/workspaces/contributions/browser/workspace-states';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   buildWorkspaceItems,
@@ -78,24 +73,24 @@ export const WorkspacesListView = observer(function WorkspacesListView({
   const workspaceRows = useWorkspaceRows({ scope, enabled });
   const { workspaceQuery, groups } = workspaceRows;
 
-  // Bridge query data into the view's sync source: the getter reads this box,
-  // so the list pipeline re-derives whenever fresh groups arrive. Seeded at
-  // mount and updated before paint so fresh data never flashes the empty state.
-  const [itemsBox] = useState(() =>
-    observable.box<WorkspacesListItem[]>(buildWorkspaceItems(groups), { deep: false })
+  // `groups` is derived from the query plus usage joins, so it stands in for
+  // the query's data; loading/error still come from the query itself.
+  const source = useQueryListSource(
+    {
+      data: groups,
+      isLoading: workspaceQuery.isLoading,
+      isError: workspaceQuery.isError,
+      error: workspaceQuery.error,
+    },
+    buildWorkspaceItems
   );
-  const [view] = useState(() => createWorkspacesListView(() => itemsBox.get()));
-  useLayoutEffect(() => {
-    runInAction(() => itemsBox.set(buildWorkspaceItems(groups)));
-  }, [groups, itemsBox]);
+  const [view] = useState(() => createWorkspacesListView(source));
 
   if (scope.kind === 'machine' && !enabled) {
     return (
       <WorkspacesOfflineState description="Workspaces load when the machine reconnects and its workspace server is healthy." />
     );
   }
-  if (workspaceQuery.isLoading) return <WorkspacesLoadingState />;
-  if (workspaceQuery.isError) return <WorkspacesErrorState error={workspaceQuery.error} />;
 
   return (
     <view.Root>
@@ -115,6 +110,13 @@ export const WorkspacesListView = observer(function WorkspacesListView({
           />
         }
         onItemClick={(item) => openDetail(item.id)}
+        errorSlot={
+          <EmptyState
+            bare
+            label="Could not load workspaces."
+            description={errorMessage(workspaceQuery.error)}
+          />
+        }
         emptySlot={<WorkspacesEmpty view={view} />}
       />
     </view.Root>
@@ -151,8 +153,9 @@ const WorkspacesEmpty = observer(function WorkspacesEmpty({
 }) {
   const search = view.useSearch();
   return (
-    <WorkspacesEmptyState
-      message={
+    <EmptyState
+      bare
+      label={
         search.query.trim().length > 0 ? 'No workspaces match your search.' : 'No workspaces found.'
       }
     />
@@ -161,4 +164,8 @@ const WorkspacesEmpty = observer(function WorkspacesEmpty({
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

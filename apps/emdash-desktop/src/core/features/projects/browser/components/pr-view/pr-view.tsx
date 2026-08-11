@@ -401,7 +401,6 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
             manualError={prs.length > 0 ? error : null}
           />
         }
-        loadingSlot={<p className="py-4 text-center text-sm text-foreground-muted">Loading…</p>}
         errorSlot={<PrErrorState error={error} />}
         // Refresh/sync failures don't set the list view's error status, so an
         // empty list surfaces them here — matching the old error-before-empty

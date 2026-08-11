@@ -62,7 +62,7 @@ describe('buildWorkspaceItems', () => {
 describe('createWorkspacesListView', () => {
   it('re-derives from the reactive getter and searches name and path', () => {
     const box = observable.box<WorkspacesListItem[]>([], { deep: false });
-    const view = createWorkspacesListView(() => box.get());
+    const view = createWorkspacesListView({ kind: 'sync', items: () => box.get() });
     const store = view.store;
 
     expect(store.visibleItems).toEqual([]);
