@@ -5,6 +5,7 @@ import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/ap
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire/live';
+import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import type {
   CreateProjectFromRemoteInput,
   ProjectCreationJobError,
@@ -26,8 +27,13 @@ export type ProjectCreationPublisher = (projectId: string, state: ProjectCreatio
 
 type HostFiles = HostRuntimesClient['files'];
 
+export type CreateProjectFromRemoteDependencies = CreateProjectDependencies & {
+  /** Emdash credential helper for HTTPS clones (spec: github-git-settings §4). */
+  mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
+};
+
 export async function createProjectFromRemote(
-  dependencies: CreateProjectDependencies,
+  dependencies: CreateProjectFromRemoteDependencies,
   input: CreateProjectFromRemoteInput,
   ctx: LiveJobContext<ProjectCreationProgress>,
   publishCreationState: ProjectCreationPublisher
@@ -62,6 +68,10 @@ export async function createProjectFromRemote(
   const targetExistedBeforeClone = targetStatus === 'empty-directory';
   publishCreationState(input.projectId, { phase: 'cloning', message: 'Cloning repository…' });
 
+  const credentialLease = await dependencies.mintCloneCredentials({
+    repositoryUrl: input.repositoryUrl,
+    host,
+  });
   let clone: Awaited<ReturnType<typeof runRuntimeLiveJob<typeof gitContract.cloneRepository>>>;
   try {
     clone = await runRuntimeLiveJob(
@@ -70,6 +80,7 @@ export async function createProjectFromRemote(
       {
         repositoryUrl: input.repositoryUrl,
         targetPath: hostPathFromNative(input.targetPath),
+        credentials: credentialLease?.credentials,
       },
       (progress) => {
         const mapped = cloneProgressToCreationProgress(progress);
@@ -95,6 +106,8 @@ export async function createProjectFromRemote(
       return { success: false as const, error: cancelled };
     }
     throw error;
+  } finally {
+    credentialLease?.release();
   }
   if (!clone.success) {
     const error = creationError(

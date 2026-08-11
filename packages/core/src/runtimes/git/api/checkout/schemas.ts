@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { portableRelativePathSchema } from '#primitives/path/api';
 import { gitBranchRefSchema } from '#runtimes/git/api/repository/states/refs';
+import { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
 import { checkoutSelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
@@ -192,8 +193,11 @@ export type PushOptions = z.infer<typeof pushOptionsSchema>;
 
 export const pushJobInputSchema = checkoutSelectorSchema.extend({
   options: pushOptionsSchema.optional(),
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type PushJobInput = z.infer<typeof pushJobInputSchema>;
 
-export const pullJobInputSchema = checkoutSelectorSchema;
+export const pullJobInputSchema = checkoutSelectorSchema.extend({
+  credentials: gitOperationCredentialsSchema.optional(),
+});
 export type PullJobInput = z.infer<typeof pullJobInputSchema>;

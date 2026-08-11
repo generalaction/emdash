@@ -17,6 +17,7 @@ import {
 } from '#runtimes/git/api';
 import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
 import { expectedGitCommandError } from '#runtimes/git/node/api/errors';
+import { credentialOperationEnv } from '#runtimes/git/node/exec/operation-context';
 import type { RepositoryResource } from './repository-resource';
 
 type RepositoryModel = typeof gitRepositoryContract.model;
@@ -69,6 +70,7 @@ export class GitRepositoryRuntime {
         {
           signal: context.signal,
           onProgress: context.progress,
+          env: credentialOperationEnv(input.credentials),
         },
         {
           refspec: input.refspec,
@@ -83,6 +85,7 @@ export class GitRepositoryRuntime {
       repository.publishBranch(input.branchName, input.remote, {
         signal: context.signal,
         onProgress: context.progress,
+        env: credentialOperationEnv(input.credentials),
       })
     );
   }
@@ -92,6 +95,7 @@ export class GitRepositoryRuntime {
       repository.fetchPrForReview(input.options, {
         signal: context.signal,
         onProgress: context.progress,
+        env: credentialOperationEnv(input.credentials),
       })
     );
   }

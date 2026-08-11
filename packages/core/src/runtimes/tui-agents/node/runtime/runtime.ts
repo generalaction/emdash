@@ -5,6 +5,7 @@ import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
 import { formatCommandLine } from '#primitives/exec/api';
+import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
   PersistedTuiAgentStartInput,
   TuiAgentStartInput,
@@ -478,14 +479,20 @@ export class TuiAgentsRuntime {
           command: spawnSpec.command,
           args: spawnSpec.args,
           cwd: config.input.cwd,
-          env: {
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            TERM_PROGRAM: 'emdash',
-            ...command.env,
-            ...config.input.providerVars,
-            ...hookEnv,
-          },
+          // Git-credential behavior is applied last through the blessed
+          // construction (spec: github-git-settings §4) so a "none" scrub
+          // wins over provider and hook env.
+          env: applyGitCredentialsToEnv(
+            {
+              TERM: 'xterm-256color',
+              COLORTERM: 'truecolor',
+              TERM_PROGRAM: 'emdash',
+              ...command.env,
+              ...config.input.providerVars,
+              ...hookEnv,
+            },
+            config.input.gitCredentials
+          ),
           cols: config.input.cols,
           rows: config.input.rows,
         },

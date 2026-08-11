@@ -1,3 +1,4 @@
+import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
 import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type {
@@ -9,6 +10,7 @@ import type { Logger } from '@emdash/shared/logger';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
@@ -51,6 +53,12 @@ export type CreateTerminalsWireControllerOptions = Readonly<{
   terminalShell: {
     getColorEnv(): Promise<Record<string, string>>;
   };
+  /**
+   * Per-session git credential behavior from the project's "agent git
+   * credentials" setting (spec: github-git-settings §4), applied through the
+   * blessed terminal-env construction in the terminals runtime.
+   */
+  resolveSessionGitCredentials: GitCredentialsService['resolveSessionSpec'];
 }>;
 
 type TerminalContext = Readonly<{
@@ -60,6 +68,7 @@ type TerminalContext = Readonly<{
   tmuxEnabled: boolean;
   shellSetup?: string;
   taskEnvVars: Record<string, string>;
+  gitCredentials?: GitCredentialsSessionSpec;
 }>;
 type TerminalControllerError = TerminalError | RuntimeResolveError | TerminalSliceContextError;
 
@@ -259,6 +268,7 @@ async function startRuntimeTerminal(
           ...context.data.taskEnvVars,
           ...colorEnv,
         },
+        gitCredentials: context.data.gitCredentials,
         cols: initialSize.cols,
         rows: initialSize.rows,
       },
@@ -319,6 +329,10 @@ async function resolveTerminalContext(
       taskFiles,
       taskConfigPath: project.configPathForDirectory(identity.path),
     });
+    const gitCredentials = await options.resolveSessionGitCredentials({
+      projectId: terminal.projectId,
+      host: identity.host,
+    });
     return ok({
       identity,
       workspace: workspaceRef(identity),
@@ -339,6 +353,7 @@ async function resolveTerminalContext(
         defaultBranch,
         portSeed: identity.path,
       }),
+      gitCredentials,
     });
   });
 }

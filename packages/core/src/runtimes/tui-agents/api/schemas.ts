@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gitCredentialsSessionSpecSchema } from '#primitives/git-credentials/api';
 import { runtimeUnavailableErrorSchema } from '#workspace-server/shared/schemas';
 
 export const tuiAgentStartInputSchema = z.object({
@@ -20,6 +21,11 @@ export const tuiAgentStartInputSchema = z.object({
   trustWorkspace: z.boolean().optional(),
   extraArgs: z.array(z.string()).optional(),
   providerVars: z.record(z.string(), z.string()).optional(),
+  /**
+   * Per-session git credential behavior, resolved desktop-side from project
+   * settings (spec: github-git-settings §4). Absent = native behavior.
+   */
+  gitCredentials: gitCredentialsSessionSpecSchema.optional(),
   cols: z.number().int(),
   rows: z.number().int(),
   shellSetup: z.string().optional(),

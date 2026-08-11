@@ -120,6 +120,7 @@ export async function execGitWithProgress(
   try {
     return await exec.exec(args, {
       signal: context.signal,
+      env: context.env,
       onStderr: parser ? (chunk) => parser.push(chunk) : undefined,
     });
   } finally {

@@ -15,6 +15,10 @@ import {
   type LiveSource,
 } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
+import type {
+  GitOperationCredentialsLease,
+  GitCredentialsService,
+} from '@core/features/github/api/node/services/git-credentials-service';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
@@ -31,6 +35,12 @@ import {
 export type CreateSourceControlWireControllerOptions = Readonly<{
   runtimes: SourceControlRuntimeBroker;
   workspaceIdentity: SourceControlWorkspaceIdentityResolver;
+  /**
+   * Operation-scoped emdash credential helper for network git jobs
+   * (spec: github-git-settings §4): emdash's own fetch/push/pull/publish
+   * authenticate as the project's effective account on its host.
+   */
+  mintOperationCredentials: GitCredentialsService['mintOperationCredentials'];
 }>;
 
 export function createSourceControlWireController(
@@ -304,14 +314,17 @@ async function runRepositoryJob<
     options.runtimes,
     options.workspaceIdentity.resolveProject(projectId),
     (client, identity) =>
-      runUpstreamJob(
-        definition,
-        handle(client.git),
-        {
-          ...rest,
-          repository: hostPathFromNative(identity.path),
-        } as JobInput<Def>,
-        context
+      withOperationCredentials(options, identity, (credentials) =>
+        runUpstreamJob(
+          definition,
+          handle(client.git),
+          {
+            ...rest,
+            repository: hostPathFromNative(identity.path),
+            credentials,
+          } as JobInput<Def>,
+          context
+        )
       )
   );
 }
@@ -331,16 +344,40 @@ async function runCheckoutJob<
     options.runtimes,
     options.workspaceIdentity.resolve(workspaceId),
     (client, identity) =>
-      runUpstreamJob(
-        definition,
-        handle(client.git),
-        {
-          ...rest,
-          checkout: hostPathFromNative(identity.path),
-        } as JobInput<Def>,
-        context
+      withOperationCredentials(options, identity, (credentials) =>
+        runUpstreamJob(
+          definition,
+          handle(client.git),
+          {
+            ...rest,
+            checkout: hostPathFromNative(identity.path),
+            credentials,
+          } as JobInput<Def>,
+          context
+        )
       )
   );
+}
+
+/**
+ * Runs a network job with an operation-scoped credential lease; the lease is
+ * revoked when the job settles. Always assigned (even when undefined) so a
+ * caller-supplied `credentials` field can never reach the git runtime.
+ */
+async function withOperationCredentials<T>(
+  options: CreateSourceControlWireControllerOptions,
+  identity: WorkspaceIdentity,
+  work: (credentials: GitOperationCredentialsLease['credentials'] | undefined) => Promise<T>
+): Promise<T> {
+  const lease = await options.mintOperationCredentials({
+    projectId: identity.projectId,
+    host: identity.host,
+  });
+  try {
+    return await work(lease?.credentials);
+  } finally {
+    lease?.release();
+  }
 }
 
 async function runUpstreamJob<Def extends LiveJobEndpointDef>(

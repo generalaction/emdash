@@ -313,6 +313,7 @@ export class TerminalsRuntime {
     const env = buildTerminalEnv({
       shellProfile,
       overrides: spec.env,
+      gitCredentials: spec.gitCredentials,
     });
     const resolved = resolveLocalPtySpawn({
       intent: {

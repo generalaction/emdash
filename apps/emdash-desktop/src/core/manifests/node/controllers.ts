@@ -29,6 +29,7 @@ import {
 import type { EditorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import { createEditorWireController } from '@core/features/editor/node/wire-controller';
 import { createFilesWireController } from '@core/features/files/node/wire-controller';
+import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import { createGithubWireController } from '@core/features/github/node/wire-controller';
 import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
 import type { IssueProviderRegistry } from '@core/features/issues/node/registry';
@@ -117,6 +118,7 @@ export type DesktopControllerContext = {
   readonly devPerfOperations: DevPerfOperations;
   readonly editorBuffer: EditorBufferService;
   readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
+  readonly gitCredentials: GitCredentialsService;
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostOperations: DesktopHostControllerOperations;
   readonly issueProviders: IssueProviderRegistry;
@@ -235,8 +237,12 @@ export const desktopNodeControllers = {
     create: ({ telemetry }) => createTelemetryWireController(telemetry),
   },
   sourceControl: {
-    create: ({ runtimes, workspaceIdentity }) =>
-      createSourceControlWireController({ runtimes, workspaceIdentity }),
+    create: ({ gitCredentials, runtimes, workspaceIdentity }) =>
+      createSourceControlWireController({
+        runtimes,
+        workspaceIdentity,
+        mintOperationCredentials: gitCredentials.mintOperationCredentials,
+      }),
   },
   mcp: {
     create: ({ runtimes }) => createMcpWireController({ runtimes }),
@@ -248,6 +254,7 @@ export const desktopNodeControllers = {
     create: ({
       appSettings,
       db,
+      gitCredentials,
       logger,
       projects,
       runtimes,
@@ -264,6 +271,7 @@ export const desktopNodeControllers = {
         telemetry,
         terminalShell,
         workspaceIdentity,
+        resolveSessionGitCredentials: gitCredentials.resolveSessionSpec,
       }),
   },
   mementos: {
@@ -310,6 +318,7 @@ export const desktopNodeControllers = {
   projects: {
     create: ({
       db,
+      gitCredentials,
       projectDeletion,
       projects,
       projectSettings,
@@ -326,6 +335,7 @@ export const desktopNodeControllers = {
           projects,
           projectSettings,
           runtimes,
+          mintCloneCredentials: gitCredentials.mintCloneCredentials,
         }),
         scope
       ),

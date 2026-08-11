@@ -30,6 +30,7 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     baseRemote: '',
     pushRemote: '',
     githubAccount: undefined,
+    agentGitCredentials: 'effective-account',
     ...overrides,
   };
 }
@@ -72,6 +73,7 @@ describe('project settings form model', () => {
       baseRemote: 'upstream',
       pushRemote: 'origin',
       githubAccount: undefined,
+      agentGitCredentials: 'effective-account',
     });
   });
 
@@ -198,6 +200,21 @@ describe('project settings form model', () => {
 
     expect(formToStoredGitSettings(form).pushRemote).toBeUndefined();
     expect(formToSettings(form).pushRemote).toBeUndefined();
+  });
+
+  it('round-trips the agent git credentials setting with absence meaning the default', () => {
+    expect(settingsToForm({}, {}, [origin]).agentGitCredentials).toBe('effective-account');
+    expect(settingsToForm({ agentGitCredentials: 'none' }, {}, [origin]).agentGitCredentials).toBe(
+      'none'
+    );
+
+    expect(formToSettings(makeForm())).not.toHaveProperty('agentGitCredentials');
+    expect(formToSettings(makeForm({ agentGitCredentials: 'system' })).agentGitCredentials).toBe(
+      'system'
+    );
+    expect(formToSettings(makeForm({ agentGitCredentials: 'none' })).agentGitCredentials).toBe(
+      'none'
+    );
   });
 
   it('omits default auto-run lifecycle settings from persisted form settings', () => {

@@ -1,4 +1,8 @@
 import os from 'node:os';
+import {
+  applyGitCredentialsToEnv,
+  type GitCredentialsSessionSpec,
+} from '#primitives/git-credentials/api';
 import type { ResolvedPtyShellProfile } from './local-spawn';
 
 export function buildTerminalEnv(
@@ -6,6 +10,12 @@ export function buildTerminalEnv(
     shellProfile?: ResolvedPtyShellProfile;
     baseEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
     overrides?: Record<string, string | undefined>;
+    /**
+     * Per-session git credential behavior (spec: github-git-settings §4).
+     * Applied last so scrubbing ("none") wins over base env and overrides;
+     * absent means native/system behavior.
+     */
+    gitCredentials?: GitCredentialsSessionSpec;
   } = {}
 ): Record<string, string> {
   const source = options.baseEnv ?? process.env;
@@ -34,5 +44,5 @@ export function buildTerminalEnv(
     else env[key] = val;
   }
 
-  return env;
+  return applyGitCredentialsToEnv(env, options.gitCredentials);
 }
