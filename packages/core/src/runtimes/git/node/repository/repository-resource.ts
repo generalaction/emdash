@@ -95,7 +95,7 @@ export class RepositoryResource {
     return this.commands.listWorktrees();
   }
 
-  getDefaultBranch(remote?: string): Promise<string> {
+  getDefaultBranch(remote: string): Promise<string | null> {
     this.assertActive();
     return this.commands.getDefaultBranch(remote);
   }

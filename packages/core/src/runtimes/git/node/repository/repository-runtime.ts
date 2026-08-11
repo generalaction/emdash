@@ -57,7 +57,7 @@ export class GitRepositoryRuntime {
     }));
   }
 
-  getDefaultBranch(input: RepositorySelector & { remote?: string }) {
+  getDefaultBranch(input: RepositorySelector & { remote: string }) {
     return this.read(input, async (repository) => ({
       branch: await repository.getDefaultBranch(input.remote),
     }));

@@ -112,10 +112,26 @@ describe('GitRepository', () => {
     }
   });
 
-  it('resolves the default branch from local fallbacks without a remote', async () => {
+  it('resolves the default branch from the remote HEAD symbolic ref', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      const oid = (await git(repo, ['rev-parse', 'HEAD'])).trim();
+      await git(repo, ['remote', 'add', 'origin', 'https://example.com/repo.git']);
+      await git(repo, ['update-ref', 'refs/remotes/origin/main', oid]);
+      await git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
+
+      await expect(repository.getDefaultBranch('origin')).resolves.toBe('main');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('answers null instead of fabricating a default branch when the remote HEAD is unknown', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
-      await expect(repository.getDefaultBranch()).resolves.toBe('main');
+      // Local `main` exists, but no remote HEAD is known — the resolver owns
+      // well-known-candidate inference, so this primitive must stay honest.
+      await expect(repository.getDefaultBranch('origin')).resolves.toBeNull();
     } finally {
       await cleanup();
     }

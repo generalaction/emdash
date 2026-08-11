@@ -46,8 +46,10 @@ export const gitRepositoryContract = defineContract({
     error: gitCommandErrorSchema,
   }),
   getDefaultBranch: fallible({
-    input: repositorySelectorSchema.extend({ remote: z.string().optional() }),
-    data: z.object({ branch: z.string() }),
+    input: repositorySelectorSchema.extend({ remote: z.string() }),
+    // Null when neither the local symbolic ref nor `remote show` knows the
+    // remote HEAD — the caller's resolver owns any further inference.
+    data: z.object({ branch: z.string().nullable() }),
     error: gitCommandErrorSchema,
   }),
 
