@@ -229,7 +229,7 @@ function resolveDropPaneId(
 
 function TerminalDragPreview({ label }: { label: string }) {
   return (
-    <div className="flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-background-secondary-1 px-2 py-1 text-sm opacity-80 shadow-lg">
+    <div className="surface-paper flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-(--em-surface) px-2 py-1 text-sm opacity-80 shadow-lg">
       <span className="max-w-[200px] truncate">{label}</span>
     </div>
   );

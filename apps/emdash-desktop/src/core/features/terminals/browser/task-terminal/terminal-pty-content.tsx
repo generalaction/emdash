@@ -147,7 +147,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                     onFind={openSearch}
                     className="h-full w-full"
                     themeOverride={{
-                      background: cssVar('--background'),
+                      background: cssVar('--em-surface-paper'),
                     }}
                     paddingBottom={terminalPaddingBottom}
                     onEnterPress={onEnterPress}

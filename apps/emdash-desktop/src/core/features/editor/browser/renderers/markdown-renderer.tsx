@@ -62,7 +62,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const openLink = useMarkdownLinkOpener(openWorkspaceLink);
 
   return (
-    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
+    <div className="relative h-full overflow-y-auto bg-(--em-surface)">
       <Markdown
         content={content}
         variant="full"

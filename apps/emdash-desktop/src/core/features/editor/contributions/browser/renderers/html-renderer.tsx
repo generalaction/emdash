@@ -112,7 +112,7 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
   }, [filePath, workspacePath, pane]);
 
   return (
-    <div className="h-full w-full overflow-hidden bg-background-secondary-1">
+    <div className="h-full w-full overflow-hidden bg-(--em-surface)">
       {processedHtml !== null ? (
         <iframe
           ref={iframeRef}

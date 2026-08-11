@@ -198,7 +198,7 @@ const DiffContentPreview = observer(function DiffContentPreview({
   const status = sideStatus(side);
   if (status.kind !== 'ready' || !handle) {
     return (
-      <div className="relative h-full bg-background-secondary-1">
+      <div className="relative h-full bg-(--em-surface)">
         <DiffPreviewStatusOverlay status={status} />
       </div>
     );
@@ -224,7 +224,7 @@ const DiffContentPreview = observer(function DiffContentPreview({
   };
 
   return (
-    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
+    <div className="relative h-full overflow-y-auto bg-(--em-surface)">
       <Markdown
         content={content}
         variant="full"
@@ -255,7 +255,7 @@ function DiffPreviewStatusOverlay({ status }: { status: ContentStatus }) {
         : 'Loading file...';
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background-secondary-1 text-xs text-foreground-passive">
+    <div className="absolute inset-0 flex items-center justify-center bg-(--em-surface) text-xs text-foreground-passive">
       <div className="flex items-center gap-2">
         {status.kind === 'loading' ? <Spinner size="sm" /> : null}
         <span>{message}</span>

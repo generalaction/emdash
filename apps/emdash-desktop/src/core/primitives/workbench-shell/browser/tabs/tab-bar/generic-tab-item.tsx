@@ -134,8 +134,10 @@ export const GenericTabItem = observer(function GenericTabItem({
           title={fullTitle}
           data-tabid={tab.tabId}
           className={cn(
-            'group relative flex h-full flex-col bg-background-secondary hover:bg-background-secondary-1 text-sm hover:bg-muted',
-            tab.isActive && 'bg-background-secondary-1 text-foreground-muted',
+            'group relative flex h-full flex-col text-sm',
+            tab.isActive
+              ? 'bg-(--em-surface-selected) text-foreground-muted'
+              : 'hover:bg-(--em-surface-hover)',
             isFocusedPane && 'text-foreground'
           )}
         >
@@ -192,7 +194,7 @@ export const GenericTabItem = observer(function GenericTabItem({
  */
 export function GenericTabDragPreview({ preSlot, label }: { preSlot?: ReactNode; label: string }) {
   return (
-    <div className="flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-background-secondary-1 px-2 py-1 text-sm opacity-80 shadow-lg">
+    <div className="surface-paper flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-(--em-surface) px-2 py-1 text-sm opacity-80 shadow-lg">
       {preSlot}
       <span className="max-w-[200px] truncate">{label}</span>
     </div>

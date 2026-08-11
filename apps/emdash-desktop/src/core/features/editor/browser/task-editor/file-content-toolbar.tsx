@@ -19,7 +19,7 @@ export const FileContentToolbar = observer(function FileContentToolbar({
     ? relativeToWorkspace(workspace.path, tab.path)
     : tab.displayPath;
   return (
-    <div className="flex h-[41px] shrink-0 items-center justify-between gap-2 border-b border-border bg-background-secondary-1 px-2">
+    <div className="flex h-[41px] shrink-0 items-center justify-between gap-2 border-b border-border bg-(--em-surface) px-2">
       <span
         className="min-w-0 flex-1 truncate text-xs text-foreground-passive"
         title={tab.displayPath}

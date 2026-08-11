@@ -50,7 +50,7 @@ export const PaneContent = observer(function PaneContent({
 
   if (!hasAnyTab) {
     return (
-      <div ref={setContentRef} className="relative h-full">
+      <div ref={setContentRef} className="surface-paper relative h-full bg-(--em-surface)">
         {isOverContent && (
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
         )}
@@ -62,7 +62,7 @@ export const PaneContent = observer(function PaneContent({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TabBar actionsSlot={actionsSlot} />
-      <div ref={setContentRef} className="relative min-h-0 flex-1">
+      <div ref={setContentRef} className="surface-paper relative min-h-0 flex-1 bg-(--em-surface)">
         {/*
          * PaneDimensionProvider is placed here (below the TabBar, not around
          * the entire PaneContent) so its ResizeObserver only measures the

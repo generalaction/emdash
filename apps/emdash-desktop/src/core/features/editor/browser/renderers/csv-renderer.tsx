@@ -25,7 +25,7 @@ export const CsvRenderer = observer(function CsvRenderer({ tab }: CsvRendererPro
   );
 
   return (
-    <div className="h-full w-full overflow-hidden bg-background-secondary-1">
+    <div className="h-full w-full overflow-hidden bg-(--em-surface)">
       {parsed.rows.length ? (
         <div className="h-full overflow-auto">
           <table className="min-w-full border-separate border-spacing-0 cursor-text text-left text-xs">
@@ -43,10 +43,7 @@ export const CsvRenderer = observer(function CsvRenderer({ tab }: CsvRendererPro
             </thead>
             <tbody>
               {bodyRows.map((row, rowIndex) => (
-                <tr
-                  key={rowIndex}
-                  className="odd:bg-background-secondary-1 even:bg-background-secondary-2"
-                >
+                <tr key={rowIndex} className="odd:bg-(--em-surface) even:bg-background-secondary-2">
                   {normalizeRow(row, columnCount).map((cell, cellIndex) => (
                     <td
                       key={cellIndex}
@@ -60,7 +57,7 @@ export const CsvRenderer = observer(function CsvRenderer({ tab }: CsvRendererPro
             </tbody>
           </table>
           {parsed.truncatedRows > 0 || parsed.truncatedColumns > 0 ? (
-            <div className="sticky bottom-0 border-t border-border bg-background-secondary-1 px-3 py-2 text-xs text-foreground-passive">
+            <div className="sticky bottom-0 border-t border-border bg-(--em-surface) px-3 py-2 text-xs text-foreground-passive">
               Preview capped at{' '}
               {parsed.truncatedRows > 0 ? `${MAX_PREVIEW_ROWS.toLocaleString()} rows` : null}
               {parsed.truncatedRows > 0 && parsed.truncatedColumns > 0 ? ' and ' : null}

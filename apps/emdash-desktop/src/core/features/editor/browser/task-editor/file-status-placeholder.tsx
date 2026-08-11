@@ -96,7 +96,7 @@ export const FileStatusPlaceholder = observer(function FileStatusPlaceholder({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-background-secondary-1">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-(--em-surface)">
       {children}
     </div>
   );

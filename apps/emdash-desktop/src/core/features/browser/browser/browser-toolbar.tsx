@@ -148,7 +148,7 @@ export function BrowserToolbar({
   const zoomFactor = session.zoomFactor;
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-(--em-surface) px-2">
       <ToolbarIconButton
         label="Back"
         disabled={!adapter || !session.canGoBack}

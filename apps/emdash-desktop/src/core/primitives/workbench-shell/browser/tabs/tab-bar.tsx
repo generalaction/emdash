@@ -25,7 +25,7 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
     // focusActiveContent() defers the focus call until after they settle.
     // The inline rename input stops propagation, so it keeps focus while editing.
     <div
-      className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary"
+      className="task-tab-bar surface-paper flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-(--em-surface)"
       onClick={() => pane.focusActiveContent()}
     >
       <div

@@ -822,7 +822,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const showHero = showComposer && store.isEmpty;
 
   return (
-    <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
+    <div ref={rootRef} className="surface-paper relative h-full overflow-hidden bg-(--em-surface)">
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
@@ -848,7 +848,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
             // The library-owned overlay slot is pointer-events: none by design;
             // opt back in so the Sign in / Retry buttons are clickable.
             className={`pointer-events-auto absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
-              store.loadError !== null || store.historyLoading ? 'bg-background-secondary-1' : ''
+              store.loadError !== null || store.historyLoading ? 'bg-(--em-surface)' : ''
             }`}
             aria-live="polite"
           >

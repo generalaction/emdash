@@ -330,7 +330,7 @@
     --status-cancelled: color(display-p3 0.5582 0.5525 0.554);
 
     /* Monaco editor */
-    --monaco-bg: var(--background);
+    --monaco-bg: var(--em-surface-paper);
     --monaco-fg: var(--foreground);
     --monaco-error-fg: var(--foreground-destructive);
 
@@ -348,7 +348,7 @@
     --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
 
     /* xterm terminals */
-    --xterm-bg: var(--background);
+    --xterm-bg: var(--em-surface-paper);
     --xterm-fg: var(--foreground);
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
@@ -639,7 +639,7 @@
     --status-cancelled: color(display-p3 0.5721 0.5663 0.5679);
 
     /* Monaco editor */
-    --monaco-bg: var(--background-1);
+    --monaco-bg: var(--em-surface-paper);
     --monaco-fg: var(--foreground-muted);
     --monaco-error-fg: color(display-p3 1 0.592 0.49);
 
@@ -661,7 +661,7 @@
     --monaco-inactive-selection-bg: color(display-p3 0.3 0.52 0.82 / 0.35);
 
     /* xterm terminals */
-    --xterm-bg: var(--background-1);
+    --xterm-bg: var(--em-surface-paper);
     --xterm-fg: var(--foreground);
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
@@ -746,7 +746,7 @@
   --chat-fg: var(--foreground);
   --chat-fg-muted: var(--foreground-muted);
   --chat-fg-passive: var(--foreground-passive);
-  --chat-bg: var(--background);
+  --chat-bg: var(--em-surface-paper);
   --chat-bg-1: var(--background-1);
   --chat-bg-2: var(--background-2);
   --chat-bg-3: var(--background-3);
@@ -790,7 +790,7 @@
   --chat-fg: var(--foreground);
   --chat-fg-muted: var(--foreground-muted);
   --chat-fg-passive: var(--foreground-passive);
-  --chat-bg: var(--background-secondary-1);
+  --chat-bg: var(--em-surface-paper);
   --chat-bg-1: var(--background-1);
   --chat-bg-2: var(--background-2);
   --chat-bg-3: var(--background-3);
