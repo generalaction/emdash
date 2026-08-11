@@ -1,5 +1,5 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import type { Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { watchFileContent } from '@core/features/files/api/browser/file-content';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import {
@@ -10,6 +10,7 @@ import {
   type ProjectSettingsOverrideState,
   type ProjectSettingsPage,
   type ProjectSettingsWriteTargetOption,
+  type StoredProjectGitSettings,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -66,6 +67,11 @@ export class ProjectSettingsStore {
     return this.pageData.data?.settings ?? null;
   }
 
+  /** Stored explicit git choices (absence = infer) — the resolver input. */
+  get storedGitSettings(): StoredProjectGitSettings | null {
+    return this.pageData.data?.storedGitSettings ?? null;
+  }
+
   get defaults(): ProjectSettingsPage['defaults'] | null {
     return this.pageData.data?.defaults ?? null;
   }
@@ -91,21 +97,24 @@ export class ProjectSettingsStore {
     return this.pageData.data;
   }
 
+  /**
+   * Persists the settings, then reloads the page so callers see the canonical
+   * stored model (node may lazily demote values matching inference on read).
+   */
   async save(
     settings: ProjectSettings
-  ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
+  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
     const result = await (
       await getProjectsWireClient()
     ).updateProjectSettings({
       projectId: this.projectId,
       settings,
     });
-    if (result.success) {
-      const current = this.pageData.data;
-      if (current) this.pageData.setValue({ ...current, settings: result.data });
-      else this.pageData.invalidate();
-    }
-    return result;
+    if (!result.success) return result;
+    await this.pageData.load();
+    const page = this.pageData.data;
+    if (!page) return err({ type: 'error' });
+    return ok(page);
   }
 
   async writeConfigToRepo(

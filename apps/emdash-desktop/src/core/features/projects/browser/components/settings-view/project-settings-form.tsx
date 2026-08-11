@@ -11,6 +11,7 @@ import type {
   ProjectSettingsOverrideState,
   ProjectSettingsPage,
   ProjectSettingsWriteTargetOption,
+  StoredProjectGitSettings,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { Project, UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -23,12 +24,15 @@ export interface ProjectSettingsFormProps {
   projectId: string;
   projectType: Project['type'];
   initial: ProjectSettings;
+  storedGitSettings: StoredProjectGitSettings;
   defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
+  save: (
+    settings: ProjectSettings
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
@@ -43,6 +47,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   projectType,
   initial,
+  storedGitSettings,
   defaults,
   writeTargets,
   overrideState,
@@ -54,10 +59,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 }: ProjectSettingsFormProps) {
   const repo = getGitRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
-  const baseRemote = repo?.baseRemote.name ?? 'origin';
   const formModel = useProjectSettingsForm({
     initial,
-    baseRemote,
+    storedGitSettings,
     remotes,
     writeTargets,
     overrideState,

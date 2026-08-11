@@ -4,9 +4,11 @@ import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import {
   areFormStatesEqual,
   formToSettings,
+  formToStoredGitSettings,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   settingsToForm,
+  storedDefaultBranchToBranchRef,
   type FormState,
 } from './project-settings-form-model';
 
@@ -27,13 +29,13 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     defaultBranch: null,
     baseRemote: '',
     pushRemote: '',
-    githubAccountId: undefined,
+    githubAccount: undefined,
     ...overrides,
   };
 }
 
 describe('project settings form model', () => {
-  it('converts project settings into editable form state', () => {
+  it('converts project settings and stored git choices into editable form state', () => {
     const form = settingsToForm(
       {
         preservePatterns: ['.env', '.env.local'],
@@ -46,12 +48,13 @@ describe('project settings form model', () => {
           run: 'pnpm dev',
           teardown: 'docker compose down',
         },
-        worktreeDirectory: '../worktrees',
-        defaultBranch: 'upstream/main',
+      },
+      {
+        worktreeRoot: '../worktrees',
+        defaultBranch: { remote: 'upstream', branch: 'main' },
         baseRemote: 'upstream',
         pushRemote: 'origin',
       },
-      'origin',
       [origin, upstream]
     );
 
@@ -68,15 +71,36 @@ describe('project settings form model', () => {
       defaultBranch: { type: 'remote', branch: 'main', remote: upstream },
       baseRemote: 'upstream',
       pushRemote: 'origin',
-      githubAccountId: undefined,
+      githubAccount: undefined,
     });
   });
 
-  it('uses the configured remote for object default branch settings', () => {
-    expect(
-      settingsToForm({ defaultBranch: { name: 'develop', remote: true } }, 'origin', [origin])
-        .defaultBranch
-    ).toEqual({ type: 'remote', branch: 'develop', remote: origin });
+  it('leaves unset git choices unset instead of inventing defaults', () => {
+    const form = settingsToForm({}, {}, [origin]);
+
+    expect(form.worktreeDirectory).toBe('');
+    expect(form.defaultBranch).toBeNull();
+    expect(form.baseRemote).toBe('');
+    expect(form.pushRemote).toBe('');
+    expect(form.githubAccount).toBeUndefined();
+  });
+
+  it('maps stored default branches to branch refs', () => {
+    expect(storedDefaultBranchToBranchRef({ remote: null, branch: 'main' }, [origin])).toEqual({
+      type: 'local',
+      branch: 'main',
+    });
+    expect(storedDefaultBranchToBranchRef({ remote: 'origin', branch: 'main' }, [origin])).toEqual({
+      type: 'remote',
+      branch: 'main',
+      remote: origin,
+    });
+    // A stored remote that no longer exists keeps its name for display.
+    expect(storedDefaultBranchToBranchRef({ remote: 'gone', branch: 'main' }, [origin])).toEqual({
+      type: 'remote',
+      branch: 'main',
+      remote: { name: 'gone', url: '' },
+    });
   });
 
   it('preserves legacy script arrays as newline separated commands', () => {
@@ -86,7 +110,7 @@ describe('project settings form model', () => {
       },
     } as unknown as ProjectSettings;
 
-    expect(settingsToForm(legacySettings, 'origin', [origin]).scriptSetup).toBe(
+    expect(settingsToForm(legacySettings, {}, [origin]).scriptSetup).toBe(
       'pnpm install\npnpm build'
     );
   });
@@ -123,29 +147,57 @@ describe('project settings form model', () => {
     });
   });
 
-  it('preserves configured GitHub account ids in form state', () => {
+  it('keeps the stored github account representation distinct across all three states', () => {
     expect(
-      settingsToForm({ githubAccountId: 'github.com:42' }, 'origin', [origin]).githubAccountId
-    ).toBe('github.com:42');
+      settingsToForm({}, { githubAccount: { kind: 'account', accountId: 'row-42' } }, [origin])
+        .githubAccount
+    ).toEqual({ kind: 'account', accountId: 'row-42' });
+    expect(settingsToForm({}, { githubAccount: { kind: 'none' } }, [origin]).githubAccount).toEqual(
+      { kind: 'none' }
+    );
+    expect(settingsToForm({}, {}, [origin]).githubAccount).toBeUndefined();
   });
 
-  it('keeps explicit no GitHub account distinct from uninitialized settings', () => {
+  it('persists explicit GitHub account choices through the legacy wire shape', () => {
     expect(
-      settingsToForm({ githubAccountId: null }, 'origin', [origin]).githubAccountId
-    ).toBeNull();
-    expect(settingsToForm({}, 'origin', [origin]).githubAccountId).toBeUndefined();
-  });
-
-  it('persists explicit GitHub account choices', () => {
-    expect(formToSettings(makeForm({ githubAccountId: ' github.com:42 ' }))).toEqual({
+      formToSettings(makeForm({ githubAccount: { kind: 'account', accountId: 'row-42' } }))
+    ).toEqual({
       tmux: false,
-      githubAccountId: 'github.com:42',
+      githubAccountId: 'row-42',
     });
-    expect(formToSettings(makeForm({ githubAccountId: null }))).toEqual({
+    expect(formToSettings(makeForm({ githubAccount: { kind: 'none' } }))).toEqual({
       tmux: false,
       githubAccountId: null,
     });
-    expect(formToSettings(makeForm({ githubAccountId: undefined }))).toEqual({ tmux: false });
+    expect(formToSettings(makeForm({ githubAccount: undefined }))).toEqual({ tmux: false });
+  });
+
+  it('maps pending form state to resolver input with blanks meaning infer', () => {
+    expect(formToStoredGitSettings(makeForm())).toEqual({});
+    expect(
+      formToStoredGitSettings(
+        makeForm({
+          worktreeDirectory: ' ../worktrees ',
+          defaultBranch: { type: 'remote', branch: 'main', remote: origin },
+          baseRemote: 'origin',
+          pushRemote: 'upstream',
+          githubAccount: { kind: 'none' },
+        })
+      )
+    ).toEqual({
+      worktreeRoot: '../worktrees',
+      defaultBranch: { remote: 'origin', branch: 'main' },
+      baseRemote: 'origin',
+      pushRemote: 'upstream',
+      githubAccount: { kind: 'none' },
+    });
+  });
+
+  it('drops a push remote equal to the base remote, matching what a save persists', () => {
+    const form = makeForm({ baseRemote: 'origin', pushRemote: 'origin' });
+
+    expect(formToStoredGitSettings(form).pushRemote).toBeUndefined();
+    expect(formToSettings(form).pushRemote).toBeUndefined();
   });
 
   it('omits default auto-run lifecycle settings from persisted form settings', () => {

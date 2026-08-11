@@ -1,24 +1,48 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
-import { Button, Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  Select,
+  Separator,
+  Switch,
+} from '@emdash/ui/react/primitives';
 import { Folder, Github } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
+import { observer } from 'mobx-react-lite';
+import { useState, type ReactNode } from 'react';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import {
+  resolveRendererEffectiveSettings,
+  useEffectiveSettingsInputs,
+} from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
 } from '@core/features/projects/contributions/browser/github-account-select';
+import {
+  BrokenSettingNotice,
+  ProvenanceBadge,
+  ProvenanceSourceLine,
+  ResetProvenanceButton,
+} from '@core/features/projects/contributions/browser/settings-provenance';
+import type { ProvenanceFlavor } from '@core/features/projects/contributions/browser/settings-provenance-labels';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import type { Provenance, Resolved } from '@core/primitives/project-settings/api';
+import { formatDefaultBranch } from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
-  createProjectGitHubAccountSelectState,
-  NO_GITHUB_ACCOUNT,
-} from './project-github-account-select-state';
+  formToStoredGitSettings,
+  storedDefaultBranchToBranchRef,
+  type FormState,
+  type FormUpdate,
+} from '../project-settings-form-model';
 
-const SAME_AS_BASE_REMOTE = '__same_as_base_remote__';
+/** File-local Select option encodings; never stored or exported. */
+const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
 
 type BaseProjectSettingsSectionProps = {
   projectId: string;
@@ -30,7 +54,65 @@ type BaseProjectSettingsSectionProps = {
   update: FormUpdate;
 };
 
-export function BaseProjectSettingsSection({
+/**
+ * Per-field provenance treatment (spec: github-git-settings §9, prototype
+ * Variant A): label + badge + reset affordance, source line for inferred
+ * values, broken-setting warning below the label row. Provenance is resolved
+ * over the *pending* form state so edits preview exactly what a save would
+ * resolve to.
+ */
+function ProvenanceField({
+  label,
+  description,
+  resolved,
+  flavor = 'inferred',
+  isExplicit,
+  onReset,
+  children,
+}: {
+  label: string;
+  description: string;
+  resolved: Resolved<unknown> | null;
+  flavor?: ProvenanceFlavor;
+  /** Whether the form currently holds an explicit value (shows the reset affordance). */
+  isExplicit: boolean;
+  onReset: () => void;
+  children: ReactNode;
+}) {
+  const provenance: Provenance | null = resolved?.provenance ?? null;
+  return (
+    <Field.Root>
+      <div className="flex items-center gap-2">
+        <Field.Label>{label}</Field.Label>
+        {provenance ? <ProvenanceBadge provenance={provenance} flavor={flavor} /> : null}
+        {provenance && isExplicit ? (
+          <ResetProvenanceButton flavor={flavor} onReset={onReset} />
+        ) : null}
+      </div>
+      <Field.Description className="text-foreground-muted">{description}</Field.Description>
+      {provenance?.kind === 'broken-setting' ? (
+        <BrokenSettingNotice
+          staleValue={provenance.staleValue}
+          effectiveValue={brokenFallbackDisplay(resolved)}
+        />
+      ) : null}
+      {children}
+      {provenance ? <ProvenanceSourceLine provenance={provenance} /> : null}
+    </Field.Root>
+  );
+}
+
+function brokenFallbackDisplay(resolved: Resolved<unknown> | null): string | null {
+  const value = resolved?.value ?? null;
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && 'branch' in value) {
+    return formatDefaultBranch(value as { remote: string | null; branch: string });
+  }
+  return String(value);
+}
+
+export const BaseProjectSettingsSection = observer(function BaseProjectSettingsSection({
   projectId,
   form,
   defaultWorktreeDirectory,
@@ -39,13 +121,11 @@ export function BaseProjectSettingsSection({
   worktreeDirectoryError,
   update,
 }: BaseProjectSettingsSectionProps) {
-  const baseRemoteValue = form.baseRemote || 'origin';
-  const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
-  const { data: githubAccounts = [] } = useGitHubAccounts();
-  const githubAccountSelect = useMemo(
-    () => createProjectGitHubAccountSelectState(form.githubAccountId, githubAccounts),
-    [form.githubAccountId, githubAccounts]
-  );
+  const inputs = useEffectiveSettingsInputs(projectId);
+  const effective = inputs
+    ? resolveRendererEffectiveSettings(inputs, formToStoredGitSettings(form))
+    : null;
+  const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const handleBrowseWorktreeDirectory = async () => {
@@ -56,7 +136,7 @@ export function BaseProjectSettingsSection({
       const result = await (
         await getHostClient()
       ).openSelectDirectoryDialog({
-        title: 'Select worktree directory',
+        title: 'Select worktree root',
         message: 'Choose the directory where worktrees should be created.',
         defaultPath: form.worktreeDirectory || defaultWorktreeDirectory,
       });
@@ -68,26 +148,58 @@ export function BaseProjectSettingsSection({
     }
   };
 
+  const accountProvenance = effective?.githubAccount.provenance ?? null;
+  const accountUnresolvable = accountProvenance?.kind === 'unresolvable';
+  const accountSelectValue =
+    form.githubAccount === undefined
+      ? ''
+      : form.githubAccount.kind === 'none'
+        ? EXPLICIT_NO_ACCOUNT_OPTION
+        : form.githubAccount.accountId;
+
+  const effectiveDefaultBranchRef: GitBranchRef | null = storedDefaultBranchToBranchRef(
+    effective?.defaultBranch.value ?? undefined,
+    remotes
+  );
+
   return (
     <>
-      <Field.Root>
-        <Field.Label>GitHub account</Field.Label>
-        <Field.Description className="text-foreground-muted">
-          Used for pull requests and issues in this project.
-        </Field.Description>
+      <ProvenanceField
+        label="GitHub account"
+        description="Used for pull requests and issues in this project."
+        resolved={effective?.githubAccount ?? null}
+        isExplicit={form.githubAccount !== undefined}
+        onReset={() => update('githubAccount', undefined)}
+      >
+        {accountUnresolvable ? (
+          <Alert.Root status="destructive">
+            <Alert.Title>Account no longer available</Alert.Title>
+            <Alert.Description>
+              The GitHub account set for this project is no longer connected or does not match this
+              repository's host. GitHub features stay paused until you pick an account or reset to
+              inferred.
+            </Alert.Description>
+          </Alert.Root>
+        ) : null}
         <Select.Root
-          value={githubAccountSelect.selectValue}
-          onValueChange={(value) =>
-            update('githubAccountId', value === NO_GITHUB_ACCOUNT ? null : (value ?? null))
-          }
+          value={accountSelectValue}
+          onValueChange={(value) => {
+            if (!value) return;
+            update(
+              'githubAccount',
+              value === EXPLICIT_NO_ACCOUNT_OPTION
+                ? { kind: 'none' }
+                : { kind: 'account', accountId: value }
+            );
+          }}
         >
           <Select.Trigger className="w-full min-w-0">
-            {githubAccountSelect.selectedAccount ? (
-              <GitHubAccountSelectLabel account={githubAccountSelect.selectedAccount} />
+            {effective?.githubAccount.value ? (
+              <GitHubAccountSelectLabel account={effective.githubAccount.value} />
             ) : (
               <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                 <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                {githubAccountSelect.missingAccountId ? (
+                {accountUnresolvable ? (
                   <span className="flex min-w-0 items-center gap-2 truncate">
                     <span className="min-w-0 truncate">Unavailable GitHub account</span>
                     <span className="shrink-0 text-sm text-foreground-muted">
@@ -101,32 +213,35 @@ export function BaseProjectSettingsSection({
             )}
           </Select.Trigger>
           <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <Select.Item value={NO_GITHUB_ACCOUNT} className="py-2">
+            <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
               <div className="flex min-w-0 items-center gap-2">
                 <Github className="text-muted-foreground h-4 w-4 shrink-0" />
                 <span className="relative -top-px shrink-0">No GitHub account</span>
               </div>
             </Select.Item>
-            {githubAccountSelect.accounts.map((account) => (
+            {accounts.map((account) => (
               <GitHubAccountSelectItem key={account.accountId} account={account} />
             ))}
           </Select.Content>
         </Select.Root>
-      </Field.Root>
+      </ProvenanceField>
 
       <Separator />
 
-      <Field.Root>
-        <Field.Label>Worktree directory</Field.Label>
-        <Field.Description className="text-foreground-muted">
-          Change where worktrees are created.
-        </Field.Description>
+      <ProvenanceField
+        label="Worktree root"
+        description="Where task worktrees are created."
+        resolved={effective?.worktreeRoot ?? null}
+        flavor="inherited"
+        isExplicit={form.worktreeDirectory.trim() !== ''}
+        onReset={() => update('worktreeDirectory', '')}
+      >
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Input
               aria-invalid={worktreeDirectoryError ? true : undefined}
               className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
-              placeholder={defaultWorktreeDirectory}
+              placeholder={effective?.worktreeRoot.value ?? defaultWorktreeDirectory}
               value={form.worktreeDirectory}
               onChange={(e) => update('worktreeDirectory', e.target.value)}
             />
@@ -148,55 +263,57 @@ export function BaseProjectSettingsSection({
             </Button>
           ) : null}
         </div>
-      </Field.Root>
+      </ProvenanceField>
 
       <Separator />
 
-      <Field.Root>
-        <Field.Label>Default branch</Field.Label>
-        <Field.Description className="text-foreground-muted">
-          The branch new tasks are created from by default.
-        </Field.Description>
+      <ProvenanceField
+        label="Default branch"
+        description="The branch new tasks are created from by default."
+        resolved={effective?.defaultBranch ?? null}
+        isExplicit={form.defaultBranch !== null}
+        onReset={() => update('defaultBranch', null)}
+      >
         <ProjectBranchSelector
           projectId={projectId}
-          value={form.defaultBranch ?? undefined}
+          value={form.defaultBranch ?? effectiveDefaultBranchRef ?? undefined}
           onValueChange={(branch: GitBranchRef) => update('defaultBranch', branch)}
         />
-      </Field.Root>
+      </ProvenanceField>
 
       <Separator />
 
-      <Field.Root>
-        <Field.Label>Base remote</Field.Label>
-        <Field.Description className="text-foreground-muted">
-          Used for fetching remote branches, choosing task base branches and targeting pull
-          requests.
-        </Field.Description>
+      <ProvenanceField
+        label="Base remote"
+        description="Used for fetching remote branches, choosing task base branches and targeting pull requests."
+        resolved={effective?.baseRemote ?? null}
+        isExplicit={form.baseRemote.trim() !== ''}
+        onReset={() => update('baseRemote', '')}
+      >
         <RemoteSelector
           remotes={remotes}
-          value={baseRemoteValue}
+          value={form.baseRemote || (effective?.baseRemote.value ?? '')}
           onValueChange={(value) => update('baseRemote', value)}
           className="w-full"
         />
-      </Field.Root>
+      </ProvenanceField>
 
       <Separator />
 
-      <Field.Root>
-        <Field.Label>Push remote</Field.Label>
-        <Field.Description className="text-foreground-muted">
-          Used when publishing task branches and pushing commits.
-        </Field.Description>
+      <ProvenanceField
+        label="Push remote"
+        description="Used when publishing task branches and pushing commits."
+        resolved={effective?.pushRemote ?? null}
+        isExplicit={form.pushRemote.trim() !== ''}
+        onReset={() => update('pushRemote', '')}
+      >
         <RemoteSelector
           remotes={remotes}
-          value={pushRemoteValue}
-          onValueChange={(value) =>
-            update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : value)
-          }
-          specialOptions={[{ value: SAME_AS_BASE_REMOTE, label: 'Same as base remote' }]}
+          value={form.pushRemote || (effective?.pushRemote.value ?? '')}
+          onValueChange={(value) => update('pushRemote', value)}
           className="w-full"
         />
-      </Field.Root>
+      </ProvenanceField>
 
       <Separator />
 
@@ -211,4 +328,4 @@ export function BaseProjectSettingsSection({
       </Field.Root>
     </>
   );
-}
+});
