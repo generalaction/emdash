@@ -32,6 +32,13 @@ export class AcpAuthLoginBinding {
     providerId: string;
     methodId: string;
     terminal: Pick<Terminal, 'reset' | 'write'>;
+    /**
+     * Grid measured from the mounted terminal, so the login PTY spawns at the
+     * right size instead of emitting a burst of wrongly-wrapped output at the
+     * server default. Omitted when the terminal could not be measured yet;
+     * the post-attach resize then converges the PTY.
+     */
+    initialDims?: { cols: number; rows: number };
   }): Promise<AcpAuthLoginBinding> {
     const scope = createScope({ label: `auth-login:${args.providerId}` });
     const cancellation = { cancelOnDispose: true };
@@ -52,6 +59,7 @@ export class AcpAuthLoginBinding {
           host: args.host,
           providerId: args.providerId,
           methodId: args.methodId,
+          ...(args.initialDims ?? {}),
         },
         { signal: scope.signal }
       );

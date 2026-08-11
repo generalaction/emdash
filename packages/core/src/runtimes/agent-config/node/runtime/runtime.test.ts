@@ -180,6 +180,17 @@ describe('AgentConfigRuntime', () => {
     await runtime.dispose();
   });
 
+  it('spawns the login PTY at client-provided dimensions', async () => {
+    const ptySpawner = makePtySpawner();
+    const { runtime } = makeRuntime({ ptySpawner });
+
+    const started = await runtime.startLogin('claude', 'login', { cols: 137, rows: 41 });
+
+    expect(started).toEqual(ok(undefined));
+    expect(ptySpawner.specs[0]).toMatchObject({ cols: 137, rows: 41 });
+    await runtime.dispose();
+  });
+
   it('cancels login by releasing the managed PTY', async () => {
     const ptySpawner = makePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });

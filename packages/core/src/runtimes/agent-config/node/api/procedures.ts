@@ -18,8 +18,14 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     startLogin(input: {
       providerId: string;
       methodId: string;
+      cols?: number;
+      rows?: number;
     }): Promise<Result<void, AgentConfigAuthError>> {
-      return runtime.startLogin(input.providerId, input.methodId);
+      const dimensions =
+        input.cols !== undefined && input.rows !== undefined
+          ? { cols: input.cols, rows: input.rows }
+          : undefined;
+      return runtime.startLogin(input.providerId, input.methodId, dimensions);
     },
     cancelLogin(input: { providerId: string }): Promise<Result<void, AgentConfigAuthError>> {
       return runtime.cancelLogin(input.providerId);

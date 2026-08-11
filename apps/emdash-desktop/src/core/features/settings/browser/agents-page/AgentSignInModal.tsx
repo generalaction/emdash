@@ -68,6 +68,7 @@ export function AgentSignInModal({
     let animationFrame: number | null = null;
     let metricsRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let lastAppliedHostSize: LoginHostSize | null = null;
+    let measuredDims: { cols: number; rows: number } | null = null;
     const terminal = createLoginTerminal();
     terminal.open(terminalHost);
     styleLoginTerminal(terminal);
@@ -101,6 +102,7 @@ export function AgentSignInModal({
       });
       if (!dims) return;
       lastAppliedHostSize = hostSize;
+      measuredDims = dims;
       if (terminal.cols !== dims.cols || terminal.rows !== dims.rows) {
         terminal.resize(dims.cols, dims.rows);
       }
@@ -111,6 +113,9 @@ export function AgentSignInModal({
       animationFrame = requestAnimationFrame(() => resize());
     });
     observer.observe(terminalHost);
+    // Measure before startLogin so the PTY spawns at the real grid. On the
+    // cold path (cell metrics not ready yet) this stays null and the server
+    // spawns at its defaults; the post-attach resize converges it.
     resize();
 
     void AcpAuthLoginBinding.create({
@@ -118,6 +123,7 @@ export function AgentSignInModal({
       providerId,
       methodId,
       terminal,
+      initialDims: measuredDims ?? undefined,
     }).then(
       (binding) => {
         if (disposed) {

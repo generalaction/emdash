@@ -61,13 +61,18 @@ describe('createAgentsWireController', () => {
         host: remoteHost,
         providerId: 'claude',
         methodId: 'browser',
+        cols: 137,
+        rows: 41,
       })
     ).resolves.toEqual(ok(undefined));
 
     expect(client).toHaveBeenNthCalledWith(1, remoteHost);
     expect(client).toHaveBeenNthCalledWith(2, remoteHost);
     expect(refreshAuthStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
-    expect(startLogin).toHaveBeenCalledWith({ providerId: 'claude', methodId: 'browser' }, {});
+    expect(startLogin).toHaveBeenCalledWith(
+      { providerId: 'claude', methodId: 'browser', cols: 137, rows: 41 },
+      {}
+    );
   });
 
   it('returns RuntimeResolveError from fallible login procedures', async () => {

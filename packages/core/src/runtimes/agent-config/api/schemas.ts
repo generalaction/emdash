@@ -100,6 +100,10 @@ export const hooksStatusSchema = z.object({
 export const startLoginCommandSchema = z.object({
   providerId: z.string(),
   methodId: z.string(),
+  // Initial PTY grid, measured by the client's terminal before the login
+  // starts. Optional for back-compat; the runtime falls back to its defaults.
+  cols: z.number().int().positive().optional(),
+  rows: z.number().int().positive().optional(),
 });
 
 export const providerCommandSchema = z.object({ providerId: z.string() });

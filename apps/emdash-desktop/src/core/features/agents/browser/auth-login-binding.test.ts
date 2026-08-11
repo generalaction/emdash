@@ -73,6 +73,26 @@ describe('AcpAuthLoginBinding', () => {
     await binding.dispose();
   });
 
+  it('passes the measured initial grid through startLogin', async () => {
+    const client = runtimeClient.current as ReturnType<typeof createClient>;
+    const binding = await AcpAuthLoginBinding.create({
+      ...createArgs(),
+      initialDims: { cols: 137, rows: 41 },
+    });
+
+    expect(client.startLogin).toHaveBeenCalledWith(
+      {
+        host: LOCAL_HOST_REF,
+        providerId: 'provider',
+        methodId: 'browser',
+        cols: 137,
+        rows: 41,
+      },
+      expect.anything()
+    );
+    await binding.dispose();
+  });
+
   it('cancels login once during idempotent disposal', async () => {
     const client = runtimeClient.current as ReturnType<typeof createClient>;
     const binding = await AcpAuthLoginBinding.create(createArgs());

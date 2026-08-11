@@ -21,7 +21,7 @@ import {
 } from '#runtimes/agent-config/node/state/live-models';
 import type { AgentAuthStatus } from '#services/agent-plugins/api/plugins';
 import { AgentHookInstaller } from '#services/agent-plugins/node';
-import { AgentAuthManager } from './auth';
+import { AgentAuthManager, type LoginDimensions } from './auth';
 import { AgentInstallManager } from './install';
 import { AgentMcpConfigManager } from './mcp';
 import { AgentSkillsManager } from './skills';
@@ -81,8 +81,12 @@ export class AgentConfigRuntime {
     return this.auth.refreshAuthStatus(providerId);
   }
 
-  startLogin(providerId: string, methodId: string): Promise<Result<void, AgentConfigAuthError>> {
-    return this.auth.startLogin(providerId, methodId);
+  startLogin(
+    providerId: string,
+    methodId: string,
+    dimensions?: LoginDimensions
+  ): Promise<Result<void, AgentConfigAuthError>> {
+    return this.auth.startLogin(providerId, methodId, dimensions);
   }
 
   cancelLogin(providerId: string): Promise<Result<void, AgentConfigAuthError>> {

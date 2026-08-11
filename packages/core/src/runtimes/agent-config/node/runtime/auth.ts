@@ -19,10 +19,16 @@ const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 30;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/i;
 
+export type LoginDimensions = {
+  cols: number;
+  rows: number;
+};
+
 type LoginKey = {
   providerId: string;
   methodId: string;
   generation: string;
+  dimensions?: LoginDimensions;
 };
 
 type LoginSession = {
@@ -108,12 +114,13 @@ export class AgentAuthManager {
 
   async startLogin(
     providerId: string,
-    methodId: string
+    methodId: string,
+    dimensions?: LoginDimensions
   ): Promise<Result<void, AgentConfigAuthError>> {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     await this.releaseLogin(providerId, undefined, { force: true });
     const generation = randomUUID();
-    const key = { providerId, methodId, generation };
+    const key = { providerId, methodId, generation, dimensions };
     const lease = this.loginSource.acquire(key);
     this.loginLeases.set(providerId, { generation, key, lease });
     try {
@@ -176,7 +183,7 @@ export class AgentAuthManager {
   }
 
   private async createLoginSession(key: LoginKey, scope: Scope): Promise<LoginSession> {
-    const { providerId, methodId, generation } = key;
+    const { providerId, methodId, generation, dimensions } = key;
     const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, methodId);
     if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));
     const { command, args, env } = loginCommand.data;
@@ -202,8 +209,8 @@ export class AgentAuthManager {
         args,
         cwd: this.deps.agentHost.homeDir,
         env,
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS,
+        cols: dimensions?.cols ?? DEFAULT_COLS,
+        rows: dimensions?.rows ?? DEFAULT_ROWS,
       },
       {
         replaceExisting: false,
