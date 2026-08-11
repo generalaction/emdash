@@ -141,8 +141,8 @@ export function ProjectConfigImportModal({
               <label className="flex items-center gap-3 rounded-md text-sm">
                 <RadioGroup.Item value="local" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
-                  <p>Settings</p>
-                  <p className="text-foreground-muted">– local to this machine</p>
+                  <p>Personal settings</p>
+                  <p className="text-foreground-muted">– stored only on this machine</p>
                 </span>
               </label>
               <label className="flex items-center gap-3 rounded-md text-sm">

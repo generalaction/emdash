@@ -42,6 +42,17 @@ export function ShareableSettingTitle({
             {isPersonal ? (
               <Tooltip.Root>
                 <Tooltip.Trigger className="inline-flex h-4.5 items-center">
+                  <Badge variant="outline">Personal</Badge>
+                </Tooltip.Trigger>
+                <Tooltip.Content side="top" align="end" className="max-w-sm">
+                  Personal — stored on this machine, not shared with your team and not synced to
+                  other machines.
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : null}
+            {isPersonal ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger className="inline-flex h-4.5 items-center">
                   <Button
                     type="button"
                     variant="ghost"

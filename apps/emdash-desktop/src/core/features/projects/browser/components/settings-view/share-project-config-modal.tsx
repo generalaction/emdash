@@ -126,8 +126,9 @@ export function ShareProjectConfigModal({
       <Dialog.Body className="pt-0">
         <Field.Group>
           <p className="text-sm text-foreground-muted">
-            This writes the selected settings to .emdash.json in the chosen working directory.
-            Commit that file so teammates get the same project defaults after pulling.
+            This copies the selected personal settings from this machine to .emdash.json in the
+            chosen working directory. Commit that file so teammates get the same project defaults
+            after pulling.
           </p>
           <Field.Root>
             <Field.Label>Write to</Field.Label>
