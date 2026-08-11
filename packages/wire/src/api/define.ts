@@ -279,14 +279,15 @@ export function fallible(def: {
   data?: z.ZodTypeAny;
   error: z.ZodTypeAny;
 }): ProcedureDef {
-  // JSON transports omit properties whose value is undefined. No-data results accept an absent
-  // data property at the wire boundary and normalize it back to the in-memory Result<void, E>.
-  const output =
-    def.data === undefined
-      ? resultSchema(z.void().optional(), def.error).transform((result) =>
-          result.success ? { success: true as const, data: undefined } : result
-        )
-      : resultSchema(def.data, def.error);
+  // JSON transports omit properties whose value is undefined. When the data schema accepts
+  // undefined (including the no-data case), the success envelope accepts an absent data property
+  // at the wire boundary and normalizes it back to the in-memory Result shape.
+  const data = def.data ?? z.void();
+  const output = data.safeParse(undefined).success
+    ? resultSchema(data.optional(), def.error).transform((result) =>
+        result.success ? { success: true as const, data: result.data } : result
+      )
+    : resultSchema(data, def.error);
   return procedure({
     input: def.input,
     output,

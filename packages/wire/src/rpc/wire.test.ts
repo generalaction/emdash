@@ -192,6 +192,23 @@ describe('wire serve/connect', () => {
     );
   });
 
+  it('supports explicit data: z.void() fallible procedures across JSON transports', () => {
+    const fallibleContract = defineContract({
+      touch: fallible({
+        input: z.object({ id: z.string() }),
+        data: z.void(),
+        error: z.object({ type: z.literal('missing') }),
+      }),
+    });
+    const jsonRoundTrippedSuccess = JSON.parse(JSON.stringify(ok())) as unknown;
+
+    expect(jsonRoundTrippedSuccess).toEqual({ success: true });
+    expect(fallibleContract.touch.output.parse(jsonRoundTrippedSuccess)).toEqual(ok());
+    expect(fallibleContract.touch.output.parse(err({ type: 'missing' as const }))).toEqual(
+      err({ type: 'missing' })
+    );
+  });
+
   it('snapshots and subscribes to live sources with refcounted detach', async () => {
     const { connection, model } = setup();
     const topic = encodeTopic(contract.state.states.state.id, { id: 'known' });
