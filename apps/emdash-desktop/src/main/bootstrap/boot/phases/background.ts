@@ -29,7 +29,29 @@ export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntim
   }
 
   runInBackground('github-account-reconciliation', async () => {
-    await services.github.reconciliation.reconcileAtStartup();
+    // Run-once upgrade step (spec: github-git-settings §10): after the first
+    // successful run this reads one flag row and performs no backfill work.
+    try {
+      const imported = await services.github.legacyTokenImport.run();
+      if (imported.status === 'imported') {
+        log.info('Imported legacy GitHub token into account', {
+          accountId: imported.account.accountId,
+        });
+      } else if (imported.status === 'retry') {
+        log.warn(
+          'Legacy GitHub token import could not resolve the token identity; retrying next launch'
+        );
+      }
+    } catch (error) {
+      log.warn('Legacy GitHub token import failed; retrying next launch', { error });
+    }
+
+    try {
+      await services.github.cliImport.importAccounts();
+    } catch (error) {
+      log.warn('Failed to import GitHub CLI accounts during startup', { error });
+    }
+
     githubEvents.emit(undefined, {
       type: 'accounts-changed',
       reason: 'startup-reconciliation',

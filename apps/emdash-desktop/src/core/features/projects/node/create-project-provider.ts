@@ -7,7 +7,6 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { log } from '@emdash/shared/logger';
 import {
   ProjectProvider,
   type GitRepositoryFetchPort,
@@ -69,7 +68,6 @@ export type CreateProjectProviderDependencies = {
     defaultWorktreeDirectory: string;
     tmuxByDefault: boolean;
   }>;
-  backfillGitHubAccount(provider: ProjectProvider): Promise<void>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
   /**
    * Lazy migration 5 (spec: github-git-settings §10): one-time move of the
@@ -194,7 +192,6 @@ export async function createProvider(
       dependencies.taskSessions,
       () => {}
     );
-    await backfillGitHubAccount(dependencies, provider);
     return ok(provider);
   } catch (error) {
     return err(toCreateProviderError(error));
@@ -204,18 +201,4 @@ export async function createProvider(
 function toCreateProviderError(error: unknown): CreateProviderError {
   if (isRuntimeResolveError(error)) return error;
   return { type: 'error', message: error instanceof Error ? error.message : String(error) };
-}
-
-async function backfillGitHubAccount(
-  dependencies: CreateProjectProviderDependencies,
-  provider: ProjectProvider
-): Promise<void> {
-  try {
-    await dependencies.backfillGitHubAccount(provider);
-  } catch (error) {
-    log.warn('createProvider: failed to backfill project GitHub account', {
-      projectId: provider.projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
