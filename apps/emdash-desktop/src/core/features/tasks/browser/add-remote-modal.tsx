@@ -11,10 +11,14 @@ import {
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getGithubClient } from '@core/features/github/api/browser/client';
+import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
 import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browser/useGithubRepositoryOwners';
-import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import { GitHubIdentityStrip } from '@core/features/github/contributions/browser/identity-strip';
+import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
+import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import { useModalController } from '@core/manifests/browser/modal-api';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 
@@ -40,6 +44,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   branchName,
 }: AddRemoteModalArgs) {
   const { complete } = useModalController('addRemoteModal');
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [tab, setTab] = useState<Tab>('create');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,16 +52,25 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   const [repositoryName, setRepositoryName] = useState(projectName);
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
+  const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
 
-  const settingsStore = getProjectSettingsStore(projectId);
-  const rawGitHubAccountId = settingsStore?.settings?.githubAccountId ?? null;
-  const githubAccountId =
-    typeof rawGitHubAccountId === 'string' && rawGitHubAccountId.trim().length > 0
-      ? rawGitHubAccountId.trim()
-      : null;
-  const settingsError = settingsStore?.pageData.error ?? null;
-  const settingsLoading =
-    !!settingsStore && settingsStore.pageData.data === null && settingsError === null;
+  // The account acting for this modal (spec §9): the identity strip's
+  // per-action override, else the blessed resolver's effective account. The
+  // old hard refusal ("select a GitHub account in project settings first") is
+  // gone — the strip carries both the identity and the fix-it path inline.
+  const effective = useEffectiveSettings(projectId);
+  const { data: accounts } = useGitHubAccounts();
+  const resolvedAccount = effective?.githubAccount ?? null;
+  const actingAccount = accountOverride ?? resolvedAccount?.value ?? null;
+  const githubAccountId = actingAccount?.accountId ?? null;
+
+  const handleSelectAccount = (
+    account: GitHubAccountSummary,
+    { remember }: { remember: boolean }
+  ) => {
+    setAccountOverride(account);
+    if (remember) void persistProjectGitHubAccount(projectId, account.accountId);
+  };
 
   const {
     owners,
@@ -67,11 +81,11 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   } = useGitHubRepositoryOwnerSelect(githubAccountId);
   const repositoryStore = getGitRepositoryStore(projectId);
   const selectedRemote = repositoryStore?.pushRemote.name ?? 'origin';
+  // Creating a GitHub repository genuinely requires an account (fail closed);
+  // linking an existing remote proceeds on system credentials (spec §5).
   const canSubmitCreateRepository =
     githubAccountId !== null &&
-    !settingsLoading &&
     !ownersLoading &&
-    !settingsError &&
     !ownersErrorMessage &&
     repositoryName.trim().length > 0 &&
     !!owner;
@@ -83,12 +97,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
 
     try {
       if (tab === 'create') {
-        if (!githubAccountId) {
-          setError(
-            'Select a GitHub account in project settings before creating a GitHub repository'
-          );
-          return;
-        }
+        if (!githubAccountId) return;
         if (!owner) {
           setError(ownersErrorMessage ?? 'No repository owner available');
           return;
@@ -222,12 +231,6 @@ export const AddRemoteModal = observer(function AddRemoteModal({
                 appearance="input"
                 className="w-full"
               />
-              {githubAccountId === null && !settingsLoading && !settingsError && (
-                <p className="text-muted-foreground text-xs">
-                  Select a GitHub account in project settings before creating a GitHub repository.
-                </p>
-              )}
-              {settingsError && <p className="text-destructive text-xs">{settingsError}</p>}
               {ownersErrorMessage && (
                 <p className="text-destructive text-xs">{ownersErrorMessage}</p>
               )}
@@ -264,6 +267,19 @@ export const AddRemoteModal = observer(function AddRemoteModal({
             </Field.Root>
           </Field.Group>
         )}
+
+        {resolvedAccount && accounts ? (
+          <GitHubIdentityStrip
+            action={tab === 'create' ? 'Creating repository' : 'Adding remote'}
+            resolved={resolvedAccount}
+            accounts={accounts}
+            override={accountOverride}
+            persistence="per-action"
+            accountRequired={tab === 'create'}
+            onSelect={handleSelectAccount}
+            onConnect={() => void openGithubConnectModal({})}
+          />
+        ) : null}
 
         {error && <p className="text-destructive text-sm">{error}</p>}
       </Dialog.Body>

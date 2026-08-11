@@ -66,11 +66,11 @@ describe('CreateNewPanel layout', () => {
           strategy="local"
           state={state}
           getProjectsClient={getProjectsClient}
-          showGithubAuthDisclaimer={false}
           accounts={[]}
           selectedAccount={null}
+          defaultAccount={null}
           onAccountChange={vi.fn()}
-          onOpenAccountSettings={vi.fn()}
+          onConnectGithub={vi.fn()}
           ensureDefaultRoot={false}
         />
       );
