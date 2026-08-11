@@ -94,6 +94,12 @@ export class ProjectManagerStore {
     this._mountDisconnectedSshProjects(connectionId);
   }
 
+  /**
+   * Resolves once the first project-list snapshot has been applied, so callers
+   * can rely on the sidebar being populated. Project mounts start here but
+   * complete in the background; the boot gate awaits only the one project the
+   * last-active view needs via {@link mountProject}.
+   */
   load(): Promise<void> {
     if (!this._loadPromise) {
       this._loadPromise = this._doLoad();
@@ -129,7 +135,7 @@ export class ProjectManagerStore {
         { scope: this._projectListScope }
       );
     });
-    await Promise.allSettled(initialMounts.map((id) => this._startOrReuseProjectMount(id, false)));
+    void Promise.allSettled(initialMounts.map((id) => this._startOrReuseProjectMount(id, false)));
   }
 
   private _applyProjectListSnapshot(rows: readonly (LocalProject | SshProject)[]): string[] {

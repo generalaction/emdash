@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('emdash:boot-stuck', listener);
     };
   },
+  requestBootEscape: (action: 'restart' | 'open-recovery') =>
+    ipcRenderer.invoke('emdash:boot-escape', action),
 });

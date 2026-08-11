@@ -1,4 +1,5 @@
 import { config as dotenvConfig } from 'dotenv';
+import { app, ipcMain } from 'electron';
 import { log } from '@main/lib/logger';
 import { runBootPreflight } from './boot/preflight';
 import { isBootAborted, type BootSignals } from './boot/types';
@@ -53,6 +54,7 @@ export async function main(): Promise<void> {
       onTrigger: (trigger) => void handleBootWatchdogTrigger(trigger),
     });
     onBootSettled(watchdog.disarm);
+    registerBootEscapeHandler();
 
     try {
       // Window-first: the window phase loads in its own (much smaller) chunk
@@ -102,6 +104,36 @@ async function observeBackendBootFailure(config: AppConfig, error: unknown): Pro
   } catch (disposeError) {
     log.warn('Failed to dispose the app scope after a boot failure', { error: disposeError });
   }
+}
+
+/**
+ * Actions behind the splash's "taking too long" escape hatch. They cannot ride
+ * the wire — a hung backend may never register controllers — so the renderer
+ * reaches them through a direct invoke channel registered before the window
+ * exists.
+ */
+function registerBootEscapeHandler(): void {
+  ipcMain.handle('emdash:boot-escape', async (_event, action: unknown) => {
+    log.warn('boot escape hatch requested', { action });
+    if (action === 'restart') {
+      app.relaunch();
+      app.exit(0);
+      return;
+    }
+    if (action === 'open-recovery') {
+      try {
+        const { getMainWindow } = await import('@main/host/window');
+        const window = getMainWindow();
+        if (window && !window.isDestroyed()) window.destroy();
+      } catch (teardownError) {
+        log.warn('boot escape hatch: failed to destroy the main window', {
+          error: teardownError,
+        });
+      }
+      const { enterSafeMode } = await import('./core/recovery');
+      await enterSafeMode(new Error('Recovery was requested from the boot escape hatch'));
+    }
+  });
 }
 
 async function handleBootWatchdogTrigger(trigger: BootWatchdogTrigger): Promise<void> {

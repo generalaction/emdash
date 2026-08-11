@@ -11,8 +11,8 @@ import { Onboarding } from '@core/features/workbench/browser/onboarding/onboardi
 import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
 import { WorkspaceLayoutContextProvider } from '@core/features/workbench/contributions/browser/layout-provider';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
-import { log } from '@core/primitives/logging/browser/logger';
 import { queryClient } from '@core/primitives/query/browser/query-client';
+import { reportAppQueriesSettled } from '@renderer/lib/boot/splash-gate';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
@@ -37,14 +37,11 @@ function AppContent() {
 
   const isLoading = sessionLoading || legacyLoading;
 
-  const bootReadyLogged = useRef(false);
+  const queriesReported = useRef(false);
   useEffect(() => {
-    if (isLoading || bootReadyLogged.current) return;
-    bootReadyLogged.current = true;
-    log.info('boot-timeline renderer', {
-      mark: 'app-content-ready',
-      sincePageStartMs: Math.round(performance.now()),
-    });
+    if (isLoading || queriesReported.current) return;
+    queriesReported.current = true;
+    reportAppQueriesSettled();
   }, [isLoading]);
 
   // Computed once when queries first resolve while in onboarding. Never updated
