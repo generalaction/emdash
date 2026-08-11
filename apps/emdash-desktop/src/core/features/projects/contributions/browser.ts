@@ -1,4 +1,3 @@
-import { changeProjectConnectionModal } from '../browser/change-project-connection-modal';
 import { addProjectModal } from '../browser/components/add-project-modal/add-project-modal';
 import { directorySelectorModal } from '../browser/components/directory-selector-modal';
 import { projectConfigImportModal } from '../browser/components/settings-view/project-config-import-modal';
@@ -11,7 +10,6 @@ export const projectsBrowserContributions = {
     addProjectModal,
     shareProjectConfigModal,
     projectConfigImportModal,
-    changeProjectConnectionModal,
     directorySelectorModal,
   ],
 } as const;

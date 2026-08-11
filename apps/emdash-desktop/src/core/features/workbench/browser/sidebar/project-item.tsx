@@ -1,6 +1,5 @@
 import { ContextMenu, Tooltip } from '@emdash/ui/react/primitives';
 import {
-  CableIcon,
   ChevronRight,
   FolderClosed,
   FolderInput,
@@ -60,7 +59,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const projectParams = useViewParams(projectViewDef);
   const taskParams = useViewParams(taskViewDef);
   const openCreateTaskModal = useOpenModal('taskModal');
-  const openChangeConnectionModal = useOpenModal('changeProjectConnectionModal');
   const confirmDeleteProject = useConfirmDeleteProject();
 
   const project = getProjectStore(projectId);
@@ -223,17 +221,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
-            </ContextMenu.Item>
-            <ContextMenu.Item
-              onClick={() => {
-                void openChangeConnectionModal({
-                  projectId,
-                  currentConnectionId: sshConnectionId,
-                });
-              }}
-            >
-              <CableIcon className="size-4" />
-              Change SSH Connection
             </ContextMenu.Item>
             <ContextMenu.Separator />
           </>
