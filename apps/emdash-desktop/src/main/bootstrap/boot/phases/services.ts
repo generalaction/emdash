@@ -19,14 +19,9 @@ import { TuiConversationProvider } from '@core/features/conversations/node/tui-c
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
 import { ProjectGitHubAuthContextResolver } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
-import { GitHubAccountBackfillService } from '@core/features/github/node/accounts/github-account-backfill';
-import { GitHubAccountReconciliationService } from '@core/features/github/node/accounts/github-account-reconciliation';
 import { GitHubAccountService } from '@core/features/github/node/accounts/github-account-service';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
-import {
-  GitHubKvAccountBackfillService,
-  type LegacyKvGitHubAccount,
-} from '@core/features/github/node/accounts/github-kv-account-backfill';
+import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
 import { githubEvents } from '@core/features/github/node/event-host';
 import {
   defaultGitHubDeviceAuthFactory,
@@ -34,9 +29,7 @@ import {
 } from '@core/features/github/node/services/github-device-flow-service';
 import { githubIdentityClient } from '@core/features/github/node/services/github-identity-client';
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
-import { setLegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store-instance';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
-import { ProjectGitHubAccountBackfillService } from '@core/features/github/node/services/project-github-account-backfill';
 import { createGitHubRepositoryService } from '@core/features/github/node/services/repo-service';
 import {
   IntegrationConnectionService,
@@ -143,18 +136,15 @@ type JiraKVSchema = { creds: { siteUrl?: string; email?: string } };
 type InstanceKVSchema = { connection: { instanceUrl?: string } };
 type PlaneKVSchema = { connection: { apiBaseUrl?: string; workspaceSlug?: string } };
 type GitHubKVSchema = { tokenSource: string };
-type GitHubAccountsKVSchema = {
-  accounts: LegacyKvGitHubAccount[];
-  defaultAccountId: string | null;
-};
 
 export type ServicesBundle = {
   readonly account: ReturnType<typeof createEmdashAccountService>;
   readonly automations: AutomationsService;
   readonly github: {
     account: GitHubAccountService;
+    cliImport: GitHubCliAccountImportService;
     deviceFlow: GitHubDeviceFlowService;
-    reconciliation: GitHubAccountReconciliationService;
+    legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
@@ -255,7 +245,6 @@ export async function bootServices(
     getTaskSettings: () => appSettingsService.get('tasks'),
     getTerminalColorEnv,
   };
-  const githubAccountBackfill = new ProjectGitHubAccountBackfillService(providerAccountRegistry);
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
@@ -275,9 +264,6 @@ export async function bootServices(
         defaultWorktreeDirectory: localProject.defaultWorktreeDirectory,
         tmuxByDefault: project.tmuxByDefault,
       };
-    },
-    backfillGitHubAccount: async (provider) => {
-      await githubAccountBackfill.backfillProject(provider);
     },
     migrateAppWorktreeRoot: async () => {
       const local = await runtimes.client(LOCAL_HOST_REF);
@@ -469,7 +455,6 @@ export async function bootServices(
     getTokenSource: () => githubKV.get('tokenSource'),
     clearTokenSource: () => githubKV.del('tokenSource'),
   });
-  setLegacyGitHubTokenMigrationStore(legacyGitHubTokens);
   const githubCliImporter = new GitHubCliAccountImportService(
     providerAccountRegistry,
     runLocalCommand,
@@ -547,27 +532,21 @@ export async function bootServices(
       scopes: githubDeviceMethod.scopes,
     },
   });
-  const githubAccountsKV = new KV<GitHubAccountsKVSchema>('githubAccounts');
-  const githubKvBackfill = new GitHubKvAccountBackfillService(providerAccountRegistry, {
-    getAccounts: () => githubAccountsKV.get('accounts'),
-    getDefaultAccountId: () => githubAccountsKV.get('defaultAccountId'),
-    clear: () => githubAccountsKV.clear(),
-  });
-  const githubLegacyBackfill = new GitHubAccountBackfillService(
+  // Run-once upgrade step (spec: github-git-settings §10): the legacy
+  // single-token import lives behind an app-DB done-flag instead of a
+  // recurring startup backfill. The KV github-account backfill retired into
+  // Drizzle data migration 0046.
+  const githubLegacyTokenImport = new GitHubLegacyTokenImportStep(
+    db,
     providerAccountRegistry,
     legacyGitHubTokens,
     githubIdentityClient
   );
-  const githubReconciliation = new GitHubAccountReconciliationService({
-    kvBackfill: githubKvBackfill,
-    legacyBackfill: githubLegacyBackfill,
-    cliImporter: githubCliImporter,
-    logger: log,
-  });
   const githubServices = {
     account: githubAccountService,
+    cliImport: githubCliImporter,
     deviceFlow: githubDeviceFlow,
-    reconciliation: githubReconciliation,
+    legacyTokenImport: githubLegacyTokenImport,
     repositories: githubRepositories,
   };
   setCoreServiceInstances({
