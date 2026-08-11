@@ -183,6 +183,7 @@ async function bootstrap() {
   const outcome = await gate;
   dismissBootSplash();
   bootMark('app-content-ready', { gate: outcome });
+  window.electronAPI.reportBootUsable();
 }
 
 bootstrap().catch((error: unknown) => {

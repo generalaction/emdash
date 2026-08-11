@@ -4,6 +4,7 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
+import { recordWindowVisible } from '@main/bootstrap/core/boot-report';
 import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
   isShutdownInProgress,
@@ -101,10 +102,9 @@ export function createMainWindow(): BrowserWindow {
   // show immediately with a backgroundColor; the static splash in index.html
   // paints on top as soon as the HTML parses.
   mainWindow.show();
-  log.info('boot-timeline', {
-    mark: 'window-visible',
-    sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
-  });
+  const windowVisibleMs = Date.now() - (process.getCreationTime() ?? Date.now());
+  log.info('boot-timeline', { mark: 'window-visible', sinceProcessStartMs: windowVisibleMs });
+  recordWindowVisible(windowVisibleMs);
 
   // Diagnostic only (the window is already visible): marks when the renderer
   // produced its first full frame.

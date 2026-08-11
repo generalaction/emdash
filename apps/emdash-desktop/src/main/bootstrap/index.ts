@@ -9,6 +9,7 @@ import {
   recordBootFailure,
   writeBootingMarker,
 } from './core/boot-guard';
+import { notifyBootSettledForReport, recordUsableWorkspace } from './core/boot-report';
 import { onBootSettled, reportBootSuccessSignal, bootSuccessSignalsSeen } from './core/boot-status';
 import { startBootWatchdog, type BootWatchdogTrigger } from './core/boot-watchdog';
 import { loadAppConfig, setAppConfig, type AppConfig } from './core/config';
@@ -54,7 +55,9 @@ export async function main(): Promise<void> {
       onTrigger: (trigger) => void handleBootWatchdogTrigger(trigger),
     });
     onBootSettled(watchdog.disarm);
+    onBootSettled(notifyBootSettledForReport);
     registerBootEscapeHandler();
+    registerBootReportChannel();
 
     try {
       // Window-first: the window phase loads in its own (much smaller) chunk
@@ -133,6 +136,17 @@ function registerBootEscapeHandler(): void {
       const { enterSafeMode } = await import('./core/recovery');
       await enterSafeMode(new Error('Recovery was requested from the boot escape hatch'));
     }
+  });
+}
+
+/**
+ * The renderer reports the splash-gate settling (the usable-workspace moment)
+ * over a direct channel; the arrival time is the measurement, so no clock
+ * coordination between processes is needed.
+ */
+function registerBootReportChannel(): void {
+  ipcMain.on('emdash:boot-usable-workspace', () => {
+    recordUsableWorkspace(Date.now() - (process.getCreationTime() ?? Date.now()));
   });
 }
 

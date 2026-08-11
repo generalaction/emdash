@@ -1,4 +1,5 @@
 import { log } from '@main/lib/logger';
+import { recordBootPhase } from './boot-report';
 
 /**
  * Stack of currently running `step()` names (outermost first). The boot
@@ -41,10 +42,9 @@ export async function step<T>(name: string, run: () => T | Promise<T>): Promise<
   activeSteps.push(name);
   try {
     const result = await run();
-    log.info('Lifecycle phase completed', {
-      phase: name,
-      durationMs: Date.now() - startedAt,
-    });
+    const durationMs = Date.now() - startedAt;
+    log.info('Lifecycle phase completed', { phase: name, durationMs });
+    recordBootPhase(name, durationMs);
     return result;
   } catch (error) {
     log.error('Lifecycle phase failed', {

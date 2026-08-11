@@ -27,4 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   requestBootEscape: (action: 'restart' | 'open-recovery') =>
     ipcRenderer.invoke('emdash:boot-escape', action),
+  // Boot report: the splash gate settled, i.e. the usable-workspace moment.
+  // The arrival time in main is the measurement.
+  reportBootUsable: () => {
+    ipcRenderer.send('emdash:boot-usable-workspace');
+  },
 });
