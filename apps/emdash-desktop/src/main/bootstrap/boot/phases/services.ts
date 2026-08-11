@@ -59,6 +59,7 @@ import {
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
 import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/app-worktree-root-migration';
+import { createRepoFactsCache } from '@core/features/projects/node/settings/repo-facts';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -81,6 +82,7 @@ import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
+import { projectHostRef } from '@core/primitives/projects/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { isServerUsable } from '@core/services/hosts/api';
@@ -91,6 +93,7 @@ import {
   createReconcileSweepTriggers,
   installReconcileSweepTriggers,
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
+import { repositorySelector } from '@core/services/runtime-broker/node/git';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { createHostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
@@ -255,8 +258,8 @@ export async function bootServices(
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createGitRepository: (client, repository, settings) =>
-      new GitRepositoryService(client, repository, settings),
+    createGitRepository: (client, repository, resolveEffectiveSettings) =>
+      new GitRepositoryService(client, repository, resolveEffectiveSettings),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
       new GitRepositoryFetchService(client, repository, getBaseRemote),
     ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>
@@ -385,6 +388,25 @@ export async function bootServices(
         {
           db,
           getProjectById: (projectId) => getProjectById(db, projectId),
+          // Repo facts for the blessed resolver: the mounted project's cache
+          // when available, otherwise a transient one-shot cache (deploys run
+          // at boot, before projects mount).
+          getRepoFacts: async (project) => {
+            const mounted = projectManager.getProject(project.id);
+            if (mounted) return mounted.repoFacts.get();
+            const runtime = await runtimes.client(projectHostRef(project));
+            if (!runtime.success) return null;
+            const cache = createRepoFactsCache(
+              runtime.data.git,
+              repositorySelector(project.path),
+              true
+            );
+            try {
+              return await cache.get();
+            } finally {
+              await cache.dispose();
+            }
+          },
           resolveWorkspace: (workspaceId) => workspaceIdentity.resolve(workspaceId),
           resolveWorktreePool: (project) => workspacePlacement.resolveWorktreePool(project),
         },
@@ -460,6 +482,7 @@ export async function bootServices(
   const githubApiAuthService = new GitHubApiAuthService(providerAccountRegistry);
   const projectGitHubAuth = new ProjectGitHubAuthContextResolver({
     projects: projectManager,
+    listAccounts: () => githubAccountService.listAccounts(),
     logger: log,
   });
   const issueProviders = createIssueProviderRegistry({

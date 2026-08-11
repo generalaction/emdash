@@ -1,9 +1,10 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import { resolveAccountForHost } from '@core/primitives/project-settings/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {
   GITHUB_PROVIDER_ID,
-  toGitHubAccount,
-  type GitHubAccount,
+  listGitHubAccountSummaries,
   type GitHubAccountStore,
 } from '../../../node/accounts/github-accounts';
 import {
@@ -47,11 +48,10 @@ export class GitHubApiAuthService {
   private async resolveAccount(
     normalizedHost: string,
     accountId: string | null
-  ): Promise<Result<GitHubAccount, GitHubApiAuthError> | null> {
-    const accounts = (await this.accountLookup.listAccounts(GITHUB_PROVIDER_ID)).map(
-      toGitHubAccount
-    );
+  ): Promise<Result<GitHubAccountSummary, GitHubApiAuthError> | null> {
+    const accounts = await listGitHubAccountSummaries(this.accountLookup);
     if (accountId) {
+      // Fail closed on a dangling or host-mismatched pin — never another identity.
       const account = accounts.find((candidate) => candidate.accountId === accountId);
       if (!account) return err(githubApiAccountNotFound(normalizedHost, accountId));
 
@@ -63,15 +63,9 @@ export class GitHubApiAuthService {
       return ok(account);
     }
 
-    const defaultAccountId = await this.accountLookup.getDefaultAccountId(GITHUB_PROVIDER_ID);
-    if (!defaultAccountId) return null;
-
-    const defaultAccount =
-      accounts.find(
-        (candidate) =>
-          candidate.accountId === defaultAccountId &&
-          normalizeRepositoryHost(candidate.host) === normalizedHost
-      ) ?? null;
-    return defaultAccount ? ok(defaultAccount) : null;
+    // No pin: the single blessed "default account for host" inference
+    // (spec: github-git-settings §2/§11).
+    const inferred = resolveAccountForHost(normalizedHost, accounts);
+    return inferred.value ? ok(inferred.value) : null;
   }
 }

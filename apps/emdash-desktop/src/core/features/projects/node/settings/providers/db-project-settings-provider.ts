@@ -5,7 +5,6 @@ import type {
   ProjectSettingsPatch,
   ProjectSettingsProvider,
 } from '@core/features/projects/api/node/settings/provider';
-import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
@@ -340,34 +339,6 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       log.warn('Failed to clear shareable project settings', { error });
       return err({ type: 'error' });
     }
-  }
-
-  async getDefaultBranch(): Promise<string> {
-    const settings = await this.get();
-    const branch = settings.defaultBranch;
-    if (!branch) return this.defaultBranchFallback;
-    if (typeof branch === 'string') return branch;
-    const remote = settings.baseRemote ?? 'origin';
-    return `${remote}/${branch.name}`;
-  }
-
-  async getBaseRemote(): Promise<string> {
-    const settings = await this.get();
-    // Rows no longer seed baseRemote; the remote detected at creation survives
-    // only as creation provenance (the qualified defaultBranchFallback).
-    return (
-      settings.baseRemote ?? remoteNameFromQualifiedRef(this.defaultBranchFallback) ?? 'origin'
-    );
-  }
-
-  async getPushRemote(): Promise<string> {
-    const settings = await this.get();
-    return (
-      settings.pushRemote ??
-      settings.baseRemote ??
-      remoteNameFromQualifiedRef(this.defaultBranchFallback) ??
-      'origin'
-    );
   }
 
   async getDefaultWorktreeDirectory(): Promise<string> {

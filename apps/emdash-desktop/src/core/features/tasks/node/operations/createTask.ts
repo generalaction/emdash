@@ -42,7 +42,7 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
-import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
+import { compileWorktreeGitPlan, type WorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks } from '@core/services/app-db/node/schema';
@@ -93,12 +93,19 @@ export async function prepareCreateTask(
   const wsTarget = workspaceConfig.workspace;
   // The full worktree git plan (branch, baseRef?, pushBranch, gitSetup?), compiled once
   // desktop-side; PR presets carry their fetch/upstream/breadcrumb instructions here.
-  const gitPlan =
-    workspaceConfig.git.kind === 'none'
-      ? undefined
-      : compileWorktreeGitPlan(workspaceConfig.git, {
-          baseRemote: await project.settings.getBaseRemote(),
-        });
+  // The base remote comes from the blessed resolver (spec: github-git-settings §2);
+  // PR-sourced plans need one and refuse when the repository has no remotes.
+  let gitPlan: WorktreeGitPlan | undefined;
+  if (workspaceConfig.git.kind !== 'none') {
+    const baseRemote = await project.gitRepository.getBaseRemote();
+    if (baseRemote === null && workspaceConfig.git.kind === 'pr-branch') {
+      return err({
+        type: 'provision-failed',
+        message: 'The repository has no git remotes, so a pull request cannot be checked out.',
+      });
+    }
+    gitPlan = compileWorktreeGitPlan(workspaceConfig.git, { baseRemote });
+  }
   const branchName = gitPlan?.branch;
   // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
   // tombstone on the target workspace or its branch refuses creation — a data check

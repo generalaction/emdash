@@ -23,8 +23,12 @@ export type WorktreeGitPlan = {
 };
 
 export type WorktreeGitPlanContext = {
-  /** The project's base remote (default 'origin'); the remote PR heads fetch from. */
-  baseRemote: string;
+  /**
+   * The effective base remote from the blessed resolver; `null` when the
+   * repository has no remotes. Only PR-sourced plans read it — they fetch PR
+   * heads from it and cannot compile without one.
+   */
+  baseRemote: string | null;
 };
 
 /**
@@ -63,6 +67,9 @@ type PrBranchGit = Extract<WorkspaceConfig['git'], { kind: 'pr-branch' }>;
 
 function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext): WorktreeGitPlan {
   const remote = context.baseRemote;
+  if (remote === null) {
+    throw new Error('Cannot compile a PR-sourced git plan: the repository has no git remotes.');
+  }
   const prUrl = resolvePrUrl(git);
   const breadcrumb = prUrl !== undefined ? { breadcrumb: { prUrl } } : {};
   const prRef = prHeadRef(git.prNumber);

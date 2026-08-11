@@ -8,6 +8,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
+import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspaceType } from '@core/features/workspaces/api/node/workspace-factory';
@@ -25,8 +26,8 @@ import type { FilesClientScope } from '@core/services/runtime-broker/node/files'
 
 export type GitRepositoryPort = {
   subscribeRemotes(callback: (update: GitRemotesState) => void): Unsubscribe;
-  getConfiguredRemotes(): Promise<{ baseRemote: string; pushRemote: string }>;
-  getBaseRemote(): Promise<string>;
+  /** Resolver-backed effective base remote; `null` means no remotes exist. */
+  getBaseRemote(): Promise<string | null>;
   getRemoteState(): Promise<ProjectRemoteState>;
 };
 
@@ -72,6 +73,8 @@ export type ProjectProviderTransport = {
    */
   readonly configPathForDirectory: (directoryPath: string) => string;
   readonly settings: ProjectSettingsProvider;
+  /** Per-project repo-facts cache (spec: github-git-settings §2). */
+  readonly repoFacts: RepoFactsSource;
 };
 
 export class ProjectProvider implements Disposable {
@@ -80,6 +83,7 @@ export class ProjectProvider implements Disposable {
   readonly projectId: string;
   readonly repoPath: string;
   readonly settings: ProjectSettingsProvider;
+  readonly repoFacts: RepoFactsSource;
   readonly git: GitRuntimeClient;
   readonly repository: RepositorySelector;
   readonly gitRepository: GitRepositoryPort;
@@ -110,6 +114,7 @@ export class ProjectProvider implements Disposable {
     this.projectId = project.id;
     this.repoPath = project.path;
     this.settings = transport.settings;
+    this.repoFacts = transport.repoFacts;
     this.files = transport.files;
     this.projectConfigPath = transport.projectConfigPath;
     this._resolveProjectPath = transport.resolveProjectPath;
@@ -161,6 +166,7 @@ export class ProjectProvider implements Disposable {
 
   async release(): Promise<void> {
     this.gitRepositoryFetchService.stop();
+    await this.repoFacts.dispose();
     await this._releaseProjectLeases();
   }
 

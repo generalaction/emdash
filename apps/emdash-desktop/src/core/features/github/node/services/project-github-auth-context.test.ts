@@ -4,10 +4,18 @@ import {
   ProjectGitHubAuthContextResolver,
   type ProjectGitHubAuthContextError,
 } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
-import type { ProjectSettings } from '@core/primitives/project-settings/api';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type { RepoFacts, StoredProjectGitSettings } from '@core/primitives/project-settings/api';
 
 type FakeProject = {
-  settings: { get(): Promise<ProjectSettings> };
+  settings: {
+    getStoredGitSettings(): Promise<StoredProjectGitSettings>;
+    getDefaultWorktreeDirectory(): Promise<string>;
+  };
+  repoFacts: {
+    get(): Promise<RepoFacts | null>;
+    dispose(): Promise<void>;
+  };
 };
 
 class FakeProjectLookup {
@@ -26,56 +34,133 @@ class FakeLogger {
   warn = vi.fn();
 }
 
-function makeProject(settings: ProjectSettings = {}): FakeProject {
+const GITHUB_FACTS: RepoFacts = {
+  remotes: [{ name: 'origin', host: 'github.com', headBranch: 'main', branches: ['main'] }],
+  localBranches: ['main'],
+};
+
+function account(overrides: Partial<GitHubAccountSummary> = {}): GitHubAccountSummary {
   return {
-    settings: { get: vi.fn().mockResolvedValue(settings) },
+    accountId: 'github.com:42',
+    host: 'github.com',
+    login: 'octocat',
+    avatarUrl: '',
+    credentialSource: 'secure_storage',
+    isDefault: false,
+    ...overrides,
+  };
+}
+
+function makeProject(
+  stored: StoredProjectGitSettings = {},
+  facts: RepoFacts | null = GITHUB_FACTS
+): FakeProject {
+  return {
+    settings: {
+      getStoredGitSettings: vi.fn().mockResolvedValue(stored),
+      getDefaultWorktreeDirectory: vi.fn().mockResolvedValue('/worktrees'),
+    },
+    repoFacts: {
+      get: vi.fn().mockResolvedValue(facts),
+      dispose: vi.fn(),
+    },
   };
 }
 
 describe('ProjectGitHubAuthContextResolver', () => {
   let projects: FakeProjectLookup;
   let logger: FakeLogger;
+  let accounts: GitHubAccountSummary[];
   let resolver: ProjectGitHubAuthContextResolver;
 
   beforeEach(() => {
     projects = new FakeProjectLookup();
     logger = new FakeLogger();
+    accounts = [];
     resolver = new ProjectGitHubAuthContextResolver({
       projects,
+      listAccounts: async () => accounts,
       logger,
     });
   });
 
-  it('resolves the selected account from project settings for a mounted project', async () => {
-    const project = makeProject({ githubAccountId: ' github.com:42 ' });
-    projects.setProject('project-1', project);
+  it('resolves a pinned account through the blessed resolver', async () => {
+    accounts = [account()];
+    projects.setProject(
+      'project-1',
+      makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:42' } })
+    );
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       ok({ accountId: 'github.com:42' })
     );
-    expect(project.settings.get).toHaveBeenCalled();
   });
 
-  it('reports unconfigured when the project settings have no selected GitHub account', async () => {
+  it('infers the host-matching account when no account is pinned', async () => {
+    accounts = [account()];
+    projects.setProject('project-1', makeProject({}));
+
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      ok({ accountId: 'github.com:42' })
+    );
+  });
+
+  it('reports unconfigured when inference finds no host-matching account', async () => {
+    accounts = [account({ accountId: 'ghe.corp:7', host: 'ghe.corp' })];
     projects.setProject('project-1', makeProject({}));
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
         type: 'unconfigured',
         projectId: 'project-1',
-        message: 'No GitHub account is configured for this project.',
+        message: 'No connected GitHub account matches this project.',
       })
     );
   });
 
-  it('reports disabled when the project settings explicitly clear the selected GitHub account', async () => {
-    projects.setProject('project-1', makeProject({ githubAccountId: null }));
+  it('reports disabled for an explicit stored none', async () => {
+    accounts = [account()];
+    projects.setProject('project-1', makeProject({ githubAccount: { kind: 'none' } }));
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
         type: 'disabled',
         projectId: 'project-1',
         message: 'GitHub API is disabled for this project.',
+      })
+    );
+  });
+
+  it('fails closed on a dangling account pin instead of another identity', async () => {
+    accounts = [account()];
+    projects.setProject(
+      'project-1',
+      makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:999' } })
+    );
+
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message:
+          'The pinned GitHub account no longer exists or does not match the repository host.',
+      })
+    );
+  });
+
+  it('fails closed on a host-mismatched account pin', async () => {
+    accounts = [account({ accountId: 'ghe.corp:7', host: 'ghe.corp' })];
+    projects.setProject(
+      'project-1',
+      makeProject({ githubAccount: { kind: 'account', accountId: 'ghe.corp:7' } })
+    );
+
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message:
+          'The pinned GitHub account no longer exists or does not match the repository host.',
       })
     );
   });
@@ -92,7 +177,9 @@ describe('ProjectGitHubAuthContextResolver', () => {
 
   it('fails when account selection cannot be resolved instead of silently falling back', async () => {
     const project = makeProject();
-    vi.mocked(project.settings.get).mockRejectedValue(new Error('settings failed'));
+    vi.mocked(project.settings.getStoredGitSettings).mockRejectedValue(
+      new Error('settings failed')
+    );
     projects.setProject('project-1', project);
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
