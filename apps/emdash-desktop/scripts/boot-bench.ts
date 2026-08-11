@@ -92,7 +92,12 @@ export function parseRunLog(text: string): RunResult {
           processStartEpochMs = lineEpochMs - entry.sinceProcessStartMs;
         }
       }
-      if (mark === 'window-ready-to-show') {
+      // 'window-visible' is the actual show() moment (window-first boot);
+      // 'window-ready-to-show' is kept as a fallback for older builds.
+      if (mark === 'window-visible') {
+        result.windowVisibleMs = entry.sinceProcessStartMs;
+      }
+      if (mark === 'window-ready-to-show' && result.windowVisibleMs === undefined) {
         result.windowVisibleMs = entry.sinceProcessStartMs;
       }
       continue;

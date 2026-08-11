@@ -59,6 +59,19 @@ export function ensureWindowsNpmGlobalBinInPath(
   return ensureCoreWindowsNpmGlobalBinInPath(env);
 }
 
+let userEnvResolved = false;
+
+/**
+ * Whether the boot-time login-shell environment capture has completed. Worker
+ * spawning asserts this: workers inherit `process.env` at spawn, and spawning
+ * before the capture would leak an incomplete environment into every PTY and
+ * child process for the whole session (a security ordering guarantee, not a
+ * performance choice — see agents/risky-areas/pty.md).
+ */
+export function isUserEnvResolved(): boolean {
+  return userEnvResolved;
+}
+
 /**
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
@@ -70,6 +83,7 @@ export function ensureWindowsNpmGlobalBinInPath(
  */
 export async function resolveUserEnv(): Promise<void> {
   await refreshUserEnv();
+  userEnvResolved = true;
 }
 
 export async function refreshUserEnv(): Promise<void> {

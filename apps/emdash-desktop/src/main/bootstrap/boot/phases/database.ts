@@ -18,7 +18,6 @@ import { resolveDatabasePath } from '@main/db/path';
 import { cleanupLegacyBrowserPartitions } from '@main/host/browser/browser-partition-cleanup';
 import { log } from '@main/lib/logger';
 import { runInBackground } from '../../core/background';
-import { writeBootingMarker } from '../../core/boot-guard';
 import type { AppConfig } from '../../core/config';
 import { step } from '../../core/phase';
 import { setWorkspaceIdentityService } from '../../core/service-instances';
@@ -32,7 +31,6 @@ export type DatabaseBundle = {
 };
 
 export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
-  writeBootingMarker(config);
   if (config.forceBootFailure) {
     throw new Error('Boot failure forced by EMDASH_FORCE_BOOT_FAILURE=1');
   }

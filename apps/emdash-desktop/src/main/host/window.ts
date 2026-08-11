@@ -4,7 +4,8 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
-import { markBootSuccessful } from '@main/bootstrap/core/boot-guard';
+import { recordWindowVisible } from '@main/bootstrap/core/boot-report';
+import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
   isShutdownInProgress,
   shouldAllowWindowClose,
@@ -35,6 +36,11 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
+    // sRGB approximation of the theme --background tokens, so the window that
+    // appears before the splash paints is not a white flash. System-theme
+    // heuristic: the DB-backed app theme is not readable this early; the
+    // splash corrects to the persisted theme as soon as index.html parses.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111111' : '#fcfcfc',
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: devIcon }),
     webPreferences: {
@@ -69,7 +75,9 @@ export function createMainWindow(): BrowserWindow {
       mark: 'window-did-finish-load',
       sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
     });
-    markBootSuccessful();
+    // One of the two boot success signals; the crash-loop marker clears only
+    // when the backend chain has also finished (see boot-status).
+    reportBootSuccessSignal('window-load');
   });
 
   if (process.platform !== 'darwin') {
@@ -86,13 +94,25 @@ export function createMainWindow(): BrowserWindow {
   registerExternalLinkHandlers(mainWindow, import.meta.env.DEV);
   registerBrowserWebviewHandlers(mainWindow);
 
-  // Show when ready
+  // Window-first: show immediately with the theme-matching background instead
+  // of waiting for ready-to-show. For a module-script page, ready-to-show only
+  // fires once the whole renderer bundle has evaluated (DOMContentLoaded waits
+  // on deferred scripts), which would hide the window — and the splash — for
+  // the full renderer load. Electron's own guidance for complex apps is to
+  // show immediately with a backgroundColor; the static splash in index.html
+  // paints on top as soon as the HTML parses.
+  mainWindow.show();
+  const windowVisibleMs = Date.now() - (process.getCreationTime() ?? Date.now());
+  log.info('boot-timeline', { mark: 'window-visible', sinceProcessStartMs: windowVisibleMs });
+  recordWindowVisible(windowVisibleMs);
+
+  // Diagnostic only (the window is already visible): marks when the renderer
+  // produced its first full frame.
   mainWindow.once('ready-to-show', () => {
     log.info('boot-timeline', {
       mark: 'window-ready-to-show',
       sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
     });
-    mainWindow?.show();
   });
 
   // Track window focus for telemetry

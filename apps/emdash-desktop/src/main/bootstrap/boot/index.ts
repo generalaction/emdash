@@ -1,4 +1,5 @@
 import { closeAppDb } from '@main/db/instance';
+import { resolveUserEnv } from '@main/lib/userEnv';
 import { appScope } from '../core/app-scope';
 import type { AppConfig } from '../core/config';
 import { step, stepOptional } from '../core/phase';
@@ -6,23 +7,38 @@ import { configureShutdownRuntimeClients } from '../shutdown';
 import { configureQuitCleanupServices } from '../shutdown/phases';
 import { bootBackground } from './phases/background';
 import { bootControllers } from './phases/controllers';
-import { bootDatabase } from './phases/database';
+import { bootDatabase, type DatabaseBundle } from './phases/database';
 import { installGateway } from './phases/gateway';
 import { bootInfrastructure } from './phases/infrastructure';
 import { bootRuntimes } from './phases/runtimes';
 import { bootServices } from './phases/services';
-import { bootWindow } from './phases/window';
-import type { BootSignals } from './types';
 
-export async function finishBoot(config: AppConfig, signals: BootSignals): Promise<void> {
-  const database = await step('database', () => bootDatabase(config));
+/**
+ * The backend half of the window-first boot: the main window was already
+ * created by the bootstrap entry (before this module's chunk even loaded), and
+ * everything here runs behind it. Renderer wire traffic queues until
+ * controllers register (see desktop-wire), and worker client calls queue until
+ * each worker is ready.
+ */
+export async function finishBoot(config: AppConfig): Promise<void> {
+  let database: DatabaseBundle | undefined;
   try {
-    const infrastructure = await step('infrastructure', () => bootInfrastructure(database));
-    const runtimes = await step('runtimes', () => bootRuntimes(database, infrastructure));
-    const services = await step('services', () => bootServices(database, infrastructure, runtimes));
+    // The login-shell env capture must complete before any worker spawns:
+    // workers inherit process.env at spawn, and spawning earlier would leak an
+    // incomplete environment into every PTY for the whole session (PTY
+    // security ordering — see agents/risky-areas/pty.md). startDesktopWorkers
+    // asserts this ordering.
+    await step('resolve-user-env', () => resolveUserEnv());
+    database = await step('database', () => bootDatabase(config));
+    const databaseBundle = database;
+    const infrastructure = await step('infrastructure', () => bootInfrastructure(databaseBundle));
+    const runtimes = await step('runtimes', () => bootRuntimes(databaseBundle, infrastructure));
+    const services = await step('services', () =>
+      bootServices(databaseBundle, infrastructure, runtimes)
+    );
     configureQuitCleanupServices({
       automations: services.automations,
-      editorBuffers: database.editorBuffer,
+      editorBuffers: databaseBundle.editorBuffer,
       projects: services.projects,
       pullRequests: services.pullRequestsRegistration,
       runtimes,
@@ -31,17 +47,18 @@ export async function finishBoot(config: AppConfig, signals: BootSignals): Promi
       services.hostAttachments.attachedHosts()
     );
     const controllers = await step('controllers', () =>
-      bootControllers(database, infrastructure, runtimes, services)
+      bootControllers(databaseBundle, infrastructure, runtimes, services)
     );
-    await step('gateway', () => installGateway(controllers, database, services, runtimes));
-    await step('window', () => bootWindow(signals));
+    await step('gateway', () => installGateway(controllers, databaseBundle, services, runtimes));
     await stepOptional('background-tasks', () => bootBackground(services, runtimes));
   } catch (error) {
     try {
       await appScope.dispose(error);
     } finally {
-      closeAppDb();
-      database.editorBuffer.dispose();
+      if (database) {
+        closeAppDb();
+        database.editorBuffer.dispose();
+      }
     }
     throw error;
   }
