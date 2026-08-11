@@ -1,17 +1,14 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
-import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import type { ProjectSettingsDomains } from '../../../api/project-settings-page';
 import {
   areFormStatesEqual,
   effectiveAutoRunToggleValue,
   formToProjectSettingsDomainPatch,
-  formToSettings,
   formToStoredGitSettings,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   projectSettingsDomainsToForm,
-  settingsToForm,
   storedDefaultBranchToBranchRef,
   type FileHandlingFormState,
   type FormFieldPath,
@@ -22,7 +19,6 @@ import {
 } from './project-settings-form-model';
 
 const origin: GitRemote = { name: 'origin', url: 'git@github.com:example/repo.git' };
-const upstream: GitRemote = { name: 'upstream', url: 'git@github.com:upstream/repo.git' };
 
 type FormOverrides = {
   lifecycle?: Partial<LifecycleFormState>;
@@ -51,7 +47,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       agentGitCredentials: 'effective-account',
       ...overrides.gitIdentity,
     },
-    placement: { tmux: false, worktreeDirectory: '', ...overrides.placement },
+    placement: { tmux: undefined, worktreeDirectory: '', ...overrides.placement },
   };
 }
 
@@ -83,12 +79,15 @@ function domains(): ProjectSettingsDomains {
         hostWorktreeRoot: null,
         builtInWorktreeRoot: '/built-in/worktrees',
         homeDirectory: '/home/test',
+        hostTmux: null,
+        appDefaultTmux: true,
       },
       resolved: {
         worktreeRoot: {
           value: '/built-in/worktrees',
           provenance: { kind: 'inferred', from: 'built-in default' },
         },
+        tmux: { value: false, provenance: { kind: 'set' } },
       },
     },
   };
@@ -165,85 +164,41 @@ describe('project settings form model', () => {
     ).toEqual({ lifecycle: { personal: { scripts: { setup: null } } } });
   });
 
+  it('keeps inherited tmux unset and emits a tombstone when reset', () => {
+    const input = domains();
+    input.placement.stored = {};
+    input.placement.resolved.tmux = {
+      value: true,
+      provenance: { kind: 'inferred', from: 'app default' },
+    };
+    const form = projectSettingsDomainsToForm(input, [origin]);
+
+    expect(form.placement.tmux).toBeUndefined();
+    expect(
+      formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['placement.tmux']))
+    ).toEqual({ placement: { stored: { tmux: null } } });
+  });
+
   it('renders inherited auto-run state from the resolved value', () => {
     expect(effectiveAutoRunToggleValue(undefined, true)).toBe(true);
     expect(effectiveAutoRunToggleValue(undefined, false)).toBe(false);
     expect(effectiveAutoRunToggleValue(false, true)).toBe(false);
   });
 
-  it('converts legacy settings payloads into the decomposed form', () => {
-    const form = settingsToForm(
-      {
-        preservePatterns: ['.env'],
-        tmux: true,
-        autoRunSetupScriptOnTaskCreation: false,
-        scripts: { setup: 'pnpm install' },
-      },
-      {
-        worktreeRoot: '../worktrees',
-        defaultBranch: { remote: 'upstream', branch: 'main' },
-        baseRemote: 'upstream',
-      },
-      [origin, upstream]
-    );
-
-    expect(form.lifecycle.scriptSetup).toBe('pnpm install');
-    expect(form.fileHandling.preservePatterns).toBe('.env');
-    expect(form.gitIdentity.defaultBranch).toEqual({
-      type: 'remote',
-      branch: 'main',
-      remote: upstream,
-    });
-    expect(form.placement).toEqual({ tmux: true, worktreeDirectory: '../worktrees' });
-  });
-
-  it('preserves legacy script arrays as newline separated commands', () => {
-    const legacySettings = {
-      scripts: { setup: ['pnpm install', 'pnpm build'] },
-    } as unknown as ProjectSettings;
-    expect(settingsToForm(legacySettings, {}, [origin]).lifecycle.scriptSetup).toBe(
-      'pnpm install\npnpm build'
-    );
-  });
-
-  it('converts the decomposed form back into the legacy hook payload', () => {
-    expect(
-      formToSettings(
-        makeForm({
-          lifecycle: {
-            autoRunSetupScriptOnTaskCreation: false,
-            autoRunRunScriptOnTaskCreation: true,
-            scriptRun: 'pnpm dev',
-          },
-          fileHandling: { preservePatterns: ' .env \n\n.env.local ' },
-          gitIdentity: {
-            defaultBranch: { type: 'remote', branch: 'main', remote: origin },
-            baseRemote: 'origin',
-          },
-          placement: { tmux: true, worktreeDirectory: '../worktrees' },
-        })
-      )
-    ).toMatchObject({
-      preservePatterns: ['.env', '.env.local'],
-      tmux: true,
-      autoRunSetupScriptOnTaskCreation: false,
-      autoRunRunScriptOnTaskCreation: true,
-      scripts: { run: 'pnpm dev' },
-      worktreeDirectory: '../worktrees',
-      defaultBranch: 'origin/main',
-      baseRemote: 'origin',
-    });
-  });
-
   it('keeps GitHub account states and resolver inputs distinct', () => {
-    expect(
-      settingsToForm({}, { githubAccount: { kind: 'account', accountId: 'row-42' } }, [origin])
-        .gitIdentity.githubAccount
-    ).toEqual({ kind: 'account', accountId: 'row-42' });
-    expect(
-      settingsToForm({}, { githubAccount: { kind: 'none' } }, [origin]).gitIdentity
-    ).toHaveProperty('githubAccount', { kind: 'none' });
-    expect(settingsToForm({}, {}, [origin]).gitIdentity.githubAccount).toBeUndefined();
+    const input = domains();
+    input.gitIdentity.stored.githubAccount = { kind: 'account', accountId: 'row-42' };
+    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity.githubAccount).toEqual({
+      kind: 'account',
+      accountId: 'row-42',
+    });
+    input.gitIdentity.stored.githubAccount = { kind: 'none' };
+    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity).toHaveProperty(
+      'githubAccount',
+      { kind: 'none' }
+    );
+    delete input.gitIdentity.stored.githubAccount;
+    expect(projectSettingsDomainsToForm(input, [origin]).gitIdentity.githubAccount).toBeUndefined();
 
     const form = makeForm({
       gitIdentity: {
@@ -273,13 +228,9 @@ describe('project settings form model', () => {
       branch: 'main',
       remote: { name: 'gone', url: '' },
     });
-    expect(settingsToForm({}, {}, [origin]).gitIdentity.agentGitCredentials).toBe(
+    expect(projectSettingsDomainsToForm(domains(), [origin]).gitIdentity.agentGitCredentials).toBe(
       'effective-account'
     );
-    expect(
-      formToSettings(makeForm({ gitIdentity: { agentGitCredentials: 'system' } }))
-        .agentGitCredentials
-    ).toBe('system');
   });
 
   it('normalizes and detects shareable fields by section', () => {

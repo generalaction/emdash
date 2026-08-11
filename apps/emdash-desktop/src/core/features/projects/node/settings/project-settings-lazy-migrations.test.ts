@@ -91,6 +91,8 @@ function makeProvider(options: {
   storage?: ProjectSettingsStorage;
   getRepoFacts?: () => Promise<RepoFacts | null>;
   defaultBranchFallback?: string;
+  hostTmux?: boolean | null | (() => boolean | null);
+  appDefaultTmux?: boolean;
 }) {
   const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-lazy-migrations-'));
   tempDirs.push(projectPath);
@@ -102,13 +104,17 @@ function makeProvider(options: {
     options.defaultBranchFallback ?? 'origin/main',
     makeConfigFiles(projectPath),
     {
-      worktreeRootContext: () =>
+      placementContext: () =>
         Promise.resolve({
           hostWorktreeRoot: '/tmp/emdash/worktrees',
           builtInWorktreeRoot: '/tmp/emdash/worktrees',
           homeDirectory: '/tmp',
+          hostTmux:
+            typeof options.hostTmux === 'function'
+              ? options.hostTmux()
+              : (options.hostTmux ?? null),
+          appDefaultTmux: options.appDefaultTmux ?? false,
         }),
-      getProjectDefaults: () => Promise.resolve({ tmuxByDefault: false }),
       storage: options.storage ?? rowStorage!.storage,
       getRepoFacts: options.getRepoFacts,
       worktreeDirectoryFileSystem: {
@@ -132,7 +138,6 @@ describe('lazy settings migrations in the provider', () => {
       }),
       legacyConfigMigratedAt: new Date().toISOString(),
     };
-    const originalRow = structuredClone(row);
     const update = vi.fn(async (_projectId: string, patch: Partial<StoredProjectSettings>) => {
       Object.assign(row, patch);
     });
@@ -143,13 +148,15 @@ describe('lazy settings migrations in the provider', () => {
     };
     const { provider } = makeProvider({ storage });
 
-    const settings = await provider.get();
-
-    expect(settings).toMatchObject({ worktreeDirectory: '/tmp/legacy-worktrees' });
-    expect(settings).not.toHaveProperty('autoRunSetupScriptOnTaskCreation');
-    expect(settings).not.toHaveProperty('preservePatterns');
-    expect(row).toEqual(originalRow);
-    expect(update).not.toHaveBeenCalled();
+    await expect(provider.getStoredGitSettings()).resolves.toEqual({
+      worktreeRoot: '/tmp/legacy-worktrees',
+    });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
+      worktreeRoot: '/tmp/legacy-worktrees',
+      tmuxDefaultMigrated: true,
+      autoRunSetupScriptOnTaskCreation: false,
+    });
+    expect(update).toHaveBeenCalledOnce();
     await expect(provider.readLegacyLifecycleSettings()).resolves.toEqual({
       preservePatterns: [],
       autoRunSetup: false,
@@ -168,12 +175,7 @@ describe('lazy settings migrations in the provider', () => {
       getRepoFacts: async () => REPO_FACTS,
     });
 
-    // Legacy in-memory view still works.
-    await expect(provider.get()).resolves.toMatchObject({
-      githubAccountId: 'github.com:42',
-      worktreeDirectory: '/tmp/legacy-worktrees',
-      tmux: true,
-    });
+    await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: true });
 
     // The row is physically rewritten: seeded values cleared (they match the
     // inference), legacy keys renamed and restructured.
@@ -181,6 +183,7 @@ describe('lazy settings migrations in the provider', () => {
       githubAccount: { kind: 'account', accountId: 'github.com:42' },
       worktreeRoot: '/tmp/legacy-worktrees',
       tmux: true,
+      tmuxDefaultMigrated: true,
     });
 
     // The stored-model surface exposes only explicit choices.
@@ -199,12 +202,13 @@ describe('lazy settings migrations in the provider', () => {
       getRepoFacts: async () => REPO_FACTS,
     });
 
-    await provider.get();
+    await provider.getStoredGitSettings();
 
     // baseRemote 'origin' matches inference and is cleared; the divergent
     // defaultBranch survives as an explicit (structured) setting.
     expect(rowStorage!.baseJson(projectId)).toEqual({
       defaultBranch: { remote: 'origin', branch: 'develop' },
+      tmuxDefaultMigrated: true,
     });
     await expect(provider.getStoredGitSettings()).resolves.toEqual({
       defaultBranch: { remote: 'origin', branch: 'develop' },
@@ -221,17 +225,18 @@ describe('lazy settings migrations in the provider', () => {
       getRepoFacts: async () => (factsAvailable ? REPO_FACTS : null),
     });
 
-    await provider.get();
+    await provider.getStoredGitSettings();
     // No destructive migration without facts: both values survive.
     expect(rowStorage!.baseJson(projectId)).toEqual({
       defaultBranch: { remote: 'origin', branch: 'main' },
       baseRemote: 'origin',
+      tmuxDefaultMigrated: true,
     });
 
     factsAvailable = true;
-    await provider.get();
+    await provider.getStoredGitSettings();
     // The next read demotes both values (they match the inference).
-    expect(rowStorage!.baseJson(projectId)).toEqual({});
+    expect(rowStorage!.baseJson(projectId)).toEqual({ tmuxDefaultMigrated: true });
   });
 
   it('reads legacy null account rows back as absent (infer)', async () => {
@@ -239,8 +244,11 @@ describe('lazy settings migrations in the provider', () => {
       baseJson: JSON.stringify({ githubAccountId: null, tmux: true }),
     });
 
-    await expect(provider.get()).resolves.not.toHaveProperty('githubAccountId');
-    expect(rowStorage!.baseJson(projectId)).toEqual({ tmux: true });
+    await expect(provider.getStoredGitSettings()).resolves.toEqual({});
+    expect(rowStorage!.baseJson(projectId)).toEqual({
+      tmux: true,
+      tmuxDefaultMigrated: true,
+    });
     await expect(provider.getStoredGitSettings()).resolves.toEqual({});
   });
 
@@ -249,23 +257,112 @@ describe('lazy settings migrations in the provider', () => {
       baseJson: JSON.stringify({ githubAccount: { kind: 'none' } }),
     });
 
-    await expect(provider.get()).resolves.toMatchObject({ githubAccountId: null });
     await expect(provider.getStoredGitSettings()).resolves.toEqual({
       githubAccount: { kind: 'none' },
     });
   });
 
-  it('creates new projects without seeding defaultBranch or baseRemote', async () => {
+  it('creates new projects without seeding project-level defaults', async () => {
     const { provider, projectId, rowStorage } = makeProvider({});
 
-    const settings = await provider.get();
-    expect(settings).not.toHaveProperty('defaultBranch');
-    expect(settings).not.toHaveProperty('baseRemote');
-    expect(rowStorage!.baseJson(projectId)).toEqual({ tmux: false });
-
-    // No explicit choices: the effective questions are the resolver's job
-    // (spec: github-git-settings §2), fed by this empty stored view.
     await expect(provider.getStoredGitSettings()).resolves.toEqual({});
+    await expect(provider.getStoredPlacementSettings()).resolves.toEqual({});
+    expect(rowStorage!.baseJson(projectId)).toEqual({ tmuxDefaultMigrated: true });
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: false,
+      provenance: { kind: 'inferred', from: 'app default' },
+    });
+  });
+
+  it('follows host tmux changes until set and resumes inheritance after reset', async () => {
+    let hostTmux = false;
+    const { provider } = makeProvider({ hostTmux: () => hostTmux });
+
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: false,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+
+    hostTmux = true;
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+
+    await expect(provider.patch({ placement: { stored: { tmux: false } } })).resolves.toMatchObject(
+      { success: true }
+    );
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: false,
+      provenance: { kind: 'set' },
+    });
+
+    await expect(provider.patch({ placement: { stored: { tmux: null } } })).resolves.toMatchObject({
+      success: true,
+    });
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+  });
+
+  it('demotes a materialized tmux default once and preserves later explicit choices', async () => {
+    const { provider, projectId, rowStorage } = makeProvider({
+      baseJson: JSON.stringify({ tmux: true }),
+      hostTmux: true,
+    });
+
+    await expect(provider.getStoredPlacementSettings()).resolves.toEqual({});
+    expect(rowStorage!.baseJson(projectId)).toEqual({ tmuxDefaultMigrated: true });
+
+    await expect(provider.patch({ placement: { stored: { tmux: true } } })).resolves.toMatchObject({
+      success: true,
+    });
+    await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: true });
+    expect(rowStorage!.baseJson(projectId)).toEqual({
+      tmux: true,
+      tmuxDefaultMigrated: true,
+    });
+  });
+
+  it('keeps a stored tmux value that differs from the current inherited default', async () => {
+    const { provider, projectId, rowStorage } = makeProvider({
+      baseJson: JSON.stringify({ tmux: false }),
+      hostTmux: true,
+    });
+
+    await expect(provider.getStoredPlacementSettings()).resolves.toEqual({ tmux: false });
+    expect(rowStorage!.baseJson(projectId)).toEqual({
+      tmux: false,
+      tmuxDefaultMigrated: true,
+    });
+  });
+
+  it('follows host-default changes until a project override is set, then inherits again on reset', async () => {
+    const options = { hostTmux: false as boolean | null };
+    const { provider } = makeProvider(options);
+
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: false,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+    options.hostTmux = true;
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+
+    await provider.patch({ placement: { stored: { tmux: false } } });
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: false,
+      provenance: { kind: 'set' },
+    });
+
+    await provider.patch({ placement: { stored: { tmux: null } } });
+    await expect(provider.resolveTmux()).resolves.toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
   });
 
   it('persists updates in the stored model', async () => {
@@ -273,12 +370,15 @@ describe('lazy settings migrations in the provider', () => {
       getRepoFacts: async () => REPO_FACTS,
     });
 
-    const result = await provider.update({
-      preservePatterns: [],
-      defaultBranch: 'origin/develop',
-      baseRemote: 'upstream',
-      githubAccountId: 'github.com:42',
-      worktreeDirectory: '/tmp/updated-worktrees',
+    const result = await provider.patch({
+      gitIdentity: {
+        stored: {
+          defaultBranch: { remote: 'origin', branch: 'develop' },
+          baseRemote: 'upstream',
+          githubAccount: { kind: 'account', accountId: 'github.com:42' },
+        },
+      },
+      placement: { stored: { worktreeRoot: '/tmp/updated-worktrees' } },
     });
     expect(result.success).toBe(true);
 
@@ -287,12 +387,13 @@ describe('lazy settings migrations in the provider', () => {
       baseRemote: 'upstream',
       githubAccount: { kind: 'account', accountId: 'github.com:42' },
       worktreeRoot: '/tmp/updated-worktrees',
+      tmuxDefaultMigrated: true,
     });
-    await expect(provider.get()).resolves.toMatchObject({
-      defaultBranch: 'origin/develop',
+    await expect(provider.getStoredGitSettings()).resolves.toEqual({
+      defaultBranch: { remote: 'origin', branch: 'develop' },
       baseRemote: 'upstream',
-      githubAccountId: 'github.com:42',
-      worktreeDirectory: '/tmp/updated-worktrees',
+      githubAccount: { kind: 'account', accountId: 'github.com:42' },
+      worktreeRoot: '/tmp/updated-worktrees',
     });
   });
 });

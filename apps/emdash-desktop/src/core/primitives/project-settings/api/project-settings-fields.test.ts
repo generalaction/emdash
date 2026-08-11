@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectSettings } from './project-settings';
+import type { ShareableProjectSettings } from './project-settings';
 import {
   hasConfiguredShareableProjectSettings,
   tombstonePatchFor,
@@ -42,7 +42,7 @@ describe('hasConfiguredShareableProjectSettings', () => {
   });
 
   it('treats scripts and shell setup as configured settings', () => {
-    const settings: ProjectSettings = {
+    const settings: ShareableProjectSettings = {
       preservePatterns: [...LEGACY_SEEDED_PRESERVE_PATTERNS],
       shellSetup: 'nvm use',
       scripts: {

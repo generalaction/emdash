@@ -60,12 +60,12 @@ export async function resolveTaskEnv(
 ): Promise<Result<ResolvedTaskEnv, ResolveTaskEnvError>> {
   // Effective default branch through the blessed resolver (spec:
   // github-git-settings §2); null (unresolvable) omits the env var.
-  const effective = await resolveProjectEffectiveSettings({ settings, repoFacts });
-  const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-  const [placement, projectConfig] = await Promise.all([
-    settings.getStoredPlacementSettings(),
+  const [effective, tmux, projectConfig] = await Promise.all([
+    resolveProjectEffectiveSettings({ settings, repoFacts }),
+    settings.resolveTmux(),
     getProjectConfigEnsuringRegistration(workspace.workspaceRegistry, workspace.id, workspace.path),
   ]);
+  const defaultBranch = effective.defaultBranch.value?.branch ?? null;
   if (!projectConfig.success) {
     return err({
       type: 'setup-failed',
@@ -83,7 +83,7 @@ export async function resolveTaskEnv(
       defaultBranch,
       portSeed: workspace.path,
     }),
-    tmuxEnabled: placement.tmux ?? false,
+    tmuxEnabled: tmux.value,
     shellSetup: projectConfig.data.resolved.shellSetup?.value,
   });
 }

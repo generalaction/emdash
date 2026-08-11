@@ -21,7 +21,8 @@ export type StoredSettingsMigrationResult = {
  */
 export function migrateStoredBaseProjectSettings(
   raw: LegacyBaseProjectSettings,
-  repoFacts: RepoFacts | null
+  repoFacts: RepoFacts | null,
+  options: { tmuxDefault?: boolean } = {}
 ): StoredSettingsMigrationResult {
   const {
     remote: legacyRemote,
@@ -52,6 +53,10 @@ export function migrateStoredBaseProjectSettings(
   if (migratedDefaultBranch !== undefined) next.defaultBranch = migratedDefaultBranch;
 
   if (repoFacts) demoteIfMatchesInference(next, repoFacts);
+  if (options.tmuxDefault !== undefined && next.tmuxDefaultMigrated !== true) {
+    if (next.tmux === options.tmuxDefault) delete next.tmux;
+    next.tmuxDefaultMigrated = true;
+  }
 
   return {
     next,
@@ -118,6 +123,7 @@ export function toLegacyBaseSettingsView(
     githubAccount,
     defaultBranch,
     remote: legacyRemote,
+    tmuxDefaultMigrated: _tmuxDefaultMigrated,
     ...rest
   } = stored as LegacyBaseProjectSettings;
   const view: BaseProjectSettings = { ...rest };

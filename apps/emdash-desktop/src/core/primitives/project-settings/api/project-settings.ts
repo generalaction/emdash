@@ -1,4 +1,4 @@
-import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
+import type { EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
 
@@ -38,9 +38,10 @@ export const baseProjectSettingsSchema = z.object({
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
 
 // --- Stored model (spec: github-git-settings §10) -------------------------
-// The persisted per-project base settings after lazy migration. Only explicit
-// user choices are stored; absence of a field always means "infer". The
-// resolver-facing types live in ./effective-settings.
+// The persisted per-project base settings after lazy migration. Apart from
+// named migration markers, only explicit user choices are stored; absence of
+// a setting always means "infer". Resolver-facing types live in
+// ./effective-settings.
 
 export const storedDefaultBranchSchema = z.object({
   /** Remote the branch lives on; `null` means a local branch. */
@@ -62,19 +63,22 @@ export const storedBaseProjectSettingsSchema = z.object({
   githubAccount: storedGithubAccountSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
+  /** Lazy-migration marker; not a user setting. */
+  tmuxDefaultMigrated: z.literal(true).optional(),
 });
 
 export type StoredBaseProjectSettings = z.infer<typeof storedBaseProjectSettingsSchema>;
-
-export const projectSettingsSchema = baseProjectSettingsSchema.merge(emdashConfigSchema);
-
-export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
 export type ProjectSettingsLoadError =
   | { type: 'not_found'; entity: 'workspace'; workspaceId: string }
   | { type: 'fs_error'; message: string };
 
-export type ProjectSettingsLoadResult = Result<ProjectSettings, ProjectSettingsLoadError>;
+export type WorkspaceLifecycleSettings = Pick<EmdashConfig, 'scripts' | 'shellSetup'>;
+
+export type ProjectSettingsLoadResult = Result<
+  WorkspaceLifecycleSettings,
+  ProjectSettingsLoadError
+>;
 
 export type ProjectSettingsWriteTarget =
   | { type: 'project' }

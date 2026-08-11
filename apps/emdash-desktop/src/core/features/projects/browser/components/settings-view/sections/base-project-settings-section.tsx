@@ -44,7 +44,7 @@ import type {
   Provenance,
   Resolved,
 } from '@core/primitives/project-settings/api';
-import { formatDefaultBranch } from '@core/primitives/project-settings/api';
+import { formatDefaultBranch, resolveTmux } from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectPlacementDomainSnapshot } from '../../../../api/project-settings-page';
@@ -161,6 +161,11 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
     placement.layers.hostWorktreeRoot ?? placement.layers.builtInWorktreeRoot;
   const projectPath = asMounted(getProjectStore(projectId))?.data.path ?? null;
   const effectiveWorktreeRoot = effective?.worktreeRoot.value ?? null;
+  const effectiveTmux = resolveTmux({
+    projectTmux: placementForm.tmux,
+    hostTmux: placement.layers.hostTmux,
+    appDefaultTmux: placement.layers.appDefaultTmux,
+  });
   const derivedPoolPath =
     projectPath !== null && effectiveWorktreeRoot !== null
       ? deriveWorktreePoolPath({ worktreeRoot: effectiveWorktreeRoot, repoPath: projectPath })
@@ -416,13 +421,22 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
       <Field.Root orientation="horizontal">
         <div className="flex flex-1 flex-col gap-1">
-          <Field.Label>Enable tmux</Field.Label>
+          <div className="flex items-center gap-2">
+            <Field.Label>Enable tmux</Field.Label>
+            <ProvenanceBadge provenance={effectiveTmux.provenance} flavor="inherited" />
+            {placementForm.tmux !== undefined ? (
+              <ResetProvenanceButton
+                flavor="inherited"
+                onReset={() => updatePlacement('tmux', undefined)}
+              />
+            ) : null}
+          </div>
           <Field.Description className="text-foreground-muted">
             Run the agent session inside a tmux session.
           </Field.Description>
         </div>
         <Switch
-          checked={placementForm.tmux}
+          checked={effectiveTmux.value}
           onCheckedChange={(checked) => updatePlacement('tmux', checked)}
         />
       </Field.Root>

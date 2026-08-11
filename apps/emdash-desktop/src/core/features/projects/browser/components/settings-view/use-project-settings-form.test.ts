@@ -45,12 +45,15 @@ function domains(setup: string): ProjectSettingsDomains {
         hostWorktreeRoot: null,
         builtInWorktreeRoot: '/built-in/worktrees',
         homeDirectory: '/home/test',
+        hostTmux: null,
+        appDefaultTmux: false,
       },
       resolved: {
         worktreeRoot: {
           value: '/built-in/worktrees',
           provenance: { kind: 'inferred', from: 'built-in default' },
         },
+        tmux: { value: false, provenance: { kind: 'inferred', from: 'app default' } },
       },
     },
   };

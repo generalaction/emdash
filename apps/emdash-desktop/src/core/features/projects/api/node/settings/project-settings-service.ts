@@ -11,14 +11,14 @@ import type { WorkspaceIdentityService } from '@core/features/workspaces/api/nod
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
   type MigrateProjectConfigRequest,
-  type ProjectSettings,
+  type PlacementContext,
   type ProjectSettingsWriteTargetOption,
   type StoredProjectGitSettings,
-  type WorktreeRootContext,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import {
   hasConfiguredShareableProjectSettings,
+  resolveTmux,
   resolveWorktreeRoot,
   tombstonePatchFor,
 } from '@core/primitives/project-settings/api';
@@ -43,10 +43,7 @@ import {
 } from '../../project-settings-page';
 
 export type ProjectSettingsHooks = {
-  'project-settings:changed': (event: {
-    projectId: string;
-    settings: ProjectSettings;
-  }) => void | Promise<void>;
+  'project-settings:changed': (event: { projectId: string }) => void | Promise<void>;
 };
 
 export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
@@ -123,7 +120,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
 
     const page = await this.getProjectSettingsPageForProject(project.data);
     if (!page.success) return page;
-    this.emitSettingsChanged(projectId, await project.data.settings.get());
+    this.emitSettingsChanged(projectId);
     return page;
   }
 
@@ -183,7 +180,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
 
     const page = await this.getProjectSettingsPageForProject(project.data);
     if (!page.success) return page;
-    this.emitSettingsChanged(projectId, await project.data.settings.get());
+    this.emitSettingsChanged(projectId);
     return page;
   }
 
@@ -217,7 +214,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
 
     const page = await this.getProjectSettingsPageForProject(project.data);
     if (!page.success) return page;
-    this.emitSettingsChanged(projectId, await project.data.settings.get());
+    this.emitSettingsChanged(projectId);
     return ok({ page: page.data, migration: result.data });
   }
 
@@ -231,14 +228,17 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
     const config = await this.resolveHostProjectConfig(project);
     if (!config.success) return config;
-    const storedGitSettings = await project.settings.getStoredGitSettings();
-    const storedPlacementSettings = await project.settings.getStoredPlacementSettings();
-    const worktreeRootContext = await project.settings.getWorktreeRootContext();
-    const resolvedTargets = await resolveAllProjectSettingsTargets(
-      this.dependencies.db,
-      this.dependencies.workspaceIdentity,
-      project
-    );
+    const [storedGitSettings, storedPlacementSettings, placementContext, resolvedTargets] =
+      await Promise.all([
+        project.settings.getStoredGitSettings(),
+        project.settings.getStoredPlacementSettings(),
+        project.settings.getPlacementContext(),
+        resolveAllProjectSettingsTargets(
+          this.dependencies.db,
+          this.dependencies.workspaceIdentity,
+          project
+        ),
+      ]);
     const writeTargets = getProjectSettingsWriteTargets(resolvedTargets);
     const configMigrations = hasConfiguredShareableProjectSettings(config.data.personalConfig)
       ? []
@@ -248,7 +248,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
         config.data,
         storedGitSettings,
         storedPlacementSettings,
-        worktreeRootContext,
+        placementContext,
         writeTargets
       ),
       configMigrations,
@@ -291,8 +291,8 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     return result.success ? ok(undefined) : err({ type: 'error' });
   }
 
-  private emitSettingsChanged(projectId: string, settings: ProjectSettings): void {
-    this._hooks.callHookBackground('project-settings:changed', { projectId, settings });
+  private emitSettingsChanged(projectId: string): void {
+    this._hooks.callHookBackground('project-settings:changed', { projectId });
   }
 }
 
@@ -300,7 +300,7 @@ function projectSettingsDomains(
   config: ProjectConfigState,
   storedGitSettings: StoredProjectGitSettings,
   storedPlacementSettings: StoredPlacementSettings,
-  worktreeRootContext: WorktreeRootContext,
+  placementContext: PlacementContext,
   writeTargets: ProjectSettingsWriteTargetOption[]
 ): ProjectSettingsDomains {
   const { worktreeRoot, ...storedGitIdentity } = storedGitSettings;
@@ -316,13 +316,18 @@ function projectSettingsDomains(
           ? { tmux: storedPlacementSettings.tmux }
           : {}),
       },
-      layers: worktreeRootContext,
+      layers: placementContext,
       resolved: {
         worktreeRoot: resolveWorktreeRoot({
           projectWorktreeRoot: worktreeRoot,
-          hostWorktreeRoot: worktreeRootContext.hostWorktreeRoot,
-          builtInWorktreeRoot: worktreeRootContext.builtInWorktreeRoot,
-          homeDirectory: worktreeRootContext.homeDirectory,
+          hostWorktreeRoot: placementContext.hostWorktreeRoot,
+          builtInWorktreeRoot: placementContext.builtInWorktreeRoot,
+          homeDirectory: placementContext.homeDirectory,
+        }),
+        tmux: resolveTmux({
+          projectTmux: storedPlacementSettings.tmux,
+          hostTmux: placementContext.hostTmux,
+          appDefaultTmux: placementContext.appDefaultTmux,
         }),
       },
     },

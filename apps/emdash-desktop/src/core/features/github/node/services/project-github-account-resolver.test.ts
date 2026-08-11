@@ -5,15 +5,15 @@ import {
 } from '@core/features/github/api/node/services/project-github-account-resolver';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type {
+  PlacementContext,
   RepoFacts,
   StoredProjectGitSettings,
-  WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 
 type FakeProject = {
   settings: {
     getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-    getWorktreeRootContext(): Promise<WorktreeRootContext>;
+    getPlacementContext(): Promise<PlacementContext>;
   };
   repoFacts: {
     get(): Promise<RepoFacts | null>;
@@ -57,10 +57,12 @@ function makeProject(
   return {
     settings: {
       getStoredGitSettings: vi.fn().mockResolvedValue(stored),
-      getWorktreeRootContext: vi.fn().mockResolvedValue({
+      getPlacementContext: vi.fn().mockResolvedValue({
         hostWorktreeRoot: null,
         builtInWorktreeRoot: '/home/me/emdash/worktrees',
         homeDirectory: '/home/me',
+        hostTmux: null,
+        appDefaultTmux: false,
       }),
     },
     repoFacts: {

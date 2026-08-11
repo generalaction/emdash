@@ -177,8 +177,8 @@ export class ProjectProvider implements Disposable {
   async dispose(): Promise<void> {
     try {
       this.gitRepositoryFetchService.stop();
-      const projectSettings = await this.settings.get();
-      const mode = projectSettings.tmux ? 'detach' : 'terminate';
+      const tmux = await this.settings.resolveTmux();
+      const mode = tmux.value ? 'detach' : 'terminate';
       await this.taskSessions.teardownAllForProject(this.projectId, mode);
       await previewServerService.stopForProject(this.projectId);
     } finally {

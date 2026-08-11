@@ -6,13 +6,13 @@ import type {
 } from '@emdash/core/runtimes/workspace-registry/api';
 import type {
   AgentGitCredentialsSetting,
+  PlacementContext,
   ProjectConfigMigration,
   ProjectSettingsWriteTargetOption,
   Resolved,
   StoredDefaultBranch,
   StoredGithubAccount,
   StoredProjectGitSettings,
-  WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
@@ -63,9 +63,10 @@ export type ProjectPlacementDomainSnapshot = {
     worktreeRoot?: string;
     tmux?: boolean;
   };
-  layers: WorktreeRootContext;
+  layers: PlacementContext;
   resolved: {
     worktreeRoot: Resolved<string>;
+    tmux: Resolved<boolean>;
   };
 };
 

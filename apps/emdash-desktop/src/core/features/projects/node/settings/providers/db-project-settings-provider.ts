@@ -7,14 +7,11 @@ import type {
 } from '@core/features/projects/api/node/settings/provider';
 import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import {
-  baseProjectSettingsSchema,
-  projectSettingsSchema,
-  type BaseProjectSettings,
-  type ProjectSettings,
+  resolveTmux as resolveEffectiveTmux,
+  type PlacementContext,
   type RepoFacts,
   type StoredBaseProjectSettings,
   type StoredProjectGitSettings,
-  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
@@ -32,18 +29,13 @@ import {
   type LegacyLifecycleSettings,
 } from '../migrations/legacy-stored-project-settings';
 import type { ProjectSettingsMigrationReader } from '../migrations/migration-reader';
-import {
-  legacyBaseSettingsToStored,
-  migrateStoredBaseProjectSettings,
-  toLegacyBaseSettingsView,
-} from '../migrations/stored-settings';
+import { migrateStoredBaseProjectSettings } from '../migrations/stored-settings';
 import { compactUndefined, readJson } from '../project-settings-json';
 import type { ProjectSettingsStorage, StoredProjectSettings } from '../project-settings-storage';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
 export type DbProjectSettingsProviderOptions = {
   git?: ProjectSettingsGitInspector;
-  getProjectDefaults(): Promise<{ tmuxByDefault: boolean }>;
   storage: ProjectSettingsStorage;
   /**
    * Repository facts for the lazy demote-if-matches-inference migration
@@ -68,7 +60,7 @@ export abstract class DbProjectSettingsProvider
     private readonly options: DbProjectSettingsProviderOptions
   ) {}
 
-  protected abstract worktreeRootContext(): Promise<WorktreeRootContext>;
+  protected abstract placementContext(): Promise<PlacementContext>;
 
   protected abstract validateWorktreeDirectory(
     worktreeDirectory: string | undefined
@@ -82,11 +74,10 @@ export abstract class DbProjectSettingsProvider
    * New rows carry only explicit choices (spec: github-git-settings §10):
    * defaultBranch/baseRemote are no longer seeded — the branch detected at
    * creation survives only as creation provenance (`defaultBranchFallback`).
-   * Only the tmux default is still materialized.
+   * Tmux is also inferred from host/app layers and is no longer materialized.
    */
   protected async initialBaseProjectSettings(): Promise<StoredBaseProjectSettings> {
-    const projectDefaults = await this.options.getProjectDefaults();
-    return { tmux: projectDefaults.tmuxByDefault };
+    return {};
   }
 
   private projectFilePath(relPath: string): string {
@@ -106,8 +97,7 @@ export abstract class DbProjectSettingsProvider
     });
   }
 
-  private async readSettingsRow(): Promise<{
-    base: BaseProjectSettings;
+  private async readSettingsRow(placementContext?: PlacementContext): Promise<{
     stored: StoredBaseProjectSettings;
     legacyLifecycle: LegacyLifecycleSettings;
   }> {
@@ -116,7 +106,6 @@ export abstract class DbProjectSettingsProvider
     if (!row) {
       const stored = await this.initialBaseProjectSettings();
       return {
-        base: toLegacyBaseSettingsView(stored),
         stored,
         legacyLifecycle: {},
       };
@@ -136,11 +125,11 @@ export abstract class DbProjectSettingsProvider
       row,
       rawBase,
       rawShareable,
-      legacyLifecycle
+      legacyLifecycle,
+      placementContext
     );
 
     return {
-      base: toLegacyBaseSettingsView(stored),
       stored,
       legacyLifecycle,
     };
@@ -176,22 +165,55 @@ export abstract class DbProjectSettingsProvider
    * on the next read.
    */
   private async migrateStoredModel(
-    raw: LegacyBaseProjectSettings
+    raw: LegacyBaseProjectSettings,
+    placementContext?: PlacementContext
   ): Promise<{ next: StoredBaseProjectSettings; changed: boolean }> {
     const needsFacts =
       raw.defaultBranch !== undefined || raw.baseRemote !== undefined || raw.remote !== undefined;
-    const repoFacts = needsFacts ? await this.loadRepoFacts() : null;
-    return migrateStoredBaseProjectSettings(raw, repoFacts);
+    const needsTmuxDefault = raw.tmuxDefaultMigrated !== true;
+    const [repoFacts, placement] = await Promise.all([
+      needsFacts ? this.loadRepoFacts() : Promise.resolve(null),
+      needsTmuxDefault
+        ? placementContext
+          ? Promise.resolve(placementContext)
+          : this.placementContext()
+        : Promise.resolve(null),
+    ]);
+    return migrateStoredBaseProjectSettings(raw, repoFacts, {
+      ...(placement
+        ? {
+            tmuxDefault: resolveEffectiveTmux({
+              hostTmux: placement.hostTmux,
+              appDefaultTmux: placement.appDefaultTmux,
+            }).value,
+          }
+        : {}),
+    });
   }
 
   private async migrateStoredModelIfNeeded(
     row: StoredProjectSettings,
     rawBase: LegacyBaseProjectSettings,
     rawShareable: ReturnType<typeof emdashConfigSchema.parse>,
-    legacyLifecycle: LegacyLifecycleSettings
+    legacyLifecycle: LegacyLifecycleSettings,
+    placementContext?: PlacementContext
   ): Promise<StoredBaseProjectSettings> {
-    const { next, changed: baseChanged } = await this.migrateStoredModel(rawBase);
-    if (hasLegacyLifecycleSettings(legacyLifecycle)) return next;
+    const { next, changed: baseChanged } = await this.migrateStoredModel(rawBase, placementContext);
+    if (hasLegacyLifecycleSettings(legacyLifecycle)) {
+      if (baseChanged) {
+        try {
+          await this.options.storage.update(this.projectId, {
+            baseProjectSettingsJson: this.baseJsonForWrite(next, row),
+          });
+        } catch (error) {
+          log.warn('Failed to write back migrated project settings; retrying next read', {
+            projectId: this.projectId,
+            error,
+          });
+        }
+      }
+      return next;
+    }
 
     const shareableChanged = Object.keys(rawShareable).length > 0;
     if (baseChanged || shareableChanged) {
@@ -266,11 +288,6 @@ export abstract class DbProjectSettingsProvider
     await this.ensureRow();
   }
 
-  async get(): Promise<ProjectSettings> {
-    const { base } = await this.readSettingsRow();
-    return projectSettingsSchema.parse(base);
-  }
-
   async readLegacyLifecycleSettings(): Promise<LegacyLifecycleSettings> {
     return (await this.readSettingsRow()).legacyLifecycle;
   }
@@ -333,36 +350,6 @@ export abstract class DbProjectSettingsProvider
     return stored.tmux === undefined ? {} : { tmux: stored.tmux };
   }
 
-  async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
-    const parsed = projectSettingsSchema.safeParse(settings);
-    if (!parsed.success) {
-      return err({ type: 'invalid-settings' });
-    }
-
-    const nextSettings = parsed.data;
-    const worktreeDirectoryResult = await this.validateWorktreeDirectory(
-      nextSettings.worktreeDirectory
-    );
-    if (!worktreeDirectoryResult.success) {
-      return worktreeDirectoryResult;
-    }
-    nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
-
-    const base = legacyBaseSettingsToStored(baseProjectSettingsSchema.parse(nextSettings));
-
-    try {
-      await this.ensure();
-      const row = await this.options.storage.get(this.projectId);
-      await this.options.storage.update(this.projectId, {
-        baseProjectSettingsJson: this.baseJsonForWrite(base, row),
-      });
-      return ok();
-    } catch (error) {
-      log.warn('Failed to update project settings', { error });
-      return err({ type: 'error' });
-    }
-  }
-
   async patch(
     patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'placement'>
   ): Promise<Result<void, UpdateProjectSettingsError>> {
@@ -413,7 +400,17 @@ export abstract class DbProjectSettingsProvider
     }
   }
 
-  async getWorktreeRootContext(): Promise<WorktreeRootContext> {
-    return this.worktreeRootContext();
+  async getPlacementContext(): Promise<PlacementContext> {
+    return this.placementContext();
+  }
+
+  async resolveTmux() {
+    const placement = await this.placementContext();
+    const { stored } = await this.readSettingsRow(placement);
+    return resolveEffectiveTmux({
+      projectTmux: stored.tmux,
+      hostTmux: placement.hostTmux,
+      appDefaultTmux: placement.appDefaultTmux,
+    });
   }
 }

@@ -498,7 +498,7 @@ export async function bootServices(
   });
   const gitCredentials = createGitCredentialsService({
     getAgentGitCredentialsSetting: async (projectId) => {
-      const settings = await projectManager.getProject(projectId)?.settings.get();
+      const settings = await projectManager.getProject(projectId)?.settings.getStoredGitSettings();
       return settings?.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
     },
     resolveProjectGitHubAccount,

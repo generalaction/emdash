@@ -314,15 +314,15 @@ async function resolveTerminalContext(
   return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
     // Effective default branch through the blessed resolver (spec:
     // github-git-settings §2); null (unresolvable) omits the env var.
-    const effective = await resolveProjectEffectiveSettings({
-      settings: project.settings,
-      repoFacts: project.repoFacts,
-    });
-    const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-    const [placement, projectConfig] = await Promise.all([
-      project.settings.getStoredPlacementSettings(),
+    const [effective, tmux, projectConfig] = await Promise.all([
+      resolveProjectEffectiveSettings({
+        settings: project.settings,
+        repoFacts: project.repoFacts,
+      }),
+      project.settings.resolveTmux(),
       client.workspaceRegistry.getProjectConfig({ workspaceId: identity.workspaceId }),
     ]);
+    const defaultBranch = effective.defaultBranch.value?.branch ?? null;
     if (!projectConfig.success) {
       return err(
         terminalError(
@@ -342,7 +342,7 @@ async function resolveTerminalContext(
         identity,
         makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
       ),
-      tmuxEnabled: placement.tmux ?? false,
+      tmuxEnabled: tmux.value,
       shellSetup: projectConfig.data.resolved.shellSetup?.value,
       taskEnvVars: getTaskEnvVars({
         taskId: terminal.taskId,

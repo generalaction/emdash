@@ -3,6 +3,7 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   resolveEffectiveGitSettings,
   resolveEffectiveSettings,
+  resolveTmux,
   type RepoFacts,
   type StoredSettings,
 } from './effective-settings';
@@ -493,6 +494,29 @@ describe('resolveEffectiveSettings', () => {
           provenance: { kind: 'broken-setting', staleValue: 'bad-project' },
         });
       });
+    });
+  });
+});
+
+describe('resolveTmux', () => {
+  it('uses an explicit project choice before host and app defaults', () => {
+    expect(resolveTmux({ projectTmux: false, hostTmux: true, appDefaultTmux: true })).toEqual({
+      value: false,
+      provenance: { kind: 'set' },
+    });
+  });
+
+  it('inherits the host default when no project choice exists', () => {
+    expect(resolveTmux({ hostTmux: true, appDefaultTmux: false })).toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'host default' },
+    });
+  });
+
+  it('inherits the app default when the host has no override', () => {
+    expect(resolveTmux({ hostTmux: null, appDefaultTmux: true })).toEqual({
+      value: true,
+      provenance: { kind: 'inferred', from: 'app default' },
     });
   });
 });

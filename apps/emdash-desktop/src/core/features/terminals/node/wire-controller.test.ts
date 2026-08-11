@@ -152,10 +152,10 @@ describe('createTerminalsWireController', () => {
         },
       })
     );
-    const getStoredPlacementSettings = vi.fn(async () => ({ tmux: true }));
-    const get = vi.fn(() => {
-      throw new Error('merged project settings must not be read');
-    });
+    const resolveTmux = vi.fn(async () => ({
+      value: true,
+      provenance: { kind: 'set' as const },
+    }));
     const start = vi.fn(async () => ok(undefined));
     const runtime = {
       workspaceRegistry: { getProjectConfig },
@@ -169,13 +169,16 @@ describe('createTerminalsWireController', () => {
           projectId: identity.projectId,
           repoPath: '/repo',
           settings: {
-            get,
-            getStoredPlacementSettings,
+            resolveTmux,
             getStoredGitSettings: vi.fn(async () => ({
               defaultBranch: { remote: null, branch: 'main' },
             })),
-            getWorktreeRootContext: vi.fn(async () => ({
+            getPlacementContext: vi.fn(async () => ({
+              hostWorktreeRoot: null,
               builtInWorktreeRoot: '/tmp/worktrees',
+              homeDirectory: '/tmp',
+              hostTmux: null,
+              appDefaultTmux: false,
             })),
           },
           repoFacts: {
@@ -213,8 +216,7 @@ describe('createTerminalsWireController', () => {
       })
     );
     expect(getProjectConfig).toHaveBeenCalledWith({ workspaceId: identity.workspaceId });
-    expect(getStoredPlacementSettings).toHaveBeenCalledOnce();
-    expect(get).not.toHaveBeenCalled();
+    expect(resolveTmux).toHaveBeenCalledOnce();
   });
 
   it('resolves the output source for the workspace host', async () => {

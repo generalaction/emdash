@@ -64,7 +64,6 @@ function configState() {
 }
 
 function fixture() {
-  const update = vi.fn(async () => ok(undefined));
   const patch = vi.fn(async () => ok(undefined));
   const patchPersonalProjectConfig = vi.fn(async () => ok(configState()));
   const refreshProjectConfig = vi.fn(async () => ok(configState()));
@@ -79,9 +78,7 @@ function fixture() {
     repoPath: '/repo',
     project: { repositoryWorkspaceId: 'repo-1' },
     settings: {
-      update,
       patch,
-      get: vi.fn(async () => ({})),
       getStoredGitSettings: vi.fn(async () => ({
         baseRemote: 'origin',
         pushRemote: 'stale-fork',
@@ -89,10 +86,12 @@ function fixture() {
         worktreeRoot: '/project/worktrees',
       })),
       getStoredPlacementSettings: vi.fn(async () => ({ tmux: true })),
-      getWorktreeRootContext: vi.fn(async () => ({
+      getPlacementContext: vi.fn(async () => ({
         hostWorktreeRoot: null,
         builtInWorktreeRoot: '/tmp/worktrees',
         homeDirectory: '/tmp',
+        hostTmux: false,
+        appDefaultTmux: true,
       })),
     },
     workspaceRegistry: {
@@ -110,7 +109,6 @@ function fixture() {
   });
   return {
     service,
-    update,
     patch,
     patchPersonalProjectConfig,
     refreshProjectConfig,
@@ -179,10 +177,16 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         hostWorktreeRoot: null,
         builtInWorktreeRoot: '/tmp/worktrees',
         homeDirectory: '/tmp',
+        hostTmux: false,
+        appDefaultTmux: true,
       },
       resolved: {
         worktreeRoot: {
           value: '/project/worktrees',
+          provenance: { kind: 'set' },
+        },
+        tmux: {
+          value: true,
           provenance: { kind: 'set' },
         },
       },
@@ -231,7 +235,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
   });
 
   it('applies ordinary saves as explicit registry and DB domain patches', async () => {
-    const { service, update, patch, patchPersonalProjectConfig } = fixture();
+    const { service, patch, patchPersonalProjectConfig } = fixture();
 
     const result = await service.updateProjectSettings('project-1', {
       lifecycle: {
@@ -268,11 +272,10 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         stored: { worktreeRoot: '/tmp/worktrees', tmux: true },
       },
     });
-    expect(update).not.toHaveBeenCalled();
   });
 
   it('reset removes only the requested personal fields', async () => {
-    const { service, update, patchPersonalProjectConfig } = fixture();
+    const { service, patchPersonalProjectConfig } = fixture();
 
     const result = await service.updateProjectSettings('project-1', {
       lifecycle: {
@@ -292,7 +295,6 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         preservePatterns: null,
       },
     });
-    expect(update).not.toHaveBeenCalled();
   });
 });
 

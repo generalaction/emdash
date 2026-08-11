@@ -28,6 +28,7 @@ export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend(
   defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
   worktreeRoot: z.string().trim().optional(),
   githubAccount: storedGithubAccountSchema.optional(),
+  tmuxDefaultMigrated: z.literal(true).optional(),
 });
 
 export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;

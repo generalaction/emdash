@@ -34,7 +34,7 @@ describe('buildTaskProviders', () => {
 });
 
 describe('resolveTaskEnv', () => {
-  it('reads shell setup from registry config and tmux from DB placement settings', async () => {
+  it('reads shell setup from registry config and tmux from the placement resolver', async () => {
     const getProjectConfig = vi.fn(async () =>
       ok({
         resolved: {
@@ -45,18 +45,21 @@ describe('resolveTaskEnv', () => {
         },
       })
     );
-    const getStoredPlacementSettings = vi.fn(async () => ({ tmux: true }));
-    const get = vi.fn(() => {
-      throw new Error('merged project settings must not be read');
-    });
+    const resolveTmux = vi.fn(async () => ({
+      value: true,
+      provenance: { kind: 'set' as const },
+    }));
     const settings = {
-      get,
-      getStoredPlacementSettings,
+      resolveTmux,
       getStoredGitSettings: vi.fn(async () => ({
         defaultBranch: { remote: null, branch: 'main' },
       })),
-      getWorktreeRootContext: vi.fn(async () => ({
+      getPlacementContext: vi.fn(async () => ({
+        hostWorktreeRoot: null,
         builtInWorktreeRoot: '/tmp/worktrees',
+        homeDirectory: '/tmp',
+        hostTmux: null,
+        appDefaultTmux: false,
       })),
     } as never;
 
@@ -84,8 +87,7 @@ describe('resolveTaskEnv', () => {
       },
     });
     expect(getProjectConfig).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
-    expect(getStoredPlacementSettings).toHaveBeenCalledOnce();
-    expect(get).not.toHaveBeenCalled();
+    expect(resolveTmux).toHaveBeenCalledOnce();
   });
 
   it('registers a missing workspace before retrying project config resolution', async () => {
@@ -101,10 +103,17 @@ describe('resolveTaskEnv', () => {
       );
     const createWorkspace = vi.fn(async () => ok({} as never));
     const settings = {
-      getStoredPlacementSettings: vi.fn(async () => ({ tmux: false })),
+      resolveTmux: vi.fn(async () => ({
+        value: false,
+        provenance: { kind: 'inferred' as const, from: 'app default' },
+      })),
       getStoredGitSettings: vi.fn(async () => ({})),
-      getWorktreeRootContext: vi.fn(async () => ({
+      getPlacementContext: vi.fn(async () => ({
+        hostWorktreeRoot: null,
         builtInWorktreeRoot: '/tmp/worktrees',
+        homeDirectory: '/tmp',
+        hostTmux: null,
+        appDefaultTmux: false,
       })),
     } as never;
 
@@ -146,10 +155,17 @@ describe('resolveTaskEnv', () => {
       } as never,
       '/repo',
       {
-        getStoredPlacementSettings: vi.fn(async () => ({})),
+        resolveTmux: vi.fn(async () => ({
+          value: false,
+          provenance: { kind: 'inferred' as const, from: 'app default' },
+        })),
         getStoredGitSettings: vi.fn(async () => ({})),
-        getWorktreeRootContext: vi.fn(async () => ({
+        getPlacementContext: vi.fn(async () => ({
+          hostWorktreeRoot: null,
           builtInWorktreeRoot: '/tmp/worktrees',
+          homeDirectory: '/tmp',
+          hostTmux: null,
+          appDefaultTmux: false,
         })),
       } as never,
       {

@@ -1,5 +1,6 @@
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
+import type { PlacementContext } from './placement';
 import type { AgentGitCredentialsSetting } from './project-settings';
 import { normalizeWorktreeRootPath } from './worktree-root';
 
@@ -413,4 +414,31 @@ export function resolveWorktreeRoot(
   return staleValue === builtIn.raw || staleValue === null
     ? { value: builtIn.raw, provenance: builtIn.provenance }
     : { value: builtIn.raw, provenance: { kind: 'broken-setting', staleValue } };
+}
+
+// ---------------------------------------------------------------------------
+// Tmux: project override → host default → app default
+// ---------------------------------------------------------------------------
+
+/**
+ * The only tmux precedence chain: explicit per-project choice (`set`) →
+ * per-host default (`inferred` from "host default") → desktop app default
+ * (`inferred` from "app default"). Absence always means inherit.
+ */
+export function resolveTmux(
+  layers: Pick<PlacementContext, 'hostTmux' | 'appDefaultTmux'> & { projectTmux?: boolean }
+): Resolved<boolean> {
+  if (layers.projectTmux !== undefined) {
+    return { value: layers.projectTmux, provenance: { kind: 'set' } };
+  }
+  if (layers.hostTmux !== null) {
+    return {
+      value: layers.hostTmux,
+      provenance: { kind: 'inferred', from: 'host default' },
+    };
+  }
+  return {
+    value: layers.appDefaultTmux,
+    provenance: { kind: 'inferred', from: 'app default' },
+  };
 }

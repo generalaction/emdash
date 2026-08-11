@@ -2,7 +2,6 @@ import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import type {
   AgentGitCredentialsSetting,
-  ProjectSettings,
   ShareableProjectSettingsWriteField,
   StoredDefaultBranch,
   StoredGithubAccount,
@@ -43,7 +42,8 @@ export type GitIdentityFormState = {
 };
 
 export type PlacementFormState = {
-  tmux: boolean;
+  /** Undefined means inherit from the host/app placement layers. */
+  tmux: boolean | undefined;
   worktreeDirectory: string;
 };
 
@@ -120,7 +120,7 @@ export function gitIdentityToForm(
 
 export function placementToForm(domain: ProjectPlacementDomainSnapshot): PlacementFormState {
   return {
-    tmux: domain.stored.tmux ?? false,
+    tmux: domain.stored.tmux,
     worktreeDirectory: domain.stored.worktreeRoot ?? '',
   };
 }
@@ -225,7 +225,7 @@ export function placementToPatch(
   if (isTouched(touchedFields, 'placement.worktreeDirectory')) {
     stored.worktreeRoot = blankToUndefined(form.worktreeDirectory) ?? null;
   }
-  if (isTouched(touchedFields, 'placement.tmux')) stored.tmux = form.tmux;
+  if (isTouched(touchedFields, 'placement.tmux')) stored.tmux = form.tmux ?? null;
   return Object.keys(stored).length > 0 ? { stored } : undefined;
 }
 
@@ -257,88 +257,6 @@ export function effectiveAutoRunToggleValue(
   resolvedValue: boolean
 ): boolean {
   return personalValue ?? resolvedValue;
-}
-
-/** Compatibility conversion for the remaining legacy settings-hook payload. */
-export function settingsToForm(
-  settings: ProjectSettings,
-  storedGitSettings: StoredProjectGitSettings,
-  remotes: { name: string; url: string }[]
-): FormState {
-  return {
-    lifecycle: {
-      autoRunSetupScriptOnTaskCreation: settings.autoRunSetupScriptOnTaskCreation ?? true,
-      autoRunRunScriptOnTaskCreation: settings.autoRunRunScriptOnTaskCreation ?? false,
-      scriptPrepare: normalizeScript(settings.scripts?.prepare),
-      scriptSetup: normalizeScript(settings.scripts?.setup),
-      scriptRun: normalizeScript(settings.scripts?.run),
-      scriptTeardown: normalizeScript(settings.scripts?.teardown),
-    },
-    fileHandling: {
-      preservePatterns: (settings.preservePatterns ?? []).join('\n'),
-    },
-    gitIdentity: {
-      defaultBranch: storedDefaultBranchToBranchRef(storedGitSettings.defaultBranch, remotes),
-      baseRemote: storedGitSettings.baseRemote ?? '',
-      pushRemote: storedGitSettings.pushRemote ?? '',
-      githubAccount: storedGitSettings.githubAccount,
-      agentGitCredentials:
-        settings.agentGitCredentials ??
-        storedGitSettings.agentGitCredentials ??
-        DEFAULT_AGENT_GIT_CREDENTIALS,
-    },
-    placement: {
-      tmux: settings.tmux ?? false,
-      worktreeDirectory: storedGitSettings.worktreeRoot ?? '',
-    },
-  };
-}
-
-export function formToSettings(form: FormState): ProjectSettings {
-  const { lifecycle, fileHandling, gitIdentity, placement } = form;
-  let defaultBranch: ProjectSettings['defaultBranch'];
-  if (gitIdentity.defaultBranch) {
-    defaultBranch =
-      gitIdentity.defaultBranch.type === 'remote'
-        ? `${gitIdentity.defaultBranch.remote.name}/${gitIdentity.defaultBranch.branch}`
-        : gitIdentity.defaultBranch.branch;
-  }
-  const preservePatterns = parsePreservePatterns(fileHandling.preservePatterns);
-  const scripts = {
-    prepare: blankToUndefined(lifecycle.scriptPrepare),
-    setup: blankToUndefined(lifecycle.scriptSetup),
-    run: blankToUndefined(lifecycle.scriptRun),
-    teardown: blankToUndefined(lifecycle.scriptTeardown),
-  };
-  const hasScripts = Object.values(scripts).some((value) => value !== undefined);
-  return {
-    preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
-    tmux: placement.tmux,
-    ...(lifecycle.autoRunSetupScriptOnTaskCreation
-      ? {}
-      : { autoRunSetupScriptOnTaskCreation: false }),
-    ...(lifecycle.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),
-    scripts: hasScripts ? scripts : undefined,
-    worktreeDirectory: blankToUndefined(placement.worktreeDirectory),
-    defaultBranch,
-    baseRemote: blankToUndefined(gitIdentity.baseRemote),
-    pushRemote:
-      gitIdentity.pushRemote.trim() &&
-      gitIdentity.pushRemote.trim() !== gitIdentity.baseRemote.trim()
-        ? gitIdentity.pushRemote.trim()
-        : undefined,
-    ...(gitIdentity.githubAccount !== undefined
-      ? {
-          githubAccountId:
-            gitIdentity.githubAccount.kind === 'account'
-              ? gitIdentity.githubAccount.accountId
-              : null,
-        }
-      : {}),
-    ...(gitIdentity.agentGitCredentials !== DEFAULT_AGENT_GIT_CREDENTIALS
-      ? { agentGitCredentials: gitIdentity.agentGitCredentials }
-      : {}),
-  };
 }
 
 export function formToStoredGitSettings(
