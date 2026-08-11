@@ -3,11 +3,7 @@ import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { observe, remote } from '@emdash/wire/state';
-import {
-  resolveProjectEffectiveSettings,
-  type ProjectEffectiveSettingsSource,
-  type RepoFactsSource,
-} from '@core/features/projects/api/node/settings/effective-settings';
+import type { EffectiveSettings } from '@core/primitives/project-settings/api';
 import type { ProjectRemoteState } from '@core/primitives/projects/api';
 import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
 
@@ -15,8 +11,8 @@ export class GitRepositoryService {
   constructor(
     private readonly client: GitRuntimeClient,
     private readonly selector: RepositorySelector,
-    private readonly settings: ProjectEffectiveSettingsSource,
-    private readonly repoFacts: RepoFactsSource
+    /** The project's blessed-resolver output (spec: github-git-settings §2). */
+    private readonly resolveEffectiveSettings: () => Promise<EffectiveSettings>
   ) {}
 
   subscribeRemotes(cb: (update: GitRemotesState) => void): Unsubscribe {
@@ -42,11 +38,7 @@ export class GitRepositoryService {
    * github-git-settings §2). `null` means the repository has no remotes.
    */
   async getBaseRemote(): Promise<string | null> {
-    const effective = await resolveProjectEffectiveSettings({
-      settings: this.settings,
-      repoFacts: this.repoFacts,
-    });
-    return effective.baseRemote.value;
+    return (await this.resolveEffectiveSettings()).baseRemote.value;
   }
 
   async getRemoteState(): Promise<ProjectRemoteState> {

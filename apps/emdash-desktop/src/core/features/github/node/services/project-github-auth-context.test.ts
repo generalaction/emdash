@@ -5,10 +5,7 @@ import {
   type ProjectGitHubAuthContextError,
 } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import type {
-  RepoFacts,
-  StoredProjectGitSettings,
-} from '@core/primitives/project-settings/api';
+import type { RepoFacts, StoredProjectGitSettings } from '@core/primitives/project-settings/api';
 
 type FakeProject = {
   settings: {

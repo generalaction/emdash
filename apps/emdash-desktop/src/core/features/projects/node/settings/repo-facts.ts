@@ -114,10 +114,7 @@ export function createRepoFactsCache(
   };
 }
 
-export function buildRepoFacts(
-  remotesState: GitRemotesState,
-  refsState: GitRefsState
-): RepoFacts {
+export function buildRepoFacts(remotesState: GitRemotesState, refsState: GitRefsState): RepoFacts {
   const branches = refsState.branches;
   const remoteHeads = refsState.remoteHeads ?? [];
   const remotes: RepoRemoteFacts[] = remotesState.remotes.map((remote) => ({

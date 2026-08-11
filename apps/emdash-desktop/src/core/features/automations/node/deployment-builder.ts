@@ -4,16 +4,12 @@ import { hostFileRef } from '@emdash/core/primitives/path/api';
 import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
-import { migrateStoredBaseProjectSettings } from '@core/features/projects/node/settings/stored-settings-migration';
+import { storedGitSettingsFromRow } from '@core/features/projects/api/node/settings/effective-settings';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { Automation, AutomationDefinitionError } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import {
-  legacyBaseProjectSettingsSchema,
-  resolveEffectiveSettings,
-  type RepoFacts,
-} from '@core/primitives/project-settings/api';
+import { resolveEffectiveSettings, type RepoFacts } from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
@@ -226,10 +222,8 @@ async function loadDeploymentProjectSettings(
   let preservePatterns: string[] = [];
   if (row) {
     try {
-      const raw = legacyBaseProjectSettingsSchema.parse(JSON.parse(row.base));
-      stored = migrateStoredBaseProjectSettings(raw, facts).next;
-      preservePatterns =
-        emdashConfigSchema.parse(JSON.parse(row.shareable)).preservePatterns ?? [];
+      stored = storedGitSettingsFromRow(row.base, facts);
+      preservePatterns = emdashConfigSchema.parse(JSON.parse(row.shareable)).preservePatterns ?? [];
     } catch {
       stored = {};
     }

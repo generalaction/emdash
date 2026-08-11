@@ -1,12 +1,13 @@
-import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
+  legacyBaseProjectSettingsSchema,
   resolveEffectiveSettings,
   type EffectiveSettings,
   type RepoFacts,
   type StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
+import { migrateStoredBaseProjectSettings } from '../../../node/settings/stored-settings-migration';
 
 /**
  * The per-project repo-facts cache surface (spec: github-git-settings §2):
@@ -75,47 +76,16 @@ function warnAboutBrokenSettings(effective: EffectiveSettings, projectId?: strin
   }
 }
 
-export type EffectiveSettingsProject = {
-  settings: ProjectEffectiveSettingsSource;
-  repoFacts: RepoFactsSource;
-};
-
-export type ProjectEffectiveSettingsError = {
-  type: 'project-not-found';
-  projectId: string;
-  message: string;
-};
-
 /**
- * Project-id-keyed access to the resolver for flows that start from a project
- * id (issue provider, PR registration, GitHub auth context).
+ * Stored git settings parsed straight from a project-settings DB row, for
+ * flows that resolve before the project is mounted (e.g. automation deploys
+ * at boot). Applies the lazy stored-model migration in memory only — no
+ * write-back; the settings provider persists it on its next read.
  */
-export class ProjectEffectiveSettingsResolver {
-  constructor(
-    private readonly deps: {
-      projects: { getProject(projectId: string): EffectiveSettingsProject | undefined };
-      listGitHubAccounts(): Promise<GitHubAccountSummary[]>;
-    }
-  ) {}
-
-  async resolve(
-    projectId: string
-  ): Promise<Result<EffectiveSettings, ProjectEffectiveSettingsError>> {
-    const project = this.deps.projects.getProject(projectId);
-    if (!project) {
-      return err({
-        type: 'project-not-found',
-        projectId,
-        message: `Project ${projectId} is not mounted.`,
-      });
-    }
-    return ok(
-      await resolveProjectEffectiveSettings({
-        settings: project.settings,
-        repoFacts: project.repoFacts,
-        accounts: await this.deps.listGitHubAccounts(),
-        projectId,
-      })
-    );
-  }
+export function storedGitSettingsFromRow(
+  baseProjectSettingsJson: string,
+  repoFacts: RepoFacts | null
+): StoredProjectGitSettings {
+  const raw = legacyBaseProjectSettingsSchema.parse(JSON.parse(baseProjectSettingsJson));
+  return migrateStoredBaseProjectSettings(raw, repoFacts).next;
 }

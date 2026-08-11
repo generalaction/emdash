@@ -82,8 +82,8 @@ import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
-import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { projectHostRef } from '@core/primitives/projects/api';
+import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { isServerUsable } from '@core/services/hosts/api';
 import { createNotificationService } from '@core/services/notifications/node';
@@ -93,9 +93,9 @@ import {
   createReconcileSweepTriggers,
   installReconcileSweepTriggers,
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
+import { repositorySelector } from '@core/services/runtime-broker/node/git';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
-import { repositorySelector } from '@core/services/runtime-broker/node/git';
 import { createHostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
@@ -258,8 +258,8 @@ export async function bootServices(
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createGitRepository: (client, repository, settings, repoFacts) =>
-      new GitRepositoryService(client, repository, settings, repoFacts),
+    createGitRepository: (client, repository, resolveEffectiveSettings) =>
+      new GitRepositoryService(client, repository, resolveEffectiveSettings),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
       new GitRepositoryFetchService(client, repository, getBaseRemote),
     ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>

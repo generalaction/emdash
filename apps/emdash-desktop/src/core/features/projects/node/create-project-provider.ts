@@ -14,13 +14,14 @@ import {
   type GitRepositoryPort,
   type ProjectProviderTransport,
 } from '@core/features/projects/api/node/project-provider';
-import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
+import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
   hostPathFromNative,
   nativePathFromHost,
   relativeRuntimePath,
 } from '@core/primitives/desktop-runtime/api';
+import type { EffectiveSettings } from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -50,8 +51,7 @@ export type CreateProjectProviderDependencies = {
   createGitRepository(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    settings: HostProjectSettingsProvider,
-    repoFacts: RepoFactsSource
+    resolveEffectiveSettings: () => Promise<EffectiveSettings>
   ): GitRepositoryPort;
   createGitRepositoryFetch(
     client: GitRuntimeClient,
@@ -158,7 +158,9 @@ export async function createProvider(
     );
     await settings.ensure({ git: gitInspector });
 
-    const repositoryService = dependencies.createGitRepository(git, repository, settings, repoFacts);
+    const repositoryService = dependencies.createGitRepository(git, repository, () =>
+      resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
+    );
 
     ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 

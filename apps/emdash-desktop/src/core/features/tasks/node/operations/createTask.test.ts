@@ -1,5 +1,5 @@
 import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import type { TaskRow } from '@core/services/app-db/node/schema';
 import { createTask as createTaskOperation } from './createTask';
@@ -155,8 +155,9 @@ function makeProjectRemote() {
     host: hostRef('remote', 'conn-1'),
     settings: {
       get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+    },
+    gitRepository: {
       getBaseRemote: vi.fn(async () => 'origin'),
-      getPushRemote: vi.fn(async () => 'origin'),
     },
   });
 }
@@ -171,8 +172,9 @@ describe('createTask', () => {
       host: hostRef('local', 'local'),
       settings: {
         get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+      },
+      gitRepository: {
         getBaseRemote: vi.fn(async () => 'origin'),
-        getPushRemote: vi.fn(async () => 'origin'),
       },
     });
     mocks.findWorkspaceTombstoneConflict.mockReturnValue(undefined);
@@ -752,6 +754,24 @@ describe('createTask', () => {
           },
         })
       );
+    });
+
+    it('refuses PR checkout when the resolver finds no remotes', async () => {
+      // The effective base remote comes from the blessed resolver; null means
+      // the repository has no remotes, so a PR-sourced plan cannot compile.
+      const project = mocks.getProject() as { gitRepository: { getBaseRemote: Mock } };
+      project.gitRepository.getBaseRemote.mockResolvedValue(null);
+
+      const result = await createTask(db, projects, hostIsReachable, prParams({}));
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'provision-failed',
+          message: 'The repository has no git remotes, so a pull request cannot be checked out.',
+        },
+      });
+      expect(mocks.transaction).not.toHaveBeenCalled();
     });
 
     it('compiles pr-new-branch into the task branch with no gitSetup upstream and a push', async () => {
