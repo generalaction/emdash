@@ -8,11 +8,7 @@ import type {
 } from '@core/primitives/github/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { getGithubClient } from './client';
-import {
-  GITHUB_ACCOUNTS_QUERY_KEY,
-  GITHUB_ACCOUNT_STATE_QUERY_KEY,
-  ISSUE_CONNECTION_STATUS_QUERY_KEY,
-} from './useGithubAccounts';
+import { GITHUB_ACCOUNT_STATE_QUERY_KEY, invalidateGitHubAccountState } from './useGithubAccounts';
 
 type GithubContextValue = {
   user: GitHubUser | null;
@@ -51,9 +47,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   const user = accountSummaryToUser(defaultAccount);
 
   const invalidateGitHubState = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-    void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
-    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    invalidateGitHubAccountState(queryClient);
   }, [queryClient]);
 
   const refreshAccountState = useCallback(
