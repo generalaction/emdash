@@ -23,7 +23,11 @@ const FACTS: RepoFacts = {
 function makeSettingsSource(stored: Record<string, unknown>) {
   return {
     getStoredGitSettings: vi.fn().mockResolvedValue(stored),
-    getDefaultWorktreeDirectory: vi.fn().mockResolvedValue('/worktrees'),
+    getWorktreeRootContext: vi.fn().mockResolvedValue({
+      hostWorktreeRoot: null,
+      builtInWorktreeRoot: '/home/me/emdash/worktrees',
+      homeDirectory: '/home/me',
+    }),
   };
 }
 
@@ -62,6 +66,23 @@ describe('resolveProjectEffectiveSettings', () => {
     expect(effective.baseRemote.value).toBeNull();
     expect(effective.defaultBranch.value).toBeNull();
     expect(mocks.warn).not.toHaveBeenCalled();
+  });
+
+  it('degrades an unusable worktree root to the next layer and logs a warning', async () => {
+    const effective = await resolveProjectEffectiveSettings({
+      settings: makeSettingsSource({ worktreeRoot: 'relative/pool' }),
+      repoFacts: makeRepoFactsSource(FACTS),
+      projectId: 'project-1',
+    });
+
+    expect(effective.worktreeRoot).toEqual({
+      value: '/home/me/emdash/worktrees',
+      provenance: { kind: 'broken-setting', staleValue: 'relative/pool' },
+    });
+    expect(mocks.warn).toHaveBeenCalledWith(
+      'Stale worktreeRoot setting no longer matches the repository; using inferred fallback',
+      { projectId: 'project-1', staleValue: 'relative/pool', fallback: '/home/me/emdash/worktrees' }
+    );
   });
 
   it('resolves the default branch from the remote HEAD fact', async () => {

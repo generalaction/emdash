@@ -5,12 +5,16 @@ import {
   type ProjectGitHubAuthContextError,
 } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import type { RepoFacts, StoredProjectGitSettings } from '@core/primitives/project-settings/api';
+import type {
+  RepoFacts,
+  StoredProjectGitSettings,
+  WorktreeRootContext,
+} from '@core/primitives/project-settings/api';
 
 type FakeProject = {
   settings: {
     getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-    getDefaultWorktreeDirectory(): Promise<string>;
+    getWorktreeRootContext(): Promise<WorktreeRootContext>;
   };
   repoFacts: {
     get(): Promise<RepoFacts | null>;
@@ -58,7 +62,11 @@ function makeProject(
   return {
     settings: {
       getStoredGitSettings: vi.fn().mockResolvedValue(stored),
-      getDefaultWorktreeDirectory: vi.fn().mockResolvedValue('/worktrees'),
+      getWorktreeRootContext: vi.fn().mockResolvedValue({
+        hostWorktreeRoot: null,
+        builtInWorktreeRoot: '/home/me/emdash/worktrees',
+        homeDirectory: '/home/me',
+      }),
     },
     repoFacts: {
       get: vi.fn().mockResolvedValue(facts),

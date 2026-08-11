@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
+import type { WorktreeRootContext } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 import {
@@ -16,7 +17,7 @@ import {
 const pathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
 
 export type HostProjectSettingsProviderOptions = DbProjectSettingsProviderOptions & {
-  defaultWorktreeDirectory(): Promise<string>;
+  worktreeRootContext(): Promise<WorktreeRootContext>;
   worktreeDirectoryFileSystem: WorktreeDirectoryFileSystem;
 };
 
@@ -31,8 +32,8 @@ export class HostProjectSettingsProvider extends DbProjectSettingsProvider {
     super(projectId, projectPath, defaultBranchFallback, files, path.join, hostOptions);
   }
 
-  protected defaultWorktreeDirectory(): Promise<string> {
-    return this.hostOptions.defaultWorktreeDirectory();
+  protected worktreeRootContext(): Promise<WorktreeRootContext> {
+    return this.hostOptions.worktreeRootContext();
   }
 
   protected validateWorktreeDirectory(
