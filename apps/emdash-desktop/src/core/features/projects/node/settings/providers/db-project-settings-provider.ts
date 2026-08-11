@@ -59,7 +59,8 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
   protected constructor(
     private readonly projectId: string,
     protected readonly projectPath: string,
-    protected readonly defaultBranchFallback: string = 'main',
+    /** Creation-time base ref (creation provenance); null when unknown. */
+    protected readonly defaultBranchFallback: string | null,
     private readonly configFiles: FilesClientScope | undefined,
     private readonly joinProjectPath: (rootPath: string, relPath: string) => string,
     private readonly options: DbProjectSettingsProviderOptions

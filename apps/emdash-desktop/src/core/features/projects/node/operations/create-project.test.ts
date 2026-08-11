@@ -65,7 +65,9 @@ describe('project creation without a git repository', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.path).toBe('/workspace/plain-folder');
-    expect(result.data.baseRef).toBe('main');
+    // Creation provenance stays honestly absent for a non-git folder — no
+    // fabricated 'main' (spec: github-git-settings §3).
+    expect(result.data.baseRef).toBeNull();
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
     expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
 

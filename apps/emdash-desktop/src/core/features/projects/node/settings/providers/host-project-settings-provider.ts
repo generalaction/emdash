@@ -25,7 +25,8 @@ export class HostProjectSettingsProvider extends DbProjectSettingsProvider {
   constructor(
     projectId: string,
     projectPath: string,
-    defaultBranchFallback: string = 'main',
+    /** Creation-time base ref (creation provenance); null when unknown. */
+    defaultBranchFallback: string | null,
     files: FilesClientScope,
     private readonly hostOptions: HostProjectSettingsProviderOptions
   ) {

@@ -23,7 +23,7 @@ export type LegacyProjectSettingsMigrationArgs = {
   row: StoredProjectSettings | undefined;
   configFiles: FilesClientScope | undefined;
   configPath: string;
-  defaultBranchFallback: string;
+  defaultBranchFallback: string | null;
   storage: ProjectSettingsStorage;
   git?: ProjectSettingsGitInspector;
   normalizeStoredWorktreeDirectory: (
@@ -38,7 +38,7 @@ export type ProjectSettingsGitInspector = {
 function normalizeLegacyDefaultBranch(
   branch: LegacyBaseProjectSettings['defaultBranch'],
   remote: string | undefined,
-  fallback: string
+  fallback: string | null
 ): LegacyBaseProjectSettings['defaultBranch'] {
   if (!branch) return undefined;
   // Already in the new stored model: nothing to normalize.
@@ -46,7 +46,8 @@ function normalizeLegacyDefaultBranch(
   const branchName = typeof branch === 'string' ? branch.trim() : branch.name.trim();
   if (!branchName) return undefined;
   if (branchName.includes('/')) return branchName;
-  const remoteName = remote?.trim() || remoteNameFromQualifiedRef(fallback) || undefined;
+  const remoteName =
+    remote?.trim() || (fallback !== null ? remoteNameFromQualifiedRef(fallback) : undefined);
   return remoteName ? `${remoteName}/${branchName}` : branchName;
 }
 

@@ -18,7 +18,12 @@ export const localProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
-  baseRef: z.string(),
+  /**
+   * The branch detected at creation — immutable creation provenance only
+   * (spec: github-git-settings §3). Never feeds resolution; null when the
+   * project was created without a repository.
+   */
+  baseRef: z.string().nullable(),
   repositoryWorkspaceId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -29,7 +34,8 @@ export const sshProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
-  baseRef: z.string(),
+  /** Creation provenance only; see `localProjectSchema.baseRef`. */
+  baseRef: z.string().nullable(),
   connectionId: z.string(),
   repositoryWorkspaceId: z.string().nullable(),
   createdAt: z.string(),
