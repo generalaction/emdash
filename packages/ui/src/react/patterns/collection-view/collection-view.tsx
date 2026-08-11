@@ -314,7 +314,7 @@ const StateBody = observer(function StateBody({
  *     toolbar={<TasksToolbar />}        // sticky slot above the list
  *     footer={<TasksSelectionBar />}    // floating overlay (bulk bars)
  *     onItemClick={(t) => openTask(t)}
- *     emptySlot={<EmptyState label="No tasks" />}
+ *     emptySlot={<EmptyState bare label="No tasks" />}
  *   />
  * </tasksView.Root>
  * ```

@@ -617,7 +617,7 @@ export const AutomationsFreeform: Story = {
 // ══ 5 · Empty / loading / error states ═══════════════════════════════════════
 // The three free-form slots. An empty state is mandatory; `EmptyState` is the
 // default empty/error content and `Spinner` the loading default. Custom
-// `EmptyState` slot content should pass `bare` — the card paints its own
+// `EmptyState` slot content must pass `bare` — the card paints its own
 // surface, so the component's panel background would patch over it.
 
 const loadingView = createListView({
