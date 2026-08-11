@@ -1,7 +1,5 @@
-import { CollectionView } from '@emdash/ui/react/patterns';
-import { Spinner } from '@emdash/ui/react/primitives';
+import { CollectionView, useQueryListSource } from '@emdash/ui/react/patterns';
 import { BotIcon } from 'lucide-react';
-import { observable, runInAction } from 'mobx';
 import React, { useLayoutEffect, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
@@ -28,15 +26,8 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   const host = hostRefFromConnectionId(connectionId);
   const agentsQuery = useAgents(host);
 
-  // Bridge the query data into the view's sync source: seed the box so the
-  // first render sees data, and update before paint to avoid an empty flash.
-  const [itemsBox] = useState(() =>
-    observable.box<AgentPayload[]>(agentsQuery.data ?? [], { deep: false })
-  );
-  const [view] = useState(() => createAgentsListView(() => itemsBox.get()));
-  useLayoutEffect(() => {
-    runInAction(() => itemsBox.set(agentsQuery.data ?? []));
-  }, [agentsQuery.data, itemsBox]);
+  const source = useQueryListSource(agentsQuery, (agents: AgentPayload[]) => agents);
+  const [view] = useState(() => createAgentsListView(source));
 
   // The search query is owned outside the view (settings search context or the
   // panel's local state); mirror it into the view's search slice.
@@ -55,13 +46,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
           density="compact"
           toolbar={toolbar}
           onItemClick={(agent) => setSelectedAgentId(agent.id)}
-          emptySlot={
-            agentsQuery.isPending ? (
-              <AgentsLoadingState />
-            ) : (
-              <AgentsEmptyState hasAgents={hasAgents} />
-            )
-          }
+          emptySlot={<AgentsEmptyState hasAgents={hasAgents} />}
         />
       </view.Root>
       <AgentDetailSheet
@@ -74,16 +59,8 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   );
 };
 
-// The view's sync source is never "loading", so the query's pending state
-// routes through the empty slot rather than CollectionView's loadingSlot.
-function AgentsLoadingState() {
-  return (
-    <div className="flex min-h-48 items-center justify-center p-8">
-      <Spinner />
-    </div>
-  );
-}
-
+// Icon-bearing empty state — `EmptyState` has no icon slot, so this stays
+// custom under the rich-states carve-out.
 function AgentsEmptyState({ hasAgents }: { hasAgents: boolean }) {
   return (
     <div className="flex min-h-48 flex-col items-center justify-center p-8 text-center">
