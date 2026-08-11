@@ -19,11 +19,11 @@ describe('buildScriptEnv', () => {
     });
   });
 
-  it('falls back to directory name, workspace path, and main when facts are sparse', () => {
+  it('falls back to directory name and workspace path, omitting the default branch, when facts are sparse', () => {
     const env = buildScriptEnv('/work/trees/task-42', { workspaceId: 'ws-2' });
     expect(env.EMDASH_TASK_NAME).toBe('task-42');
     expect(env.EMDASH_ROOT_PATH).toBe('/work/trees/task-42');
-    expect(env.EMDASH_DEFAULT_BRANCH).toBe('main');
+    expect(Object.keys(env)).not.toContain('EMDASH_DEFAULT_BRANCH');
   });
 
   it('never sets CI and derives a stable port from the workspace path', () => {

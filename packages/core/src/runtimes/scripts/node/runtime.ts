@@ -150,7 +150,7 @@ export class ScriptsRuntime {
     }
     const shellSetup = config.shellSetup ?? (await this.defaultShellSetup?.());
 
-    // Worker env verbatim + the six host-derived EMDASH_* vars; deliberately no
+    // Worker env verbatim + the host-derived EMDASH_* vars; deliberately no
     // CI=1 injection (spec: env parity — a documented breaking change).
     const env = buildTerminalEnv({ overrides: buildScriptEnv(input.workspacePath, input.facts) });
     const log = this.logFor(input);

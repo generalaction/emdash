@@ -14,7 +14,12 @@ export const fetchPrForReviewOptionsSchema = z.object({
   headRepositoryUrl: z.string(),
   localBranch: z.string(),
   isFork: z.boolean(),
-  configuredRemote: z.string().optional(),
+  /**
+   * The effective base remote, resolved by the caller (blessed resolver;
+   * spec: github-git-settings §2) — this layer never invents one. Unused for
+   * fork PRs, which fetch through a dedicated fork remote.
+   */
+  configuredRemote: z.string(),
 });
 export type FetchPrForReviewOptions = z.infer<typeof fetchPrForReviewOptionsSchema>;
 

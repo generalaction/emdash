@@ -195,7 +195,7 @@ export class GitRepository {
         return ok(undefined);
       }
 
-      const remote = options.configuredRemote ?? 'origin';
+      const remote = options.configuredRemote;
       await execGitWithProgress(
         this.exec,
         [
