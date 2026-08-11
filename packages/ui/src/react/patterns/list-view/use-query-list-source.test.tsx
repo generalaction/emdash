@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, renderHook } from '@testing-library/react';
+import { cleanup, render, renderHook } from '@testing-library/react';
 import { autorun } from 'mobx';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ListViewStore } from './core/list-view-store';
@@ -33,13 +33,23 @@ afterEach(cleanup);
 
 describe('useQueryListSource', () => {
   it('is seeded from the first render — cached data never flashes empty', () => {
-    const { result } = renderHook((props) => useQueryListSource(props.query, props.build), {
-      initialProps: { query: query({ data: ROWS }), build: (rows: Row[]) => rows },
-    });
+    // Capture during the render phase itself, before any effect (layout or
+    // passive) can run: the useState initializer alone must hold the data.
+    let itemsDuringFirstRender: Row[] | null = null;
+    let statusDuringFirstRender: string | null = null;
 
-    // Read before any effect has run: the snapshot must already hold the data.
-    expect(result.current.items()).toEqual(ROWS);
-    expect(result.current.status()).toBe('idle');
+    function Probe() {
+      const source = useQueryListSource(query({ data: ROWS }), (rows: Row[]) => rows);
+      if (itemsDuringFirstRender === null) {
+        itemsDuringFirstRender = source.items();
+        statusDuringFirstRender = source.status();
+      }
+      return null;
+    }
+
+    render(<Probe />);
+    expect(itemsDuringFirstRender).toEqual(ROWS);
+    expect(statusDuringFirstRender).toBe('idle');
   });
 
   it('mirrors loading, ready, and error transitions into a view store', () => {

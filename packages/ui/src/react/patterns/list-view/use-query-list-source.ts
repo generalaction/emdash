@@ -21,13 +21,6 @@ export type ExternalListSource<T> = Extract<ListSource<T>, { kind: 'external' }>
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-interface QuerySnapshot<TData> {
-  data: TData | undefined;
-  isLoading: boolean;
-  isError: boolean;
-  error: unknown;
-}
-
 /**
  * Bridges a query result into an `external` list source for `createListView`.
  * The query owner (React Query) keeps owning fetch, cache, and invalidation;
@@ -54,13 +47,13 @@ export function useQueryListSource<TData, T>(
   buildItemsRef.current = buildItems;
 
   const [{ box, source }] = useState(() => {
-    const initial: QuerySnapshot<TData> = {
+    const initial: QueryResultLike<TData> = {
       data: query.data,
       isLoading: query.isLoading,
       isError: query.isError,
       error: query.error,
     };
-    const snapshotBox = observable.box<QuerySnapshot<TData>>(initial, { deep: false });
+    const snapshotBox = observable.box<QueryResultLike<TData>>(initial, { deep: false });
     const externalSource: ExternalListSource<T> = {
       kind: 'external',
       items: () => {
