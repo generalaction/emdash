@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
+  resolveEffectiveGitSettings,
   resolveEffectiveSettings,
   type RepoFacts,
   type StoredSettings,
@@ -492,6 +493,50 @@ describe('resolveEffectiveSettings', () => {
           provenance: { kind: 'broken-setting', staleValue: 'bad-project' },
         });
       });
+    });
+  });
+});
+
+describe('resolveEffectiveGitSettings', () => {
+  it('produces the identical git subset the full resolver produces', () => {
+    const project = {
+      baseRemote: 'upstream',
+      pushRemote: 'gone',
+      defaultBranch: { remote: 'upstream', branch: 'develop' },
+    };
+    const repoFacts = facts({
+      remotes: [
+        remote('origin', { headBranch: 'main', branches: ['main'] }),
+        remote('upstream', { branches: ['develop'] }),
+      ],
+      localBranches: ['main'],
+    });
+
+    const full = resolveEffectiveSettings(stored(project), repoFacts, []);
+    const subset = resolveEffectiveGitSettings(project, repoFacts);
+
+    expect(subset).toEqual({
+      baseRemote: full.baseRemote,
+      pushRemote: full.pushRemote,
+      defaultBranch: full.defaultBranch,
+    });
+  });
+
+  it('answers unresolvable values with zero remotes instead of fabricating origin', () => {
+    const result = resolveEffectiveGitSettings({}, facts());
+    expect(result.baseRemote).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
+    expect(result.pushRemote).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
+    expect(result.defaultBranch).toEqual({ value: null, provenance: { kind: 'unresolvable' } });
+  });
+
+  it('surfaces a stale push-remote pin as broken-setting instead of a silent substitution', () => {
+    const result = resolveEffectiveGitSettings(
+      { pushRemote: 'fork' },
+      facts({ remotes: [remote('origin')] })
+    );
+    expect(result.pushRemote).toEqual({
+      value: 'origin',
+      provenance: { kind: 'broken-setting', staleValue: 'fork' },
     });
   });
 });

@@ -9,7 +9,6 @@ import {
   type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import { getProjectSettingsStore } from '../stores/project-selectors';
-import { buildRendererRepoFacts } from './renderer-repo-facts';
 
 /**
  * Renderer-side inputs for the blessed resolver (spec: github-git-settings
@@ -61,11 +60,7 @@ export function useEffectiveSettingsInputs(projectId: string): EffectiveSettings
   if (repo?.loading) return null;
   return {
     storedGitSettings: page.storedGitSettings,
-    repoFacts: buildRendererRepoFacts({
-      remotes: repo?.remotes ?? [],
-      branches: repo?.branches ?? [],
-      remoteHead: repo?.remoteHeadBranch ?? null,
-    }),
+    repoFacts: repo?.repoFacts ?? { remotes: [], localBranches: [] },
     accounts,
     worktreeRootContext: page.worktreeRootContext,
   };

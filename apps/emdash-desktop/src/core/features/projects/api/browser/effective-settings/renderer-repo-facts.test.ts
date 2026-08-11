@@ -18,7 +18,10 @@ describe('buildRendererRepoFacts', () => {
     const facts = buildRendererRepoFacts({
       remotes: [origin, fork],
       branches,
-      remoteHead: { remote: 'origin', branch: 'develop' },
+      remoteHeads: [
+        { remote: 'origin', branch: 'develop' },
+        { remote: 'fork', branch: 'main' },
+      ],
     });
 
     expect(facts).toEqual({
@@ -32,7 +35,7 @@ describe('buildRendererRepoFacts', () => {
         {
           name: 'fork',
           host: 'ghe.example.com',
-          headBranch: null,
+          headBranch: 'main',
           branches: ['main'],
         },
       ],
@@ -41,13 +44,13 @@ describe('buildRendererRepoFacts', () => {
   });
 
   it('degrades to null head branches when the remote HEAD is unknown', () => {
-    const facts = buildRendererRepoFacts({ remotes: [origin], branches, remoteHead: null });
+    const facts = buildRendererRepoFacts({ remotes: [origin], branches, remoteHeads: [] });
 
     expect(facts.remotes[0].headBranch).toBeNull();
   });
 
   it('produces empty facts for a repository without remotes or refs', () => {
-    expect(buildRendererRepoFacts({ remotes: [], branches: [], remoteHead: null })).toEqual({
+    expect(buildRendererRepoFacts({ remotes: [], branches: [], remoteHeads: [] })).toEqual({
       remotes: [],
       localBranches: [],
     });

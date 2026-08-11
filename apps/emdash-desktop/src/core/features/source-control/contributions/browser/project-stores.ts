@@ -23,11 +23,7 @@ export const sourceControlProjectStoreContributions: readonly ScopedStoreContrib
     contributeScopedStore({
       token: gitRepositoryStoreToken,
       create: ({ data }, stores) => {
-        const store = new GitRepositoryStore(
-          data.id,
-          stores.get(projectSettingsStoreToken),
-          data.baseRef
-        );
+        const store = new GitRepositoryStore(data.id, stores.get(projectSettingsStoreToken));
         store.start();
         return store;
       },

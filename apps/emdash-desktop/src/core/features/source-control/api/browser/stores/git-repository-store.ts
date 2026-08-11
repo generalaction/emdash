@@ -1,5 +1,4 @@
 import {
-  type GitBranchRef,
   type FetchPrForReviewOptions,
   type GitRefsState,
   type GitRemote,
@@ -7,9 +6,11 @@ import {
   type LocalBranch,
   type RemoteBranch,
 } from '@emdash/core/runtimes/git/api';
+import { err } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { buildRendererRepoFacts } from '@core/features/projects/api/browser/effective-settings/renderer-repo-facts';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { getRepositoryClient } from '@core/features/repository/api/client';
 import {
@@ -17,13 +18,12 @@ import {
   repositorySelector,
 } from '@core/features/source-control/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
-import type { ConfiguredRemotes } from '@core/primitives/git/api';
 import {
-  bareRefName,
-  projectDefaultBranchToBranch,
-  resolveConfiguredRemotes,
-  resolveDefaultBranch,
-} from '@core/primitives/git/api';
+  resolveEffectiveGitSettings,
+  type EffectiveGitSettings,
+  type RepoFacts,
+  type StoredProjectGitSettings,
+} from '@core/primitives/project-settings/api';
 import type { ProviderRepository, ProviderRepositoryResult } from '@core/primitives/repository/api';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
@@ -49,27 +49,15 @@ export class GitRepositoryStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly settingsStore: ProjectSettingsStore,
-    private readonly baseRef: string
+    private readonly settingsStore: ProjectSettingsStore
   ) {
     this.providerRepositoryInfo = new Resource<ProviderRepositoryResult>(
       () => getRepositoryClient().then((client) => client.resolveProvider({ projectId })),
       [{ kind: 'demand' }]
     );
     this.gitDefaultBranchInfo = new Resource(
-      () => loadDefaultBranch(this.projectId, this.baseRemote.name),
+      () => loadDefaultBranch(this.projectId, this.resolvedBaseRemoteName),
       [{ kind: 'demand' }]
-    );
-    this.settingsDisposer = reaction(
-      () => [
-        settingsStore.settings?.baseRemote,
-        settingsStore.settings?.pushRemote,
-        settingsStore.settings?.defaultBranch,
-      ],
-      () => {
-        this.gitDefaultBranchInfo.invalidate();
-        this.providerRepositoryInfo.invalidate();
-      }
     );
     makeObservable<
       GitRepositoryStore,
@@ -77,8 +65,9 @@ export class GitRepositoryStore {
       | 'loadError'
       | 'refsState'
       | 'remotesData'
-      | 'configuredRemotes'
-      | 'defaultBranchPreference'
+      | 'storedGitSettings'
+      | 'liveModelRepoFacts'
+      | 'resolvedBaseRemoteName'
       | 'gitDefaultBranch'
     >(this, {
       model: observable.ref,
@@ -88,13 +77,15 @@ export class GitRepositoryStore {
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
-      configuredRemotes: computed,
+      storedGitSettings: computed,
+      liveModelRepoFacts: computed,
+      resolvedBaseRemoteName: computed,
+      repoFacts: computed,
+      effectiveGitSettings: computed,
       baseRemote: computed,
       pushRemote: computed,
-      defaultBranchPreference: computed,
       defaultBranch: computed,
       remotes: computed,
-      remoteHeadBranch: computed,
       loading: computed,
       canonicalRepositoryUrl: computed,
       providerRepository: computed,
@@ -102,6 +93,17 @@ export class GitRepositoryStore {
       issueRepositoryUrl: computed,
       gitDefaultBranch: computed,
     });
+    this.settingsDisposer = reaction(
+      () => [
+        this.resolvedBaseRemoteName,
+        this.storedGitSettings.pushRemote,
+        this.storedGitSettings.defaultBranch,
+      ],
+      () => {
+        this.gitDefaultBranchInfo.invalidate();
+        this.providerRepositoryInfo.invalidate();
+      }
+    );
   }
 
   start(): void {
@@ -195,7 +197,6 @@ export class GitRepositoryStore {
       data: {
         remoteBranches: this.remoteBranches,
         remotes: this.remotes,
-        gitDefaultBranch: this.gitDefaultBranch ?? 'main',
       },
       load: () => this.resync(),
     };
@@ -213,30 +214,55 @@ export class GitRepositoryStore {
     return this.branches.filter((branch): branch is RemoteBranch => branch.type === 'remote');
   }
 
-  get baseRemote(): GitRemote {
-    return this.configuredRemotes.baseRemote;
+  /**
+   * The effective git settings with provenance, resolved by the blessed
+   * resolver over this store's own live-model facts (spec: github-git-settings
+   * §2). Surfaces that display an effective value read provenance from here.
+   */
+  get effectiveGitSettings(): EffectiveGitSettings {
+    return resolveEffectiveGitSettings(this.storedGitSettings, this.repoFacts);
   }
 
-  get pushRemote(): GitRemote {
-    return this.configuredRemotes.pushRemote;
+  /**
+   * The blessed resolver's repo facts from the synced live model: remotes with
+   * host, remote branches, local branches, and remote HEADs from the refs
+   * state, with the async default-branch lookup (network `remote show`
+   * fallback) filling in the effective base remote's HEAD when refs don't
+   * know it.
+   */
+  get repoFacts(): RepoFacts {
+    const facts = this.liveModelRepoFacts;
+    const baseRemoteName = this.resolvedBaseRemoteName;
+    const fetchedHead = this.gitDefaultBranch;
+    if (baseRemoteName === null || !fetchedHead) return facts;
+    return {
+      ...facts,
+      remotes: facts.remotes.map((remote) =>
+        remote.name === baseRemoteName && remote.headBranch === null
+          ? { ...remote, headBranch: fetchedHead }
+          : remote
+      ),
+    };
+  }
+
+  /** The effective base remote; null when the repository has no remotes. */
+  get baseRemote(): GitRemote | null {
+    return this.remoteByName(this.effectiveGitSettings.baseRemote.value);
+  }
+
+  /** The effective push remote; null when the repository has no remotes. */
+  get pushRemote(): GitRemote | null {
+    return this.remoteByName(this.effectiveGitSettings.pushRemote.value);
   }
 
   get remotes(): GitRemote[] {
     return this.remotesState?.remotes ?? [];
   }
 
-  /**
-   * Remote HEAD of the base remote, when the default-branch lookup has
-   * resolved it. Feeds the effective-settings repo facts; null degrades
-   * default-branch inference to the well-known candidates.
-   */
-  get remoteHeadBranch(): { remote: string; branch: string } | null {
-    const head = this.gitDefaultBranch?.trim();
-    return head ? { remote: this.baseRemote.name, branch: bareRefName(head) } : null;
-  }
-
   get canonicalRepositoryUrl(): string | null {
-    return parseRepositoryRef(this.baseRemote.url)?.repositoryUrl ?? null;
+    const baseRemote = this.baseRemote;
+    if (baseRemote === null) return null;
+    return parseRepositoryRef(baseRemote.url)?.repositoryUrl ?? null;
   }
 
   get providerRepository(): ProviderRepository | null {
@@ -254,19 +280,28 @@ export class GitRepositoryStore {
     return repository?.capabilities.issues ? repository.repositoryUrl : null;
   }
 
+  /**
+   * The effective default branch mapped onto the live model's branch objects.
+   * Undefined when the resolver answers unresolvable, or when the resolved
+   * branch (e.g. a remote HEAD known only via `remote show`) has no local ref
+   * yet.
+   */
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
-    return resolveDefaultBranch({
-      preference: this.defaultBranchPreference,
-      branches: this.branches,
-      configuredRemoteName: this.baseRemote.name,
-      gitDefaultBranch: this.gitDefaultBranch,
-      baseRef: this.baseRef,
-    });
+    const resolved = this.effectiveGitSettings.defaultBranch.value;
+    if (resolved === null) return undefined;
+    if (resolved.remote === null) {
+      return this.localBranches.find((branch) => branch.branch === resolved.branch);
+    }
+    return this.remoteBranches.find(
+      (branch) => branch.branch === resolved.branch && branch.remote.name === resolved.remote
+    );
   }
 
   isBranchOnRemote(branchName: string): boolean {
+    const pushRemote = this.pushRemote;
+    if (pushRemote === null) return false;
     return this.remoteBranches.some(
-      (branch) => branch.branch === branchName && branch.remote.name === this.pushRemote.name
+      (branch) => branch.branch === branchName && branch.remote.name === pushRemote.name
     );
   }
 
@@ -275,10 +310,14 @@ export class GitRepositoryStore {
   }
 
   async fetchRemote() {
+    const baseRemote = this.baseRemote;
+    if (baseRemote === null) {
+      return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
+    }
     const client = await getSourceControlClient();
     return runDesktopLiveJob(sourceControlContract.repository.fetch, client.repository.fetch, {
       ...repositorySelector(this.projectId),
-      remote: this.baseRemote.name,
+      remote: baseRemote.name,
     });
   }
 
@@ -290,6 +329,10 @@ export class GitRepositoryStore {
   }
 
   async publishBranch(branchName: string, _workspaceId?: string) {
+    const pushRemote = this.pushRemote;
+    if (pushRemote === null) {
+      return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
+    }
     const client = await getSourceControlClient();
     return runDesktopLiveJob(
       sourceControlContract.repository.publishBranch,
@@ -297,7 +340,7 @@ export class GitRepositoryStore {
       {
         ...repositorySelector(this.projectId),
         branchName,
-        remote: this.pushRemote.name,
+        remote: pushRemote.name,
       }
     );
   }
@@ -311,6 +354,12 @@ export class GitRepositoryStore {
     );
   }
 
+  /** Maps a resolved remote name back onto the live model's remote object. */
+  private remoteByName(name: string | null): GitRemote | null {
+    if (name === null) return null;
+    return this.remotes.find((remote) => remote.name === name) ?? null;
+  }
+
   private get refs(): GitRefsState | null {
     return this.refsState;
   }
@@ -319,19 +368,35 @@ export class GitRepositoryStore {
     return this.remotesData;
   }
 
-  private get configuredRemotes(): ConfiguredRemotes {
-    return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, this.remotes);
+  /** Stored explicit git choices (absence = infer) — the resolver input. */
+  private get storedGitSettings(): StoredProjectGitSettings {
+    return this.settingsStore.storedGitSettings ?? {};
   }
 
-  private get defaultBranchPreference(): GitBranchRef | undefined {
-    return projectDefaultBranchToBranch(
-      this.settingsStore.settings?.defaultBranch,
-      this.baseRemote,
-      this.remotes
-    );
+  /** Repo facts from the synced live model alone (remote HEADs from refs). */
+  private get liveModelRepoFacts(): RepoFacts {
+    return buildRendererRepoFacts({
+      remotes: this.remotes,
+      branches: this.branches,
+      remoteHeads: this.refs?.remoteHeads ?? [],
+    });
   }
 
-  private get gitDefaultBranch(): string | undefined {
+  /**
+   * The effective base remote name resolved over refs-only facts. The async
+   * remote-HEAD lookup is keyed off this name; base-remote resolution never
+   * reads remote HEADs, so the lookup cannot feed back into it.
+   */
+  private get resolvedBaseRemoteName(): string | null {
+    return resolveEffectiveGitSettings(this.storedGitSettings, this.liveModelRepoFacts).baseRemote
+      .value;
+  }
+
+  /**
+   * Remote HEAD of the effective base remote from the async lookup; null when
+   * the remote genuinely has no known HEAD, undefined while loading or failed.
+   */
+  private get gitDefaultBranch(): string | null | undefined {
     const result = this.gitDefaultBranchInfo.data;
     return result?.success ? result.data : undefined;
   }
@@ -381,7 +446,9 @@ export class GitRepositoryStore {
   }
 }
 
-async function loadDefaultBranch(projectId: string, remote: string) {
+async function loadDefaultBranch(projectId: string, remote: string | null) {
+  // No remotes → no remote HEAD to look up; an honest absent fact.
+  if (remote === null) return { success: true as const, data: null };
   const client = await getSourceControlClient();
   const result = await client.repository.getDefaultBranch({
     ...repositorySelector(projectId),

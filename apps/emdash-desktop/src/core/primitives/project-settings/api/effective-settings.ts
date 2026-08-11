@@ -102,6 +102,12 @@ export type EffectiveSettings = {
   worktreeRoot: Resolved<string>;
 };
 
+/** The git-only subset of the effective settings (base/push remote, default branch). */
+export type EffectiveGitSettings = Pick<
+  EffectiveSettings,
+  'baseRemote' | 'pushRemote' | 'defaultBranch'
+>;
+
 /** Well-known default-branch candidates, in preference order (spec §2). */
 export const DEFAULT_BRANCH_CANDIDATES = ['main', 'master', 'develop', 'trunk'] as const;
 
@@ -110,18 +116,12 @@ export function resolveEffectiveSettings(
   repoFacts: RepoFacts,
   accounts: GitHubAccountSummary[]
 ): EffectiveSettings {
-  const baseRemote = resolveBaseRemote(storedSettings.project.baseRemote, repoFacts);
+  const git = resolveEffectiveGitSettings(storedSettings.project, repoFacts);
   return {
-    baseRemote,
-    pushRemote: resolvePushRemote(storedSettings.project.pushRemote, baseRemote, repoFacts),
-    defaultBranch: resolveDefaultBranch(
-      storedSettings.project.defaultBranch,
-      baseRemote.value,
-      repoFacts
-    ),
+    ...git,
     githubAccount: resolveGithubAccount(
       storedSettings.project.githubAccount,
-      baseRemote.value,
+      git.baseRemote.value,
       repoFacts,
       accounts
     ),
@@ -131,6 +131,25 @@ export function resolveEffectiveSettings(
       builtInWorktreeRoot: storedSettings.builtInWorktreeRoot,
       homeDirectory: storedSettings.homeDirectory,
     }),
+  };
+}
+
+/**
+ * Focused entry point for callers that only need the git values (base remote,
+ * push remote, default branch) and have no account or worktree-root layers in
+ * play — e.g. the renderer's repository store. Runs the *identical* internal
+ * chains `resolveEffectiveSettings` composes; it exists so those callers never
+ * fabricate the unrelated inputs, not as a second resolution path.
+ */
+export function resolveEffectiveGitSettings(
+  storedSettings: Pick<StoredProjectGitSettings, 'baseRemote' | 'pushRemote' | 'defaultBranch'>,
+  repoFacts: RepoFacts
+): EffectiveGitSettings {
+  const baseRemote = resolveBaseRemote(storedSettings.baseRemote, repoFacts);
+  return {
+    baseRemote,
+    pushRemote: resolvePushRemote(storedSettings.pushRemote, baseRemote, repoFacts),
+    defaultBranch: resolveDefaultBranch(storedSettings.defaultBranch, baseRemote.value, repoFacts),
   };
 }
 
