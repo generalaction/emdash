@@ -1,4 +1,5 @@
 import { config as dotenvConfig } from 'dotenv';
+import { log } from '@main/lib/logger';
 import { runBootPreflight } from './boot/preflight';
 import { isBootAborted, type BootSignals } from './boot/types';
 import { observePreviousBoot } from './core/boot-guard';
@@ -7,6 +8,10 @@ import { loadAppConfig, setAppConfig } from './core/config';
 const CRASH_LOOP_THRESHOLD = 2;
 
 export async function main(): Promise<void> {
+  log.info('boot-timeline', {
+    mark: 'main-entered',
+    sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
+  });
   if (import.meta.env.DEV) {
     dotenvConfig({ path: '.env.local', override: false });
   }

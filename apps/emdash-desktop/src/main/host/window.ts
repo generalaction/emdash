@@ -64,7 +64,13 @@ export function createMainWindow(): BrowserWindow {
     show: false,
   });
   watchWindow(mainWindow);
-  mainWindow.webContents.once('did-finish-load', markBootSuccessful);
+  mainWindow.webContents.once('did-finish-load', () => {
+    log.info('boot-timeline', {
+      mark: 'window-did-finish-load',
+      sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
+    });
+    markBootSuccessful();
+  });
 
   if (process.platform !== 'darwin') {
     mainWindow.setMenuBarVisibility(false);
@@ -82,6 +88,10 @@ export function createMainWindow(): BrowserWindow {
 
   // Show when ready
   mainWindow.once('ready-to-show', () => {
+    log.info('boot-timeline', {
+      mark: 'window-ready-to-show',
+      sinceProcessStartMs: Date.now() - (process.getCreationTime() ?? Date.now()),
+    });
     mainWindow?.show();
   });
 

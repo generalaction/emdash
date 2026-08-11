@@ -9,6 +9,7 @@ import { registerAppScheme } from '@main/host/protocol';
 import { log } from '@main/lib/logger';
 import { resolveUserEnv } from '@main/lib/userEnv';
 import type { AppConfig } from '../../core/config';
+import { step } from '../../core/phase';
 import { BootAborted, type BootSignals } from '../types';
 
 export async function prepareElectron(config: AppConfig, signals: BootSignals): Promise<void> {
@@ -52,8 +53,8 @@ export async function prepareElectron(config: AppConfig, signals: BootSignals): 
   // Explicit quit requests are coordinated through the before-quit handler.
   app.on('window-all-closed', () => {});
 
-  await app.whenReady();
-  await resolveUserEnv();
+  await step('electron-app-ready', () => app.whenReady());
+  await step('resolve-user-env', () => resolveUserEnv());
 }
 
 async function showMainWindow(): Promise<void> {

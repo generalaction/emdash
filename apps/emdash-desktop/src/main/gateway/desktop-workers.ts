@@ -156,6 +156,15 @@ async function startDesktopWorkersWithHost(
   workerScope: Scope,
   host: ReturnType<typeof createWireWorkerHost>
 ): Promise<Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'>> {
+  const workersStartedAt = Date.now();
+  const timedReady = <T>(name: string, ready: Promise<T>): Promise<T> =>
+    ready.then((value) => {
+      log.info('boot-timeline worker ready', {
+        worker: name,
+        sinceWorkersStartMs: Date.now() - workersStartedAt,
+      });
+      return value;
+    });
   const hostDependencies = createHostDependenciesComponent({
     store: desktopKeyValueStore,
     exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),
@@ -181,7 +190,7 @@ async function startDesktopWorkersWithHost(
       databasePath: join(app.getPath('userData'), 'conversations.db'),
     })
   );
-  const conversationsReady = conversationsWorker.ready();
+  const conversationsReady = timedReady('conversations', conversationsWorker.ready());
   const acpStart = conversationsReady.then(async (conversations) => {
     const worker = host.create(
       ...acpWorkerSpec({
@@ -257,120 +266,137 @@ async function startDesktopWorkersWithHost(
       settingsPath: join(app.getPath('userData'), 'host-settings.json'),
     })
   );
-  const hostSettingsReady = hostSettingsWorker.ready();
-  const scriptsReady = hostSettingsReady.then(async (hostSettings) => {
-    const worker = host.create(
-      ...scriptsWorkerSpec({
-        executable: desktopWorkerPath('scripts'),
-        env: process.env,
-        dependencies: { hostSettings },
-      })
-    );
-    return await worker.ready();
-  });
+  const hostSettingsReady = timedReady('host-settings', hostSettingsWorker.ready());
+  const scriptsReady = timedReady(
+    'scripts',
+    hostSettingsReady.then(async (hostSettings) => {
+      const worker = host.create(
+        ...scriptsWorkerSpec({
+          executable: desktopWorkerPath('scripts'),
+          env: process.env,
+          dependencies: { hostSettings },
+        })
+      );
+      return await worker.ready();
+    })
+  );
 
-  const watcherReady = fsWatchWorker.ready();
-  const acpReady = acpStart.then((result) => result.client);
-  const agentConfigReady = agentConfigWorker.ready();
-  const mementosReady = mementosWorker.ready();
-  const pullRequestsReady = pullRequestsWorker.ready();
-  const resourceUsageReady = resourceUsageWorker.ready();
-  const terminalsReady = terminalsWorker.ready();
-  const filesReady = watcherReady.then(async (watcher) => {
-    const filesSettings = await deps.getFilesSettings();
-    const worker = host.create(
-      ...filesWorkerSpec({
-        executable: desktopWorkerPath('files'),
-        env: process.env,
-        dependencies: { watcher },
-        watchIgnore: filesSettings.watcherExclude,
-      })
-    );
-    return await worker.ready();
-  });
-  const fileSearchReady = watcherReady.then(async (watcher) => {
-    const worker = host.create(
-      ...fileSearchWorkerSpec({
-        executable: desktopWorkerPath('file-search'),
-        env: process.env,
-        dependencies: { watcher },
-        databasePath: resolveFileSearchDatabasePath(),
-      })
-    );
-    return await worker.ready();
-  });
-  const gitReady = watcherReady.then(async (watcher) => {
-    const worker = host.create(
-      ...gitWorkerSpec({
-        executable: desktopWorkerPath('git'),
-        env: process.env,
-        dependencies: {
-          watcher,
-          hostDependencies: hostDependencies.client.resolver,
-        },
-        gitExecutable: getGitExecutable(),
-      })
-    );
-    return await worker.ready();
-  });
-  const tuiAgentsReady = conversationsReady.then(async (conversations) => {
-    const worker = host.create(
-      ...tuiAgentsWorkerSpec({
-        pluginRegistry,
-        logger: log,
-        executable: desktopWorkerPath('tui-agents'),
-        env: process.env,
-        dependencies: {
-          hostDependencies: hostDependencies.client.resolver,
-          conversations,
-        },
-        intentsFilePath: sessionIntentFilePaths().tuiAgents,
-      })
-    );
-    return { client: await worker.ready(), worker };
-  });
-  const workspaceRegistryReady = Promise.all([
-    watcherReady,
-    acpReady,
-    terminalsReady,
-    tuiAgentsReady,
-    scriptsReady,
-  ]).then(async ([watcher, acp, terminals, tuiAgents, scripts]) => {
-    const worker = host.create(
-      ...workspaceRegistryWorkerSpec({
-        executable: desktopWorkerPath('workspace-registry'),
-        env: process.env,
-        dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client, scripts },
-        databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
-      })
-    );
-    return await worker.ready();
-  });
-  const automationsReady = Promise.all([
-    workspaceRegistryReady,
-    acpReady,
-    tuiAgentsReady,
-    conversationsReady,
-  ]).then(async ([workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
-    const paths = automationRuntimePaths(resolveDatabasePath());
-    const worker = host.create(
-      ...automationsWorkerSpec({
-        executable: desktopWorkerPath('automations'),
-        env: process.env,
-        dependencies: {
-          workspaceRegistry,
-          // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
-          // live in the app db, so the main process answers for the worker.
-          creationAdmission: createAutomationCreationAdmissionController(getAppDb),
-          acpSessions: acp,
-          tuiSessions: tuiAgents.client,
-          conversationIndex: conversationsClient,
-        },
-        dbFile: paths.dbFile,
-      })
-    );
-    return { client: await worker.ready(), worker };
-  });
+  const watcherReady = timedReady('fs-watch', fsWatchWorker.ready());
+  const acpReady = timedReady(
+    'acp',
+    acpStart.then((result) => result.client)
+  );
+  const agentConfigReady = timedReady('agent-config', agentConfigWorker.ready());
+  const mementosReady = timedReady('mementos', mementosWorker.ready());
+  const pullRequestsReady = timedReady('pull-requests', pullRequestsWorker.ready());
+  const resourceUsageReady = timedReady('resource-usage', resourceUsageWorker.ready());
+  const terminalsReady = timedReady('terminals', terminalsWorker.ready());
+  const filesReady = timedReady(
+    'files',
+    watcherReady.then(async (watcher) => {
+      const filesSettings = await deps.getFilesSettings();
+      const worker = host.create(
+        ...filesWorkerSpec({
+          executable: desktopWorkerPath('files'),
+          env: process.env,
+          dependencies: { watcher },
+          watchIgnore: filesSettings.watcherExclude,
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const fileSearchReady = timedReady(
+    'file-search',
+    watcherReady.then(async (watcher) => {
+      const worker = host.create(
+        ...fileSearchWorkerSpec({
+          executable: desktopWorkerPath('file-search'),
+          env: process.env,
+          dependencies: { watcher },
+          databasePath: resolveFileSearchDatabasePath(),
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const gitReady = timedReady(
+    'git',
+    watcherReady.then(async (watcher) => {
+      const worker = host.create(
+        ...gitWorkerSpec({
+          executable: desktopWorkerPath('git'),
+          env: process.env,
+          dependencies: {
+            watcher,
+            hostDependencies: hostDependencies.client.resolver,
+          },
+          gitExecutable: getGitExecutable(),
+        })
+      );
+      return await worker.ready();
+    })
+  );
+  const tuiAgentsReady = timedReady(
+    'tui-agents',
+    conversationsReady.then(async (conversations) => {
+      const worker = host.create(
+        ...tuiAgentsWorkerSpec({
+          pluginRegistry,
+          logger: log,
+          executable: desktopWorkerPath('tui-agents'),
+          env: process.env,
+          dependencies: {
+            hostDependencies: hostDependencies.client.resolver,
+            conversations,
+          },
+          intentsFilePath: sessionIntentFilePaths().tuiAgents,
+        })
+      );
+      return { client: await worker.ready(), worker };
+    })
+  );
+  const workspaceRegistryReady = timedReady(
+    'workspace-registry',
+    Promise.all([watcherReady, acpReady, terminalsReady, tuiAgentsReady, scriptsReady]).then(
+      async ([watcher, acp, terminals, tuiAgents, scripts]) => {
+        const worker = host.create(
+          ...workspaceRegistryWorkerSpec({
+            executable: desktopWorkerPath('workspace-registry'),
+            env: process.env,
+            dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client, scripts },
+            databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+          })
+        );
+        return await worker.ready();
+      }
+    )
+  );
+  const automationsReady = timedReady(
+    'automations',
+    Promise.all([workspaceRegistryReady, acpReady, tuiAgentsReady, conversationsReady]).then(
+      async ([workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
+        const paths = automationRuntimePaths(resolveDatabasePath());
+        const worker = host.create(
+          ...automationsWorkerSpec({
+            executable: desktopWorkerPath('automations'),
+            env: process.env,
+            dependencies: {
+              workspaceRegistry,
+              // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
+              // live in the app db, so the main process answers for the worker.
+              creationAdmission: createAutomationCreationAdmissionController(getAppDb),
+              acpSessions: acp,
+              tuiSessions: tuiAgents.client,
+              conversationIndex: conversationsClient,
+            },
+            dbFile: paths.dbFile,
+          })
+        );
+        return { client: await worker.ready(), worker };
+      }
+    )
+  );
 
   const [
     acp,

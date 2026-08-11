@@ -414,8 +414,16 @@ export class ProjectManagerStore {
     if (!retryFailed && project.unmounted.kind !== 'idle') return Promise.resolve();
 
     const identity = {};
+    const mountStartedAt = Date.now();
     const promise = Promise.resolve()
       .then(() => this._runProjectMountAttempt(projectId, identity))
+      .then(() => {
+        log.info('boot-timeline renderer', {
+          mark: 'project-mounted',
+          projectId,
+          durationMs: Date.now() - mountStartedAt,
+        });
+      })
       .catch((err: unknown) => {
         runInAction(() => {
           if (!this._isCurrentProjectMountAttempt(projectId, identity)) return;
