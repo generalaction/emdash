@@ -121,6 +121,8 @@ export function AutomationsView() {
                 onItemClick={(automation) =>
                   navigate(automationsViewDef({ automationId: automation.id }))
                 }
+                // The slot element is built on every render even though it only
+                // shows on error — guard so a null error is never formatted.
                 errorSlot={
                   automations.isError ? (
                     <EmptyState
