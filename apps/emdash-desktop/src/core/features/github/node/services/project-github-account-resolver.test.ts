@@ -1,9 +1,8 @@
-import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  ProjectGitHubAuthContextResolver,
-  type ProjectGitHubAuthContextError,
-} from '@core/features/github/api/node/services/project-github-auth-context-resolver';
+  createProjectGitHubAccountResolver,
+  type ProjectGitHubAccountResolver,
+} from '@core/features/github/api/node/services/project-github-account-resolver';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { RepoFacts, StoredProjectGitSettings } from '@core/primitives/project-settings/api';
 
@@ -28,10 +27,6 @@ class FakeProjectLookup {
   getProject(projectId: string): FakeProject | undefined {
     return this.projects.get(projectId);
   }
-}
-
-class FakeLogger {
-  warn = vi.fn();
 }
 
 const GITHUB_FACTS: RepoFacts = {
@@ -67,131 +62,100 @@ function makeProject(
   };
 }
 
-describe('ProjectGitHubAuthContextResolver', () => {
+describe('createProjectGitHubAccountResolver', () => {
   let projects: FakeProjectLookup;
-  let logger: FakeLogger;
   let accounts: GitHubAccountSummary[];
-  let resolver: ProjectGitHubAuthContextResolver;
+  let resolve: ProjectGitHubAccountResolver;
 
   beforeEach(() => {
     projects = new FakeProjectLookup();
-    logger = new FakeLogger();
     accounts = [];
-    resolver = new ProjectGitHubAuthContextResolver({
+    resolve = createProjectGitHubAccountResolver({
       projects,
       listAccounts: async () => accounts,
-      logger,
     });
   });
 
-  it('resolves a pinned account through the blessed resolver', async () => {
+  it('resolves a pinned account with set provenance', async () => {
     accounts = [account()];
     projects.setProject(
       'project-1',
       makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:42' } })
     );
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      ok({ accountId: 'github.com:42' })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: accounts[0],
+      provenance: { kind: 'set' },
+    });
   });
 
   it('infers the host-matching account when no account is pinned', async () => {
     accounts = [account()];
     projects.setProject('project-1', makeProject({}));
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      ok({ accountId: 'github.com:42' })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: accounts[0],
+      provenance: { kind: 'inferred', from: 'only host-matching account' },
+    });
   });
 
-  it('reports unconfigured when inference finds no host-matching account', async () => {
+  it('resolves null with inferred provenance when inference finds nothing', async () => {
     accounts = [account({ accountId: 'ghe.corp:7', host: 'ghe.corp' })];
     projects.setProject('project-1', makeProject({}));
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'unconfigured',
-        projectId: 'project-1',
-        message: 'No connected GitHub account matches this project.',
-      })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: null,
+      provenance: { kind: 'inferred', from: 'no host-matching account' },
+    });
   });
 
-  it('reports disabled for an explicit stored none', async () => {
+  it('resolves null with set provenance for an explicit stored none', async () => {
     accounts = [account()];
     projects.setProject('project-1', makeProject({ githubAccount: { kind: 'none' } }));
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'disabled',
-        projectId: 'project-1',
-        message: 'GitHub API is disabled for this project.',
-      })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: null,
+      provenance: { kind: 'set' },
+    });
   });
 
-  it('fails closed on a dangling account pin instead of another identity', async () => {
+  it('fails closed with unresolvable provenance on a dangling account pin', async () => {
     accounts = [account()];
     projects.setProject(
       'project-1',
       makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:999' } })
     );
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'account_selection_failed',
-        projectId: 'project-1',
-        message:
-          'The pinned GitHub account no longer exists or does not match the repository host.',
-      })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: null,
+      provenance: { kind: 'unresolvable' },
+    });
   });
 
-  it('fails closed on a host-mismatched account pin', async () => {
+  it('fails closed with unresolvable provenance on a host-mismatched pin', async () => {
     accounts = [account({ accountId: 'ghe.corp:7', host: 'ghe.corp' })];
     projects.setProject(
       'project-1',
       makeProject({ githubAccount: { kind: 'account', accountId: 'ghe.corp:7' } })
     );
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'account_selection_failed',
-        projectId: 'project-1',
-        message:
-          'The pinned GitHub account no longer exists or does not match the repository host.',
-      })
-    );
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: null,
+      provenance: { kind: 'unresolvable' },
+    });
   });
 
-  it('fails when the project is not mounted instead of silently falling back', async () => {
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'project_not_found',
-        projectId: 'project-1',
-        message: 'Project project-1 is not mounted.',
-      })
-    );
+  it('throws a plain invariant error for an unmounted project', async () => {
+    await expect(resolve('project-1')).rejects.toThrow('Project project-1 is not mounted.');
   });
 
-  it('fails when account selection cannot be resolved instead of silently falling back', async () => {
+  it('propagates resolution failures instead of re-encoding them', async () => {
     const project = makeProject();
     vi.mocked(project.settings.getStoredGitSettings).mockRejectedValue(
       new Error('settings failed')
     );
     projects.setProject('project-1', project);
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(
-      err<ProjectGitHubAuthContextError>({
-        type: 'account_selection_failed',
-        projectId: 'project-1',
-        message: 'settings failed',
-      })
-    );
-    expect(logger.warn).toHaveBeenCalledWith('Failed to resolve project GitHub account selection', {
-      projectId: 'project-1',
-      error: 'settings failed',
-    });
+    await expect(resolve('project-1')).rejects.toThrow('settings failed');
   });
 });

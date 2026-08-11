@@ -11,6 +11,10 @@ import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
+import {
+  GitHubAccountStateEmpty,
+  useBlockingGitHubAccountState,
+} from '@core/features/github/contributions/browser/account-state';
 import type { UserItem } from '@core/features/projects/browser/components/pr-view/pr-filter-items';
 import {
   usePrViewState,
@@ -205,6 +209,19 @@ export const PullRequestView = observer(function PullRequestView() {
   } = useCurrentViewParams(projectViewDef);
   const repositoryStore = getGitRepositoryStore(projectId);
   const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
+  // §7 reporting matrix (spec: github-git-settings §7): explicit none is a
+  // quiet disabled state, an unresolvable pin fails closed with a fix
+  // affordance, and the zero-account case offers the connect flow. The
+  // silent-default row renders the normal PR list.
+  const accountState = useBlockingGitHubAccountState(projectId);
+
+  if (accountState) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col justify-center">
+        <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+      </div>
+    );
+  }
 
   if (!repositoryUrl) {
     return (

@@ -65,6 +65,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   return {
     issues: issuesHook.issues,
     error: issuesHook.error,
+    accountUnavailable: issuesHook.accountUnavailable,
     issueProvider,
     hasAnyIntegration: hasAnyIssueIntegration,
     isProviderLoading,

@@ -1,5 +1,6 @@
 import { isLocalHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import { ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -18,7 +19,7 @@ import { ConversationSyncService } from '@core/features/conversations/node/sync/
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
-import { ProjectGitHubAuthContextResolver } from '@core/features/github/api/node/services/project-github-auth-context-resolver';
+import { createProjectGitHubAccountResolver } from '@core/features/github/api/node/services/project-github-account-resolver';
 import { GitHubAccountService } from '@core/features/github/node/accounts/github-account-service';
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
@@ -466,17 +467,16 @@ export async function bootServices(
     clearOctokitCache
   );
   const githubApiAuthService = new GitHubApiAuthService(providerAccountRegistry);
-  const projectGitHubAuth = new ProjectGitHubAuthContextResolver({
+  const resolveProjectGitHubAccount = createProjectGitHubAccountResolver({
     projects: projectManager,
     listAccounts: () => githubAccountService.listAccounts(),
-    logger: log,
   });
   const issueProviders = createIssueProviderRegistry({
     github: {
       accounts: providerAccountRegistry,
       auth: githubApiAuthService,
       logger: log,
-      resolveProjectAuthContext: (projectId) => projectGitHubAuth.resolve(projectId),
+      resolveProjectGitHubAccount,
     },
   });
   const pullRequestsRegistration = new PullRequestsRegistration({
@@ -506,7 +506,15 @@ export async function bootServices(
         ),
       ];
     },
-    resolveProjectAuthContext: (projectId) => projectGitHubAuth.resolve(projectId),
+    resolveProjectAuthContext: async (projectId) => {
+      const account = await resolveProjectGitHubAccount(projectId);
+      if (account.value === null && account.provenance.kind === 'unresolvable') {
+        log.warn('Pinned GitHub account is unresolvable; registering repository without one', {
+          projectId,
+        });
+      }
+      return ok({ accountId: account.value?.accountId });
+    },
   });
   // Answers the PR worker's per-sync "as whom" requests through the blessed
   // resolver (spec: github-git-settings §8); before this binding, identity
