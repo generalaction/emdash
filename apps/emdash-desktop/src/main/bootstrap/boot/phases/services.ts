@@ -1,4 +1,4 @@
-import { isLocalHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { isLocalHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { err, ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
@@ -17,6 +17,10 @@ import { createConversationDeletionSweepKind } from '@core/features/conversation
 import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
 import { ConversationSyncService } from '@core/features/conversations/node/sync/conversation-sync-service';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
+import {
+  createGitCredentialsService,
+  type GitCredentialsService,
+} from '@core/features/github/api/node/services/git-credentials-service';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
 import { createProjectGitHubAccountResolver } from '@core/features/github/api/node/services/project-github-account-resolver';
@@ -24,6 +28,7 @@ import { GitHubAccountService } from '@core/features/github/node/accounts/github
 import { GitHubCliAccountImportService } from '@core/features/github/node/accounts/github-cli-account-import';
 import { GitHubLegacyTokenImportStep } from '@core/features/github/node/accounts/github-legacy-token-import-step';
 import { githubEvents } from '@core/features/github/node/event-host';
+import { GitCredentialServer } from '@core/features/github/node/services/git-credential-server';
 import {
   defaultGitHubDeviceAuthFactory,
   GitHubDeviceFlowService,
@@ -74,6 +79,7 @@ import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
+import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
@@ -146,6 +152,7 @@ export type ServicesBundle = {
     legacyTokenImport: GitHubLegacyTokenImportStep;
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
+  readonly gitCredentials: GitCredentialsService;
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostAttachments: HostAttachmentRegistry;
@@ -253,6 +260,10 @@ export async function bootServices(
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
     getTaskSettings: () => appSettingsService.get('tasks'),
     getTerminalColorEnv,
+    // Late-bound: the git-credentials service is constructed further down in
+    // this phase; sessions only call this after boot completes.
+    resolveSessionGitCredentials: (params: { projectId: string; host: HostRef }) =>
+      gitCredentials.resolveSessionSpec(params),
   };
   const projectManager = new ProjectSessionManager({
     db,
@@ -471,6 +482,28 @@ export async function bootServices(
   const resolveProjectGitHubAccount = createProjectGitHubAccountResolver({
     projects: projectManager,
     listAccounts: () => githubAccountService.listAccounts(),
+  });
+  // Emdash git credential helper (spec: github-git-settings §4): loopback
+  // server holding tokens desktop-side plus the policy seam consumed by the
+  // terminals/source-control controllers and TUI sessions.
+  const gitCredentialServer = new GitCredentialServer({
+    resolveProjectGitHubAccount,
+    listAccounts: () => githubAccountService.listAccounts(),
+    getToken: (host, context) => githubApiAuthService.getToken(host, context),
+    logger: log,
+  });
+  appScope.add(() => {
+    gitCredentialServer.stop();
+  });
+  const gitCredentials = createGitCredentialsService({
+    getAgentGitCredentialsSetting: async (projectId) => {
+      const settings = await projectManager.getProject(projectId)?.settings.get();
+      return settings?.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
+    },
+    resolveProjectGitHubAccount,
+    listAccounts: () => githubAccountService.listAccounts(),
+    channels: gitCredentialServer,
+    logger: log,
   });
   const issueProviders = createIssueProviderRegistry({
     github: {
@@ -752,6 +785,7 @@ export async function bootServices(
     account: accountService,
     automations: automationsService,
     github: githubServices,
+    gitCredentials,
     hostIsReachable,
     hostAttachments,
     issueProviders,

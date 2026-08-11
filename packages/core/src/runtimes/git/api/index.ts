@@ -47,10 +47,12 @@ export type {
 export type {
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
+  GitOperationCredentials,
   GitPathInspection,
   GitRepositoryInfo,
   GitTransferProgress,
 } from '#runtimes/git/api/schemas';
+export { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
 export type {
   BlameHunk,
   BlameResult,

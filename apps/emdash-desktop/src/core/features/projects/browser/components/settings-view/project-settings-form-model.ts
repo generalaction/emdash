@@ -1,5 +1,7 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import type {
+  AgentGitCredentialsSetting,
   ProjectSettings,
   ShareableProjectSettingsWriteField,
   StoredDefaultBranch,
@@ -32,6 +34,7 @@ export type FormState = {
   baseRemote: string;
   pushRemote: string;
   githubAccount: StoredGithubAccount | undefined;
+  agentGitCredentials: AgentGitCredentialsSetting;
 };
 
 export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
@@ -84,6 +87,7 @@ export function settingsToForm(
     baseRemote: storedGitSettings.baseRemote ?? '',
     pushRemote: storedGitSettings.pushRemote ?? '',
     githubAccount: storedGitSettings.githubAccount,
+    agentGitCredentials: s.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
   };
 }
 
@@ -121,6 +125,10 @@ export function formToSettings(f: FormState): ProjectSettings {
         : undefined,
     ...(f.githubAccount !== undefined
       ? { githubAccountId: f.githubAccount.kind === 'account' ? f.githubAccount.accountId : null }
+      : {}),
+    // Absence means the default (effective-account); only deviations persist.
+    ...(f.agentGitCredentials !== DEFAULT_AGENT_GIT_CREDENTIALS
+      ? { agentGitCredentials: f.agentGitCredentials }
       : {}),
   };
 }

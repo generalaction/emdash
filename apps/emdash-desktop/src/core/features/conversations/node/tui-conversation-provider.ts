@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
@@ -54,6 +55,15 @@ export type TuiConversationProviderDependencies = {
   getProviderConfig(providerId: string): Promise<ProviderCustomConfig | undefined>;
   getTaskSettings(): Promise<{ autoTrustWorktrees: boolean }>;
   getTerminalColorEnv(): Promise<Record<string, string>>;
+  /**
+   * Per-session git credential behavior from the project's "agent git
+   * credentials" setting (spec: github-git-settings §4); constructed into the
+   * session env by the tui-agents runtime through the blessed builder.
+   */
+  resolveSessionGitCredentials(params: {
+    projectId: string;
+    host: HostRef;
+  }): Promise<GitCredentialsSessionSpec | undefined>;
 };
 
 function parseExtraArgs(value: string | undefined): string[] {
@@ -65,6 +75,7 @@ export class TuiConversationProvider implements ConversationProvider {
   private readonly projectId: string;
   private readonly taskId: string;
   private readonly taskPath: string;
+  private readonly host: HostRef;
   private readonly files: FilesClientScope;
   private readonly tuiAgents: TuiAgentsRuntimeClient;
   private readonly tmux: boolean;
@@ -79,6 +90,7 @@ export class TuiConversationProvider implements ConversationProvider {
     this.projectId = options.projectId;
     this.taskId = options.taskId;
     this.taskPath = options.taskPath;
+    this.host = options.host;
     this.files = options.files;
     this.tuiAgents = options.tuiAgents;
     this.tmux = options.tmux ?? false;
@@ -151,6 +163,10 @@ export class TuiConversationProvider implements ConversationProvider {
       ...this.taskEnvVars,
     };
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversation.id);
+    const gitCredentials = await this.dependencies.resolveSessionGitCredentials({
+      projectId: this.projectId,
+      host: this.host,
+    });
 
     return {
       conversationId: conversation.id,
@@ -166,6 +182,7 @@ export class TuiConversationProvider implements ConversationProvider {
       trustWorkspace,
       extraArgs: parseExtraArgs(providerConfig?.extraArgs),
       providerVars,
+      gitCredentials,
       cols: initialSize.cols,
       rows: initialSize.rows,
       shellSetup: this.shellSetup,

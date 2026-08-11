@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     'primitives-path-api': 'src/primitives/path/api/index.ts',
     'primitives-host-api': 'src/primitives/host/api/index.ts',
+    'primitives-git-credentials-api': 'src/primitives/git-credentials/api/index.ts',
     'primitives-exclusion-policy-api': 'src/primitives/exclusion-policy/api/index.ts',
     'primitives-skills-api': 'src/primitives/skills/api/index.ts',
     'primitives-mcp-api': 'src/primitives/mcp/api/index.ts',

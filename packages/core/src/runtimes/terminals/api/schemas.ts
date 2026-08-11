@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gitCredentialsSessionSpecSchema } from '#primitives/git-credentials/api';
 import { hostFileRefSchema } from '#primitives/path/api';
 import { terminalShellIdSchema } from '#primitives/terminal-shell/api';
 
@@ -82,6 +83,11 @@ export const startTerminalSpecSchema = z
     shellIntent: terminalShellIdSchema.optional(),
     shellSetup: z.string().optional(),
     tmux: z.boolean().optional(),
+    /**
+     * Per-session git credential behavior, resolved desktop-side from project
+     * settings (spec: github-git-settings §4). Absent = native behavior.
+     */
+    gitCredentials: gitCredentialsSessionSpecSchema.optional(),
   })
   .merge(terminalSizeSchema.partial());
 

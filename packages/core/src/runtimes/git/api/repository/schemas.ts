@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gitOperationCredentialsSchema } from '#runtimes/git/api/schemas';
 import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
@@ -23,16 +24,19 @@ export const fetchJobInputSchema = repositorySelectorSchema.extend({
   remote: z.string().optional(),
   refspec: z.string().optional(),
   force: z.boolean().optional(),
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
 
 export const publishBranchJobInputSchema = repositorySelectorSchema.extend({
   branchName: z.string(),
   remote: z.string().optional(),
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type PublishBranchJobInput = z.infer<typeof publishBranchJobInputSchema>;
 
 export const fetchPrForReviewJobInputSchema = repositorySelectorSchema.extend({
   options: fetchPrForReviewOptionsSchema,
+  credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchPrForReviewJobInput = z.infer<typeof fetchPrForReviewJobInputSchema>;

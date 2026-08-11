@@ -37,6 +37,7 @@ describe('createSourceControlWireController', () => {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject,
       },
+      mintOperationCredentials: vi.fn(async () => undefined),
     });
 
     expect(client).not.toHaveBeenCalled();
@@ -63,6 +64,7 @@ describe('createSourceControlWireController', () => {
     const controller = createSourceControlWireController({
       runtimes: { client } as never,
       workspaceIdentity: { resolve, resolveProject: vi.fn(async () => projectIdentity) },
+      mintOperationCredentials: vi.fn(async () => undefined),
     });
 
     await controller.call('checkout.getLog', { workspaceId: checkoutIdentity.workspaceId });
@@ -98,6 +100,7 @@ describe('createSourceControlWireController', () => {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject: vi.fn(async () => projectIdentity),
       },
+      mintOperationCredentials: vi.fn(async () => undefined),
     });
     const key = { projectId: projectIdentity.projectId };
 
@@ -140,6 +143,7 @@ describe('createSourceControlWireController', () => {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject: vi.fn(async () => projectIdentity),
       },
+      mintOperationCredentials: vi.fn(async () => undefined),
     });
 
     await expect(

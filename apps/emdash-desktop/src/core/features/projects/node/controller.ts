@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -24,6 +25,7 @@ export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'proj
   projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;
   projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
+  mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {

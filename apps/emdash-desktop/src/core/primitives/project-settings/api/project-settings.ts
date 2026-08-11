@@ -13,12 +13,25 @@ export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
 
 export type ShareableProjectSettings = EmdashConfig;
 
+/**
+ * Per-project git credential behavior for agent/terminal PTY sessions
+ * (spec: github-git-settings §4). Absence means the default,
+ * `effective-account`; emdash's own git operations are unaffected by this
+ * setting and always authenticate as the effective account.
+ */
+export const agentGitCredentialsSettingSchema = z.enum(['effective-account', 'system', 'none']);
+
+export type AgentGitCredentialsSetting = z.infer<typeof agentGitCredentialsSettingSchema>;
+
+export const DEFAULT_AGENT_GIT_CREDENTIALS: AgentGitCredentialsSetting = 'effective-account';
+
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   githubAccountId: z.string().trim().min(1).nullable().optional(),
+  agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),
@@ -49,6 +62,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   githubAccount: storedGithubAccountSchema.optional(),
+  agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),

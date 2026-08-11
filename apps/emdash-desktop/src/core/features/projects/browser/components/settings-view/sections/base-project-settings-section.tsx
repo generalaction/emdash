@@ -36,6 +36,7 @@ import { ProjectBranchSelector } from '@core/features/source-control/contributio
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import type {
+  AgentGitCredentialsSetting,
   Provenance,
   Resolved,
   WorktreeRootContext,
@@ -52,6 +53,12 @@ import {
 
 /** File-local Select option encodings; never stored or exported. */
 const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
+
+const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label: string }[] = [
+  { value: 'effective-account', label: 'Effective account' },
+  { value: 'system', label: 'System' },
+  { value: 'none', label: 'None' },
+];
 
 type BaseProjectSettingsSectionProps = {
   projectId: string;
@@ -338,6 +345,37 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
           className="w-full"
         />
       </ProvenanceField>
+
+      <Separator />
+
+      <Field.Root>
+        <Field.Label>Agent git credentials</Field.Label>
+        <Field.Description className="text-foreground-muted">
+          Which git credentials agent and terminal sessions use in this project. Effective account
+          wires the account above, system keeps your machine's credentials, none disables credential
+          helpers in sessions.
+        </Field.Description>
+        <Select.Root
+          value={form.agentGitCredentials}
+          onValueChange={(value) => {
+            if (!value) return;
+            update('agentGitCredentials', value as AgentGitCredentialsSetting);
+          }}
+        >
+          <Select.Trigger className="w-full min-w-0">
+            {AGENT_GIT_CREDENTIALS_OPTIONS.find(
+              (option) => option.value === form.agentGitCredentials
+            )?.label ?? 'Effective account'}
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            {AGENT_GIT_CREDENTIALS_OPTIONS.map((option) => (
+              <Select.Item key={option.value} value={option.value}>
+                {option.label}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
 
       <Separator />
 
