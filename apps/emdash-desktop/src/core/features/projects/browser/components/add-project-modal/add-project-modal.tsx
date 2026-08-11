@@ -68,6 +68,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const { navigate } = useNavigate();
 
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const getProjectsClient = useCallback(async () => await getProjectsWireClient(), []);
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
@@ -142,8 +143,6 @@ export const AddProjectModal = observer(function AddProjectModal({
     }
   }, [cloneState.repositoryUrl, mode, newState.repositoryName, pickState.path]);
   const projectName = useProjectName(generatedProjectName);
-  const showGithubAuthDisclaimer =
-    mode === 'new' && !githubAccountsQuery.isPending && selectedGitHubAccountId === null;
 
   const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
   const shouldCheckPickPathStatus =
@@ -355,11 +354,11 @@ export const AddProjectModal = observer(function AddProjectModal({
               connectionId={selectedConnectionId}
               state={newState}
               getProjectsClient={getProjectsClient}
-              showGithubAuthDisclaimer={showGithubAuthDisclaimer}
               accounts={githubAccountSelect.accounts}
               selectedAccount={githubAccountSelect.selectedAccount}
+              defaultAccount={defaultGitHubAccountSelect.selectedAccount}
               onAccountChange={setGithubAccountOverride}
-              onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
+              onConnectGithub={() => void openGithubConnectModal({})}
               ensureDefaultRoot={
                 defaultRepositoriesRootQuery.data !== undefined &&
                 newState.path === defaultRepositoriesRootQuery.data
