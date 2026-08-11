@@ -255,8 +255,8 @@ export async function bootServices(
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createGitRepository: (client, repository, settings) =>
-      new GitRepositoryService(client, repository, settings),
+    createGitRepository: (client, repository, settings, repoFacts) =>
+      new GitRepositoryService(client, repository, settings, repoFacts),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
       new GitRepositoryFetchService(client, repository, getBaseRemote),
     ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>

@@ -267,6 +267,33 @@ function accountMatchesHost(account: GitHubAccountSummary, host: string): boolea
   return normalizeRepositoryHost(account.host) === host;
 }
 
+/**
+ * The single "default account for host" definition (spec §2): the provider
+ * default account if its host matches → the only account whose host matches →
+ * none. Project flows reach this through `resolveEffectiveSettings` (keyed off
+ * the effective base remote's host); host-only flows with no project settings
+ * in play (e.g. an explicit repository URL and nothing else) call it directly.
+ * No other default-account inference may exist.
+ */
+export function resolveAccountForHost(
+  host: string,
+  accounts: GitHubAccountSummary[]
+): Resolved<GitHubAccountSummary | null> {
+  const normalizedHost = normalizeRepositoryHost(host);
+  const defaultAccount = accounts.find((account) => account.isDefault);
+  if (defaultAccount && accountMatchesHost(defaultAccount, normalizedHost)) {
+    return { value: defaultAccount, provenance: { kind: 'inferred', from: 'default account' } };
+  }
+  const matching = accounts.filter((account) => accountMatchesHost(account, normalizedHost));
+  if (matching.length === 1) {
+    return {
+      value: matching[0],
+      provenance: { kind: 'inferred', from: 'only host-matching account' },
+    };
+  }
+  return { value: null, provenance: { kind: 'inferred', from: 'no host-matching account' } };
+}
+
 function resolveGithubAccount(
   storedGithubAccount: StoredGithubAccount | undefined,
   effectiveBaseRemote: string | null,
@@ -290,19 +317,7 @@ function resolveGithubAccount(
     return { value: pinned, provenance: { kind: 'set' } };
   }
 
-  if (host !== null) {
-    const defaultAccount = accounts.find((account) => account.isDefault);
-    if (defaultAccount && accountMatchesHost(defaultAccount, host)) {
-      return { value: defaultAccount, provenance: { kind: 'inferred', from: 'default account' } };
-    }
-    const matching = accounts.filter((account) => accountMatchesHost(account, host));
-    if (matching.length === 1) {
-      return {
-        value: matching[0],
-        provenance: { kind: 'inferred', from: 'only host-matching account' },
-      };
-    }
-  }
+  if (host !== null) return resolveAccountForHost(host, accounts);
   return { value: null, provenance: { kind: 'inferred', from: 'no host-matching account' } };
 }
 

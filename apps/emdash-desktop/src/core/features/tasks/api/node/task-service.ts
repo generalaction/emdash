@@ -274,6 +274,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         project.projectId,
         project.repoPath,
         project.settings,
+        project.repoFacts,
         this.dependencies.createConversationProvider,
         workspaceRow.config ? (deriveBranchName(workspaceRow.config.git) ?? undefined) : undefined
       );
@@ -370,9 +371,14 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'A Git branch is required when creating a worktree.',
       });
     }
-    const gitPlan = compileWorktreeGitPlan(config.git, {
-      baseRemote: await project.settings.getBaseRemote(),
-    });
+    const baseRemote = await project.gitRepository.getBaseRemote();
+    if (baseRemote === null && config.git.kind === 'pr-branch') {
+      return err({
+        stage: 'replay',
+        message: 'The repository has no git remotes, so a pull request cannot be checked out.',
+      });
+    }
+    const gitPlan = compileWorktreeGitPlan(config.git, { baseRemote });
     const settings = await project.settings.get();
     const workspacePath = workspaceRow.path;
     return this.dependencies.creations.run(workspaceRow.id, () =>

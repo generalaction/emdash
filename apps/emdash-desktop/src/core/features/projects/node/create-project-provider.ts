@@ -14,6 +14,7 @@ import {
   type GitRepositoryPort,
   type ProjectProviderTransport,
 } from '@core/features/projects/api/node/project-provider';
+import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
   hostPathFromNative,
@@ -40,7 +41,7 @@ import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-se
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
-import { createRepoFactsLoader } from './settings/repo-facts';
+import { createRepoFactsCache } from './settings/repo-facts';
 
 export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
@@ -49,12 +50,13 @@ export type CreateProjectProviderDependencies = {
   createGitRepository(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    settings: HostProjectSettingsProvider
+    settings: HostProjectSettingsProvider,
+    repoFacts: RepoFactsSource
   ): GitRepositoryPort;
   createGitRepositoryFetch(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    getBaseRemote: () => Promise<string>
+    getBaseRemote: () => Promise<string | null>
   ): GitRepositoryFetchPort;
   ensureAbsoluteDir(
     client: FilesRuntimeClient,
@@ -113,6 +115,7 @@ export async function createProvider(
         }
       },
     };
+    const repoFacts = createRepoFactsCache(git, repository, hasRepository);
     const settings = new HostProjectSettingsProvider(
       project.id,
       project.path,
@@ -128,7 +131,7 @@ export async function createProvider(
             (await dependencies.getProjectDefaults()).tmuxByDefault,
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
-        getRepoFacts: createRepoFactsLoader(git, repository, hasRepository),
+        getRepoFacts: () => repoFacts.get(),
         migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
         defaultWorktreeDirectory: async () =>
           (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ??
@@ -155,7 +158,7 @@ export async function createProvider(
     );
     await settings.ensure({ git: gitInspector });
 
-    const repositoryService = dependencies.createGitRepository(git, repository, settings);
+    const repositoryService = dependencies.createGitRepository(git, repository, settings, repoFacts);
 
     ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 
@@ -170,6 +173,7 @@ export async function createProvider(
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
       settings,
+      repoFacts,
     };
     const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>
       repositoryService.getBaseRemote()

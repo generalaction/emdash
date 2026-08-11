@@ -225,15 +225,9 @@ describe('lazy settings migrations in the provider', () => {
     expect(settings).not.toHaveProperty('baseRemote');
     expect(rowStorage!.baseJson(projectId)).toEqual({ tmux: false });
 
-    // Creation provenance still answers the effective questions.
-    await expect(provider.getDefaultBranch()).resolves.toBe('origin/main');
-    await expect(provider.getBaseRemote()).resolves.toBe('origin');
-  });
-
-  it('derives the base remote fallback from a non-origin creation base ref', async () => {
-    const { provider } = makeProvider({ defaultBranchFallback: 'upstream/main' });
-    await expect(provider.getBaseRemote()).resolves.toBe('upstream');
-    await expect(provider.getPushRemote()).resolves.toBe('upstream');
+    // No explicit choices: the effective questions are the resolver's job
+    // (spec: github-git-settings §2), fed by this empty stored view.
+    await expect(provider.getStoredGitSettings()).resolves.toEqual({});
   });
 
   it('runs the app worktree-root migration once per provider and retries failures', async () => {

@@ -10,6 +10,7 @@ import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import {
   terminalsContract,
@@ -306,7 +307,13 @@ async function resolveTerminalContext(
   return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
     const taskFiles = filesClientScope(client.files, identity.path);
     const projectSettings = await project.settings.get();
-    const defaultBranch = await project.settings.getDefaultBranch();
+    // Effective default branch through the blessed resolver (spec:
+    // github-git-settings §2); null (unresolvable) omits the env var.
+    const effective = await resolveProjectEffectiveSettings({
+      settings: project.settings,
+      repoFacts: project.repoFacts,
+    });
+    const defaultBranch = effective.defaultBranch.value?.branch ?? null;
     const taskLevelSettings = await getEffectiveTaskSettings({
       projectSettings: project.settings,
       taskFiles,

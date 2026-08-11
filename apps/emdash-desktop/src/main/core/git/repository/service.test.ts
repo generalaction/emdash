@@ -37,7 +37,8 @@ describe('GitRepositoryService', () => {
     const service = new GitRepositoryService(
       { repository: { model: { state: vi.fn() } } } as never,
       { repository: { root: { kind: 'posix' }, segments: ['plain-folder'] } } as never,
-      { get: vi.fn() }
+      { getStoredGitSettings: vi.fn(), getDefaultWorktreeDirectory: vi.fn() },
+      { get: vi.fn(), dispose: vi.fn() }
     );
     const cb = vi.fn();
 

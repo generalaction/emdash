@@ -3,7 +3,11 @@ export interface TaskEnvContext {
   taskName: string;
   taskPath: string;
   projectPath: string;
-  defaultBranch?: string;
+  /**
+   * The effective default branch from the blessed resolver; `null`/absent when
+   * the repository has none (the env var is then omitted rather than invented).
+   */
+  defaultBranch?: string | null;
   portSeed?: string;
 }
 
@@ -15,7 +19,7 @@ export function getTaskEnvVars(ctx: TaskEnvContext): Record<string, string> {
     EMDASH_TASK_NAME: taskName,
     EMDASH_TASK_PATH: ctx.taskPath,
     EMDASH_ROOT_PATH: ctx.projectPath,
-    EMDASH_DEFAULT_BRANCH: ctx.defaultBranch || 'main',
+    ...(ctx.defaultBranch ? { EMDASH_DEFAULT_BRANCH: ctx.defaultBranch } : {}),
     EMDASH_PORT: String(getBasePort(portSeed)),
   };
 }

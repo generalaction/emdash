@@ -3,6 +3,7 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import { ok, type Result } from '@emdash/shared';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import type { TaskProvider } from '@core/features/projects/api/node/project-provider';
+import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { Workspace } from '@core/features/workspaces/api/node/workspace';
 import {
@@ -23,6 +24,7 @@ export async function buildTaskFromWorkspace(
   projectId: string,
   projectPath: string,
   settings: ProjectSettingsProvider,
+  repoFacts: RepoFactsSource,
   createConversationProvider: (options: TaskProviderOpts) => ConversationProvider,
   workspaceBranchName?: string,
   workspaceSourceBranch?: GitBranchRef
@@ -31,7 +33,8 @@ export async function buildTaskFromWorkspace(
     task,
     workspace,
     projectPath,
-    settings
+    settings,
+    repoFacts
   );
   const providers = await buildTaskProviders(
     {

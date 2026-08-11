@@ -93,6 +93,25 @@ describe('GitRepository', () => {
     }
   });
 
+  it('exposes remote HEADs from local symbolic refs in the refs state', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      const oid = (await git(repo, ['rev-parse', 'HEAD'])).trim();
+      await git(repo, ['remote', 'add', 'origin', 'https://example.com/repo.git']);
+      await git(repo, ['update-ref', 'refs/remotes/origin/main', oid]);
+      await git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
+
+      const refs = await repository.getRefs();
+      expect(refs.remoteHeads).toEqual([{ remote: 'origin', branch: 'main' }]);
+      // The HEAD symbolic ref itself never surfaces as a branch.
+      expect(
+        refs.branches.filter((branch) => branch.type === 'remote').map((branch) => branch.branch)
+      ).toEqual(['main']);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('resolves the default branch from local fallbacks without a remote', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
