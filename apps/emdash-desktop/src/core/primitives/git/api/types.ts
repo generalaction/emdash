@@ -80,12 +80,8 @@ export type PushError =
   | MessageError<'hook_rejected'>
   | GitCommandError;
 
+/** The conventional name for a repository's first remote — a naming default, not resolution. */
 export const DEFAULT_REMOTE_NAME = 'origin';
-
-export type ConfiguredRemotes = {
-  baseRemote: GitRemote;
-  pushRemote: GitRemote;
-};
 
 export const HEAD_REF: DiffMode = { kind: 'head' };
 export const STAGED_REF: DiffMode = { kind: 'staged' };
