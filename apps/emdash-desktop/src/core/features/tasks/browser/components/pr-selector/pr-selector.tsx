@@ -2,7 +2,12 @@ import { ListPopoverCard } from '@emdash/ui/react/components';
 import { Button, Combobox, Select } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { type ReactNode, useState } from 'react';
+import {
+  GitHubAccountStateEmpty,
+  useBlockingGitHubAccountState,
+} from '@core/features/github/contributions/browser/account-state';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -58,7 +63,7 @@ export function SelectedPrValue({ pr }: { pr: PullRequest }) {
   return <PrRow pr={pr} />;
 }
 
-export function PrSelector({
+export const PrSelector = observer(function PrSelector({
   value,
   onValueChange,
   projectId,
@@ -73,6 +78,12 @@ export function PrSelector({
   const debouncedQuery = useDebounce(query.trim(), 200);
   const searchQuery = query.trim() ? debouncedQuery : '';
 
+  // §7 reporting matrix over the resolver provenance (spec:
+  // github-git-settings §7): an explicitly disabled project or an
+  // unresolvable pin must not trigger syncs — fail closed instead of
+  // proceeding as another identity.
+  const accountState = useBlockingGitHubAccountState(projectId);
+
   // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
   const syncQuery = useQuery({
     queryKey: ['pr-sync', projectId],
@@ -80,7 +91,7 @@ export function PrSelector({
       const client = await getPullRequestsRuntimeClient();
       return await client.sync({ repositoryUrl });
     },
-    enabled: !!projectId && !!repositoryUrl,
+    enabled: !!projectId && !!repositoryUrl && !accountState,
     staleTime: 60_000,
   });
 
@@ -96,7 +107,7 @@ export function PrSelector({
         searchQuery: searchQuery || undefined,
       });
     },
-    enabled: !!projectId && !!repositoryUrl,
+    enabled: !!projectId && !!repositoryUrl && !accountState,
     staleTime: 30_000,
   });
 
@@ -111,10 +122,7 @@ export function PrSelector({
     error?.type === 'github_account_not_found' ||
     error?.type === 'github_account_host_mismatch' ||
     error?.type === 'github_token_missing' ||
-    error?.type === 'github_sso_required' ||
-    error?.type === 'github_no_account_selected' ||
-    error?.type === 'github_account_disabled' ||
-    error?.type === 'github_account_resolution_failed';
+    error?.type === 'github_sso_required';
   const githubAuthDescription =
     error?.type === 'github_account_not_found'
       ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
@@ -211,7 +219,9 @@ export function PrSelector({
             disabled={disabled}
           />
           <Combobox.Empty>
-            {isGitHubAuthError ? (
+            {accountState ? (
+              <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+            ) : isGitHubAuthError ? (
               <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-2">
                   <Github className="size-4 text-foreground-muted" />
@@ -253,4 +263,4 @@ export function PrSelector({
       </Combobox.Root>
     </div>
   );
-}
+});
