@@ -45,10 +45,8 @@ export const scriptsContract = defineContract({
   }),
 
   /**
-   * Starts a run and returns once it is spawned (status 'running'). The command,
-   * shellSetup, and env are host-resolved: the command from the workspace's
-   * `.emdash.json`, shellSetup from `.emdash.json` overriding the host default,
-   * and the six `EMDASH_*` vars derived from the supplied workspace facts.
+   * Starts a run and returns once it is spawned (status 'running'). The caller supplies
+   * the canonically resolved command and shellSetup; this runtime only executes them.
    */
   start: fallible({
     input: startScriptRunInputSchema,

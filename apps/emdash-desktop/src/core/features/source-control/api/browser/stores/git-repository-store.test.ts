@@ -44,7 +44,11 @@ function refs(overrides: Partial<GitRefsState> = {}): GitRefsState {
 }
 
 function settingsStore(storedGitSettings: StoredProjectGitSettings | null): ProjectSettingsStore {
-  return { storedGitSettings } as unknown as ProjectSettingsStore;
+  return {
+    domains: {
+      gitIdentity: { stored: storedGitSettings ?? {} },
+    },
+  } as unknown as ProjectSettingsStore;
 }
 
 async function startStore(stored: StoredProjectGitSettings | null = null) {

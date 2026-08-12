@@ -25,9 +25,18 @@ vi.mock('@core/features/source-control/api/browser/stores/source-control-selecto
   getGitRepositoryStore: () => repositoryStoreMock.current,
 }));
 // The real module transitively imports monaco, which cannot load in the node project.
-// The mocked project defines preservePatterns, so previews include copy-artifacts.
+// Mirror the registry-backed resolved file-handling domain consumed by the preview.
+const projectConfigMock = vi.hoisted(() => ({ preservePatterns: ['.env'] as string[] }));
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
-  getProjectSettingsStore: () => ({ settings: { preservePatterns: ['.env'] } }),
+  getProjectSettingsStore: () => ({
+    domains: {
+      fileHandling: {
+        resolved: {
+          preservePatterns: { value: projectConfigMock.preservePatterns, from: 'personal' },
+        },
+      },
+    },
+  }),
 }));
 
 vi.mock('@core/features/tasks/browser/task-config/existing-workspace-picker', () => ({
@@ -117,6 +126,7 @@ describe('useWorkspaceConfig branch selection', () => {
   beforeEach(() => {
     latestState = undefined;
     branchNameMock.current = 'generated-task-branch';
+    projectConfigMock.preservePatterns = ['.env'];
     repositoryStoreMock.current = {
       baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
     };
@@ -251,6 +261,16 @@ describe('useWorkspaceConfig branch selection', () => {
     expect(latestState?.setupSteps[0]?.description).toBe(
       'Create a worktree on new branch generated-task-branch based on main'
     );
+  });
+
+  it('omits copy-artifacts when resolved preservePatterns are empty', async () => {
+    projectConfigMock.preservePatterns = [];
+    await renderProbe({ mode: 'new-worktree', presetId: 'new-worktree' });
+
+    expect(latestState?.setupSteps.map((step) => step.id)).toEqual([
+      'create-worktree',
+      'push-branch',
+    ]);
   });
 
   it('previews the fork PR checkout with the namespaced branch and PR-ref fetch', async () => {

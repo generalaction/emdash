@@ -4,9 +4,9 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   resolveEffectiveSettings,
   type EffectiveSettings,
+  type PlacementContext,
   type RepoFacts,
   type StoredProjectGitSettings,
-  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import { getProjectSettingsStore } from '../stores/project-selectors';
 
@@ -22,11 +22,10 @@ export type EffectiveSettingsInputs = {
   repoFacts: RepoFacts;
   accounts: GitHubAccountSummary[];
   /**
-   * The worktree-root layers below the per-project override plus the host
-   * home directory, shipped node-side over the Wire (`worktreeRootContext` on
-   * the settings page) so preview and execution resolve identical inputs.
+   * Placement layers shipped node-side over the Wire so preview and execution
+   * resolve identical worktree-root and tmux inputs.
    */
-  worktreeRootContext: WorktreeRootContext;
+  placementContext: PlacementContext;
 };
 
 export function resolveRendererEffectiveSettings(
@@ -36,9 +35,9 @@ export function resolveRendererEffectiveSettings(
   return resolveEffectiveSettings(
     {
       project: storedGitSettings,
-      hostWorktreeRoot: inputs.worktreeRootContext.hostWorktreeRoot,
-      builtInWorktreeRoot: inputs.worktreeRootContext.builtInWorktreeRoot,
-      homeDirectory: inputs.worktreeRootContext.homeDirectory,
+      hostWorktreeRoot: inputs.placementContext.hostWorktreeRoot,
+      builtInWorktreeRoot: inputs.placementContext.builtInWorktreeRoot,
+      homeDirectory: inputs.placementContext.homeDirectory,
     },
     inputs.repoFacts,
     inputs.accounts
@@ -55,14 +54,17 @@ export function useEffectiveSettingsInputs(projectId: string): EffectiveSettings
   const settingsStore = getProjectSettingsStore(projectId);
   const repo = getGitRepositoryStore(projectId);
   const { data: accounts } = useGitHubAccounts();
-  const page = settingsStore?.pageData.data ?? null;
-  if (!page || !accounts) return null;
+  const domains = settingsStore?.domains ?? null;
+  if (!domains || !accounts) return null;
   if (repo?.loading) return null;
   return {
-    storedGitSettings: page.storedGitSettings,
+    storedGitSettings: {
+      ...domains.gitIdentity.stored,
+      ...domains.placement.stored,
+    },
     repoFacts: repo?.repoFacts ?? { remotes: [], localBranches: [] },
     accounts,
-    worktreeRootContext: page.worktreeRootContext,
+    placementContext: domains.placement.layers,
   };
 }
 

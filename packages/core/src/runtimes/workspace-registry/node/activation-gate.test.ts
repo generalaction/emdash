@@ -31,6 +31,34 @@ function manager(options: {
 }
 
 describe('activation artifact gate', () => {
+  it('honors personal auto-run toggles while leaving prepare enabled', async () => {
+    const ran: string[] = [];
+    const activation = new WorkspaceActivationManager({
+      publishActivation: () => undefined,
+      setNotice: () => undefined,
+      clearNotice: () => undefined,
+      resetScriptSteps: () => undefined,
+      recordScriptStep: () => undefined,
+      recordActivated: async () => undefined,
+      resolveLifecycleConfig: async () => ({
+        scripts: { prepare: 'prepare', setup: 'setup', run: 'run' },
+        shellSetup: '',
+        autoRunSetup: false,
+        autoRunRun: false,
+      }),
+      runner: {
+        run: async (input) => {
+          ran.push(input.id);
+          return { status: 'succeeded', outputTail: '' };
+        },
+      },
+    });
+
+    await activation.activate('ws', '/tmp/ws');
+    expect(ran).toEqual(['prepare']);
+    await activation.deactivate('ws');
+  });
+
   it('prepare waits for the clone gate, then runs; setup follows the same gate', async () => {
     const events: string[] = [];
     let releaseGate!: () => void;

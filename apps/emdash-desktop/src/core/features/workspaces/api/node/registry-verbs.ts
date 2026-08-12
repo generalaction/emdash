@@ -1,12 +1,39 @@
 import crypto from 'node:crypto';
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import type { CreateWorkspaceError } from '@emdash/core/runtimes/workspace-registry/api';
+import type {
+  CreateWorkspaceError,
+  ProjectConfigState,
+  WorkspaceNotFoundError,
+} from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { WorktreeGitPlan } from '@core/primitives/workspaces/api';
+import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 export type WorkspaceCreationFailure = { stage: string; message: string };
 export type WorkspaceCreationOutcome = Result<void, WorkspaceCreationFailure>;
+
+export type ProjectConfigRegistrationError = WorkspaceNotFoundError | CreateWorkspaceError;
+
+/**
+ * Reads resolved project config, registering a pre-registry workspace on demand before
+ * one retry. Registration is idempotent; an already-owned path is safe to retry because
+ * another caller or desktop may have completed the registration concurrently.
+ */
+export async function getProjectConfigEnsuringRegistration(
+  registry: Pick<WorkspaceRegistryRuntimeClient, 'createWorkspace' | 'getProjectConfig'>,
+  workspaceId: string,
+  path: string
+): Promise<Result<ProjectConfigState, ProjectConfigRegistrationError>> {
+  const existing = await registry.getProjectConfig({ workspaceId });
+  if (existing.success) return existing;
+
+  const registered = await registry.createWorkspace({ workspaceId, path });
+  if (!registered.success && registered.error.type !== 'already-registered') {
+    return err(registered.error);
+  }
+  return registry.getProjectConfig({ workspaceId });
+}
 
 /**
  * In-memory index of in-flight createWorktree verb calls, keyed by workspace id.

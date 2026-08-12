@@ -3,22 +3,24 @@ import type { Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
-  legacyBaseProjectSettingsSchema,
-  legacyProjectConfigSchema,
-  type LegacyBaseProjectSettings,
+  mergeShareableProjectSettings,
   type ShareableProjectSettings,
 } from '@core/primitives/project-settings/api';
-import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, type FilesClientScope } from '@core/services/runtime-broker/node/files';
+import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
+import type { ProjectSettingsStorage, StoredProjectSettings } from '../project-settings-storage';
 import {
   hasLegacyShareableConfigMigrated,
   serializeShareableProjectSettings,
-} from './legacy-shareable-migration-marker';
-import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
-import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
+} from './legacy-shareable-marker';
+import {
+  legacyBaseProjectSettingsSchema,
+  legacyProjectConfigSchema,
+  type LegacyBaseProjectSettings,
+} from './legacy-stored-project-settings';
 
-export type LegacyProjectSettingsMigrationArgs = {
+export type AncientProjectConfigMigrationArgs = {
   projectId: string;
   row: StoredProjectSettings | undefined;
   configFiles: FilesClientScope | undefined;
@@ -41,7 +43,6 @@ function normalizeLegacyDefaultBranch(
   fallback: string | null
 ): LegacyBaseProjectSettings['defaultBranch'] {
   if (!branch) return undefined;
-  // Already in the new stored model: nothing to normalize.
   if (typeof branch === 'object' && 'branch' in branch) return branch;
   const branchName = typeof branch === 'string' ? branch.trim() : branch.name.trim();
   if (!branchName) return undefined;
@@ -51,7 +52,7 @@ function normalizeLegacyDefaultBranch(
   return remoteName ? `${remoteName}/${branchName}` : branchName;
 }
 
-async function readLegacyProjectConfig(
+async function readAncientProjectConfig(
   configFiles: FilesClientScope | undefined,
   configPath: string
 ): Promise<LegacyBaseProjectSettings | undefined> {
@@ -87,7 +88,7 @@ async function readLegacyProjectConfig(
   }
 }
 
-export async function migrateLegacyProjectSettingsIfNeeded({
+export async function migrateAncientProjectConfig({
   projectId,
   row,
   configFiles,
@@ -96,7 +97,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   storage,
   git,
   normalizeStoredWorktreeDirectory,
-}: LegacyProjectSettingsMigrationArgs): Promise<void> {
+}: AncientProjectConfigMigrationArgs): Promise<void> {
   if (!row) return;
 
   const baseAlreadyMigrated = Boolean(row.legacyConfigMigratedAt);
@@ -116,9 +117,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     'shareable project settings'
   );
   const { remote, ...currentSettings } = current;
-  const legacy = await readLegacyProjectConfig(configFiles, configPath);
-  // Keep whatever shape the row already has (legacy or new stored model); the
-  // provider's lazy read-path migrations own the shape conversion.
+  const legacy = await readAncientProjectConfig(configFiles, configPath);
   const next: Omit<LegacyBaseProjectSettings, 'remote'> = {
     ...currentSettings,
     ...(currentSettings.baseRemote === undefined && remote !== undefined

@@ -4,44 +4,45 @@ import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
-  emptyProjectSettingsOverrideState,
   type MigrateProjectConfigRequest,
-  type MigrateProjectConfigResult,
   type ProjectConfigMigration,
-  type ProjectSettings,
-  type ProjectSettingsOverrideState,
-  type ProjectSettingsPage,
-  type ProjectSettingsWriteTargetOption,
   type ShareableProjectSettingsWriteField,
-  type StoredProjectGitSettings,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type {
+  MigrateProjectConfigResult,
+  ProjectSettingsDomainPatch,
+  ProjectSettingsDomains,
+  ProjectSettingsPage,
+} from '../../../api/project-settings-page';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,
-  formToSettings,
+  formToProjectSettingsDomainPatch,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
-  settingsToForm,
+  projectSettingsDomainsToForm,
+  shareableFieldFormValue,
+  type FileHandlingFormState,
+  type FormFieldPath,
+  type FormSection,
   type FormState,
+  type FormUpdate,
+  type GitIdentityFormState,
+  type LifecycleFormState,
+  type PlacementFormState,
 } from './project-settings-form-model';
 import { projectConfigTargetValue } from './share-project-config-modal';
-import {
-  DEFAULT_WRITE_FIELDS,
-  SHAREABLE_FIELD_FORM_KEY,
-} from './shareable-project-settings-fields';
+import { DEFAULT_WRITE_FIELDS } from './shareable-project-settings-fields';
 
 type UseProjectSettingsFormArgs = {
-  initial: ProjectSettings;
-  storedGitSettings: StoredProjectGitSettings;
+  domains: ProjectSettingsDomains;
   remotes: GitRemote[];
-  writeTargets: ProjectSettingsWriteTargetOption[];
-  overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
   save: (
-    settings: ProjectSettings
+    patch: ProjectSettingsDomainPatch
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
@@ -55,20 +56,18 @@ type FormSnapshot = {
   baseline: FormState;
   form: FormState;
   savedForm: FormState;
+  touchedFields: ReadonlySet<FormFieldPath>;
 };
 
 function resolveFormSnapshot(snapshot: FormSnapshot, baseline: FormState): FormSnapshot {
   if (snapshot.baseline === baseline) return snapshot;
   if (!areFormStatesEqual(snapshot.form, snapshot.savedForm)) return snapshot;
-  return { baseline, form: baseline, savedForm: baseline };
+  return { baseline, form: baseline, savedForm: baseline, touchedFields: new Set() };
 }
 
 export function useProjectSettingsForm({
-  initial,
-  storedGitSettings,
+  domains,
   remotes,
-  writeTargets,
-  overrideState,
   configMigrations,
   onSuccess,
   save,
@@ -79,19 +78,21 @@ export function useProjectSettingsForm({
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
   const { toast } = useToast();
   const baseline = useMemo(
-    () => settingsToForm(initial, storedGitSettings, remotes),
-    [initial, storedGitSettings, remotes]
+    () => projectSettingsDomainsToForm(domains, remotes),
+    [domains, remotes]
   );
   const [formSnapshot, setFormSnapshot] = useState<FormSnapshot>({
     baseline,
     form: baseline,
     savedForm: baseline,
+    touchedFields: new Set(),
   });
   const [saveStatus, setSaveStatus] = useState<ProjectSettingsSaveStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
 
   const resolvedSnapshot = resolveFormSnapshot(formSnapshot, baseline);
   const { form, savedForm } = resolvedSnapshot;
+  const writeTargets = domains.lifecycle.writeTargets;
   const availableWriteFields = getAvailableWriteFields(savedForm);
   const defaultSelectedWriteFields = availableWriteFields.filter((field) =>
     DEFAULT_WRITE_FIELDS.includes(field)
@@ -104,51 +105,85 @@ export function useProjectSettingsForm({
   const initialWriteTarget = writeTargets[0]
     ? projectConfigTargetValue(writeTargets[0])
     : 'project:repository';
-  const overrides = overrideState ?? emptyProjectSettingsOverrideState();
   const baselineResynced = resolvedSnapshot !== formSnapshot && areFormStatesEqual(form, savedForm);
   const visibleWorktreeDirectoryError = baselineResynced ? null : worktreeDirectoryError;
 
-  const update = useCallback(
-    <K extends keyof FormState>(key: K, value: FormState[K]) => {
+  const updateSection = useCallback(
+    <S extends FormSection, K extends keyof FormState[S]>(
+      section: S,
+      key: K,
+      value: FormState[S][K]
+    ) => {
       setFormSnapshot({
         ...resolvedSnapshot,
-        form: { ...form, [key]: value },
+        form: {
+          ...form,
+          [section]: { ...form[section], [key]: value },
+        },
+        touchedFields: new Set([
+          ...resolvedSnapshot.touchedFields,
+          `${section}.${String(key)}` as FormFieldPath,
+        ]),
       });
       setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
-      if (key === 'worktreeDirectory' && visibleWorktreeDirectoryError) {
+      if (section === 'placement' && key === 'worktreeDirectory' && visibleWorktreeDirectoryError) {
         setWorktreeDirectoryError(null);
       }
     },
     [form, resolvedSnapshot, visibleWorktreeDirectoryError]
   );
+  const updateLifecycle = useCallback<FormUpdate<LifecycleFormState>>(
+    (key, value) => updateSection('lifecycle', key, value),
+    [updateSection]
+  );
+  const updateFileHandling = useCallback<FormUpdate<FileHandlingFormState>>(
+    (key, value) => updateSection('fileHandling', key, value),
+    [updateSection]
+  );
+  const updateGitIdentity = useCallback<FormUpdate<GitIdentityFormState>>(
+    (key, value) => updateSection('gitIdentity', key, value),
+    [updateSection]
+  );
+  const updatePlacement = useCallback<FormUpdate<PlacementFormState>>(
+    (key, value) => updateSection('placement', key, value),
+    [updateSection]
+  );
 
   const getOverrideSources = useCallback(
     (field: ShareableProjectSettingsWriteField) => {
-      const formValue = normalizeShareableFieldValue(field, form[SHAREABLE_FIELD_FORM_KEY[field]]);
+      const formValue = normalizeShareableFieldValue(field, shareableFieldFormValue(form, field));
       if (!formValue) return [];
-      return (overrides[field] ?? []).filter(
+      const sources =
+        field === 'preservePatterns'
+          ? domains.fileHandling.sources.map((source) => ({
+              ...source,
+              value: source.value.join('\n'),
+            }))
+          : domains.lifecycle.sources[
+              field.slice('scripts.'.length) as 'prepare' | 'setup' | 'run' | 'teardown'
+            ];
+      return sources.filter(
         (source) => normalizeShareableFieldValue(field, source.value) !== formValue
       );
     },
-    [form, overrides]
+    [domains, form]
   );
 
   const handleSave = useCallback(async () => {
     setSaveStatus('saving');
 
-    const result = await save(formToSettings(form)).catch(() => err({ type: 'error' }));
+    const result = await save(
+      formToProjectSettingsDomainPatch(form, resolvedSnapshot.touchedFields)
+    ).catch(() => err({ type: 'error' }));
 
     if (result.success) {
-      const canonicalForm = settingsToForm(
-        result.data.settings,
-        result.data.storedGitSettings,
-        remotes
-      );
+      const canonicalForm = projectSettingsDomainsToForm(result.data.domains, remotes);
       setWorktreeDirectoryError(null);
       setFormSnapshot({
         baseline: canonicalForm,
         form: canonicalForm,
         savedForm: canonicalForm,
+        touchedFields: new Set(),
       });
       setSaveStatus('saved');
       onSuccess();
@@ -163,7 +198,7 @@ export function useProjectSettingsForm({
 
     setWorktreeDirectoryError(null);
     setSaveStatus('error');
-  }, [form, onSuccess, remotes, save]);
+  }, [form, onSuccess, remotes, resolvedSnapshot.touchedFields, save]);
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
@@ -175,15 +210,12 @@ export function useProjectSettingsForm({
       writeConfigToRepo,
     }).then((outcome) => {
       if (!outcome.success) return;
-      const nextForm = settingsToForm(
-        outcome.data.page.settings,
-        outcome.data.page.storedGitSettings,
-        remotes
-      );
+      const nextForm = projectSettingsDomainsToForm(outcome.data.page.domains, remotes);
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
         savedForm: nextForm,
+        touchedFields: new Set(),
       });
       toast('Team config shared', { description: '.emdash.json was written successfully.' });
       onSuccess();
@@ -210,11 +242,12 @@ export function useProjectSettingsForm({
     }).then((outcome) => {
       if (!outcome.success) return;
       const { page, migration } = outcome.data;
-      const nextForm = settingsToForm(page.settings, page.storedGitSettings, remotes);
+      const nextForm = projectSettingsDomainsToForm(page.domains, remotes);
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
         savedForm: nextForm,
+        touchedFields: new Set(),
       });
       toast(`${migration.label} config imported`, {
         description: `${migration.files.join(', ')} was imported successfully.`,
@@ -236,6 +269,7 @@ export function useProjectSettingsForm({
     setFormSnapshot({
       ...resolvedSnapshot,
       form: savedForm,
+      touchedFields: new Set(),
     });
     setWorktreeDirectoryError(null);
     if (saveStatus === 'error') setSaveStatus('idle');
@@ -251,7 +285,10 @@ export function useProjectSettingsForm({
     importDisabled,
     configMigrations,
     worktreeDirectoryError: visibleWorktreeDirectoryError,
-    update,
+    updateLifecycle,
+    updateFileHandling,
+    updateGitIdentity,
+    updatePlacement,
     getOverrideSources,
     handleSave,
     openShareConfigModal,

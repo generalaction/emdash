@@ -1,6 +1,9 @@
 import { z } from 'zod';
-// oxlint-disable-next-line emdash/core-module-boundaries -- runScript surfaces the scripts runtime's start rejections verbatim (activation-scripts-via-terminals spec: the registry sequences lifecycle scripts through the scripts runtime); the contract has no services-level home yet
-import { startScriptRunErrorSchema } from '#runtimes/scripts/api/errors';
+// oxlint-disable-next-line emdash/core-module-boundaries -- runScript resolves script configuration before sequencing execution through the scripts runtime; these shared errors have no services-level home yet
+import {
+  scriptNotConfiguredErrorSchema,
+  startScriptRunErrorSchema,
+} from '#runtimes/scripts/api/errors';
 import { workspaceRecordSchema } from './schemas';
 
 export const workspaceNotFoundErrorSchema = z.object({
@@ -9,9 +12,10 @@ export const workspaceNotFoundErrorSchema = z.object({
 });
 export type WorkspaceNotFoundError = z.infer<typeof workspaceNotFoundErrorSchema>;
 
-/** runScript failures: unknown workspace, or the scripts runtime's start rejections. */
+/** runScript failures: unknown workspace, missing configuration, or executor rejection. */
 export const runScriptErrorSchema = z.union([
   workspaceNotFoundErrorSchema,
+  scriptNotConfiguredErrorSchema,
   startScriptRunErrorSchema,
 ]);
 export type RunScriptError = z.infer<typeof runScriptErrorSchema>;

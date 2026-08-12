@@ -3,6 +3,7 @@ import {
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
 import { fileTreeModelSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
+import { projectConfigStateSchema } from '@emdash/core/runtimes/workspace-registry/api';
 import type { Result } from '@emdash/shared';
 import {
   defineContract,
@@ -17,10 +18,6 @@ import {
 import z from 'zod';
 import type {
   MigrateProjectConfigRequest,
-  MigrateProjectConfigResult,
-  ProjectSettings,
-  ProjectSettingsPage,
-  ProjectSettingsPatch,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import {
@@ -38,6 +35,11 @@ import {
   type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
+import type {
+  MigrateProjectConfigResult,
+  ProjectSettingsDomainPatch,
+  ProjectSettingsPage,
+} from './project-settings-page';
 
 export const projectCreationErrorSchema = z.object({
   type: z.string(),
@@ -161,16 +163,9 @@ export const projectsWireContract = defineContract({
   updateProjectSettings: procedure({
     input: z.object({
       projectId: z.string(),
-      settings: z.custom<ProjectSettings>(),
+      patch: z.custom<ProjectSettingsDomainPatch>(),
     }),
-    output: z.custom<Result<ProjectSettings, UpdateProjectSettingsError>>(),
-  }),
-  patchProjectSettings: procedure({
-    input: z.object({
-      projectId: z.string(),
-      patch: z.custom<ProjectSettingsPatch>(),
-    }),
-    output: z.custom<Result<ProjectSettings, UpdateProjectSettingsError>>(),
+    output: z.custom<Result<ProjectSettingsPage, UpdateProjectSettingsError>>(),
   }),
   shareProjectSettingsToConfig: procedure({
     input: z.object({
@@ -206,6 +201,12 @@ export const projectsWireContract = defineContract({
     key: z.void(),
     states: {
       list: liveState({ data: z.custom<ProjectListData>() }),
+    },
+  }),
+  projectConfig: liveModel({
+    key: projectIdInputSchema,
+    states: {
+      current: liveState({ data: projectConfigStateSchema }),
     },
   }),
   creation: liveModel({

@@ -13,6 +13,7 @@ import {
   type CreateWorkspaceInput,
   type CreateWorktreeError,
   type CreateWorktreeInput,
+  type ProjectConfigState,
   type WorkspaceRecord,
   type WorkspaceRecords,
 } from '#runtimes/workspace-registry/api';
@@ -39,6 +40,26 @@ const worktreeConfig = {
 
 const repoHash = createHash('sha256').update('/Users/jona/repo').digest('hex').slice(0, 8);
 const expectedWorktreePath = `/Users/jona/worktrees/repo-${repoHash}/emdash-abc`;
+
+const emptyProjectConfig: ProjectConfigState = {
+  workspaceId: 'test-workspace',
+  repositoryId: 'test-workspace',
+  resolved: {
+    preservePatterns: { value: [], from: 'built-in' },
+    autoRunSetup: { value: true, from: 'built-in' },
+    autoRunRun: { value: false, from: 'built-in' },
+  },
+  personalConfig: {},
+  sources: {
+    preservePatterns: [],
+    prepare: [],
+    setup: [],
+    run: [],
+    teardown: [],
+    shellSetup: [],
+  },
+  legacyDesktopSettingsMigrated: true,
+};
 
 /** Admission stub recording checks; refuses when a refusal is supplied. */
 function admissionStub(refusal?: WorkspaceCreationRefusal) {
@@ -457,6 +478,9 @@ function registryWire(
   const wire = createTestWire(workspaceRegistryContract, {
     records: expose(workspaceRegistryContract.records, {
       list: () => cell<WorkspaceRecords>({}, { name: 'test-records' }),
+    }),
+    projectConfig: expose(workspaceRegistryContract.projectConfig, {
+      current: () => cell(emptyProjectConfig, { name: 'test-project-config' }),
     }),
     createWorkspace: async (input) => {
       calls.createWorkspace.push(input);

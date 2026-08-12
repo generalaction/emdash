@@ -6,7 +6,7 @@ export const runInFlightErrorSchema = z.object({
   message: z.string().min(1),
 });
 
-/** The workspace's `.emdash.json` defines no command for the requested script. */
+/** Canonical project configuration has no command for the requested script. */
 export const scriptNotConfiguredErrorSchema = z.object({
   type: z.literal('script-not-configured'),
   message: z.string().min(1),
@@ -20,7 +20,6 @@ export const spawnFailedErrorSchema = z.object({
 
 export const startScriptRunErrorSchema = z.discriminatedUnion('type', [
   runInFlightErrorSchema,
-  scriptNotConfiguredErrorSchema,
   spawnFailedErrorSchema,
 ]);
 

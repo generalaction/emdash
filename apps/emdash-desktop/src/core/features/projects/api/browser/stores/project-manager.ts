@@ -730,9 +730,13 @@ export class ProjectManagerStore {
 
     const result = await (
       await getProjectsWireClient()
-    ).patchProjectSettings({
+    ).updateProjectSettings({
       projectId,
-      patch: { githubAccountId },
+      patch: {
+        gitIdentity: {
+          stored: { githubAccount: { kind: 'account', accountId: githubAccountId } },
+        },
+      },
     });
     if (!result.success) {
       log.error('Failed to save initial GitHub account for project', {

@@ -1,15 +1,11 @@
+import type { PersonalProjectConfig } from '@emdash/core/runtimes/workspace-registry/api';
 import { ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
-import type { WriteProjectConfigRequest } from '@core/primitives/project-settings/api';
+import type { ShareableProjectSettingsWriteField } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { errorMessage, writeConfigFailed } from './config-migration-utils';
-import {
-  resolveProjectSettingsTarget,
-  type ProjectSettingsResolvedTarget,
-} from './project-settings-target-resolver';
+import type { ProjectSettingsResolvedTarget } from './project-settings-target-resolver';
 import {
   CONFIG_FILE,
   parseWorkspaceConfigObject,
@@ -17,23 +13,11 @@ import {
 } from './workspace-config-file';
 
 export async function shareProjectSettingsToConfig(
-  workspaceIdentity: WorkspaceIdentityService,
-  project: ProjectProvider,
-  request: WriteProjectConfigRequest,
-  resolvedTargets: ProjectSettingsResolvedTarget[]
-): Promise<Result<void, UpdateProjectSettingsError>> {
+  target: ProjectSettingsResolvedTarget,
+  fields: ShareableProjectSettingsWriteField[],
+  personalConfig: PersonalProjectConfig
+): Promise<Result<ShareableProjectSettingsWriteField[], UpdateProjectSettingsError>> {
   try {
-    const target = await resolveProjectSettingsTarget(
-      workspaceIdentity,
-      project,
-      request,
-      resolvedTargets
-    );
-    if (!target) {
-      return writeConfigFailed('Could not resolve the selected working copy.');
-    }
-
-    const localSettings = await project.settings.get();
     let config: Record<string, unknown>;
     try {
       const exists = await target.files.client.fs.exists(fileKey(target.files, target.configPath));
@@ -69,11 +53,7 @@ export async function shareProjectSettingsToConfig(
       return writeConfigFailed(message);
     }
 
-    const writtenFields = patchShareableProjectSettingsFields(
-      config,
-      localSettings,
-      request.fields
-    );
+    const writtenFields = patchShareableProjectSettingsFields(config, personalConfig, fields);
 
     const written = await target.files.client.fs.writeFile({
       ...fileKey(target.files, target.configPath),
@@ -85,15 +65,7 @@ export async function shareProjectSettingsToConfig(
       return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);
     }
 
-    const clearResult = await project.settings.patch({ clearShareableFields: writtenFields });
-    if (!clearResult.success) {
-      log.warn('Failed to clear shareable project settings', clearResult.error);
-      return writeConfigFailed(
-        `Wrote ${CONFIG_FILE}, but failed to clear shared project settings.`
-      );
-    }
-
-    return ok();
+    return ok(writtenFields);
   } catch (error) {
     log.warn('Failed to write project config to repo', { error });
     return writeConfigFailed(errorMessage(error));

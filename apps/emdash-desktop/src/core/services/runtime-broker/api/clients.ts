@@ -8,6 +8,7 @@ import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/a
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 
@@ -22,3 +23,4 @@ export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
 export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
+export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryContract>;

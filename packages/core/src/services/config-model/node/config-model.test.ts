@@ -112,6 +112,31 @@ describe('ConfigModel', () => {
     expect(events).toEqual(['a', 'a']);
   });
 
+  it('delete prevents an in-flight refresh from restoring a stale entry', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const events: string[] = [];
+    const model = new ConfigModel<{ n: number }>({
+      read: async () => {
+        await gate;
+        return { n: 1 };
+      },
+      onChanged: (key) => {
+        events.push(key);
+      },
+    });
+
+    const refreshing = model.refresh('a', 'a');
+    model.delete('a');
+    release();
+    await refreshing;
+
+    expect(model.get('a')).toBeUndefined();
+    expect(events).toEqual([]);
+  });
+
   it('after dispose, refreshes still resolve but never store or fire callbacks', async () => {
     const events: string[] = [];
     const model = new ConfigModel<{ n: number }>({

@@ -33,6 +33,14 @@ export const workspaceRecords = sqliteTable(
     scriptOutcomes: text('script_outcomes'),
     /** Versioned JSON: host-computed git observation block; null for plain directories. */
     git: text('git'),
+    /** Versioned JSON: personal lifecycle settings; repository rows only. */
+    personalConfig: text('personal_config'),
+    /** Durable host-local completion marker for the legacy desktop settings import. */
+    legacyDesktopSettingsMigrated: integer('legacy_desktop_settings_migrated', {
+      mode: 'boolean',
+    })
+      .notNull()
+      .default(false),
     lastActivatedAt: integer('last_activated_at'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),

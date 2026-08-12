@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { RepoFacts } from '@core/primitives/project-settings/api';
+import {
+  storedBaseProjectSettingsSchema,
+  type RepoFacts,
+} from '@core/primitives/project-settings/api';
 import {
   legacyBaseSettingsToStored,
   migrateStoredBaseProjectSettings,
   toLegacyBaseSettingsView,
-} from './stored-settings-migration';
+} from './migrations/stored-settings';
 
 const facts = (overrides: Partial<RepoFacts> = {}): RepoFacts => ({
   remotes: [
@@ -17,6 +20,22 @@ const facts = (overrides: Partial<RepoFacts> = {}): RepoFacts => ({
   ],
   localBranches: ['main'],
   ...overrides,
+});
+
+describe('storedBaseProjectSettingsSchema', () => {
+  it('contains only current DB-owned settings', () => {
+    expect(
+      storedBaseProjectSettingsSchema.parse({
+        worktreeRoot: '/tmp/worktrees',
+        tmux: false,
+        autoRunSetupScriptOnTaskCreation: false,
+        autoRunRunScriptOnTaskCreation: true,
+      })
+    ).toEqual({
+      worktreeRoot: '/tmp/worktrees',
+      tmux: false,
+    });
+  });
 });
 
 describe('migrateStoredBaseProjectSettings', () => {

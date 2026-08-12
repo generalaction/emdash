@@ -310,9 +310,9 @@ export function useWorkspaceConfig(opts: {
 
   // ── Setup steps ───────────────────────────────────────────────────────────
 
-  // Same source as execution: `createTask` reads the project settings' preservePatterns.
+  // Same registry resolution as execution; the input remains the raw personal layer in settings.
   const preservePatterns = projectId
-    ? getProjectSettingsStore(projectId)?.settings?.preservePatterns
+    ? getProjectSettingsStore(projectId)?.domains?.fileHandling.resolved.preservePatterns.value
     : undefined;
   const setupSteps = useMemo((): WorktreeSetupStep[] => {
     // One compiler for preview and execution: the same `compileWorktreeGitPlan` call

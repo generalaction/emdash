@@ -32,7 +32,6 @@ const mocks = vi.hoisted(() => ({
   inspectProjectPath: vi.fn(),
   logError: vi.fn(),
   openProject: vi.fn(),
-  patchProjectSettings: vi.fn(),
   projectWireCreate: vi.fn(),
   projectWireCancel: vi.fn(),
   projectWireDelete: vi.fn(),
@@ -174,6 +173,9 @@ function createProjectWire() {
   const projectListProvider = expose(projectsWireContract.projectList, {
     list: projectListState,
   });
+  const projectConfigProvider = expose(projectsWireContract.projectConfig, {
+    current: () => cell(undefined as never),
+  });
   const creationProvider = expose(projectsWireContract.creation, {
     state: () => cell({ phase: 'error' as const, message: 'unused' }),
   });
@@ -195,9 +197,9 @@ function createProjectWire() {
     migrateProjectConfig: vi.fn(),
     countProjectsUsingGithubAccount: vi.fn(),
     openProject: (input: unknown) => mocks.openProject(input),
-    patchProjectSettings: (input: unknown) => mocks.patchProjectSettings(input),
     events,
     projectList: projectListProvider,
+    projectConfig: projectConfigProvider,
     creation: creationProvider,
     directoryTree: directoryTreeProvider,
     create: {
@@ -297,10 +299,6 @@ describe('ProjectManagerStore project creation', () => {
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
-      success: true,
-      data: { githubAccountId: 'github.com:42' },
-    });
-    mocks.patchProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },
     });
@@ -1027,11 +1025,16 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).toHaveBeenCalledWith({
+    expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
       projectId: 'optimistic-project',
-      patch: { githubAccountId: 'github.com:42' },
+      patch: {
+        gitIdentity: {
+          stored: {
+            githubAccount: { kind: 'account', accountId: 'github.com:42' },
+          },
+        },
+      },
     });
-    expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(mocks.openProject).toHaveBeenCalledWith({ projectId: 'optimistic-project' })
     );
@@ -1146,7 +1149,6 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).not.toHaveBeenCalled();
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
@@ -1246,11 +1248,16 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).toHaveBeenCalledWith({
+    expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
       projectId: 'optimistic-project',
-      patch: { githubAccountId: 'github.com:42' },
+      patch: {
+        gitIdentity: {
+          stored: {
+            githubAccount: { kind: 'account', accountId: 'github.com:42' },
+          },
+        },
+      },
     });
-    expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
   it('does not persist a GitHub account for picked repositories that were already git repos', async () => {
@@ -1272,7 +1279,6 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).not.toHaveBeenCalled();
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 

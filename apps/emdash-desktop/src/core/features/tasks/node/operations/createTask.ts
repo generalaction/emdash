@@ -18,6 +18,7 @@ import {
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import {
@@ -153,6 +154,21 @@ export async function prepareCreateTask(
       .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
       .limit(1);
 
+    const repositoryWorkspaceId = projectRow?.repositoryWorkspaceId;
+    if (!repositoryWorkspaceId) {
+      return err({
+        type: 'provision-failed',
+        message: 'The project repository workspace was not found.',
+      });
+    }
+    const preservePatterns = await resolveProjectPreservePatterns(project, repositoryWorkspaceId);
+    if (preservePatterns === null) {
+      return err({
+        type: 'provision-failed',
+        message: 'The project configuration could not be resolved.',
+      });
+    }
+
     const isRemote = project.host.type === 'remote';
     const location = isRemote ? 'remote' : 'local';
     const sshConnectionId = isRemote ? project.host.id : null;
@@ -171,12 +187,11 @@ export async function prepareCreateTask(
         message: root.error.message,
       });
     }
-    const settings = await project.settings.get();
     const compiled = compileWorktreePayload({
       repoPath: project.repoPath,
       worktreeRoot: root.data,
       branchName,
-      preservePatterns: settings.preservePatterns,
+      preservePatterns,
     });
     const registry = createWorkspaceRegistry(db);
     const allocated = allocateRegistryPath(
@@ -195,7 +210,7 @@ export async function prepareCreateTask(
       kind: 'worktree',
       location,
       sshConnectionId,
-      parentId: projectRow?.repositoryWorkspaceId ?? null,
+      parentId: repositoryWorkspaceId,
       type: legacyType,
       origin: 'registered',
       config: workspaceConfig,
@@ -203,7 +218,7 @@ export async function prepareCreateTask(
     };
     registryCreate = {
       host: project.host,
-      repositoryWorkspaceId: projectRow?.repositoryWorkspaceId ?? null,
+      repositoryWorkspaceId,
       repositoryPath: project.repoPath,
       workspaceId,
       branch: gitPlan.branch,
@@ -283,6 +298,16 @@ export async function prepareCreateTask(
     convInsert,
     hostConversationInput,
   });
+}
+
+export async function resolveProjectPreservePatterns(
+  project: Pick<ProjectProvider, 'workspaceRegistry'>,
+  repositoryWorkspaceId: string
+): Promise<string[] | null> {
+  const config = await project.workspaceRegistry.getProjectConfig({
+    workspaceId: repositoryWorkspaceId,
+  });
+  return config.success ? config.data.resolved.preservePatterns.value : null;
 }
 
 /**

@@ -7,13 +7,13 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type {
-  ProjectSettingsPage,
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type { ProjectSettingsPage } from '../../../api/project-settings-page';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
@@ -126,8 +126,9 @@ export function ShareProjectConfigModal({
       <Dialog.Body className="pt-0">
         <Field.Group>
           <p className="text-sm text-foreground-muted">
-            This writes the selected settings to .emdash.json in the chosen working directory.
-            Commit that file so teammates get the same project defaults after pulling.
+            This copies the selected personal settings from this machine to .emdash.json in the
+            chosen working directory. Commit that file so teammates get the same project defaults
+            after pulling.
           </p>
           <Field.Root>
             <Field.Label>Write to</Field.Label>

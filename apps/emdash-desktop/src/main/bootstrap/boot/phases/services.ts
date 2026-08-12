@@ -58,7 +58,7 @@ import {
   getProjectById,
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
-import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/app-worktree-root-migration';
+import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/migrations/app-worktree-root';
 import { createRepoFactsCache } from '@core/features/projects/node/settings/repo-facts';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
@@ -498,7 +498,7 @@ export async function bootServices(
   });
   const gitCredentials = createGitCredentialsService({
     getAgentGitCredentialsSetting: async (projectId) => {
-      const settings = await projectManager.getProject(projectId)?.settings.get();
+      const settings = await projectManager.getProject(projectId)?.settings.getStoredGitSettings();
       return settings?.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
     },
     resolveProjectGitHubAccount,

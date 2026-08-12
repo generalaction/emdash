@@ -23,10 +23,12 @@ const FACTS: RepoFacts = {
 function makeSettingsSource(stored: Record<string, unknown>) {
   return {
     getStoredGitSettings: vi.fn().mockResolvedValue(stored),
-    getWorktreeRootContext: vi.fn().mockResolvedValue({
+    getPlacementContext: vi.fn().mockResolvedValue({
       hostWorktreeRoot: null,
       builtInWorktreeRoot: '/home/me/emdash/worktrees',
       homeDirectory: '/home/me',
+      hostTmux: null,
+      appDefaultTmux: false,
     }),
   };
 }

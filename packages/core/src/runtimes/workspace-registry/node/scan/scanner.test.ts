@@ -33,16 +33,22 @@ function record(overrides: Partial<DurableWorkspaceRecord> = {}): DurableWorkspa
   };
 }
 
-type LandingLog = { observations: string[]; vanished: string[]; refreshed: string[] };
+type LandingLog = {
+  observations: string[];
+  vanished: string[];
+  refreshed: string[];
+  events: string[];
+};
 
 function fakeLanding(records: DurableWorkspaceRecord[]): { landing: ScanLanding; log: LandingLog } {
   const byId = new Map(records.map((entry) => [entry.id, entry]));
-  const log: LandingLog = { observations: [], vanished: [], refreshed: [] };
+  const log: LandingLog = { observations: [], vanished: [], refreshed: [], events: [] };
   const landing: ScanLanding = {
     get: (id) => byId.get(id),
     list: () => [...byId.values()],
     observation: async (id) => {
       log.observations.push(id);
+      log.events.push(`observation:${id}`);
     },
     vanished: async (id) => {
       log.vanished.push(id);
@@ -50,6 +56,7 @@ function fakeLanding(records: DurableWorkspaceRecord[]): { landing: ScanLanding;
     adoption: async () => false,
     refreshConfig: async (id) => {
       log.refreshed.push(id);
+      log.events.push(`config:${id}`);
     },
   };
   return { landing, log };
@@ -71,6 +78,19 @@ describe('RegistryScanner', () => {
     await fs.mkdir(workspacePath, { recursive: true });
     return record({ id, path: workspacePath });
   }
+
+  it('loads config before publishing a present standalone scan observation', async () => {
+    const target = await standaloneRecord('ws-configured');
+    const { landing, log } = fakeLanding([target]);
+    const scanner = new RegistryScanner(landing, {
+      git: createRegistryGitContext(),
+      observe: { full: async () => null, refs: async () => null },
+    });
+
+    await scanner.scanRecord(target.id);
+
+    expect(log.events).toEqual([`config:${target.id}`, `observation:${target.id}`]);
+  });
 
   it('serializes scans on one lane — the second observation starts after the first lands', async () => {
     const first = await standaloneRecord('ws-first');

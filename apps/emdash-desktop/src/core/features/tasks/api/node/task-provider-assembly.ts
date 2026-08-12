@@ -9,6 +9,7 @@ import type { Workspace } from '@core/features/workspaces/api/node/workspace';
 import {
   buildTaskProviders,
   resolveTaskEnv,
+  type ResolveTaskEnvError,
   type TaskProviderOpts,
 } from '@core/features/workspaces/api/node/workspace-factory';
 import type { Task } from '@core/primitives/tasks/api';
@@ -28,14 +29,10 @@ export async function buildTaskFromWorkspace(
   createConversationProvider: (options: TaskProviderOpts) => ConversationProvider,
   workspaceBranchName?: string,
   workspaceSourceBranch?: GitBranchRef
-): Promise<Result<BuildTaskResult, RuntimeResolveError>> {
-  const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
-    task,
-    workspace,
-    projectPath,
-    settings,
-    repoFacts
-  );
+): Promise<Result<BuildTaskResult, RuntimeResolveError | ResolveTaskEnvError>> {
+  const taskEnv = await resolveTaskEnv(task, workspace, projectPath, settings, repoFacts);
+  if (!taskEnv.success) return taskEnv;
+  const { taskEnvVars, tmuxEnabled, shellSetup } = taskEnv.data;
   const providers = await buildTaskProviders(
     {
       host: workspace.host,

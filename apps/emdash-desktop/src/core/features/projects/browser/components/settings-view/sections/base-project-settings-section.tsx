@@ -43,16 +43,17 @@ import type {
   AgentGitCredentialsSetting,
   Provenance,
   Resolved,
-  WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
-import { formatDefaultBranch } from '@core/primitives/project-settings/api';
+import { formatDefaultBranch, resolveTmux } from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
+import type { ProjectPlacementDomainSnapshot } from '../../../../api/project-settings-page';
 import {
   formToStoredGitSettings,
   storedDefaultBranchToBranchRef,
-  type FormState,
   type FormUpdate,
+  type GitIdentityFormState,
+  type PlacementFormState,
 } from '../project-settings-form-model';
 
 /** File-local Select option encodings; never stored or exported. */
@@ -66,12 +67,14 @@ const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label:
 
 type BaseProjectSettingsSectionProps = {
   projectId: string;
-  form: FormState;
-  worktreeRootContext: WorktreeRootContext;
+  gitIdentityForm: GitIdentityFormState;
+  placementForm: PlacementFormState;
+  placement: ProjectPlacementDomainSnapshot;
   projectType: Project['type'];
   remotes: GitRemote[];
   worktreeDirectoryError: string | null;
-  update: FormUpdate;
+  updateGitIdentity: FormUpdate<GitIdentityFormState>;
+  updatePlacement: FormUpdate<PlacementFormState>;
 };
 
 /**
@@ -134,25 +137,35 @@ function brokenFallbackDisplay(resolved: Resolved<unknown> | null): string | nul
 
 export const BaseProjectSettingsSection = observer(function BaseProjectSettingsSection({
   projectId,
-  form,
-  worktreeRootContext,
+  gitIdentityForm,
+  placementForm,
+  placement,
   projectType,
   remotes,
   worktreeDirectoryError,
-  update,
+  updateGitIdentity,
+  updatePlacement,
 }: BaseProjectSettingsSectionProps) {
   const inputs = useEffectiveSettingsInputs(projectId);
   const effective = inputs
-    ? resolveRendererEffectiveSettings(inputs, formToStoredGitSettings(form))
+    ? resolveRendererEffectiveSettings(
+        inputs,
+        formToStoredGitSettings({ gitIdentity: gitIdentityForm, placement: placementForm })
+      )
     : null;
   const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
   const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const inheritedWorktreeRoot =
-    worktreeRootContext.hostWorktreeRoot ?? worktreeRootContext.builtInWorktreeRoot;
+    placement.layers.hostWorktreeRoot ?? placement.layers.builtInWorktreeRoot;
   const projectPath = asMounted(getProjectStore(projectId))?.data.path ?? null;
   const effectiveWorktreeRoot = effective?.worktreeRoot.value ?? null;
+  const effectiveTmux = resolveTmux({
+    projectTmux: placementForm.tmux,
+    hostTmux: placement.layers.hostTmux,
+    appDefaultTmux: placement.layers.appDefaultTmux,
+  });
   const derivedPoolPath =
     projectPath !== null && effectiveWorktreeRoot !== null
       ? deriveWorktreePoolPath({ worktreeRoot: effectiveWorktreeRoot, repoPath: projectPath })
@@ -168,10 +181,11 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       ).openSelectDirectoryDialog({
         title: 'Select worktree root',
         message: 'Choose the directory where worktrees should be created.',
-        defaultPath: form.worktreeDirectory || (effectiveWorktreeRoot ?? inheritedWorktreeRoot),
+        defaultPath:
+          placementForm.worktreeDirectory || (effectiveWorktreeRoot ?? inheritedWorktreeRoot),
       });
       if (result) {
-        update('worktreeDirectory', result);
+        updatePlacement('worktreeDirectory', result);
       }
     } finally {
       setIsBrowsingWorktreeDirectory(false);
@@ -183,15 +197,14 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
   // Zero-account picker state (spec §5): only "Inferred (none)" + Connect.
   const zeroAccounts = inputs !== null && accounts.length === 0;
   const accountSelectValue =
-    form.githubAccount === undefined
+    gitIdentityForm.githubAccount === undefined
       ? zeroAccounts
         ? GITHUB_INFERRED_NONE_OPTION
         : ''
-      : form.githubAccount.kind === 'none'
+      : gitIdentityForm.githubAccount.kind === 'none'
         ? EXPLICIT_NO_ACCOUNT_OPTION
-        : form.githubAccount.accountId;
-
-  const effectiveDefaultBranchRef: GitBranchRef | null = storedDefaultBranchToBranchRef(
+        : gitIdentityForm.githubAccount.accountId;
+  const effectiveDefaultBranchRef = storedDefaultBranchToBranchRef(
     effective?.defaultBranch.value ?? undefined,
     remotes
   );
@@ -202,8 +215,8 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         label="GitHub account"
         description="Used for pull requests and issues in this project."
         resolved={effective?.githubAccount ?? null}
-        isExplicit={form.githubAccount !== undefined}
-        onReset={() => update('githubAccount', undefined)}
+        isExplicit={gitIdentityForm.githubAccount !== undefined}
+        onReset={() => updateGitIdentity('githubAccount', undefined)}
       >
         {accountUnresolvable ? (
           <Alert.Root status="destructive">
@@ -224,10 +237,10 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
               return;
             }
             if (value === GITHUB_INFERRED_NONE_OPTION) {
-              update('githubAccount', undefined);
+              updateGitIdentity('githubAccount', undefined);
               return;
             }
-            update(
+            updateGitIdentity(
               'githubAccount',
               value === EXPLICIT_NO_ACCOUNT_OPTION
                 ? { kind: 'none' }
@@ -249,7 +262,11 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
                     </span>
                   </span>
                 ) : (
-                  <span className="min-w-0 truncate">No GitHub account</span>
+                  <span className="min-w-0 truncate">
+                    {gitIdentityForm.githubAccount === undefined
+                      ? 'Infer GitHub account'
+                      : 'No GitHub account'}
+                  </span>
                 )}
               </div>
             )}
@@ -281,8 +298,8 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         description="Where task worktrees are created."
         resolved={effective?.worktreeRoot ?? null}
         flavor="inherited"
-        isExplicit={form.worktreeDirectory.trim() !== ''}
-        onReset={() => update('worktreeDirectory', '')}
+        isExplicit={placementForm.worktreeDirectory.trim() !== ''}
+        onReset={() => updatePlacement('worktreeDirectory', '')}
       >
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -290,8 +307,8 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
               aria-invalid={worktreeDirectoryError ? true : undefined}
               className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
               placeholder={effectiveWorktreeRoot ?? inheritedWorktreeRoot}
-              value={form.worktreeDirectory}
-              onChange={(e) => update('worktreeDirectory', e.target.value)}
+              value={placementForm.worktreeDirectory}
+              onChange={(e) => updatePlacement('worktreeDirectory', e.target.value)}
             />
             {worktreeDirectoryError ? (
               <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-foreground-error">
@@ -325,13 +342,13 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         label="Default branch"
         description="The branch new tasks are created from by default."
         resolved={effective?.defaultBranch ?? null}
-        isExplicit={form.defaultBranch !== null}
-        onReset={() => update('defaultBranch', null)}
+        isExplicit={gitIdentityForm.defaultBranch !== null}
+        onReset={() => updateGitIdentity('defaultBranch', null)}
       >
         <ProjectBranchSelector
           projectId={projectId}
-          value={form.defaultBranch ?? effectiveDefaultBranchRef ?? undefined}
-          onValueChange={(branch: GitBranchRef) => update('defaultBranch', branch)}
+          value={gitIdentityForm.defaultBranch ?? effectiveDefaultBranchRef ?? undefined}
+          onValueChange={(branch: GitBranchRef) => updateGitIdentity('defaultBranch', branch)}
         />
       </ProvenanceField>
 
@@ -341,13 +358,13 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         label="Base remote"
         description="Used for fetching remote branches, choosing task base branches and targeting pull requests."
         resolved={effective?.baseRemote ?? null}
-        isExplicit={form.baseRemote.trim() !== ''}
-        onReset={() => update('baseRemote', '')}
+        isExplicit={gitIdentityForm.baseRemote.trim() !== ''}
+        onReset={() => updateGitIdentity('baseRemote', '')}
       >
         <RemoteSelector
           remotes={remotes}
-          value={form.baseRemote || (effective?.baseRemote.value ?? '')}
-          onValueChange={(value) => update('baseRemote', value)}
+          value={gitIdentityForm.baseRemote || (effective?.baseRemote.value ?? '')}
+          onValueChange={(value) => updateGitIdentity('baseRemote', value)}
           className="w-full"
         />
       </ProvenanceField>
@@ -358,13 +375,13 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         label="Push remote"
         description="Used when publishing task branches and pushing commits."
         resolved={effective?.pushRemote ?? null}
-        isExplicit={form.pushRemote.trim() !== ''}
-        onReset={() => update('pushRemote', '')}
+        isExplicit={gitIdentityForm.pushRemote.trim() !== ''}
+        onReset={() => updateGitIdentity('pushRemote', '')}
       >
         <RemoteSelector
           remotes={remotes}
-          value={form.pushRemote || (effective?.pushRemote.value ?? '')}
-          onValueChange={(value) => update('pushRemote', value)}
+          value={gitIdentityForm.pushRemote || (effective?.pushRemote.value ?? '')}
+          onValueChange={(value) => updateGitIdentity('pushRemote', value)}
           className="w-full"
         />
       </ProvenanceField>
@@ -379,15 +396,15 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
           helpers in sessions.
         </Field.Description>
         <Select.Root
-          value={form.agentGitCredentials}
+          value={gitIdentityForm.agentGitCredentials}
           onValueChange={(value) => {
             if (!value) return;
-            update('agentGitCredentials', value as AgentGitCredentialsSetting);
+            updateGitIdentity('agentGitCredentials', value as AgentGitCredentialsSetting);
           }}
         >
           <Select.Trigger className="w-full min-w-0">
             {AGENT_GIT_CREDENTIALS_OPTIONS.find(
-              (option) => option.value === form.agentGitCredentials
+              (option) => option.value === gitIdentityForm.agentGitCredentials
             )?.label ?? 'Effective account'}
           </Select.Trigger>
           <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
@@ -404,12 +421,24 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
       <Field.Root orientation="horizontal">
         <div className="flex flex-1 flex-col gap-1">
-          <Field.Label>Enable tmux</Field.Label>
+          <div className="flex items-center gap-2">
+            <Field.Label>Enable tmux</Field.Label>
+            <ProvenanceBadge provenance={effectiveTmux.provenance} flavor="inherited" />
+            {placementForm.tmux !== undefined ? (
+              <ResetProvenanceButton
+                flavor="inherited"
+                onReset={() => updatePlacement('tmux', undefined)}
+              />
+            ) : null}
+          </div>
           <Field.Description className="text-foreground-muted">
             Run the agent session inside a tmux session.
           </Field.Description>
         </div>
-        <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
+        <Switch
+          checked={effectiveTmux.value}
+          onCheckedChange={(checked) => updatePlacement('tmux', checked)}
+        />
       </Field.Root>
     </>
   );

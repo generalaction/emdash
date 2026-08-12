@@ -19,7 +19,10 @@ import {
 import { projectEvents } from '@core/features/projects/node';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
+import {
+  forwardLiveModel,
+  forwardModelMutation,
+} from '@core/services/runtime-clients/node/forward-live-model';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
@@ -62,10 +65,8 @@ export function createProjectsWireController(
       deleteProject: ({ projectId }) => projectOperations.deleteProject(projectId),
       getProjectSettingsPage: ({ projectId }) =>
         projectOperations.getProjectSettingsPage(projectId),
-      updateProjectSettings: ({ projectId, settings }) =>
-        projectOperations.updateProjectSettings(projectId, settings),
-      patchProjectSettings: ({ projectId, patch }) =>
-        projectOperations.patchProjectSettings(projectId, patch),
+      updateProjectSettings: ({ projectId, patch }) =>
+        projectOperations.updateProjectSettings(projectId, patch),
       shareProjectSettingsToConfig: ({ projectId, request }) =>
         projectOperations.shareProjectSettingsToConfig(projectId, request),
       migrateProjectConfig: ({ projectId, request }) =>
@@ -85,6 +86,9 @@ export function createProjectsWireController(
       },
       events: projectEvents,
       projectList,
+      projectConfig: forwardLiveModel(projectsWireContract.projectConfig, ({ projectId }) =>
+        dependencies.projectSettings.getProjectConfigLiveSource(projectId)
+      ),
       creation: creation.provider,
       directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {

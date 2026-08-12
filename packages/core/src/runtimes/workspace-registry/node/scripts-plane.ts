@@ -20,6 +20,7 @@ const FAILURE_TAIL_EXCERPT_LENGTH = 600;
 export type WorkspaceScriptRunInput = {
   id: string;
   command: string;
+  shellSetup: string;
   cwd: string;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -89,6 +90,8 @@ export function createScriptsPlaneRunner(options: {
       try {
         const started = await options.client.start({
           ...key,
+          command: input.command,
+          shellSetup: input.shellSetup,
           provenance: 'activation',
           facts,
           timeoutMs: input.timeoutMs ?? DEFAULT_SCRIPT_TIMEOUT_MS,

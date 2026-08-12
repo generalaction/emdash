@@ -24,6 +24,7 @@ const hostConversations = {
   create: vi.fn(async (input: { id: string }) => ({ success: true as const, data: input })),
   delete: vi.fn(async () => ({ success: true as const, data: undefined })),
 };
+const projectConfig = { preservePatterns: ['.env'] as string[] };
 const workspaceRegistry = {
   createWorkspace: vi.fn(async (input: { workspaceId: string; path: string }) => ({
     success: true as const,
@@ -32,6 +33,14 @@ const workspaceRegistry = {
   createWorktree: vi.fn(async (_input: Record<string, unknown>) => ({
     success: true as const,
     data: undefined,
+  })),
+  getProjectConfig: vi.fn(async () => ({
+    success: true as const,
+    data: {
+      resolved: {
+        preservePatterns: { value: projectConfig.preservePatterns, from: 'personal' as const },
+      },
+    },
   })),
 };
 const runtimes = {
@@ -153,9 +162,7 @@ function makeProjectRemote() {
     project: { id: 'project-1', path: '/repo' },
     repoPath: '/repo',
     host: hostRef('remote', 'conn-1'),
-    settings: {
-      get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
-    },
+    workspaceRegistry,
     gitRepository: {
       getBaseRemote: vi.fn(async () => 'origin'),
     },
@@ -165,14 +172,13 @@ function makeProjectRemote() {
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    projectConfig.preservePatterns = ['.env'];
     creations = new WorkspaceCreations();
     mocks.getProject.mockReturnValue({
       project: { id: 'project-1', path: '/repo' },
       repoPath: '/repo',
       host: hostRef('local', 'local'),
-      settings: {
-        get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
-      },
+      workspaceRegistry,
       gitRepository: {
         getBaseRemote: vi.fn(async () => 'origin'),
       },
@@ -506,6 +512,31 @@ describe('createTask', () => {
       await settleCreation((captured[1] as Record<string, unknown>).id);
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
         expect.objectContaining({ pushBranch: false })
+      );
+    });
+
+    it('passes empty resolved preservePatterns to worktree creation', async () => {
+      projectConfig.preservePatterns = [];
+      const { captured } = setupTransactionMock();
+
+      await createTask(db, projects, hostIsReachable, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/no-artifacts',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      await settleCreation((captured[1] as Record<string, unknown>).id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ preservePatterns: [] })
       );
     });
 

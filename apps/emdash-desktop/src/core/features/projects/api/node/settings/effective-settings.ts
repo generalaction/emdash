@@ -2,16 +2,16 @@ import { log } from '@emdash/shared/logger';
 import { eq } from 'drizzle-orm';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
-  legacyBaseProjectSettingsSchema,
   resolveEffectiveSettings,
   type EffectiveSettings,
+  type PlacementContext,
   type RepoFacts,
   type StoredProjectGitSettings,
-  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
-import { migrateStoredBaseProjectSettings } from '../../../node/settings/stored-settings-migration';
+import { legacyBaseProjectSettingsSchema } from '../../../node/settings/migrations/legacy-stored-project-settings';
+import { migrateStoredBaseProjectSettings } from '../../../node/settings/migrations/stored-settings';
 
 /**
  * The per-project repo-facts cache surface (spec: github-git-settings §2):
@@ -25,7 +25,7 @@ export type RepoFactsSource = {
 
 export type ProjectEffectiveSettingsSource = {
   getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-  getWorktreeRootContext(): Promise<WorktreeRootContext>;
+  getPlacementContext(): Promise<PlacementContext>;
 };
 
 export type ResolveProjectEffectiveSettingsOptions = {
@@ -54,17 +54,17 @@ export type ResolveProjectEffectiveSettingsOptions = {
 export async function resolveProjectEffectiveSettings(
   options: ResolveProjectEffectiveSettingsOptions
 ): Promise<EffectiveSettings> {
-  const [stored, facts, worktreeRootContext] = await Promise.all([
+  const [stored, facts, placementContext] = await Promise.all([
     options.settings.getStoredGitSettings(),
     options.repoFacts.get(),
-    options.settings.getWorktreeRootContext(),
+    options.settings.getPlacementContext(),
   ]);
   const effective = resolveEffectiveSettings(
     {
       project: stored,
-      hostWorktreeRoot: worktreeRootContext.hostWorktreeRoot,
-      builtInWorktreeRoot: worktreeRootContext.builtInWorktreeRoot,
-      homeDirectory: worktreeRootContext.homeDirectory,
+      hostWorktreeRoot: placementContext.hostWorktreeRoot,
+      builtInWorktreeRoot: placementContext.builtInWorktreeRoot,
+      homeDirectory: placementContext.homeDirectory,
     },
     facts ?? { remotes: [], localBranches: [] },
     options.accounts ?? []

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  PersonalProjectConfig,
   WorkspaceCreation,
   WorkspaceGitObservations,
   WorkspaceLifecycle,
@@ -8,10 +9,39 @@ import {
   parseCreationPayload,
   parseGitObservationsPayload,
   parseLifecyclePayload,
+  parsePersonalProjectConfigPayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
   serializeLifecyclePayload,
+  serializePersonalProjectConfigPayload,
 } from './payload-codecs';
+
+describe('personal project config payload codec', () => {
+  it('round-trips only personal settings fields', () => {
+    const personalConfig: PersonalProjectConfig = {
+      preservePatterns: [],
+      scripts: { prepare: 'pnpm install', run: 'pnpm dev' },
+      autoRunSetup: false,
+      autoRunRun: true,
+    };
+    expect(
+      parsePersonalProjectConfigPayload(serializePersonalProjectConfigPayload(personalConfig))
+    ).toEqual(personalConfig);
+  });
+
+  it('does not admit migration state into the personal settings document', () => {
+    expect(
+      parsePersonalProjectConfigPayload(
+        JSON.stringify({
+          version: '1',
+          value: { scripts: { setup: 'setup' }, legacyDesktopSettingsMigrated: true },
+        })
+      )
+    ).toEqual({
+      scripts: { setup: 'setup' },
+    });
+  });
+});
 
 describe('git observations payload codec', () => {
   it('round-trips the v2 shape', () => {

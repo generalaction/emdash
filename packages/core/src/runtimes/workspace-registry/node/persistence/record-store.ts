@@ -1,22 +1,25 @@
 import { eq } from 'drizzle-orm';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
-import type { WorkspaceRecord } from '../../api/schemas';
+import type { PersonalProjectConfig, WorkspaceRecord } from '../../api/schemas';
 import {
   parseCreateOutcomePayload,
   parseCreationPayload,
   parseGitObservationsPayload,
   parseLifecyclePayload,
+  parsePersonalProjectConfigPayload,
   parseRemovalAttemptPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
   serializeLifecyclePayload,
+  serializePersonalProjectConfigPayload,
   serializeRemovalAttemptPayload,
 } from './payload-codecs';
 import { workspaceRecords } from './schema';
 import type { WorkspaceRegistryDb } from './store';
 
 type Row = typeof workspaceRecords.$inferSelect;
+type RecordRow = Omit<Row, 'personalConfig' | 'legacyDesktopSettingsMigrated'>;
 
 /**
  * A durable workspace record: everything on the wire record except the in-memory
@@ -51,7 +54,14 @@ export class WorkspaceRecordStore {
   }
 
   insert(record: DurableWorkspaceRecord): void {
-    this.handle.db.insert(workspaceRecords).values(recordToRow(record)).run();
+    this.handle.db
+      .insert(workspaceRecords)
+      .values({
+        ...recordToRow(record),
+        personalConfig: null,
+        legacyDesktopSettingsMigrated: false,
+      })
+      .run();
   }
 
   update(record: DurableWorkspaceRecord): void {
@@ -62,6 +72,43 @@ export class WorkspaceRecordStore {
   delete(id: string): boolean {
     const result = this.handle.db.delete(workspaceRecords).where(eq(workspaceRecords.id, id)).run();
     return result.changes > 0;
+  }
+
+  getPersonalConfig(repositoryId: string): PersonalProjectConfig {
+    const row = this.handle.db
+      .select({ personalConfig: workspaceRecords.personalConfig })
+      .from(workspaceRecords)
+      .where(eq(workspaceRecords.id, repositoryId))
+      .get();
+    return row?.personalConfig ? parsePersonalProjectConfigPayload(row.personalConfig) : {};
+  }
+
+  updatePersonalConfig(repositoryId: string, config: PersonalProjectConfig): void {
+    this.handle.db
+      .update(workspaceRecords)
+      .set({ personalConfig: serializePersonalProjectConfigPayload(config) })
+      .where(eq(workspaceRecords.id, repositoryId))
+      .run();
+  }
+
+  hasMigratedLegacyDesktopSettings(repositoryId: string): boolean {
+    const row = this.handle.db
+      .select({ migrated: workspaceRecords.legacyDesktopSettingsMigrated })
+      .from(workspaceRecords)
+      .where(eq(workspaceRecords.id, repositoryId))
+      .get();
+    return row?.migrated === true;
+  }
+
+  importLegacyLifecycleSettings(repositoryId: string, personalConfig: PersonalProjectConfig): void {
+    this.handle.db
+      .update(workspaceRecords)
+      .set({
+        personalConfig: serializePersonalProjectConfigPayload(personalConfig),
+        legacyDesktopSettingsMigrated: true,
+      })
+      .where(eq(workspaceRecords.id, repositoryId))
+      .run();
   }
 }
 
@@ -89,7 +136,7 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
   };
 }
 
-function recordToRow(record: DurableWorkspaceRecord): Row {
+function recordToRow(record: DurableWorkspaceRecord): RecordRow {
   return {
     id: record.id,
     kind: record.kind,
