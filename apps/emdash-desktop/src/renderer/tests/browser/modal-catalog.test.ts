@@ -12,6 +12,7 @@ const expectedModalIds = [
   'addSshConnModal',
   'agentSignInModal',
   'commandPaletteModal',
+  'commitDetailsModal',
   'confirmActionModal',
   'confirmExternalLinkModal',
   'conflictDialog',
