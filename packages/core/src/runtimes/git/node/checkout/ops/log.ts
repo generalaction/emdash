@@ -14,8 +14,13 @@ export type Numstat = Map<string, { additions: number; deletions: number }>;
 
 const FIELD_SEP = '\x1f';
 const RECORD_SEP = '\x1e';
-// `%at` is the author date as unix epoch seconds; the wire carries epoch ms.
-export const LOG_FORMAT = `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}%an${FIELD_SEP}%at${FIELD_SEP}%D${RECORD_SEP}`;
+// `%at` and `%ct` are the author and committer dates as unix epoch seconds; the
+// wire carries epoch ms. Field order here is positional — it must stay in step
+// with the destructuring in `parseLogRecords`.
+export const LOG_FORMAT =
+  `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}` +
+  `%an${FIELD_SEP}%ae${FIELD_SEP}%at${FIELD_SEP}` +
+  `%cn${FIELD_SEP}%ce${FIELD_SEP}%ct${FIELD_SEP}%D${RECORD_SEP}`;
 
 export async function getLog(exec: BoundExec, options: GitLogOptions = {}): Promise<GitLogResult> {
   const maxCount = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 50;
@@ -95,7 +100,11 @@ export function parseLogRecords(stdout: string, remoteReachable: Set<string>): C
         subject = '',
         body = '',
         author = '',
+        authorEmail = '',
         date = '',
+        committer = '',
+        committerEmail = '',
+        committerDate = '',
         decorations = '',
       ] = record.split(FIELD_SEP);
       return {
@@ -104,11 +113,22 @@ export function parseLogRecords(stdout: string, remoteReachable: Set<string>): C
         subject,
         body: body.trim(),
         author,
-        date: (Number.parseInt(date, 10) || 0) * 1000,
+        // The optional identity fields stay absent rather than empty so a
+        // consumer never renders a blank name or an epoch-zero date.
+        authorEmail: authorEmail || undefined,
+        date: toEpochMs(date),
+        committer: committer || undefined,
+        committerEmail: committerEmail || undefined,
+        committerDate: committerDate ? toEpochMs(committerDate) : undefined,
         isPushed: remoteReachable.has(hash),
         tags: parseDecoratedTags(decorations),
       };
     });
+}
+
+/** Git emits epoch seconds; the wire carries epoch milliseconds (convention 4). */
+function toEpochMs(epochSeconds: string): number {
+  return (Number.parseInt(epochSeconds, 10) || 0) * 1000;
 }
 
 export function parseDecoratedTags(decorations: string): string[] {

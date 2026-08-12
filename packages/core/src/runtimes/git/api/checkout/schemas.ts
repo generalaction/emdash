@@ -38,14 +38,23 @@ export type FileChange = z.infer<typeof fileChangeSchema>;
 export const gitChangeSchema = fileChangeSchema;
 export type GitChange = z.infer<typeof gitChangeSchema>;
 
+/**
+ * Identity and authorship fields added at protocol 1.1.0 are optional so that a
+ * newer client stays a tolerant reader of a pre-1.1.0 host, which omits them.
+ */
 export const commitSchema = z.object({
   hash: z.string(),
   parents: z.array(z.string()),
   subject: z.string(),
   body: z.string(),
   author: z.string(),
+  authorEmail: z.string().optional(),
   /** Author date as epoch milliseconds (convention 4). */
   date: z.number().int(),
+  committer: z.string().optional(),
+  committerEmail: z.string().optional(),
+  /** Committer date as epoch milliseconds (convention 4). */
+  committerDate: z.number().int().optional(),
   isPushed: z.boolean(),
   tags: z.array(z.string()),
 });
