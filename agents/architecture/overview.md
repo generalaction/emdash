@@ -12,12 +12,12 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Boot Sequence
 
-`src/main/index.ts` → app lifecycle → IPC/RPC registration → window creation → renderer
+`src/entry/main.ts` → phased bootstrap → Wire gateway → window creation → renderer
 
-- `index.ts` — Loads `.env`, normalizes PATH, initializes database, registers all RPC controllers via `src/main/rpc.ts`, creates the main window.
-- `src/main/rpc.ts` — Assembles the typed RPC router from domain controllers (`src/main/core/*/controller.ts`).
-- `src/preload/index.ts` — Exposes `window.electronAPI` (`invoke`, `eventSend`, `eventOn`) via `contextBridge`.
-- `src/renderer/lib/ipc.ts` — Creates the typed RPC client and event emitter used throughout the renderer.
+- `src/entry/main.ts` — Electron entry point; runs the phased bootstrap in `src/main/bootstrap/` (environment, database, window creation, recovery).
+- `src/main/gateway/desktop-wire.ts` — Serves renderer-main Wire traffic from the contract assembled in `src/core/manifests/shared/desktop-wire-contract.ts` and the slice controllers aggregated in `src/core/manifests/node/controllers.ts`.
+- `src/entry/preload.ts` — Exposes only `requestWirePort` and `getPathForFile` via `contextBridge`.
+- `src/core/primitives/wire/browser/connection.ts` — Seeded Wire connection seam; the renderer bootstrap seeds it once at startup, and each slice builds its typed domain client on it.
 
 ## Build Tooling
 
