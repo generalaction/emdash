@@ -1,6 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { err, ok } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchOptions } from '#services/fs-watch/api';
@@ -21,7 +22,7 @@ describe('FilesAllocationGraph', () => {
       watch: () => {
         watchCount += 1;
         return {
-          ready: async () => {},
+          ready: async () => ok(undefined),
           release: async () => {
             releaseCount += 1;
           },
@@ -52,9 +53,7 @@ describe('FilesAllocationGraph', () => {
     const errors: string[] = [];
     const watcher: IWatchService = {
       watch: () => ({
-        ready: async () => {
-          throw new Error('watch failed');
-        },
+        ready: async () => err(new Error('watch failed')),
         release: async () => {},
       }),
       dispose: async () => {},
@@ -82,7 +81,7 @@ describe('FilesAllocationGraph', () => {
       watch: (watchRoot, _onEvents, options) => {
         watched.push({ root: watchRoot, options });
         return {
-          ready: async () => {},
+          ready: async () => ok(undefined),
           release: async () => {},
         };
       },
@@ -110,7 +109,7 @@ describe('FilesAllocationGraph', () => {
       watch: (_root, _onEvents, options) => {
         watchOptions = options;
         return {
-          ready: async () => {},
+          ready: async () => ok(undefined),
           release: async () => {},
         };
       },

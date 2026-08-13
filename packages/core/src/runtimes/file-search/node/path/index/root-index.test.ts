@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -307,6 +308,35 @@ describe('RootIndex', () => {
     expect(index.status).toEqual({ kind: 'ready' });
   });
 
+  it('fails reconciliation when watcher readiness returns a failure Result', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const failure = Object.assign(new Error('watch root disappeared'), { code: 'ENOENT' });
+    const scanner = new RecordingScanner();
+    const scope = createScope({ label: 'root-index-watch-failure-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher: new FakeWatchService(err(failure)),
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    await expect(index.reconcile()).rejects.toMatchObject({
+      name: 'RootWatchError',
+      cause: failure,
+    });
+    expect(scanner.scans).toEqual([]);
+    expect(index.status).toMatchObject({
+      kind: 'failed',
+      failure: { expected: { type: 'root-unavailable', reason: 'not-found' } },
+    });
+  });
+
   it('cancels active work and ignores later watcher events after disposal', async () => {
     const rootPath = await createRoot();
     const store = createStore();
@@ -559,6 +589,8 @@ class FakeWatchService implements IWatchService {
   private onResync: (() => void) | undefined;
   releaseCount = 0;
 
+  constructor(private readonly readyResult: Result<void, unknown> = ok(undefined)) {}
+
   watch(
     _root: string,
     onEvents: (events: WatchEvent[]) => void,
@@ -567,7 +599,7 @@ class FakeWatchService implements IWatchService {
     this.onEvents = onEvents;
     this.onResync = options.onResync;
     return {
-      ready: async () => {},
+      ready: async () => this.readyResult,
       release: async () => {
         this.releaseCount += 1;
       },

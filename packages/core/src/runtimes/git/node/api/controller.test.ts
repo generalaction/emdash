@@ -3,7 +3,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import {
   client,
@@ -49,7 +49,7 @@ function makeClient(runtime: GitRuntime) {
 function createNoopWatcher(onRelease?: () => void): IWatchService {
   return {
     watch: () => ({
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         onRelease?.();
       },
@@ -500,7 +500,7 @@ class ManualWatcher implements IWatchService {
   watch(root: string, onEvents: (events: WatchEvent[]) => void, _options: WatchOptions = {}) {
     this.entries.set(root, onEvents);
     return {
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         this.entries.delete(root);
       },

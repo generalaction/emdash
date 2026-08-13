@@ -64,15 +64,14 @@ export class RootResource {
         onResync: () => this.emit([{ kind: 'resync' }]),
       }
     );
-    this.watchReadyPromise = this.watch.ready().then(
-      () => {
+    this.watchReadyPromise = this.watch.ready().then((attached) => {
+      if (attached.success) {
         this.emit([{ kind: 'resync' }]);
-      },
-      (error: unknown) => {
-        if (this.disposed) return;
-        options.onError?.(`files root watch ${options.identity.rootId}`, error);
+        return;
       }
-    );
+      if (this.disposed) return;
+      options.onError?.(`files root watch ${options.identity.rootId}`, attached.error);
+    });
   }
 
   /**

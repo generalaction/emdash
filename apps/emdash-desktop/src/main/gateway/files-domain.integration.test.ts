@@ -420,7 +420,7 @@ class ManualWatcher implements IWatchService {
   watch(root: string, onEvents: (events: WatchEvent[]) => void, options: WatchOptions = {}) {
     this.entries.set(root, { onEvents, options });
     return {
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         this.entries.delete(root);
       },

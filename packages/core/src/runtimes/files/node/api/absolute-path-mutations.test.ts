@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import { client, connect, memoryTransportPair, serve } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { filesContract } from '#runtimes/files/api';
@@ -288,7 +289,7 @@ class SilentWatcher implements IWatchService {
   watch(root: string, onEvents: (events: WatchEvent[]) => void, options: WatchOptions = {}) {
     this.entries.set(root, { onEvents, options });
     return {
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         this.entries.delete(root);
       },

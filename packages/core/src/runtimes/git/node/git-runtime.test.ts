@@ -3,6 +3,7 @@ import { chmod, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { gitContract } from '#runtimes/git/api';
 import { hostPath } from '#runtimes/git/node/testing/paths';
@@ -54,7 +55,7 @@ const repositorySelector = (root: string) => ({ repository: hostPath(root) });
 function createNoopWatcher(): IWatchService {
   return {
     watch: () => ({
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {},
     }),
     dispose: async () => {},
@@ -344,7 +345,7 @@ describe('GitRuntime', () => {
     let releaseStarted = 0;
     const watcher: IWatchService = {
       watch: () => ({
-        ready: async () => {},
+        ready: async () => ok(undefined),
         release: async () => {
           releaseStarted += 1;
           await releaseGate.promise;

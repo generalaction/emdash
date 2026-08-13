@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hostPath } from '#runtimes/git/node/testing/paths';
 import type { BoundExec } from '#services/exec/api';
@@ -49,7 +49,7 @@ describe('GitAllocationGraph', () => {
     const watcher: IWatchService = {
       watch: () => {
         if (fail) throw new Error('watch failed');
-        return { ready: async () => {}, release: async () => {} };
+        return { ready: async () => ok(undefined), release: async () => {} };
       },
       dispose: async () => {},
     };
@@ -66,12 +66,35 @@ describe('GitAllocationGraph', () => {
     await graph.dispose();
   });
 
+  it('evicts a mount when watcher readiness returns a failure Result', async () => {
+    const failure = new Error('watch attach failed');
+    let fail = true;
+    const watcher: IWatchService = {
+      watch: () => ({
+        ready: async () => (fail ? err(failure) : ok(undefined)),
+        release: async () => {},
+      }),
+      dispose: async () => {},
+    };
+    const graph = new GitAllocationGraph({ exec, watcher, identityResolver: resolver });
+    const selector = { repository: hostPath('/repo') };
+
+    await expect(graph.acquireRepository(selector).ready()).rejects.toBe(failure);
+    fail = false;
+    const retry = graph.acquireRepository(selector);
+    await expect(retry.ready()).resolves.toMatchObject({
+      identity: { repositoryId: identity.repositoryId },
+    });
+    await retry.release();
+    await graph.dispose();
+  });
+
   it('retains the parent repository until an idle checkout is disposed', async () => {
     vi.useFakeTimers();
     const released: string[] = [];
     const watcher: IWatchService = {
       watch: (root) => ({
-        ready: async () => {},
+        ready: async () => ok(undefined),
         release: async () => {
           released.push(root);
         },
