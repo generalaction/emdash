@@ -13,6 +13,10 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
 import type { ConnectionState } from '@core/primitives/ssh/api';
+import type {
+  SshConnectionManager,
+  SshConnectionManagerListener,
+} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import {
   createHostAvailability,
   type HostAvailabilityService,
@@ -25,6 +29,7 @@ export type CreateDesktopHostAvailabilityOptions = {
   scope: Scope;
   hosts: HostService;
   connectSsh(connectionId: string): Promise<ConnectionState>;
+  sshEvents: Pick<SshConnectionManager, 'on' | 'off'>;
   localReady(): Promise<void>;
 };
 
@@ -42,6 +47,14 @@ export function createDesktopHostAvailability(
       availability.markUnavailable(hostRef('remote', connectionId));
     })
   );
+  const handleSshEvent: SshConnectionManagerListener = (event) => {
+    if (event.type !== 'connected' && event.type !== 'reconnected') return;
+    availability.wake(hostRef('remote', event.connectionId), 'ssh-edge');
+  };
+  options.sshEvents.on('connection-event', handleSshEvent);
+  options.scope.add(() => {
+    options.sshEvents.off('connection-event', handleSshEvent);
+  });
   return availability;
 }
 

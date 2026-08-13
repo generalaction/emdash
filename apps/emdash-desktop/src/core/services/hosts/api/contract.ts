@@ -40,6 +40,9 @@ const requestReadyInputSchema = z.object({
   host: hostRefSchema,
   cause: z.enum(['connect', 'retry']),
 });
+const wakeInputSchema = z.object({
+  cause: z.enum(['online', 'focus']),
+});
 
 export type HostServerStatus = z.infer<typeof hostServerStatusSchema>;
 export type HostServerState = z.infer<typeof hostServerStateSchema>;
@@ -60,6 +63,7 @@ export const hostsContract = defineContract({
   }),
   disconnect: procedure({ input: z.object({ host: remoteHostRefSchema }), output: z.void() }),
   requestReady: procedure({ input: requestReadyInputSchema, output: z.void() }),
+  wake: procedure({ input: wakeInputSchema, output: z.void() }),
   serverStates: liveModel({
     key: z.void(),
     states: {

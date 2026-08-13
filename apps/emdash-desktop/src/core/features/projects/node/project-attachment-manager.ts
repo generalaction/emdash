@@ -23,7 +23,13 @@ import type { ProjectProvider } from '@core/features/projects/api/node/project-p
 import { HookCore } from '@core/primitives/hooks/api/hookable';
 import type { Project } from '@core/primitives/projects/api';
 import { projectHostRef } from '@core/primitives/projects/api';
-import type { HostAvailability } from '@core/services/hosts/api';
+import {
+  allowsAutomaticHostRecovery,
+  runtimeRecoveryDisposition,
+  type HostAvailability,
+  type HostAvailabilityState,
+  type HostDemandMode,
+} from '@core/services/hosts/api/availability';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 
 type RepositoryStat = {
@@ -326,7 +332,6 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     }
     entry.project = project;
     this.bindHost(entry, project);
-    void this.options.availability.ensureReady(projectHostRef(project), 'demand');
   }
 
   private bindHost(entry: AttachmentEntry, project: Project): void {
@@ -334,9 +339,24 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     const host = projectHostRef(project);
     const hostScope = entry.scope.child('host');
     entry.hostScope = hostScope;
+    let availabilityState = this.options.availability.stateFor(host);
+    const demand = this.options.availability.demand(
+      host,
+      projectDemandMode(peek(entry.state), availabilityState),
+      hostScope
+    );
+    observe(
+      entry.state,
+      ({ value }) => {
+        demand.setMode(projectDemandMode(value, availabilityState));
+      },
+      { scope: hostScope, immediate: true }
+    );
     observe(
       this.options.availability.state(host),
       ({ value }) => {
+        availabilityState = value;
+        demand.setMode(projectDemandMode(peek(entry.state), value));
         if (value.kind === 'ready') {
           this.startAttempt(entry, value.generation);
         } else if (entry.attempt) {
@@ -586,5 +606,18 @@ function attachmentTargetIdentity(project: Project): string {
 }
 
 function isAutomaticallyEligibleFailure(failure: ProjectAttachmentError): boolean {
-  return isRuntimeResolveError(failure) || failure.type === 'attachment-unavailable';
+  if (failure.type === 'attachment-unavailable') return true;
+  return isRuntimeResolveError(failure) && runtimeRecoveryDisposition(failure) === 'eligible';
+}
+
+function projectDemandMode(
+  attachment: ProjectAttachmentState,
+  availability: HostAvailabilityState
+): HostDemandMode {
+  if (attachment.kind === 'attached' || attachment.kind === 'attaching') return 'automatic';
+  if (attachment.lastFailure && !isAutomaticallyEligibleFailure(attachment.lastFailure)) {
+    return 'passive';
+  }
+  if (!allowsAutomaticHostRecovery(availability)) return 'passive';
+  return 'automatic';
 }

@@ -17,6 +17,7 @@ describe('Hosts Wire availability', () => {
       scope,
       readiness: { prepare: async () => ok() },
     });
+    const wakeDemanded = vi.spyOn(availability, 'wakeDemanded');
     const host = hostRef('remote', 'ssh-1');
     const serverStates = expose(hostsContract.serverStates, { runtime: cell({}) });
     const service = { stateModel: { host: serverStates } } as HostService;
@@ -44,6 +45,9 @@ describe('Hosts Wire availability', () => {
       kind: 'ready',
       generation: 1,
     });
+
+    await wire.client.wake({ cause: 'online' });
+    expect(wakeDemanded).toHaveBeenCalledWith('online');
 
     await wire.client.disconnect({ host: { type: 'remote', id: 'ssh-1' } });
     expect(disconnect).toHaveBeenCalledWith('ssh-1');

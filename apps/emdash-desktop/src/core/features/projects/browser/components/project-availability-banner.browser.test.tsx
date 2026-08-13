@@ -129,6 +129,37 @@ describe('ProjectAvailabilityBanner', () => {
     expect(host.querySelector(`#${descriptionId}`)?.textContent).toContain('already in progress');
   });
 
+  it('shows automatic recovery progress with an explicit Retry now action', async () => {
+    await render(sshProject, { kind: 'recovering', nextAttemptAt: 12_000 });
+
+    const status = host.querySelector('[role="status"]');
+    expect(status?.textContent).toContain('Reconnecting to Orion');
+    expect(status?.textContent).toContain('Automatic recovery is in progress');
+    const retry = status?.querySelector('button');
+    expect(retry?.textContent).toBe('Retry now');
+    expect(retry?.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('announces exhausted automatic recovery as a manual Retry', async () => {
+    await render(sshProject, {
+      kind: 'offline',
+      recovery: 'manual',
+      automaticExhausted: true,
+    });
+
+    const alert = host.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Automatic recovery stopped');
+    const retry = alert?.querySelector('button');
+    expect(retry?.textContent).toBe('Retry');
+    expect(retry?.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('does not claim six attempts for an immediately manual recovery outcome', async () => {
+    await render(sshProject, { kind: 'offline', recovery: 'manual' });
+
+    expect(host.querySelector('[role="alert"]')?.textContent).not.toContain('six attempts');
+  });
+
   it('keeps focus and joins repeated clicks while recovery is acknowledged', async () => {
     const request = deferred<ReturnType<typeof ok<void>>>();
     const recover = vi.fn(() => request.promise);

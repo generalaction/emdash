@@ -12,6 +12,7 @@ import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/windo
 import { WorkspaceLayoutContextProvider } from '@core/features/workbench/contributions/browser/layout-provider';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
 import { queryClient } from '@core/primitives/query/browser/query-client';
+import { HostRecoveryWakeups } from '@core/services/hosts/browser/recovery-wakeups';
 import { reportAppQueriesSettled } from '@renderer/lib/boot/splash-gate';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
@@ -113,6 +114,7 @@ function AppContent() {
                   <ThemeProvider>
                     <ModalRenderer />
                     <AppShutdownLifecycle />
+                    <HostRecoveryWakeups />
                     {renderContent()}
                   </ThemeProvider>
                 </ExternalLinkProvider>

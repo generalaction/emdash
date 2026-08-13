@@ -409,7 +409,7 @@ describe('ProjectContext', () => {
 
     expect(context.host.liveAction).toEqual({
       kind: 'disabled',
-      state: { kind: 'offline' },
+      state: { kind: 'offline', recovery: 'manual' },
     });
     expect(context.host.requireLive()).toMatchObject({
       success: false,
@@ -421,7 +421,7 @@ describe('ProjectContext', () => {
 
     expect(repeated).toBe(first);
     expect(recover).toHaveBeenCalledOnce();
-    expect(context.host.state).toEqual({ kind: 'offline' });
+    expect(context.host.state).toEqual({ kind: 'offline', recovery: 'manual' });
     request.resolve(ok());
     await expect(first).resolves.toEqual(ok());
     expect(context.host.requireLive().success).toBe(false);

@@ -19,6 +19,7 @@ export function createHostsWireController(
       await ssh.disconnect(connectionId);
     },
     requestReady: ({ host, cause }) => availability.requestReady(host, cause),
+    wake: ({ cause }) => availability.wakeDemanded(cause),
     serverStates: service.stateModel.host,
     refreshServerState: ({ connectionId, force }) =>
       service.refreshServerState(connectionId, { force }),

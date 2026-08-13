@@ -26,6 +26,7 @@ import {
 } from '@core/primitives/scoped-stores/browser';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
+import { runtimeRecoveryDisposition } from '@core/services/hosts/api/availability';
 
 export type ProjectContextError =
   | { type: 'invalid-project-record'; message: string }
@@ -45,7 +46,8 @@ export type ProjectContextLifecycle =
     };
 
 export type ProjectHostAccessState =
-  | { kind: 'offline' }
+  | { kind: 'offline'; recovery?: 'manual'; automaticExhausted?: true }
+  | { kind: 'recovering'; nextAttemptAt?: number }
   | {
       kind: 'preparing';
       phase: Extract<HostAvailabilityState, { kind: 'preparing' }>['phase'];
@@ -68,8 +70,27 @@ export function deriveProjectHostAccessState(
   availability: HostAvailabilityState | undefined,
   attachment: ProjectAttachmentState | undefined
 ): ProjectHostAccessState {
-  if (!availability || availability.kind === 'unavailable' || availability.kind === 'suspended') {
+  if (!availability || availability.kind === 'suspended') {
     return { kind: 'offline' };
+  }
+  if (availability.kind === 'unavailable') {
+    if (availability.recovery === 'waiting') {
+      return {
+        kind: 'recovering',
+        ...(availability.nextAttemptAt !== undefined
+          ? { nextAttemptAt: availability.nextAttemptAt }
+          : {}),
+      };
+    }
+    if (availability.recovery !== 'manual') return { kind: 'offline' };
+    const automaticExhausted =
+      availability.issue !== undefined &&
+      runtimeRecoveryDisposition(availability.issue) === 'eligible';
+    return {
+      kind: 'offline',
+      recovery: 'manual',
+      ...(automaticExhausted ? { automaticExhausted: true } : {}),
+    };
   }
   if (availability.kind === 'preparing') {
     return { kind: 'preparing', phase: availability.phase };

@@ -3,6 +3,10 @@ import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-r
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
+import type {
+  SshConnectionManager,
+  SshConnectionManagerListener,
+} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { HostInvalidation } from '@core/services/hosts/api';
 import type { HostService } from '@core/services/hosts/node';
 import {
@@ -15,17 +19,64 @@ import {
 } from './host-availability';
 
 function createDesktopHostAvailability(
-  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh'> & {
+  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'sshEvents'> & {
     connectSsh?: CreateDesktopHostAvailabilityOptions['connectSsh'];
+    sshEvents?: CreateDesktopHostAvailabilityOptions['sshEvents'];
   }
 ) {
   return createProductionHostAvailability({
     ...options,
     connectSsh: options.connectSsh ?? (async () => 'connected'),
+    sshEvents:
+      options.sshEvents ??
+      ({
+        on: () => {},
+        off: () => {},
+      } as unknown as CreateDesktopHostAvailabilityOptions['sshEvents']),
   });
 }
 
 describe('desktop Host availability', () => {
+  it.each(['connected', 'reconnected'] as const)(
+    'forwards an SSH %s edge to demanded Host recovery',
+    async (type) => {
+      const scope = createScope({ label: 'desktop-host-availability-test' });
+      let listener: SshConnectionManagerListener | undefined;
+      const off = vi.fn();
+      const sshEvents = {
+        on(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
+          listener = nextListener;
+          return this;
+        },
+        off(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
+          if (listener === nextListener) listener = undefined;
+          off();
+          return this;
+        },
+      } as Pick<SshConnectionManager, 'on' | 'off'>;
+      const availability = createDesktopHostAvailability({
+        scope,
+        hosts: {
+          client: vi.fn(async () => ({})),
+          onInvalidate: () => () => {},
+        } as unknown as HostService,
+        sshEvents,
+        localReady: async () => {},
+      });
+      const wake = vi.spyOn(availability, 'wake');
+
+      listener?.({
+        type,
+        connectionId: 'ssh-1',
+        proxy: {},
+      } as Parameters<SshConnectionManagerListener>[0]);
+
+      expect(wake).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'), 'ssh-edge');
+      await scope.dispose();
+      expect(off).toHaveBeenCalledOnce();
+    }
+  );
+
   it.each(['connect', 'retry'] as const)(
     'records explicit SSH connection intent before %s prepares runtime readiness',
     async (cause) => {
@@ -188,12 +239,24 @@ describe('desktop Host availability', () => {
         localReady: async () => {},
       });
 
-      await expect(
-        availability.ensureReady(hostRef('remote', 'ssh-1'), 'demand')
-      ).resolves.toMatchObject({
-        success: false,
-        error: { type: 'host-unavailable', reason },
-      });
+      const host = hostRef('remote', 'ssh-1');
+      const pending = availability.ensureReady(host, 'demand');
+      if (reason === 'connection-failed' || reason === 'daemon-start-failed') {
+        await vi.waitFor(() =>
+          expect(availability.stateFor(host)).toMatchObject({
+            kind: 'unavailable',
+            issue: { type: 'host-unavailable', reason },
+            recovery: 'waiting',
+          })
+        );
+        availability.suspend(host);
+        await pending;
+      } else {
+        await expect(pending).resolves.toMatchObject({
+          success: false,
+          error: { type: 'host-unavailable', reason },
+        });
+      }
 
       await scope.dispose();
     }

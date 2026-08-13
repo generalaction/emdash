@@ -5,17 +5,29 @@ import {
 } from '@emdash/core/primitives/runtime-resolution/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
+import {
+  retrySchedules,
+  systemClock,
+  type Clock,
+  type RetrySchedule,
+} from '@emdash/shared/scheduling';
 import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, peek, type Cell, type Readable } from '@emdash/wire/state';
+import { hostsContract } from '../api';
 import {
-  hostsContract,
+  allowsAutomaticHostRecovery,
+  runtimeRecoveryDisposition,
+  type BrowserHostWakeCause,
   type ExplicitRecoveryCause,
   type HostAvailability,
   type HostAvailabilityState,
+  type HostDemandLease,
+  type HostDemandMode,
   type HostPreparingPhase,
   type HostReady,
+  type HostWakeCause,
   type RecoveryCause,
-} from '../api';
+} from '../api/availability';
 
 export type HostReadinessContext = {
   readonly signal: AbortSignal;
@@ -30,6 +42,8 @@ export type HostReadinessAdapter = {
 export type CreateHostAvailabilityOptions = {
   scope: Scope;
   readiness: HostReadinessAdapter;
+  clock?: Clock;
+  retrySchedule?: RetrySchedule;
 };
 
 type ActiveRun = {
@@ -41,16 +55,33 @@ type ActiveRun = {
   promise: Promise<Result<HostReady, RuntimeResolveError>>;
 };
 
+type DemandLeaseState = {
+  mode: HostDemandMode;
+  released: boolean;
+};
+
+type HostDemandEntry = {
+  host: HostRef;
+  leases: Set<DemandLeaseState>;
+};
+
 export class HostAvailabilityService implements HostAvailability {
   readonly host: LeasedLiveModelProvider<typeof hostsContract.availability>;
 
   private readonly scope: Scope;
   private readonly states = new Map<string, Cell<HostAvailabilityState>>();
   private readonly runs = new Map<string, ActiveRun>();
+  private readonly demands = new Map<string, HostDemandEntry>();
+  private readonly lastFocusWakeAt = new Map<string, number>();
+  private readonly clock: Clock;
+  private readonly retrySchedule: RetrySchedule;
   private nextGeneration = 1;
 
   constructor(private readonly options: CreateHostAvailabilityOptions) {
     this.scope = options.scope.child('host-availability');
+    this.clock = options.clock ?? systemClock;
+    this.retrySchedule =
+      options.retrySchedule ?? retrySchedules.sequence([1_000, 2_000, 5_000, 10_000, 30_000]);
     this.host = expose(hostsContract.availability, {
       state: ({ host }) => this.state(host),
     });
@@ -84,6 +115,54 @@ export class HostAvailabilityService implements HostAvailability {
     }
   }
 
+  demand(host: HostRef, mode: HostDemandMode, owner: Scope): HostDemandLease {
+    if (owner.disposed) return inactiveDemandLease(mode);
+    const key = formatHostRef(host);
+    let entry = this.demands.get(key);
+    if (!entry) {
+      entry = { host, leases: new Set() };
+      this.demands.set(key, entry);
+    }
+    const state: DemandLeaseState = { mode, released: false };
+    entry.leases.add(state);
+    owner.add(() => this.releaseDemand(key, entry!, state));
+    if (mode === 'automatic') void this.ensureReady(host, 'demand');
+    return {
+      get mode() {
+        return state.mode;
+      },
+      setMode: (nextMode) => {
+        if (state.released || state.mode === nextMode) return;
+        state.mode = nextMode;
+        if (nextMode === 'automatic') {
+          void this.ensureReady(host, 'demand');
+        } else if (!hasAutomaticDemand(entry)) {
+          this.cancelAutomaticRun(host);
+        }
+      },
+    };
+  }
+
+  wake(host: HostRef, cause: HostWakeCause): void {
+    const key = formatHostRef(host);
+    const demand = this.demands.get(key);
+    if (!demand || !hasAutomaticDemand(demand)) return;
+    const state = this.stateFor(host);
+    if (!allowsAutomaticHostRecovery(state)) return;
+    if (cause === 'focus') {
+      const lastWakeAt = this.lastFocusWakeAt.get(key);
+      if (lastWakeAt !== undefined && this.clock.now() - lastWakeAt < 30_000) return;
+      this.lastFocusWakeAt.set(key, this.clock.now());
+    }
+    void this.ensureReady(host, cause);
+  }
+
+  wakeDemanded(cause: BrowserHostWakeCause): void {
+    for (const demand of this.demands.values()) {
+      this.wake(demand.host, cause);
+    }
+  }
+
   ensureReady(
     host: HostRef,
     cause: RecoveryCause
@@ -95,46 +174,26 @@ export class HostAvailabilityService implements HostAvailability {
     const existing = this.runs.get(key);
     if (existing) {
       if (!isExplicit(cause) || isExplicit(existing.cause)) return existing.promise;
-      existing.identity.superseded = runtimeHostUnavailable(
+      this.supersedeRun(
         host,
-        'runtime-unavailable',
-        'Host readiness was superseded'
+        existing,
+        runtimeHostUnavailable(host, 'runtime-unavailable', 'Host readiness was superseded'),
+        'Host readiness superseded'
       );
-      this.runs.delete(key);
-      void existing.scope.dispose(new Error('Host readiness superseded'));
     }
     if (!isExplicit(cause)) {
       const state = this.stateFor(host);
-      if (
-        state.kind === 'suspended' ||
-        (state.kind === 'unavailable' &&
-          (state.recovery === 'manual' || state.recovery === 'blocked'))
-      ) {
+      if (!allowsAutomaticHostRecovery(state)) {
         return Promise.resolve(ready);
       }
     }
 
     const runScope = this.scope.child('ready-attempt');
     const identity: ActiveRun['identity'] = {};
-    this.setState(host, {
-      kind: 'preparing',
-      phase: host.type === 'local' ? 'handshaking' : 'connecting',
-      attempt: 1,
-    });
-
-    const run = runScope.run('prepare', (signal) =>
-      this.options.readiness.prepare(host, {
-        signal,
-        cause,
-        setPhase: (phase) => {
-          if (this.runs.get(key)?.identity !== identity) return;
-          this.setState(host, { kind: 'preparing', phase, attempt: 1 });
-        },
-      })
-    );
+    this.setPreparing(host, 1);
+    const run = runScope.run('recover', (signal) => this.performRun(host, cause, identity, signal));
     const promise = run
       .value()
-      .then((result) => this.commit(host, identity, result))
       .catch(() => this.commitUnexpectedFailure(host, identity))
       .finally(() => {
         if (this.runs.get(key)?.identity === identity) this.runs.delete(key);
@@ -152,28 +211,39 @@ export class HostAvailabilityService implements HostAvailability {
     const key = formatHostRef(host);
     const active = this.runs.get(key);
     if (active) {
-      active.identity.superseded = runtimeHostUnavailable(host, 'offline', 'Host is offline');
-      this.runs.delete(key);
-      void active.scope.dispose(new Error('Host readiness suspended'));
+      this.supersedeRun(
+        host,
+        active,
+        runtimeHostUnavailable(host, 'offline', 'Host is offline'),
+        'Host readiness suspended'
+      );
     }
     this.setState(host, { kind: 'suspended', reason: 'user-disconnected' });
   }
 
   invalidate(host: HostRef, issue?: RuntimeResolveError): void {
-    if (this.stateFor(host).kind === 'suspended') return;
+    const state = this.stateFor(host);
+    if (state.kind === 'suspended') return;
     const key = formatHostRef(host);
     const active = this.runs.get(key);
+    if (active && state.kind !== 'ready') return;
     if (active) {
-      active.identity.superseded =
-        issue ?? runtimeHostUnavailable(host, 'offline', 'Host is offline');
-      this.runs.delete(key);
-      void active.scope.dispose(new Error('Host readiness invalidated'));
+      this.supersedeRun(
+        host,
+        active,
+        issue ?? runtimeHostUnavailable(host, 'offline', 'Host is offline'),
+        'Host readiness invalidated'
+      );
     }
     this.setState(host, {
       kind: 'unavailable',
       ...(issue ? { issue } : {}),
-      recovery: issue ? recoveryFor(issue) : 'eligible',
+      recovery: issue ? runtimeRecoveryDisposition(issue) : 'eligible',
     });
+    const demand = this.demands.get(key);
+    if (demand && hasAutomaticDemand(demand)) {
+      void this.ensureReady(host, 'demand');
+    }
   }
 
   /** Temporary alias for pre-availability gateway callers. */
@@ -181,29 +251,63 @@ export class HostAvailabilityService implements HostAvailability {
     this.invalidate(host, issue);
   }
 
-  private commit(
+  private async performRun(
     host: HostRef,
+    cause: RecoveryCause,
     identity: ActiveRun['identity'],
-    result: Result<void, RuntimeResolveError>
-  ): Result<HostReady, RuntimeResolveError> {
-    if (this.runs.get(formatHostRef(host))?.identity !== identity) {
-      return err(
-        identity.superseded ??
-          runtimeHostUnavailable(host, 'runtime-unavailable', 'Host readiness was superseded')
-      );
-    }
-    if (!result.success) {
+    signal: AbortSignal
+  ): Promise<Result<HostReady, RuntimeResolveError>> {
+    let attempt = 1;
+    for (;;) {
+      this.setPreparing(host, attempt);
+      let result: Result<void, RuntimeResolveError>;
+      try {
+        result = await this.options.readiness.prepare(host, {
+          signal,
+          cause,
+          setPhase: (phase) => {
+            if (this.runs.get(formatHostRef(host))?.identity !== identity) return;
+            this.setState(host, { kind: 'preparing', phase, attempt });
+          },
+        });
+      } catch {
+        result = err(unexpectedPreparationFailure(host));
+      }
+      const stale = this.staleRunResult(host, identity);
+      if (stale) return stale;
+      if (result.success) {
+        const generation = this.nextGeneration++;
+        this.setState(host, { kind: 'ready', generation });
+        return ok({ host, generation });
+      }
+
+      const recovery = runtimeRecoveryDisposition(result.error);
+      if (recovery !== 'eligible') {
+        this.setState(host, {
+          kind: 'unavailable',
+          issue: result.error,
+          recovery,
+        });
+        return result;
+      }
+      const delayMs = this.retrySchedule.delayFor(attempt - 1);
+      if (delayMs === undefined) {
+        this.setState(host, {
+          kind: 'unavailable',
+          issue: result.error,
+          recovery: 'manual',
+        });
+        return result;
+      }
       this.setState(host, {
         kind: 'unavailable',
         issue: result.error,
-        recovery: recoveryFor(result.error),
+        recovery: 'waiting',
+        nextAttemptAt: this.clock.now() + delayMs,
       });
-      return result;
+      await this.clock.sleep(delayMs, { signal });
+      attempt += 1;
     }
-
-    const generation = this.nextGeneration++;
-    this.setState(host, { kind: 'ready', generation });
-    return ok({ host, generation });
   }
 
   private commitUnexpectedFailure(
@@ -216,13 +320,32 @@ export class HostAvailabilityService implements HostAvailability {
           runtimeHostUnavailable(host, 'runtime-unavailable', 'Host readiness was superseded')
       );
     }
-    const error = runtimeHostUnavailable(
-      host,
-      'runtime-unavailable',
-      'Host runtime preparation failed'
-    );
-    this.setState(host, { kind: 'unavailable', issue: error, recovery: recoveryFor(error) });
+    const error = unexpectedPreparationFailure(host);
+    this.setState(host, {
+      kind: 'unavailable',
+      issue: error,
+      recovery: runtimeRecoveryDisposition(error),
+    });
     return err(error);
+  }
+
+  private staleRunResult(
+    host: HostRef,
+    identity: ActiveRun['identity']
+  ): Result<HostReady, RuntimeResolveError> | undefined {
+    if (this.runs.get(formatHostRef(host))?.identity === identity) return undefined;
+    return err(
+      identity.superseded ??
+        runtimeHostUnavailable(host, 'runtime-unavailable', 'Host readiness was superseded')
+    );
+  }
+
+  private setPreparing(host: HostRef, attempt: number): void {
+    this.setState(host, {
+      kind: 'preparing',
+      phase: host.type === 'local' ? 'handshaking' : 'connecting',
+      attempt,
+    });
   }
 
   private stateCell(host: HostRef): Cell<HostAvailabilityState> {
@@ -238,6 +361,55 @@ export class HostAvailabilityService implements HostAvailability {
   private setState(host: HostRef, state: HostAvailabilityState): void {
     this.stateCell(host).set(state);
   }
+
+  private releaseDemand(key: string, entry: HostDemandEntry, lease: DemandLeaseState): void {
+    if (lease.released) return;
+    lease.released = true;
+    entry.leases.delete(lease);
+    if (!hasAutomaticDemand(entry)) this.cancelAutomaticRun(entry.host);
+    if (entry.leases.size === 0 && this.demands.get(key) === entry) {
+      this.demands.delete(key);
+    }
+  }
+
+  private cancelAutomaticRun(host: HostRef): void {
+    const key = formatHostRef(host);
+    const active = this.runs.get(key);
+    if (!active || isExplicit(active.cause)) return;
+    this.supersedeRun(
+      host,
+      active,
+      runtimeHostUnavailable(
+        host,
+        'runtime-unavailable',
+        'Host readiness no longer has automatic demand'
+      ),
+      'Host readiness demand released'
+    );
+    const state = this.stateFor(host);
+    if (state.kind === 'preparing') {
+      this.setState(host, { kind: 'unavailable', recovery: 'eligible' });
+    } else if (state.kind === 'unavailable' && state.recovery === 'waiting') {
+      this.setState(host, {
+        kind: 'unavailable',
+        ...(state.issue ? { issue: state.issue } : {}),
+        recovery: 'eligible',
+      });
+    }
+  }
+
+  private supersedeRun(
+    host: HostRef,
+    active: ActiveRun,
+    result: RuntimeResolveError,
+    reason: string
+  ): void {
+    active.identity.superseded = result;
+    if (this.runs.get(formatHostRef(host))?.identity === active.identity) {
+      this.runs.delete(formatHostRef(host));
+    }
+    void active.scope.dispose(new Error(reason));
+  }
 }
 
 export function createHostAvailability(
@@ -250,22 +422,20 @@ function isExplicit(cause: RecoveryCause): boolean {
   return cause === 'connect' || cause === 'retry';
 }
 
-function recoveryFor(
-  error: RuntimeResolveError
-): Extract<HostAvailabilityState, { kind: 'unavailable' }>['recovery'] {
-  if (error.type !== 'host-unavailable') return 'blocked';
-  switch (error.reason) {
-    case 'offline':
-    case 'connection-failed':
-    case 'daemon-start-failed':
-    case 'runtime-unavailable':
-      return 'eligible';
-    case 'artifact-download-failed':
-    case 'install-failed':
-      return 'manual';
-    case 'unsupported-platform':
-    case 'protocol-upgrade-client':
-    case 'protocol-upgrade-server':
-      return 'blocked';
+function unexpectedPreparationFailure(host: HostRef): RuntimeResolveError {
+  return runtimeHostUnavailable(host, 'runtime-unavailable', 'Host runtime preparation failed');
+}
+
+function inactiveDemandLease(mode: HostDemandMode): HostDemandLease {
+  return {
+    mode,
+    setMode() {},
+  };
+}
+
+function hasAutomaticDemand(entry: HostDemandEntry): boolean {
+  for (const lease of entry.leases) {
+    if (!lease.released && lease.mode === 'automatic') return true;
   }
+  return false;
 }

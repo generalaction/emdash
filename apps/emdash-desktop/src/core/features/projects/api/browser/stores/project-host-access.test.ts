@@ -1,3 +1,5 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
 import { describe, expect, it } from 'vitest';
 import type { ProjectAttachmentState } from '@core/features/projects/api';
 import { deriveProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
@@ -17,6 +19,36 @@ describe('deriveProjectHostAccessState', () => {
       { kind: 'unavailable', recovery: 'eligible' },
       { kind: 'absent' },
       { kind: 'offline' },
+    ],
+    [
+      'automatic Host recovery between attempts',
+      {
+        kind: 'unavailable',
+        recovery: 'waiting',
+        nextAttemptAt: 12_000,
+      },
+      { kind: 'absent' },
+      { kind: 'recovering', nextAttemptAt: 12_000 },
+    ],
+    [
+      'immediately manual Host recovery',
+      { kind: 'unavailable', recovery: 'manual' },
+      { kind: 'absent' },
+      { kind: 'offline', recovery: 'manual' },
+    ],
+    [
+      'exhausted automatic Host recovery',
+      {
+        kind: 'unavailable',
+        issue: runtimeHostUnavailable(
+          hostRef('remote', 'ssh-1'),
+          'runtime-unavailable',
+          'Host runtime is unavailable'
+        ),
+        recovery: 'manual',
+      },
+      { kind: 'absent' },
+      { kind: 'offline', recovery: 'manual', automaticExhausted: true },
     ],
     [
       'suspended Host with a retained attachment',

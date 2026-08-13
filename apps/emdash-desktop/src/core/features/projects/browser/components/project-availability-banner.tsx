@@ -32,10 +32,17 @@ export function ProjectAvailabilityBanner({
 
   const copy = availabilityCopy(project, state, machineName);
   const Icon = copy.progress ? Loader2 : CloudOff;
-  const recoveryLabel = project.type === 'local' ? 'Retry' : 'Connect';
-  const recoveryDisabled = recoveryPending || state.kind !== 'offline';
+  const manualRecovery = state.kind === 'offline' && state.recovery === 'manual';
+  const recoveryLabel =
+    state.kind === 'recovering'
+      ? 'Retry now'
+      : manualRecovery || project.type === 'local'
+        ? 'Retry'
+        : 'Connect';
+  const canRequestRecovery = state.kind === 'offline' || state.kind === 'recovering';
+  const recoveryDisabled = recoveryPending || !canRequestRecovery;
   const requestRecovery = async (): Promise<void> => {
-    if (!onRecover || recoveryPendingRef.current || state.kind !== 'offline') return;
+    if (!onRecover || recoveryPendingRef.current || !canRequestRecovery) return;
     recoveryPendingRef.current = true;
     setRecoveryPending(true);
     try {
@@ -50,8 +57,8 @@ export function ProjectAvailabilityBanner({
 
   return (
     <section
-      role="status"
-      aria-live="polite"
+      role={manualRecovery ? 'alert' : 'status'}
+      aria-live={manualRecovery ? 'assertive' : 'polite'}
       aria-atomic="true"
       className={cn(
         'flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3',
@@ -125,8 +132,26 @@ function availabilityCopy(
   state: Exclude<ProjectHostAccessState, { kind: 'ready' }>,
   machineName?: string
 ): BannerCopy {
+  const automaticExhausted =
+    state.kind === 'offline' && state.recovery === 'manual' && state.automaticExhausted === true;
   if (project.type === 'local') {
+    if (state.kind === 'recovering') {
+      return {
+        title: 'Recovering local runtime',
+        detail: 'Automatic recovery is in progress. The Project stays available.',
+        progress: true,
+      };
+    }
     if (state.kind === 'offline') {
+      if (state.recovery === 'manual') {
+        return {
+          title: 'Local runtime needs attention',
+          detail: automaticExhausted
+            ? 'Automatic recovery stopped after six attempts. Retry when the runtime is ready.'
+            : 'Retry when the runtime is ready.',
+          progress: false,
+        };
+      }
       return {
         title: 'Local runtime is unavailable',
         detail: 'Project data remains available. Live features will resume when it is ready.',
@@ -148,7 +173,23 @@ function availabilityCopy(
   }
 
   const machine = machineName?.trim() || 'Machine';
+  if (state.kind === 'recovering') {
+    return {
+      title: `Reconnecting to ${machine}`,
+      detail: 'Automatic recovery is in progress. Project data remains available.',
+      progress: true,
+    };
+  }
   if (state.kind === 'offline') {
+    if (state.recovery === 'manual') {
+      return {
+        title: `${machine} needs attention`,
+        detail: automaticExhausted
+          ? 'Automatic recovery stopped after six attempts. Retry when the Machine is ready.'
+          : 'Retry when the Machine is ready.',
+        progress: false,
+      };
+    }
     return {
       title: `${machine} is offline`,
       detail:

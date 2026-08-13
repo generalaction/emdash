@@ -2,11 +2,316 @@ import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { deferred } from '@emdash/shared/testing';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { createManualClock, deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { createHostAvailability } from './availability';
+import { createHostAvailability, type HostReadinessAdapter } from './availability';
 
 describe('HostAvailability', () => {
+  it('runs one keyed recovery for every automatic Project demand on a Host', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const firstProject = createScope({ label: 'first-project' });
+    const secondProject = createScope({ label: 'second-project' });
+    const host = hostRef('remote', 'ssh-1');
+    const completion = deferred<ReturnType<typeof ok<void>>>();
+    const prepare = vi.fn(() => completion.promise);
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare },
+    });
+
+    availability.demand(host, 'automatic', firstProject);
+    availability.demand(host, 'automatic', secondProject);
+
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    completion.resolve(ok());
+    await vi.waitFor(() => expect(availability.stateFor(host).kind).toBe('ready'));
+
+    expect(prepare).toHaveBeenCalledOnce();
+    await firstProject.dispose();
+    await secondProject.dispose();
+    await scope.dispose();
+  });
+
+  it('keeps passive demand dormant across browser wakeups until it becomes automatic', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const prepare = vi.fn(async () => ok<void>());
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare },
+    });
+
+    const demand = availability.demand(host, 'passive', project);
+    availability.wakeDemanded('online');
+
+    await Promise.resolve();
+    expect(prepare).not.toHaveBeenCalled();
+
+    demand.setMode('automatic');
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    expect(demand.mode).toBe('automatic');
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('cancels automatic preparation when its final Scope-owned demand releases', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const started = deferred<AbortSignal>();
+    const completion = deferred<ReturnType<typeof ok<void>>>();
+    const availability = createHostAvailability({
+      scope,
+      readiness: {
+        prepare: async (_host, context) => {
+          started.resolve(context.signal);
+          return await completion.promise;
+        },
+      },
+    });
+
+    availability.demand(host, 'automatic', project);
+    const signal = await started.promise;
+    await project.dispose();
+
+    expect(signal.aborted).toBe(true);
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      recovery: 'eligible',
+    });
+
+    completion.resolve(ok());
+    await Promise.resolve();
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      recovery: 'eligible',
+    });
+    await scope.dispose();
+  });
+
+  it('starts fresh automatic recovery when a demanded ready Host is invalidated', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const prepare = vi.fn(async () => ok<void>());
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare },
+    });
+    availability.demand(host, 'automatic', project);
+    await vi.waitFor(() => expect(availability.stateFor(host).kind).toBe('ready'));
+
+    availability.invalidate(host);
+
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({ kind: 'ready', generation: 2 })
+    );
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('starts automatic recovery for a demanded transient typed invalidation', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const recovery = deferred<ReturnType<typeof ok<void>>>();
+    const prepare = vi
+      .fn<HostReadinessAdapter['prepare']>()
+      .mockResolvedValueOnce(ok())
+      .mockImplementationOnce(() => recovery.promise);
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare },
+    });
+    availability.demand(host, 'automatic', project);
+    await vi.waitFor(() => expect(availability.stateFor(host).kind).toBe('ready'));
+    const failure = runtimeHostUnavailable(
+      host,
+      'runtime-unavailable',
+      'Host runtime is unavailable'
+    );
+
+    availability.invalidate(host, failure);
+
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    expect(availability.stateFor(host)).toMatchObject({
+      kind: 'preparing',
+      attempt: 1,
+    });
+    recovery.resolve(ok());
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({ kind: 'ready', generation: 2 })
+    );
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('keeps repeated invalidations within the active bounded recovery run', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const clock = createManualClock();
+    const host = hostRef('remote', 'ssh-1');
+    const failure = runtimeHostUnavailable(host, 'connection-failed', 'Host is offline');
+    const prepare = vi.fn<HostReadinessAdapter['prepare']>(async () => err(failure));
+    const availability = createHostAvailability({
+      scope,
+      clock,
+      readiness: { prepare },
+    });
+
+    availability.demand(host, 'automatic', project);
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({
+        kind: 'unavailable',
+        issue: failure,
+        recovery: 'waiting',
+        nextAttemptAt: 1_000,
+      })
+    );
+
+    availability.invalidate(host);
+    availability.invalidate(host, failure);
+
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      issue: failure,
+      recovery: 'waiting',
+      nextAttemptAt: 1_000,
+    });
+
+    await clock.advanceBy(1_000);
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('throttles browser focus wakeups once per demanded Host for 30 seconds', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const clock = createManualClock();
+    const host = hostRef('remote', 'ssh-1');
+    const availability = createHostAvailability({
+      scope,
+      clock,
+      readiness: { prepare: async () => ok() },
+    });
+    availability.demand(host, 'automatic', project);
+    await vi.waitFor(() => expect(availability.stateFor(host).kind).toBe('ready'));
+    const ensureReady = vi.spyOn(availability, 'ensureReady');
+    ensureReady.mockClear();
+
+    availability.wakeDemanded('focus');
+    availability.wakeDemanded('focus');
+    await clock.advanceBy(29_999);
+    availability.wakeDemanded('focus');
+
+    expect(ensureReady).toHaveBeenCalledTimes(1);
+    expect(ensureReady).toHaveBeenLastCalledWith(host, 'focus');
+
+    await clock.advanceBy(1);
+    availability.wakeDemanded('focus');
+    expect(ensureReady).toHaveBeenCalledTimes(2);
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('suppresses SSH, online, and focus wakeups while explicitly suspended', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    availability.suspend(host);
+    availability.demand(host, 'automatic', project);
+    const ensureReady = vi.spyOn(availability, 'ensureReady');
+    ensureReady.mockClear();
+
+    availability.wake(host, 'ssh-edge');
+    availability.wakeDemanded('online');
+    availability.wakeDemanded('focus');
+
+    expect(ensureReady).not.toHaveBeenCalled();
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'suspended',
+      reason: 'user-disconnected',
+    });
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('attempts automatic recovery immediately, then after the exact bounded schedule', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const clock = createManualClock(100);
+    const host = hostRef('remote', 'ssh-1');
+    const failure = runtimeHostUnavailable(host, 'connection-failed', 'Host is offline');
+    const prepare = vi.fn<HostReadinessAdapter['prepare']>(async () => err(failure));
+    const availability = createHostAvailability({
+      scope,
+      clock,
+      retrySchedule: retrySchedules.sequence([1_000, 2_000, 5_000, 10_000, 30_000]),
+      readiness: { prepare },
+    });
+    const demand = availability.demand(host, 'passive', project);
+
+    const recovery = availability.ensureReady(host, 'demand');
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      issue: failure,
+      recovery: 'waiting',
+      nextAttemptAt: 1_100,
+    });
+
+    for (const [delayMs, attempt] of [
+      [1_000, 2],
+      [2_000, 3],
+      [5_000, 4],
+      [10_000, 5],
+      [30_000, 6],
+    ] as const) {
+      await clock.advanceBy(delayMs);
+      await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(attempt));
+    }
+
+    await expect(recovery).resolves.toEqual(err(failure));
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      issue: failure,
+      recovery: 'manual',
+    });
+    expect(prepare).toHaveBeenCalledTimes(6);
+
+    demand.setMode('automatic');
+    availability.wake(host, 'ssh-edge');
+    availability.wakeDemanded('online');
+    availability.wakeDemanded('focus');
+    await Promise.resolve();
+    expect(prepare).toHaveBeenCalledTimes(6);
+
+    prepare.mockResolvedValueOnce(ok<void>());
+    await expect(availability.ensureReady(host, 'retry')).resolves.toMatchObject({
+      success: true,
+      data: { generation: 1 },
+    });
+    expect(prepare).toHaveBeenCalledTimes(7);
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
   it('does not report an SSH Host ready before its runtime handshake completes', async () => {
     const scope = createScope({ label: 'host-availability-test' });
     const handshake = deferred<void>();
@@ -273,7 +578,7 @@ describe('HostAvailability', () => {
   });
 
   it.each([
-    ['connection-failed', 'eligible'],
+    ['connection-failed', 'waiting'],
     ['install-failed', 'manual'],
     ['unsupported-platform', 'blocked'],
   ] as const)('classifies %s readiness failures as %s recovery', async (reason, recovery) => {
@@ -285,14 +590,25 @@ describe('HostAvailability', () => {
       readiness: { prepare: async () => err(issue) },
     });
 
-    await availability.ensureReady(host, 'demand');
+    const pending = availability.ensureReady(host, 'demand');
+    if (recovery === 'waiting') {
+      await vi.waitFor(() =>
+        expect(availability.stateFor(host)).toMatchObject({ recovery: 'waiting' })
+      );
+    } else {
+      await pending;
+    }
 
-    expect(availability.stateFor(host)).toEqual({
+    expect(availability.stateFor(host)).toMatchObject({
       kind: 'unavailable',
       issue,
       recovery,
     });
 
+    if (recovery === 'waiting') {
+      availability.suspend(host);
+      await pending;
+    }
     await scope.dispose();
   });
 
