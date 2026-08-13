@@ -1007,6 +1007,11 @@ describe('ProjectManagerStore project creation', () => {
       const current = store.projects.get(project.id);
       expect(current?.data?.type === 'ssh' ? current.data.connectionId : null).toBe('ssh-2');
     });
+    await vi.waitFor(() =>
+      expect(mocks.hostAvailabilityTrack).toHaveBeenCalledWith({
+        host: { type: 'remote', id: 'ssh-2' },
+      })
+    );
 
     expect(store.projects.get(project.id)).toBe(projectStore);
     expect(projectStore.context).toEqual({ kind: 'available', context });

@@ -4,32 +4,29 @@ import {
   type ProjectGitHubAccountResolver,
 } from '@core/features/github/api/node/services/project-github-account-resolver';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import type {
-  PlacementContext,
-  RepoFacts,
-  StoredProjectGitSettings,
-} from '@core/primitives/project-settings/api';
+import type { RepoFacts, StoredProjectGitSettings } from '@core/primitives/project-settings/api';
+import type { Project } from '@core/primitives/projects/api';
 
 type FakeProject = {
-  settings: {
-    getStoredGitSettings(): Promise<StoredProjectGitSettings>;
-    getPlacementContext(): Promise<PlacementContext>;
-  };
-  repoFacts: {
-    get(): Promise<RepoFacts | null>;
-    dispose(): Promise<void>;
-  };
+  record: Project;
+  stored: StoredProjectGitSettings;
+  facts: RepoFacts | null;
 };
 
 class FakeProjectLookup {
   private readonly projects = new Map<string, FakeProject>();
+  readonly getProjectById = vi.fn(
+    async (projectId: string) => this.projects.get(projectId)?.record
+  );
+  readonly getStoredGitSettings = vi.fn(
+    async (projectId: string) => this.projects.get(projectId)?.stored ?? {}
+  );
+  readonly getRepoFacts = vi.fn(
+    async (project: Project) => this.projects.get(project.id)?.facts ?? null
+  );
 
   setProject(projectId: string, project: FakeProject): void {
     this.projects.set(projectId, project);
-  }
-
-  getProject(projectId: string): FakeProject | undefined {
-    return this.projects.get(projectId);
   }
 }
 
@@ -55,20 +52,18 @@ function makeProject(
   facts: RepoFacts | null = GITHUB_FACTS
 ): FakeProject {
   return {
-    settings: {
-      getStoredGitSettings: vi.fn().mockResolvedValue(stored),
-      getPlacementContext: vi.fn().mockResolvedValue({
-        hostWorktreeRoot: null,
-        builtInWorktreeRoot: '/home/me/emdash/worktrees',
-        homeDirectory: '/home/me',
-        hostTmux: null,
-        appDefaultTmux: false,
-      }),
+    record: {
+      type: 'local',
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      baseRef: 'main',
+      repositoryWorkspaceId: 'repository-1',
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
     },
-    repoFacts: {
-      get: vi.fn().mockResolvedValue(facts),
-      dispose: vi.fn(),
-    },
+    stored,
+    facts,
   };
 }
 
@@ -81,7 +76,9 @@ describe('createProjectGitHubAccountResolver', () => {
     projects = new FakeProjectLookup();
     accounts = [];
     resolve = createProjectGitHubAccountResolver({
-      projects,
+      getProjectById: projects.getProjectById,
+      getStoredGitSettings: projects.getStoredGitSettings,
+      getRepoFacts: projects.getRepoFacts,
       listAccounts: async () => accounts,
     });
   });
@@ -91,6 +88,19 @@ describe('createProjectGitHubAccountResolver', () => {
     projects.setProject(
       'project-1',
       makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:42' } })
+    );
+
+    await expect(resolve('project-1')).resolves.toEqual({
+      value: accounts[0],
+      provenance: { kind: 'set' },
+    });
+  });
+
+  it('resolves a durable account pin while repository facts are unavailable', async () => {
+    accounts = [account()];
+    projects.setProject(
+      'project-1',
+      makeProject({ githubAccount: { kind: 'account', accountId: 'github.com:42' } }, null)
     );
 
     await expect(resolve('project-1')).resolves.toEqual({
@@ -155,16 +165,13 @@ describe('createProjectGitHubAccountResolver', () => {
     });
   });
 
-  it('throws a plain invariant error for an unmounted project', async () => {
-    await expect(resolve('project-1')).rejects.toThrow('Project project-1 is not mounted.');
+  it('throws a plain invariant error for a missing durable Project', async () => {
+    await expect(resolve('project-1')).rejects.toThrow('Project project-1 does not exist.');
   });
 
   it('propagates resolution failures instead of re-encoding them', async () => {
-    const project = makeProject();
-    vi.mocked(project.settings.getStoredGitSettings).mockRejectedValue(
-      new Error('settings failed')
-    );
-    projects.setProject('project-1', project);
+    projects.setProject('project-1', makeProject());
+    projects.getStoredGitSettings.mockRejectedValueOnce(new Error('settings failed'));
 
     await expect(resolve('project-1')).rejects.toThrow('settings failed');
   });

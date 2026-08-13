@@ -100,11 +100,20 @@ describe('quit cleanup phases', () => {
 
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();
     expect(mocks.editorBuffersDispose).toHaveBeenCalledOnce();
+    expect(mocks.projectsRelease.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.runtimesDispose.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.projectsRelease.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.projectsDispose.mock.invocationCallOrder[0]!
+    );
     expect(mocks.appScopeDispose.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.closeAppDb.mock.invocationCallOrder[0]!
     );
     expect(mocks.closeAppDb.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.telemetryDispose.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.closeAppDb.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.projectsDispose.mock.invocationCallOrder[0]!
     );
   });
 });

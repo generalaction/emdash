@@ -19,14 +19,11 @@ import { resolveRepositoryDestination } from './operations/resolve-repository-de
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 
-export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'projects'> & {
+export type ProjectOperationDependencies = CreateProjectDependencies & {
   placement: WorkspacePlacementResolver;
   projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;
-  projects: Pick<
-    ProjectAttachmentManager,
-    'closeProject' | 'invalidate' | 'openProject' | 'recover' | 'track'
-  >;
+  projects: Pick<ProjectAttachmentManager, 'invalidate' | 'openProject' | 'recover' | 'track'>;
   mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
 };
 

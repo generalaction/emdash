@@ -17,6 +17,7 @@ describe('project creation without a git repository', () => {
   let filesStat: ReturnType<typeof vi.fn>;
   let ensureRepository: ReturnType<typeof vi.fn>;
   let closeProject: ReturnType<typeof vi.fn>;
+  let invalidate: ReturnType<typeof vi.fn>;
   let openProject: ReturnType<typeof vi.fn>;
   let dependencies: Parameters<typeof initializeRepository>[0];
 
@@ -28,6 +29,7 @@ describe('project creation without a git repository', () => {
     });
     ensureRepository = vi.fn();
     closeProject = vi.fn().mockResolvedValue(ok());
+    invalidate = vi.fn().mockResolvedValue(undefined);
     openProject = vi.fn().mockResolvedValue(ok({}));
     mocks.registerRepositoryWorkspace.mockReturnValue('repo-workspace-1');
     dependencies = {
@@ -41,7 +43,7 @@ describe('project creation without a git repository', () => {
           },
         }),
       },
-      projects: { closeProject, openProject },
+      projects: { closeProject, invalidate, openProject },
     } as unknown as Parameters<typeof initializeRepository>[0];
   });
 
@@ -49,11 +51,12 @@ describe('project creation without a git repository', () => {
     vi.clearAllMocks();
   });
 
-  it('creates a project row for a non-git folder when init is not requested', async () => {
+  it('returns the durable Project without opening an attachment after registration', async () => {
     ensureRepository.mockResolvedValue({
       success: false,
       error: { type: 'not-repository', path: hostPathFromNative('/workspace/plain-folder') },
     });
+    openProject.mockRejectedValue(new Error('attachment failed'));
 
     const result = await createProject(dependencies, {
       type: 'local',
@@ -69,7 +72,7 @@ describe('project creation without a git repository', () => {
     // fabricated 'main' (spec: github-git-settings §3).
     expect(result.data.baseRef).toBeNull();
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
-    expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
+    expect(openProject).not.toHaveBeenCalled();
 
     const row = rows.find((entry) => entry.id === 'project-plain');
     expect(row?.baseRef).toBeNull();
@@ -101,8 +104,9 @@ describe('project creation without a git repository', () => {
     });
     expect(result.data.baseRef).toBe('main');
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
-    expect(closeProject).toHaveBeenCalledWith('project-plain', 'repository-changed');
-    expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
+    expect(invalidate).toHaveBeenCalledWith('project-plain', 'repository-changed');
+    expect(closeProject).not.toHaveBeenCalled();
+    expect(openProject).not.toHaveBeenCalled();
 
     const row = rows.find((entry) => entry.id === 'project-plain');
     expect(row?.baseRef).toBe('main');
