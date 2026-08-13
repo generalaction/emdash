@@ -37,7 +37,7 @@ export const plugin = definePlugin(
           kind: 'cli-login',
           id: 'codex-login',
           name: 'Sign in with Codex',
-          args: ['login'],
+          args: ['login', '--device-auth'],
           description: 'Open the Codex CLI sign-in flow in a terminal.',
         },
         {
