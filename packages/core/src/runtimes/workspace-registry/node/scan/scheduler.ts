@@ -34,6 +34,8 @@ export type WorkspaceScanSchedulerOptions = {
   activeDebounceMs?: number;
   /** The freshness floor: no record goes longer than this without a rescan. */
   pollIntervalMs?: number;
+  /** Initial retry delay for a failed native watch; subsequent attempts back off exponentially. */
+  watchRetryDelayMs?: number;
 };
 
 export const DEFAULT_SCAN_DEBOUNCE_MS = 2_000;
@@ -44,6 +46,8 @@ export const DEFAULT_SCAN_DEBOUNCE_MS = 2_000;
  */
 export const DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS = 1_000;
 const DEFAULT_POLL_INTERVAL_MS = 5 * 60_000;
+const DEFAULT_WATCH_RETRY_DELAY_MS = 250;
+const MAX_WATCH_RETRY_DELAY_MS = 30_000;
 
 type PendingScan = {
   request: ScanRequest;
@@ -67,8 +71,11 @@ export class WorkspaceScanScheduler {
   private readonly debounceMs: number;
   private readonly activeDebounceMs: number;
   private readonly pollIntervalMs: number;
+  private readonly watchRetryDelayMs: number;
 
   private readonly watches = new Map<string, WatchHandle>();
+  private readonly watchRetryAttempts = new Map<string, number>();
+  private readonly watchRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly pending = new Map<string, PendingScan>();
   /** Refcounted self-suppression: ids the registry is actively writing into. */
   private readonly muted = new Map<string, number>();
@@ -87,6 +94,7 @@ export class WorkspaceScanScheduler {
     this.debounceMs = options.debounceMs ?? DEFAULT_SCAN_DEBOUNCE_MS;
     this.activeDebounceMs = options.activeDebounceMs ?? DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+    this.watchRetryDelayMs = options.watchRetryDelayMs ?? DEFAULT_WATCH_RETRY_DELAY_MS;
   }
 
   start(): void {
@@ -110,8 +118,15 @@ export class WorkspaceScanScheduler {
     for (const [key, handle] of this.watches) {
       if (!desired.has(key)) {
         this.watches.delete(key);
+        this.watchRetryAttempts.delete(key);
         void handle.release().catch(() => undefined);
       }
+    }
+    for (const [key, timer] of this.watchRetryTimers) {
+      if (desired.has(key)) continue;
+      clearTimeout(timer);
+      this.watchRetryTimers.delete(key);
+      this.watchRetryAttempts.delete(key);
     }
     for (const [key, { target, gitDir }] of desired) {
       if (this.watches.has(key)) continue;
@@ -130,7 +145,34 @@ export class WorkspaceScanScheduler {
             }
           );
       this.watches.set(key, handle);
+      void handle.ready().then(
+        () => this.watchRetryAttempts.delete(key),
+        (error) => {
+          if (this.disposed || this.watches.get(key) !== handle) return;
+          this.watches.delete(key);
+          void handle.release().catch(() => undefined);
+          this.logger.warn('workspace watch unavailable; using polling fallback', {
+            path: target.path,
+            gitDir,
+            error,
+          });
+          this.scheduleWatchRetry(key);
+        }
+      );
     }
+  }
+
+  private scheduleWatchRetry(key: string): void {
+    if (this.disposed || this.watchRetryTimers.has(key)) return;
+    const attempt = this.watchRetryAttempts.get(key) ?? 0;
+    const delay = Math.min(this.watchRetryDelayMs * 2 ** attempt, MAX_WATCH_RETRY_DELAY_MS);
+    this.watchRetryAttempts.set(key, attempt + 1);
+    const timer = setTimeout(() => {
+      this.watchRetryTimers.delete(key);
+      if (!this.disposed) this.syncWatches();
+    }, delay);
+    timer.unref?.();
+    this.watchRetryTimers.set(key, timer);
   }
 
   /**
@@ -155,6 +197,9 @@ export class WorkspaceScanScheduler {
   async dispose(): Promise<void> {
     this.disposed = true;
     if (this.pollTimer !== null) clearInterval(this.pollTimer);
+    for (const timer of this.watchRetryTimers.values()) clearTimeout(timer);
+    this.watchRetryTimers.clear();
+    this.watchRetryAttempts.clear();
     for (const pending of this.pending.values()) clearTimeout(pending.timer);
     this.pending.clear();
     const handles = [...this.watches.values()];
