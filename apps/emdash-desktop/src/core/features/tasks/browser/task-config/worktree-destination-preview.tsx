@@ -58,8 +58,11 @@ export function WorktreeDestinationPreviewView({
   let branchName: string;
   try {
     // The identical plan compilation createTask runs, over the identical
-    // resolver-backed base remote.
-    branchName = compileWorktreeGitPlan(git, { baseRemote: effective.baseRemote.value }).branch;
+    // resolver-backed base and push remotes.
+    branchName = compileWorktreeGitPlan(git, {
+      baseRemote: effective.baseRemote.value,
+      pushRemote: effective.pushRemote.value,
+    }).branch;
   } catch {
     return null;
   }

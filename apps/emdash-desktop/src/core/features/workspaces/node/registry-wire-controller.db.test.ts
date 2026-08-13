@@ -195,7 +195,6 @@ describe('createWorkspaceRegistryWireController', () => {
         baseRef: 'origin/main',
         path: '/work/new-wt',
         preservePatterns: [],
-        pushBranch: false,
       });
       // The mirror row exists immediately — links can attach before sync catches up.
       expect(createWorkspaceRegistry(fixture.db).getLive('minted-id')).toMatchObject({

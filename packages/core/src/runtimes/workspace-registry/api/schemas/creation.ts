@@ -36,6 +36,12 @@ export const workspaceGitSetupSchema = z.object({
 });
 export type WorkspaceGitSetup = z.infer<typeof workspaceGitSetupSchema>;
 
+/** Explicit publication destination for a newly created branch. */
+export const workspacePublishTargetSchema = z.object({
+  remote: z.string().min(1),
+});
+export type WorkspacePublishTarget = z.infer<typeof workspacePublishTargetSchema>;
+
 /**
  * Minimal immutable creation fields — what replay identity is enforced against and what
  * failure diagnosis needs. NOT rich provenance (that stays a desktop annotation). Null
@@ -68,7 +74,7 @@ export const createWorktreeInputSchema = z
     baseRef: z.string().min(1).optional(),
     path: z.string().min(1),
     preservePatterns: z.array(z.string()).default([]),
-    pushBranch: z.boolean().default(false),
+    publish: workspacePublishTargetSchema.optional(),
     gitSetup: workspaceGitSetupSchema.optional(),
   })
   .superRefine((input, ctx) => {

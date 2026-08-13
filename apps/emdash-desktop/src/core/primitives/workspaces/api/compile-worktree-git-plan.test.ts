@@ -4,7 +4,7 @@ import type { WorkspaceConfig } from './workspace-config';
 
 type GitHalf = Exclude<WorkspaceConfig['git'], { kind: 'none' }>;
 
-const context = { baseRemote: 'origin' };
+const context = { baseRemote: 'origin', pushRemote: 'fork' };
 
 function prBranch(overrides: Partial<Extract<GitHalf, { kind: 'pr-branch' }>> = {}): GitHalf {
   return {
@@ -31,7 +31,7 @@ describe('compileWorktreeGitPlan — non-PR git configs', () => {
       },
       context
     );
-    expect(plan).toEqual({ branch: 'feature/x', baseRef: 'main', pushBranch: true });
+    expect(plan).toEqual({ branch: 'feature/x', baseRef: 'main', publish: { remote: 'fork' } });
   });
 
   it('compiles create-branch from a remote source branch into a remote-qualified baseRef', () => {
@@ -43,12 +43,12 @@ describe('compileWorktreeGitPlan — non-PR git configs', () => {
       },
       context
     );
-    expect(plan).toEqual({ branch: 'feature/x', baseRef: 'upstream/develop', pushBranch: false });
+    expect(plan).toEqual({ branch: 'feature/x', baseRef: 'upstream/develop' });
   });
 
   it('compiles use-branch with the branch as its own base and no push', () => {
     const plan = compileWorktreeGitPlan({ kind: 'use-branch', branchName: 'main' }, context);
-    expect(plan).toEqual({ branch: 'main', baseRef: 'main', pushBranch: false });
+    expect(plan).toEqual({ branch: 'main', baseRef: 'main' });
   });
 
   it('emits no gitSetup for non-PR configs', () => {
@@ -71,7 +71,6 @@ describe('compileWorktreeGitPlan — checkout-pr, same-repo PR', () => {
     const plan = compileWorktreeGitPlan(prBranch(), context);
     expect(plan).toEqual({
       branch: 'feat/my-pr',
-      pushBranch: false,
       gitSetup: {
         fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
         upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
@@ -86,9 +85,9 @@ describe('compileWorktreeGitPlan — checkout-pr, same-repo PR', () => {
     expect(plan.baseRef).toBeUndefined();
   });
 
-  it('keeps pushBranch false even when the config sets it without a taskBranch', () => {
+  it('does not publish when the config sets pushBranch without a taskBranch', () => {
     const plan = compileWorktreeGitPlan(prBranch({ pushBranch: true }), context);
-    expect(plan.pushBranch).toBe(false);
+    expect(plan.publish).toBeUndefined();
   });
 });
 
@@ -105,7 +104,6 @@ describe('compileWorktreeGitPlan — checkout-pr, fork PR', () => {
     const plan = compileWorktreeGitPlan(fork(), context);
     expect(plan).toEqual({
       branch: 'pr/42/feat/my-pr',
-      pushBranch: false,
       gitSetup: {
         fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
         upstream: { remote: 'origin', mergeRef: 'refs/pull/42/head' },
@@ -115,9 +113,9 @@ describe('compileWorktreeGitPlan — checkout-pr, fork PR', () => {
     });
   });
 
-  it('keeps pushBranch false even when the config sets it without a taskBranch', () => {
+  it('does not publish a fork checkout without a task branch', () => {
     const plan = compileWorktreeGitPlan(fork(), context);
-    expect(plan.pushBranch).toBe(false);
+    expect(plan.publish).toBeUndefined();
   });
 });
 
@@ -131,7 +129,7 @@ describe('compileWorktreeGitPlan — pr-new-branch', () => {
     );
     expect(plan).toEqual({
       branch: 'task/42',
-      pushBranch: true,
+      publish: { remote: 'fork' },
       gitSetup: {
         fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
         breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
@@ -157,14 +155,14 @@ describe('compileWorktreeGitPlan — pr-new-branch', () => {
     expect(fork).toEqual(samerepo);
   });
 
-  it('honors the pushBranch guard: true only when pushBranch === true and taskBranch is set', () => {
-    expect(compileWorktreeGitPlan(prBranch({ taskBranch: 't' }), context).pushBranch).toBe(false);
+  it('publishes only when pushBranch is true and a task branch exists', () => {
+    expect(compileWorktreeGitPlan(prBranch({ taskBranch: 't' }), context).publish).toBeUndefined();
     expect(
-      compileWorktreeGitPlan(prBranch({ taskBranch: 't', pushBranch: false }), context).pushBranch
-    ).toBe(false);
+      compileWorktreeGitPlan(prBranch({ taskBranch: 't', pushBranch: false }), context).publish
+    ).toBeUndefined();
     expect(
-      compileWorktreeGitPlan(prBranch({ taskBranch: 't', pushBranch: true }), context).pushBranch
-    ).toBe(true);
+      compileWorktreeGitPlan(prBranch({ taskBranch: 't', pushBranch: true }), context).publish
+    ).toEqual({ remote: 'fork' });
   });
 });
 
@@ -219,8 +217,39 @@ describe('compileWorktreeGitPlan — prUrl and breadcrumb', () => {
 
 describe('compileWorktreeGitPlan — remote name', () => {
   it('threads the provided base remote into fetchBranch and upstream', () => {
-    const plan = compileWorktreeGitPlan(prBranch(), { baseRemote: 'company' });
+    const plan = compileWorktreeGitPlan(prBranch(), {
+      baseRemote: 'company',
+      pushRemote: 'fork',
+    });
     expect(plan.gitSetup?.fetchBranch?.remote).toBe('company');
     expect(plan.gitSetup?.upstream?.remote).toBe('company');
+  });
+
+  it('keeps the publication target distinct from the base remote', () => {
+    const plan = compileWorktreeGitPlan(
+      {
+        kind: 'create-branch',
+        branchName: 'feature/x',
+        fromBranch: { type: 'remote', branch: 'main', remote: { name: 'origin', url: 'u' } },
+        pushBranch: true,
+      },
+      context
+    );
+    expect(plan.baseRef).toBe('origin/main');
+    expect(plan.publish).toEqual({ remote: 'fork' });
+  });
+
+  it('rejects requested publication when no push remote resolves', () => {
+    expect(() =>
+      compileWorktreeGitPlan(
+        {
+          kind: 'create-branch',
+          branchName: 'feature/x',
+          fromBranch: { type: 'local', branch: 'main' },
+          pushBranch: true,
+        },
+        { baseRemote: null, pushRemote: null }
+      )
+    ).toThrow('no push remote');
   });
 });

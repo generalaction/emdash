@@ -92,20 +92,28 @@ export async function prepareCreateTask(
   let registryCreate: RegistryWorktreeSpec | undefined;
 
   const wsTarget = workspaceConfig.workspace;
-  // The full worktree git plan (branch, baseRef?, pushBranch, gitSetup?), compiled once
+  // The full worktree git plan (branch, baseRef?, publish, gitSetup?), compiled once
   // desktop-side; PR presets carry their fetch/upstream/breadcrumb instructions here.
-  // The base remote comes from the blessed resolver (spec: github-git-settings §2);
-  // PR-sourced plans need one and refuse when the repository has no remotes.
+  // Base and push remotes come from one blessed-resolver snapshot (spec:
+  // github-git-settings §2); plans refuse any requested operation whose target
+  // remote cannot be resolved.
   let gitPlan: WorktreeGitPlan | undefined;
   if (workspaceConfig.git.kind !== 'none') {
-    const baseRemote = await project.gitRepository.getBaseRemote();
+    const { baseRemote, pushRemote } = await project.gitRepository.getEffectiveRemotes();
     if (baseRemote === null && workspaceConfig.git.kind === 'pr-branch') {
       return err({
         type: 'provision-failed',
         message: 'The repository has no git remotes, so a pull request cannot be checked out.',
       });
     }
-    gitPlan = compileWorktreeGitPlan(workspaceConfig.git, { baseRemote });
+    try {
+      gitPlan = compileWorktreeGitPlan(workspaceConfig.git, { baseRemote, pushRemote });
+    } catch (error) {
+      return err({
+        type: 'provision-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   const branchName = gitPlan?.branch;
   // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
@@ -225,7 +233,7 @@ export async function prepareCreateTask(
       ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
       path: workspacePath,
       preservePatterns: compiled.preservePatterns,
-      pushBranch: gitPlan.pushBranch,
+      ...(gitPlan.publish !== undefined && { publish: gitPlan.publish }),
       ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
     };
   }

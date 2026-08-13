@@ -162,7 +162,7 @@ describe('ActivityBadgeView', () => {
       [
         step('push-branch', 'failed', {
           message: 'remote rejected',
-          params: { branch: 'feature/x' },
+          params: { branch: 'feature/x', remote: 'fork' },
         }),
       ],
       { onRetryPush }
@@ -170,7 +170,7 @@ describe('ActivityBadgeView', () => {
     await openPopover();
 
     const row = rows()[0]!;
-    expect(row.textContent).toContain('Pushing feature/x to remote');
+    expect(row.textContent).toContain('Pushing feature/x to fork');
     expect(row.textContent).toContain('remote rejected');
     const retry = Array.from(row.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Retry')

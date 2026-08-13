@@ -509,7 +509,6 @@ describe('workspace registry contract', () => {
       branch: 'live-membership-worktree',
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created.success).toBe(true);
 
@@ -741,10 +740,13 @@ describe('workspace registry contract', () => {
 
   it('createWorktree returns at agent-spawnable; artifacts and push land in the background', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    // A bare origin so the background push-branch step has somewhere to go.
+    // The task starts from origin but publishes to a distinct project push remote.
     const originPath = path.join(root, 'origin.git');
+    const forkPath = path.join(root, 'fork.git');
     git(root, 'init', '--bare', originPath);
+    git(root, 'init', '--bare', forkPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
+    git(repoPath, 'remote', 'add', 'fork', forkPath);
     git(repoPath, 'push', '-u', 'origin', 'main');
     // Gitignored artifacts: only the ones named in preservePatterns ride the
     // background copy; everything else ignored stays behind.
@@ -760,6 +762,7 @@ describe('workspace registry contract', () => {
     await fs.writeFile(path.join(repoPath, 'node_modules', 'dep', 'index.js'), 'ok\n');
     git(repoPath, 'add', '.gitignore', '.emdash.json');
     git(repoPath, 'commit', '-m', 'ignore env');
+    git(repoPath, 'push', 'origin', 'main');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     await wire.client.patchPersonalProjectConfig({
       workspaceId: 'ws-repo',
@@ -771,10 +774,10 @@ describe('workspace registry contract', () => {
       workspaceId: 'ws-new',
       repositoryId: 'ws-repo',
       branch: 'feature/new',
-      baseRef: 'main',
+      baseRef: 'origin/main',
       path: worktreePath,
       preservePatterns: ['.env.input'],
-      pushBranch: true,
+      publish: { remote: 'fork' },
     });
     // The verb returns at agent-spawnable: worktree checked out, background pending.
     expect(created).toMatchObject({
@@ -785,7 +788,7 @@ describe('workspace registry contract', () => {
         parentId: 'ws-repo',
         origin: 'registered',
         observedStatus: 'present',
-        creation: { branch: 'feature/new', baseRef: 'main', requestedPath: worktreePath },
+        creation: { branch: 'feature/new', baseRef: 'origin/main', requestedPath: worktreePath },
         lastCreateOutcome: { status: 'succeeded' },
         git: { branch: 'feature/new' },
       },
@@ -793,7 +796,7 @@ describe('workspace registry contract', () => {
     if (!created.success) throw new Error('expected success');
     expect(created.data.gitAdminName).not.toBeNull();
     // No push happened on the critical path.
-    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toBe('');
+    expect(git(repoPath, 'ls-remote', '--heads', 'fork', 'feature/new')).toBe('');
 
     // The background steps settle: artifacts cloned, branch pushed, statuses durable.
     await eventually(async () => {
@@ -815,9 +818,12 @@ describe('workspace registry contract', () => {
     expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
       params: { fileCount: 1 },
     });
-    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toContain(
+    expect(git(repoPath, 'ls-remote', '--heads', 'fork', 'feature/new')).toContain(
       'refs/heads/feature/new'
     );
+    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toBe('');
+    expect(git(repoPath, 'config', 'branch.feature/new.remote')).toBe('fork');
+    expect(git(repoPath, 'config', 'branch.feature/new.merge')).toBe('refs/heads/feature/new');
     // git status in the new worktree stays clean — artifacts are all ignored.
     expect(git(created.data.path, 'status', '--porcelain')).toBe('');
   });
@@ -836,7 +842,6 @@ describe('workspace registry contract', () => {
         baseRef: 'main',
         path: path.join(root, 'parallel-first'),
         preservePatterns: [],
-        pushBranch: false,
       }),
       wire.client.createWorktree({
         workspaceId: 'wt-second',
@@ -845,7 +850,6 @@ describe('workspace registry contract', () => {
         baseRef: 'main',
         path: path.join(root, 'parallel-second'),
         preservePatterns: [],
-        pushBranch: false,
       }),
     ]);
 
@@ -868,7 +872,6 @@ describe('workspace registry contract', () => {
       baseRef: 'refs/heads/does-not-exist',
       path: worktreePath,
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created).toMatchObject({
       success: false,
@@ -898,7 +901,7 @@ describe('workspace registry contract', () => {
       path: worktreePath,
       preservePatterns: [],
       // No remote: the background push fails, but never the creation itself.
-      pushBranch: true,
+      publish: { remote: 'origin' },
     };
 
     const first = await wire.client.createWorktree(input);
@@ -986,7 +989,6 @@ describe('workspace registry contract', () => {
       baseRef: 'main',
       path: worktreePath,
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(retried).toMatchObject({
       success: true,
@@ -1023,7 +1025,6 @@ describe('workspace registry contract', () => {
       branch: 'pr/7/fix',
       path: worktreePath,
       preservePatterns: [],
-      pushBranch: false,
       gitSetup,
     });
 
@@ -1073,7 +1074,6 @@ describe('workspace registry contract', () => {
       branch: 'pr/9/missing',
       path: path.join(root, 'doomed-wt'),
       preservePatterns: [],
-      pushBranch: false,
       gitSetup: {
         fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/9/head' },
         breadcrumb: { prUrl: 'https://github.com/acme/repo/pull/9' },
@@ -1150,7 +1150,6 @@ describe('workspace registry contract', () => {
       branch: 'pr/7/fix',
       path: worktreePath,
       preservePatterns: [],
-      pushBranch: false,
       gitSetup,
     });
     expect(replayed).toMatchObject({
@@ -1182,7 +1181,6 @@ describe('workspace registry contract', () => {
         baseRef: 'main',
         path: path.join(root, 'wt-a'),
         preservePatterns: [],
-        pushBranch: false,
       }),
       wire.client.createWorktree({
         workspaceId: 'ws-b',
@@ -1191,7 +1189,6 @@ describe('workspace registry contract', () => {
         baseRef: 'main',
         path: path.join(root, 'wt-b'),
         preservePatterns: [],
-        pushBranch: false,
       }),
     ]);
     expect(a).toMatchObject({

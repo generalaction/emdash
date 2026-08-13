@@ -159,7 +159,15 @@ export async function executeCreateWorktree(
       } else if (execution.baseRef !== null) {
         const baseRef = execution.baseRef;
         await retryTransientLock(() =>
-          exec.exec(['worktree', 'add', '-b', execution.branch, execution.worktreePath, baseRef])
+          exec.exec([
+            'worktree',
+            'add',
+            '--no-track',
+            '-b',
+            execution.branch,
+            execution.worktreePath,
+            baseRef,
+          ])
         );
         createdBranch = true;
       } else {

@@ -82,7 +82,7 @@ export function createWorkspacePortFromDependency(
             baseRef: compiled.baseRef,
             path: compiled.worktreePath,
             preservePatterns: compiled.preservePatterns,
-            pushBranch: compiled.pushBranch,
+            ...(compiled.publish !== undefined && { publish: compiled.publish }),
           },
           { signal: input.signal }
         );
@@ -104,7 +104,7 @@ type CompiledCreateWorktree = {
   worktreePath: string;
   branchName: string;
   baseRef: string;
-  pushBranch: boolean;
+  publish?: { remote: string };
   preservePatterns: string[];
   workspace: HostFileRef;
 };
@@ -126,7 +126,9 @@ function compileCreateWorktree(
     worktreePath: compiled.worktreePath,
     branchName,
     baseRef: compileBaseRef(config.git),
-    pushBranch: config.git.kind === 'create-branch' && config.git.pushRemote !== null,
+    ...(config.git.kind === 'create-branch' && config.git.pushRemote !== null
+      ? { publish: { remote: config.git.pushRemote } }
+      : {}),
     preservePatterns: compiled.preservePatterns,
     workspace: hostFileRef(config.repository.host, parseNativePath(compiled.worktreePath)),
   };

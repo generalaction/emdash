@@ -93,7 +93,6 @@ describe('workspace registry ref-follow pass', () => {
       branch: `branch-${name}`,
       path: path.join(root, name),
       preservePatterns: [],
-      pushBranch: false,
       gitSetup: {
         fetchBranch: { remote: 'origin', sourceRef: options.sourceRef ?? 'refs/pull/7/head' },
         ...(options.followRef === false ? {} : { followRef: true }),

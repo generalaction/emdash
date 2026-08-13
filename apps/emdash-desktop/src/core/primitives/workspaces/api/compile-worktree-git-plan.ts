@@ -12,7 +12,8 @@ export type WorktreeGitPlan = {
   branch: string;
   /** Omitted when `gitSetup.fetchBranch` materializes the branch instead. */
   baseRef?: string;
-  pushBranch: boolean;
+  /** Explicit background publication target; absent when publication is disabled. */
+  publish?: { remote: string };
   /** Present only for PR-sourced configs; absent plans need no host-side git setup. */
   gitSetup?: {
     fetchBranch?: { remote: string; sourceRef: string };
@@ -29,11 +30,13 @@ export type WorktreeGitPlanContext = {
    * heads from it and cannot compile without one.
    */
   baseRemote: string | null;
+  /** Effective project push remote; required when the config requests publication. */
+  pushRemote: string | null;
 };
 
 /**
  * Compiles a workspace config's git half into the full worktree git plan: the verb's
- * branch/baseRef/push fields plus the PR-preset `gitSetup` block (pr-workspace-model
+ * branch/baseRef/publication fields plus the PR-preset `gitSetup` block (pr-workspace-model
  * spec, per-case compilation). Pure and portable — callable from both the renderer
  * (preview) and node (provisioning), so preview and execution cannot drift.
  *
@@ -54,10 +57,10 @@ export function compileWorktreeGitPlan(
           git.fromBranch.type === 'remote'
             ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
             : git.fromBranch.branch,
-        pushBranch: git.pushBranch === true,
+        ...compilePublishTarget(git.pushBranch, context.pushRemote),
       };
     case 'use-branch':
-      return { branch: git.branchName, baseRef: git.branchName, pushBranch: false };
+      return { branch: git.branchName, baseRef: git.branchName };
     case 'pr-branch':
       return compilePrBranchPlan(git, context);
   }
@@ -79,7 +82,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   if (git.taskBranch !== undefined) {
     return {
       branch: git.taskBranch,
-      pushBranch: git.pushBranch === true,
+      ...compilePublishTarget(git.pushBranch, context.pushRemote),
       gitSetup: {
         fetchBranch: { remote, sourceRef: prRef },
         ...breadcrumb,
@@ -95,7 +98,6 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   if (git.isFork) {
     return {
       branch: `pr/${git.prNumber}/${git.headBranch}`,
-      pushBranch: false,
       gitSetup: {
         fetchBranch: { remote, sourceRef: prRef },
         upstream: { remote, mergeRef: prRef },
@@ -110,7 +112,6 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   const headRef = branchHeadRef(git.headBranch);
   return {
     branch: git.headBranch,
-    pushBranch: false,
     gitSetup: {
       fetchBranch: { remote, sourceRef: headRef },
       upstream: { remote, mergeRef: headRef },
@@ -118,6 +119,17 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
       followRef: true,
     },
   };
+}
+
+function compilePublishTarget(
+  requested: boolean | undefined,
+  pushRemote: string | null
+): Pick<WorktreeGitPlan, 'publish'> {
+  if (requested !== true) return {};
+  if (pushRemote === null) {
+    throw new Error('Cannot publish the task branch because the repository has no push remote.');
+  }
+  return { publish: { remote: pushRemote } };
 }
 
 /**

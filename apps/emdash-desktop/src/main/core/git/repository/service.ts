@@ -41,6 +41,14 @@ export class GitRepositoryService {
     return (await this.resolveEffectiveSettings()).baseRemote.value;
   }
 
+  async getEffectiveRemotes(): Promise<{ baseRemote: string | null; pushRemote: string | null }> {
+    const effective = await this.resolveEffectiveSettings();
+    return {
+      baseRemote: effective.baseRemote.value,
+      pushRemote: effective.pushRemote.value,
+    };
+  }
+
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
       const remotes = (

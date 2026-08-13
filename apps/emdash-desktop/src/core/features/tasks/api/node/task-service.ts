@@ -369,7 +369,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'A Git branch is required when creating a worktree.',
       });
     }
-    const baseRemote = await project.gitRepository.getBaseRemote();
+    const { baseRemote, pushRemote } = await project.gitRepository.getEffectiveRemotes();
     if (baseRemote === null && config.git.kind === 'pr-branch') {
       return err({
         stage: 'replay',
@@ -385,7 +385,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'The project configuration could not be resolved.',
       });
     }
-    const gitPlan = compileWorktreeGitPlan(config.git, { baseRemote });
+    let gitPlan: ReturnType<typeof compileWorktreeGitPlan>;
+    try {
+      gitPlan = compileWorktreeGitPlan(config.git, { baseRemote, pushRemote });
+    } catch (error) {
+      return err({
+        stage: 'replay',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
     const workspacePath = workspaceRow.path;
     return this.dependencies.creations.run(workspaceRow.id, () =>
       createWorktreeThroughRegistry(this.dependencies.runtimes, {
@@ -397,7 +405,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
         path: workspacePath,
         preservePatterns,
-        pushBranch: gitPlan.pushBranch,
+        ...(gitPlan.publish !== undefined && { publish: gitPlan.publish }),
         ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
       })
     );
