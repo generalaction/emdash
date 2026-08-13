@@ -74,7 +74,7 @@ function ConversationPaletteProviderRow({
   );
 }
 
-export const conversationPaletteProviderDef: PaletteProviderDef<
+const typedConversationPaletteProviderDef: PaletteProviderDef<
   'conversations',
   ConversationPaletteMatch
 > = {
@@ -84,6 +84,17 @@ export const conversationPaletteProviderDef: PaletteProviderDef<
   idle: conversationPaletteSource.idle,
   search: conversationPaletteSource.search,
   render: ConversationPaletteProviderRow,
+};
+
+export const conversationPaletteProviderDef: PaletteProviderDef = {
+  ...typedConversationPaletteProviderDef,
+  render: ({ match, value, onSelect }) => (
+    <ConversationPaletteProviderRow
+      match={match as ConversationPaletteMatch}
+      value={value}
+      onSelect={onSelect}
+    />
+  ),
 };
 
 export const conversationsPaletteProviderDefs = [conversationPaletteProviderDef] as const;

@@ -70,9 +70,7 @@ describe('CommandPaletteView', () => {
     const onClose = vi.fn();
 
     await act(async () => {
-      root.render(
-        <CommandPaletteView providerCatalog={catalog} context={{}} onClose={onClose} />
-      );
+      root.render(<CommandPaletteView providerCatalog={catalog} context={{}} onClose={onClose} />);
     });
     const input = host.querySelector<HTMLInputElement>('input')!;
     await act(async () => {
@@ -92,9 +90,7 @@ describe('CommandPaletteView', () => {
     expect(fileSearch).not.toHaveBeenCalled();
 
     await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>('button[aria-label="Clear @commands mode"]')!
-        .click();
+      host.querySelector<HTMLButtonElement>('button[aria-label="Clear @commands mode"]')!.click();
     });
     await vi.waitFor(() => expect(host.textContent).toContain('theme.ts'));
     expect(fileSearch).toHaveBeenLastCalledWith({ query: 'theme', context: {} });

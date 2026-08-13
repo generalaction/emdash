@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { definePaletteProviderCatalog } from './provider-catalog';
 import type { PaletteProviderDef } from './provider';
+import { definePaletteProviderCatalog } from './provider-catalog';
 
 function provider(
   kind: PaletteProviderDef['kind'],

@@ -54,75 +54,16 @@ describe('SearchService runtime file search', () => {
     mocks.getSearchExclusions.mockResolvedValue(['dist']);
   });
 
-  it('merges runtime file hits after task and conversation search results', async () => {
-    mocks.prepare.mockReturnValue({
-      all: () => [
-        {
-          item_type: 'task',
-          item_id: 'task-1',
-          project_id: 'project-1',
-          task_id: null,
-          title: 'Index task',
-          rank: -1,
-        },
-      ],
-    });
-
-    await expect(
-      searchService.search({
-        query: 'index',
-        context: { projectId: 'project-1', taskId: 'task-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual([
-      {
-        kind: 'task',
-        id: 'task-1',
-        projectId: 'project-1',
-        taskId: null,
-        title: 'Index task',
-        subtitle: '',
-        score: -1,
-      },
-      {
-        kind: 'file',
-        id: '/repo/src/index.ts',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        title: 'index.ts',
-        subtitle: '/repo/src/index.ts',
-        score: 0,
-      },
+  it('delegates path search to the resolved workspace runtime', async () => {
+    await expect(searchService.searchFiles('workspace-1', 'index', 25)).resolves.toEqual([
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
     expect(mocks.fileSearch).toHaveBeenCalledWith(
       expect.objectContaining({ searchPaths: expect.any(Function) }),
       root,
       'index',
-      undefined
+      25
     );
-  });
-
-  it('preserves runtime file hits when the app search index fails', async () => {
-    mocks.prepare.mockImplementation(() => {
-      throw new Error('FTS unavailable');
-    });
-
-    await expect(
-      searchService.search({
-        query: 'index',
-        context: { projectId: 'project-1', taskId: 'task-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual([
-      {
-        kind: 'file',
-        id: '/repo/src/index.ts',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        title: 'index.ts',
-        subtitle: '/repo/src/index.ts',
-        score: 0,
-      },
-    ]);
-    expect(mocks.warn).toHaveBeenCalledOnce();
   });
 
   it('relays progressive content search through the resolved workspace runtime', async () => {

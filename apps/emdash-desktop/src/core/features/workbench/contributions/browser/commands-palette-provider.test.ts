@@ -88,15 +88,15 @@ describe('commands palette provider', () => {
     await controller.setInput('tth', {});
     expect(controller.getSnapshot().results[0]?.match.id).toBe(toggleThemeCommand.id);
 
-    const legacySearch = vi.fn(() => []);
+    const fileSearch = vi.fn(() => []);
     const unifiedController = new PaletteController(
       definePaletteProviderCatalog([
         provider,
         {
-          kind: 'legacy',
-          keyword: '@legacy',
+          kind: 'files',
+          keyword: '@files',
           minQueryLength: 1,
-          search: legacySearch,
+          search: fileSearch,
           render: () => null,
         },
       ])
@@ -104,11 +104,11 @@ describe('commands palette provider', () => {
     await unifiedController.setInput('@commands theme', {});
     expect(unifiedController.getSnapshot().mode?.keyword).toBe('@commands');
     expect(unifiedController.getSnapshot().results[0]?.match.id).toBe(toggleThemeCommand.id);
-    expect(legacySearch).not.toHaveBeenCalled();
+    expect(fileSearch).not.toHaveBeenCalled();
 
     await unifiedController.setInput('theme', {});
     expect(unifiedController.getSnapshot().mode).toBeUndefined();
-    expect(legacySearch).toHaveBeenCalledOnce();
+    expect(fileSearch).toHaveBeenCalledOnce();
     viewScopes.dispose();
   });
 

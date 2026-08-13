@@ -4,12 +4,6 @@ export {
   type CommandPaletteItemDef,
   type DefineCommandPaletteItemOptions,
 } from './command-palette-item';
-export { definePaletteCatalog, type PaletteCatalog } from './catalog';
-export {
-  definePaletteItem,
-  type DefinePaletteItemOptions,
-  type PaletteItemDef,
-} from './define-palette-item';
 export {
   PaletteController,
   type PaletteControllerSnapshot,

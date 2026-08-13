@@ -1,12 +1,6 @@
 import type { ComponentType } from 'react';
 
-export type PaletteProviderKind =
-  | 'commands'
-  | 'tasks'
-  | 'conversations'
-  | 'files'
-  | 'projects'
-  | 'legacy';
+export type PaletteProviderKind = 'commands' | 'tasks' | 'conversations' | 'files' | 'projects';
 
 export type PaletteProviderKeyword = `@${string}`;
 

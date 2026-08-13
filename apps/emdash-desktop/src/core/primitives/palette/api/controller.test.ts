@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
 import { deferred } from '@emdash/shared/testing';
+import { describe, expect, it, vi } from 'vitest';
 import { PaletteController } from './controller';
-import { definePaletteProviderCatalog } from './provider-catalog';
 import type {
   PaletteMatchBand,
   PaletteProviderDef,
@@ -9,6 +8,7 @@ import type {
   PaletteProviderKeyword,
   PaletteProviderMatch,
 } from './provider';
+import { definePaletteProviderCatalog } from './provider-catalog';
 
 function matches(prefix: string, count: number, band: PaletteMatchBand): PaletteProviderMatch[] {
   return Array.from({ length: count }, (_, index) => ({

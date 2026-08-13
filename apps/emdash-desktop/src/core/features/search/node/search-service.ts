@@ -23,14 +23,11 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceRuntimeAccess } from '@core/features/workspaces/api/node/runtime-access';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
-import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
-  CommandPaletteQuery,
   PaletteEntitySearchQuery,
   SearchItem,
-  SearchItemKind,
   WorkspaceFileHit,
 } from '@core/primitives/search/api';
 import type { Task } from '@core/primitives/tasks/api';
@@ -98,7 +95,6 @@ export class SearchService {
     );
 
     this.backfill();
-    this.seedCommands();
   }
 
   async searchFiles(
@@ -265,80 +261,7 @@ export class SearchService {
     }
   }
 
-  async search({ query, context }: CommandPaletteQuery): Promise<SearchItem[]> {
-    if (!query.trim()) return this.recents(context);
-
-    // Trigram tokenizer requires each term to be at least 3 characters.
-    // Terms shorter than 3 chars are dropped; if nothing survives, fall back
-    // to recents rather than sending an invalid query to SQLite.
-    const terms = query
-      .trim()
-      .split(/[\s\-_]+/)
-      .filter((t) => t.length >= 3);
-
-    if (terms.length === 0) return this.recents(context);
-
-    const fileHitsPromise = context?.workspaceId
-      ? this.searchFiles(context.workspaceId, query)
-      : Promise.resolve([]);
-    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
-
-    let rows: FtsRow[] = [];
-    try {
-      if (context?.taskId) {
-        rows = this.deps.sqlite
-          .prepare(
-            `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
-             FROM search_index
-             WHERE search_index MATCH ?
-               AND (item_type != 'conversation' OR task_id = ?)
-             ORDER BY rank
-             LIMIT 30`
-          )
-          .all(ftsQuery, context.taskId) as FtsRow[];
-      } else {
-        rows = this.deps.sqlite
-          .prepare(
-            `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
-             FROM search_index
-             WHERE search_index MATCH ?
-               AND item_type != 'conversation'
-             ORDER BY rank
-             LIMIT 30`
-          )
-          .all(ftsQuery) as FtsRow[];
-      }
-    } catch (e) {
-      log.warn('SearchService: FTS query failed', { query, error: String(e) });
-    }
-
-    const results: SearchItem[] = rows.map((r) => ({
-      kind: r.item_type as SearchItemKind,
-      id: r.item_id,
-      projectId: r.project_id,
-      taskId: r.task_id,
-      title: r.title,
-      subtitle: '',
-      score: r.rank,
-    }));
-
-    const fileHits = await fileHitsPromise;
-    for (const hit of fileHits) {
-      results.push({
-        kind: 'file',
-        id: hit.path,
-        projectId: context?.projectId ?? null,
-        taskId: context?.taskId ?? null,
-        title: hit.filename,
-        subtitle: hit.path,
-        score: 0,
-      });
-    }
-
-    return results;
-  }
-
-  private recents(context?: CommandPaletteQuery['context']): SearchItem[] {
+  private recents(context?: PaletteEntitySearchQuery['context']): SearchItem[] {
     const taskStmt = context?.projectId
       ? this.deps.sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
@@ -486,31 +409,6 @@ export class SearchService {
         .run(itemId, itemType);
     } catch (e) {
       log.warn('SearchService: removeByType failed', { itemType, itemId, error: String(e) });
-    }
-  }
-
-  private seedCommands(): void {
-    try {
-      this.deps.sqlite.transaction(() => {
-        this.deps.sqlite.prepare(`DELETE FROM search_index WHERE item_type = 'command'`).run();
-        const stmt = this.deps.sqlite.prepare(
-          `INSERT INTO search_index (item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('command', ?, NULL, NULL, ?, ?)`
-        );
-        for (const item of PALETTE_CATALOG.items) {
-          const { command } = item;
-          const keywords = [
-            command.description,
-            ...new Set([...command.keywords, ...(item.keywords ?? [])]),
-          ]
-            .filter(Boolean)
-            .join(' ');
-          stmt.run(command.id, command.title, keywords);
-        }
-      })();
-      log.info('SearchService: seeded commands', { count: PALETTE_CATALOG.items.length });
-    } catch (e) {
-      log.warn('SearchService: seedCommands failed', { error: String(e) });
     }
   }
 

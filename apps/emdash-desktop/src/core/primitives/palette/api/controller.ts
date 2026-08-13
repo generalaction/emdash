@@ -1,10 +1,11 @@
-import type { PaletteProviderCatalog } from './provider-catalog';
+import { log } from '@emdash/shared/logger';
 import type {
   PaletteContext,
   PaletteMatchBand,
   PaletteProviderDef,
   PaletteProviderMatch,
 } from './provider';
+import type { PaletteProviderCatalog } from './provider-catalog';
 
 const PROVIDER_RESULT_LIMIT = 12;
 const TOTAL_RESULT_LIMIT = 20;
@@ -52,9 +53,7 @@ export class PaletteController {
   private snapshot: PaletteControllerSnapshot = EMPTY_SNAPSHOT;
   private readonly listeners = new Set<() => void>();
 
-  constructor(
-    private readonly catalog: PaletteProviderCatalog<readonly PaletteProviderDef[]>
-  ) {}
+  constructor(private readonly catalog: PaletteProviderCatalog<readonly PaletteProviderDef[]>) {}
 
   getSnapshot(): PaletteControllerSnapshot {
     return this.snapshot;
@@ -104,8 +103,13 @@ export class PaletteController {
               providerResults.set(provider, matches);
               this.publish(input, query, mode?.provider, providerResults, true);
             })
-            .catch(() => {
+            .catch((error: unknown) => {
               if (generation !== this.generation) return;
+              log.warn('PaletteController: provider query failed', {
+                provider: provider.kind,
+                query,
+                error: String(error),
+              });
               providerResults.set(provider, []);
               this.publish(input, query, mode?.provider, providerResults, true);
             })

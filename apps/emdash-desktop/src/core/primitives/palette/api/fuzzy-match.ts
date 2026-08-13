@@ -86,7 +86,10 @@ function matchCandidate(query: string, candidate: string): PaletteRelevance | un
   return {
     band: 'fuzzy',
     score: clamp(
-      0.35 + boundaryScore * 0.45 + consecutiveScore * 0.25 - gapPenalty * 0.1 -
+      0.35 +
+        boundaryScore * 0.45 +
+        consecutiveScore * 0.25 -
+        gapPenalty * 0.1 -
         candidatePenalty * 0.1
     ),
   };
