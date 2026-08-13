@@ -1,3 +1,9 @@
+export { defineCommandPaletteCatalog, type CommandPaletteCatalog } from './command-palette-catalog';
+export {
+  defineCommandPaletteItem,
+  type CommandPaletteItemDef,
+  type DefineCommandPaletteItemOptions,
+} from './command-palette-item';
 export { definePaletteCatalog, type PaletteCatalog } from './catalog';
 export {
   definePaletteItem,

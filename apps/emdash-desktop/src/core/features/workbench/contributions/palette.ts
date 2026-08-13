@@ -15,7 +15,7 @@ import {
   toggleThemeCommand,
   zenModeCommand,
 } from '@core/features/workbench/contributions/commands';
-import { definePaletteItem } from '@core/primitives/palette/api';
+import { defineCommandPaletteItem, definePaletteItem } from '@core/primitives/palette/api';
 
 export const WORKBENCH_PALETTE_ITEMS = [
   definePaletteItem({ command: settingsCommand, rank: 10 }),
@@ -33,4 +33,25 @@ export const WORKBENCH_PALETTE_ITEMS = [
   definePaletteItem({ command: reopenTabCommand, rank: 140 }),
   definePaletteItem({ command: renameTabCommand, rank: 150 }),
   definePaletteItem({ command: splitPaneCommand, rank: 160 }),
+] as const;
+
+export const WORKBENCH_COMMAND_PALETTE_ITEMS = [
+  defineCommandPaletteItem({ command: settingsCommand }),
+  defineCommandPaletteItem({ command: newProjectCommand }),
+  defineCommandPaletteItem({ command: newTaskCommand }),
+  defineCommandPaletteItem({ command: giveFeedbackCommand }),
+  defineCommandPaletteItem({
+    command: toggleThemeCommand,
+    aliases: ['appearance', 'color scheme', 'dark mode', 'light mode'],
+  }),
+  defineCommandPaletteItem({ command: commandPaletteCommand }),
+  defineCommandPaletteItem({ command: openInEditorCommand }),
+  defineCommandPaletteItem({ command: toggleLeftSidebarCommand }),
+  defineCommandPaletteItem({ command: zenModeCommand }),
+  defineCommandPaletteItem({ command: nextTabCommand }),
+  defineCommandPaletteItem({ command: previousTabCommand }),
+  defineCommandPaletteItem({ command: closeTabCommand }),
+  defineCommandPaletteItem({ command: reopenTabCommand }),
+  defineCommandPaletteItem({ command: renameTabCommand }),
+  defineCommandPaletteItem({ command: splitPaneCommand }),
 ] as const;

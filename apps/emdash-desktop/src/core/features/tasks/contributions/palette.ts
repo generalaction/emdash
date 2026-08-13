@@ -1,4 +1,4 @@
-import { definePaletteItem } from '@core/primitives/palette/api';
+import { defineCommandPaletteItem, definePaletteItem } from '@core/primitives/palette/api';
 import {
   archiveTaskCommand,
   browserCopyUrlCommand,
@@ -51,4 +51,31 @@ export const TASK_PALETTE_ITEMS = [
   definePaletteItem({ command: archiveTaskCommand, rank: 210 }),
   definePaletteItem({ command: convertAutomationCommand, rank: 220 }),
   definePaletteItem({ command: deleteSelectedTasksCommand, rank: 230 }),
+] as const;
+
+export const TASK_COMMAND_PALETTE_ITEMS = [
+  defineCommandPaletteItem({ command: newConversationCommand }),
+  defineCommandPaletteItem({ command: newConversationSplitRightCommand }),
+  defineCommandPaletteItem({ command: sidebarChangesCommand }),
+  defineCommandPaletteItem({ command: sidebarConversationsCommand }),
+  defineCommandPaletteItem({ command: sidebarFilesCommand }),
+  defineCommandPaletteItem({ command: fileContentSearchCommand }),
+  defineCommandPaletteItem({ command: viewTerminalsCommand }),
+  defineCommandPaletteItem({ command: toggleTerminalDrawerCommand }),
+  defineCommandPaletteItem({ command: toggleRightSidebarCommand }),
+  defineCommandPaletteItem({ command: newTerminalCommand }),
+  defineCommandPaletteItem({ command: openBrowserCommand }),
+  defineCommandPaletteItem({ command: browserGoBackCommand }),
+  defineCommandPaletteItem({ command: browserGoForwardCommand }),
+  defineCommandPaletteItem({ command: browserReloadCommand }),
+  defineCommandPaletteItem({ command: browserFocusUrlCommand }),
+  defineCommandPaletteItem({ command: browserOpenExternalCommand }),
+  defineCommandPaletteItem({ command: browserCopyUrlCommand }),
+  defineCommandPaletteItem({ command: gitFetchCommand }),
+  defineCommandPaletteItem({ command: gitPullCommand }),
+  defineCommandPaletteItem({ command: gitPushCommand }),
+  defineCommandPaletteItem({ command: pinTaskCommand }),
+  defineCommandPaletteItem({ command: archiveTaskCommand }),
+  defineCommandPaletteItem({ command: convertAutomationCommand }),
+  defineCommandPaletteItem({ command: deleteSelectedTasksCommand }),
 ] as const;
