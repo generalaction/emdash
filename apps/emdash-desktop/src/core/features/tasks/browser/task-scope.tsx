@@ -14,6 +14,7 @@ import {
   getRegisteredTaskData,
   getTaskManagerStore,
   getTaskStore,
+  taskHostActionAvailability,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -307,15 +308,21 @@ const taskScopeImplementation = {
     },
   }),
   'task.archive': (params) => ({
-    availability: () =>
-      taskAvailability(
+    availability: () => {
+      const task = getTaskStore(params.projectId, params.taskId);
+      if (task?.state === 'provisioned') {
+        const hostAction = taskHostActionAvailability(params.projectId);
+        if (hostAction.kind === 'disabled') return disabled(hostAction.reason);
+      }
+      return taskAvailability(
         params,
         () => {
-          const task = getRegisteredTaskData(params.projectId, params.taskId);
-          return Boolean(task && !task.archivedAt);
+          const data = getRegisteredTaskData(params.projectId, params.taskId);
+          return Boolean(data && !data.archivedAt);
         },
         'Task is already archived'
-      ),
+      );
+    },
     execute: () => {
       void getTaskManagerStore(params.projectId)
         ?.archiveTask(params.taskId)

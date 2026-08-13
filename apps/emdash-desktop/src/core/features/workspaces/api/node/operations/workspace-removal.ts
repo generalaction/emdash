@@ -26,13 +26,11 @@ import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reco
 
 /**
  * Workspace removal through the host registry verbs (ADR 0005): one fail-fast
- * `deleteWorktree`/`deleteWorkspace` RPC against a reachable host, then the mirror
- * row is untracked. Against an unreachable host the deletion no longer refuses
- * (ADR 0006): the mirror row is marked with a durable tombstone — frozen options plus
- * the target record UUID — and the caller sees success. Nothing queues anywhere; the
- * tombstoned row stays visible as the pending state and the reconcile sweep executes
- * it once the host is reachable. Archive differs from delete only in the desktop
- * annotation; host-side both remove the worktree with `deleteBranch: false`.
+ * `deleteWorktree`/`deleteWorkspace` RPC against an effectively attached Project,
+ * then the mirror row is untracked. If attachment disappears, the interactive
+ * mutation refuses and leaves the mirror unchanged; it never creates recovery work.
+ * Archive differs from delete only in the desktop annotation; host-side both remove
+ * the worktree with `deleteBranch: false`.
  */
 
 export type WorkspaceRemovalResult = Result<MutationAck, MutationError>;
@@ -186,13 +184,15 @@ async function removeWorkspaceThroughRegistry(
   if (precondition) return err(precondition);
 
   // The host record is removed first, fail-fast: only a confirmed host-side removal
-  // untracks the mirror row, so a failed call leaves everything intact. An unreachable
-  // host diverts to the tombstone path instead of refusing (ADR 0006).
+  // untracks the mirror row, so a failed call leaves everything intact. Interactive
+  // mutations never create recovery work when attachment disappears mid-call.
   if (params.workspace?.kind === 'worktree' || params.workspace?.kind === 'directory') {
-    const workspace = params.workspace;
     const client = await runtimes.client(params.host);
     if (!client.success) {
-      return tombstoneUnreachableRemoval(db, workspace, params, createdAt, params.host);
+      return err({
+        type: 'project-unavailable',
+        message: 'This action requires live Project access.',
+      });
     }
     const verb = client.data.workspaceRegistry;
     const removed =
@@ -201,7 +201,10 @@ async function removeWorkspaceThroughRegistry(
         : await verb.deleteWorkspace({ workspaceId });
     if (!removed.success) {
       if (removed.error.type === 'host-unreachable') {
-        return tombstoneUnreachableRemoval(db, workspace, params, createdAt, params.host);
+        return err({
+          type: 'project-unavailable',
+          message: 'This action requires live Project access.',
+        });
       }
       return err({
         type: 'delete-failed',
@@ -231,49 +234,6 @@ async function removeWorkspaceThroughRegistry(
     reconcileSweepTriggers.poke(params.host);
   }
   appDbPokes.workspaces.poke({ projectId: params.projectId });
-  return ok({});
-}
-
-/**
- * The offline path (ADR 0006): the mirror row is marked with a durable tombstone
- * freezing the deletion options and the target record's UUID, and the caller sees
- * success — the row stays live as the visible pending state. Nothing queues anywhere;
- * conversation deletions ride the frozen `deleteConversations` option and are compiled
- * at sweep time. A duplicate write (zero rows updated) also returns success, so a UI
- * double-fire never surfaces an error or overwrites the first click's options.
- */
-function tombstoneUnreachableRemoval(
-  db: AppDb,
-  workspace: WorkspaceRow,
-  params: {
-    projectId: string | undefined;
-    requireUnused: boolean;
-    deleteBranch?: boolean;
-    deleteConversations?: boolean;
-  },
-  createdAt: number,
-  host: HostRef
-): WorkspaceRemovalResult {
-  const written = tombstoneWorkspaceRow(db, {
-    workspace,
-    options: {
-      deleteBranch: params.deleteBranch ?? false,
-      deleteConversations: params.deleteConversations ?? false,
-    },
-    createdAt,
-    precondition: (tx) =>
-      workspacePrecondition(tx, {
-        projectId: params.projectId,
-        workspaceId: workspace.id,
-        requireUnused: params.requireUnused,
-      }),
-  });
-  if (!written.success) return err(written.error);
-  appDbPokes.workspaces.poke({ projectId: params.projectId });
-  // Tombstoned-while-reachable trigger (ADR 0006): reachability may have flapped
-  // mid-call, so poke the reconcile sweep — a genuinely unreachable host makes the
-  // sweep a no-op attempt with no backoff.
-  reconcileSweepTriggers.poke(host);
   return ok({});
 }
 

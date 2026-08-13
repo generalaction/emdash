@@ -67,9 +67,19 @@ export type LiveActionAvailability =
   | { kind: 'enabled' }
   | { kind: 'disabled'; state: ProjectHostAccessState };
 
+export type HostObservation<T> =
+  | { kind: 'never-observed' }
+  | { kind: 'observed'; value: T; observedAt: number };
+
+export type ProjectHostObservation<T> =
+  | { kind: 'fresh'; value: T; observedAt: number }
+  | { kind: 'stale'; value: T; observedAt: number }
+  | { kind: 'unavailable' };
+
 export interface ProjectHostAccess {
   readonly state: ProjectHostAccessState;
   readonly liveAction: LiveActionAvailability;
+  observe<T>(observation: HostObservation<T>): ProjectHostObservation<T>;
   requireLive(): Result<void, ProjectAttachmentError>;
   recover(): Promise<Result<void, ProjectRecoveryRequestError>>;
 }
@@ -161,6 +171,21 @@ class HydratingProjectHostAccess implements ProjectHostAccess {
   get liveAction(): LiveActionAvailability {
     const state = this.state;
     return state.kind === 'ready' ? { kind: 'enabled' } : { kind: 'disabled', state };
+  }
+
+  observe<T>(observation: HostObservation<T>): ProjectHostObservation<T> {
+    if (observation.kind === 'never-observed') return { kind: 'unavailable' };
+    return this.state.kind === 'ready'
+      ? {
+          kind: 'fresh',
+          value: observation.value,
+          observedAt: observation.observedAt,
+        }
+      : {
+          kind: 'stale',
+          value: observation.value,
+          observedAt: observation.observedAt,
+        };
   }
 
   requireLive(): Result<void, ProjectAttachmentError> {

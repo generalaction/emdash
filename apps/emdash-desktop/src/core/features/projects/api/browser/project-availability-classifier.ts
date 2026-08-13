@@ -3,6 +3,8 @@ import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-r
 import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
 import type { ProjectHostAccessState } from './stores/project-context';
 
+export const PROJECT_HOST_ACTION_DISABLED_REASON = 'This action requires live Project access.';
+
 export type ProjectIssueRecovery = 'automatic' | 'manual' | 'blocked' | 'dispose-context';
 
 export type ProjectAvailabilitySemantic =

@@ -1,23 +1,20 @@
-import { formatHostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
-import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
 
-export type DeletePreflightHostProbe = (hostRef: SerializedHostRef) => boolean;
-
 /**
  * Informed confirmation from the mirror alone (spec §7, planning ticket 09): dirty
  * state, changed lines, unpushed commits, and the observation stamp come straight
- * from the synced registry columns — no host round-trip. Host reachability gates the
- * artifact-deletion option in the dialog; offline deletion stays desktop-only.
+ * from the synced registry columns — no host round-trip. Effective Project attachment
+ * gates the artifact-deletion option; offline deletion stays desktop-only.
  */
 async function getTaskPreflight(
   db: AppDb,
-  hostIsReachable: DeletePreflightHostProbe,
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>,
   taskId: string
 ): Promise<TaskDeletePreflightItem> {
   const noWorktreeResult: TaskDeletePreflightItem = {
@@ -62,15 +59,15 @@ async function getTaskPreflight(
     changedLines: observedGit?.diffStats ?? null,
     unpushedCommits: observedGit?.ahead ?? null,
     observedAt: ws.observedAt ?? null,
-    hostReachable: hostIsReachable(formatHostRef(operationHostRef({ workspace: ws }))),
+    hostReachable: projects.requireAttached(task.projectId).success,
   };
 }
 
 export async function getDeletePreflight(
   db: AppDb,
-  hostIsReachable: DeletePreflightHostProbe,
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>,
   taskIds: string[]
 ): Promise<DeletePreflightResult> {
-  const items = await Promise.all(taskIds.map((id) => getTaskPreflight(db, hostIsReachable, id)));
+  const items = await Promise.all(taskIds.map((id) => getTaskPreflight(db, projects, id)));
   return { tasks: items };
 }

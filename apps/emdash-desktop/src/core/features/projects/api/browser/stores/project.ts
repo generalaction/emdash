@@ -1,5 +1,4 @@
-import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
-import { err } from '@emdash/shared';
+import { ok } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import type {
@@ -11,7 +10,7 @@ import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import { getMementoClient } from '@core/primitives/mementos/browser';
-import { projectHostRef, type LocalProject, type SshProject } from '@core/primitives/projects/api';
+import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import {
   ScopedStoreHost,
   type ScopedStoreToken,
@@ -41,16 +40,21 @@ export type UnmountedStatus =
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
 function legacyMountHostAccess(project: LocalProject | SshProject): ProjectHostAccess {
-  const state = {
-    kind: 'degraded' as const,
-    situation: 'offline' as const,
-    recovery: 'automatic' as const,
-  };
+  const state = { kind: 'ready' as const, hostGeneration: 1 };
   return Object.freeze({
     state,
-    liveAction: { kind: 'disabled' as const, state },
-    requireLive: () =>
-      err(runtimeHostUnavailable(projectHostRef(project), 'offline', 'Host is offline')),
+    liveAction: { kind: 'enabled' as const },
+    observe: <T>(
+      observation: { kind: 'never-observed' } | { kind: 'observed'; value: T; observedAt: number }
+    ) =>
+      observation.kind === 'observed'
+        ? ({
+            kind: 'fresh' as const,
+            value: observation.value,
+            observedAt: observation.observedAt,
+          } as const)
+        : ({ kind: 'unavailable' as const } as const),
+    requireLive: () => ok<void>(),
     recover: async () =>
       (await getProjectsWireClient()).recoverAttachment({ projectId: project.id }),
   });

@@ -150,6 +150,8 @@ export type GetProjectWorkspaceGitStatsResult = {
 };
 
 export type ProjectWorkspaceActionReason =
+  | 'project-missing'
+  | 'project-unavailable'
   | 'workspace-not-found'
   | 'unsupported-workspace'
   | 'root-refused'

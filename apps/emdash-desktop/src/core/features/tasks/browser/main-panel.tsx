@@ -6,6 +6,7 @@ import { ProjectAvailabilityBoundary } from '@core/features/projects/contributio
 import {
   getTaskManagerStore,
   getTaskStore,
+  taskHostActionAvailability,
   taskErrorMessage,
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
@@ -43,6 +44,8 @@ const TaskMainPanelContent = observer(function TaskMainPanelContent() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
+  const hostAction = taskHostActionAvailability(projectId);
+  const hostActionDisabledReason = hostAction.kind === 'disabled' ? hostAction.reason : undefined;
   const workspaceId =
     taskStore && 'workspaceId' in taskStore.data ? taskStore.data.workspaceId : undefined;
 
@@ -80,6 +83,7 @@ const TaskMainPanelContent = observer(function TaskMainPanelContent() {
   if (taskStore?.state === 'unprovisioned' && taskStore.workspaceObservedStatus === 'missing') {
     return (
       <MissingWorkspaceState
+        actionDisabledReason={hostActionDisabledReason}
         reprovision={() => reprovisionWorkspace(projectId, taskId, workspaceId!, false)}
         removeAndReprovision={() => reprovisionWorkspace(projectId, taskId, workspaceId!, true)}
       />
@@ -96,6 +100,19 @@ const TaskMainPanelContent = observer(function TaskMainPanelContent() {
           <p className="font-sans text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
+    );
+  }
+
+  if (kind === 'idle' && hostActionDisabledReason) {
+    return (
+      <MissingWorkspaceState
+        title="Workspace is unavailable"
+        description="The Task is still available, but its workspace needs live Project access."
+        actionDisabledReason={hostActionDisabledReason}
+        reprovision={() =>
+          getTaskManagerStore(projectId)?.provisionTask(taskId) ?? Promise.resolve()
+        }
+      />
     );
   }
 
@@ -124,26 +141,52 @@ const TaskMainPanelContent = observer(function TaskMainPanelContent() {
 });
 
 function MissingWorkspaceState({
+  title = 'Workspace is missing',
+  description = 'Emdash could not activate this workspace. Re-provision it or remove the task.',
+  actionDisabledReason,
   reprovision,
   removeAndReprovision,
 }: {
+  title?: string;
+  description?: string;
+  actionDisabledReason?: string;
   reprovision?: () => Promise<void>;
   removeAndReprovision?: () => Promise<void>;
 }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-8 text-center">
-      <p className="text-sm font-medium text-foreground">Workspace is missing</p>
-      <p className="max-w-sm text-xs text-foreground-muted">
-        Emdash could not activate this workspace. Re-provision it or remove the task.
-      </p>
-      {reprovision && removeAndReprovision && (
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="max-w-sm text-xs text-foreground-muted">{description}</p>
+      {reprovision && (
         <div className="mt-2 flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => void reprovision()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!!actionDisabledReason}
+            title={actionDisabledReason}
+            aria-label={
+              actionDisabledReason ? `Re-provision. ${actionDisabledReason}` : 'Re-provision'
+            }
+            onClick={() => void reprovision()}
+          >
             Re-provision
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => void removeAndReprovision()}>
-            Remove and re-provision
-          </Button>
+          {removeAndReprovision && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!!actionDisabledReason}
+              title={actionDisabledReason}
+              aria-label={
+                actionDisabledReason
+                  ? `Remove and re-provision. ${actionDisabledReason}`
+                  : 'Remove and re-provision'
+              }
+              onClick={() => void removeAndReprovision()}
+            >
+              Remove and re-provision
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -210,6 +253,8 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
   const retry = () => {
     void getTaskManagerStore(projectId)?.provisionTask(taskId);
   };
+  const action = taskHostActionAvailability(projectId);
+  const retryDisabledReason = action.kind === 'disabled' ? action.reason : undefined;
 
   if (!showLoader) {
     return null;
@@ -245,7 +290,14 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
         </p>
       )}
       {error && (
-        <Button size="sm" variant="ghost" onClick={retry}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!!retryDisabledReason}
+          title={retryDisabledReason}
+          aria-label={retryDisabledReason ? `Retry. ${retryDisabledReason}` : 'Retry'}
+          onClick={retry}
+        >
           Retry
         </Button>
       )}

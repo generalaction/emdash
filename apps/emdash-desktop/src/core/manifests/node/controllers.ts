@@ -153,7 +153,7 @@ export type DesktopControllerContext = {
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
-    'db' | 'runtimes' | 'workspaceIdentity'
+    'db' | 'projects' | 'runtimes' | 'workspaceIdentity'
   >;
 };
 
@@ -215,9 +215,10 @@ export const desktopNodeControllers = {
       createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, runtimes, scope, taskService, taskSessions }) => {
+    create: ({ db, projects, runtimes, scope, taskService, taskSessions }) => {
       const controller = createProjectWorkspacesWireController({
         db,
+        projects,
         runtimes,
         taskService,
         taskSessions,
@@ -298,12 +299,13 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, runtimes, scope, workspaces }) =>
+    create: ({ db, projects, runtimes, scope, workspaces }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
+          projects,
           runtimes,
         }),
         scope
