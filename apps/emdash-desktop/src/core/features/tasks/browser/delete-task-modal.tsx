@@ -145,8 +145,9 @@ export const DeleteTaskModal = observer(function DeleteTaskModal({
                   <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
                     <TriangleAlert className="mt-px size-3.5 shrink-0" />
                     <span>
-                      The host is unreachable, so the worktree cannot be deleted right now. The task
-                      record will be removed; delete the worktree later from the workspaces view.
+                      {hostActionDisabledReason ?? 'Live Project access is unavailable.'} The
+                      worktree cannot be deleted right now. The task record will be removed; delete
+                      the worktree later from the workspaces view.
                     </span>
                   </div>
                 )}
@@ -188,8 +189,8 @@ export const DeleteTaskModal = observer(function DeleteTaskModal({
           >
             <TriangleAlert className="mt-px size-3.5 shrink-0" />
             <span>
-              {hostActionDisabledReason} The Task record can still be deleted without removing Host
-              artifacts.
+              {hostActionDisabledReason} The Task record can still be deleted without removing
+              workspace artifacts.
             </span>
           </div>
         )}

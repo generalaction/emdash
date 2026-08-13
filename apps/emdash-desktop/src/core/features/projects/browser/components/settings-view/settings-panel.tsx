@@ -28,7 +28,9 @@ export const SettingsPanel = observer(function SettingsPanel() {
   const hostActionReason = context
     ? (getProjectLiveActionDisabledReason(projectId) ??
       (hostDomains?.kind === 'unavailable'
-        ? 'Host-backed settings are unavailable until they finish loading.'
+        ? `Settings from this Project’s ${
+            context.project.type === 'local' ? 'Local runtime' : 'Machine'
+          } are unavailable until they finish loading.`
         : null))
     : null;
 

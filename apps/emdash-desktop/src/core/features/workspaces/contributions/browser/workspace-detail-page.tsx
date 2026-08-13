@@ -366,7 +366,9 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         title={liveActionsEnabled ? 'Workspace data unavailable' : undefined}
         description={
           liveActionsEnabled
-            ? 'This Host has not observed any workspaces for the Project yet.'
+            ? scope.kind === 'local'
+              ? 'Workspace data has not been loaded from the Local runtime yet.'
+              : `${machineName?.trim() || 'This Machine'} has not provided workspace data yet.`
             : machineName
               ? `${machineName} has not provided a workspace observation yet.`
               : 'Workspace data will appear after live Project access returns.'
