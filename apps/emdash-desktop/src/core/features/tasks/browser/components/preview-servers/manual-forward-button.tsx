@@ -1,30 +1,42 @@
 import { Dialog, Tooltip } from '@emdash/ui/react/primitives';
 import { Globe, Plus } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
-export function ManualForwardButton() {
+export const ManualForwardButton = observer(function ManualForwardButton() {
   const [open, setOpen] = useState(false);
+  const taskView = useTaskComposition();
+  const disabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={(next) => !disabledReason && setOpen(next)}>
       <Tooltip.Root>
         <Tooltip.Trigger
           render={
-            <button
-              type="button"
-              className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
-              aria-label="Forward remote port"
-              onClick={() => setOpen(true)}
+            <span
+              className="inline-flex"
+              tabIndex={disabledReason ? 0 : undefined}
+              aria-label={disabledReason ?? undefined}
             />
           }
         >
-          <Plus className="size-3.5" />
-          <Globe className="size-3.5" />
+          <button
+            type="button"
+            disabled={Boolean(disabledReason)}
+            className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Forward remote port"
+            onClick={() => setOpen(true)}
+          >
+            <Plus className="size-3.5" />
+            <Globe className="size-3.5" />
+          </button>
         </Tooltip.Trigger>
-        <Tooltip.Content>Forward remote port</Tooltip.Content>
+        <Tooltip.Content>{disabledReason ?? 'Forward remote port'}</Tooltip.Content>
       </Tooltip.Root>
       <ManualForwardDialog onClose={() => setOpen(false)} />
     </Dialog.Root>
   );
-}
+});

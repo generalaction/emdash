@@ -9,6 +9,7 @@ import type {
   FilePayload,
   FileTabResource,
 } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -53,7 +54,8 @@ export class EditorViewStore {
     paneLayout: PaneLayoutStore,
     projectId: string,
     workspaceId: string,
-    private readonly treeHandle: MementoHandle<TaskEditorTreeState>
+    private readonly treeHandle: MementoHandle<TaskEditorTreeState>,
+    private readonly hostAccess?: ProjectHostAccess
   ) {
     this.paneLayout = paneLayout;
     this.projectId = projectId;
@@ -90,7 +92,13 @@ export class EditorViewStore {
   /** Opens the per-view file-tree projection. Idempotent. */
   startFiles(workspacePath: string, sshConnectionId?: string): void {
     if (this.files) return;
-    const store = new FilesStore(this.projectId, this.workspaceId, workspacePath, sshConnectionId);
+    const store = new FilesStore(
+      this.projectId,
+      this.workspaceId,
+      workspacePath,
+      sshConnectionId,
+      this.hostAccess
+    );
     runInAction(() => {
       this.files = store;
     });
@@ -175,6 +183,7 @@ export class EditorViewStore {
   }
 
   async saveFile(filePath: string): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const entry = this.openEntryForPath(filePath);
     if (!entry?.dirty) return;
 
@@ -218,6 +227,7 @@ export class EditorViewStore {
    * or writes the user's buffer to disk ("Keep Mine").
    */
   async resolveConflict(accept: boolean): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const path = this.pendingConflictPath;
     if (!path) return;
     runInAction(() => {

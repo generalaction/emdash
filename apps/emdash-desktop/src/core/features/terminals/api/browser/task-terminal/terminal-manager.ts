@@ -4,6 +4,11 @@ import { ReplicaLog } from '@emdash/wire/live';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { makeFileLinkHandlers } from '@core/features/editor/api/browser/open-file-in-file-editor';
+import {
+  classifyLiveRuntimeObservation,
+  type LiveRuntimeObservation,
+} from '@core/features/projects/api/browser/live-runtime-observation';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getAppSettingValueSnapshot } from '@core/features/settings/api/browser/app-settings-client';
 import type { TerminalRuntimeKey } from '@core/features/terminals/api';
 import {
@@ -32,14 +37,19 @@ export class TerminalManagerStore implements Disposable {
   // structured-cloned when posted over the wire (MobX proxies cannot).
   runtimeKeys = observable.map<string, TerminalRuntimeKey>({}, { deep: false });
   private readonly _disposeReaction: () => void;
+  private readonly _disposeHostReaction: () => void;
 
-  constructor(projectId: string, taskId: string) {
+  constructor(
+    projectId: string,
+    taskId: string,
+    readonly hostAccess?: ProjectHostAccess
+  ) {
     this.projectId = projectId;
     this.taskId = taskId;
 
     this.list = new Resource<Terminal[]>(async () => {
       const result = await (await getTerminalsClient()).list({ projectId, taskId });
-      if (!result.success) throw new Error(result.error.message);
+      if (!result.success) throw new Error(terminalErrorMessage(result.error));
       return result.data;
     }, [{ kind: 'demand' }]);
 
@@ -48,6 +58,7 @@ export class TerminalManagerStore implements Disposable {
       sessions: observable,
       runtimeKeys: observable,
       isLoaded: computed,
+      observation: computed,
     });
 
     // Sync terminals and sessions maps whenever the resource data changes.
@@ -81,13 +92,31 @@ export class TerminalManagerStore implements Disposable {
       },
       { fireImmediately: true }
     );
+    this._disposeHostReaction = reaction(
+      () => this.hostAccess?.state,
+      (state) => {
+        if (state?.kind !== 'ready') return;
+        this.list.invalidate();
+        for (const session of this.sessions.values()) session.resumeIfRequested();
+      }
+    );
   }
 
   get isLoaded(): boolean {
     return this.list.data !== null;
   }
 
+  get observation(): LiveRuntimeObservation<Terminal[]> {
+    return classifyLiveRuntimeObservation(
+      this.hostAccess?.state ?? { kind: 'ready', hostGeneration: 0 },
+      this.list.data ?? undefined
+    );
+  }
+
   async createTerminal(params: CreateTerminalParams): Promise<Terminal> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     const defaultShell = getAppSettingValueSnapshot('terminal')?.defaultShell ?? 'system';
     const optimistic: Terminal = {
       id: params.id,
@@ -104,7 +133,7 @@ export class TerminalManagerStore implements Disposable {
 
     try {
       const result = await (await getTerminalsClient()).create(params);
-      if (!result.success) throw new Error(result.error.message);
+      if (!result.success) throw new Error(terminalErrorMessage(result.error));
       const { terminal, key } = result.data;
       runInAction(() => {
         const store = this.terminals.get(params.id);
@@ -156,7 +185,7 @@ export class TerminalManagerStore implements Disposable {
         taskId: this.taskId,
         terminalId,
       });
-      if (!result.success) throw new Error(result.error.message);
+      if (!result.success) throw new Error(terminalErrorMessage(result.error));
       session?.destroy();
     } catch (err) {
       runInAction(() => {
@@ -170,6 +199,9 @@ export class TerminalManagerStore implements Disposable {
   async hydrateTerminal(terminalId: string): Promise<void> {
     const store = this.terminals.get(terminalId);
     if (!store) return;
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     const result = await (
       await getTerminalsClient()
     ).hydrate({
@@ -177,7 +209,7 @@ export class TerminalManagerStore implements Disposable {
       taskId: this.taskId,
       terminalId,
     });
-    if (!result.success) throw new Error(result.error.message);
+    if (!result.success) throw new Error(terminalErrorMessage(result.error));
     runInAction(() => {
       this.runtimeKeys.set(terminalId, result.data.key);
     });
@@ -185,6 +217,7 @@ export class TerminalManagerStore implements Disposable {
 
   dispose(): void {
     this._disposeReaction();
+    this._disposeHostReaction();
     for (const session of this.sessions.values()) {
       session.destroy();
     }
@@ -203,7 +236,7 @@ export class TerminalManagerStore implements Disposable {
 
     try {
       const result = await (await getTerminalsClient()).rename({ terminalId, name });
-      if (!result.success) throw new Error(result.error.message);
+      if (!result.success) throw new Error(terminalErrorMessage(result.error));
     } catch (err) {
       runInAction(() => {
         store.data.name = previousName;
@@ -219,7 +252,8 @@ export class TerminalManagerStore implements Disposable {
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      createTerminalsConnector(() => this.ensureRuntimeKey(terminal.id))
+      createTerminalsConnector(() => this.ensureRuntimeKey(terminal.id)),
+      () => this.hostAccess?.liveAction.kind !== 'disabled'
     );
   }
 
@@ -240,6 +274,10 @@ export class TerminalStore {
     this.data = terminal;
     makeObservable(this, { data: observable });
   }
+}
+
+function terminalErrorMessage(error: { type: string; message?: string }): string {
+  return error.message ?? `Terminal operation failed: ${error.type}`;
 }
 
 function createTerminalsConnector(key: () => Promise<TerminalRuntimeKey>): FrontendPtyConnector {

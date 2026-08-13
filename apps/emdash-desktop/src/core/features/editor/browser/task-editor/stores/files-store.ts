@@ -22,7 +22,7 @@ import {
   type OptimisticView,
   type RemoteModel,
 } from '@emdash/wire/state';
-import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import {
   buildFileTreeVisibleRows,
   isExpandableFileTreeNode,
@@ -34,6 +34,11 @@ import {
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import { filesWireContract, type FilesTreeModel } from '@core/features/files/api';
 import { getFilesClient, type FilesClient } from '@core/features/files/api/browser/client';
+import {
+  classifyLiveRuntimeObservation,
+  type LiveRuntimeObservation,
+} from '@core/features/projects/api/browser/live-runtime-observation';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import {
   absoluteRuntimePath,
@@ -83,7 +88,9 @@ export class FilesStore {
   private bindVersion = 0;
   private exclusions = canonicalExclusionPatterns(DEFAULT_TREE_EXCLUDE);
   private exclusionsLoaded = false;
+  private pendingRebind = false;
   private nextPendingUploadId = 1;
+  private readonly disposeHostReaction: () => void;
 
   private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
   private readonly pendingPathSet = observable.set<string>();
@@ -92,7 +99,8 @@ export class FilesStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly workspacePath: string,
-    sshConnectionId?: string
+    sshConnectionId?: string,
+    readonly hostAccess?: ProjectHostAccess
   ) {
     // Workspace→root resolution happens here at the renderer edge (spec §2/§8):
     // the tree is keyed by the root's ResourceUri, never by workspaceId.
@@ -108,7 +116,26 @@ export class FilesStore {
       pendingPaths: computed,
       isLoading: computed,
       error: computed,
+      observation: computed,
     });
+    this.disposeHostReaction = reaction(
+      () => this.hostAccess?.state,
+      (state) => {
+        if (state === undefined || state.kind !== 'ready' || !this.started) return;
+        if (this.pendingRebind) {
+          this.pendingRebind = false;
+          this.bindVersion += 1;
+          this.disposeRuntime(true);
+          void this.ensureStarted(true);
+          return;
+        }
+        if (this.treeModel) {
+          void this.refreshAfterRecovery(this.treeModel);
+          return;
+        }
+        void this.ensureStarted(true);
+      }
+    );
   }
 
   get nodes(): Map<string, RenderableFileNode> {
@@ -132,6 +159,7 @@ export class FilesStore {
   }
 
   get isLoading(): boolean {
+    if (this.hostAccess?.liveAction.kind === 'disabled' && this.treeData === null) return false;
     if (this.syncError !== null) return false;
     if (this.optimistic === null) return true;
     return this.tree?.entries['']?.childrenLoaded !== true;
@@ -141,6 +169,13 @@ export class FilesStore {
     return this.syncError ?? undefined;
   }
 
+  get observation(): LiveRuntimeObservation<FilesTreeModel> {
+    return classifyLiveRuntimeObservation(
+      this.hostAccess?.state ?? { kind: 'ready', hostGeneration: 0 },
+      this.treeData ?? undefined
+    );
+  }
+
   get rootPath(): string {
     return normalizeFileTreePath(this.workspacePath);
   }
@@ -148,6 +183,7 @@ export class FilesStore {
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
     await this.ensureStarted();
   }
 
@@ -157,6 +193,7 @@ export class FilesStore {
   }
 
   dispose(): void {
+    this.disposeHostReaction();
     this.started = false;
     this.bindVersion += 1;
     this.pendingUploadNodes.clear();
@@ -170,6 +207,10 @@ export class FilesStore {
     if (this.exclusions.join('\0') === next.join('\0')) return;
     this.exclusions = next;
     if (!this.started) return;
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      this.pendingRebind = true;
+      return;
+    }
     this.bindVersion += 1;
     this.disposeRuntime();
     this.startPromise = this.bindRuntime(this.bindVersion);
@@ -372,18 +413,34 @@ export class FilesStore {
     };
   }
 
-  private ensureStarted(): Promise<void> {
-    this.startPromise ??= this.bindRuntime(this.bindVersion);
+  private ensureStarted(refresh = false): Promise<void> {
+    this.startPromise ??= this.bindRuntime(this.bindVersion, refresh);
     return this.startPromise;
   }
 
   private async requireModel(): Promise<TreeRemoteMember> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     await this.ensureStarted();
     if (!this.treeModel) throw new Error(this.syncError ?? 'File tree is unavailable');
     return this.treeModel;
   }
 
-  private async bindRuntime(version: number): Promise<void> {
+  private async refreshAfterRecovery(model: TreeRemoteMember): Promise<void> {
+    try {
+      await model.states.tree.refresh();
+      runInAction(() => {
+        this.syncError = null;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.syncError = error instanceof Error ? error.message : String(error);
+      });
+    }
+  }
+
+  private async bindRuntime(version: number, refresh = false): Promise<void> {
     let scope: Scope | null = null;
     let treeRemote: TreeRemote | null = null;
     try {
@@ -455,6 +512,7 @@ export class FilesStore {
       });
       scope = null;
       treeRemote = null;
+      if (refresh) await model.states.tree.refresh();
       const expanded = await model.mutations.expand({ path: portablePath('') });
       if (expanded.result.success) await expanded.settled;
       else this.setError(expanded.result.error);
@@ -500,6 +558,12 @@ export class FilesStore {
   private async runFsMutation<T>(
     run: (client: FilesClient) => Promise<Result<T, TreeMutationError>>
   ): Promise<Result<void, TreeMutationError>> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      return err({
+        type: 'unavailable',
+        message: 'Live actions are unavailable for this Project.',
+      });
+    }
     try {
       const client = await getFilesClient();
       const result = await run(client);
@@ -543,12 +607,12 @@ export class FilesStore {
     });
   }
 
-  private disposeRuntime(): void {
+  private disposeRuntime(preserveData = false): void {
     const remote = this.treeRemote;
     const scope = this.treeScope;
     runInAction(() => {
       this.optimistic = null;
-      this.treeData = null;
+      if (!preserveData) this.treeData = null;
       this.treeModel = null;
       this.treeRemote = null;
       this.treeScope = null;

@@ -2,6 +2,7 @@ import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import { FILE_SEARCH_MAX_QUERY_LENGTH } from '@emdash/core/runtimes/file-search/api';
 import { copyNameForConflict, MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
 import {
+  EmptyState,
   FileTree,
   canMoveNode,
   dedupeDescendantPaths,
@@ -42,6 +43,7 @@ import type { FilesStore } from '@core/features/editor/browser/task-editor/store
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { getFilesClient } from '@core/features/files/api/browser/client';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { openFile as openWorkbenchFile } from '@core/features/workbench/api/browser/open-file';
@@ -222,6 +224,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const tabLayout = useTabLayout();
   const editorView = taskView.editorView;
   const files = editorView.files;
+  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+  const liveActionsDisabled = Boolean(liveActionDisabledReason);
   const { value: filesSettings } = useAppSettingsKey('files');
   const openConfirmActionModal = useOpenModal('confirmActionModal');
   const [searchQuery, setSearchQuery] = useState('');
@@ -706,7 +710,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         id: 'rename',
         label: 'Rename',
         icon: <FilePen size={14} />,
-        disabled: selection.length !== 1,
+        disabled: liveActionsDisabled || selection.length !== 1,
         onSelect: () => setRenamePath(selection[0]?.path ?? node.path),
       },
       {
@@ -714,6 +718,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         label: 'Delete',
         icon: <Trash2 size={14} />,
         variant: 'destructive',
+        disabled: liveActionsDisabled,
         onSelect: () => confirmDelete(selection),
       }
     );
@@ -722,7 +727,12 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   const fileTreeScopeImplementation = {
     'editor.fileTree.rename': () => ({
-      availability: () => (selectedNodes.length === 1 ? enabled : disabled('Select one item')),
+      availability: () =>
+        liveActionDisabledReason
+          ? disabled(liveActionDisabledReason)
+          : selectedNodes.length === 1
+            ? enabled
+            : disabled('Select one item'),
       execute: renameSelection,
     }),
     'editor.fileTree.cut': () => ({
@@ -734,11 +744,21 @@ export const EditorFileTree = observer(function EditorFileTree() {
       execute: () => copySelection(),
     }),
     'editor.fileTree.paste': () => ({
-      availability: () => (clipboard ? enabled : disabled('Nothing to paste')),
+      availability: () =>
+        liveActionDisabledReason
+          ? disabled(liveActionDisabledReason)
+          : clipboard
+            ? enabled
+            : disabled('Nothing to paste'),
       execute: () => void pasteClipboard(),
     }),
     'editor.fileTree.delete': () => ({
-      availability: () => (selectedNodes.length > 0 ? enabled : hidden),
+      availability: () =>
+        liveActionDisabledReason
+          ? disabled(liveActionDisabledReason)
+          : selectedNodes.length > 0
+            ? enabled
+            : hidden,
       execute: () => confirmDelete(selectedNodes),
     }),
   } satisfies ViewScopeImpl<typeof fileTreeScope>;
@@ -754,121 +774,130 @@ export const EditorFileTree = observer(function EditorFileTree() {
     expandAll,
   };
 
-  const content = searchQuery ? (
-    <FileContentSearchResults workspaceId={workspaceId} query={searchQuery} />
-  ) : (
-    <FileTree
-      ref={treeRef}
-      rootPath={workspace.path}
-      rootNodes={rootNodes}
-      childrenById={childrenById}
-      expandedPaths={expandedPaths}
-      selectedPath={selectionAnchorPath ?? activeFile?.path ?? null}
-      selectedPaths={selectedPaths}
-      openedPaths={openedPaths}
-      isLoading={files?.isLoading ?? true}
-      error={files?.error}
-      compactChains
-      renamePath={renamePath}
-      getRootContextMenuItems={() => {
-        const items: FileTreeRootMenuItem[] = [
-          {
-            id: 'new-file',
-            label: 'New File',
-            icon: <FilePlus size={14} />,
-            onSelect: () =>
-              treeRef.current?.startDraft('file', normalizeFileTreePath(workspace.path)),
-          },
-          {
-            id: 'new-folder',
-            label: 'New Folder',
-            icon: <FolderPlus size={14} />,
-            onSelect: () =>
-              treeRef.current?.startDraft('directory', normalizeFileTreePath(workspace.path)),
-          },
-        ];
-        if (clipboard && clipboard.paths.length > 0) {
-          items.push({
-            id: 'paste',
-            label: 'Paste',
-            icon: <ClipboardPaste size={14} />,
-            onSelect: () => void pasteClipboard(normalizeFileTreePath(workspace.path)),
-          });
-        }
-        return items;
-      }}
-      renderHeader={() => null}
-      onCollapseAll={collapseAll}
-      onExpandAll={(paths) => editorView.expandPaths([...paths])}
-      onToggleExpand={(node, expanded) => {
-        if (expanded) {
-          editorView.expandPath(node.path);
-          if (files && isExpandableFileTreeNode(node) && !files.loadedPaths.has(node.path)) {
-            void files.registerDir(node.path);
+  const content =
+    files?.observation.kind === 'unavailable' ? (
+      <EmptyState
+        label="Files unavailable"
+        description={liveActionDisabledReason ?? 'The file tree has not been observed yet.'}
+      />
+    ) : searchQuery && !liveActionsDisabled ? (
+      <FileContentSearchResults workspaceId={workspaceId} query={searchQuery} />
+    ) : (
+      <FileTree
+        ref={treeRef}
+        rootPath={workspace.path}
+        rootNodes={rootNodes}
+        childrenById={childrenById}
+        expandedPaths={expandedPaths}
+        selectedPath={selectionAnchorPath ?? activeFile?.path ?? null}
+        selectedPaths={selectedPaths}
+        openedPaths={openedPaths}
+        isLoading={files?.isLoading ?? true}
+        error={files?.error}
+        compactChains
+        renamePath={renamePath}
+        getRootContextMenuItems={() => {
+          const items: FileTreeRootMenuItem[] = [
+            {
+              id: 'new-file',
+              label: 'New File',
+              icon: <FilePlus size={14} />,
+              disabled: liveActionsDisabled,
+              onSelect: () =>
+                treeRef.current?.startDraft('file', normalizeFileTreePath(workspace.path)),
+            },
+            {
+              id: 'new-folder',
+              label: 'New Folder',
+              icon: <FolderPlus size={14} />,
+              disabled: liveActionsDisabled,
+              onSelect: () =>
+                treeRef.current?.startDraft('directory', normalizeFileTreePath(workspace.path)),
+            },
+          ];
+          if (clipboard && clipboard.paths.length > 0) {
+            items.push({
+              id: 'paste',
+              label: 'Paste',
+              icon: <ClipboardPaste size={14} />,
+              disabled: liveActionsDisabled,
+              onSelect: () => void pasteClipboard(normalizeFileTreePath(workspace.path)),
+            });
           }
-        } else {
-          editorView.collapsePath(node.path);
-        }
-      }}
-      onRequestExpand={(path) => {
-        editorView.expandPath(path);
-        void files?.registerDir(path);
-      }}
-      onSelectionChange={(paths, anchorPath) => {
-        setSelectedPaths(new Set(paths));
-        setSelectionAnchorPath(anchorPath);
-      }}
-      onOpenFile={(node, options) => openFile(node.path, options.preview)}
-      onCreateFile={handleCreateFile}
-      onCreateDirectory={handleCreateDirectory}
-      onRenameSubmit={handleRename}
-      onRenameCancel={() => setRenamePath(null)}
-      getContextMenuItems={getContextMenuItems}
-      renderIcon={(node) => {
-        if (node.type === 'file') return <FileIcon filename={node.name} size={12} />;
-        if (node.type === 'symlink') return <Link2 size={12} />;
-        return null;
-      }}
-      getRowState={(node) =>
-        mergeRowState(
-          rowStateForNode(node, workspace.path, workspace),
-          clipboard?.mode === 'cut' && clipboard.paths.includes(node.path)
-            ? { muted: true }
-            : undefined
-        )
-      }
-      dnd={
-        files
-          ? {
-              canDrop: (sources, targetDir) =>
-                sources.every((source) =>
-                  canMoveNode(source.path, targetDir?.path ?? workspace.path, workspace.path)
-                ),
-              onMove: handleMove,
-              onDropExternal: (dataTransfer, targetDirPath) => {
-                const sourceFiles = Array.from(dataTransfer.files);
-                if (sourceFiles.length === 0) return;
-                void importLocalFiles({
-                  files,
-                  workspacePath: workspace.path,
-                  sshConnectionId: workspace.sshConnectionId,
-                  sourceFiles,
-                  destDirPath: targetDirPath,
-                });
-              },
-              onDragStart: (_node, dataTransfer, selection) => {
-                setDraggedWorkspaceFile(dataTransfer, {
-                  workspaceId,
-                  targetPaths: selection.map((node) => node.path),
-                  targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
-                });
-              },
-              onDragEnd: () => clearDraggedWorkspaceFile(),
+          return items;
+        }}
+        renderHeader={() => null}
+        onCollapseAll={collapseAll}
+        onExpandAll={(paths) => editorView.expandPaths([...paths])}
+        onToggleExpand={(node, expanded) => {
+          if (expanded) {
+            editorView.expandPath(node.path);
+            if (files && isExpandableFileTreeNode(node) && !files.loadedPaths.has(node.path)) {
+              void files.registerDir(node.path);
             }
-          : undefined
-      }
-    />
-  );
+          } else {
+            editorView.collapsePath(node.path);
+          }
+        }}
+        onRequestExpand={(path) => {
+          editorView.expandPath(path);
+          void files?.registerDir(path);
+        }}
+        onSelectionChange={(paths, anchorPath) => {
+          setSelectedPaths(new Set(paths));
+          setSelectionAnchorPath(anchorPath);
+        }}
+        onOpenFile={(node, options) => openFile(node.path, options.preview)}
+        onCreateFile={handleCreateFile}
+        onCreateDirectory={handleCreateDirectory}
+        onRenameSubmit={handleRename}
+        onRenameCancel={() => setRenamePath(null)}
+        getContextMenuItems={getContextMenuItems}
+        renderIcon={(node) => {
+          if (node.type === 'file') return <FileIcon filename={node.name} size={12} />;
+          if (node.type === 'symlink') return <Link2 size={12} />;
+          return null;
+        }}
+        getRowState={(node) =>
+          mergeRowState(
+            rowStateForNode(node, workspace.path, workspace),
+            clipboard?.mode === 'cut' && clipboard.paths.includes(node.path)
+              ? { muted: true }
+              : undefined
+          )
+        }
+        dnd={
+          files && !liveActionsDisabled
+            ? {
+                canDrop: (sources, targetDir) =>
+                  sources.every((source) =>
+                    canMoveNode(source.path, targetDir?.path ?? workspace.path, workspace.path)
+                  ),
+                onMove: handleMove,
+                onDropExternal: (dataTransfer, targetDirPath) => {
+                  const sourceFiles = Array.from(dataTransfer.files);
+                  if (sourceFiles.length === 0) return;
+                  void importLocalFiles({
+                    files,
+                    workspacePath: workspace.path,
+                    sshConnectionId: workspace.sshConnectionId,
+                    sourceFiles,
+                    destDirPath: targetDirPath,
+                  });
+                },
+                onDragStart: (_node, dataTransfer, selection) => {
+                  setDraggedWorkspaceFile(dataTransfer, {
+                    workspaceId,
+                    targetPaths: selection.map((node) => node.path),
+                    targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
+                  });
+                },
+                onDragEnd: () => clearDraggedWorkspaceFile(),
+              }
+            : undefined
+        }
+      />
+    );
 
   return (
     <div ref={attachFileTreeScope} className="flex h-full flex-col overflow-hidden">
@@ -879,7 +908,17 @@ export const EditorFileTree = observer(function EditorFileTree() {
         setSearchInputRef={setSearchInputRef}
         onRefresh={() => void refresh()}
         isRefreshing={isRefreshing}
+        liveActionDisabledReason={liveActionDisabledReason}
       />
+      {files?.observation.kind === 'stale' && liveActionDisabledReason && (
+        <div
+          className="border-b bg-background-secondary px-2 py-1 text-xs text-foreground-muted"
+          tabIndex={0}
+          role="note"
+        >
+          {liveActionDisabledReason}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
     </div>
   );
@@ -892,6 +931,7 @@ export function FileTreeHeaderBar({
   setSearchInputRef,
   onRefresh,
   isRefreshing,
+  liveActionDisabledReason,
 }: {
   context: FileTreeHeaderContext;
   searchQuery: string;
@@ -899,12 +939,14 @@ export function FileTreeHeaderBar({
   setSearchInputRef(input: HTMLInputElement | null): void;
   onRefresh(): void;
   isRefreshing: boolean;
+  liveActionDisabledReason?: string | null;
 }) {
   return (
     <div className="h-[41px] shrink-0 border-b border-border bg-background-secondary px-2">
       <div className="flex h-full items-center gap-1">
         <div className="min-w-0 flex-1">
           <SearchInput
+            disabled={Boolean(liveActionDisabledReason)}
             ref={setSearchInputRef}
             size="sm"
             value={searchQuery}
@@ -921,16 +963,28 @@ export function FileTreeHeaderBar({
             }}
           />
         </div>
-        <HeaderAction label="New file" onClick={() => context.startDraft('file')}>
+        <HeaderAction
+          label={liveActionDisabledReason ?? 'New file'}
+          disabled={Boolean(liveActionDisabledReason)}
+          onClick={() => context.startDraft('file')}
+        >
           <FilePlus className="size-3.5" />
         </HeaderAction>
-        <HeaderAction label="New folder" onClick={() => context.startDraft('directory')}>
+        <HeaderAction
+          label={liveActionDisabledReason ?? 'New folder'}
+          disabled={Boolean(liveActionDisabledReason)}
+          onClick={() => context.startDraft('directory')}
+        >
           <FolderPlus className="size-3.5" />
         </HeaderAction>
         <HeaderAction label="Collapse all" onClick={context.collapseAll}>
           <CopyMinus className="size-3.5" />
         </HeaderAction>
-        <HeaderAction label="Refresh" onClick={onRefresh} disabled={isRefreshing}>
+        <HeaderAction
+          label={liveActionDisabledReason ?? 'Refresh'}
+          onClick={onRefresh}
+          disabled={isRefreshing || Boolean(liveActionDisabledReason)}
+        >
           <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
         </HeaderAction>
       </div>

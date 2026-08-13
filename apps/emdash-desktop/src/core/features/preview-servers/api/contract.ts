@@ -1,17 +1,19 @@
-import { defineContract, eventStream, fallible, procedure } from '@emdash/wire/rpc';
+import { defineContract, eventStream, fallible } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   ManualPreviewServerError,
   PreviewServer,
   PreviewServerEvent,
+  PreviewServerUnavailableError,
 } from '@core/primitives/preview-servers/api';
 
 export const previewServersDomain = 'previewServers' as const;
 
 export const previewServersContract = defineContract({
-  listForWorkspace: procedure({
+  listForWorkspace: fallible({
     input: z.object({ projectId: z.string(), workspaceId: z.string() }),
-    output: z.array(z.custom<PreviewServer>()),
+    data: z.array(z.custom<PreviewServer>()),
+    error: z.custom<PreviewServerUnavailableError>(),
   }),
   forwardManual: fallible({
     input: z.object({
@@ -25,13 +27,15 @@ export const previewServersContract = defineContract({
     data: z.custom<PreviewServer>(),
     error: z.custom<ManualPreviewServerError>(),
   }),
-  restart: procedure({
+  restart: fallible({
     input: z.object({ id: z.string() }),
-    output: z.void(),
+    data: z.void(),
+    error: z.custom<PreviewServerUnavailableError>(),
   }),
-  stop: procedure({
+  stop: fallible({
     input: z.object({ id: z.string() }),
-    output: z.void(),
+    data: z.void(),
+    error: z.custom<PreviewServerUnavailableError>(),
   }),
   events: eventStream({
     key: z.void(),

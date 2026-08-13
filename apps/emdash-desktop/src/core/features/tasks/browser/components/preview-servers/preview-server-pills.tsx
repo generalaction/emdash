@@ -1,6 +1,8 @@
 import { observer } from 'mobx-react-lite';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import {
   usePreviewServers,
+  useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { ManualForwardButton } from './manual-forward-button';
@@ -8,9 +10,22 @@ import { PreviewServerPill } from './preview-server-pill';
 
 export const PreviewServerPills = observer(function PreviewServerPills() {
   const previews = usePreviewServers();
+  const taskView = useTaskComposition();
   const workspace = useWorkspace();
   const isRemoteWorkspace = Boolean(workspace.sshConnectionId);
   const servers = previews.servers;
+  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+
+  if (previews.observation.kind === 'unavailable') {
+    return (
+      <span className="rounded-md px-2 py-1 text-xs text-foreground-muted" tabIndex={0} role="note">
+        Preview unavailable
+        <span className="sr-only">
+          {liveActionDisabledReason ?? 'Preview servers have not been observed.'}
+        </span>
+      </span>
+    );
+  }
 
   if (servers.length === 0 && !isRemoteWorkspace) return null;
 
@@ -20,6 +35,16 @@ export const PreviewServerPills = observer(function PreviewServerPills() {
         <PreviewServerPill key={server.id} server={server} />
       ))}
       {isRemoteWorkspace ? <ManualForwardButton /> : null}
+      {previews.observation.kind === 'stale' && liveActionDisabledReason ? (
+        <span
+          className="max-w-48 truncate px-1 text-xs text-foreground-muted"
+          title={liveActionDisabledReason}
+          tabIndex={0}
+          role="note"
+        >
+          Preview data is stale
+        </span>
+      ) : null}
     </>
   );
 });

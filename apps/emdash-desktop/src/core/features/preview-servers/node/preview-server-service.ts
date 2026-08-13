@@ -134,6 +134,10 @@ export class PreviewServerService {
     );
   }
 
+  getServer(id: string): PreviewServer | undefined {
+    return this.servers.get(id);
+  }
+
   async forwardManual(request: ManualPreviewServerRequest): Promise<ManualPreviewServerResult> {
     const id = `manual:${randomUUID()}`;
     const tunnelId = `preview:${id}`;

@@ -48,6 +48,7 @@ export interface UsePtyOptions {
   pty: FrontendPty;
   theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
+  readOnly?: boolean;
   onActivity?: () => void;
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
@@ -93,6 +94,7 @@ export function usePty(
     pty,
     theme,
     mapShiftEnterToCtrlJ,
+    readOnly = false,
     onActivity,
     onFirstMessage,
     onEnterPress,
@@ -113,6 +115,8 @@ export function usePty(
   onPasteFromClipboardRef.current = onPasteFromClipboard;
   const themeRef = useRef(theme);
   themeRef.current = theme;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   // The per-pane controller owns PTY backend resizes (broadcast to ALL sessions)
   // and exposes an observable controllerDims box so this terminal can call
@@ -222,6 +226,7 @@ export function usePty(
 
   const sendInput = useCallback(
     (data: string, options?: { track?: boolean }) => {
+      if (readOnlyRef.current) return;
       const shouldTrack = options?.track ?? true;
       if (shouldTrack) {
         const submittedMessages = submittedInputBufferRef.current.feed(data);
@@ -235,6 +240,13 @@ export function usePty(
     },
     [pty]
   );
+
+  useEffect(() => {
+    pty.terminal.options.disableStdin = readOnly;
+    return () => {
+      pty.terminal.options.disableStdin = false;
+    };
+  }, [pty, readOnly]);
 
   const pasteFromClipboard = useCallback(() => {
     const customPasteFromClipboard = onPasteFromClipboardRef.current;

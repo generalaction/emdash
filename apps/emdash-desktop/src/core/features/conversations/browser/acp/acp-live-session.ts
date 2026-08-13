@@ -30,6 +30,7 @@ import {
   getConversationsClient,
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
+import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
 import { conversationsContract } from '../../api';
 
 export interface LiveValueSource<T> {
@@ -65,16 +66,18 @@ export function asValueSource<T>(replica: RemoteValueState<T>): LiveValueSource<
 }
 
 export class AcpStartError extends Error {
-  constructor(readonly runtimeError: AcpRuntimeError | RuntimeResolveError) {
+  constructor(
+    readonly runtimeError: AcpRuntimeError | RuntimeResolveError | ProjectAttachmentError
+  ) {
     super(
-      runtimeError.message ??
+      ('message' in runtimeError ? runtimeError.message : undefined) ??
         ('cause' in runtimeError ? runtimeError.cause?.message : undefined) ??
         runtimeError.type
     );
     this.name = 'AcpStartError';
   }
 
-  get errorType(): (AcpRuntimeError | RuntimeResolveError)['type'] {
+  get errorType(): (AcpRuntimeError | RuntimeResolveError | ProjectAttachmentError)['type'] {
     return this.runtimeError.type;
   }
 }

@@ -1,5 +1,6 @@
 import type { SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { getProjectHostAccess } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { Conversation } from '@core/primitives/conversations/api';
 
 export class ConversationRegistry {
@@ -13,7 +14,13 @@ export class ConversationRegistry {
   ): ConversationManagerStore {
     const existing = this.entries.get(taskId);
     if (existing) return existing;
-    const store = new ConversationManagerStore(projectId, taskId, preloaded, sessionHost);
+    const store = new ConversationManagerStore(
+      projectId,
+      taskId,
+      preloaded,
+      sessionHost,
+      getProjectHostAccess(projectId)
+    );
     this.entries.set(taskId, store);
     return store;
   }

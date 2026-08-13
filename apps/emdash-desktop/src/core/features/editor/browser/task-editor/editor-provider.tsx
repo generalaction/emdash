@@ -3,13 +3,14 @@ import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { editorScope } from '@core/features/workbench/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useTheme } from '@core/primitives/theme/browser';
-import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { installMonacoFacetBinder } from '../monaco/install-monaco-facet-binder';
@@ -45,21 +46,28 @@ export const EditorProvider = observer(function EditorProvider({
 }: {
   children: ReactNode;
 }) {
-  const { taskId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
   const taskView = useTaskComposition();
   const { editorView, paneLayout } = taskView;
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
+  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
   const editorScopeImplementation = {
     'editor.save': () => ({
-      availability: () => (getActiveFilePath(paneTabManager) ? enabled : hidden),
+      availability: () =>
+        liveActionDisabledReason
+          ? disabled(liveActionDisabledReason)
+          : getActiveFilePath(paneTabManager)
+            ? enabled
+            : hidden,
       execute: () => {
         const path = getActiveFilePath(paneTabManager);
         if (path) void editorView.saveFile(path);
       },
     }),
     'editor.saveAll': () => ({
+      availability: () => (liveActionDisabledReason ? disabled(liveActionDisabledReason) : enabled),
       execute: () => {
         void editorView.saveAllFiles();
       },

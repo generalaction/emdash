@@ -4,7 +4,7 @@ import {
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { err, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
@@ -13,6 +13,7 @@ import { conversationRegistryTable as conversations } from '@core/features/conve
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
 import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
+import type { ProjectAttachmentError } from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -59,7 +60,7 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   hooks?: ConversationRuntimeHooks;
   getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>;
   logger: Logger;
-  projects: Pick<ProjectAttachmentManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'getProject' | 'requireAttached'>;
   telemetry: TelemetryService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;
@@ -96,33 +97,56 @@ export function createConversationsWireController(
       client: ConversationsHostRuntimesClient,
       target: ConversationRuntimeTarget
     ) => Promise<Result<T, E>>
-  ) => withConversationRuntime(options.runtimes, target(conversationId), work);
+  ) => withConversationRuntime(options, target(conversationId), work);
 
   const acpSessions = forwardLiveModel(conversationsContract.acp.sessions, (key, name) =>
-    resolveRuntimeSource(options.runtimes, Promise.resolve(parseHostRef(key.host)), (client) =>
-      client.acp.sessions.state(undefined, name).asLiveSource()
+    resolveProjectRuntimeSource(
+      options,
+      key.projectId,
+      Promise.resolve(parseHostRef(key.host)),
+      (client) => client.acp.sessions.state(undefined, name).asLiveSource()
     )
   );
   const acpSession = forwardLiveModel(conversationsContract.acp.session, (key, name) =>
-    resolveConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
+    resolveConversationRuntimeSource(options, target(key.conversationId), (client) =>
       client.acp.session.state(key, name).asLiveSource()
     )
   );
   const tuiSessions = forwardLiveModel(conversationsContract.tui.sessions, (key, name) =>
-    resolveRuntimeSource(options.runtimes, Promise.resolve(parseHostRef(key.host)), (client) =>
-      client.tuiAgents.sessions.state(undefined, name).asLiveSource()
+    resolveProjectRuntimeSource(
+      options,
+      key.projectId,
+      Promise.resolve(parseHostRef(key.host)),
+      (client) => client.tuiAgents.sessions.state(undefined, name).asLiveSource()
     )
   );
 
   return createController(conversationsContract, {
     getConversations: () => conversationOperations.getConversations(),
-    createConversation: (input) => conversationOperations.createConversation(input),
+    createConversation: async (input) => {
+      const attached = options.projects.requireAttached(input.projectId);
+      if (!attached.success) return err(attached.error);
+      return ok(await conversationOperations.createConversation(input));
+    },
     deleteConversation: ({ projectId, taskId, conversationId }) =>
       conversationOperations.deleteConversation(projectId, taskId, conversationId),
-    hydrateConversation: ({ projectId, taskId, conversationId, initialSize }) =>
-      conversationOperations.hydrateConversation(projectId, taskId, conversationId, initialSize),
-    dehydrateConversation: ({ projectId, taskId, conversationId }) =>
-      conversationOperations.dehydrateConversation(projectId, taskId, conversationId),
+    hydrateConversation: async ({ projectId, taskId, conversationId, initialSize }) => {
+      const attached = options.projects.requireAttached(projectId);
+      if (!attached.success) return err(attached.error);
+      await conversationOperations.hydrateConversation(
+        projectId,
+        taskId,
+        conversationId,
+        initialSize
+      );
+      return ok<void>();
+    },
+    dehydrateConversation: async ({ projectId, taskId, conversationId }) => {
+      const attached = options.projects.requireAttached(projectId);
+      if (!attached.success) return err(attached.error);
+      await conversationOperations.dehydrateConversation(projectId, taskId, conversationId);
+      return ok<void>();
+    },
     renameConversation: ({ conversationId, name }) =>
       conversationOperations.renameConversation(conversationId, name),
     getConversationsForTask: ({ projectId, taskId }) =>
@@ -145,7 +169,7 @@ export function createConversationsWireController(
           throw missingAcpInputError(runtimeTarget);
         }
         const input = runtimeTarget.acpInput;
-        return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
+        return withConversationRuntime(options, Promise.resolve(runtimeTarget), (client) =>
           client.acp.start(input, callOptions(meta))
         );
       },
@@ -159,7 +183,7 @@ export function createConversationsWireController(
           throw new Error(`Conversation '${conversationId}' has no ACP session to resume`);
         }
         const sessionId = input.sessionId;
-        return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
+        return withConversationRuntime(options, Promise.resolve(runtimeTarget), (client) =>
           client.acp.resume({ ...input, sessionId }, callOptions(meta))
         );
       },
@@ -187,17 +211,13 @@ export function createConversationsWireController(
         run(input.conversationId, (client) => client.acp.setModelOption(input, callOptions(meta))),
       setModeOption: async (input, meta) => {
         const runtimeTarget = await target(input.conversationId);
-        return withConversationRuntime(
-          options.runtimes,
-          Promise.resolve(runtimeTarget),
-          async (client) => {
-            const result = await client.acp.setModeOption(input, callOptions(meta));
-            if (result.success) {
-              await hooks.persistAcpMode(runtimeTarget, input.value);
-            }
-            return result;
+        return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
+          const result = await client.acp.setModeOption(input, callOptions(meta));
+          if (result.success) {
+            await hooks.persistAcpMode(runtimeTarget, input.value);
           }
-        );
+          return result;
+        });
       },
       resolvePermission: (input, meta) =>
         run(input.conversationId, (client) =>
@@ -216,12 +236,7 @@ export function createConversationsWireController(
           client.acp.uploadAttachment({ conversationId, originalPath }, file, callOptions(meta))
         ),
       downloadAttachment: ({ conversationId, attachmentId }, meta) =>
-        openAttachmentDownload(
-          options.runtimes,
-          target(conversationId),
-          attachmentId,
-          callOptions(meta)
-        ),
+        openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),
       deleteAttachment: ({ conversationId, attachmentId }, meta) =>
         run(conversationId, (client) =>
           client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
@@ -231,7 +246,7 @@ export function createConversationsWireController(
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
-        resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+        resolveConversationRuntimeSource(options, target(conversationId), (client) =>
           client.acp.terminalOutput.handle({ terminalId }).asLiveSource()
         ),
     },
@@ -248,22 +263,18 @@ export function createConversationsWireController(
         run(input.conversationId, (client) => client.tuiAgents.kill(input, callOptions(meta))),
       sendInput: async (input, meta) => {
         const runtimeTarget = await target(input.conversationId);
-        return withConversationRuntime(
-          options.runtimes,
-          Promise.resolve(runtimeTarget),
-          async (client) => {
-            const result = await client.tuiAgents.sendInput(input, callOptions(meta));
-            if (result.success && input.data.includes('\r')) {
-              await hooks.recordTuiInput(runtimeTarget);
-            }
-            return result;
+        return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
+          const result = await client.tuiAgents.sendInput(input, callOptions(meta));
+          if (result.success && input.data.includes('\r')) {
+            await hooks.recordTuiInput(runtimeTarget);
           }
-        );
+          return result;
+        });
       },
       resize: (input, meta) =>
         run(input.conversationId, (client) => client.tuiAgents.resize(input, callOptions(meta))),
       output: async ({ conversationId }) =>
-        resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+        resolveConversationRuntimeSource(options, target(conversationId), (client) =>
           client.tuiAgents.output.handle({ conversationId }).asLiveSource()
         ),
       sessions: tuiSessions,
@@ -399,15 +410,17 @@ async function resolveConversationRuntimeTarget(
 }
 
 async function withConversationRuntime<T, E>(
-  runtimes: ConversationsRuntimeBroker,
+  options: Pick<CreateConversationsWireControllerOptions, 'projects' | 'runtimes'>,
   targetPromise: Promise<ConversationRuntimeTarget>,
   work: (
     client: ConversationsHostRuntimesClient,
     target: ConversationRuntimeTarget
   ) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
+): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   const target = await targetPromise;
-  const result = await runtimes.client(target.host);
+  const attached = options.projects.requireAttached(target.projectId);
+  if (!attached.success) return err(attached.error);
+  const result = await options.runtimes.client(target.host);
   if (!result.success) return err(result.error);
   return await work(result.data, target);
 }
@@ -417,15 +430,28 @@ function callOptions(meta: CallMeta): { signal?: AbortSignal } {
 }
 
 async function resolveConversationRuntimeSource(
-  runtimes: ConversationsRuntimeBroker,
+  options: Pick<CreateConversationsWireControllerOptions, 'projects' | 'runtimes'>,
   targetPromise: Promise<ConversationRuntimeTarget>,
   source: (client: ConversationsHostRuntimesClient) => LiveSource
 ): Promise<LiveSource> {
-  return resolveRuntimeSource(
-    runtimes,
-    targetPromise.then((target) => target.host),
+  const target = await targetPromise;
+  return resolveProjectRuntimeSource(
+    options,
+    target.projectId,
+    Promise.resolve(target.host),
     source
   );
+}
+
+async function resolveProjectRuntimeSource(
+  options: Pick<CreateConversationsWireControllerOptions, 'projects' | 'runtimes'>,
+  projectId: string,
+  hostPromise: Promise<HostRef>,
+  source: (client: ConversationsHostRuntimesClient) => LiveSource
+): Promise<LiveSource> {
+  const attached = options.projects.requireAttached(projectId);
+  if (!attached.success) throw new Error(attached.error.type);
+  return resolveRuntimeSource(options.runtimes, hostPromise, source);
 }
 
 async function resolveRuntimeSource(
@@ -439,17 +465,19 @@ async function resolveRuntimeSource(
 }
 
 async function openAttachmentDownload(
-  runtimes: ConversationsRuntimeBroker,
+  options: Pick<CreateConversationsWireControllerOptions, 'projects' | 'runtimes'>,
   targetPromise: Promise<ConversationRuntimeTarget>,
   attachmentId: string,
-  options: { signal?: AbortSignal }
+  call: { signal?: AbortSignal }
 ) {
   const target = await targetPromise;
-  const runtime = await runtimes.client(target.host);
+  const attached = options.projects.requireAttached(target.projectId);
+  if (!attached.success) return err(attached.error);
+  const runtime = await options.runtimes.client(target.host);
   if (!runtime.success) return err(runtime.error);
   const result = await runtime.data.acp.downloadAttachment(
     { conversationId: target.conversationId, attachmentId },
-    options
+    call
   );
   if (!result.success) return result;
   return {

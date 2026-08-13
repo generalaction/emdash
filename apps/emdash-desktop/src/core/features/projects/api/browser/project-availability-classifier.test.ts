@@ -10,6 +10,7 @@ import type { ProjectAttachmentError } from '@core/features/projects/api/attachm
 import {
   classifyProjectAttachmentIssue,
   classifyProjectAvailability,
+  projectLiveActionDisabledReason,
   type ProjectAttachmentIssueClassification,
   type ProjectAvailabilityPresentation,
 } from './project-availability-classifier';
@@ -389,6 +390,29 @@ describe('classifyProjectAvailability', () => {
     expect(presentation?.actions.map((action) => action.label)).toEqual(actionLabels);
     expect(JSON.stringify(presentation)).not.toMatch(
       /SSH|Machine|Open Machines|Connect|connection-private-id|\/private\/|raw /
+    );
+  });
+});
+
+describe('projectLiveActionDisabledReason', () => {
+  const state: ProjectHostAccessState = {
+    kind: 'degraded',
+    situation: 'offline',
+    recovery: 'automatic',
+  };
+
+  it('uses the Machine name for an SSH project', () => {
+    expect(
+      projectLiveActionDisabledReason({
+        host: { kind: 'ssh', machineName: 'Orion' },
+        state,
+      })
+    ).toBe('Live actions are unavailable while Orion is offline.');
+  });
+
+  it('uses local copy for a desktop project', () => {
+    expect(projectLiveActionDisabledReason({ host: { kind: 'local' }, state })).toBe(
+      'Live actions are unavailable while this Project is unavailable on this device.'
     );
   });
 });

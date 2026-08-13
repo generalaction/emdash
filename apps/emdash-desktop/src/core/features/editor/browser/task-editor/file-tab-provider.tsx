@@ -1,9 +1,12 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import { EmptyState } from '@emdash/ui/react/components';
+import { toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { openFileStore } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal } from '@core/manifests/browser/modal-api';
@@ -46,7 +49,9 @@ const FileTabContent = observer(function FileTabContent({ host, ctx }: TabConten
 });
 
 /** Renders the Monaco source and/or preview for the currently active file tab. */
-const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabContentProps) {
+const FileContent = observer(function FileContent({ host, ctx }: TabContentProps) {
+  const taskCtx = ctx as TaskTabContext;
+  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskCtx.projectId);
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile = activeTab?.kind === 'file' ? (activeTab.resource as FileTabResource) : null;
 
@@ -68,15 +73,28 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {activeFile && <FileContentToolbar tab={activeFile} canToggle={canToggle} />}
+      {activeFile && liveActionDisabledReason && !blocked && (
+        <div
+          className="border-b bg-background-secondary px-2 py-1 text-xs text-foreground-muted"
+          tabIndex={0}
+          role="note"
+        >
+          {liveActionDisabledReason}
+        </div>
+      )}
       <div className="relative flex-1 overflow-hidden">
         <div className="absolute inset-0" style={{ visibility: showSource ? 'visible' : 'hidden' }}>
           <FileContentRenderer />
         </div>
-        {activeFile && blocked && (
+        {activeFile && blocked && liveActionDisabledReason ? (
+          <div className="absolute inset-0">
+            <EmptyState label="File unavailable" description={liveActionDisabledReason} />
+          </div>
+        ) : activeFile && blocked ? (
           <div className="absolute inset-0">
             <FileStatusPlaceholder resource={activeFile} />
           </div>
-        )}
+        ) : null}
         {activeFile && showPreview && (
           <div className="absolute inset-0">
             <FileContentPreview tab={activeFile} />
@@ -132,10 +150,17 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     async onBeforeClose(
       entry: TabEntry<FilePayload>,
       resource: FileTabResource,
-      _ctx: TabViewContext
+      ctx: TabViewContext
     ): Promise<boolean> {
       const fileEntry = resource.entry;
       if (!fileEntry?.dirty) return true;
+      const liveActionDisabledReason = getProjectLiveActionDisabledReason(
+        (ctx as TaskTabContext).projectId
+      );
+      if (liveActionDisabledReason) {
+        toast.error('Unsaved file kept open', { description: liveActionDisabledReason });
+        return false;
+      }
 
       const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
       const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });

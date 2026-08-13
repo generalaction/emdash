@@ -13,13 +13,15 @@ export class PtySession {
   status: PtySessionStatus = 'disconnected';
   private connectPromise: Promise<void> | null = null;
   private version = 0;
+  private connectionRequested = false;
 
   constructor(
     readonly sessionId: string,
     private readonly prepare?: () => Promise<PtySessionPrepareResult>,
     private readonly onOpenFile?: (filePath: string) => void,
     private readonly onOpenExternal?: (filePath: string) => void,
-    private readonly connector: FrontendPtyConnector = noopConnector()
+    private readonly connector: FrontendPtyConnector = noopConnector(),
+    private readonly canConnect: () => boolean = () => true
   ) {
     makeAutoObservable(this, {
       pty: false,
@@ -33,6 +35,8 @@ export class PtySession {
   }
 
   async connect() {
+    this.connectionRequested = true;
+    if (!this.canConnect()) return;
     if (this.pty) return;
     if (this.connectPromise) return this.connectPromise;
 
@@ -65,6 +69,10 @@ export class PtySession {
     return this.connectPromise;
   }
 
+  resumeIfRequested(): void {
+    if (this.connectionRequested && this.status === 'disconnected') void this.connect();
+  }
+
   dispose() {
     this.version++;
     this.pty?.dispose();
@@ -75,6 +83,7 @@ export class PtySession {
   }
 
   destroy() {
+    this.connectionRequested = false;
     this.dispose();
   }
 }

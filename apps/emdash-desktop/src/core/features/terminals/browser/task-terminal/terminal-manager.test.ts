@@ -1,4 +1,9 @@
+import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 import { TerminalManagerStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 
 const createTerminal = vi.hoisted(() => vi.fn());
@@ -154,6 +159,92 @@ describe('TerminalManagerStore session hydration', () => {
 
     expect(store.terminals.get('terminal-1')?.data.shellId).toBe('fish');
     await promise;
+    store.dispose();
+  });
+
+  it('keeps observed terminal records stale and blocks live creation while offline', async () => {
+    const host = {
+      state: {
+        kind: 'degraded',
+        situation: 'offline',
+        recovery: 'automatic',
+      },
+      liveAction: {
+        kind: 'disabled',
+        state: {
+          kind: 'degraded',
+          situation: 'offline',
+          recovery: 'automatic',
+        },
+      },
+    } as ProjectHostAccess;
+    const store = new TerminalManagerStore('project-1', 'task-1', host);
+    store.list.setValue([]);
+
+    expect(store.observation).toEqual({ kind: 'stale', value: [] });
+    await expect(
+      store.createTerminal({
+        id: 'terminal-offline',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        name: 'Terminal 1',
+      })
+    ).rejects.toThrow('Live actions are unavailable');
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(store.terminals.has('terminal-offline')).toBe(false);
+    store.dispose();
+  });
+
+  it('keeps a requested session disconnected offline and reconnects it after recovery', async () => {
+    listTerminals.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'terminal-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          shellId: 'system',
+          name: 'Terminal 1',
+        },
+      ],
+    });
+    const state = observable.box<ProjectHostAccessState>({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
+    const hostAccess = {
+      get state() {
+        return state.get();
+      },
+      get liveAction() {
+        const current = state.get();
+        return current.kind === 'ready'
+          ? ({ kind: 'enabled' } as const)
+          : ({ kind: 'disabled', state: current } as const);
+      },
+    } as ProjectHostAccess;
+    const store = new TerminalManagerStore('project-1', 'task-1', hostAccess);
+    store.list.setValue([
+      {
+        id: 'terminal-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        shellId: 'system',
+        name: 'Terminal 1',
+      },
+    ]);
+    const session = store.sessions.get('terminal-1');
+
+    await session?.connect();
+
+    expect(session?.status).toBe('disconnected');
+    expect(hydrateTerminal).not.toHaveBeenCalled();
+
+    runInAction(() => state.set({ kind: 'ready', hostGeneration: 2 }));
+    await vi.waitFor(() => expect(session?.status).toBe('ready'));
+    expect(hydrateTerminal).toHaveBeenCalledTimes(1);
+    expect(frontendConnect).toHaveBeenCalledTimes(1);
     store.dispose();
   });
 });

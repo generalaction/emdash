@@ -3,6 +3,10 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
+import {
+  getProjectLiveActionDisabledReason,
+  ProjectLiveActionGuard,
+} from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
@@ -34,13 +38,15 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const lifecycleScriptsMgr = workspace.get(lifecycleScriptsStoreToken);
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
+  const liveActionsDisabled = terminalMgr.hostAccess?.liveAction.kind === 'disabled';
+  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
   const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
   const [mode, setMode] = useState<TerminalDrawerMode>(() =>
     taskView.terminalDrawerActiveItem?.kind === 'script' ? 'scripts' : 'terminals'
   );
   const previousActiveItemRef = useRef(taskView.terminalDrawerActiveItem);
   const shellAvailabilityQuery = useTerminalShellAvailability(remoteConnectionId, {
-    enabled: shouldLoadShellAvailability,
+    enabled: shouldLoadShellAvailability && !liveActionsDisabled,
   });
   const shellMenuState: TerminalShellMenuState = shellAvailabilityQuery.data
     ? { kind: 'ready', availability: shellAvailabilityQuery.data }
@@ -119,6 +125,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   }, [taskView, taskView.terminalDrawerActiveItem?.id, taskView.terminalDrawerActiveItem?.kind]);
 
   const handleHoverTerminal = (id: string) => {
+    if (liveActionsDisabled) return;
     const session = terminalMgr.sessions.get(id);
     if (session?.status === 'disconnected') void session.connect();
   };
@@ -130,11 +137,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   );
 
   const handleCreate = async (shell?: TerminalShellId) => {
+    if (liveActionsDisabled) return;
     setMode('terminals');
     await taskView.openNewTerminal(shell);
   };
 
   const handleShellMenuOpen = () => {
+    if (liveActionsDisabled) return;
     if (!shouldLoadShellAvailability) {
       setShouldLoadShellAvailability(true);
       return;
@@ -184,15 +193,18 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       }
       action={
         activeTerminalIsOpenInMain ? undefined : (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => void handleCreate()}
-            className="flex items-center gap-2"
-          >
-            New terminal
-            <BoundShortcut command="task.newTerminal" variant="keycaps" />
-          </Button>
+          <ProjectLiveActionGuard projectId={projectId}>
+            <Button
+              disabled={liveActionsDisabled}
+              size="sm"
+              variant="secondary"
+              onClick={() => void handleCreate()}
+              className="flex items-center gap-2"
+            >
+              New terminal
+              <BoundShortcut command="task.newTerminal" variant="keycaps" />
+            </Button>
+          </ProjectLiveActionGuard>
         )
       }
     />
@@ -217,6 +229,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         }}
       >
         <TerminalDrawerTabBar
+          projectId={projectId}
+          liveActionsDisabled={liveActionsDisabled}
           mode={mode}
           onModeChange={handleModeChange}
           lifecycleScriptsMgr={lifecycleScriptsMgr}
@@ -249,6 +263,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           allSessionIds={allSessionIds}
           autoFocus={autoFocus}
           emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
+          unavailableState={
+            <EmptyState
+              label="Terminal unavailable"
+              description={liveActionDisabledReason ?? 'Live actions are unavailable.'}
+            />
+          }
+          disabledReason={mode === 'terminals' ? liveActionDisabledReason : null}
           remoteConnectionId={remoteConnectionId}
           workspaceId={workspaceId}
           terminalPaddingBottom={0}
