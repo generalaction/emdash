@@ -385,7 +385,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'The project configuration could not be resolved.',
       });
     }
-    const gitPlan = compileWorktreeGitPlan(config.git, { baseRemote, pushRemote });
+    let gitPlan: ReturnType<typeof compileWorktreeGitPlan>;
+    try {
+      gitPlan = compileWorktreeGitPlan(config.git, { baseRemote, pushRemote });
+    } catch (error) {
+      return err({
+        stage: 'replay',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
     const workspacePath = workspaceRow.path;
     return this.dependencies.creations.run(workspaceRow.id, () =>
       createWorktreeThroughRegistry(this.dependencies.runtimes, {
