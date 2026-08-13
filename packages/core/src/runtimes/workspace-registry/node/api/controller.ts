@@ -5,6 +5,11 @@ import type { WorkspaceRegistryRuntime } from '../runtime';
 export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRuntime): Controller {
   return createController(workspaceRegistryContract, {
     records: runtime.recordsHost,
+    projectConfig: runtime.projectConfigHost,
+    getProjectConfig: (input) => runtime.getProjectConfig(input),
+    refreshProjectConfig: (input) => runtime.refreshProjectConfig(input),
+    patchPersonalProjectConfig: (input) => runtime.patchPersonalProjectConfig(input),
+    importLegacyLifecycleSettings: (input) => runtime.importLegacyLifecycleSettings(input),
     activateWorkspace: (input) => runtime.activateWorkspace(input),
     createWorkspace: (input) => runtime.createWorkspace(input),
     createWorktree: (input) => runtime.createWorktree(input),

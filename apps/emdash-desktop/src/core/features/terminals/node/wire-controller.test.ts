@@ -123,6 +123,102 @@ describe('createTerminalsWireController', () => {
     );
   });
 
+  it('starts terminals with registry shell setup and DB placement tmux', async () => {
+    const terminalRow = {
+      id: 'terminal-1',
+      projectId: identity.projectId,
+      taskId: 'task-1',
+      name: 'Terminal',
+      shellId: 'default',
+      ssh: 0,
+    };
+    const taskRow = {
+      id: 'task-1',
+      projectId: identity.projectId,
+      workspaceId: identity.workspaceId,
+      name: 'Task one',
+    };
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(selecting(terminalRow))
+      .mockReturnValueOnce(selecting(taskRow));
+    const getProjectConfig = vi.fn(async () =>
+      ok({
+        resolved: {
+          preservePatterns: { value: [], from: 'built-in' as const },
+          shellSetup: { value: 'source .workspace-env', from: 'team' as const },
+          autoRunSetup: { value: true, from: 'built-in' as const },
+          autoRunRun: { value: false, from: 'built-in' as const },
+        },
+      })
+    );
+    const resolveTmux = vi.fn(async () => ({
+      value: true,
+      provenance: { kind: 'set' as const },
+    }));
+    const start = vi.fn(async () => ok(undefined));
+    const runtime = {
+      workspaceRegistry: { getProjectConfig },
+      terminals: { start },
+    };
+    const controller = createTerminalsWireController({
+      ...controllerDeps,
+      db: { select } as never,
+      projects: {
+        getProject: vi.fn(() => ({
+          projectId: identity.projectId,
+          repoPath: '/repo',
+          settings: {
+            resolveTmux,
+            getStoredGitSettings: vi.fn(async () => ({
+              defaultBranch: { remote: null, branch: 'main' },
+            })),
+            getPlacementContext: vi.fn(async () => ({
+              hostWorktreeRoot: null,
+              builtInWorktreeRoot: '/tmp/worktrees',
+              homeDirectory: '/tmp',
+              hostTmux: null,
+              appDefaultTmux: false,
+            })),
+          },
+          repoFacts: {
+            get: vi.fn(async () => ({ remotes: [], localBranches: ['main'] })),
+          },
+        })),
+      } as never,
+      runtimes: {
+        client: vi.fn(async () => ok(runtime)),
+      } as unknown as TerminalsRuntimeBroker,
+      workspaceIdentity: { resolve: vi.fn(async () => identity) },
+    });
+
+    await expect(
+      controller.call('hydrate', {
+        projectId: identity.projectId,
+        taskId: taskRow.id,
+        terminalId: terminalRow.id,
+      })
+    ).resolves.toEqual(
+      ok({
+        key: {
+          workspaceId: identity.workspaceId,
+          terminalId: `${identity.projectId}:${taskRow.id}:${terminalRow.id}`,
+        },
+      })
+    );
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spec: expect.objectContaining({
+          shellSetup: 'source .workspace-env',
+          tmux: true,
+          env: expect.objectContaining({ EMDASH_DEFAULT_BRANCH: 'main' }),
+        }),
+      })
+    );
+    expect(getProjectConfig).toHaveBeenCalledWith({ workspaceId: identity.workspaceId });
+    expect(resolveTmux).toHaveBeenCalledOnce();
+  });
+
   it('resolves the output source for the workspace host', async () => {
     const source = liveSource();
     const handle = vi.fn(() => ({ asLiveSource: () => source }));
@@ -160,5 +256,15 @@ function liveSource(): LiveSource {
       data: { baseOffset: 0, text: '', truncated: false },
     }),
     subscribe: () => () => {},
+  };
+}
+
+function selecting<T>(row: T) {
+  return {
+    from: () => ({
+      where: () => ({
+        limit: async () => [row],
+      }),
+    }),
   };
 }

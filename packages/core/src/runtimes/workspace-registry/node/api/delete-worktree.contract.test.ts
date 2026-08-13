@@ -12,7 +12,7 @@ import { scriptsContract } from '#runtimes/scripts/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
-import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
@@ -69,7 +69,6 @@ describe('workspace registry deleteWorktree', () => {
     killedPaths = [];
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
-      readConfig: readWorkspaceScriptsConfig,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({
@@ -111,7 +110,6 @@ describe('workspace registry deleteWorktree', () => {
       baseRef: 'main',
       path: path.join(root, name),
       preservePatterns: [],
-      pushBranch: false,
     });
     if (!result.success) throw new Error(`createWorktree failed: ${JSON.stringify(result.error)}`);
     return result.data;

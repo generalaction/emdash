@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { ManualClock } from '@emdash/shared/testing';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
@@ -11,7 +13,7 @@ import { scriptsContract } from '#runtimes/scripts/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
-import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
@@ -21,6 +23,8 @@ import {
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { createWorkspaceRegistryController } from './controller';
+
+const execFileAsync = promisify(execFile);
 
 // Contract-seam tests for the activation lifecycle (ADR 0005): activate returns at the
 // session-gating point (prepare); setup and run continue in the background and are
@@ -72,7 +76,6 @@ describe('workspace registry activation lifecycle', () => {
     killedPaths = [];
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
-      readConfig: readWorkspaceScriptsConfig,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = createRegistryRuntime();
@@ -101,16 +104,28 @@ describe('workspace registry activation lifecycle', () => {
 
   async function makeWorkspace(
     name: string,
-    scripts: Partial<Record<'prepare' | 'setup' | 'run' | 'teardown', string>>
+    scripts: Partial<Record<'prepare' | 'setup' | 'run' | 'teardown', string>>,
+    shellSetup?: string
   ): Promise<string> {
     const workspacePath = path.join(root, name);
     await fs.mkdir(workspacePath, { recursive: true });
-    await fs.writeFile(path.join(workspacePath, '.emdash.json'), JSON.stringify({ scripts }));
+    await execFileAsync('git', ['init', '--quiet', workspacePath]);
+    await fs.writeFile(
+      path.join(workspacePath, '.emdash.json'),
+      JSON.stringify({ scripts, shellSetup })
+    );
     const created = await wire.client.createWorkspace({
       workspaceId: `ws-${name}`,
       path: workspacePath,
     });
     expect(created.success).toBe(true);
+    if (scripts.run) {
+      const toggled = await wire.client.patchPersonalProjectConfig({
+        workspaceId: `ws-${name}`,
+        patch: { autoRunRun: true },
+      });
+      expect(toggled.success).toBe(true);
+    }
     return workspacePath;
   }
 
@@ -300,21 +315,20 @@ describe('workspace registry activation lifecycle', () => {
     });
   });
 
-  it('a manual run started directly against the scripts runtime lands in the timeline', async () => {
-    const workspacePath = await makeWorkspace('direct', { setup: 'echo direct' });
+  it('a manual run routed through the registry lands in the timeline', async () => {
+    await makeWorkspace('manual', { setup: 'echo manual' });
 
-    const started = await scriptsWire.client.start({
-      workspacePath,
+    const started = await wire.client.runScript({
+      workspaceId: 'ws-manual',
       script: 'setup',
       provenance: 'manual',
-      facts: { workspaceId: 'ws-direct' },
     });
     expect(started.success).toBe(true);
 
     // No activation happened — observation alone mirrors the run into the timeline.
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-direct']?.runtime?.lifecycle).toEqual([
+      expect(records['ws-manual']?.runtime?.lifecycle).toEqual([
         expect.objectContaining({
           id: 'setup',
           status: 'succeeded',
@@ -325,7 +339,11 @@ describe('workspace registry activation lifecycle', () => {
   });
 
   it('runScript brokers a manual run host-side and it lands in the timeline', async () => {
-    const workspacePath = await makeWorkspace('brokered', { setup: 'echo brokered' });
+    const workspacePath = await makeWorkspace(
+      'brokered',
+      { setup: 'printf "$STRICT_EXECUTOR_VALUE" > shell-setup-marker' },
+      'export STRICT_EXECUTOR_VALUE=resolved'
+    );
 
     const started = await wire.client.runScript({
       workspaceId: 'ws-brokered',
@@ -333,6 +351,11 @@ describe('workspace registry activation lifecycle', () => {
       provenance: 'retry',
     });
     expect(started.success).toBe(true);
+    await eventually(async () => {
+      await expect(
+        fs.readFile(path.join(workspacePath, 'shell-setup-marker'), 'utf8')
+      ).resolves.toBe('resolved');
+    });
 
     await eventually(async () => {
       const records = await listRecords();
@@ -348,6 +371,43 @@ describe('workspace registry activation lifecycle', () => {
     // The registry built the request from its record: the run saw record facts.
     const run = await scriptsWire.client.wait({ workspacePath, script: 'setup' });
     expect(run.success && run.data.provenance === 'retry').toBe(true);
+  });
+
+  it('uses one personal config for auto-run toggles and manual Play commands', async () => {
+    const workspacePath = await makeWorkspace('personal-policy', {
+      run: 'echo team > team-marker',
+    });
+    const patched = await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-personal-policy',
+      patch: {
+        scripts: { run: 'echo personal > personal-marker' },
+        autoRunRun: false,
+      },
+    });
+    expect(patched.success).toBe(true);
+
+    expect(
+      (await wire.client.activateWorkspace({ workspaceId: 'ws-personal-policy' })).success
+    ).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expect(fs.stat(path.join(workspacePath, 'personal-marker'))).rejects.toThrow();
+    await expect(fs.stat(path.join(workspacePath, 'team-marker'))).rejects.toThrow();
+
+    expect(
+      (
+        await wire.client.runScript({
+          workspaceId: 'ws-personal-policy',
+          script: 'run',
+          provenance: 'manual',
+        })
+      ).success
+    ).toBe(true);
+    await eventually(async () => {
+      await expect(fs.readFile(path.join(workspacePath, 'personal-marker'), 'utf8')).resolves.toBe(
+        'personal\n'
+      );
+    });
+    await expect(fs.stat(path.join(workspacePath, 'team-marker'))).rejects.toThrow();
   });
 
   it('runScript rejects unknown workspaces and unconfigured scripts', async () => {

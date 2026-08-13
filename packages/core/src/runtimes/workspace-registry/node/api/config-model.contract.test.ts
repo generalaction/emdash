@@ -12,7 +12,7 @@ import { scriptsContract } from '#runtimes/scripts/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { createScriptsController } from '#runtimes/scripts/node/api/controller';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
-import { readWorkspaceScriptsConfig, ScriptsRuntime } from '#runtimes/scripts/node/runtime';
+import { ScriptsRuntime } from '#runtimes/scripts/node/runtime';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
 import { ChildProcessPtySpawner } from '#runtimes/scripts/node/script-test-support';
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
@@ -29,9 +29,7 @@ import { createWorkspaceRegistryController } from './controller';
 // script steps exist on the model (a disk edit without a scan is invisible to the
 // verb), a settled scan picks the edit up, worktrees diverge from their repository,
 // an unparseable file degrades to the empty default plus a notice, and the wire
-// record carries a config summary that vanishes with the workspace. Command text
-// itself resolves in the scripts runtime via the shared lenient reader (spec:
-// activation-scripts-via-terminals), so it is not part of the model's contract.
+// record carries a config summary that vanishes with the workspace.
 
 async function eventually(assertion: () => Promise<void>, timeoutMs = 10_000): Promise<void> {
   const started = Date.now();
@@ -86,7 +84,6 @@ describe('workspace registry config live model', () => {
     clock = new ManualClock(10_000);
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
-      readConfig: readWorkspaceScriptsConfig,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
@@ -120,6 +117,58 @@ describe('workspace registry config live model', () => {
     );
   }
 
+  it('publishes creation with config loaded and resolves without rereading the file', async () => {
+    const workspacePath = path.join(root, 'created');
+    await fs.mkdir(workspacePath, { recursive: true });
+    await writeConfig(workspacePath, { scripts: { run: 'original run' } });
+
+    const created = await wire.client.createWorkspace({
+      workspaceId: 'ws-created',
+      path: workspacePath,
+    });
+    expect(created).toMatchObject({
+      success: true,
+      data: {
+        observedStatus: 'present',
+        config: {
+          scripts: { run: true },
+          parseError: false,
+        },
+      },
+    });
+
+    await writeConfig(workspacePath, { scripts: { run: 'edited run' } });
+    const resolved = await wire.client.getProjectConfig({ workspaceId: 'ws-created' });
+    expect(resolved).toMatchObject({
+      success: true,
+      data: { resolved: { run: { value: 'original run', from: 'team' } } },
+    });
+  });
+
+  it('hydrates persisted present records before boot-time config resolution', async () => {
+    const workspacePath = path.join(root, 'booted');
+    await fs.mkdir(workspacePath, { recursive: true });
+    await writeConfig(workspacePath, { scripts: { setup: 'boot setup' } });
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-booted', path: workspacePath })).success
+    ).toBe(true);
+
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const resolved = await wire.client.getProjectConfig({ workspaceId: 'ws-booted' });
+    expect(resolved).toMatchObject({
+      success: true,
+      data: { resolved: { setup: { value: 'boot setup', from: 'team' } } },
+    });
+    expect((await listRecords())['ws-booted']).toMatchObject({
+      observedStatus: 'present',
+      config: { scripts: { setup: true }, parseError: false },
+    });
+  });
+
   it('activation gates script steps on the model, not the disk; a scan picks edits up', async () => {
     const workspacePath = path.join(root, 'plain');
     await fs.mkdir(workspacePath, { recursive: true });
@@ -147,6 +196,57 @@ describe('workspace registry config live model', () => {
     );
   });
 
+  it('refreshes a known config write before personal fields clear and activation', async () => {
+    const workspacePath = path.join(root, 'shared');
+    await fs.mkdir(workspacePath, { recursive: true });
+    await writeConfig(workspacePath, { scripts: { setup: 'echo A > activation-command' } });
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-shared', path: workspacePath })).success
+    ).toBe(true);
+    expect(
+      (
+        await wire.client.patchPersonalProjectConfig({
+          workspaceId: 'ws-shared',
+          patch: { scripts: { setup: 'echo B > activation-command' } },
+        })
+      ).success
+    ).toBe(true);
+
+    const configs = remote(workspaceRegistryContract.projectConfig, wire.client.projectConfig);
+    const model = configs({ workspaceId: 'ws-shared' });
+    await model.states.current.refresh();
+    expect(snapshot(model.states.current).value?.resolved.setup?.value).toBe(
+      'echo B > activation-command'
+    );
+
+    await writeConfig(workspacePath, { scripts: { setup: 'echo B > activation-command' } });
+    const refreshed = await wire.client.refreshProjectConfig({ workspaceId: 'ws-shared' });
+    expect(refreshed).toMatchObject({
+      success: true,
+      data: { resolved: { setup: { value: 'echo B > activation-command', from: 'personal' } } },
+    });
+    const cleared = await wire.client.patchPersonalProjectConfig({
+      workspaceId: 'ws-shared',
+      patch: { scripts: { setup: null } },
+    });
+    expect(cleared).toMatchObject({
+      success: true,
+      data: { resolved: { setup: { value: 'echo B > activation-command', from: 'team' } } },
+    });
+    expect(snapshot(model.states.current).value?.resolved.setup).toEqual({
+      value: 'echo B > activation-command',
+      from: 'team',
+    });
+
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-shared' })).success).toBe(true);
+    await eventually(async () => {
+      await expect(
+        fs.readFile(path.join(workspacePath, 'activation-command'), 'utf8')
+      ).resolves.toBe('B\n');
+    });
+    await configs.dispose();
+  });
+
   it('a worktree with a divergent config activates with its own scripts', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await writeConfig(repoPath, { scripts: { prepare: 'echo repo >> ../which' } });
@@ -162,7 +262,6 @@ describe('workspace registry config live model', () => {
       branch: 'diverged',
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created.success).toBe(true);
 
@@ -252,7 +351,6 @@ describe('workspace registry config live model', () => {
       branch: 'carried',
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created.success).toBe(true);
     if (!created.success) return;

@@ -5,16 +5,16 @@ import { observer } from 'mobx-react-lite';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type {
   MigrateProjectConfigRequest,
-  MigrateProjectConfigResult,
   ProjectConfigMigration,
-  ProjectSettings,
-  ProjectSettingsOverrideState,
-  ProjectSettingsPage,
-  ProjectSettingsWriteTargetOption,
-  StoredProjectGitSettings,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { Project, UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type {
+  MigrateProjectConfigResult,
+  ProjectSettingsDomainPatch,
+  ProjectSettingsDomains,
+  ProjectSettingsPage,
+} from '../../../api/project-settings-page';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';
@@ -23,15 +23,11 @@ import { useProjectSettingsForm } from './use-project-settings-form';
 export interface ProjectSettingsFormProps {
   projectId: string;
   projectType: Project['type'];
-  initial: ProjectSettings;
-  storedGitSettings: StoredProjectGitSettings;
-  worktreeRootContext: ProjectSettingsPage['worktreeRootContext'];
-  writeTargets: ProjectSettingsWriteTargetOption[];
-  overrideState: ProjectSettingsOverrideState;
+  domains: ProjectSettingsDomains;
   configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
   save: (
-    settings: ProjectSettings
+    patch: ProjectSettingsDomainPatch
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
@@ -46,11 +42,7 @@ const EMPTY_REMOTES: GitRemote[] = [];
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   projectType,
-  initial,
-  storedGitSettings,
-  worktreeRootContext,
-  writeTargets,
-  overrideState,
+  domains,
   configMigrations,
   onSuccess,
   save,
@@ -60,11 +52,8 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   const repo = getGitRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
   const formModel = useProjectSettingsForm({
-    initial,
-    storedGitSettings,
+    domains,
     remotes,
-    writeTargets,
-    overrideState,
     configMigrations,
     onSuccess,
     save,
@@ -81,17 +70,23 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
         <Field.Group>
           <BaseProjectSettingsSection
             projectId={projectId}
-            form={formModel.form}
-            worktreeRootContext={worktreeRootContext}
+            gitIdentityForm={formModel.form.gitIdentity}
+            placementForm={formModel.form.placement}
+            placement={domains.placement}
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
-            update={formModel.update}
+            updateGitIdentity={formModel.updateGitIdentity}
+            updatePlacement={formModel.updatePlacement}
           />
           <ShareableSettingsSection
-            form={formModel.form}
-            update={formModel.update}
+            lifecycleForm={formModel.form.lifecycle}
+            fileHandlingForm={formModel.form.fileHandling}
+            updateLifecycle={formModel.updateLifecycle}
+            updateFileHandling={formModel.updateFileHandling}
             getOverrideSources={formModel.getOverrideSources}
+            lifecycle={domains.lifecycle}
+            fileHandling={domains.fileHandling}
             configMigrations={formModel.configMigrations}
             importDisabled={formModel.importDisabled}
             openImportConfigModal={formModel.openImportConfigModal}

@@ -23,10 +23,12 @@ function makeInputs(overrides: Partial<EffectiveSettingsInputs> = {}): Effective
       localBranches: ['main'],
     },
     accounts: [],
-    worktreeRootContext: {
+    placementContext: {
       hostWorktreeRoot: null,
       builtInWorktreeRoot: '/home/me/emdash/worktrees',
       homeDirectory: '/home/me',
+      hostTmux: null,
+      appDefaultTmux: false,
     },
     ...overrides,
   };

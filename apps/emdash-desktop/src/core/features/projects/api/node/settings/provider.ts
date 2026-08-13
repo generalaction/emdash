@@ -1,12 +1,15 @@
 import type { Result } from '@emdash/shared';
 import type {
-  ProjectSettings,
-  ProjectSettingsPatch,
+  PlacementContext,
+  Resolved,
   StoredProjectGitSettings,
-  WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-export type { ProjectSettingsPatch };
+import type { ProjectSettingsDomainPatch } from '../../project-settings-page';
+
+export type StoredPlacementSettings = {
+  tmux?: boolean;
+};
 
 export interface ProjectSettingsProvider {
   /**
@@ -17,14 +20,17 @@ export interface ProjectSettingsProvider {
    */
   getStoredGitSettings(): Promise<StoredProjectGitSettings>;
   /**
-   * The worktree-root layers below the per-project override (spec §6):
-   * per-host default, built-in root, and the host home directory. The
-   * resolver input for `worktreeRoot`; shipped to the renderer unchanged so
-   * provenance ("host default" vs "built-in default") stays honest.
+   * The host/app placement layers below per-project overrides: worktree-root
+   * defaults plus the host home, and host/app tmux defaults. Shipped to the
+   * renderer unchanged so preview and execution use identical resolver inputs.
    */
-  getWorktreeRootContext(): Promise<WorktreeRootContext>;
-  get(): Promise<ProjectSettings>;
-  update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>>;
-  patch(patch: ProjectSettingsPatch): Promise<Result<void, UpdateProjectSettingsError>>;
+  getPlacementContext(): Promise<PlacementContext>;
+  /** Explicit DB-owned placement settings consumed by execution flows. */
+  getStoredPlacementSettings(): Promise<StoredPlacementSettings>;
+  /** Effective tmux value from the shared project > host > app resolver. */
+  resolveTmux(): Promise<Resolved<boolean>>;
+  patch(
+    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'placement'>
+  ): Promise<Result<void, UpdateProjectSettingsError>>;
   ensure(): Promise<void>;
 }

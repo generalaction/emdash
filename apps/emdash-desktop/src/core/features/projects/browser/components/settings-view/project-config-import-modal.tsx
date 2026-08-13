@@ -7,12 +7,12 @@ import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-butt
 import { defineModal } from '@core/primitives/modals/react';
 import type {
   MigrateProjectConfigRequest,
-  MigrateProjectConfigResult,
   ProjectConfigMigration,
   ProjectConfigMigrationDestination,
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type { MigrateProjectConfigResult } from '../../../api/project-settings-page';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type ImportStatus = 'idle' | 'importing' | 'imported' | 'error';
@@ -141,8 +141,8 @@ export function ProjectConfigImportModal({
               <label className="flex items-center gap-3 rounded-md text-sm">
                 <RadioGroup.Item value="local" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
-                  <p>Settings</p>
-                  <p className="text-foreground-muted">– local to this machine</p>
+                  <p>Personal settings</p>
+                  <p className="text-foreground-muted">– stored only on this machine</p>
                 </span>
               </label>
               <label className="flex items-center gap-3 rounded-md text-sm">

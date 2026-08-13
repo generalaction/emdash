@@ -9,7 +9,7 @@ import {
 } from './background-steps';
 import type { CopyArtifactsOutcome } from './copy-artifacts';
 import { createRegistryGitContext } from './git-context';
-import { withLifecycleStep } from './lifecycle';
+import { getLifecycleStep, withLifecycleStep } from './lifecycle';
 import type { DurableWorkspaceRecord } from './persistence/record-store';
 
 // The step chain in isolation (spec: registry-runtime-carveout, PR 3): fake executors
@@ -19,9 +19,10 @@ import type { DurableWorkspaceRecord } from './persistence/record-store';
 
 function step(
   id: WorkspaceLifecycleStepId,
-  status: WorkspaceLifecycleStep['status']
+  status: WorkspaceLifecycleStep['status'],
+  params: WorkspaceLifecycleStep['params'] = {}
 ): WorkspaceLifecycleStep {
-  return { id, status, startedAt: null, finishedAt: null, params: {} };
+  return { id, status, startedAt: null, finishedAt: null, params };
 }
 
 function worktree(overrides: Partial<DurableWorkspaceRecord> = {}): DurableWorkspaceRecord {
@@ -90,11 +91,13 @@ function harness(
         const record = byId.get(id);
         if (!record) return;
         const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
+        const previous = getLifecycleStep(lifecycle, stepId);
         byId.set(id, {
           ...record,
           lifecycle: withLifecycleStep(lifecycle, {
             ...step(stepId, state.status),
             ...(state.message !== undefined ? { message: state.message } : {}),
+            params: state.params ?? previous?.params ?? {},
           }),
         });
       },
@@ -113,7 +116,11 @@ function harness(
     const record = byId.get(id);
     if (!record) return;
     const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
-    byId.set(id, { ...record, lifecycle: withLifecycleStep(lifecycle, step(stepId, status)) });
+    const previous = getLifecycleStep(lifecycle, stepId);
+    byId.set(id, {
+      ...record,
+      lifecycle: withLifecycleStep(lifecycle, step(stepId, status, previous?.params)),
+    });
   };
   return { runner: new BackgroundStepRunner(deps), stepWrites, clock, setStep };
 }
@@ -216,6 +223,31 @@ describe('BackgroundStepRunner', () => {
     await runner.retry('ws-1', 'copy-artifacts');
     expect(copyCalls).toBe(0);
     expect(stepWrites).toEqual([]);
+  });
+
+  it('replays and retries a push against its durably recorded remote', async () => {
+    const targets: Array<{ branch: string; remote?: string }> = [];
+    const record = worktree({
+      lifecycle: {
+        steps: [step('push-branch', 'pending', { branch: 'feature/x', remote: 'fork' })],
+        preservePatterns: [],
+      },
+    });
+    const { runner, setStep } = harness([repository(), record], {
+      push: async ({ branch, remote }) => {
+        targets.push({ branch, ...(remote !== undefined && { remote }) });
+        return { status: 'succeeded' };
+      },
+    });
+
+    await runner.ensureRunning('ws-1').settled;
+    setStep('ws-1', 'push-branch', 'failed');
+    await runner.retry('ws-1', 'push-branch');
+
+    expect(targets).toEqual([
+      { branch: 'feature/x', remote: 'fork' },
+      { branch: 'feature/x', remote: 'fork' },
+    ]);
   });
 
   it('an activation landing mid-retry coalesces onto the retry single-flight', async () => {

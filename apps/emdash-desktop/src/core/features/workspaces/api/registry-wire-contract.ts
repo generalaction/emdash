@@ -65,7 +65,7 @@ export const workspaceRegistryWireContract = defineContract({
       baseRef: z.string().min(1),
       path: z.string().min(1),
       preservePatterns: z.array(z.string()).optional(),
-      pushBranch: z.boolean().optional(),
+      publish: z.object({ remote: z.string().min(1) }).optional(),
       config: z.custom<WorkspaceConfig>().optional(),
     }),
     data: workspaceRecordSchema,

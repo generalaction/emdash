@@ -42,6 +42,7 @@ import {
 } from '@core/services/runtime-broker/node/git';
 import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
+import { migrateProjectSettingsOnMount } from './settings/migrations/migrate-project-settings-on-mount';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
 import { createRepoFactsCache } from './settings/repo-facts';
@@ -123,28 +124,26 @@ export async function createProvider(
       projectFiles,
       {
         git: gitInspector,
-        // Host settings (per-host defaults) win over the desktop-wide app defaults;
-        // the per-project DB fields stay as overrides on top of both.
-        getProjectDefaults: async () => ({
-          tmuxByDefault:
-            (await hostSettingsDefaults(runtime.data.hostSettings)).tmux ??
-            (await dependencies.getProjectDefaults()).tmuxByDefault,
-        }),
         storage: new ProjectSettingsRepository(dependencies.db),
         getRepoFacts: () => repoFacts.get(),
-        migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
-        // The worktree-root layers below the per-project override (spec §6),
-        // all answered on the project's own host: the host-settings default
-        // and the built-in root under the host home. The retired desktop-wide
-        // default is deliberately absent — a desktop path applied to SSH
-        // hosts was a latent bug.
-        worktreeRootContext: async () => {
-          const homeDirectory = nativePathFromHost((await filesClient.getHomeDir()).path);
+        // Placement layers below per-project overrides, answered on the
+        // project's host. Worktree root uses the host default then its built-in
+        // home-based path; tmux uses the host default then the desktop app
+        // default. The retired desktop-wide worktree path is deliberately
+        // absent — applying a desktop path to SSH hosts was a latent bug.
+        placementContext: async () => {
+          const [home, hostDefaults, appDefaults] = await Promise.all([
+            filesClient.getHomeDir(),
+            hostSettingsDefaults(runtime.data.hostSettings),
+            dependencies.getProjectDefaults(),
+          ]);
+          const homeDirectory = nativePathFromHost(home.path);
           return {
-            hostWorktreeRoot:
-              (await hostSettingsDefaults(runtime.data.hostSettings)).worktreeRoot ?? null,
+            hostWorktreeRoot: hostDefaults.worktreeRoot ?? null,
             builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory),
             homeDirectory,
+            hostTmux: hostDefaults.tmux ?? null,
+            appDefaultTmux: appDefaults.tmuxByDefault,
           };
         },
         worktreeDirectoryFileSystem: {
@@ -167,7 +166,10 @@ export async function createProvider(
         },
       }
     );
-    await settings.ensure({ git: gitInspector });
+    await settings.ensure();
+    await migrateProjectSettingsOnMount(project, settings, runtime.data.workspaceRegistry, {
+      migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
+    });
 
     const repositoryService = dependencies.createGitRepository(git, repository, () =>
       resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
@@ -186,6 +188,7 @@ export async function createProvider(
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
       settings,
+      workspaceRegistry: runtime.data.workspaceRegistry,
       repoFacts,
     };
     const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>

@@ -16,6 +16,8 @@
 - worktree creation is managed by the project provider pattern
 - creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
   the base ref is fetched only when it is not locally resolvable
+- newly created task branches use `git worktree add --no-track`; the selected base ref is a
+  starting point, not the branch's upstream
 - gitignored files named in `preservePatterns` are copied from the repository into the new
   worktree as a durable background step, using copy-on-write (`cp -c` on APFS,
   `--reflink=auto` on Linux) with a plain-copy fallback; nothing is copied without
@@ -24,8 +26,10 @@
   automatically — projects that relied on it must add `preservePatterns` (behavior
   change in workspace-lifecycle-v2; `excludePatterns` was removed at the same time and
   stale keys are silently ignored)
-- branch push and ref freshening also run as durable background steps after activation; a failed
-  push surfaces as a "branch not pushed" task state with a manual retry
+- branch publication carries the resolved project `pushRemote` as an explicit durable target;
+  a successful push establishes that remote's same-named branch as upstream
+- branch publication and ref freshening run as durable background steps; a failed push surfaces
+  as a "branch not pushed" task state with a manual retry
 
 ## `.emdash.json`
 

@@ -158,7 +158,12 @@ export class ViewScopes {
   private readonly instancesByKey = new Map<string, ViewScopeInstance[]>();
   private readonly logicalActive: IObservableValue<ViewScopeInstance | undefined>;
   private readonly focusActive: IObservableValue<ViewScopeInstance | undefined>;
-  private readonly captureOriginPath: IObservableValue<readonly ViewScopeInstance[]>;
+  // Each capturing scope owns the path it replaced so stacked modals cannot
+  // overwrite one another's command-palette discovery context.
+  private readonly captureOriginPaths = new WeakMap<
+    ViewScopeInstance,
+    readonly ViewScopeInstance[]
+  >();
   private readonly activePathValue: IComputedValue<readonly ViewScopeHandle[]>;
   private readonly document: Document | undefined;
 
@@ -166,7 +171,6 @@ export class ViewScopes {
     this.document = document;
     this.logicalActive = observable.box(undefined, { deep: false });
     this.focusActive = observable.box(undefined, { deep: false });
-    this.captureOriginPath = observable.box([], { deep: false });
     this.activePathValue = computed(() => this.computeActivePath());
     this.document?.addEventListener('focusin', this.handleFocusIn);
   }
@@ -218,6 +222,7 @@ export class ViewScopes {
     if (instance?.isDisposed) {
       throw new Error('Cannot activate a disposed view scope');
     }
+    if (instance) this.captureOrigin(instance);
     const focused = this.focusActive.get();
     if (instance && focused && !this.isDescendantOf(focused, instance)) {
       this.focusActive.set(undefined);
@@ -246,9 +251,12 @@ export class ViewScopes {
     command: TCommand,
     options: { readonly fromCaptureOrigin?: boolean } = {}
   ): BoundCommand<TCommand> | undefined {
+    const activeInstance = this.activeScopeInstance();
     const path =
-      options.fromCaptureOrigin && this.activePath[0]?.def.traits.has('capturing')
-        ? this.captureOriginPath.get().filter((instance) => !instance.isDisposed)
+      options.fromCaptureOrigin && activeInstance?.def.traits.has('capturing')
+        ? (this.captureOriginPaths.get(activeInstance) ?? []).filter(
+            (instance) => !instance.isDisposed
+          )
         : this.activePath;
     for (const handle of path) {
       const bound = handle.getCommand(command);
@@ -376,6 +384,12 @@ export class ViewScopes {
     return false;
   }
 
+  private captureOrigin(instance: ViewScopeInstance): void {
+    if (!instance.def.traits.has('capturing')) return;
+    if (this.captureOriginPaths.has(instance) || this.activePath[0] === instance) return;
+    this.captureOriginPaths.set(instance, this.computeActiveInstancePath());
+  }
+
   private activeScopeInstance(): ViewScopeInstance | undefined {
     let current = this.focusActive.get() ?? this.logicalActive.get();
     while (current?.isDisposed) current = current.parent;
@@ -392,9 +406,7 @@ export class ViewScopes {
     const id = element?.getAttribute('data-view-scope');
     const instance = id ? this.instancesById.get(id) : undefined;
     if (!instance) return;
-    if (instance.def.traits.has('capturing') && this.activePath[0] !== instance) {
-      this.captureOriginPath.set(this.computeActiveInstancePath());
-    }
+    this.captureOrigin(instance);
     this.focusActive.set(instance);
   };
 }

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { observe, remote } from '@emdash/wire/state';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { fsWatchContract } from '#services/fs-watch/api';
@@ -39,6 +40,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     // The single script execution plane: activation runs execute here, and the
     // registry observes its run state to write durable script lifecycle steps.
     scripts: requireContract(hostRuntimesDefinitions.scripts),
+    hostSettings: requireContract(hostRuntimesDefinitions.hostSettings),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
@@ -57,7 +59,23 @@ export const workspaceRegistryComponent = defineWireComponent({
       killSessions,
       countSessions: createSessionCounter(sessionClients),
       scripts: dependencies.scripts,
+      getHostSettings: async () => {
+        const result = await dependencies.hostSettings.get();
+        return result.success ? result.data.settings : {};
+      },
     });
+    const hostSettings = remote(
+      hostRuntimesDefinitions.hostSettings.state,
+      dependencies.hostSettings.state,
+      { scope }
+    );
+    observe(
+      hostSettings().states.current,
+      (snapshot) => {
+        if (snapshot.status !== 'loading') runtime.hostSettingsChanged();
+      },
+      { scope }
+    );
     // Sweeps sessions under vanished paths (moved from the retired workspace-host).
     const sessionGc = new WorkspaceSessionGc({
       clients: sessionClients,

@@ -18,7 +18,11 @@ import {
   deactivateWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
   deleteWorktreeInputSchema,
+  getProjectConfigInputSchema,
+  importLegacyLifecycleSettingsInputSchema,
   measureUsageInputSchema,
+  patchPersonalProjectConfigInputSchema,
+  projectConfigStateSchema,
   refreshWorkspacesInputSchema,
   retryStepInputSchema,
   runScriptInputSchema,
@@ -47,6 +51,46 @@ export const workspaceRegistryContract = defineContract({
     states: {
       list: liveState({ data: workspaceRecordsSchema }),
     },
+  }),
+
+  /** Resolved personal, team, host, and built-in config for one workspace. */
+  projectConfig: liveModel({
+    key: getProjectConfigInputSchema,
+    states: {
+      current: liveState({ data: projectConfigStateSchema }),
+    },
+  }),
+
+  /** Resolves one workspace through personal, team, host, and built-in layers. */
+  getProjectConfig: fallible({
+    input: getProjectConfigInputSchema,
+    data: projectConfigStateSchema,
+    error: workspaceNotFoundErrorSchema,
+  }),
+
+  /**
+   * Write-through consistency barrier for a known `.emdash.json` write. Rereads the
+   * exact registered workspace path and publishes the refreshed project-config model
+   * before returning.
+   */
+  refreshProjectConfig: fallible({
+    input: getProjectConfigInputSchema,
+    data: projectConfigStateSchema,
+    error: workspaceNotFoundErrorSchema,
+  }),
+
+  /** Sole write path for repository-owned personal lifecycle settings. */
+  patchPersonalProjectConfig: fallible({
+    input: patchPersonalProjectConfigInputSchema,
+    data: projectConfigStateSchema,
+    error: workspaceNotFoundErrorSchema,
+  }),
+
+  /** One-time, only-if-absent import of legacy desktop lifecycle settings. */
+  importLegacyLifecycleSettings: fallible({
+    input: importLegacyLifecycleSettingsInputSchema,
+    data: projectConfigStateSchema,
+    error: workspaceNotFoundErrorSchema,
   }),
 
   /**
@@ -119,8 +163,9 @@ export const workspaceRegistryContract = defineContract({
 
   /**
    * The sole owner of session-plane shutdown (ADR 0005, superseding ADR 0003): kills
-   * every session under the workspace path, then runs the teardown script time-boxed
-   * and non-fatal — a failed or hanging teardown becomes a notice, never a verb error.
+   * every in-flight lifecycle run, awaits its cancelled settlement, runs teardown
+   * time-boxed and non-fatal, then kills the workspace's remaining sessions. A failed
+   * or hanging teardown becomes a notice, never a verb error.
    * Idempotent on inactive workspaces: teardown runs at most once per activation.
    */
   deactivateWorkspace: fallible({

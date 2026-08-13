@@ -2,10 +2,13 @@ import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toggleThemeCommand } from '@core/features/workbench/contributions/commands';
+import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
 import { ThemeProvider } from '@core/primitives/theme/browser/theme-provider';
+import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from '@renderer/lib/keybindings/keybinding-dispatcher';
 import { ModalRenderer } from '@renderer/lib/modal/modal-renderer';
@@ -88,6 +91,34 @@ describe('Modal Escape routing', () => {
     });
 
     expect(modalStore.isOpen).toBe(false);
+  });
+
+  it('preserves window commands when a fresh modal activates before focus', async () => {
+    const executeTheme = vi.fn();
+    const implementation = Object.fromEntries(
+      windowScope.commands.map((command) => [
+        command.id,
+        () => ({
+          execute: command === toggleThemeCommand ? executeTheme : vi.fn(),
+        }),
+      ])
+    ) as unknown as ViewScopeImpl<typeof windowScope>;
+    const windowInstance = scopes.instantiate(windowScope(), { impl: implementation });
+    scopes.activate(windowInstance);
+
+    try {
+      await act(async () => {
+        void openConfirmModal('Capture origin');
+      });
+      await flushOpen();
+
+      const bound = scopes.getActiveCommand(toggleThemeCommand, { fromCaptureOrigin: true });
+      expect(bound?.availability.kind).toBe('enabled');
+      bound?.execute(undefined, 'palette');
+      expect(executeTheme).toHaveBeenCalledOnce();
+    } finally {
+      windowInstance.dispose();
+    }
   });
 
   it('closes a modal on Escape after clicking inside it (control)', async () => {

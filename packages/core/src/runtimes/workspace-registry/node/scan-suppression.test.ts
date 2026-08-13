@@ -97,7 +97,11 @@ describe('background steps suppress their own scans', () => {
     git(repoPath, 'init', '--initial-branch=main');
     await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\n');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
-    git(repoPath, 'add', '.gitignore');
+    await fs.writeFile(
+      path.join(repoPath, '.emdash.json'),
+      JSON.stringify({ preservePatterns: ['.env'] })
+    );
+    git(repoPath, 'add', '.gitignore', '.emdash.json');
     git(repoPath, 'commit', '-m', 'initial');
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
@@ -113,8 +117,9 @@ describe('background steps suppress their own scans', () => {
       branch: 'feature/suppress',
       baseRef: 'main',
       path: path.join(root, 'suppress-wt'),
-      preservePatterns: ['.env'],
-      pushBranch: true,
+      // Legacy wire field: resolved project config is the source of truth.
+      preservePatterns: [],
+      publish: { remote: 'origin' },
     });
     expect(created.success).toBe(true);
 

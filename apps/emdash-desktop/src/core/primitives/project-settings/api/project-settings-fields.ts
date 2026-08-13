@@ -1,9 +1,18 @@
 import {
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
-  type ProjectSettings,
   type ShareableProjectSettings,
   type ShareableProjectSettingsWriteField,
 } from './project-settings';
+
+export type ShareablePersonalConfigTombstonePatch = {
+  preservePatterns?: null;
+  scripts?: {
+    prepare?: null;
+    setup?: null;
+    run?: null;
+    teardown?: null;
+  };
+};
 
 type ShareableFieldAccessor = {
   path: string[];
@@ -56,7 +65,7 @@ export function hasDefaultPreservePatterns(settings: ShareableProjectSettings): 
   return LEGACY_SEEDED_PRESERVE_PATTERNS.every((pattern) => patternSet.has(pattern));
 }
 
-export function hasConfiguredShareableProjectSettings(settings: ProjectSettings): boolean {
+export function hasConfiguredShareableProjectSettings(settings: ShareableProjectSettings): boolean {
   return SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.some((field) => {
     if (field === 'preservePatterns') {
       const patterns = normalizePatterns(settings.preservePatterns);
@@ -131,11 +140,31 @@ export const SHAREABLE_FIELD_ACCESSORS = {
   },
 } satisfies Record<ShareableProjectSettingsWriteField, ShareableFieldAccessor>;
 
-export function clearShareableProjectSettingsFields<T extends ProjectSettings>(
+export const SHAREABLE_FIELD_TOMBSTONES = {
+  preservePatterns: { preservePatterns: null },
+  'scripts.prepare': { scripts: { prepare: null } },
+  'scripts.setup': { scripts: { setup: null } },
+  'scripts.run': { scripts: { run: null } },
+  'scripts.teardown': { scripts: { teardown: null } },
+} satisfies Record<ShareableProjectSettingsWriteField, ShareablePersonalConfigTombstonePatch>;
+
+export function tombstonePatchFor(
+  fields: ShareableProjectSettingsWriteField[]
+): ShareablePersonalConfigTombstonePatch {
+  const patch: ShareablePersonalConfigTombstonePatch = {};
+  for (const field of fields) {
+    const tombstone = SHAREABLE_FIELD_TOMBSTONES[field];
+    if ('preservePatterns' in tombstone) patch.preservePatterns = null;
+    if ('scripts' in tombstone) patch.scripts = { ...patch.scripts, ...tombstone.scripts };
+  }
+  return patch;
+}
+
+export function clearShareableProjectSettingsFields<T extends ShareableProjectSettings>(
   settings: T,
   fields: ShareableProjectSettingsWriteField[]
 ): T {
-  const next: ProjectSettings = {
+  const next: ShareableProjectSettings = {
     ...settings,
     preservePatterns: settings.preservePatterns ? [...settings.preservePatterns] : undefined,
     scripts: settings.scripts ? { ...settings.scripts } : undefined,

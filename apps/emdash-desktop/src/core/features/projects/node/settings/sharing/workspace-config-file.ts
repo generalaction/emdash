@@ -1,7 +1,5 @@
-import {
-  type ProjectSettings,
-  type ShareableProjectSettingsWriteField,
-} from '@core/primitives/project-settings/api';
+import type { PersonalProjectConfig } from '@emdash/core/runtimes/workspace-registry/api';
+import type { ShareableProjectSettingsWriteField } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import { parseJsonObject } from '../project-settings-json';
 
@@ -25,7 +23,7 @@ function setNested(obj: Record<string, unknown>, path: string[], value: unknown)
 
 export function patchShareableProjectSettingsFields(
   config: Record<string, unknown>,
-  settings: ProjectSettings,
+  settings: PersonalProjectConfig,
   fields: ShareableProjectSettingsWriteField[]
 ): ShareableProjectSettingsWriteField[] {
   const writtenFields: ShareableProjectSettingsWriteField[] = [];

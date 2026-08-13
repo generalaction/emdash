@@ -74,7 +74,7 @@ export function createWorkspaceRegistryWireController(
           baseRef: spec.baseRef,
           path: spec.path,
           preservePatterns: spec.preservePatterns ?? [],
-          pushBranch: spec.pushBranch ?? false,
+          ...(spec.publish !== undefined && { publish: spec.publish }),
         });
         if (result.success) upsertMirrorRow(options.db, host, result.data, config);
         return result;

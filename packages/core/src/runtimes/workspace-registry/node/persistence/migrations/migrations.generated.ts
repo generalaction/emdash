@@ -23,4 +23,11 @@ export const migrations: readonly BundledMigration[] = [
     hash: '703d5c079d88408a94c9530d169c5a8b9bee2d777d05126555f7ac54388c88af',
     sql: 'ALTER TABLE `workspace_records` ADD `background` text;',
   },
+  {
+    idx: 3,
+    tag: '0003_sudden_sage',
+    when: 1786450054262,
+    hash: '723c42b449b0ef31ec8bdac0f12eb23b44678776291f400bfb31bbd754282271',
+    sql: 'ALTER TABLE `workspace_records` ADD `personal_config` text;--> statement-breakpoint\nALTER TABLE `workspace_records` ADD `legacy_desktop_settings_migrated` integer DEFAULT false NOT NULL;',
+  },
 ];

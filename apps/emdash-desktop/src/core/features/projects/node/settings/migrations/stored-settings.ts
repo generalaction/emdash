@@ -2,41 +2,27 @@ import { isDeepEqual } from '@emdash/shared';
 import {
   formatDefaultBranch,
   resolveEffectiveSettings,
+  type BaseProjectSettings,
   type RepoFacts,
+  type StoredBaseProjectSettings,
   type StoredDefaultBranch,
 } from '@core/primitives/project-settings/api';
-import type {
-  BaseProjectSettings,
-  LegacyBaseProjectSettings,
-  StoredBaseProjectSettings,
-} from '@core/primitives/project-settings/api';
-import { compactUndefined } from './project-settings-json';
+import { compactUndefined } from '../project-settings-json';
+import type { LegacyBaseProjectSettings } from './legacy-stored-project-settings';
 
-/**
- * Lazy read-path migrations for stored base project settings
- * (spec: github-git-settings §10). Pure: the provider parses the row with the
- * permissive legacy schema, runs this, and writes the result back when it
- * changed.
- *
- * 1. Legacy `defaultBranch` forms → structured `{ remote, branch }`.
- * 2. Legacy `githubAccountId` strings → `{ kind: 'account', accountId }`;
- *    legacy `null` → absent (infer), not explicit none.
- * 3. Demote-if-matches-inference for `baseRemote`/`defaultBranch` (requires
- *    repo facts; skipped and retried next read when facts are unavailable).
- * 4. `worktreeDirectory` key → `worktreeRoot`.
- *
- * (Migration 5 — the app-wide `defaultWorktreeDirectory` — lives in
- * app-worktree-root-migration.ts; it touches app settings and host settings,
- * not the row.)
- */
 export type StoredSettingsMigrationResult = {
   next: StoredBaseProjectSettings;
   changed: boolean;
 };
 
+/**
+ * Normalizes a historical DB JSON row into the current stored model. Pure: callers
+ * may persist `next` when `changed`, or use it as a tolerant lazy reader.
+ */
 export function migrateStoredBaseProjectSettings(
   raw: LegacyBaseProjectSettings,
-  repoFacts: RepoFacts | null
+  repoFacts: RepoFacts | null,
+  options: { tmuxDefault?: boolean } = {}
 ): StoredSettingsMigrationResult {
   const {
     remote: legacyRemote,
@@ -45,34 +31,32 @@ export function migrateStoredBaseProjectSettings(
     defaultBranch: rawDefaultBranch,
     worktreeRoot,
     githubAccount,
+    autoRunSetupScriptOnTaskCreation: _legacyAutoRunSetup,
+    autoRunRunScriptOnTaskCreation: _legacyAutoRunRun,
     ...rest
   } = raw;
 
   const next: StoredBaseProjectSettings = { ...rest };
 
-  // Migration 4: worktreeDirectory key → worktreeRoot (new key wins if both).
   const migratedWorktreeRoot = worktreeRoot ?? legacyWorktreeDirectory;
   if (migratedWorktreeRoot !== undefined) next.worktreeRoot = migratedWorktreeRoot;
 
-  // Pre-baseRemote `remote` key (normally rewritten by the legacy .emdash.json
-  // migration already, but tolerate rows where it survived).
   if (next.baseRemote === undefined && legacyRemote !== undefined) next.baseRemote = legacyRemote;
 
-  // Migration 2: githubAccountId string → account ref; legacy null → absent
-  // (today's null rows are overwhelmingly never-configured defaults).
   if (githubAccount !== undefined) {
     next.githubAccount = githubAccount;
   } else if (typeof legacyGithubAccountId === 'string') {
     next.githubAccount = { kind: 'account', accountId: legacyGithubAccountId };
   }
 
-  // Migration 1: legacy defaultBranch forms → structured { remote, branch }.
   const migratedDefaultBranch = migrateDefaultBranch(rawDefaultBranch, next.baseRemote, repoFacts);
   if (migratedDefaultBranch !== undefined) next.defaultBranch = migratedDefaultBranch;
 
-  // Migration 3: demote stored values equal to the current inference. Requires
-  // repo facts; without them the values stay pinned and we retry next read.
   if (repoFacts) demoteIfMatchesInference(next, repoFacts);
+  if (options.tmuxDefault !== undefined && next.tmuxDefaultMigrated !== true) {
+    if (next.tmux === options.tmuxDefault) delete next.tmux;
+    next.tmuxDefaultMigrated = true;
+  }
 
   return {
     next,
@@ -80,12 +64,6 @@ export function migrateStoredBaseProjectSettings(
   };
 }
 
-/**
- * Converts a legacy defaultBranch value to the structured stored shape,
- * matching how the legacy runtime interpreted the strings
- * (projectDefaultBranchToBranch): a known-remote prefix wins, then a
- * split-at-first-slash remote guess, then a local branch.
- */
 function migrateDefaultBranch(
   value: LegacyBaseProjectSettings['defaultBranch'],
   storedBaseRemote: string | undefined,
@@ -94,7 +72,6 @@ function migrateDefaultBranch(
   if (value === undefined) return undefined;
   if (typeof value === 'object') {
     if ('branch' in value) return value;
-    // Legacy { name, remote: true }: "branch on the configured base remote".
     return { remote: storedBaseRemote ?? 'origin', branch: value.name };
   }
 
@@ -138,16 +115,6 @@ function demoteIfMatchesInference(next: StoredBaseProjectSettings, repoFacts: Re
   }
 }
 
-// ---------------------------------------------------------------------------
-// Legacy in-memory view
-// ---------------------------------------------------------------------------
-
-/**
- * Maps a stored (or still partially legacy) row to the legacy in-memory
- * `BaseProjectSettings` surface the rest of the app consumes until the
- * resolver adoption lands: qualified-string defaultBranch, `worktreeDirectory`,
- * `githubAccountId` (explicit none → `null`, absent stays absent).
- */
 export function toLegacyBaseSettingsView(
   stored: LegacyBaseProjectSettings | StoredBaseProjectSettings
 ): BaseProjectSettings {
@@ -156,6 +123,7 @@ export function toLegacyBaseSettingsView(
     githubAccount,
     defaultBranch,
     remote: legacyRemote,
+    tmuxDefaultMigrated: _tmuxDefaultMigrated,
     ...rest
   } = stored as LegacyBaseProjectSettings;
   const view: BaseProjectSettings = { ...rest };
@@ -179,14 +147,15 @@ export function toLegacyBaseSettingsView(
   return view;
 }
 
-/**
- * Converts the legacy in-memory `BaseProjectSettings` shape (still produced by
- * update flows) back to the stored model for persistence. `githubAccountId`
- * keeps its legacy write semantics: string → account ref, explicit `null` →
- * explicit none, absent → absent (infer).
- */
 export function legacyBaseSettingsToStored(base: BaseProjectSettings): StoredBaseProjectSettings {
-  const { worktreeDirectory, defaultBranch, githubAccountId, ...rest } = base;
+  const {
+    worktreeDirectory,
+    defaultBranch,
+    githubAccountId,
+    autoRunSetupScriptOnTaskCreation: _legacyAutoRunSetup,
+    autoRunRunScriptOnTaskCreation: _legacyAutoRunRun,
+    ...rest
+  } = base;
   const stored: StoredBaseProjectSettings = { ...rest };
 
   if (worktreeDirectory !== undefined) stored.worktreeRoot = worktreeDirectory;

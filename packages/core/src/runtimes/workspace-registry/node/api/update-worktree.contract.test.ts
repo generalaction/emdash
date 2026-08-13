@@ -95,7 +95,6 @@ describe('workspace registry updateWorktree', () => {
       baseRef: 'main',
       path: path.join(root, name),
       preservePatterns: [],
-      pushBranch: false,
     });
     if (!result.success) throw new Error(`createWorktree failed: ${JSON.stringify(result.error)}`);
     expect(result.data.creation?.gitSetup).toBeUndefined();
@@ -272,6 +271,10 @@ describe('workspace registry updateWorktree', () => {
 
   it('holds the per-worktree writer lock for the whole guarded update — scans wait, never a torn checkout', async () => {
     const worktree = await createWorktree('locked');
+    // createWorktree returns before its background steps finish. This test exercises
+    // only writer-lock behavior, so keep unrelated repository git work out of the ref
+    // update window.
+    await runtime.gitContext.schedule.whenIdle(repoPath, 5_000);
     await commitFile(originPath, 'feature.txt', 'new work\n');
 
     // Park the executor inside its guard section; the writer lock must already be held

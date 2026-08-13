@@ -7,7 +7,16 @@ import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { stableStringify } from '@emdash/shared/util';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { cell, expose, type Cell } from '@emdash/wire/state';
+import {
+  cell,
+  expose,
+  family,
+  pokeChannel,
+  query,
+  type Cell,
+  type Family,
+  type Query,
+} from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
@@ -31,7 +40,11 @@ import type {
   DeactivateWorkspaceInput,
   DeleteWorkspaceInput,
   DeleteWorktreeInput,
+  ImportLegacyLifecycleSettingsInput,
   MeasureUsageInput,
+  GetProjectConfigInput,
+  PatchPersonalProjectConfigInput,
+  ProjectConfigState,
   RefreshWorkspacesInput,
   RetryStepInput,
   RunScriptInput,
@@ -70,6 +83,13 @@ import {
 import { measureWorkspaceUsage } from './measure-usage';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
+import {
+  applyLegacyLifecycleSettingsImport,
+  applyPersonalProjectConfigPatch,
+  collectProjectConfigSources,
+  resolveProjectConfig,
+  type ProjectConfigHostDefaults,
+} from './project-config';
 import { listRepositoryWorktrees, observeWorkspaceGit } from './scan/observe-git';
 import { RegistryScanner, type RegistryScannerDeps, type ScanLanding } from './scan/scanner';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
@@ -117,6 +137,8 @@ export type WorkspaceRegistryRuntimeOptions = {
    * exercise sequencing through a fake runner.
    */
   scripts?: ScriptsClient;
+  /** Host-level resolver layer. Production reads the host-settings runtime. */
+  getHostSettings?: () => Promise<ProjectConfigHostDefaults>;
   activation?: {
     runner?: WorkspaceScriptRunner;
     teardownTimeoutMs?: number;
@@ -145,6 +167,10 @@ export class WorkspaceRegistryRuntime {
   private muteScans: (id: string) => () => void = () => () => undefined;
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
+  private readonly projectConfigPokes = pokeChannel<{ workspaceIds?: readonly string[] }>(
+    'workspace-registry:project-config'
+  );
+  private readonly projectMembershipFingerprints = new Map<string, string>();
   private mutationQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
@@ -164,14 +190,20 @@ export class WorkspaceRegistryRuntime {
     onChanged: (id, entry, previous, workspacePath) =>
       this.onConfigChanged(id, entry, previous, workspacePath),
   });
+  private readonly bootConfigHydration: Promise<void>;
   private disposed = false;
   private readonly killSessions: SessionKiller;
   private readonly countSessions: SessionCounter;
   private readonly activationManager: WorkspaceActivationManager;
   private readonly scriptsClient: ScriptsClient | null;
+  private readonly getHostSettings: () => Promise<ProjectConfigHostDefaults>;
   /** Observation is the single step-writer for script-class lifecycle steps. */
   private readonly scriptRuns: ScriptRunsObserver | null;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
+  private readonly projectConfigs: Family<GetProjectConfigInput, Query<ProjectConfigState>>;
+  readonly projectConfigHost: LeasedLiveModelProvider<
+    typeof workspaceRegistryContract.projectConfig
+  >;
   /** Every registry-spawned git subprocess flows through this context's budget. */
   readonly gitContext: RegistryGitContext;
   /**
@@ -191,6 +223,7 @@ export class WorkspaceRegistryRuntime {
     this.killSessions = options.killSessions ?? (async () => undefined);
     this.countSessions = options.countSessions ?? (async () => 0);
     this.scriptsClient = options.scripts ?? null;
+    this.getHostSettings = options.getHostSettings ?? (async () => ({}));
     this.scriptRuns = options.scripts
       ? new ScriptRunsObserver({
           client: options.scripts,
@@ -276,10 +309,21 @@ export class WorkspaceRegistryRuntime {
           : unavailableScriptRunner()),
       teardownTimeoutMs: options.activation?.teardownTimeoutMs,
       // Scripts come from the config live model — no filesystem read inside the
-      // activation verb. A missing entry (startup race) fills the model once.
-      readScripts: async (id, workspacePath) => {
-        const entry = this.configs.get(id) ?? (await this.refreshConfig(id, workspacePath));
-        return entry.config.scripts ?? {};
+      // activation verb. Boot hydration completes before the model is resolved.
+      resolveLifecycleConfig: async (id) => {
+        await this.bootConfigHydration;
+        const resolved = await this.resolveProjectConfigFor(id);
+        return {
+          scripts: {
+            prepare: resolved?.resolved.prepare?.value,
+            setup: resolved?.resolved.setup?.value,
+            run: resolved?.resolved.run?.value,
+            teardown: resolved?.resolved.teardown?.value,
+          },
+          shellSetup: resolved?.resolved.shellSetup?.value ?? '',
+          autoRunSetup: resolved?.resolved.autoRunSetup.value ?? true,
+          autoRunRun: resolved?.resolved.autoRunRun.value ?? false,
+        };
       },
       // The artifact gate (dependency gating): prepare/setup wait for the background
       // copy to settle; a terminal copy failure opens the gates anyway.
@@ -290,11 +334,49 @@ export class WorkspaceRegistryRuntime {
 
     const initial: WorkspaceRecords = {};
     for (const record of this.store.list()) {
+      if (record.observedStatus === 'present') {
+        this.configs.seed(record.id, { config: {}, parseError: false });
+      }
       initial[record.id] = this.toWire(record);
+    }
+    for (const record of this.store.list()) {
+      const projectRoot = this.projectRootFor(record);
+      if (projectRoot) {
+        this.projectMembershipFingerprints.set(
+          projectRoot.id,
+          this.projectMembershipFingerprint(projectRoot.id)
+        );
+      }
     }
     this.recordsCell = cell<WorkspaceRecords>(initial, { name: 'workspace-records' });
     this.recordsHost = expose(workspaceRegistryContract.records, {
       list: () => this.recordsCell,
+    });
+    this.bootConfigHydration = Promise.resolve().then(() => this.hydrateBootConfigs());
+    this.projectConfigs = family(
+      (key, scope) =>
+        query({
+          fetch: async () => {
+            await this.bootConfigHydration;
+            const state = await this.resolveProjectConfigFor(key.workspaceId);
+            if (!state) throw new Error(`Workspace '${key.workspaceId}' was not found`);
+            return state;
+          },
+          pokes: [
+            this.projectConfigPokes.subscription(
+              (poke) =>
+                poke.workspaceIds === undefined || poke.workspaceIds.includes(key.workspaceId)
+            ),
+          ],
+          scope,
+        }),
+      { key: (key) => key.workspaceId, name: 'project-config' }
+    );
+    this.projectConfigHost = expose(workspaceRegistryContract.projectConfig, {
+      current: (key, scope) => {
+        scope.add(this.projectConfigs.retain(key));
+        return this.projectConfigs(key);
+      },
     });
 
     // The scan plane: the scanner owns the passes; every landing runs here on the
@@ -346,7 +428,6 @@ export class WorkspaceRegistryRuntime {
       if (this.disposed) return;
       for (const record of this.store.list()) {
         if (hasIncompleteBackgroundSteps(record)) this.backgroundSteps.ensureRunning(record.id);
-        if (record.observedStatus === 'present') void this.refreshConfig(record.id, record.path);
         this.settleInterruptedScriptSteps(record);
       }
       this.syncScriptObservers();
@@ -358,6 +439,8 @@ export class WorkspaceRegistryRuntime {
     this.configs.dispose();
     this.scriptRuns?.dispose();
     this.activationManager.dispose();
+    this.projectConfigHost.dispose();
+    void this.projectConfigs.dispose();
     this.recordsHost.dispose();
   }
 
@@ -658,6 +741,83 @@ export class WorkspaceRegistryRuntime {
     return this.executeRefresh(input);
   }
 
+  async getProjectConfig(
+    input: GetProjectConfigInput
+  ): Promise<Result<ProjectConfigState, WorkspaceNotFoundError>> {
+    await this.bootConfigHydration;
+    const state = await this.resolveProjectConfigFor(input.workspaceId);
+    return state ? ok(state) : err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+  }
+
+  async refreshProjectConfig(
+    input: GetProjectConfigInput
+  ): Promise<Result<ProjectConfigState, WorkspaceNotFoundError>> {
+    await this.bootConfigHydration;
+    const projectRootId = await this.enqueue(async () => {
+      const record = this.store.get(input.workspaceId);
+      const projectRoot = record ? this.projectRootFor(record) : null;
+      if (!record || !projectRoot || record.observedStatus !== 'present') return null;
+      await this.refreshConfig(record.id, record.path);
+      return projectRoot.id;
+    });
+    if (!projectRootId) {
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+    }
+    await this.settleProjectConfigsForProjectRoot(projectRootId);
+    const state = await this.resolveProjectConfigFor(input.workspaceId);
+    return state ? ok(state) : err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+  }
+
+  async patchPersonalProjectConfig(
+    input: PatchPersonalProjectConfigInput
+  ): Promise<Result<ProjectConfigState, WorkspaceNotFoundError>> {
+    const projectRootId = await this.enqueue(() => {
+      const record = this.store.get(input.workspaceId);
+      const projectRoot = record ? this.projectRootFor(record) : null;
+      if (!projectRoot) return null;
+      const current = this.store.getPersonalConfig(projectRoot.id);
+      const next = applyPersonalProjectConfigPatch(current, input);
+      this.store.updatePersonalConfig(projectRoot.id, next);
+      this.invalidateProjectConfigForProjectRoot(projectRoot.id);
+      return projectRoot.id;
+    });
+    if (!projectRootId) {
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+    }
+    await this.bootConfigHydration;
+    await this.settleProjectConfigsForProjectRoot(projectRootId);
+    const state = await this.resolveProjectConfigFor(input.workspaceId);
+    return state ? ok(state) : err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+  }
+
+  async importLegacyLifecycleSettings(
+    input: ImportLegacyLifecycleSettingsInput
+  ): Promise<Result<ProjectConfigState, WorkspaceNotFoundError>> {
+    const projectRootId = await this.enqueue(() => {
+      const record = this.store.get(input.workspaceId);
+      const projectRoot = record ? this.projectRootFor(record) : null;
+      if (!projectRoot) return null;
+      if (!this.store.hasMigratedLegacyDesktopSettings(projectRoot.id)) {
+        const current = this.store.getPersonalConfig(projectRoot.id);
+        const next = applyLegacyLifecycleSettingsImport(current, input);
+        this.store.importLegacyLifecycleSettings(projectRoot.id, next);
+        this.invalidateProjectConfigForProjectRoot(projectRoot.id);
+      }
+      return projectRoot.id;
+    });
+    if (!projectRootId) {
+      return err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+    }
+    await this.bootConfigHydration;
+    const state = await this.resolveProjectConfigFor(input.workspaceId);
+    return state ? ok(state) : err({ type: 'workspace-not-found', workspaceId: input.workspaceId });
+  }
+
+  /** Host-settings live-state invalidation entry point used by the worker component. */
+  hostSettingsChanged(): void {
+    this.projectConfigPokes.poke({});
+  }
+
   /**
    * On-demand git-aware disk observation; the path resolves from the registry's own
    * record. Runs off both lanes deliberately — a slow `du` over a large workspace must
@@ -701,10 +861,9 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
-   * Sole owner of session-plane shutdown: kills every session under the workspace path
-   * (even for never-activated workspaces — the delete verbs compose this), then runs
-   * teardown time-boxed and non-fatal when an activation exists. Idempotent: a second
-   * call finds nothing active and no sessions, so teardown runs at most once.
+   * Sole owner of session-plane shutdown: cancels lifecycle runs first, runs teardown
+   * when an activation exists, then kills every remaining session under the workspace
+   * path (including never-activated workspaces). Idempotent: teardown runs at most once.
    */
   deactivateWorkspace(
     input: DeactivateWorkspaceInput
@@ -723,13 +882,16 @@ export class WorkspaceRegistryRuntime {
   private async deactivateLocked(
     record: DurableWorkspaceRecord
   ): Promise<WorkspaceDeactivationResult> {
+    // Stop and await script-plane runs first. Killing their terminal sessions first
+    // can make an intentional Stop look like a failed process exit.
+    const deactivation = await this.activationManager.deactivate(record.id);
     try {
       await this.killSessions(record.path);
     } catch (error) {
       // Best-effort by contract: teardown must still run.
       this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
     }
-    return await this.activationManager.deactivate(record.id);
+    return deactivation;
   }
 
   /**
@@ -819,6 +981,7 @@ export class WorkspaceRegistryRuntime {
   private async createWorkspaceLocked(
     input: CreateWorkspaceInput
   ): Promise<Result<WorkspaceRecord, CreateWorkspaceError>> {
+    await this.bootConfigHydration;
     const canonical = await canonicalizeWorkspacePath(input.path);
     if (canonical === null) {
       return err({ type: 'path-not-found', path: input.path });
@@ -852,7 +1015,7 @@ export class WorkspaceRegistryRuntime {
     let parentId: string | null = null;
     let gitAdminName: string | null = null;
     if (inspection.kind === 'worktree') {
-      parentId = this.ensureRepositoryRegistered(inspection.repositoryPath, now);
+      parentId = await this.ensureRepositoryRegistered(inspection.repositoryPath, now);
       gitAdminName = inspection.gitAdminName;
     }
 
@@ -874,9 +1037,9 @@ export class WorkspaceRegistryRuntime {
       updatedAt: now,
       lastObservedAt: now,
     };
+    await this.refreshConfig(record.id, record.path);
     this.store.insert(record);
     this.publish(record);
-    void this.refreshConfig(record.id, record.path);
     return ok(this.toWire(record));
   }
 
@@ -997,17 +1160,12 @@ export class WorkspaceRegistryRuntime {
     }
 
     // Every settled pipeline writes its lifecycle facts — success and failure alike;
-    // the failed step carries the stage's message for the Activity timeline. Preserve
-    // patterns union the caller's selection with the source repository's `.emdash.json`
-    // entry from the config live model (spec: patterns resolve against the source
-    // checkout); the model lookup only falls back to a read on a boot race.
-    const repository = this.store.get(input.repositoryId);
-    const repositoryEntry =
-      this.configs.get(input.repositoryId) ??
-      (repository ? await this.refreshConfig(input.repositoryId, repository.path) : null);
-    const preservePatterns = [
-      ...new Set([...input.preservePatterns, ...(repositoryEntry?.config.preservePatterns ?? [])]),
-    ];
+    // the failed step carries the stage's message for the Activity timeline. Artifact
+    // patterns use the same personal > team > built-in resolution as the settings UI.
+    // The legacy request field remains wire-compatible but is no longer a config layer.
+    await this.bootConfigHydration;
+    const sourceConfig = await this.resolveProjectConfigFor(input.repositoryId);
+    const preservePatterns = [...(sourceConfig?.resolved.preservePatterns.value ?? [])];
     const lifecycle = buildCreationLifecycle({ ...input, preservePatterns }, result, stages, now);
 
     if (result.status === 'failed') {
@@ -1053,9 +1211,9 @@ export class WorkspaceRegistryRuntime {
       updatedAt: now,
       lastObservedAt: now,
     };
+    await this.refreshConfig(succeeded.id, succeeded.path);
     this.store.update(succeeded);
     this.publish(succeeded);
-    void this.refreshConfig(succeeded.id, succeeded.path);
     return ok(this.toWire(succeeded));
   }
 
@@ -1099,11 +1257,22 @@ export class WorkspaceRegistryRuntime {
       return err({ type: 'spawn-failed', message: 'No scripts runtime is available on this host' });
     }
     const facts = await this.scriptFactsFor(record.path);
+    await this.bootConfigHydration;
+    const resolved = await this.resolveProjectConfigFor(record.id);
+    const command = resolved?.resolved[input.script]?.value;
+    if (!command) {
+      return err({
+        type: 'script-not-configured',
+        message: `No '${input.script}' script is configured for this workspace`,
+      });
+    }
     const started = await this.scriptsClient.start({
       workspacePath: record.path,
       script: input.script,
       provenance: input.provenance,
       facts,
+      command,
+      shellSetup: resolved?.resolved.shellSetup?.value ?? '',
       // Run scripts are dev-server-shaped: no timeout; everything else gets the
       // same 5-minute box activation applies.
       ...(input.script === 'run' ? {} : { timeoutMs: DEFAULT_SCRIPT_TIMEOUT_MS }),
@@ -1268,6 +1437,8 @@ export class WorkspaceRegistryRuntime {
   }
 
   private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {
+    const existing = this.store.get(input.workspaceId);
+    const projectRoot = existing ? this.projectRootFor(existing) : null;
     const deleted = this.store.delete(input.workspaceId);
     if (deleted) {
       this.overlays.delete(input.workspaceId);
@@ -1280,6 +1451,9 @@ export class WorkspaceRegistryRuntime {
       });
       this.syncScriptObservers();
       this.onRecordsChanged?.();
+      if (projectRoot && existing) {
+        this.invalidateProjectConfigForMembershipChange(projectRoot.id, [existing.id]);
+      }
     } else {
       this.logger.debug?.(`delete of absent workspace '${input.workspaceId}' — idempotent no-op`);
     }
@@ -1341,14 +1515,18 @@ export class WorkspaceRegistryRuntime {
   }
 
   /** Adoption landing; false when the id or path got claimed while the scan observed. */
-  private applyAdoption(adopted: DurableWorkspaceRecord): Promise<boolean> {
-    return this.enqueue(() => {
+  private async applyAdoption(adopted: DurableWorkspaceRecord): Promise<boolean> {
+    if (this.store.get(adopted.id) || this.store.getByPath(adopted.path)) return false;
+    await this.refreshConfig(adopted.id, adopted.path);
+    const accepted = await this.enqueue(() => {
       if (this.store.get(adopted.id)) return false;
       if (this.store.getByPath(adopted.path)) return false;
       this.store.insert(adopted);
       this.publish(adopted);
       return true;
     });
+    if (!accepted) this.configs.delete(adopted.id);
+    return accepted;
   }
 
   /** Adopted records follow the disk; registered records survive as 'missing'. Mutation-lane only. */
@@ -1373,6 +1551,110 @@ export class WorkspaceRegistryRuntime {
     return this.configs.refresh(id, workspacePath);
   }
 
+  private async hydrateBootConfigs(): Promise<void> {
+    await Promise.all(
+      this.store
+        .list()
+        .filter((record) => record.observedStatus === 'present')
+        .map(async (record) => {
+          try {
+            await this.refreshConfig(record.id, record.path);
+          } catch (error) {
+            this.logger.warn?.(`boot config hydration for '${record.path}' failed`, { error });
+          }
+        })
+    );
+  }
+
+  private async resolveProjectConfigFor(id: string): Promise<ProjectConfigState | null> {
+    const record = this.store.get(id);
+    if (!record) return null;
+    const repository = this.projectRootFor(record);
+    if (!repository) return null;
+    const projectRecords = this.store
+      .list()
+      .filter(
+        (candidate) => candidate.id === repository.id || candidate.parentId === repository.id
+      );
+    const entry = this.configs.get(record.id);
+    const personalConfig = this.store.getPersonalConfig(repository.id);
+    const resolved = resolveProjectConfig({
+      personalConfig,
+      workspaceConfig: entry?.config ?? {},
+      hostSettings: await this.getHostSettings(),
+    });
+    return {
+      workspaceId: record.id,
+      repositoryId: repository.id,
+      ...resolved,
+      personalConfig,
+      sources: collectProjectConfigSources(projectRecords, this.configs),
+      legacyDesktopSettingsMigrated: this.store.hasMigratedLegacyDesktopSettings(repository.id),
+    };
+  }
+
+  private async settleProjectConfigsForProjectRoot(projectRootId: string): Promise<void> {
+    await Promise.all(
+      this.store
+        .list()
+        .filter((record) => record.id === projectRootId || record.parentId === projectRootId)
+        .map(async (record) => {
+          const query = this.projectConfigs.peekMember({ workspaceId: record.id });
+          if (!query) return;
+          const state = await this.resolveProjectConfigFor(record.id);
+          if (state) query.settle(state);
+        })
+    );
+  }
+
+  private repositoryRecordFor(record: DurableWorkspaceRecord): DurableWorkspaceRecord | null {
+    if (record.kind === 'repository') return record;
+    if (record.kind !== 'worktree' || record.parentId === null) return null;
+    const parent = this.store.get(record.parentId);
+    return parent?.kind === 'repository' ? parent : null;
+  }
+
+  private projectRootFor(record: DurableWorkspaceRecord): DurableWorkspaceRecord | null {
+    if (record.kind === 'directory') return record;
+    return this.repositoryRecordFor(record);
+  }
+
+  private invalidateProjectConfigForProjectRoot(
+    projectRootId: string,
+    additionalWorkspaceIds: readonly string[] = []
+  ): void {
+    const workspaceIds = new Set(additionalWorkspaceIds);
+    for (const record of this.store.list()) {
+      if (record.id === projectRootId || record.parentId === projectRootId) {
+        workspaceIds.add(record.id);
+      }
+    }
+    this.projectConfigPokes.poke({
+      workspaceIds: [...workspaceIds],
+    });
+  }
+
+  private invalidateProjectConfigForMembershipChange(
+    projectRootId: string,
+    additionalWorkspaceIds: readonly string[] = []
+  ): void {
+    const next = this.projectMembershipFingerprint(projectRootId);
+    if (this.projectMembershipFingerprints.get(projectRootId) === next) return;
+    if (next === '[]') this.projectMembershipFingerprints.delete(projectRootId);
+    else this.projectMembershipFingerprints.set(projectRootId, next);
+    this.invalidateProjectConfigForProjectRoot(projectRootId, additionalWorkspaceIds);
+  }
+
+  private projectMembershipFingerprint(projectRootId: string): string {
+    return stableStringify(
+      this.store
+        .list()
+        .filter((record) => record.id === projectRootId || record.parentId === projectRootId)
+        .map((record) => ({ id: record.id, parentId: record.parentId, path: record.path }))
+        .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+    );
+  }
+
   /** Side effects of a config change; cache discipline lives in the shared model. */
   private onConfigChanged(
     id: string,
@@ -1380,6 +1662,7 @@ export class WorkspaceRegistryRuntime {
     previous: WorkspaceConfigEntry | undefined,
     workspacePath: string
   ): void {
+    const record = this.store.get(id);
     if (entry.parseError !== (previous?.parseError ?? false)) {
       this.updateOverlay(id, (overlay) => ({
         ...overlay,
@@ -1397,10 +1680,11 @@ export class WorkspaceRegistryRuntime {
             : []),
         ],
       }));
-    } else {
-      const record = this.store.get(id);
-      if (record) this.publish(record);
+    } else if (record) {
+      this.publish(record);
     }
+    const projectRoot = record ? this.projectRootFor(record) : null;
+    if (projectRoot) this.invalidateProjectConfigForProjectRoot(projectRoot.id);
   }
 
   /** Persists a scan result, stamping observation time and bumping updatedAt on change. */
@@ -1420,7 +1704,7 @@ export class WorkspaceRegistryRuntime {
    * Registering a worktree of an unregistered repository auto-registers the parent as
    * adopted (host-minted id) so `parentId` always resolves.
    */
-  private ensureRepositoryRegistered(repositoryPath: string, now: number): string {
+  private async ensureRepositoryRegistered(repositoryPath: string, now: number): Promise<string> {
     const existing = this.store.getByPath(repositoryPath);
     if (existing) return existing.id;
 
@@ -1442,6 +1726,7 @@ export class WorkspaceRegistryRuntime {
       updatedAt: now,
       lastObservedAt: now,
     };
+    await this.refreshConfig(parent.id, parent.path);
     this.store.insert(parent);
     this.publish(parent);
     return parent.id;
@@ -1456,6 +1741,8 @@ export class WorkspaceRegistryRuntime {
   private publish(record: DurableWorkspaceRecord): void {
     const wire = this.toWire(record);
     this.recordsCell.update((previous) => ({ ...previous, [record.id]: wire }));
+    const projectRoot = this.projectRootFor(record);
+    if (projectRoot) this.invalidateProjectConfigForMembershipChange(projectRoot.id);
     this.syncScriptObservers();
     this.onRecordsChanged?.();
   }

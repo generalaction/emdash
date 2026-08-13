@@ -1,17 +1,4 @@
-/**
- * Migration 5 (spec: github-git-settings §10): the app-wide
- * `localProject.defaultWorktreeDirectory` setting is retired in favor of the
- * per-host default (`worktreeRoot` in the host-settings runtime). An explicit
- * app-wide value is copied once into the *local* host default — only when
- * that is still unset — and the app-wide override is then removed.
- *
- * Runs lazily from the settings provider read path. Throws on host-settings
- * failures so the caller retries on a later read; the app-wide override is
- * only cleared after the copy (or the decision not to copy) succeeded.
- */
-
 export type AppWorktreeRootMigrationDeps = {
-  /** Explicit app-wide override, or undefined when the user never set one. */
   getAppDefaultWorktreeDirectoryOverride(): Promise<string | undefined>;
   clearAppDefaultWorktreeDirectory(): Promise<void>;
   localHostSettings: {
@@ -22,6 +9,10 @@ export type AppWorktreeRootMigrationDeps = {
   };
 };
 
+/**
+ * Moves the retired app-wide worktree directory to the local host default.
+ * Throws before clearing the source when host persistence fails so mount retries.
+ */
 export async function migrateAppWorktreeRootToLocalHostDefault(
   deps: AppWorktreeRootMigrationDeps
 ): Promise<void> {

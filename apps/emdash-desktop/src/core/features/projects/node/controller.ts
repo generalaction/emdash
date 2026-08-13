@@ -2,11 +2,10 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
+import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import type {
   MigrateProjectConfigRequest,
-  ProjectSettings,
-  ProjectSettingsPatch,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { CreateProjectDependencies } from './operations/create-project';
@@ -50,10 +49,8 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     },
     getProjectSettingsPage: (projectId: string) =>
       projectSettings.getProjectSettingsPage(projectId),
-    updateProjectSettings: (projectId: string, settings: ProjectSettings) =>
-      projectSettings.updateProjectSettings(projectId, settings),
-    patchProjectSettings: (projectId: string, patch: ProjectSettingsPatch) =>
-      projectSettings.patchProjectSettings(projectId, patch),
+    updateProjectSettings: (projectId: string, patch: ProjectSettingsDomainPatch) =>
+      projectSettings.updateProjectSettings(projectId, patch),
     shareProjectSettingsToConfig: (projectId: string, request: WriteProjectConfigRequest) =>
       projectSettings.shareProjectSettingsToConfig(projectId, request),
     migrateProjectConfig: (projectId: string, request: MigrateProjectConfigRequest) =>

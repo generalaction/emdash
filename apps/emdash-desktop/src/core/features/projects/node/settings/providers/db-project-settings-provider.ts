@@ -2,41 +2,40 @@ import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type {
-  ProjectSettingsPatch,
   ProjectSettingsProvider,
+  StoredPlacementSettings,
 } from '@core/features/projects/api/node/settings/provider';
+import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import {
-  baseProjectSettingsSchema,
-  legacyBaseProjectSettingsSchema,
-  projectSettingsSchema,
-  type BaseProjectSettings,
-  type ProjectSettings,
+  resolveTmux as resolveEffectiveTmux,
+  type PlacementContext,
   type RepoFacts,
-  type ShareableProjectSettings,
   type StoredBaseProjectSettings,
   type StoredProjectGitSettings,
-  type WorktreeRootContext,
 } from '@core/primitives/project-settings/api';
-import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 import {
-  migrateLegacyProjectSettingsIfNeeded,
+  migrateAncientProjectConfig,
   type ProjectSettingsGitInspector,
-} from '../legacy-project-settings-migration';
-import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
-import { compactUndefined, readJson } from '../project-settings-json';
-import type { ProjectSettingsStorage } from '../project-settings-storage';
-import { CONFIG_FILE } from '../sharing/workspace-config-file';
+} from '../migrations/ancient-project-config';
+import { serializeShareableProjectSettings } from '../migrations/legacy-shareable-marker';
 import {
-  legacyBaseSettingsToStored,
-  migrateStoredBaseProjectSettings,
-  toLegacyBaseSettingsView,
-} from '../stored-settings-migration';
+  hasLegacyLifecycleSettings,
+  legacyBaseProjectSettingsSchema,
+  legacyLifecycleSettingsFromStored,
+  withLegacyLifecycleSettings,
+  type LegacyBaseProjectSettings,
+  type LegacyLifecycleSettings,
+} from '../migrations/legacy-stored-project-settings';
+import type { ProjectSettingsMigrationReader } from '../migrations/migration-reader';
+import { migrateStoredBaseProjectSettings } from '../migrations/stored-settings';
+import { compactUndefined, readJson } from '../project-settings-json';
+import type { ProjectSettingsStorage, StoredProjectSettings } from '../project-settings-storage';
+import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
 export type DbProjectSettingsProviderOptions = {
   git?: ProjectSettingsGitInspector;
-  getProjectDefaults(): Promise<{ tmuxByDefault: boolean }>;
   storage: ProjectSettingsStorage;
   /**
    * Repository facts for the lazy demote-if-matches-inference migration
@@ -44,17 +43,12 @@ export type DbProjectSettingsProviderOptions = {
    * skipped this read and retried on the next one.
    */
   getRepoFacts?: () => Promise<RepoFacts | null>;
-  /**
-   * Migration 5: one-time move of the app-wide defaultWorktreeDirectory into
-   * the local host default. Injected because it needs app settings and the
-   * local host-settings runtime, which this provider must not depend on.
-   */
-  migrateAppWorktreeRoot?: () => Promise<void>;
 };
 
-export abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
-  private legacyMigrationPromise: Promise<void> | undefined;
-  private appWorktreeRootMigrated = false;
+export abstract class DbProjectSettingsProvider
+  implements ProjectSettingsProvider, ProjectSettingsMigrationReader
+{
+  private ancientConfigMigrationPromise: Promise<void> | undefined;
 
   protected constructor(
     private readonly projectId: string,
@@ -66,7 +60,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     private readonly options: DbProjectSettingsProviderOptions
   ) {}
 
-  protected abstract worktreeRootContext(): Promise<WorktreeRootContext>;
+  protected abstract placementContext(): Promise<PlacementContext>;
 
   protected abstract validateWorktreeDirectory(
     worktreeDirectory: string | undefined
@@ -80,11 +74,10 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
    * New rows carry only explicit choices (spec: github-git-settings §10):
    * defaultBranch/baseRemote are no longer seeded — the branch detected at
    * creation survives only as creation provenance (`defaultBranchFallback`).
-   * Only the tmux default is still materialized.
+   * Tmux is also inferred from host/app layers and is no longer materialized.
    */
   protected async initialBaseProjectSettings(): Promise<StoredBaseProjectSettings> {
-    const projectDefaults = await this.options.getProjectDefaults();
-    return { tmux: projectDefaults.tmuxByDefault };
+    return {};
   }
 
   private projectFilePath(relPath: string): string {
@@ -104,40 +97,65 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     });
   }
 
-  private async readSettingsRow(): Promise<{
-    base: BaseProjectSettings;
+  private async readSettingsRow(placementContext?: PlacementContext): Promise<{
     stored: StoredBaseProjectSettings;
-    shareable: ShareableProjectSettings;
-    legacyConfigMigratedAt: string | null;
+    legacyLifecycle: LegacyLifecycleSettings;
   }> {
     await this.ensureRow();
-    await this.migrateLegacyConfigIfNeeded();
-    await this.migrateAppWorktreeRootIfNeeded();
     const row = await this.options.storage.get(this.projectId);
     if (!row) {
       const stored = await this.initialBaseProjectSettings();
       return {
-        base: toLegacyBaseSettingsView(stored),
         stored,
-        shareable: {},
-        legacyConfigMigratedAt: null,
+        legacyLifecycle: {},
       };
     }
-    const raw = readJson(
+    const rawBase = readJson(
       row.baseProjectSettingsJson,
       legacyBaseProjectSettingsSchema,
       'base project settings'
     );
-    const stored = await this.migrateStoredModelIfNeeded(raw);
+    const rawShareable = readJson(
+      row.shareableProjectSettingsJson,
+      emdashConfigSchema,
+      'legacy shareable project settings'
+    );
+    const legacyLifecycle = legacyLifecycleSettingsFromStored(rawBase, rawShareable);
+    const stored = await this.migrateStoredModelIfNeeded(
+      row,
+      rawBase,
+      rawShareable,
+      legacyLifecycle,
+      placementContext
+    );
 
     return {
-      base: toLegacyBaseSettingsView(stored),
       stored,
-      shareable: withoutRetiredShellSetup(
-        readJson(row.shareableProjectSettingsJson, emdashConfigSchema, 'shareable project settings')
-      ),
-      legacyConfigMigratedAt: row.legacyConfigMigratedAt,
+      legacyLifecycle,
     };
+  }
+
+  private legacyLifecycleFromRow(row: StoredProjectSettings): LegacyLifecycleSettings {
+    return legacyLifecycleSettingsFromStored(
+      readJson(
+        row.baseProjectSettingsJson,
+        legacyBaseProjectSettingsSchema,
+        'base project settings'
+      ),
+      readJson(
+        row.shareableProjectSettingsJson,
+        emdashConfigSchema,
+        'legacy shareable project settings'
+      )
+    );
+  }
+
+  private baseJsonForWrite(
+    base: StoredBaseProjectSettings,
+    row: StoredProjectSettings | undefined
+  ): string {
+    const legacyLifecycle = row ? this.legacyLifecycleFromRow(row) : {};
+    return JSON.stringify(compactUndefined(withLegacyLifecycleSettings(base, legacyLifecycle)));
   }
 
   /**
@@ -147,22 +165,71 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
    * on the next read.
    */
   private async migrateStoredModel(
-    raw: ReturnType<typeof legacyBaseProjectSettingsSchema.parse>
+    raw: LegacyBaseProjectSettings,
+    placementContext?: PlacementContext
   ): Promise<{ next: StoredBaseProjectSettings; changed: boolean }> {
     const needsFacts =
       raw.defaultBranch !== undefined || raw.baseRemote !== undefined || raw.remote !== undefined;
-    const repoFacts = needsFacts ? await this.loadRepoFacts() : null;
-    return migrateStoredBaseProjectSettings(raw, repoFacts);
+    const needsTmuxDefault = raw.tmuxDefaultMigrated !== true;
+    const [repoFacts, placement] = await Promise.all([
+      needsFacts ? this.loadRepoFacts() : Promise.resolve(null),
+      needsTmuxDefault
+        ? placementContext
+          ? Promise.resolve(placementContext)
+          : this.placementContext()
+        : Promise.resolve(null),
+    ]);
+    return migrateStoredBaseProjectSettings(raw, repoFacts, {
+      ...(placement
+        ? {
+            tmuxDefault: resolveEffectiveTmux({
+              hostTmux: placement.hostTmux,
+              appDefaultTmux: placement.appDefaultTmux,
+            }).value,
+          }
+        : {}),
+    });
   }
 
   private async migrateStoredModelIfNeeded(
-    raw: ReturnType<typeof legacyBaseProjectSettingsSchema.parse>
+    row: StoredProjectSettings,
+    rawBase: LegacyBaseProjectSettings,
+    rawShareable: ReturnType<typeof emdashConfigSchema.parse>,
+    legacyLifecycle: LegacyLifecycleSettings,
+    placementContext?: PlacementContext
   ): Promise<StoredBaseProjectSettings> {
-    const { next, changed } = await this.migrateStoredModel(raw);
-    if (changed) {
+    const { next, changed: baseChanged } = await this.migrateStoredModel(rawBase, placementContext);
+    if (hasLegacyLifecycleSettings(legacyLifecycle)) {
+      if (baseChanged) {
+        try {
+          await this.options.storage.update(this.projectId, {
+            baseProjectSettingsJson: this.baseJsonForWrite(next, row),
+          });
+        } catch (error) {
+          log.warn('Failed to write back migrated project settings; retrying next read', {
+            projectId: this.projectId,
+            error,
+          });
+        }
+      }
+      return next;
+    }
+
+    const shareableChanged = Object.keys(rawShareable).length > 0;
+    if (baseChanged || shareableChanged) {
       try {
         await this.options.storage.update(this.projectId, {
-          baseProjectSettingsJson: JSON.stringify(compactUndefined(next)),
+          ...(baseChanged
+            ? { baseProjectSettingsJson: JSON.stringify(compactUndefined(next)) }
+            : {}),
+          ...(shareableChanged
+            ? {
+                shareableProjectSettingsJson: serializeShareableProjectSettings(
+                  {},
+                  { previousRaw: row.shareableProjectSettingsJson }
+                ),
+              }
+            : {}),
         });
       } catch (error) {
         log.warn('Failed to write back migrated project settings; retrying next read', {
@@ -187,28 +254,16 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
   }
 
-  private async migrateAppWorktreeRootIfNeeded(): Promise<void> {
-    if (this.appWorktreeRootMigrated || !this.options.migrateAppWorktreeRoot) return;
-    try {
-      await this.options.migrateAppWorktreeRoot();
-      this.appWorktreeRootMigrated = true;
-    } catch (error) {
-      log.warn('App worktree-root migration failed; retrying next read', {
-        projectId: this.projectId,
-        error,
-      });
-    }
-  }
-
-  private async migrateLegacyConfigIfNeeded(git = this.options.git): Promise<void> {
-    if (this.legacyMigrationPromise) {
-      await this.legacyMigrationPromise;
+  async migrateAncientConfig(git = this.options.git): Promise<void> {
+    if (this.ancientConfigMigrationPromise) {
+      await this.ancientConfigMigrationPromise;
       return;
     }
 
-    this.legacyMigrationPromise = (async () => {
+    this.ancientConfigMigrationPromise = (async () => {
+      await this.ensureRow();
       const row = await this.options.storage.get(this.projectId);
-      await migrateLegacyProjectSettingsIfNeeded({
+      await migrateAncientProjectConfig({
         projectId: this.projectId,
         row,
         configFiles: this.configFiles,
@@ -222,21 +277,53 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     })();
 
     try {
-      await this.legacyMigrationPromise;
+      await this.ancientConfigMigrationPromise;
     } catch (error) {
-      this.legacyMigrationPromise = undefined;
+      this.ancientConfigMigrationPromise = undefined;
       throw error;
     }
   }
 
-  async ensure(options: Pick<DbProjectSettingsProviderOptions, 'git'> = {}): Promise<void> {
+  async ensure(): Promise<void> {
     await this.ensureRow();
-    await this.migrateLegacyConfigIfNeeded(options.git);
   }
 
-  async get(): Promise<ProjectSettings> {
-    const { base, shareable } = await this.readSettingsRow();
-    return projectSettingsSchema.parse({ ...base, ...shareable });
+  async readLegacyLifecycleSettings(): Promise<LegacyLifecycleSettings> {
+    return (await this.readSettingsRow()).legacyLifecycle;
+  }
+
+  async finalizeLegacyLifecycleSettings(): Promise<void> {
+    await this.ensureRow();
+    const row = await this.options.storage.get(this.projectId);
+    if (!row) return;
+    const rawBase = readJson(
+      row.baseProjectSettingsJson,
+      legacyBaseProjectSettingsSchema,
+      'base project settings'
+    );
+    const rawShareable = readJson(
+      row.shareableProjectSettingsJson,
+      emdashConfigSchema,
+      'legacy shareable project settings'
+    );
+    const { next: base, changed: baseChanged } = await this.migrateStoredModel(rawBase);
+    const legacyLifecycle = legacyLifecycleSettingsFromStored(rawBase, rawShareable);
+    const shareableChanged = Object.keys(rawShareable).length > 0;
+    if (!baseChanged && !hasLegacyLifecycleSettings(legacyLifecycle) && !shareableChanged) return;
+
+    await this.options.storage.update(this.projectId, {
+      ...(baseChanged || hasLegacyLifecycleSettings(legacyLifecycle)
+        ? { baseProjectSettingsJson: JSON.stringify(compactUndefined(base)) }
+        : {}),
+      ...(shareableChanged
+        ? {
+            shareableProjectSettingsJson: serializeShareableProjectSettings(
+              {},
+              { previousRaw: row.shareableProjectSettingsJson }
+            ),
+          }
+        : {}),
+    });
   }
 
   /**
@@ -251,111 +338,79 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       ...(stored.baseRemote !== undefined ? { baseRemote: stored.baseRemote } : {}),
       ...(stored.pushRemote !== undefined ? { pushRemote: stored.pushRemote } : {}),
       ...(stored.githubAccount !== undefined ? { githubAccount: stored.githubAccount } : {}),
+      ...(stored.agentGitCredentials !== undefined
+        ? { agentGitCredentials: stored.agentGitCredentials }
+        : {}),
       ...(stored.worktreeRoot !== undefined ? { worktreeRoot: stored.worktreeRoot } : {}),
     };
   }
 
-  async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
-    const parsed = projectSettingsSchema.safeParse(settings);
-    if (!parsed.success) {
-      return err({ type: 'invalid-settings' });
-    }
-
-    const nextSettings = parsed.data;
-    const worktreeDirectoryResult = await this.validateWorktreeDirectory(
-      nextSettings.worktreeDirectory
-    );
-    if (!worktreeDirectoryResult.success) {
-      return worktreeDirectoryResult;
-    }
-    nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
-
-    const base = legacyBaseSettingsToStored(baseProjectSettingsSchema.parse(nextSettings));
-    const shareable = withoutRetiredShellSetup(emdashConfigSchema.parse(nextSettings));
-
-    try {
-      await this.ensure();
-      const row = await this.options.storage.get(this.projectId);
-      await this.options.storage.update(this.projectId, {
-        baseProjectSettingsJson: JSON.stringify(compactUndefined(base)),
-        shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
-          previousRaw: row?.shareableProjectSettingsJson,
-        }),
-      });
-      return ok();
-    } catch (error) {
-      log.warn('Failed to update project settings', { error });
-      return err({ type: 'error' });
-    }
+  async getStoredPlacementSettings(): Promise<StoredPlacementSettings> {
+    const { stored } = await this.readSettingsRow();
+    return stored.tmux === undefined ? {} : { tmux: stored.tmux };
   }
 
-  async patch(patch: ProjectSettingsPatch): Promise<Result<void, UpdateProjectSettingsError>> {
+  async patch(
+    patch: Pick<ProjectSettingsDomainPatch, 'gitIdentity' | 'placement'>
+  ): Promise<Result<void, UpdateProjectSettingsError>> {
     try {
-      await this.ensure();
-      const row = await this.options.storage.get(this.projectId);
-      const base = row
-        ? (
-            await this.migrateStoredModel(
-              readJson(
-                row.baseProjectSettingsJson,
-                legacyBaseProjectSettingsSchema,
-                'base project settings'
-              )
-            )
-          ).next
-        : await this.initialBaseProjectSettings();
-      const shareable = row
-        ? withoutRetiredShellSetup(
-            readJson(
-              row.shareableProjectSettingsJson,
-              emdashConfigSchema,
-              'shareable project settings'
-            )
-          )
-        : {};
-
-      for (const field of patch.clearShareableFields ?? []) {
-        SHAREABLE_FIELD_ACCESSORS[field].clear(shareable);
-      }
-
-      const nextBase: StoredBaseProjectSettings = { ...base };
-      if (Object.hasOwn(patch, 'githubAccountId')) {
-        if (patch.githubAccountId === undefined) {
-          delete nextBase.githubAccount;
-        } else {
-          nextBase.githubAccount =
-            patch.githubAccountId === null
-              ? { kind: 'none' }
-              : { kind: 'account', accountId: patch.githubAccountId };
+      const { stored } = await this.readSettingsRow();
+      const next: StoredBaseProjectSettings = { ...stored };
+      const git = patch.gitIdentity?.stored;
+      if (git) {
+        for (const field of [
+          'defaultBranch',
+          'baseRemote',
+          'pushRemote',
+          'githubAccount',
+          'agentGitCredentials',
+        ] as const) {
+          if (!Object.hasOwn(git, field)) continue;
+          const value = git[field];
+          if (value === null || value === undefined) {
+            delete next[field];
+          } else {
+            next[field] = value as never;
+          }
         }
       }
 
+      const placement = patch.placement?.stored;
+      if (placement && Object.hasOwn(placement, 'worktreeRoot')) {
+        const worktreeRoot = placement.worktreeRoot ?? undefined;
+        const validated = await this.validateWorktreeDirectory(worktreeRoot);
+        if (!validated.success) return validated;
+        if (validated.data === undefined) delete next.worktreeRoot;
+        else next.worktreeRoot = validated.data;
+      }
+      if (placement && Object.hasOwn(placement, 'tmux')) {
+        if (placement.tmux === null || placement.tmux === undefined) delete next.tmux;
+        else next.tmux = placement.tmux;
+      }
+
+      await this.ensure();
+      const row = await this.options.storage.get(this.projectId);
       await this.options.storage.update(this.projectId, {
-        baseProjectSettingsJson: JSON.stringify(compactUndefined(nextBase)),
-        shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
-          previousRaw: row?.shareableProjectSettingsJson,
-        }),
+        baseProjectSettingsJson: this.baseJsonForWrite(next, row),
       });
       return ok();
     } catch (error) {
-      log.warn('Failed to clear shareable project settings', { error });
+      log.warn('Failed to patch project settings domains', { error });
       return err({ type: 'error' });
     }
   }
 
-  async getWorktreeRootContext(): Promise<WorktreeRootContext> {
-    return this.worktreeRootContext();
+  async getPlacementContext(): Promise<PlacementContext> {
+    return this.placementContext();
   }
-}
 
-/**
- * shellSetup was retired from project settings (spec: activation-scripts-via-terminals):
- * the host-settings runtime owns the per-host default and workspace `.emdash.json`
- * overrides it. Stored DB values are ignored on read and dropped on the next write —
- * a deliberate breaking change with no migration.
- */
-function withoutRetiredShellSetup(shareable: ShareableProjectSettings): ShareableProjectSettings {
-  if (shareable.shellSetup === undefined) return shareable;
-  const { shellSetup: _retired, ...rest } = shareable;
-  return rest;
+  async resolveTmux() {
+    const placement = await this.placementContext();
+    const { stored } = await this.readSettingsRow(placement);
+    return resolveEffectiveTmux({
+      projectTmux: stored.tmux,
+      hostTmux: placement.hostTmux,
+      appDefaultTmux: placement.appDefaultTmux,
+    });
+  }
 }

@@ -18,6 +18,7 @@ import {
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import {
@@ -91,20 +92,28 @@ export async function prepareCreateTask(
   let registryCreate: RegistryWorktreeSpec | undefined;
 
   const wsTarget = workspaceConfig.workspace;
-  // The full worktree git plan (branch, baseRef?, pushBranch, gitSetup?), compiled once
+  // The full worktree git plan (branch, baseRef?, publish, gitSetup?), compiled once
   // desktop-side; PR presets carry their fetch/upstream/breadcrumb instructions here.
-  // The base remote comes from the blessed resolver (spec: github-git-settings §2);
-  // PR-sourced plans need one and refuse when the repository has no remotes.
+  // Base and push remotes come from one blessed-resolver snapshot (spec:
+  // github-git-settings §2); plans refuse any requested operation whose target
+  // remote cannot be resolved.
   let gitPlan: WorktreeGitPlan | undefined;
   if (workspaceConfig.git.kind !== 'none') {
-    const baseRemote = await project.gitRepository.getBaseRemote();
+    const { baseRemote, pushRemote } = await project.gitRepository.getEffectiveRemotes();
     if (baseRemote === null && workspaceConfig.git.kind === 'pr-branch') {
       return err({
         type: 'provision-failed',
         message: 'The repository has no git remotes, so a pull request cannot be checked out.',
       });
     }
-    gitPlan = compileWorktreeGitPlan(workspaceConfig.git, { baseRemote });
+    try {
+      gitPlan = compileWorktreeGitPlan(workspaceConfig.git, { baseRemote, pushRemote });
+    } catch (error) {
+      return err({
+        type: 'provision-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   const branchName = gitPlan?.branch;
   // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
@@ -153,6 +162,21 @@ export async function prepareCreateTask(
       .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
       .limit(1);
 
+    const repositoryWorkspaceId = projectRow?.repositoryWorkspaceId;
+    if (!repositoryWorkspaceId) {
+      return err({
+        type: 'provision-failed',
+        message: 'The project repository workspace was not found.',
+      });
+    }
+    const preservePatterns = await resolveProjectPreservePatterns(project, repositoryWorkspaceId);
+    if (preservePatterns === null) {
+      return err({
+        type: 'provision-failed',
+        message: 'The project configuration could not be resolved.',
+      });
+    }
+
     const isRemote = project.host.type === 'remote';
     const location = isRemote ? 'remote' : 'local';
     const sshConnectionId = isRemote ? project.host.id : null;
@@ -171,12 +195,11 @@ export async function prepareCreateTask(
         message: root.error.message,
       });
     }
-    const settings = await project.settings.get();
     const compiled = compileWorktreePayload({
       repoPath: project.repoPath,
       worktreeRoot: root.data,
       branchName,
-      preservePatterns: settings.preservePatterns,
+      preservePatterns,
     });
     const registry = createWorkspaceRegistry(db);
     const allocated = allocateRegistryPath(
@@ -195,7 +218,7 @@ export async function prepareCreateTask(
       kind: 'worktree',
       location,
       sshConnectionId,
-      parentId: projectRow?.repositoryWorkspaceId ?? null,
+      parentId: repositoryWorkspaceId,
       type: legacyType,
       origin: 'registered',
       config: workspaceConfig,
@@ -203,14 +226,14 @@ export async function prepareCreateTask(
     };
     registryCreate = {
       host: project.host,
-      repositoryWorkspaceId: projectRow?.repositoryWorkspaceId ?? null,
+      repositoryWorkspaceId,
       repositoryPath: project.repoPath,
       workspaceId,
       branch: gitPlan.branch,
       ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
       path: workspacePath,
       preservePatterns: compiled.preservePatterns,
-      pushBranch: gitPlan.pushBranch,
+      ...(gitPlan.publish !== undefined && { publish: gitPlan.publish }),
       ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
     };
   }
@@ -283,6 +306,16 @@ export async function prepareCreateTask(
     convInsert,
     hostConversationInput,
   });
+}
+
+export async function resolveProjectPreservePatterns(
+  project: Pick<ProjectProvider, 'workspaceRegistry'>,
+  repositoryWorkspaceId: string
+): Promise<string[] | null> {
+  const config = await project.workspaceRegistry.getProjectConfig({
+    workspaceId: repositoryWorkspaceId,
+  });
+  return config.success ? config.data.resolved.preservePatterns.value : null;
 }
 
 /**

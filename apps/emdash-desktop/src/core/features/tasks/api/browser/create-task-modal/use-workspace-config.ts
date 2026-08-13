@@ -310,9 +310,9 @@ export function useWorkspaceConfig(opts: {
 
   // ── Setup steps ───────────────────────────────────────────────────────────
 
-  // Same source as execution: `createTask` reads the project settings' preservePatterns.
+  // Same registry resolution as execution; the input remains the raw personal layer in settings.
   const preservePatterns = projectId
-    ? getProjectSettingsStore(projectId)?.settings?.preservePatterns
+    ? getProjectSettingsStore(projectId)?.domains?.fileHandling.resolved.preservePatterns.value
     : undefined;
   const setupSteps = useMemo((): WorktreeSetupStep[] => {
     // One compiler for preview and execution: the same `compileWorktreeGitPlan` call
@@ -324,13 +324,14 @@ export function useWorkspaceConfig(opts: {
     if (resolvedConfig.workspace.kind === 'repository-instance' || git.kind === 'none') return [];
     const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
     const baseRemote = repo?.baseRemote?.name ?? null;
+    const pushRemote = repo?.pushRemote?.name ?? null;
     let plan;
     try {
-      plan = compileWorktreeGitPlan(git, { baseRemote });
+      plan = compileWorktreeGitPlan(git, { baseRemote, pushRemote });
     } catch {
-      // PR-sourced plans need a base remote; node-side createTask refuses in
-      // the same case, so the preview shows no steps instead of a plan that
-      // execution would reject.
+      // PR-sourced plans need a base remote and publication needs a push remote;
+      // node-side createTask refuses the same cases, so the preview shows no
+      // steps instead of a plan that execution would reject.
       return [];
     }
     if (plan.branch.trim() === '') return [];

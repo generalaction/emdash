@@ -9,7 +9,7 @@ const input: CreateWorktreeInput = {
   baseRef: 'origin/main',
   path: '/tmp/wt',
   preservePatterns: ['.env'],
-  pushBranch: true,
+  publish: { remote: 'fork' },
 };
 
 describe('buildCreationLifecycle', () => {
@@ -48,7 +48,7 @@ describe('buildCreationLifecycle', () => {
         status: 'pending',
         startedAt: null,
         finishedAt: null,
-        params: { branch: 'feature/x' },
+        params: { branch: 'feature/x', remote: 'fork' },
       },
       {
         id: 'fetch-refs',
@@ -62,7 +62,7 @@ describe('buildCreationLifecycle', () => {
 
   it('a locally-resolvable base yields no fetch-remote-base step', () => {
     const lifecycle = buildCreationLifecycle(
-      { ...input, pushBranch: false },
+      { ...input, publish: undefined },
       { status: 'succeeded', finalPath: '/tmp/wt', createdWorktree: true, createdBranch: false },
       [
         { stage: 'inspect', at: 100 },
@@ -81,7 +81,7 @@ describe('buildCreationLifecycle', () => {
 
   it('no preservePatterns yields no copy-artifacts step at all', () => {
     const lifecycle = buildCreationLifecycle(
-      { ...input, preservePatterns: [], pushBranch: false },
+      { ...input, preservePatterns: [], publish: undefined },
       { status: 'succeeded', finalPath: '/tmp/wt', createdWorktree: true, createdBranch: true },
       [
         { stage: 'inspect', at: 100 },
@@ -95,7 +95,7 @@ describe('buildCreationLifecycle', () => {
 
   it('adopting an existing worktree yields adopt-worktree and no copy-artifacts', () => {
     const lifecycle = buildCreationLifecycle(
-      { ...input, pushBranch: false },
+      { ...input, publish: undefined },
       { status: 'succeeded', finalPath: '/tmp/wt', createdWorktree: false, createdBranch: false },
       [
         { stage: 'inspect', at: 100 },
@@ -172,7 +172,6 @@ describe('buildCreationLifecycle with gitSetup', () => {
     branch: 'pr/7/fix',
     path: '/tmp/pr-wt',
     preservePatterns: [],
-    pushBranch: false,
     gitSetup: {
       fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/7/head' },
       upstream: { remote: 'origin', mergeRef: 'refs/pull/7/head' },
@@ -333,7 +332,7 @@ describe('buildCreationLifecycle with gitSetup', () => {
 describe('withLifecycleStep', () => {
   it('inserts new steps in canonical order and replaces existing ones in place', () => {
     const base = buildCreationLifecycle(
-      { ...input, pushBranch: false },
+      { ...input, publish: undefined },
       { status: 'succeeded', finalPath: '/tmp/wt', createdWorktree: true, createdBranch: true },
       [{ stage: 'inspect', at: 100 }],
       200

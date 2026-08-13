@@ -3,11 +3,19 @@ import { Fragment } from 'react';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import type {
   ProjectConfigMigration,
-  ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
+import type {
+  ProjectFileHandlingDomainSnapshot,
+  ProjectLifecycleDomainSnapshot,
+} from '../../../../api/project-settings-page';
 import { ConfigMigrationNotice } from '../config-migration-notice';
-import type { FormState, FormUpdate } from '../project-settings-form-model';
+import {
+  effectiveAutoRunToggleValue,
+  type FileHandlingFormState,
+  type FormUpdate,
+  type LifecycleFormState,
+} from '../project-settings-form-model';
 import {
   SHAREABLE_FIELD_DESCRIPTORS,
   type ShareableFieldDescriptor,
@@ -15,14 +23,18 @@ import {
 import { ShareableSettingTitle } from '../shareable-setting-title';
 
 type ShareableSettingsSectionProps = {
-  form: FormState;
-  update: FormUpdate;
+  lifecycleForm: LifecycleFormState;
+  fileHandlingForm: FileHandlingFormState;
+  updateLifecycle: FormUpdate<LifecycleFormState>;
+  updateFileHandling: FormUpdate<FileHandlingFormState>;
   getOverrideSources: (
     field: ShareableProjectSettingsWriteField
-  ) => ProjectSettingsOverrideState[ShareableProjectSettingsWriteField];
+  ) => { label: string; path: string; value: string }[];
   configMigrations: ProjectConfigMigration[];
   importDisabled: boolean;
   openImportConfigModal: () => void;
+  lifecycle: ProjectLifecycleDomainSnapshot;
+  fileHandling: ProjectFileHandlingDomainSnapshot;
 };
 
 function titleCase(value: string): string {
@@ -31,14 +43,16 @@ function titleCase(value: string): string {
 
 function ShareableField({
   descriptor,
-  form,
-  update,
+  value,
+  isPersonal,
+  onChange,
   getOverrideSources,
   beforeInput,
 }: {
   descriptor: ShareableFieldDescriptor;
-  form: FormState;
-  update: FormUpdate;
+  value: string;
+  isPersonal: boolean;
+  onChange: (value: string) => void;
   getOverrideSources: ShareableSettingsSectionProps['getOverrideSources'];
   beforeInput?: React.ReactNode;
 }) {
@@ -47,7 +61,8 @@ function ShareableField({
       <ShareableSettingTitle
         leafLabel={descriptor.leafLabel}
         overrideSources={getOverrideSources(descriptor.id)}
-        onRestore={() => update(descriptor.formKey, '')}
+        isPersonal={isPersonal}
+        onRestore={() => onChange('')}
       >
         {descriptor.group ? titleCase(descriptor.leafLabel) : descriptor.modalLabel}
       </ShareableSettingTitle>
@@ -61,14 +76,14 @@ function ShareableField({
         <Textarea
           rows={descriptor.id === 'preservePatterns' ? 5 : 3}
           placeholder={descriptor.placeholder}
-          value={form[descriptor.formKey]}
-          onChange={(e) => update(descriptor.formKey, e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
         />
       ) : (
         <Input
           placeholder={descriptor.placeholder}
-          value={form[descriptor.formKey]}
-          onChange={(e) => update(descriptor.formKey, e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
         />
       )}
     </Field.Root>
@@ -77,33 +92,77 @@ function ShareableField({
 
 function AutoRunToggle({
   label,
-  checked,
+  value,
+  resolved,
   onCheckedChange,
+  onReset,
 }: {
   label: string;
-  checked: boolean;
+  value: boolean | undefined;
+  resolved: {
+    value: boolean;
+    from: ProjectLifecycleDomainSnapshot['resolved']['autoRunSetup']['from'];
+  };
   onCheckedChange: (checked: boolean) => void;
+  onReset: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-3">
       <span className="text-sm text-foreground-muted">{label}</span>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <div className="flex items-center gap-2">
+        {value !== undefined ? (
+          <Button type="button" variant="ghost" size="xs" onClick={onReset}>
+            Reset
+          </Button>
+        ) : null}
+        <Switch
+          checked={effectiveAutoRunToggleValue(value, resolved.value)}
+          onCheckedChange={onCheckedChange}
+        />
+      </div>
     </div>
   );
 }
 
 export function ShareableSettingsSection({
-  form,
-  update,
+  lifecycleForm,
+  fileHandlingForm,
+  updateLifecycle,
+  updateFileHandling,
   getOverrideSources,
   configMigrations,
   importDisabled,
   openImportConfigModal,
+  lifecycle,
+  fileHandling,
 }: ShareableSettingsSectionProps) {
   const topLevelFields = SHAREABLE_FIELD_DESCRIPTORS.filter((descriptor) => !descriptor.group);
   const lifecycleFields = SHAREABLE_FIELD_DESCRIPTORS.filter(
     (descriptor) => descriptor.group === 'lifecycle'
   );
+  const valueFor = (descriptor: ShareableFieldDescriptor): string =>
+    descriptor.id === 'preservePatterns'
+      ? fileHandlingForm.preservePatterns
+      : (lifecycleForm[descriptor.formKey as keyof LifecycleFormState] as string);
+  const updateField = (descriptor: ShareableFieldDescriptor, value: string): void => {
+    if (descriptor.id === 'preservePatterns') {
+      updateFileHandling('preservePatterns', value);
+      return;
+    }
+    updateLifecycle(descriptor.formKey as keyof LifecycleFormState, value);
+  };
+  const hasPersonalValue = (descriptor: ShareableFieldDescriptor): boolean => {
+    if (valueFor(descriptor).trim()) return true;
+    if (descriptor.id === 'preservePatterns') {
+      return fileHandling.personal.preservePatterns !== undefined;
+    }
+    const script = descriptor.id.slice('scripts.'.length) as
+      | 'prepare'
+      | 'setup'
+      | 'run'
+      | 'teardown';
+    return lifecycle.personal.scripts?.[script] !== undefined;
+  };
 
   return (
     <>
@@ -114,8 +173,9 @@ export function ShareableSettingsSection({
           {index > 0 ? <Separator /> : null}
           <ShareableField
             descriptor={descriptor}
-            form={form}
-            update={update}
+            value={valueFor(descriptor)}
+            isPersonal={hasPersonalValue(descriptor)}
+            onChange={(value) => updateField(descriptor, value)}
             getOverrideSources={getOverrideSources}
           />
         </Fragment>
@@ -153,21 +213,30 @@ export function ShareableSettingsSection({
           <ShareableField
             key={descriptor.id}
             descriptor={descriptor}
-            form={form}
-            update={update}
+            value={valueFor(descriptor)}
+            isPersonal={hasPersonalValue(descriptor)}
+            onChange={(value) => updateField(descriptor, value)}
             getOverrideSources={getOverrideSources}
             beforeInput={
               descriptor.id === 'scripts.setup' ? (
                 <AutoRunToggle
                   label="Auto-run on task creation"
-                  checked={form.autoRunSetupScriptOnTaskCreation}
-                  onCheckedChange={(checked) => update('autoRunSetupScriptOnTaskCreation', checked)}
+                  value={lifecycleForm.autoRunSetupScriptOnTaskCreation}
+                  resolved={lifecycle.resolved.autoRunSetup}
+                  onCheckedChange={(checked) =>
+                    updateLifecycle('autoRunSetupScriptOnTaskCreation', checked)
+                  }
+                  onReset={() => updateLifecycle('autoRunSetupScriptOnTaskCreation', undefined)}
                 />
               ) : descriptor.id === 'scripts.run' ? (
                 <AutoRunToggle
                   label="Auto-run on task creation"
-                  checked={form.autoRunRunScriptOnTaskCreation}
-                  onCheckedChange={(checked) => update('autoRunRunScriptOnTaskCreation', checked)}
+                  value={lifecycleForm.autoRunRunScriptOnTaskCreation}
+                  resolved={lifecycle.resolved.autoRunRun}
+                  onCheckedChange={(checked) =>
+                    updateLifecycle('autoRunRunScriptOnTaskCreation', checked)
+                  }
+                  onReset={() => updateLifecycle('autoRunRunScriptOnTaskCreation', undefined)}
                 />
               ) : undefined
             }

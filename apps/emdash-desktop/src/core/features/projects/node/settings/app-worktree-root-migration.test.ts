@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   migrateAppWorktreeRootToLocalHostDefault,
   type AppWorktreeRootMigrationDeps,
-} from './app-worktree-root-migration';
+} from './migrations/app-worktree-root';
 
 function makeDeps(overrides: {
   override?: string;

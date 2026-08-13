@@ -110,7 +110,6 @@ describe('workspace registry git context composition', () => {
       baseRef: 'main',
       path: worktreePath,
       preservePatterns: [],
-      pushBranch: false,
     });
 
     // The creation-tier pipeline overflows into headroom: the worktree materializes on

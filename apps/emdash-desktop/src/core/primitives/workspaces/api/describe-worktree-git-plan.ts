@@ -67,8 +67,10 @@ export function describeWorktreeGitPlan(
     steps.push(step('copy-artifacts', 'Copy preserved project files into the worktree'));
   }
 
-  if (plan.pushBranch) {
-    steps.push(step('push-branch', `Push ${plan.branch} to the remote and set upstream tracking`));
+  if (plan.publish) {
+    steps.push(
+      step('push-branch', `Push ${plan.branch} to ${plan.publish.remote} and set upstream tracking`)
+    );
   }
 
   return steps;
