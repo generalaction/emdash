@@ -5,7 +5,13 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { PALETTE_PROVIDER_CATALOG } from '@core/manifests/browser/palette-provider-catalog';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { defineModal } from '@core/primitives/modals/react';
-import { PaletteController, type PaletteResult } from '@core/primitives/palette/api';
+import {
+  PaletteController,
+  type PaletteContext,
+  type PaletteProviderCatalog,
+  type PaletteProviderDef,
+  type PaletteResult,
+} from '@core/primitives/palette/api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -20,17 +26,26 @@ interface InputChrome {
   readonly keyword?: string;
 }
 
+interface CommandPaletteViewProps {
+  readonly context: PaletteContext;
+  readonly providerCatalog: PaletteProviderCatalog<readonly PaletteProviderDef[]>;
+  readonly onClose: () => void;
+}
+
 const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5',
   '[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium',
   '[&_[cmdk-group-heading]]:text-foreground/50'
 );
 
-function getInputChrome(input: string): InputChrome {
+function getInputChrome(
+  input: string,
+  providerCatalog: PaletteProviderCatalog<readonly PaletteProviderDef[]>
+): InputChrome {
   const trimmed = input.trimStart();
   const separator = trimmed.search(/\s/);
   const token = separator === -1 ? trimmed : trimmed.slice(0, separator);
-  const provider = PALETTE_PROVIDER_CATALOG.byKeyword(token);
+  const provider = providerCatalog.byKeyword(token);
   if (!provider) return { value: input };
   return {
     value: separator === -1 ? '' : trimmed.slice(separator).trimStart(),
@@ -82,20 +97,27 @@ function PaletteResults({
   return rows;
 }
 
-export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandPaletteProps) {
+export function CommandPaletteView({
+  context: contextInput,
+  providerCatalog,
+  onClose,
+}: CommandPaletteViewProps) {
   const [input, setInput] = useState('');
   const debouncedInput = useDebounce(input, 100);
   const inputRef = useRef<HTMLInputElement>(null);
-  const controller = useMemo(() => new PaletteController(PALETTE_PROVIDER_CATALOG), []);
+  const controller = useMemo(() => new PaletteController(providerCatalog), [providerCatalog]);
   const context = useMemo(
-    () => ({ projectId, taskId, workspaceId }),
-    [projectId, taskId, workspaceId]
+    () => ({
+      projectId: contextInput.projectId,
+      taskId: contextInput.taskId,
+      workspaceId: contextInput.workspaceId,
+    }),
+    [contextInput.projectId, contextInput.taskId, contextInput.workspaceId]
   );
   const subscribe = useMemo(() => controller.subscribe.bind(controller), [controller]);
   const getSnapshot = useMemo(() => controller.getSnapshot.bind(controller), [controller]);
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const inputChrome = getInputChrome(input);
-  const { dismiss: handleClose } = useModalController('commandPaletteModal');
+  const inputChrome = getInputChrome(input, providerCatalog);
 
   useEffect(() => {
     void controller.setInput(debouncedInput, context);
@@ -156,7 +178,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
             No results for &ldquo;{snapshot.query}&rdquo;
           </Command.Empty>
         )}
-        <PaletteResults results={snapshot.results} onSelect={handleClose} />
+        <PaletteResults results={snapshot.results} onSelect={onClose} />
       </Command.List>
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
@@ -175,6 +197,21 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
         </span>
       </div>
     </Command>
+  );
+}
+
+export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandPaletteProps) {
+  const { dismiss } = useModalController('commandPaletteModal');
+  const context = useMemo(
+    () => ({ projectId, taskId, workspaceId }),
+    [projectId, taskId, workspaceId]
+  );
+  return (
+    <CommandPaletteView
+      context={context}
+      providerCatalog={PALETTE_PROVIDER_CATALOG}
+      onClose={dismiss}
+    />
   );
 }
 

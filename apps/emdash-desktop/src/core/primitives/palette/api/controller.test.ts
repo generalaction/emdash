@@ -148,4 +148,50 @@ describe('PaletteController', () => {
     await firstSettled;
     expect(controller.getSnapshot().results[0]?.match.id).toBe('second-0');
   });
+
+  it('uses context and recency only inside a match band and resolves ties deterministically', async () => {
+    const controller = new PaletteController(
+      definePaletteProviderCatalog([
+        {
+          ...provider({ kind: 'commands', keyword: '@commands', results: [] }),
+          search: () => [
+            {
+              id: 'prefix',
+              title: 'Prefix',
+              relevance: { band: 'prefix', score: 0.5 },
+            },
+            {
+              id: 'older',
+              title: 'Older',
+              relevance: { band: 'fuzzy', score: 0.8, contextAffinity: 1, recency: 1 },
+            },
+            {
+              id: 'newer',
+              title: 'Newer',
+              relevance: { band: 'fuzzy', score: 0.8, contextAffinity: 1, recency: 2 },
+            },
+          ],
+        },
+        {
+          ...provider({ kind: 'files', keyword: '@files', results: [] }),
+          search: () => [
+            {
+              id: 'context-heavy',
+              title: 'Context heavy',
+              relevance: { band: 'fuzzy', score: 0.8, contextAffinity: 100, recency: 100 },
+            },
+          ],
+        },
+      ])
+    );
+
+    await controller.setInput('x', {});
+
+    expect(controller.getSnapshot().results.map(({ identity }) => identity)).toEqual([
+      'commands:prefix',
+      'files:context-heavy',
+      'commands:newer',
+      'commands:older',
+    ]);
+  });
 });
