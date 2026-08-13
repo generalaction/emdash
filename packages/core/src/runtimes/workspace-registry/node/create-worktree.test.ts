@@ -117,6 +117,9 @@ describe('executeCreateWorktree resolve-base', () => {
     const remoteRefs = git(repoPath, 'for-each-ref', 'refs/remotes', '--format=%(refname)');
     expect(remoteRefs).toBe('refs/remotes/origin/feature/base');
     expect(git(repoPath, 'tag')).toBe('');
+    expect(
+      git(repoPath, 'for-each-ref', 'refs/heads/feature/from-remote', '--format=%(upstream:short)')
+    ).toBe('');
   });
 
   it("fails creation cleanly with git's error when the remote base ref does not exist", async () => {
