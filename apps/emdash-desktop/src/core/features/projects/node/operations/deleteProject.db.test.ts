@@ -186,7 +186,7 @@ describe('deleteProject', () => {
     expect(workspaceRegistry.getLive('workspace-2')).toBeUndefined();
     expect(workspaceRegistry.getLive('repo-root')).toBeUndefined();
     expect(pullRequests.deleteProjectData).toHaveBeenCalledWith('project-1');
-    expect(projectsManager.closeProject).toHaveBeenCalledWith('project-1');
+    expect(projectsManager.closeProject).toHaveBeenCalledWith('project-1', 'deletion');
     expect(automations.removeProjectDeployments).toHaveBeenCalledWith('project-1');
     expect(telemetry.capture).toHaveBeenCalledWith('project_deleted', {
       project_id: 'project-1',

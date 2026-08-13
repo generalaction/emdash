@@ -1,11 +1,11 @@
 import { err, Result } from '@emdash/shared';
 import { match } from 'ts-pattern';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProviderRepositoryResult } from '@core/primitives/repository/api';
 
 export class ProviderRepositoryService {
-  constructor(private readonly projects: Pick<ProjectSessionManager, 'getProject'>) {}
+  constructor(private readonly projects: Pick<ProjectAttachmentManager, 'getProject'>) {}
 
   async resolveProject(projectId: string): Promise<ProviderRepositoryResult> {
     const project = this.projects.getProject(projectId);

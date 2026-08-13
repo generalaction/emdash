@@ -315,6 +315,7 @@ function describeUpdateCheckoutError(error: UpdateWorktreeError | RuntimeResolve
       return 'The workspace is not an updatable worktree.';
     case 'host-unavailable':
     case 'not-configured':
+    case 'host-identity-lost':
       return error.message;
   }
 }

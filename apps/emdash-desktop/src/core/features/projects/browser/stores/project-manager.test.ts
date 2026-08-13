@@ -182,6 +182,9 @@ function createProjectWire() {
   const directoryTreeProvider = expose(projectsWireContract.directoryTree, {
     tree: () => cell(undefined as never),
   });
+  const attachmentsProvider = expose(projectsWireContract.attachments, {
+    state: () => cell({ kind: 'absent' as const }),
+  });
   const testWire = createTestWire(projectsWireContract, {
     createProject: (input: unknown) => mocks.createProject(input),
     inspectProjectPath: (input: unknown) => mocks.inspectProjectPath(input),
@@ -197,8 +200,10 @@ function createProjectWire() {
     migrateProjectConfig: vi.fn(),
     countProjectsUsingGithubAccount: vi.fn(),
     openProject: (input: unknown) => mocks.openProject(input),
+    recoverAttachment: vi.fn(),
     events,
     projectList: projectListProvider,
+    attachments: attachmentsProvider,
     projectConfig: projectConfigProvider,
     creation: creationProvider,
     directoryTree: directoryTreeProvider,

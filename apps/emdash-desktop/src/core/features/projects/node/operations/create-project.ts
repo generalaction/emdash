@@ -4,8 +4,8 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { CreateProjectResult } from '@core/primitives/projects/api';
 import type {
@@ -33,7 +33,7 @@ export type CreateProjectOnHostParams = {
 export type CreateProjectDependencies = {
   db: AppDb;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  projects: Pick<ProjectSessionManager, 'openProject'>;
+  projects: Pick<ProjectAttachmentManager, 'openProject'>;
 };
 
 export async function createProject(

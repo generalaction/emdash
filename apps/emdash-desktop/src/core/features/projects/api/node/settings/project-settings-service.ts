@@ -2,7 +2,7 @@ import type { ProjectConfigState } from '@emdash/core/runtimes/workspace-registr
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type { LiveSource } from '@emdash/wire/rpc';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import type { StoredPlacementSettings } from '@core/features/projects/api/node/settings/provider';
 import { projectEvents } from '@core/features/projects/node';
@@ -55,7 +55,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   constructor(
     private readonly dependencies: {
       db: AppDb;
-      projects: Pick<ProjectSessionManager, 'getProject'>;
+      projects: Pick<ProjectAttachmentManager, 'getProject'>;
       workspaceIdentity: WorkspaceIdentityService;
     }
   ) {}

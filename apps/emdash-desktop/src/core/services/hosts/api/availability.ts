@@ -4,6 +4,7 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
+import type { Readable } from '@emdash/wire/state';
 import { z } from 'zod';
 
 export const hostAvailabilityStateSchema = z.discriminatedUnion('kind', [
@@ -39,8 +40,10 @@ export type HostPreparingPhase = Extract<HostAvailabilityState, { kind: 'prepari
 export type RecoveryCause = 'demand' | 'connect' | 'retry' | 'ssh-edge' | 'online' | 'focus';
 
 export interface HostAvailability {
+  state(host: HostRef): Readable<HostAvailabilityState>;
   stateFor(host: HostRef): HostAvailabilityState;
   requireReady(host: HostRef): Result<HostReady, RuntimeResolveError>;
   ensureReady(host: HostRef, cause: RecoveryCause): Promise<Result<HostReady, RuntimeResolveError>>;
+  invalidate(host: HostRef, issue?: RuntimeResolveError): void;
   suspend(host: HostRef): void;
 }

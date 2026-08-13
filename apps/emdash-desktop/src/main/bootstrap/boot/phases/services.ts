@@ -50,7 +50,7 @@ import {
 } from '@core/features/library/node/prompt-library-service';
 import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
-import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { loadStoredGitSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
@@ -58,6 +58,8 @@ import {
   getProjectById,
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
+import { createProjectAttachmentAdapter } from '@core/features/projects/node/project-attachment-adapter';
+import { createProjectAttachmentManager } from '@core/features/projects/node/project-attachment-manager';
 import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/migrations/app-worktree-root';
 import { createRepoFactsCache } from '@core/features/projects/node/settings/repo-facts';
 import { createSearchService } from '@core/features/search/node/search-service';
@@ -160,7 +162,7 @@ export type ServicesBundle = {
   readonly notifications: ReturnType<typeof createNotificationService>;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
   readonly projectDeletion: ProjectDeletionDependencies;
-  readonly projects: ProjectSessionManager;
+  readonly projects: ProjectAttachmentManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ReturnType<typeof createProviderOverrideSettings>;
   readonly pullRequestsRegistration: PullRequestsRegistration;
@@ -266,7 +268,7 @@ export async function bootServices(
     resolveSessionGitCredentials: (params: { projectId: string; host: HostRef }) =>
       gitCredentials.resolveSessionSpec(params),
   };
-  const projectManager = new ProjectSessionManager({
+  const projectAttachmentAdapter = createProjectAttachmentAdapter({
     db,
     taskSessions: taskSessionManager,
     createGitRepository: (client, repository, resolveEffectiveSettings) =>
@@ -306,6 +308,11 @@ export async function bootServices(
         },
       });
     },
+  });
+  const projectManager = createProjectAttachmentManager({
+    scope: appScope,
+    availability: desktopRuntimes.hostAvailability,
+    adapter: projectAttachmentAdapter,
   });
   const projectSettingsService = new ProjectSettingsService({
     db,

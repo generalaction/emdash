@@ -1,0 +1,749 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
+import { err, ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
+import { peek } from '@emdash/wire/state';
+import { describe, expect, it, vi } from 'vitest';
+import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
+import type { Project } from '@core/primitives/projects/api';
+import { createHostAvailability } from '@core/services/hosts/node/availability';
+import {
+  createProjectAttachmentManager,
+  type ProjectAttachmentAdapter,
+} from './project-attachment-manager';
+
+describe('ProjectAttachmentManager', () => {
+  it('attaches a tracked Project once when its Host reaches a ready generation', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const readiness = deferred<ReturnType<typeof ok<void>>>();
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: () => readiness.promise },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+      createAttemptId: () => 'attempt-1',
+    });
+    const owner = createScope({ label: 'project-owner' });
+
+    const state = manager.track(project.id, owner);
+
+    expect(peek(state)).toEqual({ kind: 'absent' });
+    await vi.waitFor(() =>
+      expect(availability.stateFor(project.host)).toMatchObject({
+        kind: 'preparing',
+      })
+    );
+
+    readiness.resolve(ok());
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 1,
+      })
+    );
+
+    expect(open).toHaveBeenCalledOnce();
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('retains its Provider across ordinary Host disconnect and reconnect', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const opened = vi.fn();
+    const closed = vi.fn();
+    manager.on('projectOpened', opened);
+    manager.on('projectClosed', closed);
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+
+    availability.invalidate(project.host);
+
+    expect(peek(state)).toEqual({
+      kind: 'attached',
+      establishedHostGeneration: 1,
+    });
+    expect(manager.requireAttached(project.id)).toMatchObject({
+      success: false,
+      error: { type: 'host-unavailable', reason: 'offline' },
+    });
+    expect(provider.dispose).not.toHaveBeenCalled();
+
+    await expect(manager.recover(project.id)).resolves.toEqual(ok());
+    await vi.waitFor(() => expect(availability.stateFor(project.host).kind).toBe('ready'));
+
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+    expect(peek(state)).toEqual({
+      kind: 'attached',
+      establishedHostGeneration: 1,
+    });
+    expect(open).toHaveBeenCalledOnce();
+    expect(opened).toHaveBeenCalledOnce();
+    expect(closed).not.toHaveBeenCalled();
+
+    await owner.dispose();
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+    await scope.dispose();
+  });
+
+  it('retries a Project-specific failure in the current ready generation only when recovered', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const statRepository = vi
+      .fn()
+      .mockResolvedValueOnce(err({ type: 'not-found', path: '/repo' }))
+      .mockResolvedValueOnce(ok({ type: 'directory' as const }));
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository,
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'absent',
+        lastFailure: { type: 'repository-missing', path: '/repo' },
+        attemptedHostGeneration: 1,
+      })
+    );
+
+    expect(manager.requireAttached(project.id)).toEqual(
+      err({ type: 'repository-missing', path: '/repo' })
+    );
+    expect(statRepository).toHaveBeenCalledOnce();
+
+    await expect(manager.recover(project.id)).resolves.toEqual(ok());
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+
+    expect(statRepository).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenCalledOnce();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('disposes a late Provider when the durable Project revision changed during attachment', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const open = vi.fn(() => opened.promise);
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => ({ ...project }),
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+    project = {
+      ...project,
+      updatedAt: '2026-08-13T00:00:01.000Z',
+    };
+
+    opened.resolve(ok(provider));
+
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(peek(state)).toEqual({
+      kind: 'absent',
+      attemptedHostGeneration: 1,
+    });
+    expect(manager.getProject(project.id)).toBeUndefined();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('adapts openProject through one canonical tracking lease and closes it exactly once', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const canonical = sshProject();
+    const provider = projectProvider();
+    const statRepository = vi.fn(async () => ok({ type: 'directory' as const }));
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => canonical,
+        statRepository,
+        open,
+      },
+    });
+
+    await expect(
+      manager.openProject({
+        ...canonical,
+        path: '/stale-renderer-path',
+      })
+    ).resolves.toEqual(ok(provider));
+
+    expect(statRepository).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/repo' }),
+      expect.any(AbortSignal)
+    );
+    expect(open).toHaveBeenCalledOnce();
+
+    await expect(manager.closeProject(canonical.id)).resolves.toEqual(ok());
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(manager.getProject(canonical.id)).toBeUndefined();
+    expect(open).toHaveBeenCalledOnce();
+
+    await manager.dispose();
+    expect(provider.dispose).toHaveBeenCalledOnce();
+    await scope.dispose();
+  });
+
+  it('lets each explicit openProject retry make one attachment attempt without a retry loop', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const statRepository = vi
+      .fn()
+      .mockResolvedValueOnce(err({ type: 'not-found', path: '/repo' }))
+      .mockResolvedValueOnce(ok({ type: 'directory' as const }));
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository,
+        open,
+      },
+    });
+
+    await expect(manager.openProject(project)).resolves.toEqual(
+      err({ type: 'repository-missing', path: '/repo' })
+    );
+    expect(statRepository).toHaveBeenCalledOnce();
+
+    await expect(manager.openProject(project)).resolves.toEqual(ok(provider));
+    expect(statRepository).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenCalledOnce();
+
+    await manager.closeProject(project.id);
+    await scope.dispose();
+  });
+
+  it('does not reopen a compatibility attachment after close while another lease remains', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const wireOwner = createScope({ label: 'wire-owner' });
+    const state = manager.track(project.id, wireOwner);
+
+    await expect(manager.openProject(project)).resolves.toEqual(ok(provider));
+    await expect(manager.closeProject(project.id)).resolves.toEqual(ok());
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+
+    expect(peek(state)).toEqual({ kind: 'absent' });
+    expect(open).toHaveBeenCalledOnce();
+
+    await wireOwner.dispose();
+    await scope.dispose();
+  });
+
+  it('releases and disposes retained Provider ownership at most once during shutdown', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async () => ok(provider),
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+
+    await manager.release();
+    await manager.release();
+    expect(provider.release).toHaveBeenCalledOnce();
+
+    await manager.dispose();
+    await manager.dispose();
+    expect(provider.dispose).toHaveBeenCalledOnce();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('holds Provider ownership until the final tracking lease releases', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async () => ok(provider),
+      },
+    });
+    const firstOwner = createScope({ label: 'first-project-owner' });
+    const secondOwner = createScope({ label: 'second-project-owner' });
+    const firstState = manager.track(project.id, firstOwner);
+    const secondState = manager.track(project.id, secondOwner);
+    expect(secondState).toBe(firstState);
+    await vi.waitFor(() => expect(peek(firstState).kind).toBe('attached'));
+
+    await firstOwner.dispose();
+    expect(provider.dispose).not.toHaveBeenCalled();
+    expect(manager.getProject(project.id)).toBe(provider);
+
+    await secondOwner.dispose();
+    expect(provider.dispose).toHaveBeenCalledOnce();
+    expect(manager.getProject(project.id)).toBeUndefined();
+
+    await scope.dispose();
+  });
+
+  it('disposes a Provider that completes after its final tracking lease released', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: () => opened.promise,
+      },
+    });
+    const projectOpened = vi.fn();
+    manager.on('projectOpened', projectOpened);
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+
+    await owner.dispose();
+    opened.resolve(ok(provider));
+
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(projectOpened).not.toHaveBeenCalled();
+    expect(manager.getProject(project.id)).toBeUndefined();
+
+    await scope.dispose();
+  });
+
+  it('rejects an old-generation completion and attaches only the current Host generation', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const staleProvider = projectProvider();
+    const currentProvider = projectProvider();
+    const staleOpen = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const open = vi
+      .fn()
+      .mockImplementationOnce(() => staleOpen.promise)
+      .mockResolvedValueOnce(ok(currentProvider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() =>
+      expect(peek(state)).toMatchObject({
+        kind: 'attaching',
+        hostGeneration: 1,
+      })
+    );
+
+    availability.invalidate(project.host);
+    await availability.ensureReady(project.host, 'retry');
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 2,
+      })
+    );
+
+    staleOpen.resolve(ok(staleProvider));
+    await vi.waitFor(() => expect(staleProvider.dispose).toHaveBeenCalledOnce());
+    expect(manager.requireAttached(project.id)).toEqual(ok(currentProvider));
+    expect(open).toHaveBeenCalledTimes(2);
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('preserves typed waiting, repository, runtime, and unexpected failures', async () => {
+    const project = sshProject();
+
+    await expectAttachmentFailure({
+      project,
+      statRepository: async () => err({ type: 'permission-denied' as const, path: '/repo' }),
+      expected: {
+        type: 'repository-unavailable',
+        path: '/repo',
+        message: 'permission-denied: /repo',
+      },
+    });
+
+    const runtimeFailure = runtimeHostUnavailable(
+      project.host,
+      'runtime-unavailable',
+      'Host runtime is unavailable'
+    );
+    await expectAttachmentFailure({
+      project,
+      statRepository: async () => err(runtimeFailure),
+      expected: runtimeFailure,
+    });
+
+    await expectAttachmentFailure({
+      project,
+      statRepository: async () => ok({ type: 'directory' as const }),
+      open: async () => err({ type: 'error' as const, message: 'provider failed' }),
+      expected: {
+        type: 'unexpected',
+        stage: 'session-open',
+        message: 'provider failed',
+      },
+    });
+
+    await expectAttachmentFailure({
+      project,
+      statRepository: async () => {
+        throw new Error('stat exploded');
+      },
+      expected: {
+        type: 'unexpected',
+        stage: 'repository-stat',
+        message: 'stat exploded',
+      },
+    });
+  });
+
+  it('keeps repository failures passive across Host generations until explicit recovery', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const statRepository = vi
+      .fn()
+      .mockResolvedValueOnce(err({ type: 'not-found', path: '/repo' }))
+      .mockResolvedValueOnce(ok({ type: 'directory' as const }));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository,
+        open: async () => ok(provider),
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('absent'));
+    await vi.waitFor(() => expect(statRepository).toHaveBeenCalledOnce());
+
+    availability.invalidate(project.host);
+    await availability.ensureReady(project.host, 'retry');
+
+    expect(statRepository).toHaveBeenCalledOnce();
+    expect(peek(state)).toMatchObject({
+      kind: 'absent',
+      lastFailure: { type: 'repository-missing' },
+    });
+
+    await manager.recover(project.id);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+    expect(statRepository).toHaveBeenCalledTimes(2);
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('rejects recovery and releases attachment when the durable Project is gone', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project: Project | undefined = sshProject();
+    const provider = projectProvider();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async () => ok(provider),
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track('project-1', owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+    project = undefined;
+
+    await expect(manager.recover('project-1')).resolves.toEqual(
+      err({ type: 'project-missing', projectId: 'project-1' })
+    );
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(peek(state)).toEqual({
+      kind: 'absent',
+      lastFailure: { type: 'project-missing', projectId: 'project-1' },
+    });
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('rejects a superseded attempt after relink and attaches the replacement Host identity', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project = sshProject();
+    const staleProvider = projectProvider();
+    const currentProvider = projectProvider();
+    const staleOpen = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const open = vi
+      .fn()
+      .mockImplementationOnce(() => staleOpen.promise)
+      .mockResolvedValueOnce(ok(currentProvider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+      createAttemptId: vi
+        .fn()
+        .mockReturnValueOnce('old-attempt')
+        .mockReturnValueOnce('new-attempt'),
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attaching',
+        hostGeneration: 1,
+        attemptId: 'old-attempt',
+      })
+    );
+    project = {
+      ...project,
+      connectionId: 'ssh-2',
+      updatedAt: '2026-08-13T00:00:01.000Z',
+      host: hostRef('remote', 'ssh-2'),
+    };
+
+    await manager.invalidate(project.id, 'relink');
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 2,
+      })
+    );
+
+    staleOpen.resolve(ok(staleProvider));
+    await vi.waitFor(() => expect(staleProvider.dispose).toHaveBeenCalledOnce());
+    expect(manager.requireAttached(project.id)).toEqual(ok(currentProvider));
+    expect(open).toHaveBeenCalledTimes(2);
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('cancels in-flight ownership before the shutdown release phase completes', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: () => opened.promise,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+
+    await manager.release();
+    opened.resolve(ok(provider));
+
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(peek(state).kind).toBe('absent');
+
+    await manager.dispose();
+    await owner.dispose();
+    await scope.dispose();
+  });
+});
+
+type TestSshProject = Extract<Project, { type: 'ssh' }> & {
+  host: ReturnType<typeof hostRef>;
+};
+
+function sshProject(): TestSshProject {
+  return {
+    type: 'ssh',
+    id: 'project-1',
+    name: 'Project',
+    path: '/repo',
+    baseRef: 'main',
+    connectionId: 'ssh-1',
+    repositoryWorkspaceId: 'repository-1',
+    createdAt: '2026-08-13T00:00:00.000Z',
+    updatedAt: '2026-08-13T00:00:00.000Z',
+    host: hostRef('remote', 'ssh-1'),
+  };
+}
+
+function projectProvider(): ProjectProvider {
+  return {
+    release: vi.fn(),
+    dispose: vi.fn(),
+  } as unknown as ProjectProvider;
+}
+
+async function expectAttachmentFailure(options: {
+  project: TestSshProject;
+  statRepository: ProjectAttachmentAdapter['statRepository'];
+  open?: ProjectAttachmentAdapter['open'];
+  expected: object;
+}): Promise<void> {
+  const scope = createScope({ label: 'project-attachment-failure-test' });
+  const availability = createHostAvailability({
+    scope,
+    readiness: { prepare: async () => ok() },
+  });
+  const manager = createProjectAttachmentManager({
+    scope,
+    availability,
+    adapter: {
+      loadProject: async () => options.project,
+      statRepository: options.statRepository,
+      open: options.open ?? (async () => ok(projectProvider())),
+    },
+  });
+  const owner = createScope({ label: 'project-owner' });
+  const state = manager.track(options.project.id, owner);
+
+  await vi.waitFor(() =>
+    expect(peek(state)).toEqual({
+      kind: 'absent',
+      lastFailure: options.expected,
+      attemptedHostGeneration: 1,
+    })
+  );
+  expect(manager.requireAttached(options.project.id)).toEqual(err(options.expected));
+
+  await owner.dispose();
+  await scope.dispose();
+}

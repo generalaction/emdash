@@ -6,7 +6,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
-import { cell, expose, peek, type Cell } from '@emdash/wire/state';
+import { cell, expose, peek, type Cell, type Readable } from '@emdash/wire/state';
 import {
   hostsContract,
   type HostAvailability,
@@ -50,9 +50,13 @@ export class HostAvailabilityService implements HostAvailability {
   constructor(private readonly options: CreateHostAvailabilityOptions) {
     this.scope = options.scope.child('host-availability');
     this.host = expose(hostsContract.availability, {
-      state: ({ host }) => this.stateCell(host),
+      state: ({ host }) => this.state(host),
     });
     this.scope.add(() => this.host.dispose());
+  }
+
+  state(host: HostRef): Readable<HostAvailabilityState> {
+    return this.stateCell(host);
   }
 
   stateFor(host: HostRef): HostAvailabilityState {
@@ -148,7 +152,7 @@ export class HostAvailabilityService implements HostAvailability {
     this.setState(host, { kind: 'suspended', reason: 'user-disconnected' });
   }
 
-  markUnavailable(host: HostRef, issue?: RuntimeResolveError): void {
+  invalidate(host: HostRef, issue?: RuntimeResolveError): void {
     if (this.stateFor(host).kind === 'suspended') return;
     const key = formatHostRef(host);
     const active = this.runs.get(key);
@@ -163,6 +167,11 @@ export class HostAvailabilityService implements HostAvailability {
       ...(issue ? { issue } : {}),
       recovery: issue ? recoveryFor(issue) : 'eligible',
     });
+  }
+
+  /** Temporary alias for pre-availability gateway callers. */
+  markUnavailable(host: HostRef, issue?: RuntimeResolveError): void {
+    this.invalidate(host, issue);
   }
 
   private commit(

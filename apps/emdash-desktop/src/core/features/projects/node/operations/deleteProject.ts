@@ -2,8 +2,8 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import {
   killTaskSessions,
@@ -44,7 +44,7 @@ export type ProjectDeletionDependencies = {
   automations: Pick<AutomationsService, 'removeProjectDeployments'>;
   getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
   logger: Logger;
-  projects: Pick<ProjectSessionManager, 'closeProject'>;
+  projects: Pick<ProjectAttachmentManager, 'closeProject'>;
   pullRequests: { deleteProjectData(projectId: string): Promise<void> };
   sessionCleanup: TaskSessionCleanup;
   telemetry: Pick<TelemetryService, 'capture'>;
@@ -152,7 +152,7 @@ async function purgeProjectLocalState(
 ): Promise<void> {
   const { db } = dependencies;
   await dependencies.pullRequests.deleteProjectData(projectId);
-  await dependencies.projects.closeProject(projectId).catch((error: unknown) => {
+  await dependencies.projects.closeProject(projectId, 'deletion').catch((error: unknown) => {
     dependencies.logger.warn('deleteProject: failed to close project before purge', {
       projectId,
       error: String(error),

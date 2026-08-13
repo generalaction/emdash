@@ -1,6 +1,6 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -23,12 +23,15 @@ export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'proj
   placement: WorkspacePlacementResolver;
   projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;
-  projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
+  projects: Pick<
+    ProjectAttachmentManager,
+    'closeProject' | 'invalidate' | 'openProject' | 'recover' | 'track'
+  >;
   mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {
-  const { db, placement, projectDeletion, projectSettings, projects, runtimes } = dependencies;
+  const { db, placement, projectDeletion, projectSettings, projects } = dependencies;
   return {
     createProject: (params: Parameters<typeof createProject>[1]) =>
       createProject(dependencies, params),
@@ -58,7 +61,7 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     countProjectsUsingGithubAccount: (accountId: string) =>
       countProjectsUsingGithubAccount(db, accountId),
     updateProjectConnection: (projectId: string, connectionId: string) =>
-      updateProjectConnection(db, projectId, connectionId),
-    openProject: (projectId: string) => openProject(db, projects, runtimes, projectId),
+      updateProjectConnection(db, projects, projectId, connectionId),
+    openProject: (projectId: string) => openProject(projects, projectId),
   };
 }

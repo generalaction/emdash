@@ -5,7 +5,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProvisionResult as SessionProvisionResult } from '@core/features/projects/api/node/project-provider';
 import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provider-assembly';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
@@ -88,7 +88,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   constructor(
     private readonly dependencies: {
       db: AppDb;
-      projects: Pick<ProjectSessionManager, 'getProject'>;
+      projects: Pick<ProjectAttachmentManager, 'getProject'>;
       sessions: TaskSessionManager;
       workspacePlacement: WorkspacePlacementResolver;
       runtimes: RuntimeBroker;

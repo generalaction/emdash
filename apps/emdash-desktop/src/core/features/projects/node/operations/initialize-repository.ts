@@ -2,7 +2,7 @@ import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { InitializeRepositoryResult } from '@core/primitives/projects/api';
@@ -15,7 +15,7 @@ import { getProjectById } from './getProjects';
 export type InitializeRepositoryDependencies = {
   db: AppDb;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
+  projects: Pick<ProjectAttachmentManager, 'closeProject' | 'openProject'>;
 };
 
 export async function initializeRepository(
@@ -66,18 +66,18 @@ export async function initializeRepository(
       message: `Project ${projectId} not found after initializing its repository`,
     });
   }
-  const closeResult = await dependencies.projects.closeProject(projectId);
+  const closeResult = await dependencies.projects.closeProject(projectId, 'repository-changed');
   if (!closeResult.success) {
     log.warn('initializeRepository: failed to close project before reopening', {
       projectId,
-      error: closeResult.error.message,
+      error: closeResult.error.type,
     });
   }
   const openResult = await dependencies.projects.openProject(project);
   if (!openResult.success) {
     log.warn('initializeRepository: failed to reopen project after initializing repository', {
       projectId,
-      error: openResult.error.message,
+      error: openResult.error.type,
     });
   }
 

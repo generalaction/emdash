@@ -51,6 +51,9 @@ export function createProjectsWireController(
   const projectOperations = createProjectOperations(dependencies);
   const projectList = createProjectListProvider(projectOperations);
   const creation = createCreationProvider();
+  const attachments = expose(projectsWireContract.attachments, {
+    state: ({ projectId }, scope) => dependencies.projects.track(projectId, scope),
+  });
   return {
     impl: {
       createProject: (input) => projectOperations.createProject(input),
@@ -76,6 +79,7 @@ export function createProjectsWireController(
       updateProjectConnection: ({ projectId, connectionId }) =>
         projectOperations.updateProjectConnection(projectId, connectionId),
       openProject: ({ projectId }) => projectOperations.openProject(projectId),
+      recoverAttachment: ({ projectId }) => dependencies.projects.recover(projectId),
       getHostHomeDir: async (input) => {
         const runtime = await acquireHostRuntime(dependencies, input);
         return nativePathFromHost((await runtime.files.getHomeDir()).path);
@@ -86,6 +90,7 @@ export function createProjectsWireController(
       },
       events: projectEvents,
       projectList,
+      attachments,
       projectConfig: forwardLiveModel(projectsWireContract.projectConfig, ({ projectId }) =>
         dependencies.projectSettings.getProjectConfigLiveSource(projectId)
       ),
@@ -104,6 +109,7 @@ export function createProjectsWireController(
     },
     async dispose() {
       await creation.dispose();
+      await attachments.dispose();
       await projectList.dispose();
     },
   };

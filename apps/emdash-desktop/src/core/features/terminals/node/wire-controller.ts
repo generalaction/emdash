@@ -11,7 +11,7 @@ import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import {
   terminalsContract,
@@ -41,7 +41,7 @@ import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
-  projects: Pick<ProjectSessionManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'getProject'>;
   runtimes: TerminalsRuntimeBroker;
   settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;

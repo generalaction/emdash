@@ -101,7 +101,7 @@ describe('project creation without a git repository', () => {
     });
     expect(result.data.baseRef).toBe('main');
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
-    expect(closeProject).toHaveBeenCalledWith('project-plain');
+    expect(closeProject).toHaveBeenCalledWith('project-plain', 'repository-changed');
     expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
 
     const row = rows.find((entry) => entry.id === 'project-plain');

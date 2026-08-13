@@ -2,7 +2,7 @@ import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { expose, family, query } from '@emdash/wire/state';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { HostWorkspaceGroupsData } from '@core/primitives/workspaces/api';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
@@ -15,7 +15,7 @@ import {
 } from './project-workspaces-controller';
 
 export function createProjectSettingsWireController(dependencies: {
-  projects: Pick<ProjectSessionManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'getProject'>;
   runtimes: RuntimeBroker;
   workspaceIdentity: WorkspaceIdentityService;
 }): Controller {

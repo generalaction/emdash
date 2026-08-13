@@ -43,7 +43,7 @@ import { createPromptLibraryWireController } from '@core/features/library/node/w
 import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
@@ -130,7 +130,7 @@ export type DesktopControllerContext = {
   readonly notifications: NotificationService;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
-  readonly projects: ProjectSessionManager;
+  readonly projects: ProjectAttachmentManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
   readonly reconcileSweep: ReconcileSweepHandle;

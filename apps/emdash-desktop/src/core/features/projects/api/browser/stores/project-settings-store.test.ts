@@ -107,13 +107,18 @@ function createProjectsWire() {
   const directoryTreeProvider = expose(projectsWireContract.directoryTree, {
     tree: () => cell(undefined as never),
   });
+  const attachmentsProvider = expose(projectsWireContract.attachments, {
+    state: () => cell({ kind: 'absent' as const }),
+  });
   const testWire = createTestWire(projectsWireContract, {
     events,
     projectConfig: projectConfigProvider,
     projectList: projectListProvider,
+    attachments: attachmentsProvider,
     creation: creationProvider,
     directoryTree: directoryTreeProvider,
     getProjectSettingsPage,
+    recoverAttachment: async () => ({ success: true as const, data: undefined }),
     create: {
       run: async () => ({
         success: false as const,

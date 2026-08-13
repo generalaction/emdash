@@ -17,7 +17,7 @@ import {
 } from '@core/features/conversations/api/node/registry';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -74,7 +74,7 @@ export interface PreparedCreateTask {
  */
 export async function prepareCreateTask(
   db: AppDb,
-  projectSessions: Pick<ProjectSessionManager, 'getProject'>,
+  projectSessions: Pick<ProjectAttachmentManager, 'getProject'>,
   hostIsReachable: HostReachabilityProbe,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   params: CreateTaskParams
@@ -400,7 +400,7 @@ export function finalizeCreateTask(
 
 export async function createTask(
   db: AppDb,
-  projects: Pick<ProjectSessionManager, 'getProject'>,
+  projects: Pick<ProjectAttachmentManager, 'getProject'>,
   hostIsReachable: HostReachabilityProbe,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   runtimes: ConversationsRuntimeBroker,

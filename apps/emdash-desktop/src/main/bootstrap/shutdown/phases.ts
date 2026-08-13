@@ -1,6 +1,6 @@
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import type { EditorBufferService } from '@core/features/editor/node/editor-buffer-service';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
@@ -19,7 +19,7 @@ const GRACE_WINDOW_MS = 400;
 type QuitCleanupServices = {
   automations: Pick<AutomationsService, 'stop'>;
   editorBuffers: Pick<EditorBufferService, 'dispose'>;
-  projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
+  projects: Pick<ProjectAttachmentManager, 'dispose' | 'release'>;
   pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
   runtimes: { dispose(): Promise<void> };
 };

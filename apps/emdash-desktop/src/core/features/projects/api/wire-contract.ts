@@ -35,6 +35,7 @@ import {
   type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
+import { projectAttachmentStateSchema, type ProjectRecoveryRequestError } from './attachments';
 import type {
   MigrateProjectConfigResult,
   ProjectSettingsDomainPatch,
@@ -193,6 +194,10 @@ export const projectsWireContract = defineContract({
     input: projectIdInputSchema,
     output: z.custom<Result<OpenProjectSuccess, OpenProjectError>>(),
   }),
+  recoverAttachment: procedure({
+    input: projectIdInputSchema,
+    output: z.custom<Result<void, ProjectRecoveryRequestError>>(),
+  }),
   events: eventStream({
     key: z.void(),
     event: z.object({ type: z.literal('settings-changed'), projectId: z.string() }),
@@ -201,6 +206,12 @@ export const projectsWireContract = defineContract({
     key: z.void(),
     states: {
       list: liveState({ data: z.custom<ProjectListData>() }),
+    },
+  }),
+  attachments: liveModel({
+    key: projectIdInputSchema,
+    states: {
+      state: liveState({ data: projectAttachmentStateSchema }),
     },
   }),
   projectConfig: liveModel({

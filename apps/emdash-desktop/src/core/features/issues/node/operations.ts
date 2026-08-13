@@ -5,7 +5,7 @@ import type {
   IssueQueryOpts,
   IssueSearchOpts,
 } from '@core/features/issues/api/node/issue-provider';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
@@ -24,7 +24,7 @@ const DEFAULT_CAPABILITIES = {
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;
 
 export type IssueOperationsDependencies = {
-  projects: Pick<ProjectSessionManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'getProject'>;
   providers: IssueProviderRegistry;
 };
 

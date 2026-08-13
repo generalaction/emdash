@@ -101,6 +101,8 @@ export class ProjectProvider implements Disposable {
 
   private readonly _resolveProjectPath: (relativePath: string) => string;
   private readonly _configPathForDirectory: (directoryPath: string) => string;
+  private releasePromise: Promise<void> | undefined;
+  private disposePromise: Promise<void> | undefined;
 
   constructor(
     project: Project,
@@ -170,21 +172,27 @@ export class ProjectProvider implements Disposable {
     return worktree ? nativePathFromHost(worktree.worktreePath) : null;
   }
 
-  async release(): Promise<void> {
-    this.gitRepositoryFetchService.stop();
-    await this.repoFacts.dispose();
-    await this._releaseProjectLeases();
+  release(): Promise<void> {
+    this.releasePromise ??= (async () => {
+      this.gitRepositoryFetchService.stop();
+      await this.repoFacts.dispose();
+      await this._releaseProjectLeases();
+    })();
+    return this.releasePromise;
   }
 
-  async dispose(): Promise<void> {
-    try {
-      this.gitRepositoryFetchService.stop();
-      const tmux = await this.settings.resolveTmux();
-      const mode = tmux.value ? 'detach' : 'terminate';
-      await this.taskSessions.teardownAllForProject(this.projectId, mode);
-      await previewServerService.stopForProject(this.projectId);
-    } finally {
-      await this.release();
-    }
+  dispose(): Promise<void> {
+    this.disposePromise ??= (async () => {
+      try {
+        this.gitRepositoryFetchService.stop();
+        const tmux = await this.settings.resolveTmux();
+        const mode = tmux.value ? 'detach' : 'terminate';
+        await this.taskSessions.teardownAllForProject(this.projectId, mode);
+        await previewServerService.stopForProject(this.projectId);
+      } finally {
+        await this.release();
+      }
+    })();
+    return this.disposePromise;
   }
 }

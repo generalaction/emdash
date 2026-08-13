@@ -50,9 +50,6 @@ vi.mock('@main/core/agent-status/tui-agent-status-bridge', () => ({
 vi.mock('@core/features/automations/api/node/automations-service', () => ({
   automationsService: { stop: vi.fn() },
 }));
-vi.mock('@core/features/projects/api/node/project-manager', () => ({
-  projectManager: { release: vi.fn(), dispose: vi.fn() },
-}));
 vi.spyOn(databaseInstance, 'closeAppDb').mockImplementation(mocks.closeAppDb);
 vi.mock('@main/host/updates/update-service', () => ({
   updateService: mocks.updateService,
