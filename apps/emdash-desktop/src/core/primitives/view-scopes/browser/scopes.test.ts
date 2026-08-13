@@ -409,6 +409,57 @@ describe('ViewScopes', () => {
     scopes.dispose();
   });
 
+  it('preserves the underlying scope when a capturing scope activates before focus', () => {
+    const dom = new JSDOM('<div id="modal" tabindex="-1"></div>');
+    const scopes = new ViewScopes(dom.window.document);
+    const execute = vi.fn();
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute }) },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    modal.attachRef(dom.window.document.querySelector<HTMLElement>('#modal'));
+    scopes.activate(outer);
+
+    // ModalRenderer explicitly activates a fresh modal before Base UI's focus pass.
+    scopes.activate(modal);
+    dom.window.document
+      .querySelector<HTMLElement>('#modal')
+      ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+
+    expect(
+      scopes.getActiveCommand(archiveCommand, { fromCaptureOrigin: true })?.availability.kind
+    ).toBe('enabled');
+    scopes
+      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      ?.execute(undefined, 'palette');
+    expect(execute).toHaveBeenCalledOnce();
+    scopes.dispose();
+  });
+
+  it('retains a capturing scope origin when a stacked scope temporarily replaces it', () => {
+    const scopes = new ViewScopes(undefined);
+    const execute = vi.fn();
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute }) },
+    });
+    const bottomModal = scopes.instantiate(capturingScope(), { impl: {} });
+    const topModal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(outer);
+    scopes.activate(bottomModal);
+    scopes.activate(topModal);
+
+    expect(scopes.getActiveCommand(archiveCommand, { fromCaptureOrigin: true })).toBeUndefined();
+
+    topModal.dispose();
+    scopes.activate(bottomModal);
+    scopes
+      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      ?.execute(undefined, 'palette');
+
+    expect(execute).toHaveBeenCalledOnce();
+    scopes.dispose();
+  });
+
   it('does not resolve palette commands against a disposed capture origin', () => {
     const dom = new JSDOM(
       '<div id="terminal" tabindex="-1"></div><div id="modal" tabindex="-1"></div>'
