@@ -66,11 +66,38 @@ async function removeLegacyCodexNotify(fs: PluginFs): Promise<void> {
   await fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
 }
 
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function getHooks(
   config: Record<string, unknown>,
   configPath: string
 ): Record<string, Record<string, unknown>[]> {
-  return hookMapFromConfig(config, configPath);
+  if (configPath !== CODEX_CONFIG_PATH) return hookMapFromConfig(config, configPath);
+
+  const hooks = config.hooks;
+  if (hooks === undefined) return {};
+  if (!isConfigObject(hooks)) {
+    throw new Error(`Invalid ${configPath}: expected "hooks" to be an object`);
+  }
+
+  // Codex owns this map and updates it as hook definitions are reviewed or disabled.
+  // It shares the `hooks` table with event arrays but is not itself an event.
+  const { state, ...eventHooks } = hooks;
+  if (state !== undefined && !isConfigObject(state)) {
+    throw new Error(`Invalid ${configPath}: expected "hooks.state" to be an object`);
+  }
+
+  return hookMapFromConfig({ hooks: eventHooks }, configPath);
+}
+
+function configWithEventHooks(
+  config: Record<string, unknown>,
+  eventHooks: Record<string, Record<string, unknown>[]>
+): Record<string, unknown> {
+  const existingHooks = isConfigObject(config.hooks) ? config.hooks : {};
+  return { ...config, hooks: { ...existingHooks, ...eventHooks } };
 }
 
 function hasCodexEmdashHooks(hooks: Record<string, unknown[]>, specs: [string, string][]): boolean {
@@ -174,7 +201,7 @@ export function buildCodexHookConfig() {
         const existing = Array.isArray(hooks[key]) ? hooks[key] : [];
         hooks[key] = [...filterUserHooks(existing), buildNestedEntry(cmd)];
       }
-      await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
+      await writeTomlConfig(fs, CODEX_CONFIG_PATH, configWithEventHooks(config, hooks));
       await cleanupLegacy();
       await removeLegacyCodexNotify(fs).catch(() => {});
       return [CODEX_CONFIG_PATH];
@@ -185,7 +212,7 @@ export function buildCodexHookConfig() {
       for (const key of Object.keys(hooks)) {
         hooks[key] = filterUserHooks(hooks[key]);
       }
-      await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
+      await writeTomlConfig(fs, CODEX_CONFIG_PATH, configWithEventHooks(config, hooks));
 
       const legacyConfig = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
       const legacyHooks = getHooks(legacyConfig, CODEX_LEGACY_HOOKS_PATH);

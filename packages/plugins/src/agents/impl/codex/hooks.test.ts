@@ -101,6 +101,58 @@ describe('buildCodexHookConfig', () => {
     await expect(fs.read(CODEX_LEGACY_HOOKS_PATH)).resolves.toBe(legacyHooks);
   });
 
+  it('preserves Codex hook trust state while installing and deleting Emdash hooks', async () => {
+    const trustKey = '/home/user/.codex/config.toml:stop:0:0';
+    const fs = createMemoryFs({
+      [CODEX_CONFIG_PATH]: `[hooks.state."${trustKey}"]
+enabled = true
+trusted_hash = "sha256:trusted"
+`,
+    });
+    const hooks = buildCodexHookConfig();
+
+    await expect(hooks.writeHooks(fs, [])).resolves.toEqual([CODEX_CONFIG_PATH]);
+    await expect(hooks.getHooksInstalled(fs)).resolves.toBe(true);
+
+    const installed = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+      hooks: {
+        state: Record<string, { enabled?: boolean; trusted_hash?: string }>;
+      };
+    };
+    expect(installed.hooks.state[trustKey]).toEqual({
+      enabled: true,
+      trusted_hash: 'sha256:trusted',
+    });
+
+    await hooks.deleteHooks(fs);
+
+    const deleted = parseToml((await fs.read(CODEX_CONFIG_PATH)) ?? '') as {
+      hooks: {
+        state: Record<string, { enabled?: boolean; trusted_hash?: string }>;
+      };
+    };
+    expect(deleted.hooks.state[trustKey]).toEqual({
+      enabled: true,
+      trusted_hash: 'sha256:trusted',
+    });
+    expect(await hooks.getHooksInstalled(fs)).toBe(false);
+  });
+
+  it('still validates Codex event hooks after separating trust state', async () => {
+    const fs = createMemoryFs({
+      [CODEX_CONFIG_PATH]: `[hooks.state."config.toml:stop:0:0"]
+enabled = true
+
+[hooks.Stop]
+invalid = true
+`,
+    });
+
+    await expect(buildCodexHookConfig().getHooksInstalled(fs)).rejects.toThrow(
+      'expected "hooks.Stop" to be an array of objects'
+    );
+  });
+
   it.skipIf(process.platform === 'win32')(
     'pipes the Codex session argument through to the hook request body',
     async () => {

@@ -465,7 +465,7 @@ export class TuiAgentsRuntime {
         workspacePath: config.input.cwd,
       });
     }
-    const hookEnv = await this.prepareHookEnv(config.input);
+    const hookEnv = await this.prepareHookEnv(config.input, provider);
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);
     }
@@ -698,12 +698,25 @@ export class TuiAgentsRuntime {
       : err({ type: 'unknown-provider', providerId });
   }
 
-  private async prepareHookEnv(input: TuiAgentStartInput): Promise<Record<string, string>> {
+  private async prepareHookEnv(
+    input: TuiAgentStartInput,
+    provider: ResolvedTuiProvider
+  ): Promise<Record<string, string>> {
+    if (provider.hooks.kind === 'none') return {};
+
     const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
       providerId: input.providerId,
       workspacePath: input.cwd,
     });
-    if (!hooksAvailable) return {};
+    if (!hooksAvailable) {
+      this.deps.logger.warn(
+        'TuiAgentsRuntime: hook installation unavailable; continuing with hook endpoint',
+        {
+          conversationId: input.conversationId,
+          providerId: input.providerId,
+        }
+      );
+    }
 
     let hook;
     try {

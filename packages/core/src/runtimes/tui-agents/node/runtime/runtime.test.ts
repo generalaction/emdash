@@ -28,21 +28,23 @@ function createRuntime(
     exec?: Partial<IExecutionContext>;
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
     conversationReports?: ConversationLifecycleReporter;
+    hooks?: ResolvedTuiProvider['hooks'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
   } = {}
 ) {
   const spawner = new FakePtySpawner();
+  const hooks = options.hooks ?? { kind: 'none' as const };
   const provider: ResolvedTuiProvider = {
     name: 'Test Agent',
     prompt: { kind: 'argv' },
-    hooks: { kind: 'none' },
+    hooks,
     buildCommand: () => ({ command: 'agent', args: ['run'], env: {} }),
   };
   const agentHost = {
     homeDir: '/home/test-user',
     resolveTuiProvider: vi.fn(() => provider),
     get: vi.fn(() => ({
-      capabilities: { hooks: { kind: 'none' } },
+      capabilities: { hooks },
       behavior: options.trustWorkspace ? { trust: { trustWorkspace: options.trustWorkspace } } : {},
     })),
     buildPromptCommand: vi.fn(() =>
@@ -126,6 +128,45 @@ describe('TuiAgentsRuntime', () => {
     expect(trustWorkspace).toHaveBeenCalledWith(expect.any(Object), {
       workspacePath: '/workspace',
     });
+  });
+
+  it('delivers hook events when hook installation fails', async () => {
+    const { runtime, spawner } = createRuntime({
+      hooks: { kind: 'config', scope: 'global', supportedEvents: ['stop'] },
+    });
+    vi.spyOn(runtime['hookInstaller'], 'ensureHooksInstalled').mockResolvedValue(false);
+
+    await runtime.startSession(startInput());
+    try {
+      const env = spawner.specs[0]?.env;
+      expect(env).toMatchObject({
+        EMDASH_PTY_ID: 'conversation-1',
+        EMDASH_HOOK_PORT: expect.stringMatching(/^\d+$/),
+        EMDASH_HOOK_NONCE: expect.any(String),
+        EMDASH_HOOK_TOKEN: expect.any(String),
+      });
+      if (!env?.EMDASH_HOOK_PORT || !env.EMDASH_HOOK_NONCE) {
+        throw new Error('hook endpoint was not provided');
+      }
+
+      const response = await fetch(`http://127.0.0.1:${env.EMDASH_HOOK_PORT}/hook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Emdash-Token': env.EMDASH_HOOK_NONCE,
+          'X-Emdash-Pty-Id': 'conversation-1',
+          'X-Emdash-Event-Type': 'stop',
+        },
+        body: '{}',
+      });
+
+      expect(response.status).toBe(200);
+      expect(peek(runtime.agentStatesLiveModel.get(undefined)!.states.list)).toMatchObject({
+        'conversation-1': { status: 'completed' },
+      });
+    } finally {
+      await runtime.dispose();
+    }
   });
 
   it('wraps command execution with shellSetup and tmux', async () => {
