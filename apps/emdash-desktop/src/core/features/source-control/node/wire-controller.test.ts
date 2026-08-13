@@ -25,18 +25,27 @@ const checkoutIdentity = {
   path: '/repo/worktree',
 } as const;
 
+function attachedProjects(project: unknown) {
+  return { requireAttached: vi.fn(() => ok(project as never)) };
+}
+
 describe('createSourceControlWireController', () => {
   it('resolves repository ids and clients for attached state', async () => {
     const source = liveSource({ kind: 'ready', branches: [], tags: [] });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const client = vi.fn(async () => ok({ git: { repository: { model: { state } } } }));
+    const client = vi.fn();
     const resolveProject = vi.fn(async () => projectIdentity);
+    const projects = attachedProjects({
+      git: { repository: { model: { state } } },
+      repository: { repository: hostPathFromNative(projectIdentity.path) },
+    });
     const controller = createSourceControlWireController({
       runtimes: { client } as never,
       workspaceIdentity: {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject,
       },
+      projects,
       mintOperationCredentials: vi.fn(async () => undefined),
     });
 
@@ -47,8 +56,9 @@ describe('createSourceControlWireController', () => {
     const lease = controller.acquireLive(topic);
     await expect(lease?.ready()).resolves.toBe(source);
 
-    expect(resolveProject).toHaveBeenCalledWith(projectIdentity.projectId);
-    expect(client).toHaveBeenCalledOnce();
+    expect(projects.requireAttached).toHaveBeenCalledWith(projectIdentity.projectId);
+    expect(resolveProject).not.toHaveBeenCalled();
+    expect(client).not.toHaveBeenCalled();
     expect(state).toHaveBeenCalledWith(
       { repository: hostPathFromNative(projectIdentity.path) },
       'refs'
@@ -64,6 +74,7 @@ describe('createSourceControlWireController', () => {
     const controller = createSourceControlWireController({
       runtimes: { client } as never,
       workspaceIdentity: { resolve, resolveProject: vi.fn(async () => projectIdentity) },
+      projects: attachedProjects({}),
       mintOperationCredentials: vi.fn(async () => undefined),
     });
 
@@ -100,6 +111,14 @@ describe('createSourceControlWireController', () => {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject: vi.fn(async () => projectIdentity),
       },
+      projects: attachedProjects({
+        git: {
+          repository: {
+            model: { def: gitContract.repository.model, mutate },
+          },
+        },
+        repository: { repository: hostPathFromNative(projectIdentity.path) },
+      }),
       mintOperationCredentials: vi.fn(async () => undefined),
     });
     const key = { projectId: projectIdentity.projectId };
@@ -144,6 +163,9 @@ describe('createSourceControlWireController', () => {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject: vi.fn(async () => projectIdentity),
       },
+      projects: {
+        requireAttached: vi.fn(() => err(resolveError)),
+      },
       mintOperationCredentials: vi.fn(async () => undefined),
     });
 
@@ -157,6 +179,33 @@ describe('createSourceControlWireController', () => {
         mutationId: 'mutation-1',
       })
     ).resolves.toEqual(err(resolveError));
+  });
+
+  it('preserves typed attachment races for repository operations', async () => {
+    const unavailable = {
+      type: 'attachment-unavailable' as const,
+      host: LOCAL_HOST_REF,
+      phase: 'waiting' as const,
+    };
+    const controller = createSourceControlWireController({
+      runtimes: { client: vi.fn() } as never,
+      workspaceIdentity: {
+        resolve: vi.fn(async () => checkoutIdentity),
+        resolveProject: vi.fn(async () => projectIdentity),
+      },
+      projects: {
+        requireAttached: vi.fn(() => err(unavailable)),
+      },
+      mintOperationCredentials: vi.fn(async () => undefined),
+    });
+
+    await expect(
+      controller.call('repository.model.addRemote', {
+        key: { projectId: 'project-1' },
+        input: { name: 'upstream', url: 'git@example.com:org/repo.git' },
+        mutationId: 'mutation-1',
+      })
+    ).resolves.toEqual(err(unavailable));
   });
 });
 

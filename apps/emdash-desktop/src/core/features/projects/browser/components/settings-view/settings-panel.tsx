@@ -1,5 +1,6 @@
 import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
+import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
 import {
   asAvailableProject,
   getProjectSettingsStore,
@@ -8,6 +9,10 @@ import {
 import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
+import type {
+  ProjectDurableSettingsDomains,
+  ProjectSettingsDomains,
+} from '../../../api/project-settings-page';
 
 export const SettingsPanel = observer(function SettingsPanel() {
   const {
@@ -15,8 +20,17 @@ export const SettingsPanel = observer(function SettingsPanel() {
   } = useCurrentViewParams(projectViewDef);
   const context = asAvailableProject(getProjectStore(projectId));
   const store = getProjectSettingsStore(projectId);
-  const domains = store?.domains;
+  const hostDomains = store?.hostDomains;
+  const domains =
+    store?.domains ??
+    (store?.durableDomains ? unavailableSettingsDomains(store.durableDomains) : null);
   const configMigrations = store?.configMigrations;
+  const hostActionReason = context
+    ? (projectHostActionUnavailableReason(context.host.state) ??
+      (hostDomains?.kind === 'unavailable'
+        ? 'Host-backed settings are unavailable until they finish loading.'
+        : null))
+    : null;
 
   if ((!domains || !configMigrations) && store?.pageData.error) {
     return (
@@ -52,6 +66,8 @@ export const SettingsPanel = observer(function SettingsPanel() {
       projectType={context.project.type}
       domains={domains}
       configMigrations={configMigrations}
+      hostActionReason={hostActionReason}
+      hostObservationKind={hostDomains?.kind ?? 'unavailable'}
       onSuccess={() => {}}
       save={(s) => store.save(s)}
       writeConfigToRepo={(request) => store.writeConfigToRepo(request)}
@@ -59,3 +75,48 @@ export const SettingsPanel = observer(function SettingsPanel() {
     />
   );
 });
+
+function unavailableSettingsDomains(
+  durable: ProjectDurableSettingsDomains
+): ProjectSettingsDomains {
+  return {
+    gitIdentity: durable.gitIdentity,
+    placement: {
+      ...durable.placement,
+      layers: {
+        hostWorktreeRoot: null,
+        builtInWorktreeRoot: '',
+        homeDirectory: '',
+        hostTmux: null,
+        appDefaultTmux: false,
+      },
+      resolved: {
+        worktreeRoot: { value: '', provenance: { kind: 'unresolvable' } },
+        tmux: {
+          value: durable.placement.stored.tmux ?? false,
+          provenance:
+            durable.placement.stored.tmux === undefined
+              ? { kind: 'inferred', from: 'app default' }
+              : { kind: 'set' },
+        },
+      },
+    },
+    lifecycle: {
+      personal: {},
+      team: {},
+      resolved: {
+        autoRunSetup: { value: false, from: 'built-in' },
+        autoRunRun: { value: false, from: 'built-in' },
+      },
+      sources: { prepare: [], setup: [], run: [], teardown: [] },
+      writeTargets: [],
+    },
+    fileHandling: {
+      personal: {},
+      team: {},
+      resolved: { preservePatterns: { value: [], from: 'built-in' } },
+      sources: [],
+      writeTargets: [],
+    },
+  };
+}

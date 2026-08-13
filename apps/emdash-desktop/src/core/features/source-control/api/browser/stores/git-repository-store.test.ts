@@ -7,7 +7,12 @@ import type {
 import { ok } from '@emdash/shared';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
+import { observable } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
 import type { StoredProjectGitSettings } from '@core/primitives/project-settings/api';
@@ -52,10 +57,38 @@ function settingsStore(storedGitSettings: StoredProjectGitSettings | null): Proj
 }
 
 async function startStore(stored: StoredProjectGitSettings | null = null) {
-  const store = new GitRepositoryStore('project-1', settingsStore(stored));
+  const store = new GitRepositoryStore(
+    'project-1',
+    settingsStore(stored),
+    projectHostAccess({ kind: 'ready', hostGeneration: 1 }).host
+  );
   store.start();
   await waitFor(() => !store.loading);
   return store;
+}
+
+function projectHostAccess(initial: ProjectHostAccessState) {
+  const state = observable.box(initial, { deep: false });
+  const host: ProjectHostAccess = {
+    get state() {
+      return state.get();
+    },
+    get liveAction() {
+      const current = state.get();
+      return current.kind === 'ready'
+        ? { kind: 'enabled' as const }
+        : { kind: 'disabled' as const, state: current };
+    },
+    observe(observation) {
+      if (observation.kind === 'never-observed') return { kind: 'unavailable' };
+      return state.get().kind === 'ready'
+        ? { kind: 'fresh', value: observation.value, observedAt: observation.observedAt }
+        : { kind: 'stale', value: observation.value, observedAt: observation.observedAt };
+    },
+    requireLive: vi.fn(),
+    recover: vi.fn(),
+  };
+  return { host, state };
 }
 
 describe('GitRepositoryStore', () => {
@@ -181,6 +214,72 @@ describe('GitRepositoryStore', () => {
       branch: 'develop',
       remote: origin,
       oid: 'b',
+    });
+    store.dispose();
+  });
+
+  it('retains Git and provider observations through degradation and retry', async () => {
+    refsState.set(refs({ branches: [{ type: 'local', branch: 'main', oid: 'a' }] }));
+    remotesState.set({ remotes: [origin] });
+    mocks.resolveProvider.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/example/repo',
+        nameWithOwner: 'example/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    const access = projectHostAccess({ kind: 'ready', hostGeneration: 1 });
+    const store = new GitRepositoryStore('project-1', settingsStore(null), access.host);
+
+    expect(store.refsObservation).toEqual({ kind: 'unavailable' });
+    expect(store.remotesObservation).toEqual({ kind: 'unavailable' });
+    store.start();
+    await waitFor(() => !store.loading);
+    await store.providerRepositoryInfo.load();
+    expect(store.refsObservation).toMatchObject({
+      kind: 'fresh',
+      value: { branches: [{ branch: 'main' }] },
+    });
+    expect(store.providerRepositoryObservation).toMatchObject({
+      kind: 'fresh',
+      value: { success: true },
+    });
+
+    access.state.set({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
+    expect(store.refsObservation).toMatchObject({
+      kind: 'stale',
+      value: { branches: [{ branch: 'main' }] },
+    });
+    expect(store.remotesObservation).toMatchObject({
+      kind: 'stale',
+      value: { remotes: [origin] },
+    });
+    expect(store.providerRepositoryObservation).toMatchObject({
+      kind: 'stale',
+      value: { success: true },
+    });
+
+    await store.retry();
+    expect(store.refsObservation).toMatchObject({
+      kind: 'stale',
+      value: { branches: [{ branch: 'main' }] },
+    });
+    expect(store.remotesObservation).toMatchObject({
+      kind: 'stale',
+      value: { remotes: [origin] },
+    });
+
+    access.state.set({ kind: 'ready', hostGeneration: 2 });
+    await waitFor(() => store.refsObservation.kind === 'fresh');
+    expect(store.refsObservation).toMatchObject({
+      kind: 'fresh',
+      value: { branches: [{ branch: 'main' }] },
     });
     store.dispose();
   });

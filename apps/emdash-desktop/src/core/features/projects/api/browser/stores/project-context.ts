@@ -27,6 +27,7 @@ import {
 } from '@core/primitives/scoped-stores/browser';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
+import type { HostObservation, ProjectHostObservation } from '../../host-observation';
 
 export type ProjectContextError =
   | { type: 'invalid-project-record'; message: string }
@@ -67,9 +68,31 @@ export type LiveActionAvailability =
   | { kind: 'enabled' }
   | { kind: 'disabled'; state: ProjectHostAccessState };
 
+export function projectHostActionUnavailableReason(state: ProjectHostAccessState): string | null {
+  if (state.kind === 'ready') return null;
+  switch (state.situation) {
+    case 'offline':
+      return 'Unavailable while this Project’s Machine is offline.';
+    case 'connecting':
+      return 'Unavailable while Emdash connects to this Project’s Machine.';
+    case 'provisioning':
+    case 'handshaking':
+      return 'Unavailable while this Project’s Machine is preparing.';
+    case 'attaching':
+    case 'recovering':
+      return 'Unavailable while Emdash restores access to this Project.';
+    case 'attention':
+    case 'suspended':
+      return 'Unavailable until access to this Project is restored.';
+  }
+}
+
+export type { HostObservation, ProjectHostObservation } from '../../host-observation';
+
 export interface ProjectHostAccess {
   readonly state: ProjectHostAccessState;
   readonly liveAction: LiveActionAvailability;
+  observe<T>(observation: HostObservation<T>): ProjectHostObservation<T>;
   requireLive(): Result<void, ProjectAttachmentError>;
   recover(): Promise<Result<void, ProjectRecoveryRequestError>>;
 }
@@ -161,6 +184,13 @@ class HydratingProjectHostAccess implements ProjectHostAccess {
   get liveAction(): LiveActionAvailability {
     const state = this.state;
     return state.kind === 'ready' ? { kind: 'enabled' } : { kind: 'disabled', state };
+  }
+
+  observe<T>(observation: HostObservation<T>): ProjectHostObservation<T> {
+    if (observation.kind === 'never-observed') return { kind: 'unavailable' };
+    return this.state.kind === 'ready'
+      ? { kind: 'fresh', value: observation.value, observedAt: observation.observedAt }
+      : { kind: 'stale', value: observation.value, observedAt: observation.observedAt };
   }
 
   requireLive(): Result<void, ProjectAttachmentError> {

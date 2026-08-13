@@ -19,6 +19,9 @@ import type {
   GitOperationCredentialsLease,
   GitCredentialsService,
 } from '@core/features/github/api/node/services/git-credentials-service';
+import type { ProjectAttachmentError } from '@core/features/projects/api';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
@@ -35,6 +38,7 @@ import {
 export type CreateSourceControlWireControllerOptions = Readonly<{
   runtimes: SourceControlRuntimeBroker;
   workspaceIdentity: SourceControlWorkspaceIdentityResolver;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   /**
    * Operation-scoped emdash credential helper for network git jobs
    * (spec: github-git-settings §4): emdash's own fetch/push/pull/publish
@@ -145,8 +149,7 @@ export function createSourceControlWireController(
 }
 
 function createRepositoryModelProvider({
-  runtimes,
-  workspaceIdentity,
+  projects,
 }: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.repository.model
 > {
@@ -155,26 +158,20 @@ function createRepositoryModelProvider({
     kind: 'liveModelProvider',
     contract,
     resolveState: (key, name) =>
-      resolveRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolveProject(key.projectId),
-        (client, id) =>
-          client.git.repository.model
-            .state({ repository: hostPathFromNative(id.path) }, name)
-            .asLiveSource()
+      resolveProjectSource(projects, key.projectId, (project) =>
+        project.git.repository.model.state(project.repository, name).asLiveSource()
       ),
     async runMutation(name, envelope) {
-      return withIdentityRuntime(
-        runtimes,
-        workspaceIdentity.resolveProject(envelope.key.projectId),
-        (client, identity) =>
-          forwardModelMutation(
-            client.git.repository.model,
-            sourceControlContract.repository.model,
-            name,
-            envelope,
-            { repository: hostPathFromNative(identity.path) }
-          )
+      const project = projects.requireAttached(envelope.key.projectId);
+      if (!project.success) {
+        return project as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
+      }
+      return forwardModelMutation(
+        project.data.git.repository.model,
+        sourceControlContract.repository.model,
+        name,
+        envelope,
+        project.data.repository
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
@@ -223,17 +220,26 @@ async function withRepositoryRuntime<T extends { projectId: string }, R, E>(
     git: HostRuntimesClient['git'],
     mapped: Omit<T, 'projectId'> & { repository: ReturnType<typeof hostPathFromNative> }
   ) => Promise<Result<R, E>>
-): Promise<Result<R, E | RuntimeResolveError>> {
+): Promise<Result<R, E | ProjectAttachmentError>> {
   const { projectId, ...rest } = input;
-  return withIdentityRuntime(
-    options.runtimes,
-    options.workspaceIdentity.resolveProject(projectId),
-    (client, identity) =>
-      work(client.git, {
-        ...rest,
-        repository: hostPathFromNative(identity.path),
-      })
-  );
+  const project = options.projects.requireAttached(projectId);
+  if (!project.success) return project;
+  return work(project.data.git, {
+    ...rest,
+    repository: project.data.repository.repository,
+  });
+}
+
+async function resolveProjectSource(
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>,
+  projectId: string,
+  source: (project: ProjectProvider) => LiveSource
+): Promise<LiveSource> {
+  const project = projects.requireAttached(projectId);
+  if (!project.success) {
+    throw new Error(`Project attachment unavailable: ${project.error.type}`);
+  }
+  return source(project.data);
 }
 
 async function withCheckoutRuntime<T extends { workspaceId: string }, R, E>(
@@ -308,24 +314,23 @@ async function runRepositoryJob<
   input: Input,
   context: LiveJobContext<JobProgress<Def>>,
   handle: (git: HostRuntimesClient['git']) => LiveJobClientHandle<Def>
-): Promise<Result<JobResult<Def>, JobError<Def> | RuntimeResolveError>> {
+): Promise<Result<JobResult<Def>, JobError<Def> | ProjectAttachmentError>> {
   const { projectId, ...rest } = input;
-  return withIdentityRuntime(
-    options.runtimes,
-    options.workspaceIdentity.resolveProject(projectId),
-    (client, identity) =>
-      withOperationCredentials(options, identity, (credentials) =>
-        runUpstreamJob(
-          definition,
-          handle(client.git),
-          {
-            ...rest,
-            repository: hostPathFromNative(identity.path),
-            credentials,
-          } as JobInput<Def>,
-          context
-        )
-      )
+  const project = options.projects.requireAttached(projectId);
+  if (!project.success) {
+    return project as Result<JobResult<Def>, JobError<Def>>;
+  }
+  return withOperationCredentials(options, project.data, (credentials) =>
+    runUpstreamJob(
+      definition,
+      handle(project.data.git),
+      {
+        ...rest,
+        repository: project.data.repository.repository,
+        credentials,
+      } as JobInput<Def>,
+      context
+    )
   );
 }
 
@@ -366,7 +371,7 @@ async function runCheckoutJob<
  */
 async function withOperationCredentials<T>(
   options: CreateSourceControlWireControllerOptions,
-  identity: WorkspaceIdentity,
+  identity: Pick<WorkspaceIdentity, 'projectId' | 'host'>,
   work: (credentials: GitOperationCredentialsLease['credentials'] | undefined) => Promise<T>
 ): Promise<T> {
   const lease = await options.mintOperationCredentials({

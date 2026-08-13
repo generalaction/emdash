@@ -3,10 +3,14 @@ import type { ProjectAttachmentManager } from '@core/features/projects/api/node/
 import { repositoryContract } from '../api';
 import { ProviderRepositoryService } from './provider-repository-service';
 
-export function createRepositoryWireController(
-  projects: Pick<ProjectAttachmentManager, 'getProject'>
-): Controller {
-  const providerRepositoryService = new ProviderRepositoryService(projects);
+export function createRepositoryWireController(dependencies: {
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
+  loadProject(projectId: string): Promise<unknown | undefined>;
+}): Controller {
+  const providerRepositoryService = new ProviderRepositoryService({
+    projects: dependencies.projects,
+    loadProject: dependencies.loadProject,
+  });
   return createController(repositoryContract, {
     resolveProvider: ({ projectId }) => providerRepositoryService.resolveProject(projectId),
   });

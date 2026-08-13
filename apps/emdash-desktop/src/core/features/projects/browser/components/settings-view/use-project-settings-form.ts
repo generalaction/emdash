@@ -9,11 +9,11 @@ import {
   type ShareableProjectSettingsWriteField,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
-import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type {
   MigrateProjectConfigResult,
   ProjectSettingsDomainPatch,
   ProjectSettingsDomains,
+  ProjectSettingsError,
   ProjectSettingsPage,
 } from '../../../api/project-settings-page';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
@@ -43,13 +43,13 @@ type UseProjectSettingsFormArgs = {
   onSuccess: () => void;
   save: (
     patch: ProjectSettingsDomainPatch
-  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, ProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
-  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, ProjectSettingsError>>;
   migrateProjectConfig: (
     request: MigrateProjectConfigRequest
-  ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
+  ) => Promise<Result<MigrateProjectConfigResult, ProjectSettingsError>>;
 };
 
 type FormSnapshot = {
@@ -177,7 +177,10 @@ export function useProjectSettingsForm({
     ).catch(() => err({ type: 'error' }));
 
     if (result.success) {
-      const canonicalForm = projectSettingsDomainsToForm(result.data.domains, remotes);
+      const canonicalForm = projectSettingsDomainsToForm(
+        mergeProjectSettingsPage(result.data, domains),
+        remotes
+      );
       setWorktreeDirectoryError(null);
       setFormSnapshot({
         baseline: canonicalForm,
@@ -198,7 +201,7 @@ export function useProjectSettingsForm({
 
     setWorktreeDirectoryError(null);
     setSaveStatus('error');
-  }, [form, onSuccess, remotes, resolvedSnapshot.touchedFields, save]);
+  }, [domains, form, onSuccess, remotes, resolvedSnapshot.touchedFields, save]);
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
@@ -210,7 +213,10 @@ export function useProjectSettingsForm({
       writeConfigToRepo,
     }).then((outcome) => {
       if (!outcome.success) return;
-      const nextForm = projectSettingsDomainsToForm(outcome.data.page.domains, remotes);
+      const nextForm = projectSettingsDomainsToForm(
+        mergeProjectSettingsPage(outcome.data.page, domains),
+        remotes
+      );
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
@@ -224,6 +230,7 @@ export function useProjectSettingsForm({
     availableWriteFields,
     canShareConfig,
     defaultSelectedWriteFields,
+    domains,
     initialWriteTarget,
     onSuccess,
     openShareProjectConfigModal,
@@ -242,7 +249,10 @@ export function useProjectSettingsForm({
     }).then((outcome) => {
       if (!outcome.success) return;
       const { page, migration } = outcome.data;
-      const nextForm = projectSettingsDomainsToForm(page.domains, remotes);
+      const nextForm = projectSettingsDomainsToForm(
+        mergeProjectSettingsPage(page, domains),
+        remotes
+      );
       setFormSnapshot({
         baseline: nextForm,
         form: nextForm,
@@ -257,6 +267,7 @@ export function useProjectSettingsForm({
   }, [
     canImportConfig,
     configMigrations,
+    domains,
     importDisabled,
     migrateProjectConfig,
     onSuccess,
@@ -294,5 +305,21 @@ export function useProjectSettingsForm({
     openShareConfigModal,
     openImportConfigModal,
     handleUndo,
+  };
+}
+
+function mergeProjectSettingsPage(
+  page: ProjectSettingsPage,
+  previous: ProjectSettingsDomains
+): ProjectSettingsDomains {
+  const host = page.host.kind === 'observed' ? page.host.value.domains : previous;
+  return {
+    lifecycle: host.lifecycle,
+    fileHandling: host.fileHandling,
+    gitIdentity: page.durable.gitIdentity,
+    placement: {
+      ...host.placement,
+      ...page.durable.placement,
+    },
   };
 }

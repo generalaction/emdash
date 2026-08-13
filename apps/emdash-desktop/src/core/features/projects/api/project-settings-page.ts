@@ -14,6 +14,9 @@ import type {
   StoredGithubAccount,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type { ProjectAttachmentError } from './attachments';
+import type { HostObservation } from './host-observation';
 
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
 
@@ -77,6 +80,17 @@ export type ProjectSettingsDomains = {
   placement: ProjectPlacementDomainSnapshot;
 };
 
+export type ProjectDurableSettingsDomains = {
+  gitIdentity: ProjectGitIdentityDomainSnapshot;
+  placement: Pick<ProjectPlacementDomainSnapshot, 'stored'>;
+};
+
+export type ProjectHostSettingsDomains = {
+  lifecycle: ProjectLifecycleDomainSnapshot;
+  fileHandling: ProjectFileHandlingDomainSnapshot;
+  placement: Omit<ProjectPlacementDomainSnapshot, 'stored'>;
+};
+
 type PersonalProjectConfigPatch = PatchPersonalProjectConfigInput['patch'];
 
 export type ProjectGitIdentityStoredPatch = {
@@ -107,11 +121,18 @@ export type ProjectSettingsDomainPatch = {
   };
 };
 
-export type ProjectSettingsPage = {
-  domains: ProjectSettingsDomains;
+export type ProjectHostSettingsSnapshot = {
+  domains: ProjectHostSettingsDomains;
   configMigrations: ProjectConfigMigration[];
   shouldPromptConfigMigration: boolean;
 };
+
+export type ProjectSettingsPage = {
+  durable: ProjectDurableSettingsDomains;
+  host: HostObservation<ProjectHostSettingsSnapshot>;
+};
+
+export type ProjectSettingsError = UpdateProjectSettingsError | ProjectAttachmentError;
 
 export type MigrateProjectConfigResult = {
   page: ProjectSettingsPage;

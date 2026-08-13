@@ -12,8 +12,7 @@ import type {
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
-import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import type { ProjectSettingsPage } from '../../../api/project-settings-page';
+import type { ProjectSettingsError, ProjectSettingsPage } from '../../../api/project-settings-page';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
@@ -25,7 +24,7 @@ export type ShareProjectConfigModalArgs = {
   targets: ProjectSettingsWriteTargetOption[];
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
-  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, ProjectSettingsError>>;
 };
 
 type ShareProjectConfigModalResult = {

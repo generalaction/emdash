@@ -46,6 +46,7 @@ import { createPreviewServersWireController } from '@core/features/preview-serve
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
+import { getProjectById } from '@core/features/projects/node/operations/getProjects';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
@@ -230,7 +231,11 @@ export const desktopNodeControllers = {
     create: ({ promptLibrary }) => createPromptLibraryWireController(promptLibrary),
   },
   repository: {
-    create: ({ projects }) => createRepositoryWireController(projects),
+    create: ({ db, projects }) =>
+      createRepositoryWireController({
+        projects,
+        loadProject: (projectId) => getProjectById(db, projectId),
+      }),
   },
   search: {
     create: ({ search }) => createSearchWireController(search),
@@ -239,10 +244,11 @@ export const desktopNodeControllers = {
     create: ({ telemetry }) => createTelemetryWireController(telemetry),
   },
   sourceControl: {
-    create: ({ gitCredentials, runtimes, workspaceIdentity }) =>
+    create: ({ gitCredentials, runtimes, workspaceIdentity, projects }) =>
       createSourceControlWireController({
         runtimes,
         workspaceIdentity,
+        projects,
         mintOperationCredentials: gitCredentials.mintOperationCredentials,
       }),
   },

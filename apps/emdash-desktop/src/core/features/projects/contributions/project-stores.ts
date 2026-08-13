@@ -36,7 +36,7 @@ export const projectScopedStoreContributions: readonly ScopedStoreContribution<P
     }),
     contributeScopedStore({
       token: projectSettingsStoreToken,
-      create: ({ data }) => new ProjectSettingsStore(data.id),
+      create: ({ data, host }) => new ProjectSettingsStore(data.id, host),
       dispose: (store) => store.dispose(),
     }),
     contributeScopedStore({

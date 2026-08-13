@@ -26,6 +26,8 @@ interface BranchSelectorProps {
   trigger?: React.ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  refreshDisabledReason?: string | null;
+  observationKind?: 'fresh' | 'stale' | 'unavailable';
   remotes?: GitRemote[];
   selectedRemoteName?: string;
 }
@@ -39,6 +41,8 @@ export function BranchSelector({
   trigger,
   onRefresh,
   isRefreshing = false,
+  refreshDisabledReason,
+  observationKind = 'fresh',
   remotes,
   selectedRemoteName,
 }: BranchSelectorProps) {
@@ -138,6 +142,14 @@ export function BranchSelector({
       <Combobox.Content
         className={cn('min-w-(--anchor-width) border', showRemoteFooter ? 'pb-0' : 'pb-1')}
       >
+        {observationKind === 'stale' ? (
+          <p
+            role="status"
+            className="border-b border-border px-2.5 py-1.5 text-xs text-foreground-muted"
+          >
+            Showing previously observed branches
+          </p>
+        ) : null}
         {!remoteOnly && (
           <ToggleGroup.Root
             value={[tab]}
@@ -174,17 +186,23 @@ export function BranchSelector({
           rightAddon={
             onRefresh && (
               <Tooltip.Root>
-                <Tooltip.Trigger>
-                  <InputGroup.Button
-                    className="text-foreground-muted hover:text-foreground"
-                    onClick={onRefresh}
-                    disabled={isRefreshing}
-                    aria-label="Refresh branches"
-                  >
-                    <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-                  </InputGroup.Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Refresh branches</Tooltip.Content>
+                <Tooltip.Trigger
+                  render={
+                    <InputGroup.Button
+                      className="text-foreground-muted hover:text-foreground"
+                      onClick={() => {
+                        if (!refreshDisabledReason) onRefresh();
+                      }}
+                      disabled={isRefreshing}
+                      aria-disabled={!!refreshDisabledReason}
+                      aria-description={refreshDisabledReason ?? undefined}
+                      aria-label="Refresh branches"
+                    >
+                      <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+                    </InputGroup.Button>
+                  }
+                />
+                <Tooltip.Content>{refreshDisabledReason ?? 'Refresh branches'}</Tooltip.Content>
               </Tooltip.Root>
             )
           }
@@ -197,7 +215,11 @@ export function BranchSelector({
           )}
         </Combobox.List>
         <Combobox.Empty>
-          {branches.length === 0 ? 'no branches exist' : 'no results'}
+          {observationKind === 'unavailable'
+            ? 'Branches unavailable'
+            : branches.length === 0
+              ? 'no branches exist'
+              : 'no results'}
         </Combobox.Empty>
         {footerRemoteName !== undefined && (
           <div className="border-t border-border">

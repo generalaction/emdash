@@ -1,6 +1,11 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
+import {
+  asAvailableProject,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import {
   BranchSelector,
@@ -29,6 +34,10 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   showRemoteSelectorFooter = false,
 }: ProjectBranchSelectorProps) {
   const repo = getGitRepositoryStore(projectId);
+  const host = asAvailableProject(getProjectStore(projectId))?.host;
+  const refreshDisabledReason = host
+    ? projectHostActionUnavailableReason(host.state)
+    : 'Unavailable until access to this Project is restored.';
   // The effective base remote from the resolver; undefined at zero remotes,
   // which simply hides the remote-selector footer (no remote branches exist).
   const selectedRemoteName =
@@ -49,6 +58,8 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
       branchLabelRemote={branchLabelRemote}
       trigger={trigger}
       onRefresh={() => repo?.refresh()}
+      refreshDisabledReason={refreshDisabledReason}
+      observationKind={repo?.refsObservation.kind ?? 'unavailable'}
       isRefreshing={repo?.loading ?? false}
       remotes={canSelectRemote ? repo?.remotes : undefined}
       selectedRemoteName={

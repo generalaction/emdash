@@ -1,6 +1,19 @@
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { defineContract, downloadFile, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
+import type { Result } from '@emdash/shared';
+import {
+  defineContract,
+  downloadFile,
+  liveJob,
+  liveModel,
+  liveState,
+  procedure,
+  type MutationDef,
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
+import {
+  projectAttachmentErrorSchema,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api';
 import {
   runtimeFallibleMutations,
   runtimeFallibleProcedure,
@@ -13,6 +26,51 @@ const workspaceKeySchema = z.object({ workspaceId: z.string() });
 const repository = gitContract.repository;
 const checkout = gitContract.checkout;
 
+const projectAttachmentFailureSchema = z.object({
+  success: z.literal(false),
+  error: projectAttachmentErrorSchema,
+});
+
+type AttachmentFallibleResult<OutputSchema extends z.ZodTypeAny> =
+  z.output<OutputSchema> extends Result<infer Data, infer Error>
+    ? Result<Data, Error | ProjectAttachmentError>
+    : never;
+
+function attachmentFallibleProcedure<
+  InputSchema extends z.ZodTypeAny,
+  OutputSchema extends z.ZodTypeAny,
+>(input: InputSchema, output: OutputSchema) {
+  return procedure({
+    input,
+    output: z.union([output, projectAttachmentFailureSchema]) as z.ZodType<
+      AttachmentFallibleResult<OutputSchema>
+    >,
+  });
+}
+
+function attachmentErrorUnion<ErrorSchema extends z.ZodTypeAny>(error: ErrorSchema) {
+  return z.union([error, projectAttachmentErrorSchema]);
+}
+
+type AttachmentFallibleMutation<Definition extends MutationDef> =
+  Definition extends MutationDef<infer InputSchema, infer DataSchema, infer ErrorSchema>
+    ? MutationDef<InputSchema, DataSchema, ReturnType<typeof attachmentErrorUnion<ErrorSchema>>>
+    : never;
+
+function attachmentFallibleMutations<Definitions extends Record<string, MutationDef>>(
+  definitions: Definitions
+): { [Name in keyof Definitions]: AttachmentFallibleMutation<Definitions[Name]> } {
+  return Object.fromEntries(
+    Object.entries(definitions).map(([name, definition]) => [
+      name,
+      {
+        ...definition,
+        error: attachmentErrorUnion(definition.error),
+      },
+    ])
+  ) as { [Name in keyof Definitions]: AttachmentFallibleMutation<Definitions[Name]> };
+}
+
 const sourceControlRepositoryContract = defineContract({
   model: liveModel({
     key: projectKeySchema,
@@ -20,10 +78,10 @@ const sourceControlRepositoryContract = defineContract({
       refs: liveState({ data: repository.model.states.refs.dataSchema }),
       remotes: liveState({ data: repository.model.states.remotes.dataSchema }),
     },
-    mutations: runtimeFallibleMutations(repository.model.mutations),
+    mutations: attachmentFallibleMutations(repository.model.mutations),
   }),
-  listWorktrees: runtimeFallibleProcedure(projectKeySchema, repository.listWorktrees.output),
-  getDefaultBranch: runtimeFallibleProcedure(
+  listWorktrees: attachmentFallibleProcedure(projectKeySchema, repository.listWorktrees.output),
+  getDefaultBranch: attachmentFallibleProcedure(
     repository.getDefaultBranch.input.omit({ repository: true }).extend(projectKeySchema.shape),
     repository.getDefaultBranch.output
   ),
@@ -31,13 +89,13 @@ const sourceControlRepositoryContract = defineContract({
     input: repository.fetch.input.omit({ repository: true }).extend(projectKeySchema.shape),
     progress: repository.fetch.progress,
     result: repository.fetch.result,
-    error: runtimeResolveErrorUnion(repository.fetch.error),
+    error: attachmentErrorUnion(repository.fetch.error),
   }),
   publishBranch: liveJob({
     input: repository.publishBranch.input.omit({ repository: true }).extend(projectKeySchema.shape),
     progress: repository.publishBranch.progress,
     result: repository.publishBranch.result,
-    error: runtimeResolveErrorUnion(repository.publishBranch.error),
+    error: attachmentErrorUnion(repository.publishBranch.error),
   }),
   fetchPrForReview: liveJob({
     input: repository.fetchPrForReview.input
@@ -45,7 +103,7 @@ const sourceControlRepositoryContract = defineContract({
       .extend(projectKeySchema.shape),
     progress: repository.fetchPrForReview.progress,
     result: repository.fetchPrForReview.result,
-    error: runtimeResolveErrorUnion(repository.fetchPrForReview.error),
+    error: attachmentErrorUnion(repository.fetchPrForReview.error),
   }),
 });
 

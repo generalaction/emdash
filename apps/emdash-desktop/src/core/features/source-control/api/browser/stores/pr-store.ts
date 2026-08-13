@@ -6,6 +6,7 @@ import {
   asMounted,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import type { ProjectHostObservation } from '@core/features/projects/api/host-observation';
 import {
   checkoutSelector,
   getSourceControlClient,
@@ -39,6 +40,9 @@ export class PrStore {
     string,
     { resource: Resource<GitChange[]>; baseRefOid: string; headRefOid: string }
   >();
+  private _pullRequests: PullRequest[] | null = null;
+  private _pullRequestsObservedAt = 0;
+  private readonly _pullRequestsDisposer: () => void;
 
   constructor(
     private readonly projectId: string,
@@ -48,11 +52,33 @@ export class PrStore {
     private readonly taskStore: TaskStore
   ) {
     makeAutoObservable(this);
+    this._pullRequestsDisposer = reaction(
+      () => (isRegistered(this.taskStore) ? [...((this.taskStore.data as Task).prs ?? [])] : null),
+      (pullRequests) => {
+        if (pullRequests === null) return;
+        runInAction(() => {
+          this._pullRequests = pullRequests;
+          this._pullRequestsObservedAt = Date.now();
+        });
+      },
+      { fireImmediately: true }
+    );
   }
 
   get pullRequests(): PullRequest[] {
-    if (!isRegistered(this.taskStore)) return [];
-    return (this.taskStore.data as Task).prs ?? [];
+    return this._pullRequests ?? [];
+  }
+
+  get pullRequestsObservation(): ProjectHostObservation<PullRequest[]> {
+    return this.gitRepositoryStore.observeHost(
+      this._pullRequests
+        ? {
+            kind: 'observed',
+            value: this._pullRequests,
+            observedAt: this._pullRequestsObservedAt,
+          }
+        : { kind: 'never-observed' }
+    );
   }
 
   get currentPr(): PullRequest | undefined {
@@ -224,6 +250,7 @@ export class PrStore {
   }
 
   dispose(): void {
+    this._pullRequestsDisposer();
     for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 

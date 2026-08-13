@@ -75,6 +75,8 @@ type BaseProjectSettingsSectionProps = {
   worktreeDirectoryError: string | null;
   updateGitIdentity: FormUpdate<GitIdentityFormState>;
   updatePlacement: FormUpdate<PlacementFormState>;
+  hostActionReason: string | null;
+  hostObservationKind: 'fresh' | 'stale' | 'unavailable';
 };
 
 /**
@@ -145,6 +147,8 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
   worktreeDirectoryError,
   updateGitIdentity,
   updatePlacement,
+  hostActionReason,
+  hostObservationKind,
 }: BaseProjectSettingsSectionProps) {
   const inputs = useEffectiveSettingsInputs(projectId);
   const effective = inputs
@@ -293,48 +297,66 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
       <Separator />
 
-      <ProvenanceField
-        label="Worktree root"
-        description="Where task worktrees are created."
-        resolved={effective?.worktreeRoot ?? null}
-        flavor="inherited"
-        isExplicit={placementForm.worktreeDirectory.trim() !== ''}
-        onReset={() => updatePlacement('worktreeDirectory', '')}
-      >
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Input
-              aria-invalid={worktreeDirectoryError ? true : undefined}
-              className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
-              placeholder={effectiveWorktreeRoot ?? inheritedWorktreeRoot}
-              value={placementForm.worktreeDirectory}
-              onChange={(e) => updatePlacement('worktreeDirectory', e.target.value)}
-            />
-            {worktreeDirectoryError ? (
-              <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-foreground-error">
-                {worktreeDirectoryError}
-              </span>
-            ) : null}
-          </div>
-          {projectType === 'local' ? (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isBrowsingWorktreeDirectory}
-              onClick={handleBrowseWorktreeDirectory}
+      {hostObservationKind === 'unavailable' ? (
+        <Field.Root>
+          <Field.Label>Worktree root</Field.Label>
+          <Field.Description className="text-foreground-muted">
+            Host-derived worktree placement has not been observed for this Project.
+          </Field.Description>
+        </Field.Root>
+      ) : (
+        <>
+          <fieldset disabled={hostActionReason !== null} className="contents">
+            <ProvenanceField
+              label="Worktree root"
+              description="Where task worktrees are created."
+              resolved={hostActionReason ? null : (effective?.worktreeRoot ?? null)}
+              flavor="inherited"
+              isExplicit={placementForm.worktreeDirectory.trim() !== ''}
+              onReset={() => updatePlacement('worktreeDirectory', '')}
             >
-              <Folder data-icon="inline-start" className="size-4" />
-              Browse
-            </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    aria-invalid={worktreeDirectoryError ? true : undefined}
+                    className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
+                    placeholder={effectiveWorktreeRoot ?? inheritedWorktreeRoot}
+                    value={placementForm.worktreeDirectory}
+                    onChange={(e) => updatePlacement('worktreeDirectory', e.target.value)}
+                  />
+                  {worktreeDirectoryError ? (
+                    <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-foreground-error">
+                      {worktreeDirectoryError}
+                    </span>
+                  ) : null}
+                </div>
+                {projectType === 'local' ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isBrowsingWorktreeDirectory}
+                    onClick={handleBrowseWorktreeDirectory}
+                  >
+                    <Folder data-icon="inline-start" className="size-4" />
+                    Browse
+                  </Button>
+                ) : null}
+              </div>
+              {derivedPoolPath ? (
+                <span className="text-xs text-foreground-muted">
+                  Worktrees for this repository go in{' '}
+                  <code className="font-mono break-all">{derivedPoolPath}</code>
+                </span>
+              ) : null}
+            </ProvenanceField>
+          </fieldset>
+          {hostActionReason ? (
+            <p role="status" className="text-xs text-foreground-muted">
+              Worktree placement is {hostActionReason.toLocaleLowerCase()}
+            </p>
           ) : null}
-        </div>
-        {derivedPoolPath ? (
-          <span className="text-xs text-foreground-muted">
-            Worktrees for this repository go in{' '}
-            <code className="font-mono break-all">{derivedPoolPath}</code>
-          </span>
-        ) : null}
-      </ProvenanceField>
+        </>
+      )}
 
       <Separator />
 
@@ -423,7 +445,9 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         <div className="flex flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
             <Field.Label>Enable tmux</Field.Label>
-            <ProvenanceBadge provenance={effectiveTmux.provenance} flavor="inherited" />
+            {hostObservationKind !== 'unavailable' || placementForm.tmux !== undefined ? (
+              <ProvenanceBadge provenance={effectiveTmux.provenance} flavor="inherited" />
+            ) : null}
             {placementForm.tmux !== undefined ? (
               <ResetProvenanceButton
                 flavor="inherited"
@@ -432,11 +456,17 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
             ) : null}
           </div>
           <Field.Description className="text-foreground-muted">
-            Run the agent session inside a tmux session.
+            {hostObservationKind === 'unavailable' && placementForm.tmux === undefined
+              ? 'The inherited tmux value is unavailable. Choose a value to set a Project override.'
+              : 'Run the agent session inside a tmux session.'}
           </Field.Description>
         </div>
         <Switch
-          checked={effectiveTmux.value}
+          checked={
+            hostObservationKind === 'unavailable'
+              ? (placementForm.tmux ?? false)
+              : effectiveTmux.value
+          }
           onCheckedChange={(checked) => updatePlacement('tmux', checked)}
         />
       </Field.Root>

@@ -3,7 +3,10 @@ import { deferred } from '@emdash/shared/testing';
 import { cell, flushStateTurn, type RemoteModel } from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectAttachmentState, projectsWireContract } from '@core/features/projects/api';
-import { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
+import {
+  projectHostActionUnavailableReason,
+  ProjectContext,
+} from '@core/features/projects/api/browser/stores/project-context';
 import { contributeScopedStore, scopedStoreToken } from '@core/primitives/scoped-stores/browser';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
 
@@ -24,11 +27,27 @@ vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
   projectStoreContributions: mocks.projectStoreContributions,
 }));
 
+describe('projectHostActionUnavailableReason', () => {
+  it('provides an advisory reason without adding a recovery action', () => {
+    expect(
+      projectHostActionUnavailableReason({
+        kind: 'degraded',
+        situation: 'offline',
+        recovery: 'automatic',
+      })
+    ).toContain('Machine is offline');
+    expect(projectHostActionUnavailableReason({ kind: 'ready', hostGeneration: 1 })).toBeNull();
+  });
+});
+
 function availabilityModel(
-  state: HostAvailabilityState = { kind: 'ready', generation: 1 },
+  state: HostAvailabilityState | ReturnType<typeof cell<HostAvailabilityState>> = {
+    kind: 'ready',
+    generation: 1,
+  },
   onRelease: () => void = () => {}
 ): RemoteModel<typeof hostsContract.availability> {
-  const availability = cell(state);
+  const availability = 'set' in state ? state : cell(state);
   const member = {
     states: { state: availability },
     mutations: {},
@@ -41,9 +60,11 @@ function availabilityModel(
 }
 
 function attachmentModel(
-  state: ProjectAttachmentState = { kind: 'absent' }
+  state: ProjectAttachmentState | ReturnType<typeof cell<ProjectAttachmentState>> = {
+    kind: 'absent',
+  }
 ): RemoteModel<typeof projectsWireContract.attachments> {
-  const attachment = cell(state);
+  const attachment = 'set' in state ? state : cell(state);
   const member = {
     states: { state: attachment },
     mutations: {},
@@ -457,6 +478,51 @@ describe('ProjectContext', () => {
     request.resolve(ok());
     await expect(first).resolves.toEqual(ok());
     expect(context.host.requireLive().success).toBe(false);
+  });
+
+  it('maps retained Host observations to unavailable, stale, and fresh without clearing values', async () => {
+    mocks.mementoSubject.mockReturnValue({
+      ready: Promise.resolve(),
+      release: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await ProjectContext.hydrate({
+      type: 'local',
+      id: 'project-id',
+      name: 'Project',
+      path: '/project',
+      baseRef: 'main',
+      repositoryWorkspaceId: null,
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    });
+    if (!result.success) throw new Error('Expected context hydration to succeed');
+    const availability = cell<HostAvailabilityState>({
+      kind: 'unavailable',
+      recovery: 'eligible',
+    });
+    const attachment = cell<ProjectAttachmentState>({ kind: 'absent' });
+    const context = result.data;
+    context.trackHostAccess(availabilityModel(availability), attachmentModel(attachment));
+
+    expect(context.host.observe({ kind: 'never-observed' })).toEqual({ kind: 'unavailable' });
+    expect(
+      context.host.observe({ kind: 'observed', value: ['main'], observedAt: 1_723_500_000_000 })
+    ).toEqual({
+      kind: 'stale',
+      value: ['main'],
+      observedAt: 1_723_500_000_000,
+    });
+
+    availability.set({ kind: 'ready', generation: 2 });
+    attachment.set({ kind: 'attached', establishedHostGeneration: 2 });
+    flushStateTurn();
+    expect(
+      context.host.observe({ kind: 'observed', value: ['main'], observedAt: 1_723_500_000_000 })
+    ).toEqual({
+      kind: 'fresh',
+      value: ['main'],
+      observedAt: 1_723_500_000_000,
+    });
   });
 
   it('reports a missing durable Project without publishing a stable banner state', async () => {

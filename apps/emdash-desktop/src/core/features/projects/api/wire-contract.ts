@@ -32,13 +32,13 @@ import {
   type ProjectPlacementError,
   type ProjectPathInspection,
   type ResolveRepositoryDestinationParams,
-  type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 import { projectAttachmentStateSchema, type ProjectRecoveryRequestError } from './attachments';
 import type {
   MigrateProjectConfigResult,
   ProjectSettingsDomainPatch,
+  ProjectSettingsError,
   ProjectSettingsPage,
 } from './project-settings-page';
 
@@ -159,28 +159,28 @@ export const projectsWireContract = defineContract({
   }),
   getProjectSettingsPage: procedure({
     input: projectIdInputSchema,
-    output: z.custom<Result<ProjectSettingsPage, UpdateProjectSettingsError>>(),
+    output: z.custom<Result<ProjectSettingsPage, ProjectSettingsError>>(),
   }),
   updateProjectSettings: procedure({
     input: z.object({
       projectId: z.string(),
       patch: z.custom<ProjectSettingsDomainPatch>(),
     }),
-    output: z.custom<Result<ProjectSettingsPage, UpdateProjectSettingsError>>(),
+    output: z.custom<Result<ProjectSettingsPage, ProjectSettingsError>>(),
   }),
   shareProjectSettingsToConfig: procedure({
     input: z.object({
       projectId: z.string(),
       request: z.custom<WriteProjectConfigRequest>(),
     }),
-    output: z.custom<Result<ProjectSettingsPage, UpdateProjectSettingsError>>(),
+    output: z.custom<Result<ProjectSettingsPage, ProjectSettingsError>>(),
   }),
   migrateProjectConfig: procedure({
     input: z.object({
       projectId: z.string(),
       request: z.custom<MigrateProjectConfigRequest>(),
     }),
-    output: z.custom<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>(),
+    output: z.custom<Result<MigrateProjectConfigResult, ProjectSettingsError>>(),
   }),
   countProjectsUsingGithubAccount: procedure({
     input: z.object({ accountId: z.string() }),

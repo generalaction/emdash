@@ -49,6 +49,16 @@ function legacyMountHostAccess(project: LocalProject | SshProject): ProjectHostA
   return Object.freeze({
     state,
     liveAction: { kind: 'disabled' as const, state },
+    observe: <T>(
+      observation: { kind: 'never-observed' } | { kind: 'observed'; value: T; observedAt: number }
+    ) =>
+      observation.kind === 'never-observed'
+        ? { kind: 'unavailable' as const }
+        : {
+            kind: 'stale' as const,
+            value: observation.value,
+            observedAt: observation.observedAt,
+          },
     requireLive: () =>
       err(runtimeHostUnavailable(projectHostRef(project), 'offline', 'Host is offline')),
     recover: async () =>

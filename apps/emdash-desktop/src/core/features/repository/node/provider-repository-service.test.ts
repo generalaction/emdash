@@ -10,12 +10,17 @@ vi.mock('@core/features/github/api/node/services/github-repository-resolver', ()
 }));
 
 const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
-const mockProjectManager = { getProject: vi.fn() };
+const mockProjectManager = { requireAttached: vi.fn() };
+const loadProject = vi.fn<(projectId: string) => Promise<{ id: string } | undefined>>(async () => ({
+  id: 'project-1',
+}));
 
 function mockProject(remoteState: { hasRemote: boolean; selectedRemoteUrl?: string | null }) {
-  mockProjectManager.getProject.mockReturnValue({
-    getRemoteState: vi.fn().mockResolvedValue(remoteState),
-  } as never);
+  mockProjectManager.requireAttached.mockReturnValue(
+    ok({
+      getRemoteState: vi.fn().mockResolvedValue(remoteState),
+    } as never)
+  );
 }
 
 describe('ProviderRepositoryService', () => {
@@ -24,18 +29,41 @@ describe('ProviderRepositoryService', () => {
   });
 
   it('returns no_remote when the project is missing', async () => {
-    mockProjectManager.getProject.mockReturnValue(undefined);
+    loadProject.mockResolvedValueOnce(undefined);
 
     await expect(
-      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
-    ).resolves.toEqual(err({ type: 'no_remote' }));
+      new ProviderRepositoryService({
+        projects: mockProjectManager,
+        loadProject,
+      }).resolveProject('project-1')
+    ).resolves.toEqual(err({ type: 'project-missing', projectId: 'project-1' }));
+    expect(mockProjectManager.requireAttached).not.toHaveBeenCalled();
+  });
+
+  it('preserves the typed effective-attachment error when Host access races', async () => {
+    const unavailable = {
+      type: 'attachment-unavailable' as const,
+      host: { type: 'local' as const },
+      phase: 'waiting' as const,
+    };
+    mockProjectManager.requireAttached.mockReturnValue(err(unavailable));
+
+    await expect(
+      new ProviderRepositoryService({
+        projects: mockProjectManager,
+        loadProject,
+      }).resolveProject('project-1')
+    ).resolves.toEqual(err(unavailable));
   });
 
   it('returns invalid_remote when the project has no selected remote URL', async () => {
     mockProject({ hasRemote: true, selectedRemoteUrl: '' });
 
     await expect(
-      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+      new ProviderRepositoryService({
+        projects: mockProjectManager,
+        loadProject,
+      }).resolveProject('project-1')
     ).resolves.toEqual(err({ type: 'invalid_remote' }));
   });
 
@@ -52,7 +80,10 @@ describe('ProviderRepositoryService', () => {
     );
 
     await expect(
-      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+      new ProviderRepositoryService({
+        projects: mockProjectManager,
+        loadProject,
+      }).resolveProject('project-1')
     ).resolves.toEqual(
       ok({
         provider: 'github',
@@ -74,7 +105,10 @@ describe('ProviderRepositoryService', () => {
     );
 
     await expect(
-      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+      new ProviderRepositoryService({
+        projects: mockProjectManager,
+        loadProject,
+      }).resolveProject('project-1')
     ).resolves.toEqual(
       err({ type: 'unsupported_provider', host: 'gitlab.example.com', reason: 'not GitHub' })
     );

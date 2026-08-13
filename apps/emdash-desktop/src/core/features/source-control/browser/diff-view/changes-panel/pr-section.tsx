@@ -3,6 +3,11 @@ import { Button, SplitButton, Tooltip, useToast } from '@emdash/ui/react/primiti
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
+import {
+  asAvailableProject,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
@@ -41,8 +46,14 @@ function usePullRequestsSectionModel() {
   const prStore = taskView.prStore;
   const repository = getGitRepositoryStore(projectId);
   const repositoryUrl = repository?.pullRequestRepositoryUrl ?? null;
+  const providerRepositoryObservation = repository?.providerRepositoryObservation ?? {
+    kind: 'unavailable' as const,
+  };
   const taskBranch = getTaskGitCheckoutStore(projectId, taskId)?.branchName;
   const pullRequests = prStore?.pullRequests ?? [];
+  const pullRequestsObservation = prStore?.pullRequestsObservation ?? {
+    kind: 'unavailable' as const,
+  };
   const currentPr = prStore?.currentPr;
   const defaultBranch = repository?.defaultBranch;
   const gitCheckout = workspace.get(gitCheckoutStoreToken);
@@ -67,8 +78,10 @@ function usePullRequestsSectionModel() {
     taskId,
     workspaceId,
     repositoryUrl,
+    providerRepositoryObservation,
     taskBranch,
     pullRequests,
+    pullRequestsObservation,
     currentPr,
     branchCommitRange,
     showBranchCommits,
@@ -100,6 +113,11 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
+  const hostAccess = asAvailableProject(getProjectStore(projectId))?.host;
+  const hostActionReason = hostAccess
+    ? projectHostActionUnavailableReason(hostAccess.state)
+    : 'Unavailable until access to this Project is restored.';
+  const hostActionDisabled = hostActionReason !== null;
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
 
@@ -138,7 +156,7 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
   const [selectedPrActionId, setSelectedPrActionId] = useState<string | undefined>(undefined);
 
   const handleRefresh = async () => {
-    if (!repositoryUrl) return;
+    if (hostActionDisabled || !repositoryUrl) return;
     setIsRefreshing(true);
     onSyncError(null);
     try {
@@ -160,9 +178,11 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
 
   const createPrTooltip = !repositoryUrl
     ? 'Pull requests unavailable'
-    : hasOpenPr
-      ? 'A pull request is already open'
-      : 'Create a pull request';
+    : hostActionReason
+      ? hostActionReason
+      : hasOpenPr
+        ? 'A pull request is already open'
+        : 'Create a pull request';
 
   if (!changesView) return null;
 
@@ -182,34 +202,44 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
             />
           )}
           <Tooltip.Root>
-            <Tooltip.Trigger>
-              <SplitButton
-                variant="secondary"
-                size="xs"
-                options={prActions.map(({ id, label }) => ({ id, label }))}
-                selectedId={selectedPrActionId}
-                onSelectedChange={setSelectedPrActionId}
-                commitOnSelect={false}
-                onAction={(id) => prActions.find((a) => a.id === id)?.action()}
-                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
-                icon={<Plus className="size-3" />}
-              />
-            </Tooltip.Trigger>
+            <Tooltip.Trigger
+              render={
+                <SplitButton
+                  variant="secondary"
+                  size="xs"
+                  options={prActions.map(({ id, label }) => ({ id, label }))}
+                  selectedId={selectedPrActionId}
+                  onSelectedChange={setSelectedPrActionId}
+                  commitOnSelect={false}
+                  onAction={(id) => {
+                    if (!hostActionDisabled) prActions.find((a) => a.id === id)?.action();
+                  }}
+                  disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
+                  aria-disabled={hostActionDisabled}
+                  aria-description={hostActionReason ?? undefined}
+                  icon={<Plus className="size-3" />}
+                />
+              }
+            />
             <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
-            <Tooltip.Trigger>
-              <Button
-                variant="secondary"
-                size="xs"
-                icon
-                onClick={() => void handleRefresh()}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>Refresh pull requests</Tooltip.Content>
+            <Tooltip.Trigger
+              render={
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon
+                  onClick={() => void handleRefresh()}
+                  disabled={isRefreshing}
+                  aria-disabled={hostActionDisabled}
+                  aria-description={hostActionReason ?? undefined}
+                >
+                  <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+                </Button>
+              }
+            />
+            <Tooltip.Content>{hostActionReason ?? 'Refresh pull requests'}</Tooltip.Content>
           </Tooltip.Root>
         </>
       }
@@ -223,19 +253,44 @@ export const PullRequestsSectionBody = observer(function PullRequestsSectionBody
 }: {
   syncError: string | null;
 }) {
-  const { repositoryUrl, pullRequests, currentPr, branchCommitRange, showBranchCommits } =
-    usePullRequestsSectionModel();
+  const {
+    repositoryUrl,
+    providerRepositoryObservation,
+    pullRequests,
+    pullRequestsObservation,
+    currentPr,
+    branchCommitRange,
+    showBranchCommits,
+  } = usePullRequestsSectionModel();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {pullRequestsObservation.kind === 'stale' ? (
+        <p
+          role="status"
+          className="border-t border-border px-2.5 py-2 text-xs text-foreground-muted"
+        >
+          Showing previously observed pull requests
+        </p>
+      ) : null}
       {currentPr ? (
         <PullRequestEntry key={currentPr.url} pr={currentPr} />
       ) : showBranchCommits && branchCommitRange ? (
         <BranchCommitsEntry range={branchCommitRange} />
+      ) : providerRepositoryObservation.kind === 'unavailable' ? (
+        <EmptyState
+          label="Repository details unavailable"
+          description="Provider repository data has not been observed for this Project yet."
+        />
       ) : !repositoryUrl ? (
         <EmptyState
           label="Pull requests unavailable"
           description="Pull requests are currently available only for configured GitHub remotes."
+        />
+      ) : pullRequestsObservation.kind === 'unavailable' ? (
+        <EmptyState
+          label="Pull requests unavailable"
+          description="Pull request data has not been observed for this Project yet."
         />
       ) : pullRequests.length === 0 ? (
         <EmptyState
