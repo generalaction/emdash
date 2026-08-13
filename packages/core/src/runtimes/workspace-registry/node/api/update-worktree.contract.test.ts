@@ -95,7 +95,6 @@ describe('workspace registry updateWorktree', () => {
       baseRef: 'main',
       path: path.join(root, name),
       preservePatterns: [],
-      pushBranch: false,
     });
     if (!result.success) throw new Error(`createWorktree failed: ${JSON.stringify(result.error)}`);
     expect(result.data.creation?.gitSetup).toBeUndefined();

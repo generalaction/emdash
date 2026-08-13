@@ -38,7 +38,12 @@ export type BackgroundStepExecutors = {
     worktreePath: string;
     preservePatterns: readonly string[];
   }): Promise<CopyArtifactsOutcome>;
-  push(input: { repositoryPath: string; branch: string }): Promise<BackgroundStepOutcome>;
+  push(input: {
+    repositoryPath: string;
+    branch: string;
+    /** Absent only for lifecycle records written before publish targets were persisted. */
+    remote?: string;
+  }): Promise<BackgroundStepOutcome>;
   fetch(input: { repositoryPath: string; baseRef: string }): Promise<BackgroundStepOutcome>;
 };
 
@@ -190,10 +195,10 @@ export class BackgroundStepRunner {
     if (step === 'push-branch') {
       // Copy is not part of this run: the gate opens now, not when the push settles.
       copySettled();
-      const branch = record.creation?.branch ?? null;
-      if (branch === null) return;
+      const target = pushTarget(record, lifecycleStep);
+      if (target === null) return;
       await this.git.schedule.withRepoHold(parent.path, () =>
-        this.executePushStep(id, parent.id, parent.path, branch)
+        this.executePushStep(id, parent.id, parent.path, target)
       );
       return;
     }
@@ -208,9 +213,10 @@ export class BackgroundStepRunner {
     const parent = record.parentId === null ? undefined : this.records.get(record.parentId);
     if (!parent) return;
     const repositoryPath = parent.path;
-    const branch = record.creation?.branch ?? null;
     const baseRef = record.creation?.baseRef ?? null;
     const lifecycle = record.lifecycle;
+    const pushStep = getLifecycleStep(lifecycle, 'push-branch');
+    const target = pushTarget(record, pushStep);
 
     // Copy inclusion is known from durable state alone: when copy is not part of
     // this run, the artifact gate opens now — not after the repo hold is acquired.
@@ -224,8 +230,8 @@ export class BackgroundStepRunner {
       if (copyIncluded) {
         work.push(this.executeCopyStep(id, repositoryPath, record.path).finally(copySettled));
       }
-      if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
-        work.push(this.executePushStep(id, parent.id, repositoryPath, branch));
+      if (target !== null && isIncompleteStep(pushStep)) {
+        work.push(this.executePushStep(id, parent.id, repositoryPath, target));
       }
       if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
         work.push(this.executeFetchStep(id, parent.id, repositoryPath, baseRef));
@@ -270,14 +276,14 @@ export class BackgroundStepRunner {
     id: string,
     repositoryId: string,
     repositoryPath: string,
-    branch: string
+    target: { branch: string; remote?: string }
   ): Promise<void> {
     // The push updates the repository's remote-tracking ref: mute the repository's
     // gitdir events (fanout included), then refresh the two records it affects.
     const release = this.scans.mute(repositoryId);
     try {
       await this.steps.update(id, 'push-branch', { status: 'running' });
-      const outcome = await this.executors.push({ repositoryPath, branch });
+      const outcome = await this.executors.push({ repositoryPath, ...target });
       await this.steps.update(id, 'push-branch', toStepState(outcome));
     } finally {
       release();
@@ -345,13 +351,15 @@ export async function executePushBranch(input: {
   git: RegistryGitContext;
   repositoryPath: string;
   branch: string;
+  /** Missing only when replaying a lifecycle record created by an older version. */
+  remote?: string;
 }): Promise<BackgroundStepOutcome> {
   const exec = input.git.exec(input.repositoryPath, {
     tier: 'background',
     repository: input.repositoryPath,
   });
   try {
-    const remote = await defaultRemote(exec);
+    const remote = input.remote ?? (await legacyDefaultRemote(exec));
     if (!remote) {
       return { status: 'failed', message: 'Repository has no remote to push to' };
     }
@@ -398,10 +406,22 @@ export async function executeFetchRefs(input: {
   }
 }
 
-async function defaultRemote(exec: BoundExec): Promise<string | null> {
+/** Compatibility for pending/failed push steps persisted before the remote was recorded. */
+async function legacyDefaultRemote(exec: BoundExec): Promise<string | null> {
   const remotes = (await exec.exec(['remote'])).stdout.trim().split('\n').filter(Boolean);
   if (remotes.includes('origin')) return 'origin';
   return remotes[0] ?? null;
+}
+
+function pushTarget(
+  record: DurableWorkspaceRecord,
+  step: WorkspaceLifecycleStep | null | undefined
+): { branch: string; remote?: string } | null {
+  const branchParam = step?.params.branch;
+  const branch = typeof branchParam === 'string' ? branchParam : record.creation?.branch;
+  if (!branch) return null;
+  const remote = step?.params.remote;
+  return typeof remote === 'string' ? { branch, remote } : { branch };
 }
 
 function describe(error: unknown): string {

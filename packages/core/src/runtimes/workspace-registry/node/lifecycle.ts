@@ -221,13 +221,13 @@ export function buildCreationLifecycle(
     });
   }
 
-  if (input.pushBranch) {
+  if (input.publish) {
     steps.push({
       id: 'push-branch',
       status: 'pending',
       startedAt: null,
       finishedAt: null,
-      params: { branch: input.branch },
+      params: { branch: input.branch, remote: input.publish.remote },
     });
   }
   // No base ref, nothing to freshen: the advisory fetch step never applies.

@@ -29,6 +29,8 @@ export type GitRepositoryPort = {
   subscribeRemotes(callback: (update: GitRemotesState) => void): Unsubscribe;
   /** Resolver-backed effective base remote; `null` means no remotes exist. */
   getBaseRemote(): Promise<string | null>;
+  /** Resolver-backed base and push remotes from one settings snapshot. */
+  getEffectiveRemotes(): Promise<{ baseRemote: string | null; pushRemote: string | null }>;
   getRemoteState(): Promise<ProjectRemoteState>;
 };
 

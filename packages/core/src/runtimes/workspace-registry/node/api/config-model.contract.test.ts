@@ -262,7 +262,6 @@ describe('workspace registry config live model', () => {
       branch: 'diverged',
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created.success).toBe(true);
 
@@ -352,7 +351,6 @@ describe('workspace registry config live model', () => {
       branch: 'carried',
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
     expect(created.success).toBe(true);
     if (!created.success) return;

@@ -119,7 +119,7 @@ describe('background steps suppress their own scans', () => {
       path: path.join(root, 'suppress-wt'),
       // Legacy wire field: resolved project config is the source of truth.
       preservePatterns: [],
-      pushBranch: true,
+      publish: { remote: 'origin' },
     });
     expect(created.success).toBe(true);
 

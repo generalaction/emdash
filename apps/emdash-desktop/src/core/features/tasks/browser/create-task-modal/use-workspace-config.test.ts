@@ -13,11 +13,15 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 
-// The hook reads only `baseRemote` from the repository store; individual tests
-// null it out to exercise the honest no-remote degrade.
+// The hook reads the resolved base and push remotes from the repository store;
+// individual tests null them out to exercise the honest no-remote degrade.
 const repositoryStoreMock = vi.hoisted(() => ({
-  current: { baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' } } as {
+  current: {
+    baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+    pushRemote: { name: 'fork', url: 'https://github.com/me/repo.git' },
+  } as {
     baseRemote: { name: string; url: string } | null;
+    pushRemote: { name: string; url: string } | null;
   } | null,
 }));
 
@@ -129,6 +133,7 @@ describe('useWorkspaceConfig branch selection', () => {
     projectConfigMock.preservePatterns = ['.env'];
     repositoryStoreMock.current = {
       baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
+      pushRemote: { name: 'fork', url: 'https://github.com/me/repo.git' },
     };
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('window', dom.window);
@@ -288,7 +293,7 @@ describe('useWorkspaceConfig branch selection', () => {
   });
 
   it('renders an empty preview for a PR checkout when the repository has no remotes', async () => {
-    repositoryStoreMock.current = { baseRemote: null };
+    repositoryStoreMock.current = { baseRemote: null, pushRemote: null };
     await renderProbe({ mode: 'new-worktree', presetId: 'checkout-pr' }, { pr: makePr() });
 
     // PR-sourced plans need a base remote to fetch PR heads from; node-side

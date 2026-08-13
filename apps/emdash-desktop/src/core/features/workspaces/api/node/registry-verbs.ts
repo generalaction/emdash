@@ -82,7 +82,7 @@ export type RegistryWorktreeSpec = {
   baseRef?: string;
   path: string;
   preservePatterns: string[];
-  pushBranch: boolean;
+  publish?: WorktreeGitPlan['publish'];
   /** The compiled PR-preset git setup block, passed through to the verb verbatim. */
   gitSetup?: WorktreeGitPlan['gitSetup'];
 };
@@ -127,7 +127,7 @@ export async function createWorktreeThroughRegistry(
     ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
     path: spec.path,
     preservePatterns: spec.preservePatterns,
-    pushBranch: spec.pushBranch,
+    ...(spec.publish !== undefined && { publish: spec.publish }),
     ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
   });
   if (!created.success) {

@@ -110,7 +110,6 @@ describe('workspace registry deleteWorktree', () => {
       baseRef: 'main',
       path: path.join(root, name),
       preservePatterns: [],
-      pushBranch: false,
     });
     if (!result.success) throw new Error(`createWorktree failed: ${JSON.stringify(result.error)}`);
     return result.data;

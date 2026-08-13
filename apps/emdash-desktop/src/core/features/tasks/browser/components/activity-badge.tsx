@@ -77,7 +77,9 @@ function stepDescription(step: WorkspaceLifecycleStepInfo): string {
         ? `Copying ${params.fileCount} artifacts defined in preservePatterns`
         : 'Copying artifacts defined in preservePatterns';
     case 'push-branch':
-      return `Pushing ${params.branch} to remote`;
+      return typeof params.remote === 'string'
+        ? `Pushing ${params.branch} to ${params.remote}`
+        : `Pushing ${params.branch} to remote`;
     case 'prepare':
       return 'Running prepare scripts';
     case 'setup':

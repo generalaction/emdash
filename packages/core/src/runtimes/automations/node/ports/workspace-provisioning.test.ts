@@ -173,7 +173,7 @@ describe('createWorkspacePortFromDependency', () => {
       expect(request.repositoryId).toBe(wire.calls.createWorkspace[0]!.workspaceId);
       expect(request.branch).toBe('emdash abc');
       expect(request.baseRef).toBe('origin/main');
-      expect(request.pushBranch).toBe(false);
+      expect(request.publish).toBeUndefined();
       expect(request.preservePatterns).toEqual(['.env*']);
       expect(request.path).toBe(`/Users/jona/worktrees/repo-${repoHash}/emdash-abc`);
 
@@ -228,7 +228,7 @@ describe('createWorkspacePortFromDependency', () => {
         signal: new AbortController().signal,
       });
 
-      expect(wire.calls.createWorktree[0]!.pushBranch).toBe(true);
+      expect(wire.calls.createWorktree[0]!.publish).toEqual({ remote: 'origin' });
       expect(result.success).toBe(true);
     } finally {
       await wire.dispose();
@@ -253,7 +253,7 @@ describe('createWorkspacePortFromDependency', () => {
       const request = wire.calls.createWorktree[0]!;
       expect(request.branch).toBe('feature/x');
       expect(request.baseRef).toBe('feature/x');
-      expect(request.pushBranch).toBe(false);
+      expect(request.publish).toBeUndefined();
       expect(result.success).toBe(true);
     } finally {
       await wire.dispose();

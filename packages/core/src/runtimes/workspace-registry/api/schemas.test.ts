@@ -92,8 +92,16 @@ describe('createWorktreeInputSchema', () => {
       ...base,
       baseRef: 'main',
       preservePatterns: [],
-      pushBranch: false,
     });
+  });
+
+  it('preserves an explicit publication target', () => {
+    const parsed = createWorktreeInputSchema.parse({
+      ...base,
+      baseRef: 'origin/main',
+      publish: { remote: 'fork' },
+    });
+    expect(parsed.publish).toEqual({ remote: 'fork' });
   });
 
   it('accepts an omitted baseRef when gitSetup.fetchBranch is present', () => {

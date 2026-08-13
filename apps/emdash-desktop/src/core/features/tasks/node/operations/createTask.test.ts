@@ -165,6 +165,7 @@ function makeProjectRemote() {
     workspaceRegistry,
     gitRepository: {
       getBaseRemote: vi.fn(async () => 'origin'),
+      getEffectiveRemotes: vi.fn(async () => ({ baseRemote: 'origin', pushRemote: 'fork' })),
     },
   });
 }
@@ -181,6 +182,7 @@ describe('createTask', () => {
       workspaceRegistry,
       gitRepository: {
         getBaseRemote: vi.fn(async () => 'origin'),
+        getEffectiveRemotes: vi.fn(async () => ({ baseRemote: 'origin', pushRemote: 'fork' })),
       },
     });
     mocks.findWorkspaceTombstoneConflict.mockReturnValue(undefined);
@@ -487,7 +489,7 @@ describe('createTask', () => {
         baseRef: 'main',
         path: wsInsert.path,
         preservePatterns: ['.env'],
-        pushBranch: true,
+        publish: { remote: 'fork' },
       });
     });
 
@@ -510,9 +512,41 @@ describe('createTask', () => {
       });
 
       await settleCreation((captured[1] as Record<string, unknown>).id);
-      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
-        expect.objectContaining({ pushBranch: false })
-      );
+      const input = workspaceRegistry.createWorktree.mock.calls[0][0];
+      expect(input).not.toHaveProperty('publish');
+    });
+
+    it('refuses a requested push when the resolver finds no push remote', async () => {
+      const project = mocks.getProject() as { gitRepository: { getEffectiveRemotes: Mock } };
+      project.gitRepository.getEffectiveRemotes.mockResolvedValue({
+        baseRemote: 'origin',
+        pushRemote: null,
+      });
+
+      const result = await createTask(db, projects, hostIsReachable, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/no-push-remote',
+            fromBranch: { type: 'local', branch: 'main' },
+            pushBranch: true,
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'provision-failed',
+          message: 'Cannot publish the task branch because the repository has no push remote.',
+        },
+      });
+      expect(mocks.transaction).not.toHaveBeenCalled();
     });
 
     it('passes empty resolved preservePatterns to worktree creation', async () => {
@@ -747,7 +781,6 @@ describe('createTask', () => {
         branch: 'feat/my-pr',
         path: wsInsert.path,
         preservePatterns: ['.env'],
-        pushBranch: false,
         gitSetup: {
           fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
           upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
@@ -776,7 +809,6 @@ describe('createTask', () => {
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
         expect.objectContaining({
           branch: 'pr/42/feat/my-pr',
-          pushBranch: false,
           gitSetup: {
             fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
             upstream: { remote: 'origin', mergeRef: 'refs/pull/42/head' },
@@ -790,8 +822,11 @@ describe('createTask', () => {
     it('refuses PR checkout when the resolver finds no remotes', async () => {
       // The effective base remote comes from the blessed resolver; null means
       // the repository has no remotes, so a PR-sourced plan cannot compile.
-      const project = mocks.getProject() as { gitRepository: { getBaseRemote: Mock } };
-      project.gitRepository.getBaseRemote.mockResolvedValue(null);
+      const project = mocks.getProject() as { gitRepository: { getEffectiveRemotes: Mock } };
+      project.gitRepository.getEffectiveRemotes.mockResolvedValue({
+        baseRemote: null,
+        pushRemote: null,
+      });
 
       const result = await createTask(db, projects, hostIsReachable, prParams({}));
 
@@ -820,7 +855,7 @@ describe('createTask', () => {
       expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
         expect.objectContaining({
           branch: 'task/42',
-          pushBranch: true,
+          publish: { remote: 'fork' },
           gitSetup: {
             fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
             breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },

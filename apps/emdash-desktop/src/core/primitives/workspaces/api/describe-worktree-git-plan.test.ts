@@ -5,7 +5,7 @@ import type { WorkspaceConfig } from './workspace-config';
 
 type GitHalf = Exclude<WorkspaceConfig['git'], { kind: 'none' }>;
 
-const context = { baseRemote: 'origin' };
+const context = { baseRemote: 'origin', pushRemote: 'fork' };
 
 function prBranch(overrides: Partial<Extract<GitHalf, { kind: 'pr-branch' }>> = {}): GitHalf {
   return {
@@ -87,7 +87,7 @@ describe('describeWorktreeGitPlan — create-branch', () => {
     });
     const push = steps.find((step) => step.id === 'push-branch');
     expect(push?.title).toBe('Push branch');
-    expect(push?.description).toBe('Push feature/x to the remote and set upstream tracking');
+    expect(push?.description).toBe('Push feature/x to fork and set upstream tracking');
   });
 });
 
@@ -154,7 +154,7 @@ describe('describeWorktreeGitPlan — checkout-pr, fork PR', () => {
   });
 
   it('uses the compiled remote, not a hardcoded origin', () => {
-    const steps = stepsFor(fork(), { baseRemote: 'company' });
+    const steps = stepsFor(fork(), { baseRemote: 'company', pushRemote: 'fork' });
     expect(steps[0]?.description).toBe('Fetch refs/pull/7/head from company into pr/7/fix/thing');
   });
 });
