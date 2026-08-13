@@ -264,7 +264,9 @@ export class ProjectManagerStore {
             store.context?.kind === 'available' &&
             store.context.context === context
           ) {
-            context.trackHostAccess(availability, attachments);
+            context.trackHostAccess(availability, attachments, async () =>
+              (await getProjectsWireClient()).recoverAttachment({ projectId })
+            );
           }
         } catch (error) {
           if (!this._disposed) {

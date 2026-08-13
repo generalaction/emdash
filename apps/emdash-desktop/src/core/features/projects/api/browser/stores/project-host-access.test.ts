@@ -50,10 +50,10 @@ describe('deriveProjectHostAccessState', () => {
       { kind: 'attaching' },
     ],
     [
-      'stale attachment',
+      'retained attachment from an earlier Host generation',
       { kind: 'ready', generation: 3 },
       { kind: 'attached', establishedHostGeneration: 2 },
-      { kind: 'attaching' },
+      { kind: 'ready', hostGeneration: 3 },
     ],
     [
       'available Project',

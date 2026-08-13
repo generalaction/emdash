@@ -1,3 +1,5 @@
+import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { cell, flushStateTurn, type RemoteModel } from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectAttachmentState, projectsWireContract } from '@core/features/projects/api';
@@ -36,6 +38,21 @@ function availabilityModel(
     peekMember: vi.fn(() => member),
     dispose: vi.fn(async () => {}),
   }) as unknown as RemoteModel<typeof hostsContract.availability>;
+}
+
+function attachmentModel(
+  state: ProjectAttachmentState = { kind: 'absent' }
+): RemoteModel<typeof projectsWireContract.attachments> {
+  const attachment = cell(state);
+  const member = {
+    states: { state: attachment },
+    mutations: {},
+  };
+  return Object.assign(() => member, {
+    retain: vi.fn(() => vi.fn()),
+    peekMember: vi.fn(() => member),
+    dispose: vi.fn(async () => {}),
+  }) as unknown as RemoteModel<typeof projectsWireContract.attachments>;
 }
 
 describe('ProjectContext', () => {
@@ -352,5 +369,51 @@ describe('ProjectContext', () => {
     flushStateTurn();
     expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 2 });
     expect(result.data).toBe(context);
+  });
+
+  it('acknowledges and coalesces recovery without claiming Host access is live', async () => {
+    mocks.mementoSubject.mockReturnValue({
+      ready: Promise.resolve(),
+      release: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await ProjectContext.hydrate({
+      type: 'local',
+      id: 'project-id',
+      name: 'Project',
+      path: '/project',
+      baseRef: 'main',
+      repositoryWorkspaceId: null,
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    });
+    if (!result.success) throw new Error('Expected context hydration to succeed');
+    const request = deferred<ReturnType<typeof ok<void>>>();
+    const recover = vi.fn(() => request.promise);
+    const context = result.data;
+
+    context.trackHostAccess(
+      availabilityModel({ kind: 'unavailable', recovery: 'manual' }),
+      attachmentModel(),
+      recover
+    );
+
+    expect(context.host.liveAction).toEqual({
+      kind: 'disabled',
+      state: { kind: 'offline' },
+    });
+    expect(context.host.requireLive()).toMatchObject({
+      success: false,
+      error: { type: 'host-unavailable', reason: 'offline' },
+    });
+
+    const first = context.host.recover();
+    const repeated = context.host.recover();
+
+    expect(repeated).toBe(first);
+    expect(recover).toHaveBeenCalledOnce();
+    expect(context.host.state).toEqual({ kind: 'offline' });
+    request.resolve(ok());
+    await expect(first).resolves.toEqual(ok());
+    expect(context.host.requireLive().success).toBe(false);
   });
 });

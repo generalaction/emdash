@@ -28,6 +28,7 @@ export const ProjectAvailabilityBoundary = observer(function ProjectAvailability
       project={project}
       state={context.host.state}
       machineName={machineName}
+      onRecover={() => context.host.recover()}
     >
       {children}
     </ProjectAvailabilityFrame>

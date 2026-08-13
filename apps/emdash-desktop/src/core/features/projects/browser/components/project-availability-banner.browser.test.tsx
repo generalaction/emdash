@@ -1,6 +1,8 @@
+import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { ProjectAvailabilityBanner, ProjectAvailabilityFrame } from './project-availability-banner';
@@ -52,29 +54,47 @@ describe('ProjectAvailabilityBanner', () => {
   async function render(
     project: LocalProject | SshProject,
     state: ProjectHostAccessState,
-    children?: ReactNode
+    children?: ReactNode,
+    onRecover: () => Promise<ReturnType<typeof ok<void>>> = async () => ok<void>()
   ): Promise<void> {
     await act(async () => {
       root.render(
         children ? (
-          <ProjectAvailabilityFrame project={project} state={state} machineName="Orion">
+          <ProjectAvailabilityFrame
+            project={project}
+            state={state}
+            machineName="Orion"
+            onRecover={onRecover}
+          >
             {children}
           </ProjectAvailabilityFrame>
         ) : (
-          <ProjectAvailabilityBanner project={project} state={state} machineName="Orion" />
+          <ProjectAvailabilityBanner
+            project={project}
+            state={state}
+            machineName="Orion"
+            onRecover={onRecover}
+          />
         )
       );
     });
   }
 
-  it('uses local runtime copy without an SSH action', async () => {
-    await render(localProject, { kind: 'offline' });
+  it('offers only Retry for local runtime recovery', async () => {
+    const recover = vi.fn(async () => ok<void>());
+    await render(localProject, { kind: 'offline' }, undefined, recover);
 
     const status = host.querySelector('[role="status"]');
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.textContent).toContain('Local runtime is unavailable');
     expect(status?.textContent).toContain('Project data remains available');
-    expect(status?.querySelector('button')).toBeNull();
+    expect(status?.textContent).not.toContain('Connect');
+    expect(status?.textContent).not.toContain('Open Machines');
+
+    const retry = status?.querySelector('button');
+    expect(retry?.textContent).toBe('Retry');
+    await act(async () => retry?.click());
+    expect(recover).toHaveBeenCalledOnce();
   });
 
   it('uses the SSH Machine name and keeps the banner above Project content', async () => {
@@ -87,18 +107,56 @@ describe('ProjectAvailabilityBanner', () => {
     const status = host.querySelector('[role="status"]');
     const content = host.querySelector('[data-testid="project-content"]');
     expect(status?.textContent).toContain('Orion is offline');
+    expect(status?.querySelector('button')?.textContent).toBe('Connect');
     expect(status?.compareDocumentPosition(content!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('announces connecting and attaching progress politely', async () => {
-    await render(sshProject, { kind: 'preparing', phase: 'connecting' });
-    expect(host.querySelector('[role="status"]')?.textContent).toContain('Connecting to Orion');
+  it.each([
+    [{ kind: 'preparing', phase: 'connecting' }, 'Connecting to Orion'],
+    [{ kind: 'preparing', phase: 'provisioning' }, 'Preparing Orion'],
+    [{ kind: 'preparing', phase: 'handshaking' }, 'Preparing Orion'],
+    [{ kind: 'attaching' }, 'Opening Project on Orion'],
+  ] as const)('announces %s progress politely', async (state, title) => {
+    await render(sshProject, state);
 
-    await render(sshProject, { kind: 'attaching' });
-    expect(host.querySelector('[role="status"]')?.textContent).toContain(
-      'Opening Project on Orion'
-    );
-    expect(host.querySelector('[role="status"]')?.getAttribute('aria-live')).toBe('polite');
+    const status = host.querySelector('[role="status"]');
+    expect(status?.textContent).toContain(title);
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    const action = status?.querySelector('button');
+    expect(action?.textContent).toBe('Connect');
+    expect(action?.getAttribute('aria-disabled')).toBe('true');
+    const descriptionId = action?.getAttribute('aria-describedby');
+    expect(host.querySelector(`#${descriptionId}`)?.textContent).toContain('already in progress');
+  });
+
+  it('keeps focus and joins repeated clicks while recovery is acknowledged', async () => {
+    const request = deferred<ReturnType<typeof ok<void>>>();
+    const recover = vi.fn(() => request.promise);
+    await render(sshProject, { kind: 'offline' }, undefined, recover);
+    const button = host.querySelector('button');
+    button?.focus();
+
+    await act(async () => {
+      button?.click();
+      button?.click();
+    });
+
+    expect(recover).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(button);
+    expect(button?.getAttribute('aria-disabled')).toBe('true');
+    const descriptionId = button?.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    expect(host.querySelector(`#${descriptionId}`)?.textContent).toContain('already in progress');
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('Orion is offline');
+
+    await render(sshProject, { kind: 'preparing', phase: 'connecting' }, undefined, recover);
+    expect(document.activeElement).toBe(host.querySelector('button'));
+
+    request.resolve(ok<void>());
+    await act(async () => await request.promise);
+
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('Connecting to Orion');
+    expect(host.querySelector('button')?.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('renders no banner or reserved space when Host access is ready', async () => {

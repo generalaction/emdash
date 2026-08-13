@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import {
   createEventStreamHost,
   LiveJobCancelledError,
@@ -10,6 +11,7 @@ import { reaction } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   projectsWireContract,
+  type ProjectAttachmentState,
   type ProjectCreationProgress,
   type ProjectListData,
 } from '@core/features/projects/api';
@@ -22,6 +24,7 @@ import {
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
 import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
+import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { hostsContract, type HostAvailabilityState } from '@core/services/hosts/api';
 
@@ -40,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   projectWireDelete: vi.fn(),
   projectWireProgressCallbacks: [] as Array<(progress: ProjectCreationProgress) => void>,
   projectWireResult: undefined as Promise<LocalProject | SshProject> | undefined,
+  recoverAttachment: vi.fn(),
   resolveRepositoryDestination: vi.fn(),
   deleteMementoSubject: vi.fn(),
   mementoReportError: vi.fn(),
@@ -57,6 +61,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 let projectListState: ReturnType<typeof cell<ProjectListData>>;
+let attachmentState: ReturnType<typeof cell<ProjectAttachmentState>>;
 let wire: ReturnType<typeof createProjectWire> | undefined;
 let hostAvailabilityState: ReturnType<typeof cell<HostAvailabilityState>>;
 let hostsWire: ReturnType<typeof createHostsWire> | undefined;
@@ -194,7 +199,7 @@ function createProjectWire() {
   const attachmentsProvider = expose(projectsWireContract.attachments, {
     state: (key) => {
       mocks.attachmentTrack(key);
-      return cell({ kind: 'absent' as const });
+      return attachmentState;
     },
   });
   const testWire = createTestWire(projectsWireContract, {
@@ -212,7 +217,7 @@ function createProjectWire() {
     migrateProjectConfig: vi.fn(),
     countProjectsUsingGithubAccount: vi.fn(),
     openProject: (input: unknown) => mocks.openProject(input),
-    recoverAttachment: vi.fn(),
+    recoverAttachment: (input: unknown) => mocks.recoverAttachment(input),
     events,
     projectList: projectListProvider,
     attachments: attachmentsProvider,
@@ -271,6 +276,7 @@ describe('ProjectManagerStore project creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     projectListState = cell({ projects: [] });
+    attachmentState = cell({ kind: 'absent' });
     wire = createProjectWire();
     hostAvailabilityState = cell({ kind: 'unavailable', recovery: 'eligible' });
     hostsWire = createHostsWire();
@@ -293,6 +299,7 @@ describe('ProjectManagerStore project creation', () => {
     mocks.projectWireProgressCallbacks.length = 0;
     mocks.projectWireCancel.mockResolvedValue(undefined);
     mocks.projectWireDelete.mockResolvedValue({ success: true, data: {} });
+    mocks.recoverAttachment.mockResolvedValue(ok());
     mocks.deleteMementoSubject.mockResolvedValue(1);
     mocks.projectWireResult = undefined;
     mocks.createLiveJobReplicaCache.mockReturnValue({
@@ -663,6 +670,55 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.taskListLoad).toHaveBeenCalledOnce();
     expect(store.projects.get(project.id)?.context?.kind).toBe('available');
     expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id });
+  });
+
+  it('recovers one Project context through Host readiness and attachment in place', async () => {
+    const project = sshProject();
+    projectListState.set({ projects: [project] });
+    const store = new ProjectManagerStore();
+    await store.load();
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
+    const lifecycle = store.projects.get(project.id)?.context;
+    if (lifecycle?.kind !== 'available') throw new Error('Expected available Project context');
+    const context = lifecycle.context;
+    const tasks = context.get(taskManagerStoreToken);
+    mocks.recoverAttachment.mockImplementationOnce(async () => {
+      hostAvailabilityState.set({
+        kind: 'preparing',
+        phase: 'connecting',
+        attempt: 1,
+      });
+      return ok();
+    });
+
+    await expect(context.host.recover()).resolves.toEqual(ok());
+
+    expect(mocks.recoverAttachment).toHaveBeenCalledWith({ projectId: project.id });
+    expect(context.host.requireLive().success).toBe(false);
+    await vi.waitFor(() =>
+      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'connecting' })
+    );
+
+    hostAvailabilityState.set({ kind: 'preparing', phase: 'provisioning', attempt: 1 });
+    await vi.waitFor(() =>
+      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'provisioning' })
+    );
+    hostAvailabilityState.set({ kind: 'preparing', phase: 'handshaking', attempt: 1 });
+    await vi.waitFor(() =>
+      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'handshaking' })
+    );
+    hostAvailabilityState.set({ kind: 'ready', generation: 1 });
+    attachmentState.set({ kind: 'attaching', hostGeneration: 1, attemptId: 'attempt-1' });
+    await vi.waitFor(() => expect(context.host.state).toEqual({ kind: 'attaching' }));
+    attachmentState.set({ kind: 'attached', establishedHostGeneration: 1 });
+    await vi.waitFor(() =>
+      expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 1 })
+    );
+
+    expect(context.host.liveAction).toEqual({ kind: 'enabled' });
+    expect(context.host.requireLive()).toEqual(ok());
+    expect(store.projects.get(project.id)?.context).toEqual({ kind: 'available', context });
+    expect(context.get(taskManagerStoreToken)).toBe(tasks);
   });
 
   it('rejects stale context hydration after project-list removal', async () => {

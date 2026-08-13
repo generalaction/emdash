@@ -70,6 +70,10 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
   private readonly scope: Scope;
   private readonly entries = new Map<string, AttachmentEntry>();
   private readonly legacyOwners = new Map<string, Scope>();
+  private readonly recoveries = new Map<
+    string,
+    Promise<Result<void, ProjectRecoveryRequestError>>
+  >();
   private readonly hooks = new HookCore<ProjectAttachmentManagerHooks>((name, error) =>
     log.error(`ProjectAttachmentManager: ${String(name)} hook error`, { error })
   );
@@ -105,7 +109,21 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     return entry.state;
   }
 
-  async recover(projectId: string): Promise<Result<void, ProjectRecoveryRequestError>> {
+  recover(projectId: string): Promise<Result<void, ProjectRecoveryRequestError>> {
+    const existing = this.recoveries.get(projectId);
+    if (existing) return existing;
+    const request = this.performRecovery(projectId);
+    this.recoveries.set(projectId, request);
+    void request.then(
+      () => this.clearRecovery(projectId, request),
+      () => this.clearRecovery(projectId, request)
+    );
+    return request;
+  }
+
+  private async performRecovery(
+    projectId: string
+  ): Promise<Result<void, ProjectRecoveryRequestError>> {
     const entry = this.entries.get(projectId);
     const project = await this.options.adapter.loadProject(projectId);
     if (!project) {
@@ -122,6 +140,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
       }
       return err({ type: 'project-missing', projectId });
     }
+    const recoveryCause = project.type === 'ssh' ? 'connect' : 'retry';
     if (entry) {
       if (
         entry.provider &&
@@ -129,7 +148,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
         attachmentTargetIdentity(entry.project) === attachmentTargetIdentity(project)
       ) {
         entry.project = project;
-        void this.options.availability.ensureReady(projectHostRef(project), 'retry');
+        void this.options.availability.ensureReady(projectHostRef(project), recoveryCause);
         return ok();
       }
       await this.cancelAttempt(entry);
@@ -138,8 +157,15 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
       entry.state.set({ kind: 'absent' });
       this.bindHost(entry, project);
     }
-    void this.options.availability.ensureReady(projectHostRef(project), 'retry');
+    void this.options.availability.ensureReady(projectHostRef(project), recoveryCause);
     return ok();
+  }
+
+  private clearRecovery(
+    projectId: string,
+    request: Promise<Result<void, ProjectRecoveryRequestError>>
+  ): void {
+    if (this.recoveries.get(projectId) === request) this.recoveries.delete(projectId);
   }
 
   requireAttached(projectId: string): Result<ProjectProvider, ProjectAttachmentError> {

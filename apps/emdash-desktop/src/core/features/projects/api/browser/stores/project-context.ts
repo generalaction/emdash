@@ -1,8 +1,14 @@
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { RemoteModel } from '@emdash/wire/state';
 import { action, computed, makeObservable, observable } from 'mobx';
-import type { projectsWireContract, ProjectAttachmentState } from '@core/features/projects/api';
+import type {
+  projectsWireContract,
+  ProjectAttachmentError,
+  ProjectAttachmentState,
+  ProjectRecoveryRequestError,
+} from '@core/features/projects/api';
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
@@ -47,8 +53,15 @@ export type ProjectHostAccessState =
   | { kind: 'attaching' }
   | { kind: 'ready'; hostGeneration: number };
 
+export type LiveActionAvailability =
+  | { kind: 'enabled' }
+  | { kind: 'disabled'; state: ProjectHostAccessState };
+
 export interface ProjectHostAccess {
   readonly state: ProjectHostAccessState;
+  readonly liveAction: LiveActionAvailability;
+  requireLive(): Result<void, ProjectAttachmentError>;
+  recover(): Promise<Result<void, ProjectRecoveryRequestError>>;
 }
 
 export function deriveProjectHostAccessState(
@@ -61,10 +74,7 @@ export function deriveProjectHostAccessState(
   if (availability.kind === 'preparing') {
     return { kind: 'preparing', phase: availability.phase };
   }
-  if (
-    attachment?.kind === 'attached' &&
-    attachment.establishedHostGeneration === availability.generation
-  ) {
+  if (attachment?.kind === 'attached') {
     return { kind: 'ready', hostGeneration: availability.generation };
   }
   return { kind: 'attaching' };
@@ -73,12 +83,15 @@ export function deriveProjectHostAccessState(
 class HydratingProjectHostAccess implements ProjectHostAccess {
   availability: HostAvailabilityState | undefined;
   attachment: ProjectAttachmentState | undefined;
+  private recoverRequest: (() => Promise<Result<void, ProjectRecoveryRequestError>>) | undefined;
+  private recoveryRequest: Promise<Result<void, ProjectRecoveryRequestError>> | undefined;
 
-  constructor() {
+  constructor(private readonly project: Project) {
     makeObservable(this, {
       attachment: observable.ref,
       availability: observable.ref,
       clear: action,
+      liveAction: computed,
       state: computed,
     });
   }
@@ -87,9 +100,67 @@ class HydratingProjectHostAccess implements ProjectHostAccess {
     return deriveProjectHostAccessState(this.availability, this.attachment);
   }
 
+  get liveAction(): LiveActionAvailability {
+    const state = this.state;
+    return state.kind === 'ready' ? { kind: 'enabled' } : { kind: 'disabled', state };
+  }
+
+  requireLive(): Result<void, ProjectAttachmentError> {
+    const host = projectHostRef(this.project);
+    const availability = this.availability;
+    if (!availability) {
+      return err(runtimeHostUnavailable(host, 'offline', 'Host is offline'));
+    }
+    if (availability.kind === 'unavailable') {
+      return err(availability.issue ?? runtimeHostUnavailable(host, 'offline', 'Host is offline'));
+    }
+    if (availability.kind === 'suspended') {
+      return err(runtimeHostUnavailable(host, 'offline', 'Host is offline'));
+    }
+    if (availability.kind === 'preparing') {
+      return err(
+        availability.phase === 'connecting'
+          ? runtimeHostUnavailable(host, 'connection-failed', 'Host connection is not ready')
+          : runtimeHostUnavailable(host, 'runtime-unavailable', 'Host runtime is not ready')
+      );
+    }
+    if (this.attachment?.kind === 'attached') return ok();
+    if (this.attachment?.kind === 'absent' && this.attachment.lastFailure) {
+      return err(this.attachment.lastFailure);
+    }
+    return err({
+      type: 'attachment-unavailable',
+      host,
+      phase: this.attachment?.kind === 'attaching' ? 'attaching' : 'waiting',
+    });
+  }
+
+  recover(): Promise<Result<void, ProjectRecoveryRequestError>> {
+    if (this.recoveryRequest) return this.recoveryRequest;
+    const request = this.recoverRequest?.();
+    if (!request) {
+      return Promise.resolve(err({ type: 'project-missing', projectId: this.project.id }));
+    }
+    this.recoveryRequest = request;
+    void request.then(
+      () => this.clearRecoveryRequest(request),
+      () => this.clearRecoveryRequest(request)
+    );
+    return request;
+  }
+
+  bindRecovery(request: () => Promise<Result<void, ProjectRecoveryRequestError>>): void {
+    this.recoverRequest = request;
+  }
+
   clear(): void {
     this.availability = undefined;
     this.attachment = undefined;
+    this.recoverRequest = undefined;
+  }
+
+  private clearRecoveryRequest(request: Promise<Result<void, ProjectRecoveryRequestError>>): void {
+    if (this.recoveryRequest === request) this.recoveryRequest = undefined;
   }
 }
 
@@ -145,7 +216,7 @@ export class ProjectContext {
       return err(contextInitializationError('memento', error));
     }
 
-    const host = new HydratingProjectHostAccess();
+    const host = new HydratingProjectHostAccess(project);
     let stores: ScopedStoreHost<ProjectScopedStoreContext>;
     try {
       stores = new ScopedStoreHost({ data: project, space, host }, projectStoreContributions);
@@ -179,7 +250,9 @@ export class ProjectContext {
 
   trackHostAccess(
     availabilityModel: RemoteModel<typeof hostsContract.availability>,
-    attachmentModel: RemoteModel<typeof projectsWireContract.attachments>
+    attachmentModel: RemoteModel<typeof projectsWireContract.attachments>,
+    recover: () => Promise<Result<void, ProjectRecoveryRequestError>> = () =>
+      Promise.resolve(err({ type: 'project-missing', projectId: this.project.id }))
   ): void {
     if (this.scope.disposed) return;
     void this.releaseHostAccess();
@@ -208,6 +281,7 @@ export class ProjectContext {
       );
       accessScope.add(releaseAvailability);
       accessScope.add(releaseAttachment);
+      this.mutableHost.bindRecovery(recover);
       this.hostAccessScope = accessScope;
     } catch (error) {
       releaseAttachment?.();

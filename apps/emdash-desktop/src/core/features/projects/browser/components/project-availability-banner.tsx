@@ -1,6 +1,8 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { CloudOff, Loader2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -8,6 +10,7 @@ type ProjectAvailabilityBannerProps = {
   project: LocalProject | SshProject;
   state: ProjectHostAccessState;
   machineName?: string;
+  onRecover?: () => Promise<unknown>;
 };
 
 type BannerCopy = {
@@ -20,11 +23,30 @@ export function ProjectAvailabilityBanner({
   project,
   state,
   machineName,
+  onRecover,
 }: ProjectAvailabilityBannerProps) {
+  const recoveryDescriptionId = useId();
+  const recoveryPendingRef = useRef(false);
+  const [recoveryPending, setRecoveryPending] = useState(false);
   if (state.kind === 'ready') return null;
 
   const copy = availabilityCopy(project, state, machineName);
   const Icon = copy.progress ? Loader2 : CloudOff;
+  const recoveryLabel = project.type === 'local' ? 'Retry' : 'Connect';
+  const recoveryDisabled = recoveryPending || state.kind !== 'offline';
+  const requestRecovery = async (): Promise<void> => {
+    if (!onRecover || recoveryPendingRef.current || state.kind !== 'offline') return;
+    recoveryPendingRef.current = true;
+    setRecoveryPending(true);
+    try {
+      await onRecover();
+    } catch (error) {
+      log.error('Failed to request Project Host recovery', { error });
+    } finally {
+      recoveryPendingRef.current = false;
+      setRecoveryPending(false);
+    }
+  };
 
   return (
     <section
@@ -51,6 +73,25 @@ export function ProjectAvailabilityBanner({
         <p className="text-sm font-medium">{copy.title}</p>
         <p className="text-xs text-foreground-muted">{copy.detail}</p>
       </div>
+      {onRecover ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-disabled={recoveryDisabled}
+            aria-describedby={recoveryDisabled ? recoveryDescriptionId : undefined}
+            onClick={() => void requestRecovery()}
+          >
+            {recoveryLabel}
+          </Button>
+          {recoveryDisabled ? (
+            <span id={recoveryDescriptionId} className="sr-only">
+              A recovery request is already in progress.
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </section>
   );
 }
@@ -60,13 +101,19 @@ export function ProjectAvailabilityFrame({
   project,
   state,
   machineName,
+  onRecover,
 }: ProjectAvailabilityBannerProps & { children: ReactNode }) {
   if (state.kind === 'ready') return children;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="mx-auto w-full max-w-[1060px] shrink-0 px-8 pt-6">
-        <ProjectAvailabilityBanner project={project} state={state} machineName={machineName} />
+        <ProjectAvailabilityBanner
+          project={project}
+          state={state}
+          machineName={machineName}
+          onRecover={onRecover}
+        />
       </div>
       <div className="min-h-0 flex-1">{children}</div>
     </div>

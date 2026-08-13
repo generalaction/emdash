@@ -1,4 +1,7 @@
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
+import { err } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import type {
   ProjectContextLifecycle,
   ProjectHostAccess,
@@ -8,7 +11,7 @@ import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import { getMementoClient } from '@core/primitives/mementos/browser';
-import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import { projectHostRef, type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import {
   ScopedStoreHost,
   type ScopedStoreToken,
@@ -37,9 +40,17 @@ export type UnmountedStatus =
 
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
-const LEGACY_MOUNT_HOST_ACCESS: ProjectHostAccess = Object.freeze({
-  state: { kind: 'offline' as const },
-});
+function legacyMountHostAccess(project: LocalProject | SshProject): ProjectHostAccess {
+  const state = { kind: 'offline' as const };
+  return Object.freeze({
+    state,
+    liveAction: { kind: 'disabled' as const, state },
+    requireLive: () =>
+      err(runtimeHostUnavailable(projectHostRef(project), 'offline', 'Host is offline')),
+    recover: async () =>
+      (await getProjectsWireClient()).recoverAttachment({ projectId: project.id }),
+  });
+}
 
 /**
  * Holds all mounted-only state for a project. Created atomically by
@@ -58,7 +69,7 @@ export class MountedProject {
     this.data = data;
     this.space = getMementoClient().subject(projectSubject({ projectId: data.id }));
     this.stores = new ScopedStoreHost(
-      { data, space: this.space, host: LEGACY_MOUNT_HOST_ACCESS },
+      { data, space: this.space, host: legacyMountHostAccess(data) },
       projectStoreContributions
     );
     this.stores.activate();

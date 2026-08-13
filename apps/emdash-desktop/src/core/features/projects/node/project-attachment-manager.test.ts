@@ -1,4 +1,4 @@
-import { hostRef } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
@@ -112,6 +112,69 @@ describe('ProjectAttachmentManager', () => {
 
     await owner.dispose();
     await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+    await scope.dispose();
+  });
+
+  it.each([
+    ['SSH Connect', sshProject(), 'connect'],
+    ['local Retry', localProject(), 'retry'],
+  ] as const)(
+    'starts %s as the matching explicit Host readiness request',
+    async (_label, project, cause) => {
+      const scope = createScope({ label: 'project-attachment-manager-test' });
+      const availability = createHostAvailability({
+        scope,
+        readiness: { prepare: async () => ok() },
+      });
+      const ensureReady = vi.spyOn(availability, 'ensureReady');
+      const manager = createProjectAttachmentManager({
+        scope,
+        availability,
+        adapter: {
+          loadProject: async () => project,
+          statRepository: async () => ok({ type: 'directory' as const }),
+          open: async () => ok(projectProvider()),
+        },
+      });
+
+      await expect(manager.recover(project.id)).resolves.toEqual(ok());
+
+      expect(ensureReady).toHaveBeenCalledWith(project.host, cause);
+      await scope.dispose();
+    }
+  );
+
+  it('joins concurrent manual recovery requests without restarting Host readiness', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const readiness = deferred<ReturnType<typeof ok<void>>>();
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: () => readiness.promise },
+    });
+    const project = sshProject();
+    const loaded = deferred<Project | undefined>();
+    const loadProject = vi.fn(() => loaded.promise);
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async () => ok(projectProvider()),
+      },
+    });
+
+    const first = manager.recover(project.id);
+    const repeated = manager.recover(project.id);
+
+    expect(repeated).toBe(first);
+    expect(loadProject).toHaveBeenCalledOnce();
+
+    loaded.resolve(project);
+    await expect(first).resolves.toEqual(ok());
+    expect(availability.stateFor(project.host).kind).toBe('preparing');
+
+    readiness.resolve(ok());
     await scope.dispose();
   });
 
@@ -702,6 +765,20 @@ function sshProject(): TestSshProject {
     createdAt: '2026-08-13T00:00:00.000Z',
     updatedAt: '2026-08-13T00:00:00.000Z',
     host: hostRef('remote', 'ssh-1'),
+  };
+}
+
+function localProject(): Project & { host: typeof LOCAL_HOST_REF } {
+  return {
+    type: 'local',
+    id: 'local-project',
+    name: 'Local Project',
+    path: '/repo',
+    baseRef: 'main',
+    repositoryWorkspaceId: 'repository-1',
+    createdAt: '2026-08-13T00:00:00.000Z',
+    updatedAt: '2026-08-13T00:00:00.000Z',
+    host: LOCAL_HOST_REF,
   };
 }
 
