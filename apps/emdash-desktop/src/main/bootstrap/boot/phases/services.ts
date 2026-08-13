@@ -61,7 +61,6 @@ import {
 import { createProjectAttachmentAdapter } from '@core/features/projects/node/project-attachment-adapter';
 import { createProjectAttachmentManager } from '@core/features/projects/node/project-attachment-manager';
 import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/projects/node/settings/migrations/app-worktree-root';
-import { createRepoFactsCache } from '@core/features/projects/node/settings/repo-facts';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
@@ -82,7 +81,6 @@ import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
-import { projectHostRef } from '@core/primitives/projects/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { isServerUsable } from '@core/services/hosts/api';
@@ -94,7 +92,6 @@ import {
   createReconcileSweepTriggers,
   installReconcileSweepTriggers,
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
-import { repositorySelector } from '@core/services/runtime-broker/node/git';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { createHostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
@@ -331,7 +328,10 @@ export async function bootServices(
   const workspaceCreations = new WorkspaceCreations();
   const sessionCleanupDependencies: SessionCleanupDependencies = {
     getAcpRuntimeClient: async () => clients.acp,
-    getProjectTerminals: (projectId: string) => projectManager.getProject(projectId)?.terminals,
+    getProjectTerminals: (projectId: string) => {
+      const attached = projectManager.requireAttached(projectId);
+      return attached.success ? attached.data.terminals : undefined;
+    },
     getTerminalsRuntimeClient,
     getTuiAgentsRuntimeClient,
   };
@@ -389,24 +389,9 @@ export async function bootServices(
         {
           db,
           getProjectById: (projectId) => getProjectById(db, projectId),
-          // Repo facts for the blessed resolver: the mounted project's cache
-          // when available, otherwise a transient one-shot cache (deploys run
-          // at boot, before projects mount).
           getRepoFacts: async (project) => {
-            const mounted = projectManager.getProject(project.id);
-            if (mounted) return mounted.repoFacts.get();
-            const runtime = await runtimes.client(projectHostRef(project));
-            if (!runtime.success) return null;
-            const cache = createRepoFactsCache(
-              runtime.data.git,
-              repositorySelector(project.path),
-              true
-            );
-            try {
-              return await cache.get();
-            } finally {
-              await cache.dispose();
-            }
+            const attached = projectManager.requireAttached(project.id);
+            return attached.success ? attached.data.repoFacts.get() : null;
           },
           resolveWorkspace: (workspaceId) => workspaceIdentity.resolve(workspaceId),
           resolveWorktreePool: (project) => workspacePlacement.resolveWorktreePool(project),
@@ -484,16 +469,8 @@ export async function bootServices(
     getProjectById: (projectId) => getProjectById(db, projectId),
     getStoredGitSettings: (projectId) => loadStoredGitSettings(db, projectId),
     getRepoFacts: async (project) => {
-      const attached = projectManager.getProject(project.id);
-      if (attached) return attached.repoFacts.get();
-      const runtime = await runtimes.client(projectHostRef(project));
-      if (!runtime.success) return null;
-      const cache = createRepoFactsCache(runtime.data.git, repositorySelector(project.path), true);
-      try {
-        return await cache.get();
-      } finally {
-        await cache.dispose();
-      }
+      const attached = projectManager.requireAttached(project.id);
+      return attached.success ? attached.data.repoFacts.get() : null;
     },
     listAccounts: () => githubAccountService.listAccounts(),
   });
@@ -533,15 +510,17 @@ export async function bootServices(
     onProjectClosed: (handler) => projectManager.on('projectClosed', handler),
     onTaskProvisioned: (handler) => taskSessionManager.hooks.on('task:provisioned', handler),
     subscribeToProjectRemotes: (projectId, handler) => {
-      const project = projectManager.getProject(projectId);
-      if (!project?.hasRepository) return undefined;
-      return project.gitRepository.subscribeRemotes(handler);
+      const attached = projectManager.requireAttached(projectId);
+      if (!attached.success || !attached.data.hasRepository) return undefined;
+      return attached.data.gitRepository.subscribeRemotes(handler);
     },
     resolveProjectRepositoryUrls: async (projectId) => {
-      const project = projectManager.getProject(projectId);
-      if (!project?.hasRepository) return [];
+      const attached = projectManager.requireAttached(projectId);
+      if (!attached.success || !attached.data.hasRepository) return [];
       const remotes = (
-        await project.git.repository.model.state(project.repository, 'remotes').snapshot()
+        await attached.data.git.repository.model
+          .state(attached.data.repository, 'remotes')
+          .snapshot()
       ).data.remotes;
       const resolved = await Promise.all(
         remotes.map(async (remote) => await githubRepositoryResolver.resolve(remote.url))

@@ -48,7 +48,7 @@ vi.mock('@emdash/ui/react/components', () => ({
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSshConnectionId: mocks.getProjectSshConnectionId,
-  asMounted: vi.fn(() => undefined),
+  asAvailableProject: vi.fn(() => undefined),
   getProjectStore: vi.fn(() => undefined),
   getProjectViewStore: vi.fn(() => undefined),
 }));

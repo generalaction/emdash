@@ -7,10 +7,11 @@ import {
   toCron,
 } from '@core/features/automations/browser/CronPicker/cron-utils';
 import {
-  asMounted,
-  firstMountedProjectId,
+  asAvailableProject,
+  firstAvailableProjectId,
   getProjectSshConnectionId,
   getProjectStore,
+  projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
 import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
@@ -88,7 +89,7 @@ export function useAutomationFormState(
 
   const [name, setName] = useState(seed?.name ?? initialTemplate?.name ?? '');
   const [projectId, setProjectId] = useState<string | undefined>(
-    seed?.projectId ?? firstMountedProjectId()
+    seed?.projectId ?? firstAvailableProjectId()
   );
   const [cronExpr, setCronExpr] = useState<string>(
     seedTrigger?.expr ?? initialTemplate?.defaultTrigger.expr ?? DEFAULT_CRON
@@ -96,7 +97,9 @@ export function useAutomationFormState(
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
 
   const effectiveProjectId =
-    projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
+    projectId && asAvailableProject(getProjectStore(projectId))
+      ? projectId
+      : firstAvailableProjectId();
 
   // Validate the seeded provider against the project's host, not the local machine.
   const connectionId = effectiveProjectId
@@ -193,7 +196,7 @@ export function useAutomationFormState(
 
   function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
     const effectiveRepoWsId =
-      asMounted(getProjectStore(targetProjectId))?.data?.repositoryWorkspaceId ?? null;
+      projectData(getProjectStore(targetProjectId))?.repositoryWorkspaceId ?? null;
 
     // Re-resolve with the target project's repositoryWorkspaceId in case it differs.
     // For most cases effectiveProjectId === targetProjectId so workspaceConfig.resolvedConfig is correct.

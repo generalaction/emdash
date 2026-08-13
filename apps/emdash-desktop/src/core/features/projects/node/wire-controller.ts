@@ -78,7 +78,6 @@ export function createProjectsWireController(
         projectOperations.countProjectsUsingGithubAccount(accountId),
       updateProjectConnection: ({ projectId, connectionId }) =>
         projectOperations.updateProjectConnection(projectId, connectionId),
-      openProject: ({ projectId }) => projectOperations.openProject(projectId),
       recoverAttachment: ({ projectId }) => dependencies.projects.recover(projectId),
       getHostHomeDir: async (input) => {
         const runtime = await acquireHostRuntime(dependencies, input);

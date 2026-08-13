@@ -6,7 +6,7 @@ import {
 } from '@core/features/projects/api/browser/stores/workspace-chrome-store';
 import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
-import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import type { Project } from '@core/primitives/projects/api';
 import {
   contributeScopedStore,
   scopedStoreToken,
@@ -16,7 +16,7 @@ import { ProjectViewStore } from '../browser/stores/project-view';
 import { projectViewMemento } from './mementos';
 
 export type ProjectScopedStoreContext = Readonly<{
-  data: LocalProject | SshProject;
+  project: Project;
   space: SubjectSpace<'project'>;
   host: ProjectHostAccess;
 }>;
@@ -36,7 +36,7 @@ export const projectScopedStoreContributions: readonly ScopedStoreContribution<P
     }),
     contributeScopedStore({
       token: projectSettingsStoreToken,
-      create: ({ data, host }) => new ProjectSettingsStore(data.id, host),
+      create: ({ project, host }) => new ProjectSettingsStore(project.id, host),
       dispose: (store) => store.dispose(),
     }),
     contributeScopedStore({

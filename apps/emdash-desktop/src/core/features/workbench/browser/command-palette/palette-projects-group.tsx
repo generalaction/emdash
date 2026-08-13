@@ -2,7 +2,7 @@ import { Command } from 'cmdk';
 import { FolderOpen } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
@@ -33,10 +33,10 @@ export function PaletteProjectsGroup({
   const projects = useObserver(() => {
     const result: Array<{ id: string; name: string }> = [];
     for (const store of getProjectManagerStore().projects.values()) {
-      const mounted = asMounted(store);
-      if (!mounted) continue;
-      if (mounted.data.id === currentProjectId) continue;
-      result.push({ id: mounted.data.id, name: store.name ?? mounted.data.id });
+      const context = asAvailableProject(store);
+      if (!context) continue;
+      if (context.project.id === currentProjectId) continue;
+      result.push({ id: context.project.id, name: store.name ?? context.project.id });
     }
     return result;
   });

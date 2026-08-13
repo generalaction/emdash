@@ -10,6 +10,10 @@ import type { ProjectOperationDependencies } from './controller';
 import { createProjectsWireController } from './wire-controller';
 
 describe('Projects Wire attachments', () => {
+  it('does not expose renderer-driven Project opening', () => {
+    expect(projectsWireContract).not.toHaveProperty('openProject');
+  });
+
   it('leases tracked attachment state and forwards recovery through Projects ownership', async () => {
     const state = cell<ProjectAttachmentState>({
       kind: 'attached',

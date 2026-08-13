@@ -13,16 +13,14 @@ const projectManager = {
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   asAvailableProject: (store: ProjectStore | undefined) =>
     store?.context?.kind === 'available' ? store.context.context : undefined,
-  asMounted: () => undefined,
   getProjectManagerStore: () => projectManager,
   getProjectStore: (projectId: string) => projectManager.projects.get(projectId),
 }));
 
 function projectWithContext(context: ProjectStore['context']): ProjectStore {
   return {
-    state: 'unmounted',
+    state: 'registered',
     id: 'project-id',
-    unmounted: { kind: 'failed', message: 'Host unavailable' },
     context,
   } as ProjectStore;
 }
@@ -48,7 +46,7 @@ describe('taskViewKind Project context routing', () => {
     projectManager.projects.set(
       'project-id',
       projectWithContext({
-        kind: 'desktop-context-failed',
+        kind: 'failed',
         project: { id: 'project-id' } as never,
         error: {
           type: 'context-initialization-failed',
@@ -61,7 +59,7 @@ describe('taskViewKind Project context routing', () => {
     expect(taskViewKind(undefined, 'project-id')).toBe('project-error');
   });
 
-  it('ignores Host mount failure after desktop context is available', () => {
+  it('keeps the Task shell ready while Host access is degraded', () => {
     projectManager.projects.set(
       'project-id',
       projectWithContext({

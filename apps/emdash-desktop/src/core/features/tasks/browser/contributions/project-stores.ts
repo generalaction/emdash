@@ -13,8 +13,8 @@ export const taskProjectScopedStoreContributions: readonly ScopedStoreContributi
   [
     contributeScopedStore({
       token: taskManagerStoreToken,
-      create: ({ data, host }, stores) =>
-        new TaskManagerStore(data.id, stores.get(projectSettingsStoreToken), host, stores),
+      create: ({ project, host }, stores) =>
+        new TaskManagerStore(project.id, stores.get(projectSettingsStoreToken), host, stores),
       dispose: (store) => store.dispose(),
     }),
   ];

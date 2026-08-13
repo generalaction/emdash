@@ -3,7 +3,7 @@ import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-regist
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { ProjectHostObservation } from '@core/features/projects/api/host-observation';
@@ -112,12 +112,12 @@ export class PrStore {
     }
     const instruction = compilePrUpdateInstruction(pr, { baseRemote: baseRemote.name });
     if (!instruction) return { success: false, error: 'Could not determine the PR number' };
-    const project = asMounted(getProjectStore(this.projectId));
+    const project = asAvailableProject(getProjectStore(this.projectId));
     if (!project) return { success: false, error: 'The project is not available' };
 
     const client = await getWorkspaceRegistryWireClient();
     const result = await client.updateWorktree({
-      host: projectHostRef(project.data),
+      host: projectHostRef(project.project),
       workspaceId: this.workspaceId,
       remote: instruction.remote,
       sourceRef: instruction.sourceRef,

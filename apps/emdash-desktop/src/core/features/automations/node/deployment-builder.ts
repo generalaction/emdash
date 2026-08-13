@@ -200,9 +200,9 @@ function runtimeUnavailable(error: unknown): AutomationDefinitionError {
 /**
  * Effective base/push remote for a deployment through the blessed resolver
  * (spec: github-git-settings §2) over the stored row (migrated in memory,
- * no write-back) and the injected repository facts. Runs at boot before
- * projects are mounted, so it reads the row directly instead of a mounted
- * settings provider.
+ * no write-back) and the injected repository facts. It reads desktop-owned
+ * settings directly so Project-context and Host-attachment timing cannot
+ * block boot.
  */
 async function loadDeploymentProjectSettings(
   dependencies: Parameters<typeof buildAutomationDeployment>[0],

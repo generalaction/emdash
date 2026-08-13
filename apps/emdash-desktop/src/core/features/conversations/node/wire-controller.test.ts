@@ -313,7 +313,6 @@ function setupController(options: {
     workspaceIdentity: {} as never,
     telemetry: { capture: vi.fn() } as never,
     projects: {
-      getProject: vi.fn(),
       requireAttached: vi.fn(() =>
         options.attachmentError ? err(options.attachmentError) : ok({} as never)
       ),

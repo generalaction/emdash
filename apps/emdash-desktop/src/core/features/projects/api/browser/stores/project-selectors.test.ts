@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createRegisteredProject,
   createUnregisteredProject,
-  createUnmountedProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
+import * as projectSelectors from '@core/features/projects/api/browser/stores/project-selectors';
 import {
   projectViewKind,
   type ProjectViewKind,
@@ -21,11 +22,16 @@ const project: LocalProject = {
   updatedAt: '2026-08-13T00:00:00.000Z',
 };
 
-function registeredProject(context: ProjectStore['context']): ProjectStore {
-  const store = createUnmountedProject(project, {
-    kind: 'failed',
-    message: 'Host unavailable',
+describe('Project selector contract', () => {
+  it('does not expose legacy mount selectors', () => {
+    expect(projectSelectors).not.toHaveProperty('asMounted');
+    expect(projectSelectors).not.toHaveProperty('firstMountedProjectId');
+    expect(projectSelectors).not.toHaveProperty('mountedProjectData');
   });
+});
+
+function registeredProject(context: ProjectStore['context']): ProjectStore {
+  const store = createRegisteredProject(project);
   store.context = context;
   return store;
 }
@@ -48,7 +54,7 @@ describe('projectViewKind', () => {
     [
       'context failure',
       registeredProject({
-        kind: 'desktop-context-failed',
+        kind: 'failed',
         project,
         error: {
           type: 'context-initialization-failed',
@@ -59,7 +65,7 @@ describe('projectViewKind', () => {
       'context_error',
     ],
     [
-      'available context despite Host mount failure',
+      'available context regardless of Host access',
       registeredProject({
         kind: 'available',
         context: { project } as NonNullable<

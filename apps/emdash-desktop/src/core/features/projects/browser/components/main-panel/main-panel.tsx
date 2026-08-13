@@ -33,7 +33,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
     return <ProjectContextHydratingPanel />;
   }
 
-  if (kind === 'context_error' && store?.context?.kind === 'desktop-context-failed') {
+  if (kind === 'context_error' && store?.context?.kind === 'failed') {
     return (
       <ProjectContextErrorPanel
         error={store.context.error}

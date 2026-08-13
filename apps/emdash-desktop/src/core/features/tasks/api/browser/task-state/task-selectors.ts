@@ -83,7 +83,7 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   if (!projectStore.context || projectStore.context.kind === 'hydrating') {
     return 'project-hydrating';
   }
-  if (projectStore.context.kind === 'desktop-context-failed') return 'project-error';
+  if (projectStore.context.kind === 'failed') return 'project-error';
 
   if (!store) return 'missing';
 

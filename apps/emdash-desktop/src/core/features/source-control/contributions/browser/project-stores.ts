@@ -22,8 +22,8 @@ export const sourceControlProjectStoreContributions: readonly ScopedStoreContrib
   [
     contributeScopedStore({
       token: gitRepositoryStoreToken,
-      create: ({ data, host }, stores) =>
-        new GitRepositoryStore(data.id, stores.get(projectSettingsStoreToken), host),
+      create: ({ project, host }, stores) =>
+        new GitRepositoryStore(project.id, stores.get(projectSettingsStoreToken), host),
       activate: (store) => store.start(),
       dispose: (store) => store.dispose(),
     }),

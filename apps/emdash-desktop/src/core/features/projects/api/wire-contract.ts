@@ -26,8 +26,6 @@ import {
   type CreateProjectResult,
   type InitializeRepositoryResult,
   type InspectProjectPathParams,
-  type OpenProjectError,
-  type OpenProjectSuccess,
   type Project,
   type ProjectPlacementError,
   type ProjectPathInspection,
@@ -189,10 +187,6 @@ export const projectsWireContract = defineContract({
   updateProjectConnection: procedure({
     input: z.object({ projectId: z.string(), connectionId: z.string() }),
     output: z.void(),
-  }),
-  openProject: procedure({
-    input: projectIdInputSchema,
-    output: z.custom<Result<OpenProjectSuccess, OpenProjectError>>(),
   }),
   recoverAttachment: procedure({
     input: projectIdInputSchema,

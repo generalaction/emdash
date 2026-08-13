@@ -1,7 +1,7 @@
 import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import {
@@ -24,23 +24,24 @@ function branchNameFromHead(head: CheckoutHeadState | undefined): string | null 
 }
 
 export function useProjectGitContext(projectId: string | undefined): ProjectGitContext {
-  const project = projectId ? asMounted(getProjectStore(projectId)) : undefined;
+  const context = projectId ? asAvailableProject(getProjectStore(projectId)) : undefined;
+  const project = context?.project;
   const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
 
   const pathInspectionQuery = useQuery({
-    queryKey: ['projectPathStatus', 'taskConfig', projectId, project?.data.path],
+    queryKey: ['projectPathStatus', 'taskConfig', projectId, project?.path],
     enabled: !!project,
     queryFn: async () => {
-      if (!project) throw new Error('Project is not mounted');
-      return project.data.type === 'ssh'
+      if (!project) throw new Error('Project context is unavailable');
+      return project.type === 'ssh'
         ? inspectProjectPath({
             type: 'ssh',
-            connectionId: project.data.connectionId,
-            path: project.data.path,
+            connectionId: project.connectionId,
+            path: project.path,
           })
         : inspectProjectPath({
             type: 'local',
-            path: project.data.path,
+            path: project.path,
           });
     },
     refetchOnWindowFocus: true,
@@ -48,10 +49,10 @@ export function useProjectGitContext(projectId: string | undefined): ProjectGitC
 
   const headQuery = useQuery({
     queryKey: ['gitRepository', 'projectRootHead', projectId],
-    enabled: !!project?.data.repositoryWorkspaceId,
+    enabled: !!project?.repositoryWorkspaceId,
     queryFn: async () => {
-      if (!project?.data.repositoryWorkspaceId) throw new Error('Repository workspace required');
-      return readCheckoutHead(project.data.repositoryWorkspaceId);
+      if (!project?.repositoryWorkspaceId) throw new Error('Repository workspace required');
+      return readCheckoutHead(project.repositoryWorkspaceId);
     },
     refetchOnWindowFocus: true,
   });
@@ -64,6 +65,6 @@ export function useProjectGitContext(projectId: string | undefined): ProjectGitC
     hasRepository: pathInspectionQuery.data?.error
       ? true
       : (pathInspectionQuery.data?.isGitRepo ?? true),
-    repositoryWorkspaceId: project?.data.repositoryWorkspaceId ?? null,
+    repositoryWorkspaceId: project?.repositoryWorkspaceId ?? null,
   };
 }

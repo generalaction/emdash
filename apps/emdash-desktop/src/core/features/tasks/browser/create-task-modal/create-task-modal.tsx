@@ -3,8 +3,9 @@ import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import {
-  getProjectManagerStore,
-  mountedProjectData,
+  firstAvailableProjectId,
+  getProjectStore,
+  projectData as selectProjectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
@@ -35,12 +36,7 @@ function useDefaultProjectId(propProjectId?: string): string | undefined {
       nav.currentViewId === 'task' || nav.currentViewId === 'project'
         ? params.projectId
         : undefined;
-    return (
-      navProjectId ??
-      Array.from(getProjectManagerStore().projects.values())
-        .reverse()
-        .find((p) => p.state === 'mounted')?.data?.id
-    );
+    return navProjectId ?? firstAvailableProjectId();
     // oxlint-disable-next-line react/exhaustive-deps
   }, []); // computed once on mount
 }
@@ -58,7 +54,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const selectedProjectId = useDefaultProjectId(projectId);
 
   const projectData = selectedProjectId
-    ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
+    ? selectProjectData(getProjectStore(selectedProjectId))
     : null;
 
   const { defaultBranch, isUnborn, hasRepository, currentBranch, repositoryWorkspaceId } =

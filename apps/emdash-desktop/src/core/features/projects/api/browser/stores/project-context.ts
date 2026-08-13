@@ -41,7 +41,7 @@ export type ProjectContextLifecycle =
   | { kind: 'hydrating'; project: Project }
   | { kind: 'available'; context: ProjectContext }
   | {
-      kind: 'desktop-context-failed';
+      kind: 'failed';
       project: Project;
       error: ProjectContextError;
     };
@@ -307,7 +307,7 @@ export class ProjectContext {
     const host = new HydratingProjectHostAccess(project);
     let stores: ScopedStoreHost<ProjectScopedStoreContext>;
     try {
-      stores = new ScopedStoreHost({ data: project, space, host }, projectStoreContributions);
+      stores = new ScopedStoreHost({ project, space, host }, projectStoreContributions);
     } catch (error) {
       await releaseSpace(space);
       return err(contextInitializationError('scoped-stores', error));

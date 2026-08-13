@@ -1,6 +1,5 @@
 import {
   isUnregisteredProject,
-  type MountedProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
 import type {
@@ -35,7 +34,7 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
   if (!store) return 'missing';
   if (isUnregisteredProject(store)) return 'creating';
   if (!store.context || store.context.kind === 'hydrating') return 'hydrating';
-  if (store.context.kind === 'desktop-context-failed') return 'context_error';
+  if (store.context.kind === 'failed') return 'context_error';
   return 'ready';
 }
 
@@ -49,19 +48,6 @@ export function getProjectHostAccess(projectId: string): ProjectHostAccess | und
   return asAvailableProject(getProjectStore(projectId))?.host;
 }
 
-/** Returns the mounted project payload if ready, otherwise undefined. */
-export function asMounted(store: ProjectStore | undefined): MountedProject | undefined {
-  return store?.mountedProject ?? undefined;
-}
-
-/** Returns the id of the first mounted project, or undefined if none are mounted. */
-export function firstMountedProjectId(): string | undefined {
-  for (const [id, store] of getProjectManagerStore().projects.entries()) {
-    if (asMounted(store)) return id;
-  }
-  return undefined;
-}
-
 /** Returns the id of the first Project with an available desktop context. */
 export function firstAvailableProjectId(): string | undefined {
   for (const [id, store] of getProjectManagerStore().projects.entries()) {
@@ -72,12 +58,6 @@ export function firstAvailableProjectId(): string | undefined {
 
 export function projectData(store: ProjectStore | undefined): LocalProject | SshProject | null {
   return store?.data ?? null;
-}
-
-export function mountedProjectData(
-  store: ProjectStore | undefined
-): LocalProject | SshProject | null {
-  return projectData(store);
 }
 
 /** Returns the SSH connection id for an SSH Project, otherwise undefined. */

@@ -12,14 +12,13 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
-import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
-  isUnmountedProject,
   isUnregisteredProject,
   type ProjectCreationStage,
 } from '@core/features/projects/api/browser/stores/project';
 import {
+  getProjectHostAccess,
   getProjectStore,
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -36,7 +35,6 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
-import type { ConnectionState } from '@core/primitives/ssh/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   SidebarItemMiniButton,
@@ -91,21 +89,22 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
-  const sshConnectionState = sshConnectionId ? getMachinesStore().stateFor(sshConnectionId) : null;
-  const displayedSshConnectionState: ConnectionState | null =
-    isUnmountedProject(project) &&
-    project.unmounted.kind === 'failed' &&
-    project.unmounted.code === 'ssh-disconnected' &&
-    sshConnectionState !== 'connected'
-      ? 'disconnected'
-      : sshConnectionState;
-  const canReconnect = sshConnectionState !== 'connected';
+  const hostAccess = getProjectHostAccess(projectId);
+  const displayedSshConnectionState =
+    hostAccess?.state.kind === 'ready'
+      ? 'connected'
+      : hostAccess?.state.kind === 'degraded' &&
+          ['connecting', 'provisioning', 'handshaking', 'attaching', 'recovering'].includes(
+            hostAccess.state.situation
+          )
+        ? 'connecting'
+        : 'disconnected';
   const ProjectIcon = isSshProject ? FolderInput : isExpanded ? FolderOpen : FolderClosed;
   const projectLabel = project.name ?? 'project';
   const createAvailability = taskHostActionAvailability(projectId);
   const createDisabledReason =
     createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
-  const openProject = () => navigate(projectViewDef({ projectId }));
+  const navigateToProject = () => navigate(projectViewDef({ projectId }));
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -133,7 +132,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           data-active={isProjectActive || undefined}
           isActive={isProjectActive}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={openProject}
+          onClick={navigateToProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1">
             {project.state === 'unregistered' ? (
@@ -222,15 +221,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </SidebarMenuRow>
       </ContextMenu.Trigger>
       <ContextMenu.Content>
-        {sshConnectionId && (
+        {sshConnectionId && hostAccess?.state.kind === 'degraded' && (
           <>
             <ContextMenu.Item
-              disabled={!canReconnect}
-              onClick={() => {
-                void getMachinesStore()
-                  .connect(sshConnectionId)
-                  .catch(() => {});
-              }}
+              disabled={hostAccess.state.recovery === 'blocked'}
+              onClick={() => void hostAccess.recover()}
             >
               <RotateCcw className="size-4" />
               Reconnect

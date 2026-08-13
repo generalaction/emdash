@@ -3,7 +3,7 @@ import { useObserver } from 'mobx-react-lite';
 import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
@@ -43,11 +43,11 @@ export function PaletteNotificationsGroup({
     const result: NotificationItem[] = [];
 
     for (const projectStore of getProjectManagerStore().projects.values()) {
-      const mounted = asMounted(projectStore);
-      if (!mounted) continue;
-      const pid = mounted.data.id;
+      const context = asAvailableProject(projectStore);
+      if (!context) continue;
+      const pid = context.project.id;
 
-      for (const [tid, taskStore] of mounted.get(taskManagerStoreToken).tasks) {
+      for (const [tid, taskStore] of context.get(taskManagerStoreToken).tasks) {
         if (!isRegistered(taskStore)) continue;
         const conversations = conversationRegistry.get(tid);
         if (!conversations) continue;

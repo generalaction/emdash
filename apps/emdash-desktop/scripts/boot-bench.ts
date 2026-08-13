@@ -375,7 +375,7 @@ async function main(): Promise<void> {
       (text) => text.includes('app-content-ready'),
       RUN_TIMEOUT_MS
     );
-    // Give trailing marks (project mounts) a moment to flush before stopping.
+    // Give trailing Project-context and attachment marks a moment to flush before stopping.
     await sleep(1_000);
     await stopApp(child);
     const parsed = parseRunLog(fs.readFileSync(logFile, 'utf8'));

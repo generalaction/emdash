@@ -14,7 +14,6 @@ import { deleteProject, type ProjectDeletionDependencies } from './operations/de
 import { ensureDefaultRepositoriesRoot } from './operations/ensure-default-repositories-root';
 import { getProjects } from './operations/getProjects';
 import { initializeRepository } from './operations/initialize-repository';
-import { openProject } from './operations/openProject';
 import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
@@ -23,7 +22,7 @@ export type ProjectOperationDependencies = CreateProjectDependencies & {
   placement: WorkspacePlacementResolver;
   projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;
-  projects: Pick<ProjectAttachmentManager, 'invalidate' | 'openProject' | 'recover' | 'track'>;
+  projects: Pick<ProjectAttachmentManager, 'invalidate' | 'recover' | 'track'>;
   mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
 };
 
@@ -59,6 +58,5 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       countProjectsUsingGithubAccount(db, accountId),
     updateProjectConnection: (projectId: string, connectionId: string) =>
       updateProjectConnection(db, projects, projectId, connectionId),
-    openProject: (projectId: string) => openProject(projects, projectId),
   };
 }

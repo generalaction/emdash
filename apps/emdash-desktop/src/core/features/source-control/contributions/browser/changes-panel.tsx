@@ -10,7 +10,7 @@ import { GitBranchPlus, RotateCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Fragment, useMemo, useState } from 'react';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import {
@@ -58,7 +58,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
   const taskView = useTaskComposition();
   const workspace = useWorkspace();
   const gitCheckout = workspace.get(gitCheckoutStoreToken);
-  const project = asMounted(getProjectStore(projectId))?.data;
+  const project = asAvailableProject(getProjectStore(projectId))?.project;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
   const queryClient = useQueryClient();
@@ -74,7 +74,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
     queryKey: noRepositoryQueryKey,
     enabled: !gitCheckout.hasData && !!project,
     queryFn: async () => {
-      if (!project) throw new Error('Project is not mounted');
+      if (!project) throw new Error('Project context is unavailable');
       return project.type === 'ssh'
         ? inspectProjectPath({
             type: 'ssh',

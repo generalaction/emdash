@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { migrateProjectSettingsOnMount } from './migrate-project-settings-on-mount';
+import { migrateProjectSettingsOnAttachment } from './migrate-project-settings-on-attachment';
 
 function hostState(migrated: boolean) {
   return {
@@ -10,7 +10,7 @@ function hostState(migrated: boolean) {
   };
 }
 
-describe('migrateProjectSettingsOnMount', () => {
+describe('migrateProjectSettingsOnAttachment', () => {
   it('orders every migration, retries failed imports, and becomes idempotent after confirmation', async () => {
     const events: string[] = [];
     let hostMigrated = false;
@@ -50,14 +50,14 @@ describe('migrateProjectSettingsOnMount', () => {
         return hostState(true);
       }),
     };
-    const project = { id: 'project-1', repositoryWorkspaceId: 'repo-1' };
+    const project = { repositoryWorkspaceId: 'repo-1' };
     const options = {
       migrateAppWorktreeRoot: vi.fn(async () => {
         events.push('app-worktree-root');
       }),
     };
 
-    await migrateProjectSettingsOnMount(
+    await migrateProjectSettingsOnAttachment(
       project,
       migrationReader,
       workspaceRegistry as never,
@@ -74,7 +74,7 @@ describe('migrateProjectSettingsOnMount', () => {
     expect(migrationReader.finalizeLegacyLifecycleSettings).not.toHaveBeenCalled();
 
     events.length = 0;
-    await migrateProjectSettingsOnMount(
+    await migrateProjectSettingsOnAttachment(
       project,
       migrationReader,
       workspaceRegistry as never,
@@ -100,7 +100,7 @@ describe('migrateProjectSettingsOnMount', () => {
     });
 
     events.length = 0;
-    await migrateProjectSettingsOnMount(
+    await migrateProjectSettingsOnAttachment(
       project,
       migrationReader,
       workspaceRegistry as never,
@@ -121,7 +121,7 @@ describe('migrateProjectSettingsOnMount', () => {
     expect(options.migrateAppWorktreeRoot).toHaveBeenCalledTimes(3);
   });
 
-  it('keeps legacy settings when the host does not confirm the migration', async () => {
+  it('keeps legacy settings when the Host does not confirm the migration', async () => {
     const migrationReader = {
       migrateAncientConfig: vi.fn(async () => {}),
       readLegacyLifecycleSettings: vi.fn(async () => ({ scripts: { setup: 'pnpm install' } })),
@@ -132,8 +132,8 @@ describe('migrateProjectSettingsOnMount', () => {
       importLegacyLifecycleSettings: vi.fn(async () => hostState(false)),
     };
 
-    await migrateProjectSettingsOnMount(
-      { id: 'project-1', repositoryWorkspaceId: 'repo-1' },
+    await migrateProjectSettingsOnAttachment(
+      { repositoryWorkspaceId: 'repo-1' },
       migrationReader,
       workspaceRegistry as never
     );

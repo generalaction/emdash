@@ -14,6 +14,28 @@ import {
 } from './project-attachment-manager';
 
 describe('ProjectAttachmentManager', () => {
+  it('does not expose legacy open, close, or Provider lookup adapters', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-contract-test' });
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability: createHostAvailability({
+        scope,
+        readiness: { prepare: async () => ok() },
+      }),
+      adapter: {
+        loadProject: async () => undefined,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async () => ok(projectProvider()),
+      },
+    });
+
+    expect(manager).not.toHaveProperty('openProject');
+    expect(manager).not.toHaveProperty('closeProject');
+    expect(manager).not.toHaveProperty('getProject');
+
+    await scope.dispose();
+  });
+
   it('attaches a tracked Project once when its Host reaches a ready generation', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const readiness = deferred<ReturnType<typeof ok<void>>>();
@@ -212,7 +234,7 @@ describe('ProjectAttachmentManager', () => {
     );
     opened.resolve(ok(provider));
     await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
-    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(manager.requireAttached(project.id).success).toBe(false);
 
     await owner.dispose();
     await scope.dispose();
@@ -362,120 +384,9 @@ describe('ProjectAttachmentManager', () => {
       kind: 'absent',
       attemptedHostGeneration: 1,
     });
-    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(manager.requireAttached(project.id).success).toBe(false);
 
     await owner.dispose();
-    await scope.dispose();
-  });
-
-  it('adapts openProject through one canonical tracking lease and closes it exactly once', async () => {
-    const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
-      scope,
-      readiness: { prepare: async () => ok() },
-    });
-    const canonical = sshProject();
-    const provider = projectProvider();
-    const statRepository = vi.fn(async () => ok({ type: 'directory' as const }));
-    const open = vi.fn(async () => ok(provider));
-    const manager = createProjectAttachmentManager({
-      scope,
-      availability,
-      adapter: {
-        loadProject: async () => canonical,
-        statRepository,
-        open,
-      },
-    });
-
-    await expect(
-      manager.openProject({
-        ...canonical,
-        path: '/stale-renderer-path',
-      })
-    ).resolves.toEqual(ok(provider));
-
-    expect(statRepository).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/repo' }),
-      expect.any(AbortSignal)
-    );
-    expect(open).toHaveBeenCalledOnce();
-
-    await expect(manager.closeProject(canonical.id)).resolves.toEqual(ok());
-    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
-    expect(manager.getProject(canonical.id)).toBeUndefined();
-    expect(open).toHaveBeenCalledOnce();
-
-    await manager.dispose();
-    expect(provider.dispose).toHaveBeenCalledOnce();
-    await scope.dispose();
-  });
-
-  it('lets each explicit openProject retry make one attachment attempt without a retry loop', async () => {
-    const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
-      scope,
-      readiness: { prepare: async () => ok() },
-    });
-    const project = sshProject();
-    const provider = projectProvider();
-    const statRepository = vi
-      .fn()
-      .mockResolvedValueOnce(err({ type: 'not-found', path: '/repo' }))
-      .mockResolvedValueOnce(ok({ type: 'directory' as const }));
-    const open = vi.fn(async () => ok(provider));
-    const manager = createProjectAttachmentManager({
-      scope,
-      availability,
-      adapter: {
-        loadProject: async () => project,
-        statRepository,
-        open,
-      },
-    });
-
-    await expect(manager.openProject(project)).resolves.toEqual(
-      err({ type: 'repository-missing', path: '/repo' })
-    );
-    expect(statRepository).toHaveBeenCalledOnce();
-
-    await expect(manager.openProject(project)).resolves.toEqual(ok(provider));
-    expect(statRepository).toHaveBeenCalledTimes(2);
-    expect(open).toHaveBeenCalledOnce();
-
-    await manager.closeProject(project.id);
-    await scope.dispose();
-  });
-
-  it('does not reopen a compatibility attachment after close while another lease remains', async () => {
-    const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
-      scope,
-      readiness: { prepare: async () => ok() },
-    });
-    const project = sshProject();
-    const provider = projectProvider();
-    const open = vi.fn(async () => ok(provider));
-    const manager = createProjectAttachmentManager({
-      scope,
-      availability,
-      adapter: {
-        loadProject: async () => project,
-        statRepository: async () => ok({ type: 'directory' as const }),
-        open,
-      },
-    });
-    const wireOwner = createScope({ label: 'wire-owner' });
-    const state = manager.track(project.id, wireOwner);
-
-    await expect(manager.openProject(project)).resolves.toEqual(ok(provider));
-    await expect(manager.closeProject(project.id)).resolves.toEqual(ok());
-    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
-
-    expect(peek(state)).toEqual({ kind: 'absent' });
-    expect(open).toHaveBeenCalledOnce();
-
-    await wireOwner.dispose();
     await scope.dispose();
   });
 
@@ -538,11 +449,13 @@ describe('ProjectAttachmentManager', () => {
 
     await firstOwner.dispose();
     expect(provider.dispose).not.toHaveBeenCalled();
-    expect(manager.getProject(project.id)).toBe(provider);
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
 
     await secondOwner.dispose();
     expect(provider.dispose).toHaveBeenCalledOnce();
-    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(manager.requireAttached(project.id)).toEqual(
+      err({ type: 'project-missing', projectId: project.id })
+    );
 
     await scope.dispose();
   });
@@ -576,7 +489,9 @@ describe('ProjectAttachmentManager', () => {
 
     await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
     expect(projectOpened).not.toHaveBeenCalled();
-    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(manager.requireAttached(project.id)).toEqual(
+      err({ type: 'project-missing', projectId: project.id })
+    );
 
     await scope.dispose();
   });
@@ -994,7 +909,7 @@ describe('ProjectAttachmentManager', () => {
     opened.resolve(ok(provider));
 
     await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
-    expect(manager.getProject(project.id)).toBeUndefined();
+    expect(manager.requireAttached(project.id).success).toBe(false);
     expect(peek(state).kind).toBe('absent');
 
     await manager.dispose();

@@ -28,7 +28,6 @@ describe('createProjectFromRemote', () => {
   const dependencies = {
     db: {} as never,
     runtimes: { client },
-    projects: { openProject: vi.fn() },
     mintCloneCredentials: vi.fn(async () => undefined),
   };
 

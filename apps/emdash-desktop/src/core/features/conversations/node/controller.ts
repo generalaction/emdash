@@ -1,6 +1,5 @@
 import type { SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
-import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -23,7 +22,6 @@ import { renameConversation } from './renameConversation';
 
 export function createConversationOperations(dependencies: {
   db: AppDb;
-  projects: Pick<ProjectAttachmentManager, 'getProject'>;
   telemetry: TelemetryService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;

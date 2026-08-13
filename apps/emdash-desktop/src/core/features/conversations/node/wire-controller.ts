@@ -60,7 +60,7 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   hooks?: ConversationRuntimeHooks;
   getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>;
   logger: Logger;
-  projects: Pick<ProjectAttachmentManager, 'getProject' | 'requireAttached'>;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   telemetry: TelemetryService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;
@@ -82,7 +82,6 @@ export function createConversationsWireController(
   const hooks = options.hooks ?? createDefaultRuntimeHooks(options);
   const conversationOperations = createConversationOperations({
     db: options.db,
-    projects: options.projects,
     taskSessions: options.taskSessions,
     telemetry: options.telemetry,
     withCompensation: options.withCompensation,

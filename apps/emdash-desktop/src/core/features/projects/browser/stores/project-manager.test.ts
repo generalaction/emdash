@@ -7,7 +7,6 @@ import {
 import type * as WireLive from '@emdash/wire/live';
 import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
-import { reaction } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   projectsWireContract,
@@ -16,12 +15,9 @@ import {
   type ProjectListData,
 } from '@core/features/projects/api';
 import {
+  createRegisteredProject,
   createUnregisteredProject,
-  createUnmountedProject,
-  isMountedProject,
-  isUnmountedProject,
   isUnregisteredProject,
-  type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
 import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
@@ -37,7 +33,6 @@ const mocks = vi.hoisted(() => ({
   deleteGithubRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   logError: vi.fn(),
-  openProject: vi.fn(),
   projectWireCreate: vi.fn(),
   projectWireCancel: vi.fn(),
   projectWireDelete: vi.fn(),
@@ -49,8 +44,8 @@ const mocks = vi.hoisted(() => ({
   mementoReportError: vi.fn(),
   mementoSubject: vi.fn(),
   mementoSubjectRelease: vi.fn(),
-  mountedProjectStoreDispose: vi.fn(),
-  mountedReady: Promise.resolve(),
+  projectContextStoreDispose: vi.fn(),
+  contextReady: Promise.resolve(),
   navigationCurrentRef: { viewId: 'home', params: {}, key: 'home' } as {
     viewId: string;
     params: Record<string, string>;
@@ -111,7 +106,7 @@ vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
         loadTasks: mocks.taskListLoad,
         provisionTask: mocks.taskProvision,
       }),
-      dispose: mocks.mountedProjectStoreDispose,
+      dispose: mocks.projectContextStoreDispose,
     },
   ],
 }));
@@ -181,6 +176,14 @@ function okProject(project: LocalProject) {
   return { success: true as const, data: project };
 }
 
+describe('ProjectManagerStore contract', () => {
+  it('does not expose renderer-driven Project mounting', () => {
+    const manager = new ProjectManagerStore();
+    expect(manager).not.toHaveProperty('mountProject');
+    manager.dispose();
+  });
+});
+
 function createProjectWire() {
   const events = createEventStreamHost(projectsWireContract.events);
   const projectListProvider = expose(projectsWireContract.projectList, {
@@ -215,7 +218,6 @@ function createProjectWire() {
     shareProjectSettingsToConfig: vi.fn(),
     migrateProjectConfig: vi.fn(),
     countProjectsUsingGithubAccount: vi.fn(),
-    openProject: (input: unknown) => mocks.openProject(input),
     recoverAttachment: (input: unknown) => mocks.recoverAttachment(input),
     events,
     projectList: projectListProvider,
@@ -288,10 +290,9 @@ describe('ProjectManagerStore project creation', () => {
         ({ success: true, data: `${chosenDir}/${name}` }) as const
     );
     mocks.createProject.mockResolvedValue(okProject(localProject()));
-    mocks.openProject.mockReturnValue(new Promise(() => {}));
-    mocks.mountedReady = Promise.resolve();
+    mocks.contextReady = Promise.resolve();
     mocks.mementoSubject.mockImplementation(() => ({
-      ready: mocks.mountedReady,
+      ready: mocks.contextReady,
       release: mocks.mementoSubjectRelease,
     }));
     mocks.mementoSubjectRelease.mockResolvedValue(undefined);
@@ -358,9 +359,10 @@ describe('ProjectManagerStore project creation', () => {
   it('discards project and child task mementos before disposing a deleted project', async () => {
     const manager = new ProjectManagerStore();
     const dispose = vi.fn();
-    manager.projects.set('project-id', {
-      id: 'project-id',
-      mountedProject: {
+    const project = createRegisteredProject(localProject());
+    project.context = {
+      kind: 'available',
+      context: {
         get: () => ({
           tasks: new Map([
             ['task-1', {}],
@@ -368,8 +370,9 @@ describe('ProjectManagerStore project creation', () => {
           ]),
         }),
         dispose,
-      },
-    } as unknown as ProjectStore);
+      } as never,
+    };
+    manager.projects.set('project-id', project);
 
     await manager.deleteProject('project-id');
 
@@ -384,10 +387,6 @@ describe('ProjectManagerStore project creation', () => {
 
   it('disposes an available desktop context after project deletion', async () => {
     const project = localProject();
-    mocks.openProject.mockResolvedValue({
-      success: false,
-      error: { type: 'error', message: 'Host unavailable' },
-    });
     projectListState.set({ projects: [project] });
     const manager = new ProjectManagerStore();
     await manager.load();
@@ -401,33 +400,29 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.mementoSubjectRelease).toHaveBeenCalledOnce();
   });
 
-  it('resumes an opening project when deletion rolls back', async () => {
+  it('resumes Project-context hydration when deletion rolls back', async () => {
     const project = localProject();
-    let resolveFirstOpen: (result: {
-      success: true;
-      data: { repositoryWorkspaceId: null };
-    }) => void = () => {};
-    mocks.openProject
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveFirstOpen = resolve;
-        })
-      )
-      .mockResolvedValueOnce({ success: true, data: { repositoryWorkspaceId: null } });
+    let resolveHydration = () => {};
+    mocks.contextReady = new Promise<void>((resolve) => {
+      resolveHydration = resolve;
+    });
+    mocks.mementoSubject.mockImplementation(() => ({
+      ready: mocks.contextReady,
+      release: mocks.mementoSubjectRelease,
+    }));
     mocks.projectWireDelete.mockRejectedValueOnce(new Error('delete failed'));
     const manager = new ProjectManagerStore();
-    manager.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    const firstMount = manager.mountProject(project.id);
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
+    projectListState.set({ projects: [project] });
+    await manager.load();
+    await vi.waitFor(() =>
+      expect(manager.projects.get(project.id)?.context?.kind).toBe('hydrating')
+    );
 
     await expect(manager.deleteProject(project.id)).rejects.toThrow('delete failed');
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(isMountedProject(manager.projects.get(project.id)!)).toBe(true));
-
-    resolveFirstOpen({ success: true, data: { repositoryWorkspaceId: null } });
-    await firstMount;
-    expect(isMountedProject(manager.projects.get(project.id)!)).toBe(true);
+    resolveHydration();
+    await vi.waitFor(() =>
+      expect(manager.projects.get(project.id)?.context?.kind).toBe('available')
+    );
   });
 
   it('returns an existing project without starting creation', async () => {
@@ -479,32 +474,11 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.inspectProjectPath).toHaveBeenCalledTimes(1);
     expect(store.pendingCreationIds.has('optimistic-project')).toBe(false);
     await vi.waitFor(() =>
-      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: 'optimistic-project' })
+      expect(store.projects.get('optimistic-project')?.context?.kind).toBe('available')
     );
   });
 
-  it('records an automatic mount transport failure without rejecting project creation', async () => {
-    const project = localProject({ id: 'optimistic-project' });
-    mocks.createProject.mockResolvedValueOnce(okProject(project));
-    mocks.openProject.mockRejectedValueOnce(new Error('transport unavailable'));
-    const store = new ProjectManagerStore();
-
-    const result = await store.startProjectCreation(
-      { type: 'local' },
-      { mode: 'pick', name: project.name, path: project.path },
-      { id: project.id }
-    );
-
-    if (result.kind === 'creating')
-      await expect(result.completion).resolves.toEqual({ success: true });
-    await vi.waitFor(() => {
-      const current = store.projects.get(project.id);
-      expect(current && isUnmountedProject(current)).toBe(true);
-      expect(current?.unmounted).toEqual({ kind: 'failed', message: 'transport unavailable' });
-    });
-  });
-
-  it('keeps a project mounted when the live list mounts before creation returns', async () => {
+  it('keeps one Project context when the live list arrives before creation returns', async () => {
     const project = localProject({ id: 'optimistic-project' });
     let resolveCreation: (result: ReturnType<typeof okProject>) => void = () => {};
     mocks.createProject.mockReturnValueOnce(
@@ -518,10 +492,6 @@ describe('ProjectManagerStore project creation', () => {
         resolveTaskList = resolve;
       })
     );
-    mocks.openProject.mockResolvedValueOnce({
-      success: true,
-      data: { repositoryWorkspaceId: null },
-    });
     const store = new ProjectManagerStore();
 
     const creation = await store.startProjectCreation(
@@ -531,30 +501,30 @@ describe('ProjectManagerStore project creation', () => {
     );
     projectListState.set({ projects: [project] });
     const load = store.load();
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
+    const context = store.projects.get(project.id)?.context;
 
     resolveCreation(okProject(project));
     if (creation.kind === 'creating') await creation.completion;
 
-    expect(isMountedProject(store.projects.get(project.id)!)).toBe(true);
-    expect(mocks.openProject).toHaveBeenCalledTimes(1);
+    expect(store.projects.get(project.id)?.context).toBe(context);
+    expect(mocks.mementoSubject).toHaveBeenCalledOnce();
 
     resolveTaskList();
     await load;
   });
 
-  it('reuses the mount started by creation when the live list observes it afterward', async () => {
+  it('reuses context hydration started by creation when the live list observes it afterward', async () => {
     const project = localProject({ id: 'optimistic-project' });
     mocks.createProject.mockResolvedValueOnce(okProject(project));
-    let resolveOpen: (result: {
-      success: true;
-      data: { repositoryWorkspaceId: null };
-    }) => void = () => {};
-    mocks.openProject.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveOpen = resolve;
-      })
-    );
+    let resolveContext = () => {};
+    mocks.contextReady = new Promise<void>((resolve) => {
+      resolveContext = resolve;
+    });
+    mocks.mementoSubject.mockImplementation(() => ({
+      ready: mocks.contextReady,
+      release: mocks.mementoSubjectRelease,
+    }));
     const store = new ProjectManagerStore();
 
     const creation = await store.startProjectCreation(
@@ -563,24 +533,20 @@ describe('ProjectManagerStore project creation', () => {
       { id: project.id }
     );
     if (creation.kind === 'creating') await creation.completion;
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('hydrating'));
 
     projectListState.set({ projects: [project] });
     const load = store.load();
 
-    expect(mocks.openProject).toHaveBeenCalledTimes(1);
-    resolveOpen({ success: true, data: { repositoryWorkspaceId: null } });
+    expect(mocks.mementoSubject).toHaveBeenCalledOnce();
+    resolveContext();
     await load;
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
   });
 
-  it('refreshes mounted project data without replacing or disposing its scoped state', async () => {
+  it('refreshes durable Project data without replacing its context', async () => {
     const project = localProject({ id: 'optimistic-project' });
     mocks.createProject.mockResolvedValueOnce(okProject(project));
-    mocks.openProject.mockResolvedValueOnce({
-      success: true,
-      data: { repositoryWorkspaceId: null },
-    });
     const store = new ProjectManagerStore();
 
     const creation = await store.startProjectCreation(
@@ -589,28 +555,25 @@ describe('ProjectManagerStore project creation', () => {
       { id: project.id }
     );
     if (creation.kind === 'creating') await creation.completion;
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
-    const mountedStore = store.projects.get(project.id)!;
-    const mountedProject = mountedStore.mountedProject;
-    await vi.waitFor(() => expect(mountedStore.context?.kind).toBe('available'));
+    const registeredStore = store.projects.get(project.id)!;
+    await vi.waitFor(() => expect(registeredStore.context?.kind).toBe('available'));
     const context =
-      mountedStore.context?.kind === 'available' ? mountedStore.context.context : null;
-    const data = mountedStore.data;
+      registeredStore.context?.kind === 'available' ? registeredStore.context.context : null;
+    const data = registeredStore.data;
 
     projectListState.set({ projects: [{ ...project, name: 'Renamed Project' }] });
     const load = store.load();
     await load;
 
-    expect(store.projects.get(project.id)).toBe(mountedStore);
-    expect(mountedStore.mountedProject).toBe(mountedProject);
-    expect(mountedStore.context).toEqual({ kind: 'available', context });
-    expect(mountedStore.data).toBe(data);
-    expect(mountedStore.name).toBe('Renamed Project');
-    expect(mountedStore.data?.name).toBe('Renamed Project');
-    expect(mocks.mountedProjectStoreDispose).not.toHaveBeenCalled();
+    expect(store.projects.get(project.id)).toBe(registeredStore);
+    expect(registeredStore.context).toEqual({ kind: 'available', context });
+    expect(registeredStore.data).toBe(data);
+    expect(registeredStore.name).toBe('Renamed Project');
+    expect(registeredStore.data?.name).toBe('Renamed Project');
+    expect(mocks.projectContextStoreDispose).not.toHaveBeenCalled();
   });
 
-  it('completes mounting before post-mount task hydration finishes', async () => {
+  it('publishes Project context before background Task hydration finishes', async () => {
     const project = localProject();
     let resolveTaskList: () => void = () => {};
     mocks.taskListLoad.mockReturnValueOnce(
@@ -618,32 +581,22 @@ describe('ProjectManagerStore project creation', () => {
         resolveTaskList = resolve;
       })
     );
-    mocks.openProject.mockResolvedValueOnce({
-      success: true,
-      data: { repositoryWorkspaceId: null },
-    });
     const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
+    projectListState.set({ projects: [project] });
+    await store.load();
 
-    const mount = store.mountProject(project.id);
-    await mount;
-
-    expect(isMountedProject(store.projects.get(project.id)!)).toBe(true);
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
     resolveTaskList();
   });
 
   it('hydrates desktop context before retaining attachment tracking', async () => {
     const project = localProject();
-    mocks.openProject.mockResolvedValue({
-      success: false,
-      error: { type: 'error', message: 'Host unavailable' },
-    });
     let resolveContextSpace: () => void = () => {};
-    mocks.mountedReady = new Promise<void>((resolve) => {
+    mocks.contextReady = new Promise<void>((resolve) => {
       resolveContextSpace = resolve;
     });
     mocks.mementoSubject.mockImplementation(() => ({
-      ready: mocks.mountedReady,
+      ready: mocks.contextReady,
       release: mocks.mementoSubjectRelease,
     }));
     projectListState.set({ projects: [project] });
@@ -668,7 +621,6 @@ describe('ProjectManagerStore project creation', () => {
     );
     expect(mocks.taskListLoad).toHaveBeenCalledOnce();
     expect(store.projects.get(project.id)?.context?.kind).toBe('available');
-    expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id });
   });
 
   it('recovers one Project context through Host readiness and attachment in place', async () => {
@@ -740,16 +692,12 @@ describe('ProjectManagerStore project creation', () => {
 
   it('rejects stale context hydration after project-list removal', async () => {
     const project = localProject();
-    mocks.openProject.mockResolvedValue({
-      success: false,
-      error: { type: 'error', message: 'Host unavailable' },
-    });
     let resolveContextSpace: () => void = () => {};
-    mocks.mountedReady = new Promise<void>((resolve) => {
+    mocks.contextReady = new Promise<void>((resolve) => {
       resolveContextSpace = resolve;
     });
     mocks.mementoSubject.mockImplementation(() => ({
-      ready: mocks.mountedReady,
+      ready: mocks.contextReady,
       release: mocks.mementoSubjectRelease,
     }));
     projectListState.set({ projects: [project] });
@@ -788,7 +736,7 @@ describe('ProjectManagerStore project creation', () => {
 
     await vi.waitFor(() => expect(store.projects.has(project.id)).toBe(false));
     await vi.waitFor(() => expect(mocks.mementoSubjectRelease).toHaveBeenCalledOnce());
-    expect(mocks.mountedProjectStoreDispose).toHaveBeenCalledOnce();
+    expect(mocks.projectContextStoreDispose).toHaveBeenCalledOnce();
     expect(mocks.navigationNavigate).toHaveBeenCalledWith(
       expect.objectContaining({ viewId: 'home' })
     );
@@ -800,12 +748,8 @@ describe('ProjectManagerStore project creation', () => {
 
   it('rejects context hydration that completes after project deletion', async () => {
     const project = localProject();
-    mocks.openProject.mockResolvedValue({
-      success: false,
-      error: { type: 'error', message: 'Host unavailable' },
-    });
     let resolveContextSpace: () => void = () => {};
-    mocks.mountedReady = new Promise<void>((resolve) => {
+    mocks.contextReady = new Promise<void>((resolve) => {
       resolveContextSpace = resolve;
     });
     projectListState.set({ projects: [project] });
@@ -825,10 +769,6 @@ describe('ProjectManagerStore project creation', () => {
 
   it('publishes typed desktop context failure without tracking attachment', async () => {
     const project = localProject();
-    mocks.openProject.mockResolvedValue({
-      success: false,
-      error: { type: 'error', message: 'Host unavailable' },
-    });
     mocks.mementoSubject.mockReturnValue({
       ready: Promise.reject(new Error('memento unavailable')),
       release: mocks.mementoSubjectRelease,
@@ -840,7 +780,7 @@ describe('ProjectManagerStore project creation', () => {
 
     await vi.waitFor(() =>
       expect(store.projects.get(project.id)?.context).toEqual({
-        kind: 'desktop-context-failed',
+        kind: 'failed',
         project: store.projects.get(project.id)?.data,
         error: {
           type: 'context-initialization-failed',
@@ -852,150 +792,12 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.attachmentTrack).not.toHaveBeenCalled();
   });
 
-  it('registers mount ownership before publishing the opening state', async () => {
-    const project = localProject();
-    mocks.openProject.mockResolvedValueOnce({
-      success: true,
-      data: { repositoryWorkspaceId: null },
-    });
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-    let reactionMount: Promise<void> | undefined;
-    const disposeReaction = reaction(
-      () => {
-        const current = store.projects.get(project.id);
-        return current && isUnmountedProject(current) ? current.unmounted.kind : null;
-      },
-      (kind) => {
-        if (kind === 'opening') reactionMount = store.mountProject(project.id);
-      }
-    );
-
-    const mount = store.mountProject(project.id);
-
-    expect(reactionMount).toBe(mount);
-    await mount;
-    expect(mocks.openProject).toHaveBeenCalledTimes(1);
-    disposeReaction();
-  });
-
-  it('does not send a queued mount request after disposal', async () => {
-    const project = localProject();
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    const mount = store.mountProject(project.id);
-    store.dispose();
-    await mount;
-
-    expect(mocks.openProject).not.toHaveBeenCalled();
-    expect(store.projects.size).toBe(0);
-  });
-
-  it('lets an explicit remount supersede an older in-flight mount', async () => {
-    const project = sshProject();
-    let resolveFirstOpen: (result: {
-      success: true;
-      data: { repositoryWorkspaceId: null };
-    }) => void = () => {};
-    let resolveSecondOpen: (result: {
-      success: true;
-      data: { repositoryWorkspaceId: null };
-    }) => void = () => {};
-    mocks.openProject
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveFirstOpen = resolve;
-        })
-      )
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveSecondOpen = resolve;
-        })
-      );
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    const firstMount = store.mountProject(project.id);
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
-    const remount = store.updateProjectConnection(project.id, 'ssh-2');
-
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(2));
-    resolveSecondOpen({ success: true, data: { repositoryWorkspaceId: null } });
-    await remount;
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
-
-    resolveFirstOpen({ success: true, data: { repositoryWorkspaceId: null } });
-    await firstMount;
-
-    const mounted = store.projects.get(project.id);
-    expect(mounted && isMountedProject(mounted)).toBe(true);
-    expect(mounted?.data?.type).toBe('ssh');
-    if (mounted?.data?.type === 'ssh') expect(mounted.data.connectionId).toBe('ssh-2');
-  });
-
-  it('disposes scoped resources created by a stale mount completion', async () => {
-    const project = sshProject();
-    let resolveFirstReady: () => void = () => {};
-    mocks.mountedReady = new Promise<void>((resolve) => {
-      resolveFirstReady = resolve;
-    });
-    mocks.openProject
-      .mockResolvedValueOnce({ success: true, data: { repositoryWorkspaceId: null } })
-      .mockResolvedValueOnce({ success: true, data: { repositoryWorkspaceId: null } });
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    const firstMount = store.mountProject(project.id);
-    await vi.waitFor(() => expect(mocks.mementoSubject).toHaveBeenCalledTimes(1));
-    mocks.mountedReady = Promise.resolve();
-
-    await store.updateProjectConnection(project.id, 'ssh-2');
-    await vi.waitFor(() => expect(mocks.mementoSubject).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
-
-    resolveFirstReady();
-    await firstMount;
-
-    expect(isMountedProject(store.projects.get(project.id)!)).toBe(true);
-    expect(mocks.mountedProjectStoreDispose).toHaveBeenCalledTimes(1);
-    expect(mocks.mementoSubjectRelease).toHaveBeenCalledTimes(1);
-  });
-
-  it('disposes a mounted project once before remounting a changed connection', async () => {
-    const project = sshProject();
-    mocks.openProject
-      .mockResolvedValueOnce({ success: true, data: { repositoryWorkspaceId: null } })
-      .mockResolvedValueOnce({ success: true, data: { repositoryWorkspaceId: null } });
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    await store.mountProject(project.id);
-    expect(isMountedProject(store.projects.get(project.id)!)).toBe(true);
-
-    await store.updateProjectConnection(project.id, 'ssh-2');
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => {
-      const current = store.projects.get(project.id);
-      expect(current && isMountedProject(current)).toBe(true);
-      expect(current?.data?.type === 'ssh' ? current.data.connectionId : null).toBe('ssh-2');
-    });
-
-    expect(mocks.mountedProjectStoreDispose).toHaveBeenCalledTimes(1);
-    expect(mocks.mementoSubjectRelease).toHaveBeenCalledTimes(1);
-  });
-
   it('preserves desktop context and record identity when relinking a project', async () => {
     const project = sshProject();
-    mocks.openProject.mockResolvedValue({
-      success: true,
-      data: { repositoryWorkspaceId: null },
-    });
     projectListState.set({ projects: [project] });
     const store = new ProjectManagerStore();
     await store.load();
     await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
-    await vi.waitFor(() => expect(isMountedProject(store.projects.get(project.id)!)).toBe(true));
     const projectStore = store.projects.get(project.id)!;
     const lifecycle = projectStore.context;
     if (lifecycle?.kind !== 'available') throw new Error('Expected available context');
@@ -1017,62 +819,6 @@ describe('ProjectManagerStore project creation', () => {
     expect(projectStore.context).toEqual({ kind: 'available', context });
     expect(context.project).toBe(record);
     expect(record.type === 'ssh' ? record.connectionId : null).toBe('ssh-2');
-  });
-
-  it('does not let stale failure cleanup remove a newer mount attempt', async () => {
-    const project = sshProject();
-    let rejectFirstOpen: (error: Error) => void = () => {};
-    let resolveSecondOpen: (result: {
-      success: true;
-      data: { repositoryWorkspaceId: null };
-    }) => void = () => {};
-    mocks.openProject
-      .mockReturnValueOnce(
-        new Promise((_, reject) => {
-          rejectFirstOpen = reject;
-        })
-      )
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveSecondOpen = resolve;
-        })
-      );
-    const store = new ProjectManagerStore();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    const firstMount = store.mountProject(project.id);
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(1));
-    await store.updateProjectConnection(project.id, 'ssh-2');
-    await vi.waitFor(() => expect(mocks.openProject).toHaveBeenCalledTimes(2));
-
-    rejectFirstOpen(new Error('Old mount failed'));
-    await expect(firstMount).rejects.toThrow('Old mount failed');
-    const reusedMount = store.mountProject(project.id);
-    expect(mocks.openProject).toHaveBeenCalledTimes(2);
-
-    resolveSecondOpen({ success: true, data: { repositoryWorkspaceId: null } });
-    await reusedMount;
-
-    expect(isMountedProject(store.projects.get(project.id)!)).toBe(true);
-  });
-
-  it('preserves a mount failure when the durable project list refreshes', async () => {
-    const project = localProject();
-    const store = new ProjectManagerStore();
-    store.projects.set(
-      project.id,
-      createUnmountedProject(project, { kind: 'failed', message: 'Mount failed' })
-    );
-
-    projectListState.set({ projects: [{ ...project, name: 'Renamed Project' }] });
-    const load = store.load();
-    await load;
-
-    const current = store.projects.get(project.id);
-    expect(current && isUnmountedProject(current)).toBe(true);
-    expect(current?.unmounted).toEqual({ kind: 'failed', message: 'Mount failed' });
-    expect(current?.name).toBe('Renamed Project');
-    expect(mocks.openProject).not.toHaveBeenCalled();
   });
 
   it('inspects the final clone path instead of the parent directory', async () => {
@@ -1154,7 +900,7 @@ describe('ProjectManagerStore project creation', () => {
       })
     );
     await vi.waitFor(() =>
-      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: 'optimistic-project' })
+      expect(store.projects.get('optimistic-project')?.context?.kind).toBe('available')
     );
   });
 
@@ -1361,28 +1107,8 @@ describe('ProjectManagerStore project creation', () => {
       },
     });
     await vi.waitFor(() =>
-      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: 'optimistic-project' })
+      expect(store.projects.get('optimistic-project')?.context?.kind).toBe('available')
     );
-  });
-
-  it('stores SSH-disconnected mount failures as an atomic unmounted payload', async () => {
-    mocks.openProject.mockResolvedValueOnce({
-      success: false,
-      error: { type: 'ssh-disconnected', connectionId: 'ssh-1' },
-    });
-    const store = new ProjectManagerStore();
-    const project = sshProject();
-    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
-
-    await store.mountProject(project.id);
-
-    const projectStore = store.projects.get(project.id);
-    expect(projectStore && isUnmountedProject(projectStore)).toBe(true);
-    expect(projectStore?.unmounted).toEqual({
-      kind: 'failed',
-      message: 'ssh-1',
-      code: 'ssh-disconnected',
-    });
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {

@@ -282,15 +282,16 @@ pnpm run test
 - Keep renderer-main calls on typed Wire contracts, live models, and typed events. The preload
   bridge should stay small; add direct `window.electronAPI` surface only when an
   Electron/browser primitive cannot fit the Wire path.
-- Access task and project MobX stores through selectors and task view hooks:
+- Access task and Project MobX stores through selectors and task view hooks:
   `getTaskStore`, `asProvisioned`, `taskViewKind`, `getTaskManagerStore`,
-  `getProjectStore`, `asMounted`, `useTaskViewKind`, `useWorkspace`,
+  `getProjectStore`, `asAvailableProject`, `getProjectHostAccess`, `useTaskViewKind`, `useWorkspace`,
   `useWorkspaceId`, `useDevServers`, `useWorkspaceViewModel`, `useConversations`,
   and `useTerminals`.
-- Never use `asProvisioned(...)!` or `asMounted(...)!`; use explicit null checks.
+- Never use `asProvisioned(...)!` or `asAvailableProject(...)!`; use explicit null checks.
 - State guards must check `kind !== 'ready'` rather than enumerating non-ready states.
 - Access task managers through `getTaskManagerStore(projectId)`, not `project.taskManager`.
-- Access mounted projects through `asMounted(getProjectStore(id))`, not inline guards.
+- Access available Project contexts through `asAvailableProject(getProjectStore(id))`, not inline
+  guards. Read Host-dependent action state through that context's `host` access interface.
 - Task selectors live in `src/core/features/tasks/api/browser/task-state/task-selectors.ts`.
 - Project selectors live in `src/core/features/projects/api/browser/stores/project-selectors.ts`.
 - For provider changes, update plugin metadata, shared provider metadata, ACP support
@@ -365,8 +366,8 @@ pnpm run test
   `shellSetup`; it never reads config files or host defaults. The workspace registry resolves and
   sequences lifecycle commands, then observes runs into durable lifecycle steps.
 - Desktop settings migrations are centralized under
-  `src/core/features/projects/node/settings/migrations/` and run in order from the project-mount
-  entry point. Legacy schemas and readers stay migration-only; destination markers make imports
+  `src/core/features/projects/node/settings/migrations/` and run in order when an attachment is
+  established. Legacy schemas and readers stay migration-only; destination markers make imports
   idempotent and retryable.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
   `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,

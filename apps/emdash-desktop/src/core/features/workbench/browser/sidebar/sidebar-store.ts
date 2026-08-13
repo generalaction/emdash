@@ -43,8 +43,7 @@ function isVisibleRegularTask(task: TaskStore): boolean {
 }
 
 function projectStores(project: ProjectStore) {
-  if (project.context) return asAvailableProject(project);
-  return project.mountedProject ?? undefined;
+  return asAvailableProject(project);
 }
 
 export type SidebarRow =
@@ -159,7 +158,7 @@ export class SidebarStore {
       .map(({ projectId, taskId }) => ({ projectId, taskId }));
   }
 
-  /** Flat list of pinned tasks (all mounted projects), same sort rules as project tree tasks. */
+  /** Flat list of pinned tasks from available Project contexts, in project-tree sort order. */
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];
     for (const project of this.projectManager.projects.values()) {

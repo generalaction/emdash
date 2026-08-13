@@ -75,7 +75,6 @@ type AttachmentEntry = {
 export class ProjectAttachmentManagerService implements ProjectAttachmentManager {
   private readonly scope: Scope;
   private readonly entries = new Map<string, AttachmentEntry>();
-  private readonly legacyOwners = new Map<string, Scope>();
   private readonly recoveries = new Map<
     string,
     Promise<Result<void, ProjectRecoveryRequestError>>
@@ -214,56 +213,6 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     }
   }
 
-  async openProject(
-    project: Project | string
-  ): Promise<Result<ProjectProvider, ProjectAttachmentError>> {
-    const projectId = typeof project === 'string' ? project : project.id;
-    let owner = this.legacyOwners.get(projectId);
-    const currentState = this.entries.get(projectId);
-    const currentSnapshot = currentState ? peek(currentState.state) : undefined;
-    if (owner && currentSnapshot?.kind === 'absent' && currentSnapshot.lastFailure) {
-      const recovered = await this.recover(projectId);
-      if (!recovered.success) return recovered;
-    } else if (!owner) {
-      owner = this.scope.child(`legacy:${projectId}`);
-      this.legacyOwners.set(projectId, owner);
-      this.track(projectId, owner);
-    }
-    await this.initializeEntry(this.entries.get(projectId)!);
-    const canonical = this.entries.get(projectId)?.project;
-    if (!canonical) {
-      await owner.dispose();
-      this.legacyOwners.delete(projectId);
-      return err({ type: 'project-missing', projectId });
-    }
-    const ready = await this.options.availability.ensureReady(projectHostRef(canonical), 'demand');
-    if (!ready.success) return ready;
-    const entry = this.entries.get(projectId);
-    if (!entry) return err({ type: 'project-missing', projectId });
-    this.startAttempt(entry, ready.data.generation);
-    await entry.attempt?.promise;
-    return this.requireAttached(projectId);
-  }
-
-  async closeProject(
-    projectId: string,
-    cause: AttachmentInvalidationCause = 'owner-released'
-  ): Promise<Result<void, ProjectAttachmentError>> {
-    const owner = this.legacyOwners.get(projectId);
-    if (owner) {
-      this.legacyOwners.delete(projectId);
-      await owner.dispose();
-    }
-    if (this.entries.has(projectId)) {
-      await this.invalidate(projectId, cause);
-    }
-    return ok();
-  }
-
-  getProject(projectId: string): ProjectProvider | undefined {
-    return this.entries.get(projectId)?.provider;
-  }
-
   on<K extends keyof ProjectAttachmentManagerHooks>(
     name: K,
     handler: ProjectAttachmentManagerHooks[K]
@@ -301,7 +250,6 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.legacyOwners.clear();
     const entries = [...this.entries.values()];
     this.entries.clear();
     const results = await Promise.allSettled(entries.map((entry) => this.disposeEntry(entry)));

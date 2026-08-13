@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   getProjectManagerStore: vi.fn(),
   getTasks: vi.fn(),
   invalidateSubject: vi.fn(),
-  mountProject: vi.fn(),
   navigate: vi.fn(),
   teardownTask: vi.fn(),
 }));
@@ -186,8 +185,7 @@ describe('TaskManagerStore lifecycle', () => {
     mocks.deleteBySubject.mockResolvedValue(undefined);
     mocks.deleteTasks.mockResolvedValue(undefined);
     mocks.getTasks.mockResolvedValue([]);
-    mocks.getProjectManagerStore.mockReturnValue({ mountProject: mocks.mountProject });
-    mocks.mountProject.mockResolvedValue(undefined);
+    mocks.getProjectManagerStore.mockReturnValue({ projects: new Map() });
   });
 
   afterEach(async () => {
@@ -245,7 +243,7 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
-  it('restores an active Task from desktop session metadata without mounting the Project', async () => {
+  it('restores an active Task from desktop session metadata without Host access', async () => {
     const manager = makeTaskManager();
     const task = makeTask();
     taskListState.set({
@@ -270,7 +268,6 @@ describe('TaskManagerStore lifecycle', () => {
       workspacePath: '/tmp/workspace-1',
       workspaceSshConnectionId: 'ssh-1',
     });
-    expect(mocks.mountProject).not.toHaveBeenCalled();
     manager.dispose();
   });
 
@@ -320,7 +317,7 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
-  it('does not mount or provision a Task while live Project access is unavailable', async () => {
+  it('does not provision a Task while live Project access is unavailable', async () => {
     const manager = makeTaskManager();
     const task = createUnprovisionedTask(makeTask());
     manager.tasks.set('task-1', task);
@@ -333,7 +330,6 @@ describe('TaskManagerStore lifecycle', () => {
     await manager.provisionTask('task-1');
 
     expect(task).toMatchObject({ state: 'unprovisioned', phase: 'idle' });
-    expect(mocks.mountProject).not.toHaveBeenCalled();
     manager.dispose();
   });
 

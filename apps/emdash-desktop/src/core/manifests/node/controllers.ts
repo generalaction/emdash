@@ -212,8 +212,8 @@ export const desktopNodeControllers = {
     create: ({ runtimes, ssh }) => createMachinesWireController(ssh.machines, runtimes),
   },
   projectSettings: {
-    create: ({ projects, runtimes, workspaceIdentity }) =>
-      createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
+    create: ({ runtimes, workspaceIdentity }) =>
+      createProjectSettingsWireController({ runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
     create: ({ db, projects, runtimes, scope, taskService, taskSessions }) => {
