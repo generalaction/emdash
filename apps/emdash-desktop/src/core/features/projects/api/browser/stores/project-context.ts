@@ -9,6 +9,7 @@ import type {
   ProjectAttachmentState,
   ProjectRecoveryRequestError,
 } from '@core/features/projects/api';
+import { classifyProjectAttachmentIssue } from '@core/features/projects/api/browser/project-availability-classifier';
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
@@ -26,7 +27,6 @@ import {
 } from '@core/primitives/scoped-stores/browser';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
-import { runtimeRecoveryDisposition } from '@core/services/hosts/api/availability';
 
 export type ProjectContextError =
   | { type: 'invalid-project-record'; message: string }
@@ -46,14 +46,22 @@ export type ProjectContextLifecycle =
     };
 
 export type ProjectHostAccessState =
-  | { kind: 'offline'; recovery?: 'manual'; automaticExhausted?: true }
-  | { kind: 'recovering'; nextAttemptAt?: number }
+  | { kind: 'ready'; hostGeneration: number }
   | {
-      kind: 'preparing';
-      phase: Extract<HostAvailabilityState, { kind: 'preparing' }>['phase'];
-    }
-  | { kind: 'attaching' }
-  | { kind: 'ready'; hostGeneration: number };
+      kind: 'degraded';
+      situation:
+        | 'offline'
+        | 'connecting'
+        | 'provisioning'
+        | 'handshaking'
+        | 'attaching'
+        | 'recovering'
+        | 'attention'
+        | 'suspended';
+      recovery: 'automatic' | 'manual' | 'blocked';
+      issue?: ProjectAttachmentError;
+      nextAttemptAt?: number;
+    };
 
 export type LiveActionAvailability =
   | { kind: 'enabled' }
@@ -69,36 +77,63 @@ export interface ProjectHostAccess {
 export function deriveProjectHostAccessState(
   availability: HostAvailabilityState | undefined,
   attachment: ProjectAttachmentState | undefined
-): ProjectHostAccessState {
-  if (!availability || availability.kind === 'suspended') {
-    return { kind: 'offline' };
+): ProjectHostAccessState | null {
+  if (!availability) {
+    return { kind: 'degraded', situation: 'offline', recovery: 'automatic' };
+  }
+  if (availability.kind === 'suspended') {
+    return { kind: 'degraded', situation: 'suspended', recovery: 'manual' };
+  }
+  if (availability.kind === 'preparing') {
+    return {
+      kind: 'degraded',
+      situation: availability.phase,
+      recovery: 'automatic',
+    };
   }
   if (availability.kind === 'unavailable') {
-    if (availability.recovery === 'waiting') {
+    const issue = availability.issue;
+    if (availability.recovery === 'eligible' || availability.recovery === 'waiting') {
       return {
-        kind: 'recovering',
+        kind: 'degraded',
+        situation: availability.recovery === 'waiting' ? 'recovering' : 'offline',
+        recovery: 'automatic',
+        ...(issue ? { issue } : {}),
         ...(availability.nextAttemptAt !== undefined
           ? { nextAttemptAt: availability.nextAttemptAt }
           : {}),
       };
     }
-    if (availability.recovery !== 'manual') return { kind: 'offline' };
-    const automaticExhausted =
-      availability.issue !== undefined &&
-      runtimeRecoveryDisposition(availability.issue) === 'eligible';
     return {
-      kind: 'offline',
-      recovery: 'manual',
-      ...(automaticExhausted ? { automaticExhausted: true } : {}),
+      kind: 'degraded',
+      situation: 'attention',
+      recovery: availability.recovery,
+      ...(issue ? { issue } : {}),
     };
-  }
-  if (availability.kind === 'preparing') {
-    return { kind: 'preparing', phase: availability.phase };
   }
   if (attachment?.kind === 'attached') {
     return { kind: 'ready', hostGeneration: availability.generation };
   }
-  return { kind: 'attaching' };
+  if (attachment?.kind !== 'absent' || !attachment.lastFailure) {
+    return { kind: 'degraded', situation: 'attaching', recovery: 'automatic' };
+  }
+  const issue = attachment.lastFailure;
+  const classification = classifyProjectAttachmentIssue(issue);
+  if (classification.recovery === 'dispose-context') return null;
+  if (classification.recovery === 'automatic' && issue.type === 'attachment-unavailable') {
+    return {
+      kind: 'degraded',
+      situation: 'attaching',
+      recovery: 'automatic',
+      issue,
+    };
+  }
+  return {
+    kind: 'degraded',
+    situation: 'attention',
+    recovery: classification.recovery,
+    issue,
+  };
 }
 
 class HydratingProjectHostAccess implements ProjectHostAccess {
@@ -118,7 +153,9 @@ class HydratingProjectHostAccess implements ProjectHostAccess {
   }
 
   get state(): ProjectHostAccessState {
-    return deriveProjectHostAccessState(this.availability, this.attachment);
+    const state = deriveProjectHostAccessState(this.availability, this.attachment);
+    if (!state) throw new Error('Project context no longer exists');
+    return state;
   }
 
   get liveAction(): LiveActionAvailability {
@@ -273,7 +310,8 @@ export class ProjectContext {
     availabilityModel: RemoteModel<typeof hostsContract.availability>,
     attachmentModel: RemoteModel<typeof projectsWireContract.attachments>,
     recover: () => Promise<Result<void, ProjectRecoveryRequestError>> = () =>
-      Promise.resolve(err({ type: 'project-missing', projectId: this.project.id }))
+      Promise.resolve(err({ type: 'project-missing', projectId: this.project.id })),
+    onProjectMissing: () => void = () => {}
   ): void {
     if (this.scope.disposed) return;
     void this.releaseHostAccess();
@@ -293,9 +331,20 @@ export class ProjectContext {
         },
         { scope: accessScope, immediate: true }
       );
+      let projectMissingReported = false;
       observeReadableInAction(
         attachment,
         (snapshot) => {
+          if (
+            snapshot.value.kind === 'absent' &&
+            snapshot.value.lastFailure?.type === 'project-missing'
+          ) {
+            if (!projectMissingReported) {
+              projectMissingReported = true;
+              onProjectMissing();
+            }
+            return;
+          }
           this.mutableHost.attachment = snapshot.value;
         },
         { scope: accessScope, immediate: true }

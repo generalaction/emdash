@@ -41,7 +41,11 @@ export type UnmountedStatus =
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
 function legacyMountHostAccess(project: LocalProject | SshProject): ProjectHostAccess {
-  const state = { kind: 'offline' as const };
+  const state = {
+    kind: 'degraded' as const,
+    situation: 'offline' as const,
+    recovery: 'automatic' as const,
+  };
   return Object.freeze({
     state,
     liveAction: { kind: 'disabled' as const, state },

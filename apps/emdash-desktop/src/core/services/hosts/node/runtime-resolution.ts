@@ -1,10 +1,12 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
   isRuntimeResolveError,
+  runtimeHostIdentityLost,
   runtimeHostUnavailable,
   type RuntimeResolveError,
   type RuntimeUnavailableReason,
 } from '@emdash/core/primitives/runtime-resolution/api';
+import { SshConnectionNotFoundError } from '@core/primitives/ssh/api';
 import type { HostPreparingPhase } from '../api';
 import { WorkspaceServerProtocolError, WorkspaceServerProvisionError } from './workspace-server';
 
@@ -14,6 +16,9 @@ export function translateHostPreparationError(
   error: unknown
 ): RuntimeResolveError {
   if (isRuntimeResolveError(error)) return error;
+  if (hasCause(error, SshConnectionNotFoundError)) {
+    return runtimeHostIdentityLost(host, 'Host identity is no longer configured');
+  }
   if (error instanceof WorkspaceServerProtocolError) {
     return unavailable(
       host,
@@ -40,6 +45,20 @@ export function translateHostPreparationError(
     );
   }
   return unavailable(host, phase === 'connecting' ? 'connection-failed' : 'runtime-unavailable');
+}
+
+function hasCause<TError extends Error>(
+  error: unknown,
+  constructor: abstract new (...args: never[]) => TError
+): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current instanceof Error && !seen.has(current)) {
+    if (current instanceof constructor) return true;
+    seen.add(current);
+    current = current.cause;
+  }
+  return false;
 }
 
 function unavailable(host: HostRef, reason: RuntimeUnavailableReason): RuntimeResolveError {

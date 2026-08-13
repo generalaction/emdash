@@ -254,7 +254,11 @@ describe('ProjectContext', () => {
       ),
       model
     );
-    expect(result.data.host.state).toEqual({ kind: 'attaching' });
+    expect(result.data.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'attaching',
+      recovery: 'automatic',
+    });
     await result.data.dispose();
     await result.data.dispose();
 
@@ -264,7 +268,11 @@ describe('ProjectContext', () => {
       'store:dispose',
       'space:release',
     ]);
-    expect(result.data.host.state).toEqual({ kind: 'offline' });
+    expect(result.data.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
     expect(model.retain).toHaveBeenCalledOnce();
     expect(releaseSpace).toHaveBeenCalledOnce();
   });
@@ -312,7 +320,11 @@ describe('ProjectContext', () => {
 
     expect(firstRelease).toHaveBeenCalledOnce();
     expect(failedRelease).toHaveBeenCalledOnce();
-    expect(result.data.host.state).toEqual({ kind: 'offline' });
+    expect(result.data.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
   });
 
   it('derives live Host access without replacing the Project context', async () => {
@@ -358,12 +370,20 @@ describe('ProjectContext', () => {
     const context = result.data;
 
     context.trackHostAccess(availabilityModel, attachmentModel);
-    expect(context.host.state).toEqual({ kind: 'offline' });
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
 
     availability.set({ kind: 'ready', generation: 2 });
     attachment.set({ kind: 'attaching', hostGeneration: 2, attemptId: 'attempt-1' });
     flushStateTurn();
-    expect(context.host.state).toEqual({ kind: 'attaching' });
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'attaching',
+      recovery: 'automatic',
+    });
 
     attachment.set({ kind: 'attached', establishedHostGeneration: 2 });
     flushStateTurn();
@@ -372,7 +392,11 @@ describe('ProjectContext', () => {
 
     availability.set({ kind: 'suspended', reason: 'user-disconnected' });
     flushStateTurn();
-    expect(context.host.state).toEqual({ kind: 'offline' });
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'suspended',
+      recovery: 'manual',
+    });
     expect(result.data).toBe(context);
 
     availability.set({ kind: 'ready', generation: 3 });
@@ -409,7 +433,11 @@ describe('ProjectContext', () => {
 
     expect(context.host.liveAction).toEqual({
       kind: 'disabled',
-      state: { kind: 'offline', recovery: 'manual' },
+      state: {
+        kind: 'degraded',
+        situation: 'attention',
+        recovery: 'manual',
+      },
     });
     expect(context.host.requireLive()).toMatchObject({
       success: false,
@@ -421,9 +449,73 @@ describe('ProjectContext', () => {
 
     expect(repeated).toBe(first);
     expect(recover).toHaveBeenCalledOnce();
-    expect(context.host.state).toEqual({ kind: 'offline', recovery: 'manual' });
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'attention',
+      recovery: 'manual',
+    });
     request.resolve(ok());
     await expect(first).resolves.toEqual(ok());
     expect(context.host.requireLive().success).toBe(false);
+  });
+
+  it('reports a missing durable Project without publishing a stable banner state', async () => {
+    mocks.mementoSubject.mockReturnValue({
+      ready: Promise.resolve(),
+      release: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await ProjectContext.hydrate({
+      type: 'local',
+      id: 'project-id',
+      name: 'Project',
+      path: '/project',
+      baseRef: 'main',
+      repositoryWorkspaceId: null,
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    });
+    if (!result.success) throw new Error('Expected context hydration to succeed');
+    const attachment = cell<ProjectAttachmentState>({
+      kind: 'attaching',
+      hostGeneration: 2,
+      attemptId: 'attempt-1',
+    });
+    const onProjectMissing = vi.fn();
+    const context = result.data;
+    const attachmentMember = {
+      states: { state: attachment },
+      mutations: {},
+    };
+    const projectAttachmentModel = Object.assign(() => attachmentMember, {
+      retain: vi.fn(() => vi.fn()),
+      peekMember: vi.fn(() => attachmentMember),
+      dispose: vi.fn(async () => {}),
+    }) as unknown as RemoteModel<typeof projectsWireContract.attachments>;
+
+    context.trackHostAccess(
+      availabilityModel({ kind: 'ready', generation: 2 }),
+      projectAttachmentModel,
+      undefined,
+      onProjectMissing
+    );
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'attaching',
+      recovery: 'automatic',
+    });
+
+    attachment.set({
+      kind: 'absent',
+      lastFailure: { type: 'project-missing', projectId: 'project-id' },
+      attemptedHostGeneration: 2,
+    });
+    flushStateTurn();
+
+    expect(onProjectMissing).toHaveBeenCalledOnce();
+    expect(context.host.state).toEqual({
+      kind: 'degraded',
+      situation: 'attaching',
+      recovery: 'automatic',
+    });
   });
 });

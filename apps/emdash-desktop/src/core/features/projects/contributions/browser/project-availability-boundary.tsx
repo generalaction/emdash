@@ -6,6 +6,10 @@ import {
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { ProjectAvailabilityFrame } from '@core/features/projects/browser/components/project-availability-banner';
+import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 
 export const ProjectAvailabilityBoundary = observer(function ProjectAvailabilityBoundary({
   children,
@@ -15,20 +19,44 @@ export const ProjectAvailabilityBoundary = observer(function ProjectAvailability
   projectId: string;
 }) {
   const context = asAvailableProject(getProjectStore(projectId));
+  const confirmDeleteProject = useConfirmDeleteProject();
+  const { navigate } = useNavigate();
   if (!context) return children;
 
   const project = context.project;
-  const machineName =
+  const machine =
     project.type === 'ssh'
       ? getMachinesStore().connections.find((connection) => connection.id === project.connectionId)
-          ?.name
       : undefined;
+  const openHostDetails = () =>
+    navigate(
+      project.type === 'ssh'
+        ? settingsViewDef({
+            tab: 'connections',
+            ...(machine ? { detail: [project.connectionId] } : {}),
+          })
+        : settingsViewDef({ tab: 'system' })
+    );
   return (
     <ProjectAvailabilityFrame
       project={project}
       state={context.host.state}
-      machineName={machineName}
-      onRecover={() => context.host.recover()}
+      machineName={machine?.name}
+      actionHandlers={{
+        connect: () => context.host.recover(),
+        retry: () => context.host.recover(),
+        configure: openHostDetails,
+        ...(project.type === 'ssh' ? { diagnostics: openHostDetails } : {}),
+        'update-client': () => {
+          navigate(settingsViewDef({ tab: 'general' }));
+          void getUpdateStore().check();
+        },
+        'remove-project': () =>
+          confirmDeleteProject({
+            projectId,
+            projectLabel: project.name,
+          }),
+      }}
     >
       {children}
     </ProjectAvailabilityFrame>

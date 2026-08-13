@@ -1,68 +1,70 @@
 import { Button } from '@emdash/ui/react/primitives';
 import { CloudOff, Loader2 } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
+import {
+  classifyProjectAvailability,
+  type ProjectAvailabilityAction,
+} from '@core/features/projects/api/browser/project-availability-classifier';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
+export type ProjectAvailabilityActionHandlers = Partial<
+  Record<ProjectAvailabilityAction['kind'], () => void | Promise<unknown>>
+>;
+
 type ProjectAvailabilityBannerProps = {
   project: LocalProject | SshProject;
   state: ProjectHostAccessState;
   machineName?: string;
-  onRecover?: () => Promise<unknown>;
-};
-
-type BannerCopy = {
-  title: string;
-  detail: string;
-  progress: boolean;
+  actionHandlers?: ProjectAvailabilityActionHandlers;
 };
 
 export function ProjectAvailabilityBanner({
   project,
   state,
   machineName,
-  onRecover,
+  actionHandlers,
 }: ProjectAvailabilityBannerProps) {
-  const recoveryDescriptionId = useId();
-  const recoveryPendingRef = useRef(false);
-  const [recoveryPending, setRecoveryPending] = useState(false);
-  if (state.kind === 'ready') return null;
+  const actionDescriptionId = useId();
+  const pendingActionRef = useRef<ProjectAvailabilityAction['kind'] | null>(null);
+  const [pendingAction, setPendingAction] = useState<ProjectAvailabilityAction['kind'] | null>(
+    null
+  );
+  const presentation = classifyProjectAvailability({
+    host:
+      project.type === 'local'
+        ? { kind: 'local' }
+        : { kind: 'ssh', ...(machineName ? { machineName } : {}) },
+    state,
+  });
+  if (!presentation) return null;
 
-  const copy = availabilityCopy(project, state, machineName);
-  const Icon = copy.progress ? Loader2 : CloudOff;
-  const manualRecovery = state.kind === 'offline' && state.recovery === 'manual';
-  const recoveryLabel =
-    state.kind === 'recovering'
-      ? 'Retry now'
-      : manualRecovery || project.type === 'local'
-        ? 'Retry'
-        : 'Connect';
-  const canRequestRecovery = state.kind === 'offline' || state.kind === 'recovering';
-  const recoveryDisabled = recoveryPending || !canRequestRecovery;
-  const requestRecovery = async (): Promise<void> => {
-    if (!onRecover || recoveryPendingRef.current || !canRequestRecovery) return;
-    recoveryPendingRef.current = true;
-    setRecoveryPending(true);
+  const Icon = presentation.progress ? Loader2 : CloudOff;
+  const requestAction = async (action: ProjectAvailabilityAction): Promise<void> => {
+    const handler = actionHandlers?.[action.kind];
+    if (!handler || pendingActionRef.current) return;
+    pendingActionRef.current = action.kind;
+    setPendingAction(action.kind);
     try {
-      await onRecover();
+      await handler();
     } catch (error) {
-      log.error('Failed to request Project Host recovery', { error });
+      log.error('Failed to perform Project availability action', { action: action.kind, error });
     } finally {
-      recoveryPendingRef.current = false;
-      setRecoveryPending(false);
+      pendingActionRef.current = null;
+      setPendingAction(null);
     }
   };
 
   return (
     <section
-      role={manualRecovery ? 'alert' : 'status'}
-      aria-live={manualRecovery ? 'assertive' : 'polite'}
+      role={presentation.announcement === 'assertive' ? 'alert' : 'status'}
+      aria-live={presentation.announcement}
       aria-atomic="true"
       className={cn(
         'flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3',
-        state.kind === 'offline'
+        presentation.severity === 'error' || presentation.severity === 'warning'
           ? 'border-foreground-warning/30 bg-background-warning text-foreground'
           : 'border-border bg-background-1 text-foreground'
       )}
@@ -71,33 +73,43 @@ export function ProjectAvailabilityBanner({
         aria-hidden="true"
         className={cn(
           'size-4 shrink-0',
-          copy.progress
+          presentation.progress
             ? 'animate-spin text-foreground-muted motion-reduce:animate-none'
             : 'text-foreground-warning'
         )}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{copy.title}</p>
-        <p className="text-xs text-foreground-muted">{copy.detail}</p>
+        <p className="text-sm font-medium">{presentation.title}</p>
+        <p className="text-xs text-foreground-muted">{presentation.detail}</p>
       </div>
-      {onRecover ? (
-        <>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            aria-disabled={recoveryDisabled}
-            aria-describedby={recoveryDisabled ? recoveryDescriptionId : undefined}
-            onClick={() => void requestRecovery()}
-          >
-            {recoveryLabel}
-          </Button>
-          {recoveryDisabled ? (
-            <span id={recoveryDescriptionId} className="sr-only">
-              A recovery request is already in progress.
+      {presentation.actions.length > 0 ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {presentation.actions.map((action) => {
+            const handler = actionHandlers?.[action.kind];
+            const disabled = pendingAction !== null || !handler;
+            return (
+              <Button
+                key={action.kind}
+                type="button"
+                size="sm"
+                variant="secondary"
+                aria-disabled={disabled}
+                aria-describedby={disabled ? actionDescriptionId : undefined}
+                onClick={() => void requestAction(action)}
+              >
+                {action.label}
+              </Button>
+            );
+          })}
+          {pendingAction !== null ||
+          presentation.actions.some((action) => !actionHandlers?.[action.kind]) ? (
+            <span id={actionDescriptionId} className="sr-only">
+              {pendingAction !== null
+                ? 'An availability action is already in progress.'
+                : 'This action is available from another view.'}
             </span>
           ) : null}
-        </>
+        </div>
       ) : null}
     </section>
   );
@@ -108,7 +120,7 @@ export function ProjectAvailabilityFrame({
   project,
   state,
   machineName,
-  onRecover,
+  actionHandlers,
 }: ProjectAvailabilityBannerProps & { children: ReactNode }) {
   if (state.kind === 'ready') return children;
 
@@ -119,101 +131,10 @@ export function ProjectAvailabilityFrame({
           project={project}
           state={state}
           machineName={machineName}
-          onRecover={onRecover}
+          actionHandlers={actionHandlers}
         />
       </div>
       <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
-}
-
-function availabilityCopy(
-  project: LocalProject | SshProject,
-  state: Exclude<ProjectHostAccessState, { kind: 'ready' }>,
-  machineName?: string
-): BannerCopy {
-  const automaticExhausted =
-    state.kind === 'offline' && state.recovery === 'manual' && state.automaticExhausted === true;
-  if (project.type === 'local') {
-    if (state.kind === 'recovering') {
-      return {
-        title: 'Recovering local runtime',
-        detail: 'Automatic recovery is in progress. The Project stays available.',
-        progress: true,
-      };
-    }
-    if (state.kind === 'offline') {
-      if (state.recovery === 'manual') {
-        return {
-          title: 'Local runtime needs attention',
-          detail: automaticExhausted
-            ? 'Automatic recovery stopped after six attempts. Retry when the runtime is ready.'
-            : 'Retry when the runtime is ready.',
-          progress: false,
-        };
-      }
-      return {
-        title: 'Local runtime is unavailable',
-        detail: 'Project data remains available. Live features will resume when it is ready.',
-        progress: false,
-      };
-    }
-    if (state.kind === 'attaching') {
-      return {
-        title: 'Opening Project locally',
-        detail: 'The local runtime is ready. Live Project features will be available shortly.',
-        progress: true,
-      };
-    }
-    return {
-      title: 'Preparing local runtime',
-      detail: 'The Project stays open while local services start.',
-      progress: true,
-    };
-  }
-
-  const machine = machineName?.trim() || 'Machine';
-  if (state.kind === 'recovering') {
-    return {
-      title: `Reconnecting to ${machine}`,
-      detail: 'Automatic recovery is in progress. Project data remains available.',
-      progress: true,
-    };
-  }
-  if (state.kind === 'offline') {
-    if (state.recovery === 'manual') {
-      return {
-        title: `${machine} needs attention`,
-        detail: automaticExhausted
-          ? 'Automatic recovery stopped after six attempts. Retry when the Machine is ready.'
-          : 'Retry when the Machine is ready.',
-        progress: false,
-      };
-    }
-    return {
-      title: `${machine} is offline`,
-      detail:
-        'Project data remains available. Live features will resume when the Machine is ready.',
-      progress: false,
-    };
-  }
-  if (state.kind === 'attaching') {
-    return {
-      title: `Opening Project on ${machine}`,
-      detail: 'The Machine is ready. Live Project features will be available shortly.',
-      progress: true,
-    };
-  }
-  if (state.phase === 'connecting') {
-    return {
-      title: `Connecting to ${machine}`,
-      detail: 'The Project stays open while the SSH connection is established.',
-      progress: true,
-    };
-  }
-  return {
-    title: `Preparing ${machine}`,
-    detail: 'SSH is connected. The workspace server is starting.',
-    progress: true,
-  };
 }

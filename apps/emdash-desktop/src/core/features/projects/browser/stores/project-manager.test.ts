@@ -51,6 +51,14 @@ const mocks = vi.hoisted(() => ({
   mementoSubjectRelease: vi.fn(),
   mountedProjectStoreDispose: vi.fn(),
   mountedReady: Promise.resolve(),
+  navigationCurrentRef: { viewId: 'home', params: {}, key: 'home' } as {
+    viewId: string;
+    params: Record<string, string>;
+    key: string;
+  },
+  navigationHistoryPrune: vi.fn(),
+  navigationInvalidateSubject: vi.fn(),
+  navigationNavigate: vi.fn(),
   taskListLoad: vi.fn(),
   taskProvision: vi.fn(),
   updateProjectConnection: vi.fn(),
@@ -111,11 +119,13 @@ vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
 vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
   getNavigation: () => ({
     currentViewId: 'home',
-    currentRef: { viewId: 'home', params: {}, key: 'home' },
-    navigate: vi.fn(),
-    invalidateSubject: vi.fn(),
+    get currentRef() {
+      return mocks.navigationCurrentRef;
+    },
+    navigate: mocks.navigationNavigate,
+    invalidateSubject: mocks.navigationInvalidateSubject,
   }),
-  getNavigationHistory: () => ({ prune: vi.fn() }),
+  getNavigationHistory: () => ({ prune: mocks.navigationHistoryPrune }),
 }));
 
 vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({
@@ -266,6 +276,7 @@ describe('ProjectManagerStore project creation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.navigationCurrentRef = { viewId: 'home', params: {}, key: 'home' };
     projectListState = cell({ projects: [] });
     attachmentState = cell({ kind: 'absent' });
     wire = createProjectWire();
@@ -684,20 +695,38 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.recoverAttachment).toHaveBeenCalledWith({ projectId: project.id });
     expect(context.host.requireLive().success).toBe(false);
     await vi.waitFor(() =>
-      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'connecting' })
+      expect(context.host.state).toEqual({
+        kind: 'degraded',
+        situation: 'connecting',
+        recovery: 'automatic',
+      })
     );
 
     hostAvailabilityState.set({ kind: 'preparing', phase: 'provisioning', attempt: 1 });
     await vi.waitFor(() =>
-      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'provisioning' })
+      expect(context.host.state).toEqual({
+        kind: 'degraded',
+        situation: 'provisioning',
+        recovery: 'automatic',
+      })
     );
     hostAvailabilityState.set({ kind: 'preparing', phase: 'handshaking', attempt: 1 });
     await vi.waitFor(() =>
-      expect(context.host.state).toEqual({ kind: 'preparing', phase: 'handshaking' })
+      expect(context.host.state).toEqual({
+        kind: 'degraded',
+        situation: 'handshaking',
+        recovery: 'automatic',
+      })
     );
     hostAvailabilityState.set({ kind: 'ready', generation: 1 });
     attachmentState.set({ kind: 'attaching', hostGeneration: 1, attemptId: 'attempt-1' });
-    await vi.waitFor(() => expect(context.host.state).toEqual({ kind: 'attaching' }));
+    await vi.waitFor(() =>
+      expect(context.host.state).toEqual({
+        kind: 'degraded',
+        situation: 'attaching',
+        recovery: 'automatic',
+      })
+    );
     attachmentState.set({ kind: 'attached', establishedHostGeneration: 1 });
     await vi.waitFor(() =>
       expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 1 })
@@ -735,6 +764,38 @@ describe('ProjectManagerStore project creation', () => {
     await vi.waitFor(() => expect(mocks.mementoSubjectRelease).toHaveBeenCalledOnce());
     expect(store.projects.has(project.id)).toBe(false);
     expect(mocks.attachmentTrack).not.toHaveBeenCalled();
+  });
+
+  it('disposes stale Project context when attachment reports the durable Project missing', async () => {
+    const project = localProject();
+    projectListState.set({ projects: [project] });
+    const store = new ProjectManagerStore();
+
+    await store.load();
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
+    await vi.waitFor(() => expect(mocks.attachmentTrack).toHaveBeenCalledOnce());
+    mocks.navigationCurrentRef = {
+      viewId: 'project',
+      params: { projectId: project.id },
+      key: `project:${project.id}`,
+    };
+
+    attachmentState.set({
+      kind: 'absent',
+      lastFailure: { type: 'project-missing', projectId: project.id },
+      attemptedHostGeneration: 1,
+    });
+
+    await vi.waitFor(() => expect(store.projects.has(project.id)).toBe(false));
+    await vi.waitFor(() => expect(mocks.mementoSubjectRelease).toHaveBeenCalledOnce());
+    expect(mocks.mountedProjectStoreDispose).toHaveBeenCalledOnce();
+    expect(mocks.navigationNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ viewId: 'home' })
+    );
+    expect(mocks.navigationInvalidateSubject).toHaveBeenCalledWith({
+      kind: 'project',
+      key: project.id,
+    });
   });
 
   it('rejects context hydration that completes after project deletion', async () => {

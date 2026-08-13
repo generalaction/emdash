@@ -1,0 +1,378 @@
+import { isRuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
+import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-resolution/api';
+import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
+import type { ProjectHostAccessState } from './stores/project-context';
+
+export type ProjectIssueRecovery = 'automatic' | 'manual' | 'blocked' | 'dispose-context';
+
+export type ProjectAvailabilitySemantic =
+  | RuntimeUnavailableReason
+  | Exclude<ProjectAttachmentError['type'], 'host-unavailable'>;
+
+export type ProjectCorrectiveAction =
+  | 'retry'
+  | 'diagnostics'
+  | 'update-client'
+  | 'configure'
+  | 'relink-project'
+  | 'remove-project';
+
+export type ProjectAttachmentIssueClassification = {
+  semantic: ProjectAvailabilitySemantic;
+  recovery: ProjectIssueRecovery;
+  correctiveActions: ProjectCorrectiveAction[];
+};
+
+export function classifyProjectAttachmentIssue(
+  issue: ProjectAttachmentError
+): ProjectAttachmentIssueClassification {
+  if (isRuntimeResolveError(issue)) {
+    if (issue.type === 'not-configured') {
+      return {
+        semantic: issue.type,
+        recovery: 'blocked',
+        correctiveActions: ['configure'],
+      };
+    }
+    if (issue.type === 'host-identity-lost') {
+      return {
+        semantic: issue.type,
+        recovery: 'blocked',
+        correctiveActions: ['relink-project', 'remove-project'],
+      };
+    }
+    switch (issue.reason) {
+      case 'offline':
+      case 'connection-failed':
+      case 'daemon-start-failed':
+      case 'runtime-unavailable':
+        return {
+          semantic: issue.reason,
+          recovery: 'automatic',
+          correctiveActions: ['retry', 'diagnostics'],
+        };
+      case 'artifact-download-failed':
+      case 'install-failed':
+        return {
+          semantic: issue.reason,
+          recovery: 'manual',
+          correctiveActions: ['retry', 'diagnostics'],
+        };
+      case 'unsupported-platform':
+        return {
+          semantic: issue.reason,
+          recovery: 'blocked',
+          correctiveActions: ['diagnostics'],
+        };
+      case 'protocol-upgrade-client':
+        return {
+          semantic: issue.reason,
+          recovery: 'blocked',
+          correctiveActions: ['update-client'],
+        };
+      case 'protocol-upgrade-server':
+        return {
+          semantic: issue.reason,
+          recovery: 'blocked',
+          correctiveActions: ['diagnostics', 'retry'],
+        };
+    }
+  }
+  switch (issue.type) {
+    case 'attachment-unavailable':
+      return {
+        semantic: issue.type,
+        recovery: 'automatic',
+        correctiveActions: [],
+      };
+    case 'repository-missing':
+      return {
+        semantic: issue.type,
+        recovery: 'manual',
+        correctiveActions: ['retry'],
+      };
+    case 'repository-unavailable':
+    case 'unexpected':
+      return {
+        semantic: issue.type,
+        recovery: 'manual',
+        correctiveActions: ['retry', 'diagnostics'],
+      };
+    case 'project-missing':
+      return {
+        semantic: issue.type,
+        recovery: 'dispose-context',
+        correctiveActions: [],
+      };
+  }
+}
+
+export type ProjectAvailabilityAction = {
+  kind:
+    | 'connect'
+    | 'retry'
+    | 'diagnostics'
+    | 'update-client'
+    | 'configure'
+    | 'relink-project'
+    | 'remove-project';
+  label: string;
+};
+
+export type ProjectAvailabilityPresentation = {
+  severity: 'info' | 'warning' | 'error';
+  announcement: 'polite' | 'assertive';
+  title: string;
+  detail: string;
+  progress: boolean;
+  actions: ProjectAvailabilityAction[];
+};
+
+export type ProjectAvailabilityHost = { kind: 'local' } | { kind: 'ssh'; machineName?: string };
+
+export function classifyProjectAvailability({
+  host,
+  state,
+}: {
+  host: ProjectAvailabilityHost;
+  state: ProjectHostAccessState;
+}): ProjectAvailabilityPresentation | null {
+  if (state.kind === 'ready') return null;
+  const machineName = host.kind === 'ssh' ? host.machineName?.trim() || 'Machine' : undefined;
+
+  switch (state.situation) {
+    case 'suspended':
+      return offlinePresentation(host, machineName);
+    case 'connecting':
+      return {
+        severity: 'info',
+        announcement: 'polite',
+        title: host.kind === 'local' ? 'Preparing local runtime' : `Connecting to ${machineName}`,
+        detail:
+          host.kind === 'local'
+            ? 'The Project stays open while local services start.'
+            : 'The Project stays open while the SSH connection is established.',
+        progress: true,
+        actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
+      };
+    case 'provisioning':
+    case 'handshaking':
+      return {
+        severity: 'info',
+        announcement: 'polite',
+        title: host.kind === 'local' ? 'Preparing local runtime' : `Preparing ${machineName}`,
+        detail:
+          host.kind === 'local'
+            ? 'The Project stays open while local services start.'
+            : 'SSH is connected. The workspace server is starting.',
+        progress: true,
+        actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
+      };
+    case 'attaching':
+      return {
+        severity: 'info',
+        announcement: 'polite',
+        title:
+          host.kind === 'local' ? 'Opening Project locally' : `Opening Project on ${machineName}`,
+        detail:
+          host.kind === 'local'
+            ? 'The local runtime is ready. Live Project features will be available shortly.'
+            : 'The Machine is ready. Live Project features will be available shortly.',
+        progress: true,
+        actions: [],
+      };
+    case 'offline':
+    case 'recovering':
+    case 'attention':
+      break;
+  }
+
+  if (state.issue) {
+    const issue = classifyProjectAttachmentIssue(state.issue);
+    if (issue.recovery === 'dispose-context') return null;
+    return issuePresentation(host, machineName, state, issue);
+  }
+  if (state.situation === 'offline') return offlinePresentation(host, machineName);
+  if (state.situation === 'recovering') {
+    return {
+      severity: 'warning',
+      announcement: 'polite',
+      title: host.kind === 'local' ? 'Recovering local runtime' : `Reconnecting to ${machineName}`,
+      detail: 'Automatic recovery is in progress. Project data remains available.',
+      progress: true,
+      actions: recoveryActions(host, state.recovery, ['retry', 'diagnostics']),
+    };
+  }
+  return {
+    severity: 'error',
+    announcement: 'assertive',
+    title:
+      host.kind === 'local' ? 'Local runtime needs attention' : `${machineName} needs attention`,
+    detail: 'Project data remains available. Correct the problem, then retry.',
+    progress: false,
+    actions: recoveryActions(
+      host,
+      state.recovery,
+      state.recovery === 'blocked' ? ['diagnostics'] : ['retry', 'diagnostics']
+    ),
+  };
+}
+
+function offlinePresentation(
+  host: ProjectAvailabilityHost,
+  machineName: string | undefined
+): ProjectAvailabilityPresentation {
+  return {
+    severity: 'warning',
+    announcement: 'polite',
+    title: host.kind === 'local' ? 'Local runtime is unavailable' : `${machineName} is offline`,
+    detail: 'Project data remains available. Live features will resume when access returns.',
+    progress: false,
+    actions: [host.kind === 'local' ? action('retry', 'Retry') : action('connect', 'Connect')],
+  };
+}
+
+function issuePresentation(
+  host: ProjectAvailabilityHost,
+  machineName: string | undefined,
+  state: Extract<ProjectHostAccessState, { kind: 'degraded' }>,
+  issue: Exclude<ProjectAttachmentIssueClassification, { recovery: 'dispose-context' }>
+): ProjectAvailabilityPresentation {
+  const recoveryContinues = state.recovery === 'automatic';
+  const automaticExhausted = state.recovery === 'manual' && issue.recovery === 'automatic';
+  return {
+    severity: recoveryContinues ? 'warning' : 'error',
+    announcement: recoveryContinues ? 'polite' : 'assertive',
+    title: issueTitle(host, machineName, issue.semantic),
+    detail: issueDetail(host, issue.semantic, recoveryContinues, automaticExhausted),
+    progress: recoveryContinues,
+    actions: recoveryActions(host, state.recovery, issue.correctiveActions),
+  };
+}
+
+function issueTitle(
+  host: ProjectAvailabilityHost,
+  machineName: string | undefined,
+  semantic: ProjectAvailabilitySemantic
+): string {
+  switch (semantic) {
+    case 'offline':
+      return host.kind === 'local' ? 'Local runtime is unavailable' : `${machineName} is offline`;
+    case 'connection-failed':
+      return host.kind === 'local'
+        ? 'Local runtime connection failed'
+        : `Could not connect to ${machineName}`;
+    case 'daemon-start-failed':
+      return host.kind === 'local'
+        ? 'Local runtime could not start'
+        : `Could not start ${machineName}'s workspace server`;
+    case 'artifact-download-failed':
+      return host.kind === 'local'
+        ? 'Local runtime download failed'
+        : 'Could not download the workspace server';
+    case 'install-failed':
+      return host.kind === 'local'
+        ? 'Local runtime installation failed'
+        : 'Could not install the workspace server';
+    case 'unsupported-platform':
+      return host.kind === 'local'
+        ? 'This platform is not supported'
+        : `${machineName} is not supported`;
+    case 'protocol-upgrade-client':
+      return 'Update Emdash to use this Project';
+    case 'protocol-upgrade-server':
+      return host.kind === 'local'
+        ? 'Update the local runtime'
+        : `Update ${machineName}'s workspace server`;
+    case 'runtime-unavailable':
+      return host.kind === 'local'
+        ? 'Local runtime is unavailable'
+        : `${machineName}'s workspace server is unavailable`;
+    case 'not-configured':
+      return host.kind === 'local'
+        ? 'Local runtime is not configured'
+        : `${machineName} is not configured`;
+    case 'host-identity-lost':
+      return host.kind === 'local'
+        ? 'This Project lost its local runtime link'
+        : 'This Project is no longer linked to a Machine';
+    case 'attachment-unavailable':
+      return host.kind === 'local'
+        ? 'Opening Project locally'
+        : `Opening Project on ${machineName}`;
+    case 'repository-missing':
+      return 'Repository is missing';
+    case 'repository-unavailable':
+      return 'Repository is unavailable';
+    case 'unexpected':
+      return 'Project access failed';
+    case 'project-missing':
+      return '';
+  }
+}
+
+function issueDetail(
+  host: ProjectAvailabilityHost,
+  semantic: ProjectAvailabilitySemantic,
+  recoveryContinues: boolean,
+  automaticExhausted: boolean
+): string {
+  if (recoveryContinues) {
+    return 'Automatic recovery will continue. Project data remains available.';
+  }
+  if (automaticExhausted) {
+    return 'Automatic recovery stopped after six attempts. Retry when access is available.';
+  }
+  switch (semantic) {
+    case 'unsupported-platform':
+      return host.kind === 'local'
+        ? 'Review system details before moving this Project to a supported computer.'
+        : 'Review Machine details before moving this Project to a supported Machine.';
+    case 'protocol-upgrade-client':
+      return 'Install the latest Emdash version to restore Project access.';
+    case 'protocol-upgrade-server':
+      return 'Update the workspace server, then retry Project access.';
+    case 'not-configured':
+      return host.kind === 'local'
+        ? 'Configure the local runtime to restore live features.'
+        : 'Configure this Machine to restore live features.';
+    case 'host-identity-lost':
+      return host.kind === 'local'
+        ? 'Relink this Project to a local runtime or remove it from Emdash.'
+        : 'Relink this Project to a Machine or remove it from Emdash.';
+    case 'repository-missing':
+      return 'Restore the repository or relink the Project, then retry.';
+    default:
+      return 'Project data remains available. Correct the problem, then retry.';
+  }
+}
+
+function recoveryActions(
+  host: ProjectAvailabilityHost,
+  recovery: Extract<ProjectHostAccessState, { kind: 'degraded' }>['recovery'],
+  correctiveActions: ProjectCorrectiveAction[]
+): ProjectAvailabilityAction[] {
+  return correctiveActions.map((corrective) => {
+    switch (corrective) {
+      case 'retry':
+        return action('retry', recovery === 'automatic' ? 'Retry now' : 'Retry');
+      case 'diagnostics':
+        return action('diagnostics', host.kind === 'local' ? 'Open Diagnostics' : 'Open Machines');
+      case 'update-client':
+        return action('update-client', 'Update Emdash');
+      case 'configure':
+        return action(
+          'configure',
+          host.kind === 'local' ? 'Configure Runtime' : 'Configure Machine'
+        );
+      case 'relink-project':
+        return action('relink-project', 'Relink Project');
+      case 'remove-project':
+        return action('remove-project', 'Remove Project');
+    }
+  });
+}
+
+function action(kind: ProjectAvailabilityAction['kind'], label: string): ProjectAvailabilityAction {
+  return { kind, label };
+}

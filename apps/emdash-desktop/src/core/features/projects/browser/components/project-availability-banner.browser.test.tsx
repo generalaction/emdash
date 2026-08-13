@@ -5,7 +5,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
-import { ProjectAvailabilityBanner, ProjectAvailabilityFrame } from './project-availability-banner';
+import {
+  ProjectAvailabilityBanner,
+  ProjectAvailabilityFrame,
+  type ProjectAvailabilityActionHandlers,
+} from './project-availability-banner';
 
 const localProject: LocalProject = {
   type: 'local',
@@ -55,7 +59,11 @@ describe('ProjectAvailabilityBanner', () => {
     project: LocalProject | SshProject,
     state: ProjectHostAccessState,
     children?: ReactNode,
-    onRecover: () => Promise<ReturnType<typeof ok<void>>> = async () => ok<void>()
+    actionHandlers: ProjectAvailabilityActionHandlers = {
+      retry: async () => ok<void>(),
+      connect: async () => ok<void>(),
+      diagnostics: async () => ok<void>(),
+    }
   ): Promise<void> {
     await act(async () => {
       root.render(
@@ -64,7 +72,7 @@ describe('ProjectAvailabilityBanner', () => {
             project={project}
             state={state}
             machineName="Orion"
-            onRecover={onRecover}
+            actionHandlers={actionHandlers}
           >
             {children}
           </ProjectAvailabilityFrame>
@@ -73,7 +81,7 @@ describe('ProjectAvailabilityBanner', () => {
             project={project}
             state={state}
             machineName="Orion"
-            onRecover={onRecover}
+            actionHandlers={actionHandlers}
           />
         )
       );
@@ -82,7 +90,12 @@ describe('ProjectAvailabilityBanner', () => {
 
   it('offers only Retry for local runtime recovery', async () => {
     const recover = vi.fn(async () => ok<void>());
-    await render(localProject, { kind: 'offline' }, undefined, recover);
+    await render(
+      localProject,
+      { kind: 'degraded', situation: 'offline', recovery: 'automatic' },
+      undefined,
+      { retry: recover }
+    );
 
     const status = host.querySelector('[role="status"]');
     expect(status?.getAttribute('aria-live')).toBe('polite');
@@ -100,7 +113,7 @@ describe('ProjectAvailabilityBanner', () => {
   it('uses the SSH Machine name and keeps the banner above Project content', async () => {
     await render(
       sshProject,
-      { kind: 'offline' },
+      { kind: 'degraded', situation: 'offline', recovery: 'automatic' },
       <main data-testid="project-content">Project navigation and tabs</main>
     );
 
@@ -112,39 +125,62 @@ describe('ProjectAvailabilityBanner', () => {
   });
 
   it.each([
-    [{ kind: 'preparing', phase: 'connecting' }, 'Connecting to Orion'],
-    [{ kind: 'preparing', phase: 'provisioning' }, 'Preparing Orion'],
-    [{ kind: 'preparing', phase: 'handshaking' }, 'Preparing Orion'],
-    [{ kind: 'attaching' }, 'Opening Project on Orion'],
-  ] as const)('announces %s progress politely', async (state, title) => {
-    await render(sshProject, state);
+    ['connecting', 'Connecting to Orion', 'Open Machines'],
+    ['provisioning', 'Preparing Orion', 'Open Machines'],
+    ['handshaking', 'Preparing Orion', 'Open Machines'],
+    ['attaching', 'Opening Project on Orion', null],
+  ] as const)('announces %s progress politely', async (state, title, actionLabel) => {
+    await render(sshProject, {
+      kind: 'degraded',
+      situation: state,
+      recovery: 'automatic',
+    });
 
     const status = host.querySelector('[role="status"]');
     expect(status?.textContent).toContain(title);
     expect(status?.getAttribute('aria-live')).toBe('polite');
     const action = status?.querySelector('button');
-    expect(action?.textContent).toBe('Connect');
-    expect(action?.getAttribute('aria-disabled')).toBe('true');
-    const descriptionId = action?.getAttribute('aria-describedby');
-    expect(host.querySelector(`#${descriptionId}`)?.textContent).toContain('already in progress');
+    expect(action?.textContent ?? null).toBe(actionLabel);
   });
 
   it('shows automatic recovery progress with an explicit Retry now action', async () => {
-    await render(sshProject, { kind: 'recovering', nextAttemptAt: 12_000 });
+    await render(sshProject, {
+      kind: 'degraded',
+      situation: 'recovering',
+      recovery: 'automatic',
+      issue: {
+        type: 'host-unavailable',
+        host: { type: 'remote', id: 'private-connection-id' },
+        reason: 'connection-failed',
+        message: 'raw connection failure',
+      },
+      nextAttemptAt: 12_000,
+    });
 
     const status = host.querySelector('[role="status"]');
-    expect(status?.textContent).toContain('Reconnecting to Orion');
-    expect(status?.textContent).toContain('Automatic recovery is in progress');
-    const retry = status?.querySelector('button');
+    expect(status?.textContent).toContain('Could not connect to Orion');
+    expect(status?.textContent).toContain('Automatic recovery will continue');
+    expect(status?.textContent).not.toContain('private-connection-id');
+    expect(status?.textContent).not.toContain('raw connection failure');
+    const retry = [...(status?.querySelectorAll('button') ?? [])].find(
+      (button) => button.textContent === 'Retry now'
+    );
     expect(retry?.textContent).toBe('Retry now');
     expect(retry?.getAttribute('aria-disabled')).toBe('false');
+    expect(status?.textContent).toContain('Open Machines');
   });
 
   it('announces exhausted automatic recovery as a manual Retry', async () => {
     await render(sshProject, {
-      kind: 'offline',
+      kind: 'degraded',
+      situation: 'attention',
       recovery: 'manual',
-      automaticExhausted: true,
+      issue: {
+        type: 'host-unavailable',
+        host: { type: 'remote', id: 'ssh-1' },
+        reason: 'runtime-unavailable',
+        message: 'raw runtime failure',
+      },
     });
 
     const alert = host.querySelector('[role="alert"]');
@@ -155,15 +191,62 @@ describe('ProjectAvailabilityBanner', () => {
   });
 
   it('does not claim six attempts for an immediately manual recovery outcome', async () => {
-    await render(sshProject, { kind: 'offline', recovery: 'manual' });
+    await render(sshProject, {
+      kind: 'degraded',
+      situation: 'attention',
+      recovery: 'manual',
+      issue: {
+        type: 'repository-unavailable',
+        path: '/private/repository',
+        message: 'raw filesystem failure',
+      },
+    });
 
-    expect(host.querySelector('[role="alert"]')?.textContent).not.toContain('six attempts');
+    const alert = host.querySelector('[role="alert"]');
+    expect(alert?.textContent).not.toContain('six attempts');
+    expect(alert?.textContent).not.toContain('/private/repository');
+    expect(alert?.textContent).not.toContain('raw filesystem failure');
+  });
+
+  it('renders exact blocked corrective actions and safely disables an unowned relink flow', async () => {
+    const remove = vi.fn();
+    await render(
+      sshProject,
+      {
+        kind: 'degraded',
+        situation: 'attention',
+        recovery: 'blocked',
+        issue: {
+          type: 'host-identity-lost',
+          host: { type: 'remote', id: 'deleted-connection-id' },
+          message: 'raw identity failure',
+        },
+      },
+      undefined,
+      { 'remove-project': remove }
+    );
+
+    const alert = host.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('This Project is no longer linked to a Machine');
+    expect(alert?.textContent).not.toContain('deleted-connection-id');
+    const buttons = [...(alert?.querySelectorAll('button') ?? [])];
+    const relink = buttons.find((button) => button.textContent === 'Relink Project');
+    const removeButton = buttons.find((button) => button.textContent === 'Remove Project');
+    expect(relink?.getAttribute('aria-disabled')).toBe('true');
+    expect(removeButton?.getAttribute('aria-disabled')).toBe('false');
+    await act(async () => removeButton?.click());
+    expect(remove).toHaveBeenCalledOnce();
   });
 
   it('keeps focus and joins repeated clicks while recovery is acknowledged', async () => {
     const request = deferred<ReturnType<typeof ok<void>>>();
     const recover = vi.fn(() => request.promise);
-    await render(sshProject, { kind: 'offline' }, undefined, recover);
+    await render(
+      sshProject,
+      { kind: 'degraded', situation: 'offline', recovery: 'automatic' },
+      undefined,
+      { connect: recover }
+    );
     const button = host.querySelector('button');
     button?.focus();
 
@@ -180,14 +263,10 @@ describe('ProjectAvailabilityBanner', () => {
     expect(host.querySelector(`#${descriptionId}`)?.textContent).toContain('already in progress');
     expect(host.querySelector('[role="status"]')?.textContent).toContain('Orion is offline');
 
-    await render(sshProject, { kind: 'preparing', phase: 'connecting' }, undefined, recover);
-    expect(document.activeElement).toBe(host.querySelector('button'));
-
     request.resolve(ok<void>());
     await act(async () => await request.promise);
 
-    expect(host.querySelector('[role="status"]')?.textContent).toContain('Connecting to Orion');
-    expect(host.querySelector('button')?.getAttribute('aria-disabled')).toBe('true');
+    expect(host.querySelector('button')?.getAttribute('aria-disabled')).toBe('false');
   });
 
   it('renders no banner or reserved space when Host access is ready', async () => {

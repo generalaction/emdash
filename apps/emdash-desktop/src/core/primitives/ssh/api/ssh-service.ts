@@ -1,5 +1,13 @@
 import type { ConnectionState, ConnectionTestResult, SshConfig, SshConfigHost } from './ssh';
 
+export class SshConnectionNotFoundError extends Error {
+  readonly name = 'SshConnectionNotFoundError';
+
+  constructor(readonly connectionId: string) {
+    super('SSH connection is no longer configured');
+  }
+}
+
 /**
  * External surface of the SSH service: connection intent (connect/disconnect),
  * config-file host resolution, and transient connection testing. Config

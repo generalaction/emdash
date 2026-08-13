@@ -247,8 +247,11 @@ export class ProjectManagerStore {
             store.context?.kind === 'available' &&
             store.context.context === context
           ) {
-            context.trackHostAccess(availability, attachments, async () =>
-              (await getProjectsWireClient()).recoverAttachment({ projectId })
+            context.trackHostAccess(
+              availability,
+              attachments,
+              async () => (await getProjectsWireClient()).recoverAttachment({ projectId }),
+              () => this._disposeMissingProjectContext(projectId, store, context)
             );
           }
         } catch (error) {
@@ -276,6 +279,47 @@ export class ProjectManagerStore {
       this._projectContextHydrations.get(projectId)?.identity === identity &&
       this.projects.get(projectId) === store
     );
+  }
+
+  private _disposeMissingProjectContext(
+    projectId: string,
+    store: ProjectStore,
+    context: ProjectContext
+  ): void {
+    if (
+      this.projects.get(projectId) !== store ||
+      store.context?.kind !== 'available' ||
+      store.context.context !== context
+    ) {
+      return;
+    }
+    const projectIds = [...this.projects.keys()];
+    const missingIndex = projectIds.indexOf(projectId);
+    const adjacentProjectId =
+      projectIds[missingIndex + 1] ?? projectIds[missingIndex - 1] ?? undefined;
+    runInAction(() => {
+      this.projects.delete(projectId);
+      this._projectMountAttempts.delete(projectId);
+      this._projectContextHydrations.delete(projectId);
+    });
+    const navigation = getNavigation();
+    const current = navigation.currentRef;
+    const currentProjectId =
+      current.viewId === 'project' || current.viewId === 'task'
+        ? (current.params as { projectId?: string }).projectId
+        : undefined;
+    if (currentProjectId === projectId) {
+      navigation.navigate(
+        adjacentProjectId ? projectViewDef({ projectId: adjacentProjectId }) : homeViewDef()
+      );
+    }
+    navigation.invalidateSubject(projectSubject({ projectId }));
+    getNavigationHistory().prune((entry) => {
+      const params = entry.ref.params as { projectId?: string };
+      return params.projectId === projectId;
+    });
+    store.mountedProject?.dispose();
+    void context.dispose().catch(() => log.error('Failed to dispose a missing Project context'));
   }
 
   private _getAttachmentsRemote(): Promise<RemoteModel<typeof projectsWireContract.attachments>> {
