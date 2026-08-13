@@ -269,10 +269,10 @@ describe('BrowserWebContentsRegistry', () => {
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: 'K',
-      control: false,
+      control: process.platform !== 'darwin',
       shift: false,
       alt: false,
-      meta: true,
+      meta: process.platform === 'darwin',
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -296,10 +296,10 @@ describe('BrowserWebContentsRegistry', () => {
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: 'K',
-      control: false,
+      control: process.platform !== 'darwin',
       shift: false,
       alt: false,
-      meta: true,
+      meta: process.platform === 'darwin',
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
