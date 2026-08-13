@@ -1,8 +1,6 @@
 import type { Commit, GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { EmptyState } from '@emdash/ui/react/components';
-import { RelativeTime } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useRef, useState } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
@@ -17,6 +15,7 @@ import { activeDiffEntry } from '../../../pane-selectors';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';
 import { ChangesListItem } from '../changes-list-item';
 import { CommitContextMenu } from './commit-context-menu';
+import { CommitRowButton } from './commit-row-button';
 import { useCommitFiles } from './use-commit-files';
 import { type CommitRange, useCommits } from './use-commits';
 
@@ -157,8 +156,6 @@ function CommitItem({
   onToggleExpanded: () => void;
   onViewDetails: () => void;
 }) {
-  const shortHash = commit.hash.slice(0, 7);
-
   return (
     <div className="flex items-stretch">
       <div className="relative w-3.5 shrink-0">
@@ -178,29 +175,11 @@ function CommitItem({
       </div>
       <div className="min-w-0 flex-1">
         <CommitContextMenu commit={commit} onViewDetails={onViewDetails}>
-          <button
-            className={cn(
-              'group flex w-full rounded-md px-1.5 py-1 text-left hover:bg-background-1',
-              isExpanded && 'bg-background-1'
-            )}
-            onClick={onToggleExpanded}
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm">{commit.subject}</span>
-              <span className="flex min-w-0 items-center gap-1 text-xs text-foreground-muted">
-                <span className="min-w-0 truncate font-medium">{commit.author}</span>
-                {'·'}
-                <RelativeTime compact value={commit.date} className="text-foreground-muted" />
-                {'·'}
-                <span className="font-mono text-foreground-passive">{shortHash}</span>
-                {isExpanded ? (
-                  <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
-                ) : (
-                  <ChevronRight className="size-3.5 shrink-0 text-foreground-muted" />
-                )}
-              </span>
-            </span>
-          </button>
+          <CommitRowButton
+            commit={commit}
+            isExpanded={isExpanded}
+            onToggleExpanded={onToggleExpanded}
+          />
         </CommitContextMenu>
         {isExpanded && <CommitFilesList commit={commit} />}
       </div>
