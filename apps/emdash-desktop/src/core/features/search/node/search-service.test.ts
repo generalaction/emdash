@@ -234,6 +234,23 @@ describe('SearchService palette entity search', () => {
         service.searchEntities({
           kind: 'conversation',
           query: 't',
+          context: { projectId: 'project-1', taskId: 'task-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'conversation',
+          id: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          title: 'Theme chat',
+          subtitle: '',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'conversation',
+          query: 't',
           context: { taskId: 'other-task' },
         })
       ).resolves.toEqual([]);
