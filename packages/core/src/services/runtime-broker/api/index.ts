@@ -15,5 +15,7 @@ export {
   type HostRuntimesClient,
   type RuntimeBrokerOptions,
   type RuntimeSession,
+  type RuntimeSessionResolution,
   type RuntimeSessionResolver,
 } from './runtime-broker';
+export type { RuntimeClientSource } from './runtime-client-binding';

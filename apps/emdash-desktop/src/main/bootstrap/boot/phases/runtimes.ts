@@ -22,14 +22,15 @@ export async function bootRuntimes(
       getFilesSettings: () => database.appSettings.get('files'),
     });
     const runtimeWorkers = workers;
+    const broker = createDesktopRuntimeBroker(runtimeWorkers.clients, infrastructure.hosts);
     const hostAvailability = createDesktopHostAvailability({
       scope,
       hosts: infrastructure.hosts,
+      runtimes: broker,
       connectSsh: (connectionId) => infrastructure.ssh.ssh.connect(connectionId),
       sshEvents: infrastructure.ssh.manager,
       localReady: () => runtimeWorkers.runtimeReady(),
     });
-    const broker = createDesktopRuntimeBroker(runtimeWorkers.clients, infrastructure.hosts);
     runMementosOrphanPruning(database, runtimeWorkers.clients.mementos);
     return desktopRuntimes(runtimeWorkers, broker, hostAvailability, scope);
   } catch (error) {

@@ -137,6 +137,24 @@ describe('HostService', () => {
     }
   });
 
+  it('resolves the replacement Wire connection after SSH reconnect exhaustion', async () => {
+    const fixture = createFixture();
+    const first = { ...connection(), client: { generation: 1 } as never };
+    const recovered = { ...connection(), client: { generation: 2 } as never };
+    mocks.client.mockResolvedValueOnce(first).mockResolvedValueOnce(recovered);
+
+    try {
+      await expect(fixture.service.client('ssh-1')).resolves.toBe(first);
+      fixture.sshEventListener?.({ type: 'reconnect-failed', connectionId: 'ssh-1' });
+      await vi.waitFor(() => expect(mocks.invalidateConnection).toHaveBeenCalledWith('ssh-1'));
+
+      await expect(fixture.service.client('ssh-1')).resolves.toBe(recovered);
+      expect(mocks.client).toHaveBeenCalledTimes(2);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
   it('cancels provisioning and invalidates Wire after a machine mutation', async () => {
     const fixture = createFixture();
 

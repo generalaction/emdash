@@ -1,8 +1,10 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
+import { RuntimeBroker, type HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
+import type { Connection } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
@@ -138,6 +140,136 @@ describe('ProjectAttachmentManager', () => {
 
     await owner.dispose();
     await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce());
+    await scope.dispose();
+  });
+
+  it('keeps a retained Provider bound to the recovered Host runtime without hook churn', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const project = sshProject();
+    const firstCall = vi.fn(async () => 'first');
+    const secondCall = vi.fn(async () => 'second');
+    let runtime = runtimeConnection(firstCall);
+    const broker = new RuntimeBroker({
+      resolve: () =>
+        ok({
+          client: {} as HostRuntimesClient,
+          connection: runtime,
+        }),
+    });
+    const availability = createHostAvailability({
+      scope,
+      readiness: {
+        async prepare(host) {
+          const resolved = await broker.client(host);
+          return resolved.success ? ok() : err(resolved.error);
+        },
+      },
+    });
+    const provider = projectProvider() as ProjectProvider & { probe(): Promise<string> };
+    const open = vi.fn<ProjectAttachmentAdapter['open']>(async () => {
+      const resolved = await broker.client(project.host);
+      if (!resolved.success) return err(resolved.error);
+      const retainedRuntime = resolved.data;
+      provider.probe = () =>
+        retainedRuntime.files.getHomeDir(undefined) as unknown as Promise<string>;
+      return ok(provider);
+    });
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const opened = vi.fn();
+    const closed = vi.fn();
+    manager.on('projectOpened', opened);
+    manager.on('projectClosed', closed);
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+    expect(await provider.probe()).toBe('first');
+
+    runtime = runtimeConnection(secondCall);
+    availability.invalidate(project.host);
+    await vi.waitFor(() =>
+      expect(availability.stateFor(project.host)).toEqual({ kind: 'ready', generation: 2 })
+    );
+
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+    await expect(provider.probe()).resolves.toBe('second');
+    expect(open).toHaveBeenCalledOnce();
+    expect(opened).toHaveBeenCalledOnce();
+    expect(closed).not.toHaveBeenCalled();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('keeps an attached Project automatic after a manual outcome so SSH can recover it', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const project = sshProject();
+    const failure = runtimeHostUnavailable(
+      project.host,
+      'install-failed',
+      'Host runtime installation failed'
+    );
+    const prepare = vi
+      .fn()
+      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(err(failure))
+      .mockResolvedValueOnce(ok());
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare },
+    });
+    const demand = vi.spyOn(availability, 'demand');
+    const provider = projectProvider();
+    const open = vi.fn(async () => ok(provider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+
+    availability.invalidate(project.host);
+    await vi.waitFor(() =>
+      expect(availability.stateFor(project.host)).toEqual({
+        kind: 'unavailable',
+        issue: failure,
+        recovery: 'manual',
+      })
+    );
+    expect(demand.mock.results[0]?.value.mode).toBe('automatic');
+
+    availability.wakeDemanded('online');
+    availability.wakeDemanded('focus');
+    await Promise.resolve();
+    expect(prepare).toHaveBeenCalledTimes(2);
+
+    availability.wake(project.host, 'ssh-edge');
+    await vi.waitFor(() =>
+      expect(availability.stateFor(project.host)).toEqual({
+        kind: 'ready',
+        generation: 2,
+      })
+    );
+
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+    expect(peek(state).kind).toBe('attached');
+    expect(open).toHaveBeenCalledOnce();
+    expect(provider.dispose).not.toHaveBeenCalled();
+
+    await owner.dispose();
     await scope.dispose();
   });
 
@@ -956,6 +1088,18 @@ function projectProvider(): ProjectProvider {
     release: vi.fn(),
     dispose: vi.fn(),
   } as unknown as ProjectProvider;
+}
+
+function runtimeConnection(call: Connection['call']): Connection {
+  return {
+    call,
+    openBlobConsumer: vi.fn(),
+    openBlobProducer: vi.fn(),
+    snapshot: vi.fn(),
+    attach: vi.fn(),
+    onDisconnect: vi.fn(() => () => {}),
+    dispose: vi.fn(),
+  } as unknown as Connection;
 }
 
 async function expectAttachmentFailure(options: {

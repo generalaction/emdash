@@ -148,7 +148,7 @@ export class HostAvailabilityService implements HostAvailability {
     const demand = this.demands.get(key);
     if (!demand || !hasAutomaticDemand(demand)) return;
     const state = this.stateFor(host);
-    if (!allowsAutomaticHostRecovery(state)) return;
+    if (!allowsRecoveryForCause(state, cause)) return;
     if (cause === 'focus') {
       const lastWakeAt = this.lastFocusWakeAt.get(key);
       if (lastWakeAt !== undefined && this.clock.now() - lastWakeAt < 30_000) return;
@@ -183,7 +183,7 @@ export class HostAvailabilityService implements HostAvailability {
     }
     if (!isExplicit(cause)) {
       const state = this.stateFor(host);
-      if (!allowsAutomaticHostRecovery(state)) {
+      if (!allowsRecoveryForCause(state, cause)) {
         return Promise.resolve(ready);
       }
     }
@@ -420,6 +420,11 @@ export function createHostAvailability(
 
 function isExplicit(cause: RecoveryCause): boolean {
   return cause === 'connect' || cause === 'retry';
+}
+
+function allowsRecoveryForCause(state: HostAvailabilityState, cause: RecoveryCause): boolean {
+  if (state.kind === 'suspended') return false;
+  return cause === 'ssh-edge' || allowsAutomaticHostRecovery(state);
 }
 
 function unexpectedPreparationFailure(host: HostRef): RuntimeResolveError {

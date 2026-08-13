@@ -19,14 +19,16 @@ import {
 } from './host-availability';
 
 function createDesktopHostAvailability(
-  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'sshEvents'> & {
+  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'sshEvents' | 'runtimes'> & {
     connectSsh?: CreateDesktopHostAvailabilityOptions['connectSsh'];
+    runtimes?: CreateDesktopHostAvailabilityOptions['runtimes'];
     sshEvents?: CreateDesktopHostAvailabilityOptions['sshEvents'];
   }
 ) {
   return createProductionHostAvailability({
     ...options,
     connectSsh: options.connectSsh ?? (async () => 'connected'),
+    runtimes: options.runtimes ?? { rebind: vi.fn() },
     sshEvents:
       options.sshEvents ??
       ({
@@ -112,6 +114,9 @@ describe('desktop Host availability', () => {
     const scope = createScope({ label: 'desktop-host-availability-test' });
     const provisioning = deferred<void>();
     const handshake = deferred<void>();
+    const runtimeClient = {};
+    const wireConnection = {};
+    const rebind = vi.fn();
     const client = vi.fn(
       async (
         _connectionId: string,
@@ -124,12 +129,13 @@ describe('desktop Host availability', () => {
         provisioning.resolve();
         options.onPhase('handshaking');
         await handshake.promise;
-        return {};
+        return { client: runtimeClient, connection: wireConnection };
       }
     );
     const availability = createDesktopHostAvailability({
       scope,
       hosts: { client, onInvalidate: () => () => {} } as unknown as HostService,
+      runtimes: { rebind },
       localReady: async () => {},
     });
     const host = hostRef('remote', 'ssh-1');
@@ -152,6 +158,10 @@ describe('desktop Host availability', () => {
 
     handshake.resolve();
     await expect(pending).resolves.toMatchObject({ success: true });
+    expect(rebind).toHaveBeenCalledWith(host, {
+      client: runtimeClient,
+      connection: wireConnection,
+    });
 
     await scope.dispose();
   });

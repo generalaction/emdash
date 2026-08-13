@@ -251,6 +251,41 @@ describe('HostAvailability', () => {
     await scope.dispose();
   });
 
+  it('lets an SSH edge restart exhausted recovery for automatic demand only', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const failure = runtimeHostUnavailable(host, 'connection-failed', 'Host is offline');
+    const prepare = vi.fn().mockResolvedValueOnce(err(failure)).mockResolvedValueOnce(ok());
+    const availability = createHostAvailability({
+      scope,
+      retrySchedule: retrySchedules.sequence([]),
+      readiness: { prepare },
+    });
+    availability.demand(host, 'automatic', project);
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({
+        kind: 'unavailable',
+        issue: failure,
+        recovery: 'manual',
+      })
+    );
+
+    availability.wakeDemanded('online');
+    availability.wakeDemanded('focus');
+    await Promise.resolve();
+    expect(prepare).toHaveBeenCalledOnce();
+
+    availability.wake(host, 'ssh-edge');
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({ kind: 'ready', generation: 1 })
+    );
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
   it('attempts automatic recovery immediately, then after the exact bounded schedule', async () => {
     const scope = createScope({ label: 'host-availability-test' });
     const project = createScope({ label: 'project' });
@@ -264,7 +299,7 @@ describe('HostAvailability', () => {
       retrySchedule: retrySchedules.sequence([1_000, 2_000, 5_000, 10_000, 30_000]),
       readiness: { prepare },
     });
-    const demand = availability.demand(host, 'passive', project);
+    availability.demand(host, 'passive', project);
 
     const recovery = availability.ensureReady(host, 'demand');
     await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
@@ -294,8 +329,6 @@ describe('HostAvailability', () => {
     });
     expect(prepare).toHaveBeenCalledTimes(6);
 
-    demand.setMode('automatic');
-    availability.wake(host, 'ssh-edge');
     availability.wakeDemanded('online');
     availability.wakeDemanded('focus');
     await Promise.resolve();

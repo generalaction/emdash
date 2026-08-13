@@ -9,6 +9,7 @@ import {
   runtimeHostNotConfigured,
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
@@ -28,6 +29,7 @@ import { translateHostPreparationError } from '@core/services/hosts/node/runtime
 export type CreateDesktopHostAvailabilityOptions = {
   scope: Scope;
   hosts: HostService;
+  runtimes: Pick<RuntimeBroker, 'rebind'>;
   connectSsh(connectionId: string): Promise<ConnectionState>;
   sshEvents: Pick<SshConnectionManager, 'on' | 'off'>;
   localReady(): Promise<void>;
@@ -86,12 +88,16 @@ async function prepareDesktopHost(
       );
       if (connectionState !== 'connected') throw new Error('Host connection is not available');
     }
-    await options.hosts.client(connectionId, {
+    const connection = await options.hosts.client(connectionId, {
       signal: context.signal,
       onPhase(nextPhase) {
         phase = nextPhase;
         context.setPhase(nextPhase);
       },
+    });
+    options.runtimes.rebind(host, {
+      client: connection.client,
+      connection: connection.connection,
     });
     return ok();
   } catch (error) {

@@ -19,8 +19,14 @@ describe('desktop runtime broker remote sessions', () => {
       broker.client(host),
       broker.client(host),
     ]);
-    expect(firstResult).toEqual({ success: true, data: runtimeClient });
-    expect(secondResult).toEqual({ success: true, data: runtimeClient });
+    expect(firstResult.success).toBe(true);
+    expect(secondResult.success).toBe(true);
+    if (!firstResult.success || !secondResult.success) {
+      throw new Error('Expected remote Host runtimes');
+    }
+    expect(secondResult.data).toBe(firstResult.data);
+    await firstResult.data.files.getHomeDir(undefined);
+    expect(runtimeClient.files.getHomeDir).toHaveBeenCalledOnce();
     expect(client).toHaveBeenCalledTimes(2);
     expect(client).toHaveBeenCalledWith('ssh-1');
   });
