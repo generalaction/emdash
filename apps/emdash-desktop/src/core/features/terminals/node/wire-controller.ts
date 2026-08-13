@@ -11,6 +11,7 @@ import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
+import type { ProjectAttachmentError } from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import {
@@ -41,7 +42,7 @@ import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
-  projects: Pick<ProjectAttachmentManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   runtimes: TerminalsRuntimeBroker;
   settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;
@@ -67,7 +68,11 @@ type TerminalContext = Readonly<{
   taskEnvVars: Record<string, string>;
   gitCredentials?: GitCredentialsSessionSpec;
 }>;
-type TerminalControllerError = TerminalError | RuntimeResolveError | TerminalSliceContextError;
+type TerminalControllerError =
+  | TerminalError
+  | RuntimeResolveError
+  | ProjectAttachmentError
+  | TerminalSliceContextError;
 
 const DEFAULT_TERMINAL_SIZE = { cols: 80, rows: 24 };
 
@@ -300,10 +305,9 @@ async function resolveTerminalContext(
     return err(terminalError('missing-workspace', `Task ${terminal.taskId} has no workspace`));
   }
 
-  const project = options.projects.getProject(terminal.projectId);
-  if (!project) {
-    return err(terminalError('missing-project', `Project ${terminal.projectId} not found`));
-  }
+  const attached = options.projects.requireAttached(terminal.projectId);
+  if (!attached.success) return err(attached.error);
+  const project = attached.data;
   const identity = await options.workspaceIdentity.resolve(taskRow.workspaceId);
   if (!identity) {
     return err(
@@ -361,7 +365,7 @@ async function withTerminalRuntime<T, E>(
   options: CreateTerminalsWireControllerOptions,
   input: TerminalRuntimeKey,
   work: (client: HostRuntimesClient['terminals'], key: TerminalKey) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
+): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   return withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
     work(client.terminals, toTerminalKey(identity, input.terminalId))
   );
@@ -371,8 +375,10 @@ async function withWorkspaceRuntime<T, E>(
   options: CreateTerminalsWireControllerOptions,
   workspaceId: string,
   work: (client: HostRuntimesClient, identity: WorkspaceIdentity) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
+): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
+  const attached = options.projects.requireAttached(identity.projectId);
+  if (!attached.success) return err(attached.error);
   const runtime = await options.runtimes.client(identity.host);
   if (!runtime.success) return err(runtime.error);
   return await work(runtime.data, identity);
@@ -384,6 +390,10 @@ async function resolveRuntimeSource(
   source: (client: HostRuntimesClient, identity: WorkspaceIdentity) => LiveSource
 ): Promise<LiveSource> {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
+  const attached = options.projects.requireAttached(identity.projectId);
+  if (!attached.success) {
+    throw new Error(attached.error.type);
+  }
   const runtime = await options.runtimes.client(identity.host);
   if (!runtime.success) throwTerminalsRuntimeResolveError(runtime.error);
   return source(runtime.data, identity);

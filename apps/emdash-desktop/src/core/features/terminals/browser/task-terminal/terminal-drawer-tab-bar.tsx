@@ -8,6 +8,7 @@ import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ProjectLiveActionGuard } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
@@ -46,6 +47,8 @@ interface TerminalDrawerTabBarProps {
   onRemoveTerminal: (id: string) => void;
   onRenameTerminal: (id: string, name: string) => void;
   onHoverTerminal?: (id: string) => void;
+  projectId: string;
+  liveActionsDisabled: boolean;
   className?: string;
 }
 
@@ -75,6 +78,8 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   onRemoveTerminal,
   onRenameTerminal,
   onHoverTerminal,
+  projectId,
+  liveActionsDisabled,
   className,
 }: TerminalDrawerTabBarProps) {
   const scripts = lifecycleScriptsMgr?.tabs ?? [];
@@ -132,12 +137,15 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                 }
               />
             ))}
-            <NewTerminalButton
-              shellMenuState={shellMenuState}
-              onShellMenuOpen={onShellMenuOpen}
-              onRetryShellAvailability={onRetryShellAvailability}
-              onAddTerminal={onAddTerminal}
-            />
+            <ProjectLiveActionGuard projectId={projectId}>
+              <NewTerminalButton
+                disabled={liveActionsDisabled}
+                shellMenuState={shellMenuState}
+                onShellMenuOpen={onShellMenuOpen}
+                onRetryShellAvailability={onRetryShellAvailability}
+                onAddTerminal={onAddTerminal}
+              />
+            </ProjectLiveActionGuard>
           </>
         ) : (
           scripts.map((script) => (
@@ -192,11 +200,13 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
 });
 
 export function NewTerminalButton({
+  disabled = false,
   shellMenuState,
   onShellMenuOpen,
   onRetryShellAvailability,
   onAddTerminal,
 }: {
+  disabled?: boolean;
   shellMenuState: TerminalShellMenuState;
   onShellMenuOpen: () => void;
   onRetryShellAvailability: () => void;
@@ -208,6 +218,7 @@ export function NewTerminalButton({
         <Tooltip.Trigger
           render={
             <Button
+              disabled={disabled}
               variant="ghost"
               size="xs"
               icon
@@ -227,6 +238,7 @@ export function NewTerminalButton({
         <DropdownMenu.Trigger
           render={
             <Button
+              disabled={disabled}
               variant="ghost"
               size="xs"
               icon

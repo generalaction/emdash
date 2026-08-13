@@ -9,8 +9,13 @@ import { waitFor } from '@emdash/shared/testing';
 import { defineContract } from '@emdash/wire/rpc';
 import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
+import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { filesWireContract, type FilesTreeKey } from '@core/features/files/api';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 import {
   hostFileRefFromNativePath,
   hostPathFromNative,
@@ -58,7 +63,7 @@ function makeTreeModel(root: string): FileTreeModel {
   };
 }
 
-function setup(options: { sshConnectionId?: string } = {}) {
+function setup(options: { sshConnectionId?: string; hostAccess?: ProjectHostAccess } = {}) {
   const treeCell = cell<FileTreeModel>(makeTreeModel('/repo'));
   const stateKeys: FilesTreeKey[] = [];
   const mutationCalls: RecordedMutation[] = [];
@@ -118,7 +123,13 @@ function setup(options: { sshConnectionId?: string } = {}) {
     },
   };
 
-  const store = new FilesStore('project-1', 'workspace-1', '/repo', options.sshConnectionId);
+  const store = new FilesStore(
+    'project-1',
+    'workspace-1',
+    '/repo',
+    options.sshConnectionId,
+    options.hostAccess
+  );
   return { store, stateKeys, mutationCalls, fsCalls };
 }
 
@@ -202,5 +213,76 @@ describe('FilesStore', () => {
     expect(mutationCalls.filter((call) => call.name === 'reveal')[0]?.input).toEqual({
       path: 'src/index.ts',
     });
+  });
+
+  it('retains the observed tree as stale and blocks writes while offline', async () => {
+    const state = observable.box<ProjectHostAccessState>({
+      kind: 'ready',
+      hostGeneration: 1,
+    });
+    const hostAccess = {
+      get state() {
+        return state.get();
+      },
+      get liveAction() {
+        const current = state.get();
+        return current.kind === 'ready'
+          ? ({ kind: 'enabled' } as const)
+          : ({ kind: 'disabled', state: current } as const);
+      },
+    } as ProjectHostAccess;
+    const { store, fsCalls } = setup({ hostAccess });
+    disposeStore = () => store.dispose();
+    await store.start();
+    await waitFor(() => store.rootNodes.length === 2);
+    const refresh = vi.spyOn(
+      (
+        store as unknown as {
+          treeModel: { states: { tree: { refresh(): Promise<void> } } };
+        }
+      ).treeModel.states.tree,
+      'refresh'
+    );
+
+    runInAction(() =>
+      state.set({
+        kind: 'degraded',
+        situation: 'offline',
+        recovery: 'automatic',
+      })
+    );
+
+    expect(store.observation.kind).toBe('stale');
+    expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
+    await expect(store.createFile('/repo/offline.ts')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unavailable' },
+    });
+    expect(fsCalls).toEqual([]);
+
+    runInAction(() => state.set({ kind: 'ready', hostGeneration: 2 }));
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(store.observation.kind).toBe('live');
+    expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
+  });
+
+  it('reports a never-observed offline tree unavailable without contacting Files', async () => {
+    const state: ProjectHostAccessState = {
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    };
+    const hostAccess = {
+      state,
+      liveAction: { kind: 'disabled', state },
+    } as ProjectHostAccess;
+    const { store, stateKeys } = setup({ hostAccess });
+    disposeStore = () => store.dispose();
+
+    await store.start();
+
+    expect(store.observation).toEqual({ kind: 'unavailable' });
+    expect(store.isLoading).toBe(false);
+    expect(stateKeys).toEqual([]);
   });
 });

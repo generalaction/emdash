@@ -1,4 +1,10 @@
+import { ok } from '@emdash/shared';
+import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 import type { PreviewServer, PreviewServerEvent } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
 
@@ -80,7 +86,7 @@ describe('PreviewServerStore', () => {
       localPort: undefined,
       status: { kind: 'starting' },
     });
-    wireMocks.listForWorkspace.mockResolvedValueOnce([second, pending, first]);
+    wireMocks.listForWorkspace.mockResolvedValueOnce(ok([second, pending, first]));
 
     const store = new PreviewServerStore({
       projectId: 'project-1',
@@ -99,7 +105,7 @@ describe('PreviewServerStore', () => {
   });
 
   it('applies upsert and remove events for the active workspace', async () => {
-    wireMocks.listForWorkspace.mockResolvedValue([]);
+    wireMocks.listForWorkspace.mockResolvedValue(ok([]));
     const store = new PreviewServerStore({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
@@ -130,7 +136,8 @@ describe('PreviewServerStore', () => {
 
   it('stops a preview server', async () => {
     const server = directServer();
-    wireMocks.listForWorkspace.mockResolvedValueOnce([server]);
+    wireMocks.listForWorkspace.mockResolvedValueOnce(ok([server]));
+    wireMocks.stop.mockResolvedValueOnce(ok(undefined));
     const store = new PreviewServerStore({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
@@ -201,8 +208,85 @@ describe('PreviewServerStore', () => {
       workspaceId: 'workspace-1',
     });
 
+    wireMocks.restart.mockResolvedValueOnce(ok(undefined));
     await store.restart('forwarded-1');
 
     expect(wireMocks.restart).toHaveBeenCalledWith({ id: 'forwarded-1' });
+  });
+
+  it('keeps prior observations stale offline and refreshes in place after recovery', async () => {
+    const state = observable.box<ProjectHostAccessState>({
+      kind: 'ready',
+      hostGeneration: 1,
+    });
+    const hostAccess = {
+      get state() {
+        return state.get();
+      },
+      get liveAction() {
+        const current = state.get();
+        return current.kind === 'ready'
+          ? ({ kind: 'enabled' } as const)
+          : ({ kind: 'disabled', state: current } as const);
+      },
+    } as ProjectHostAccess;
+    const first = directServer({ id: 'first' });
+    const recovered = directServer({ id: 'recovered', port: 5174 });
+    wireMocks.listForWorkspace
+      .mockResolvedValueOnce(ok([first]))
+      .mockResolvedValueOnce(ok([recovered]));
+    const store = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      hostAccess,
+    });
+    store.start();
+    await vi.waitFor(() => expect(store.servers.map((server) => server.id)).toEqual(['first']));
+
+    runInAction(() =>
+      state.set({
+        kind: 'degraded',
+        situation: 'offline',
+        recovery: 'automatic',
+      })
+    );
+
+    expect(store.observation).toEqual({ kind: 'stale', value: [first] });
+    await expect(
+      store.forwardManual({ protocol: 'http:', remotePort: 8080 })
+    ).resolves.toMatchObject({
+      success: false,
+      error: { type: 'project-unavailable', projectId: 'project-1' },
+    });
+    expect(wireMocks.forwardManual).not.toHaveBeenCalled();
+
+    runInAction(() => state.set({ kind: 'ready', hostGeneration: 2 }));
+    await vi.waitFor(() => expect(store.servers.map((server) => server.id)).toEqual(['recovered']));
+    expect(store.observation.kind).toBe('live');
+    store.dispose();
+  });
+
+  it('reports never-observed preview data unavailable without calling live seams', () => {
+    const state: ProjectHostAccessState = {
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    };
+    const hostAccess = {
+      state,
+      liveAction: { kind: 'disabled', state },
+    } as ProjectHostAccess;
+    const store = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      hostAccess,
+    });
+
+    store.start();
+
+    expect(store.observation).toEqual({ kind: 'unavailable' });
+    expect(wireMocks.listForWorkspace).not.toHaveBeenCalled();
+    expect(wireMocks.subscribe).not.toHaveBeenCalled();
+    store.dispose();
   });
 });

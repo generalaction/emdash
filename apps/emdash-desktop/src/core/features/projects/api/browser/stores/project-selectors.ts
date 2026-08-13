@@ -3,7 +3,10 @@ import {
   type MountedProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
-import type { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
+import type {
+  ProjectContext,
+  ProjectHostAccess,
+} from '@core/features/projects/api/browser/stores/project-context';
 import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectManagerStoreToken } from '@core/features/projects/contributions/app-store-tokens';
@@ -39,6 +42,11 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
 /** Returns the desktop Project context when hydration has completed. */
 export function asAvailableProject(store: ProjectStore | undefined): ProjectContext | undefined {
   return store?.context?.kind === 'available' ? store.context.context : undefined;
+}
+
+/** Returns the single project-owned seam for live Host access. */
+export function getProjectHostAccess(projectId: string): ProjectHostAccess | undefined {
+  return asAvailableProject(getProjectStore(projectId))?.host;
 }
 
 /** Returns the mounted project payload if ready, otherwise undefined. */

@@ -45,6 +45,7 @@ type Props = {
   className?: string;
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
+  readOnly?: boolean;
   /** Remote terminals are served by workspace-server runtimes and are not supported here yet. */
   remoteConnectionId?: string;
   workspaceId: string;
@@ -134,6 +135,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       className,
       contentFilter,
       mapShiftEnterToCtrlJ,
+      readOnly = false,
       remoteConnectionId,
       workspaceId,
       themeOverride,
@@ -194,11 +196,12 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         pty,
         theme,
         mapShiftEnterToCtrlJ,
+        readOnly,
         onActivity,
         onFirstMessage,
         onEnterPress,
         onInterruptPress,
-        onPasteFromClipboard: handleSystemPaste,
+        onPasteFromClipboard: readOnly ? undefined : handleSystemPaste,
       },
       containerRef
     );
@@ -241,6 +244,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
 
     const handlePaste = useCallback(
       (event: React.ClipboardEvent<HTMLDivElement>) => {
+        if (readOnly) return;
         const clipboardData = event.clipboardData;
         const fallbackText = clipboardData?.getData('text/plain') ?? '';
         const imageFiles = extractClipboardImageFiles(clipboardData);
@@ -283,10 +287,11 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
           fallbackText,
         });
       },
-      [focus, injectImageFiles, remoteConnectionId, sendInput, sessionId]
+      [focus, injectImageFiles, readOnly, remoteConnectionId, sendInput, sessionId]
     );
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+      if (readOnly) return;
       try {
         event.preventDefault();
         const dt = event.dataTransfer;

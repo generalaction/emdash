@@ -1,4 +1,5 @@
 import { observable } from 'mobx';
+import { getProjectHostAccess } from '@core/features/projects/api/browser/stores/project-selectors';
 import { TerminalManagerStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 
 export class TerminalRegistry {
@@ -7,7 +8,7 @@ export class TerminalRegistry {
   acquire(taskId: string, projectId: string): TerminalManagerStore {
     const existing = this.entries.get(taskId);
     if (existing) return existing;
-    const store = new TerminalManagerStore(projectId, taskId);
+    const store = new TerminalManagerStore(projectId, taskId, getProjectHostAccess(projectId));
     this.entries.set(taskId, store);
     return store;
   }

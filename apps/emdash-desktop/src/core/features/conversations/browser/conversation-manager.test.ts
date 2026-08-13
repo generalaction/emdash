@@ -1,6 +1,11 @@
 import { formatHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 
 const localSessionHost = () => formatHostRef(LOCAL_HOST_REF);
 
@@ -128,6 +133,89 @@ describe('ConversationManagerStore session hydration', () => {
     expect(store.activeAcpSessionIds.has('ready')).toBe(true);
     expect(store.activeAcpSessionIds.has('closed')).toBe(false);
 
+    store.dispose();
+  });
+
+  it('retains prior runtime observations as stale while offline', () => {
+    const host = {
+      state: {
+        kind: 'degraded',
+        situation: 'offline',
+        recovery: 'automatic',
+      },
+      liveAction: {
+        kind: 'disabled',
+        state: {
+          kind: 'degraded',
+          situation: 'offline',
+          recovery: 'automatic',
+        },
+      },
+    } as ProjectHostAccess;
+    const store = new ConversationManagerStore('project-1', 'task-1', [], localSessionHost, host);
+
+    expect(store.runtimeObservation).toEqual({ kind: 'unavailable' });
+    (
+      store as unknown as {
+        handleAcpSessionListChanged(list: Record<string, unknown>): void;
+      }
+    ).handleAcpSessionListChanged({ ready: acpSession('ready', 'ready') });
+
+    expect(store.runtimeObservation).toEqual({
+      kind: 'stale',
+      value: {
+        activeAcpSessionIds: ['ready'],
+        activeTuiSessionIds: [],
+      },
+    });
+    store.dispose();
+  });
+
+  it('preserves transcripts and resumes requested sessions after recovery', async () => {
+    const state = observable.box<ProjectHostAccessState>({
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    });
+    const hostAccess = {
+      get state() {
+        return state.get();
+      },
+      get liveAction() {
+        const current = state.get();
+        return current.kind === 'ready'
+          ? ({ kind: 'enabled' } as const)
+          : ({ kind: 'disabled', state: current } as const);
+      },
+    } as ProjectHostAccess;
+    const transcript = {
+      id: 'conversation-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'codex',
+      title: 'Preserved transcript',
+      lastInteractedAt: null,
+      isInitialConversation: false,
+    };
+    const store = new ConversationManagerStore(
+      'project-1',
+      'task-1',
+      [transcript],
+      localSessionHost,
+      hostAccess
+    );
+    const session = store.sessions.get(transcript.id);
+
+    await session?.connect();
+
+    expect(session?.status).toBe('disconnected');
+    expect(store.conversations.get(transcript.id)?.data.title).toBe('Preserved transcript');
+    expect(frontendConnect).not.toHaveBeenCalled();
+
+    runInAction(() => state.set({ kind: 'ready', hostGeneration: 2 }));
+    await vi.waitFor(() => expect(session?.status).toBe('ready'));
+    expect(frontendConnect).toHaveBeenCalledTimes(1);
+    expect(store.conversations.get(transcript.id)?.data.title).toBe('Preserved transcript');
     store.dispose();
   });
 });

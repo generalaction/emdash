@@ -394,7 +394,7 @@ export const desktopNodeControllers = {
       }),
   },
   previewServers: {
-    create: () => createPreviewServersWireController(),
+    create: ({ projects }) => createPreviewServersWireController({ projects }),
   },
   github: {
     create: ({ github, logger, telemetry }) =>

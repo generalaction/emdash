@@ -22,10 +22,12 @@ export interface TerminalPtyContentProps {
   onInterruptPress?: () => void;
   mapShiftEnterToCtrlJ?: boolean;
   emptyState: ReactNode;
+  unavailableState?: ReactNode;
   remoteConnectionId?: string;
   workspaceId: string;
   /** Defaults to the standard uniform xterm inset. */
   terminalPaddingBottom?: number;
+  disabledReason?: string | null;
   className?: string;
 }
 
@@ -38,9 +40,11 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   onInterruptPress,
   mapShiftEnterToCtrlJ,
   emptyState,
+  unavailableState,
   remoteConnectionId,
   workspaceId,
   terminalPaddingBottom = TERMINAL_PADDING_PX,
+  disabledReason,
   className,
 }: TerminalPtyContentProps) {
   const activeSessionId = activeSession?.sessionId ?? null;
@@ -119,7 +123,9 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
     >
       <PaneDimensionProvider sink={dimensionSink}>
         <PaneSizingContextProvider sessionIds={sessionIds} bottomPadding={gridBottomPadding}>
-          {!hasSessions || !activeSession ? (
+          {disabledReason && activeSession?.status !== 'ready' ? (
+            (unavailableState ?? emptyState)
+          ) : !hasSessions || !activeSession ? (
             emptyState
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
@@ -128,34 +134,46 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
               activeSession?.status === 'ready' &&
               activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                  <TerminalSearchOverlay
-                    sessionId={activeSessionId}
-                    isOpen={isSearchOpen}
-                    fullWidth
-                    searchQuery={searchQuery}
-                    searchStatus={searchStatus}
-                    searchInputRef={searchInputRef}
-                    onQueryChange={handleSearchQueryChange}
-                    onStep={stepSearch}
-                    onFind={openSearch}
-                    onClose={closeSearch}
-                  />
-                  <PtyPane
-                    ref={terminalRef}
-                    sessionId={activeSessionId}
-                    pty={activeSession.pty}
-                    onFind={openSearch}
-                    className="h-full w-full"
-                    themeOverride={{
-                      background: cssVar('--em-surface-paper'),
-                    }}
-                    paddingBottom={terminalPaddingBottom}
-                    onEnterPress={onEnterPress}
-                    onInterruptPress={onInterruptPress}
-                    mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
-                    remoteConnectionId={remoteConnectionId}
-                    workspaceId={workspaceId}
-                  />
+                  <div className="flex h-full min-h-0 flex-1">
+                    <TerminalSearchOverlay
+                      sessionId={activeSessionId}
+                      isOpen={isSearchOpen}
+                      fullWidth
+                      searchQuery={searchQuery}
+                      searchStatus={searchStatus}
+                      searchInputRef={searchInputRef}
+                      onQueryChange={handleSearchQueryChange}
+                      onStep={stepSearch}
+                      onFind={openSearch}
+                      onClose={closeSearch}
+                    />
+                    <PtyPane
+                      ref={terminalRef}
+                      sessionId={activeSessionId}
+                      pty={activeSession.pty}
+                      onFind={openSearch}
+                      className="h-full w-full"
+                      themeOverride={{
+                        background: cssVar('--em-surface-paper'),
+                      }}
+                      paddingBottom={terminalPaddingBottom}
+                      onEnterPress={onEnterPress}
+                      onInterruptPress={onInterruptPress}
+                      mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
+                      readOnly={Boolean(disabledReason)}
+                      remoteConnectionId={remoteConnectionId}
+                      workspaceId={workspaceId}
+                    />
+                  </div>
+                  {disabledReason && (
+                    <div
+                      className="absolute inset-x-2 top-2 z-20 rounded-md border bg-background/95 px-2 py-1 text-center text-xs text-foreground-muted shadow-sm"
+                      tabIndex={0}
+                      role="note"
+                    >
+                      {disabledReason}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

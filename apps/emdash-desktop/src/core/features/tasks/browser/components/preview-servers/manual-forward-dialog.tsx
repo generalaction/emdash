@@ -46,6 +46,7 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
           case 'not-ssh-workspace':
           case 'host-unavailable':
           case 'not-configured':
+          case 'project-unavailable':
           case 'open-failed':
           case 'cancelled':
             setError(result.error.message);

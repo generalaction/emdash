@@ -7,6 +7,7 @@ import { terminalErrorSchema, terminalSizeSchema } from '@emdash/core/runtimes/t
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import { defineContract, fallible, liveLog } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { projectAttachmentErrorSchema } from '@core/features/projects/api/attachments';
 
 export const terminalRecordSchema = z.object({
   id: z.string(),
@@ -80,6 +81,7 @@ export const terminalSliceContextErrorSchema = z.discriminatedUnion('type', [
 export type TerminalSliceContextError = z.infer<typeof terminalSliceContextErrorSchema>;
 
 export const terminalSliceErrorSchema = z.union([
+  projectAttachmentErrorSchema,
   runtimeResolveErrorSchema,
   terminalErrorSchema,
   terminalSliceContextErrorSchema,

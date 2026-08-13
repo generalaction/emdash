@@ -185,7 +185,8 @@ export class TaskComposition {
       this.paneLayout,
       projectId,
       workspaceId,
-      this.space.handle(taskEditorTreeMemento)
+      this.space.handle(taskEditorTreeMemento),
+      this._terminals.hostAccess
     );
 
     makeAutoObservable<
@@ -353,6 +354,7 @@ export class TaskComposition {
       projectId: this.projectId,
       workspaceId,
       connectionId: workspace.sshConnectionId,
+      hostAccess: this._terminals.hostAccess,
     });
     this.previewServers.start();
 

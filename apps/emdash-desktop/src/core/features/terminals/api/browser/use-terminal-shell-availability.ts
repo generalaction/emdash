@@ -15,7 +15,13 @@ export function useTerminalShellAvailability(
     queryKey: ['terminal-shell-availability', remoteConnectionId ?? 'local'],
     queryFn: async () => {
       const result = await (await getTerminalsClient()).getShellAvailability({ host });
-      if (!result.success) throw new Error(result.error.message);
+      if (!result.success) {
+        throw new Error(
+          'message' in result.error
+            ? result.error.message
+            : `Terminal shell lookup failed: ${result.error.type}`
+        );
+      }
       return result.data;
     },
     staleTime: isRemote ? 5_000 : 30_000,

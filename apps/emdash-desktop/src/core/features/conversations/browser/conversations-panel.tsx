@@ -1,5 +1,7 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 // TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
@@ -24,7 +26,7 @@ import {
 } from './pane-selectors';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
-  const { taskId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
   const taskView = useTaskComposition();
   const conversations = useConversations();
   const workspace = useWorkspace();
@@ -33,6 +35,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { pane } = usePaneContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
+  const disabledReason = getProjectLiveActionDisabledReason(projectId);
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
@@ -142,38 +145,52 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
         >
           <PaneSizingContextProvider sessionIds={allSessionIds} bottomPadding={contextBarHeight}>
             <div className="flex min-h-0 flex-1 flex-col">
-              {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+              {disabledReason && activeSession?.status !== 'ready' ? (
+                <EmptyState label="Conversation unavailable" description={disabledReason} />
+              ) : activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                  <TerminalSearchOverlay
-                    sessionId={activeSessionId}
-                    isOpen={isSearchOpen}
-                    fullWidth
-                    searchQuery={searchQuery}
-                    searchStatus={searchStatus}
-                    searchInputRef={searchInputRef}
-                    onQueryChange={handleSearchQueryChange}
-                    onStep={stepSearch}
-                    onFind={openSearch}
-                    onClose={closeSearch}
-                  />
-                  <PtyPane
-                    ref={terminalRef}
-                    sessionId={activeSessionId}
-                    pty={activeSession.pty}
-                    onFind={openSearch}
-                    className="h-full w-full"
-                    onInterruptPress={onInterruptPress}
-                    mapShiftEnterToCtrlJ
-                    remoteConnectionId={remoteConnectionId}
-                    workspaceId={workspaceId}
-                  />
+                  <div className="flex h-full min-h-0 flex-1">
+                    <TerminalSearchOverlay
+                      sessionId={activeSessionId}
+                      isOpen={isSearchOpen}
+                      fullWidth
+                      searchQuery={searchQuery}
+                      searchStatus={searchStatus}
+                      searchInputRef={searchInputRef}
+                      onQueryChange={handleSearchQueryChange}
+                      onStep={stepSearch}
+                      onFind={openSearch}
+                      onClose={closeSearch}
+                    />
+                    <PtyPane
+                      ref={terminalRef}
+                      sessionId={activeSessionId}
+                      pty={activeSession.pty}
+                      onFind={openSearch}
+                      className="h-full w-full"
+                      onInterruptPress={onInterruptPress}
+                      mapShiftEnterToCtrlJ
+                      readOnly={Boolean(disabledReason)}
+                      remoteConnectionId={remoteConnectionId}
+                      workspaceId={workspaceId}
+                    />
+                  </div>
+                  {disabledReason && (
+                    <div
+                      className="absolute inset-x-2 top-2 z-20 rounded-md border bg-background/95 px-2 py-1 text-center text-xs text-foreground-muted shadow-sm"
+                      tabIndex={0}
+                      role="note"
+                    >
+                      {disabledReason}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
           </PaneSizingContextProvider>
         </div>
       </div>
-      <div ref={contextBarWrapperRef}>
+      <div ref={contextBarWrapperRef} inert={disabledReason ? true : undefined}>
         <ContextBar
           conversationId={getActiveConversationId(pane)}
           hideTrigger={hideContextBarTrigger}

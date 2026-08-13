@@ -220,6 +220,27 @@ export function classifyProjectAvailability({
   };
 }
 
+export function projectLiveActionDisabledReason({
+  host,
+  state,
+}: {
+  host: ProjectAvailabilityHost;
+  state: ProjectHostAccessState;
+}): string | null {
+  if (state.kind === 'ready') return null;
+  if (host.kind === 'local') {
+    return 'Live actions are unavailable while this Project is unavailable on this device.';
+  }
+  const machineName = host.machineName?.trim() || 'this Machine';
+  if (state.situation === 'offline' || state.situation === 'suspended') {
+    return `Live actions are unavailable while ${machineName} is offline.`;
+  }
+  const presentation = classifyProjectAvailability({ host, state });
+  return presentation
+    ? `Live actions are unavailable. ${presentation.title}.`
+    : 'Live actions are unavailable for this Project.';
+}
+
 function offlinePresentation(
   host: ProjectAvailabilityHost,
   machineName: string | undefined
