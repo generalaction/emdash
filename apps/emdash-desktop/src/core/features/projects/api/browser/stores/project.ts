@@ -1,4 +1,8 @@
 import { makeAutoObservable, observable } from 'mobx';
+import type {
+  ProjectContextLifecycle,
+  ProjectHostAccess,
+} from '@core/features/projects/api/browser/stores/project-context';
 import { type ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
@@ -33,6 +37,10 @@ export type UnmountedStatus =
 
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
+const LEGACY_MOUNT_HOST_ACCESS: ProjectHostAccess = Object.freeze({
+  attachment: undefined,
+});
+
 /**
  * Holds all mounted-only state for a project. Created atomically by
  * ProjectStore.transitionToMounted and disposed on unmount or deletion.
@@ -49,7 +57,11 @@ export class MountedProject {
   constructor(data: LocalProject | SshProject) {
     this.data = data;
     this.space = getMementoClient().subject(projectSubject({ projectId: data.id }));
-    this.stores = new ScopedStoreHost({ data, space: this.space }, projectStoreContributions);
+    this.stores = new ScopedStoreHost(
+      { data, space: this.space, host: LEGACY_MOUNT_HOST_ACCESS },
+      projectStoreContributions
+    );
+    this.stores.activate();
 
     makeAutoObservable<MountedProject, 'stores'>(this, {
       space: false,
@@ -77,6 +89,7 @@ export class ProjectStore {
   unmounted: UnmountedStatus | null;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
+  context: ProjectContextLifecycle | null = null;
 
   constructor(
     state: ProjectStore['state'],
@@ -97,6 +110,7 @@ export class ProjectStore {
     this.mode = mode;
     makeAutoObservable(this, {
       creation: observable.ref,
+      context: observable.ref,
       mountedProject: observable.ref,
       unmounted: observable.ref,
     });

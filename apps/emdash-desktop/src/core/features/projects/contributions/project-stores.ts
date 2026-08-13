@@ -1,3 +1,4 @@
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import {
   workspaceChromeStore,
@@ -17,6 +18,7 @@ import { projectViewMemento } from './mementos';
 export type ProjectScopedStoreContext = Readonly<{
   data: LocalProject | SshProject;
   space: SubjectSpace<'project'>;
+  host: ProjectHostAccess;
 }>;
 
 export const projectViewStoreToken = scopedStoreToken<ProjectViewStore>('projects.view');
