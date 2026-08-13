@@ -1,4 +1,4 @@
-import { createEmitter, type Emitter } from '@emdash/shared';
+import { createEmitter, err, ok, type Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
@@ -72,16 +72,29 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
       });
 
       let released = false;
-      const ready = lease.ready().then((channel) => {
-        if (released || consumerScope.disposed) return;
-        consumerScope.add(
-          channel.events.subscribe(
-            withDebounce(onEvents, watchOptions.debounceMs ?? 0, consumerScope)
-          )
-        );
-        if (watchOptions.onResync)
-          consumerScope.add(channel.resync.subscribe(watchOptions.onResync));
-      });
+      const ready = lease.ready().then(
+        (channel) => {
+          if (released || consumerScope.disposed) return ok(undefined);
+          consumerScope.add(
+            channel.events.subscribe(
+              withDebounce(onEvents, watchOptions.debounceMs ?? 0, consumerScope)
+            )
+          );
+          if (watchOptions.onResync)
+            consumerScope.add(channel.resync.subscribe(watchOptions.onResync));
+          return ok(undefined);
+        },
+        (error: unknown) => {
+          if (!released && !consumerScope.disposed) {
+            try {
+              watchOptions.onError?.(error);
+            } catch {
+              // Failure observers are best-effort and must not break the ready Result channel.
+            }
+          }
+          return err(error);
+        }
+      );
 
       return {
         ready: () => ready,

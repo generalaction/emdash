@@ -1,6 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { err, ok, type Result } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolveRootIdentity, type RootIdentity } from '#runtimes/files/node/allocation/identity';
@@ -36,7 +37,7 @@ describe('RootResource', () => {
     const batches: RootChange[][] = [];
     root.subscribe((changes) => batches.push(changes));
 
-    watcher.ready.resolve();
+    watcher.ready.resolve(ok(undefined));
     await root.watchReady();
 
     expect(batches).toEqual([[{ kind: 'resync' }]]);
@@ -53,7 +54,7 @@ describe('RootResource', () => {
     });
     cleanups.push(() => root.dispose());
 
-    watcher.ready.reject(new Error('native watcher startup failed'));
+    watcher.ready.resolve(err(new Error('native watcher startup failed')));
     await root.watchReady();
 
     expect(errors).toHaveLength(1);
@@ -76,7 +77,7 @@ describe('RootResource', () => {
     });
 
     await root.dispose();
-    watcher.ready.reject(new Error('released before ready'));
+    watcher.ready.resolve(err(new Error('released before ready')));
     await root.watchReady();
 
     expect(errors).toEqual([]);
@@ -85,7 +86,7 @@ describe('RootResource', () => {
 });
 
 class PendingWatcher implements IWatchService {
-  readonly ready = deferred<void>();
+  readonly ready = deferred<Result<void, unknown>>();
   released = false;
   readyResolved = false;
 

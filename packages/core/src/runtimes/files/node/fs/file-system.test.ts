@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -112,7 +113,7 @@ async function makeRoot(): Promise<string> {
 
 function noopWatcher(): IWatchService {
   return {
-    watch: () => ({ ready: async () => {}, release: async () => {} }),
+    watch: () => ({ ready: async () => ok(undefined), release: async () => {} }),
     dispose: async () => {},
   };
 }

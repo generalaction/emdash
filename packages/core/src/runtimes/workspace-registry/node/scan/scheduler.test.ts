@@ -1,5 +1,7 @@
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { err, ok, type Result } from '@emdash/shared';
+import { deferred, type Deferred } from '@emdash/shared/testing';
+import { describe, expect, it, vi } from 'vitest';
 import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import {
   DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS,
@@ -13,23 +15,61 @@ import {
 // scan targets go in; coalesced scan requests come out. The scheduler never writes the
 // registry — its whole contract is which requests it emits and when.
 
+type FakeWatchAttempt = {
+  root: string;
+  onEvents: (events: WatchEvent[]) => void;
+  onError: ((error: unknown) => void) | undefined;
+  ready: Deferred<Result<void, unknown>>;
+  released: boolean;
+};
+
 class FakeWatchService implements IWatchService {
-  readonly roots = new Map<string, (events: WatchEvent[]) => void>();
-  watch(root: string, onEvents: (events: WatchEvent[]) => void, _options?: WatchOptions) {
-    this.roots.set(root, onEvents);
-    return {
-      ready: () => Promise.resolve(),
+  readonly roots = new Map<string, FakeWatchAttempt>();
+  readonly attempts: FakeWatchAttempt[] = [];
+
+  watch(root: string, onEvents: (events: WatchEvent[]) => void, options?: WatchOptions) {
+    const ready = deferred<Result<void, unknown>>();
+    const attempt: FakeWatchAttempt = {
+      root,
+      onEvents,
+      onError: options?.onError,
+      ready,
+      released: false,
+    };
+    const handle = {
+      ready: () => ready.promise,
       release: () => {
-        this.roots.delete(root);
+        attempt.released = true;
+        if (this.roots.get(root) === attempt) this.roots.delete(root);
         return Promise.resolve();
       },
     };
+    this.roots.set(root, attempt);
+    this.attempts.push(attempt);
+    void ready.promise.then((attached) => {
+      if (!attached.success && !attempt.released) attempt.onError?.(attached.error);
+    });
+    queueMicrotask(() => ready.resolve(ok(undefined)));
+    return handle;
   }
+
   dispose(): Promise<void> {
     return Promise.resolve();
   }
+
   emit(root: string, events: WatchEvent[]): void {
-    this.roots.get(root)?.(events);
+    this.roots.get(root)?.onEvents(events);
+  }
+
+  rejectReady(root: string, error: unknown): FakeWatchAttempt {
+    const attempt = this.roots.get(root);
+    if (!attempt) throw new Error(`No active watch for ${root}`);
+    attempt.ready.resolve(err(error));
+    return attempt;
+  }
+
+  watchCount(root: string): number {
+    return this.attempts.filter((attempt) => attempt.root === root).length;
   }
 }
 
@@ -253,6 +293,31 @@ describe('WorkspaceScanScheduler', () => {
         expect(requests).toContainEqual({ kind: 'workspace', id: 'dir-1', mode: 'full' });
       });
     } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('drops a failed watch and retries it from the polling floor without an unhandled rejection', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const { watcher, scheduler } = createHarness([repo], { pollIntervalMs: 25 });
+
+    try {
+      expect(watcher.watchCount('/repos/main')).toBe(1);
+      const failed = watcher.rejectReady('/repos/main', new Error('watch attach failed'));
+
+      await eventually(() => {
+        expect(failed.released).toBe(true);
+        expect(watcher.roots.has('/repos/main')).toBe(false);
+      });
+      await eventually(() => expect(watcher.watchCount('/repos/main')).toBe(2));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(watcher.roots.has('/repos/main')).toBe(true);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
       await scheduler.dispose();
     }
   });

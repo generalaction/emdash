@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
@@ -79,7 +80,7 @@ describe('FileSearchRuntime', () => {
 
 class NoopWatchService implements IWatchService {
   watch() {
-    return { ready: async () => {}, release: async () => {} };
+    return { ready: async () => ok(undefined), release: async () => {} };
   }
 
   async dispose(): Promise<void> {}

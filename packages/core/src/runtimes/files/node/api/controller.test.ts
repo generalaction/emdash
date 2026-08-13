@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
+import { ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import {
@@ -457,7 +458,7 @@ class ManualWatcher implements IWatchService {
   watch(root: string, onEvents: (events: WatchEvent[]) => void, options: WatchOptions = {}) {
     this.entries.set(root, { onEvents, options });
     return {
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         this.entries.delete(root);
       },

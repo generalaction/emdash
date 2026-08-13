@@ -115,20 +115,33 @@ export class WorkspaceScanScheduler {
     }
     for (const [key, { target, gitDir }] of desired) {
       if (this.watches.has(key)) continue;
+      const handleRef: { current?: WatchHandle } = {};
+      const onError = (error: unknown): void => {
+        this.logger.warn?.(`workspace watch failed: ${String(error)}`);
+        const failedHandle = handleRef.current;
+        if (failedHandle === undefined || this.watches.get(key) !== failedHandle) return;
+        this.watches.delete(key);
+        void failedHandle.release().catch(() => undefined);
+      };
       const handle = gitDir
         ? this.watcher.watch(
             path.join(target.path, '.git'),
             (events) => this.onGitDirEvents(target.id, target.path, events),
-            { onResync: () => this.request({ kind: 'repository', id: target.id }) }
+            {
+              onError,
+              onResync: () => this.request({ kind: 'repository', id: target.id }),
+            }
           )
         : this.watcher.watch(
             target.path,
             () => this.request({ kind: 'workspace', id: target.id, mode: 'full' }),
             {
               ignore: ['.git/**'],
+              onError,
               onResync: () => this.request({ kind: 'workspace', id: target.id, mode: 'full' }),
             }
           );
+      handleRef.current = handle;
       this.watches.set(key, handle);
     }
   }
@@ -289,6 +302,7 @@ export class WorkspaceScanScheduler {
 
   /** The staleness bound: rescan anything the event path has not touched recently. */
   private pollFloor(): void {
+    this.syncWatches();
     const cutoff = this.clock.now() - this.pollIntervalMs;
     for (const target of this.listTargets()) {
       if (target.lastObservedAt > cutoff) continue;

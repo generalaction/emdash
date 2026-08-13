@@ -225,7 +225,7 @@ describe('runtime domain forwarding', () => {
 function createNoopWatcher(): IWatchService {
   return {
     watch: () => ({
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {},
     }),
     dispose: async () => {},

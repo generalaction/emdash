@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { err, ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
-import type { WatchEvent } from '#services/fs-watch/api';
+import { requireWatchReady, type WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchSink } from './backend';
 import { nativeWatchBackend } from './native-backend';
 import { realpathOrResolve } from './paths';
@@ -39,7 +40,10 @@ describe('createWatchService', () => {
       const second = service.watch(root, (events) => secondEvents.push(...events), {
         ignore: ['a', 'b'],
       });
-      await Promise.all([first.ready(), second.ready()]);
+      await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
+        ok(undefined),
+        ok(undefined),
+      ]);
 
       expect(backend.subscribeCount).toBe(1);
       backend.emit({ root, ignore: ['a', 'b'] }, [{ kind: 'create', path: path.join(root, 'a') }]);
@@ -73,7 +77,7 @@ describe('createWatchService', () => {
           resyncs += 1;
         },
       });
-      await handle.ready();
+      await expect(handle.ready()).resolves.toEqual(ok(undefined));
 
       backend.emit({ root, ignore: [] }, [
         { kind: 'create', path: path.join(root, 'first') },
@@ -103,7 +107,10 @@ describe('createWatchService', () => {
     try {
       const first = watch.watch(root, (events) => firstEvents.push(...events));
       const second = watch.watch(root, (events) => secondEvents.push(...events));
-      await Promise.all([first.ready(), second.ready()]);
+      await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
+        ok(undefined),
+        ok(undefined),
+      ]);
 
       const file = path.join(root, 'created.txt');
       await writeFile(file, 'watch me\n', 'utf8');
@@ -146,10 +153,10 @@ describe('createWatchService', () => {
 
     try {
       const first = watch.watch(root, () => {});
-      await first.ready();
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
       await first.release();
       const second = watch.watch(root, (incoming) => events.push(...incoming));
-      await second.ready();
+      await expect(second.ready()).resolves.toEqual(ok(undefined));
 
       await writeFile(path.join(root, 'after-rewatch.txt'), 'hi\n', 'utf8');
       await eventually(() =>
@@ -168,15 +175,106 @@ describe('createWatchService', () => {
     try {
       const handle = watch.watch(root, () => {});
 
-      await expect(handle.ready()).rejects.toThrow();
+      const failed = await handle.ready();
+      expect(failed.success).toBe(false);
       await handle.release();
 
       await mkdir(root, { recursive: true });
       const recovered = watch.watch(root, () => {});
-      await expect(recovered.ready()).resolves.toBeUndefined();
+      await expect(recovered.ready()).resolves.toEqual(ok(undefined));
       await recovered.release();
     } finally {
       await watch.dispose();
+    }
+  });
+
+  it('reports watcher subscription failures while ready() fulfills with a failure Result', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const onError = vi.fn();
+
+    try {
+      const handle = service.watch(root, () => {}, { onError });
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed');
+
+      attempt.ready.reject(failure);
+
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+      await expect(requireWatchReady(handle)).rejects.toBe(failure);
+      expect(onError).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledWith(failure);
+      await handle.release();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('does not emit an unhandled rejection when ready() is not awaited', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-unhandled-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+
+    try {
+      const handle = service.watch(root, () => {});
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed');
+
+      attempt.ready.reject(failure);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+      await handle.release();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      await service.dispose();
+    }
+  });
+
+  it('suppresses watcher subscription errors after release', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-released-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const onError = vi.fn();
+
+    try {
+      const handle = service.watch(root, () => {}, { onError });
+      const attempt = await eventually(() => backend.attempts[0]);
+      const failure = new Error('watch attach failed after release');
+
+      await handle.release();
+      attempt.ready.reject(failure);
+
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('contains errors thrown by the attach-failure observer', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-error-observer-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend });
+    const failure = new Error('watch attach failed');
+
+    try {
+      const handle = service.watch(root, () => {}, {
+        onError: () => {
+          throw new Error('observer failed');
+        },
+      });
+      const attempt = await eventually(() => backend.attempts[0]);
+
+      attempt.ready.reject(failure);
+
+      await expect(handle.ready()).resolves.toEqual(err(failure));
+    } finally {
+      await service.dispose();
     }
   });
 
@@ -188,9 +286,12 @@ describe('createWatchService', () => {
 
     try {
       const first = service.watch(root, () => {});
-      const firstFailure = expect(first.ready()).rejects.toThrow('Operation timed out after 25ms');
+      const firstReady = first.ready();
       await vi.advanceTimersByTimeAsync(25);
-      await firstFailure;
+      const firstResult = await firstReady;
+      expect(firstResult.success).toBe(false);
+      if (firstResult.success) throw new Error('Expected watch startup to fail');
+      expect(firstResult.error).toMatchObject({ message: 'Operation timed out after 25ms' });
       await first.release();
       expect(backend.attempts).toHaveLength(1);
       expect(backend.attempts[0]?.disposed).toBe(true);
@@ -200,7 +301,7 @@ describe('createWatchService', () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(backend.attempts).toHaveLength(2);
       backend.attempts[1]?.ready.resolve(undefined);
-      await expect(secondReady).resolves.toBeUndefined();
+      await expect(secondReady).resolves.toEqual(ok(undefined));
 
       backend.attempts[0]?.ready.resolve(undefined);
       await vi.advanceTimersByTimeAsync(0);
@@ -230,15 +331,16 @@ describe('createWatchService', () => {
 
     try {
       const first = service.watch(root, () => {});
-      const firstFailure = expect(first.ready()).rejects.toThrow(
-        'Operation timed out after 1000ms'
-      );
+      const firstReady = first.ready();
       await vi.advanceTimersByTimeAsync(1_000);
-      await firstFailure;
+      const firstResult = await firstReady;
+      expect(firstResult.success).toBe(false);
+      if (firstResult.success) throw new Error('Expected watch startup to fail');
+      expect(firstResult.error).toMatchObject({ message: 'Operation timed out after 1000ms' });
       await first.release();
 
       const second = service.watch(root, () => {});
-      const secondReady = expect(second.ready()).resolves.toBeUndefined();
+      const secondReady = expect(second.ready()).resolves.toEqual(ok(undefined));
       await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
       secondSubscription.resolve({ unsubscribe: secondUnsubscribe });
       await secondReady;
@@ -259,7 +361,7 @@ describe('createWatchService', () => {
     const watch = createNativeWatchService();
     const handle = watch.watch(root, () => {});
 
-    await handle.ready();
+    await expect(handle.ready()).resolves.toEqual(ok(undefined));
     await expect(watch.dispose()).resolves.toBeUndefined();
     await expect(handle.release()).resolves.toBeUndefined();
   });
@@ -315,10 +417,16 @@ function keyOf(key: WatchKey): string {
   return JSON.stringify({ root: realpathOrResolve(key.root), ignore: [...key.ignore].sort() });
 }
 
-function deferred<T = void>(): { promise: Promise<T>; resolve(value: T): void } {
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+  reject(error?: unknown): void;
+} {
   let resolve: (value: T) => void = () => {};
-  const promise = new Promise<T>((done) => {
+  let reject: (error?: unknown) => void = () => {};
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
