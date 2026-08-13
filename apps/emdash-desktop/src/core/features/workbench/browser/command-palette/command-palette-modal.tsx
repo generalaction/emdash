@@ -326,11 +326,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
                     key={item.id}
                     value={item.id}
                     item={displayItem}
-                    onSelect={() => {
-                      if (displayItem.bound.availability.kind !== 'enabled') return;
-                      handleClose();
-                      scopes.execute(displayItem.item.command, undefined, 'palette');
-                    }}
+                    onSelect={displayItem.execute}
                   />
                 );
               }
