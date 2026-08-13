@@ -1,5 +1,5 @@
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
@@ -14,7 +14,7 @@ import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-stor
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getGitRepositoryStore(projectId: string): GitRepositoryStore | undefined {
-  return asMounted(getProjectStore(projectId))?.get(gitRepositoryStoreToken);
+  return asAvailableProject(getProjectStore(projectId))?.get(gitRepositoryStoreToken);
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */

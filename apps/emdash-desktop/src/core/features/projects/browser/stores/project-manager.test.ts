@@ -23,9 +23,11 @@ import {
 } from '@core/features/projects/api/browser/stores/project';
 import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import { hostsContract, type HostAvailabilityState } from '@core/services/hosts/api';
 
 const mocks = vi.hoisted(() => ({
   attachmentTrack: vi.fn(),
+  hostAvailabilityTrack: vi.fn(),
   createGithubRepository: vi.fn(),
   createLiveJobReplicaCache: vi.fn(),
   createProject: vi.fn(),
@@ -56,6 +58,8 @@ const mocks = vi.hoisted(() => ({
 
 let projectListState: ReturnType<typeof cell<ProjectListData>>;
 let wire: ReturnType<typeof createProjectWire> | undefined;
+let hostAvailabilityState: ReturnType<typeof cell<HostAvailabilityState>>;
+let hostsWire: ReturnType<typeof createHostsWire> | undefined;
 
 vi.mock('@core/features/github/api/browser/client', () => ({
   getGithubClient: async () => ({
@@ -74,6 +78,10 @@ vi.mock('@emdash/wire/live', async (importOriginal) => {
 
 vi.mock('@core/features/projects/api/browser/client', () => ({
   getProjectsWireClient: async () => wire!.client,
+}));
+
+vi.mock('@core/services/hosts/api/client', () => ({
+  getHostsClient: async () => hostsWire!.client,
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({
@@ -230,10 +238,33 @@ function createProjectWire() {
   };
 }
 
+function createHostsWire() {
+  const availabilityProvider = expose(hostsContract.availability, {
+    state: (key) => {
+      mocks.hostAvailabilityTrack(key);
+      return hostAvailabilityState;
+    },
+  });
+  return createTestWire(hostsContract, {
+    availability: availabilityProvider,
+    serverStates: expose(hostsContract.serverStates, {
+      runtime: () => cell({}),
+    }),
+    refreshServerState: vi.fn(),
+    installServer: vi.fn(),
+    startServer: vi.fn(),
+    stopServer: vi.fn(),
+    restartServer: vi.fn(),
+    updateServer: vi.fn(),
+  });
+}
+
 describe('ProjectManagerStore project creation', () => {
   afterEach(async () => {
     await wire?.dispose();
     wire = undefined;
+    await hostsWire?.dispose();
+    hostsWire = undefined;
     vi.unstubAllGlobals();
   });
 
@@ -241,6 +272,8 @@ describe('ProjectManagerStore project creation', () => {
     vi.clearAllMocks();
     projectListState = cell({ projects: [] });
     wire = createProjectWire();
+    hostAvailabilityState = cell({ kind: 'unavailable', recovery: 'eligible' });
+    hostsWire = createHostsWire();
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
     mocks.resolveRepositoryDestination.mockImplementation(
       async ({ chosenDir, name }: { chosenDir: string; name: string }) =>
@@ -622,6 +655,13 @@ describe('ProjectManagerStore project creation', () => {
     await vi.waitFor(() =>
       expect(mocks.attachmentTrack).toHaveBeenCalledWith({ projectId: project.id })
     );
+    await vi.waitFor(() =>
+      expect(mocks.hostAvailabilityTrack).toHaveBeenCalledWith({
+        host: { type: 'local', id: 'local' },
+      })
+    );
+    expect(mocks.taskListLoad).toHaveBeenCalledOnce();
+    expect(store.projects.get(project.id)?.context?.kind).toBe('available');
     expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id });
   });
 

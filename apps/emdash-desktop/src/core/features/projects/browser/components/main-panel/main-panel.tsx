@@ -1,17 +1,15 @@
-import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
+import { Button } from '@emdash/ui/react/primitives';
+import { Loader2, TriangleAlert } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
-import {
-  isUnmountedProject,
-  isUnregisteredProject,
-} from '@core/features/projects/api/browser/stores/project';
+import { isUnregisteredProject } from '@core/features/projects/api/browser/stores/project';
+import type { ProjectContextError } from '@core/features/projects/api/browser/stores/project-context';
 import {
   getProjectManagerStore,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
-  unmountedMountErrorMessage,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { ProjectAvailabilityBoundary } from '@core/features/projects/contributions/browser/project-availability-boundary';
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
@@ -25,132 +23,81 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
   const displayName = projectDisplayName(store) ?? 'this project';
-  const unmountedFailure =
-    store && isUnmountedProject(store) && store.unmounted.kind === 'failed'
-      ? store.unmounted
-      : null;
+  const confirmDeleteProject = useConfirmDeleteProject();
 
   if (kind === 'creating' && store && isUnregisteredProject(store)) {
     return <PendingProjectStatus project={store} />;
   }
 
-  if (kind === 'bootstrapping') {
-    return <ProjectBootstrappingPanel />;
+  if (kind === 'hydrating') {
+    return <ProjectContextHydratingPanel />;
   }
 
-  if (kind === 'path_not_found') {
+  if (kind === 'context_error' && store?.context?.kind === 'desktop-context-failed') {
     return (
-      <ProjectPathNotFoundPanel
-        path={unmountedFailure?.message ?? ''}
-        projectId={projectId}
-        title={displayName}
+      <ProjectContextErrorPanel
+        error={store.context.error}
+        onRemove={() => {
+          void confirmDeleteProject({ projectId, projectLabel: displayName });
+        }}
+        onRetry={() => {
+          void getProjectManagerStore().hydrateProjectContext(projectId);
+        }}
       />
     );
-  }
-
-  if (kind === 'ssh_disconnected') {
-    const connectionId = unmountedFailure?.message ?? '';
-    return <ProjectSshDisconnectedPanel connectionId={connectionId} projectId={projectId} />;
-  }
-
-  if (kind === 'mount_error') {
-    return <ProjectBootstrapErrorPanel message={unmountedMountErrorMessage(store)} />;
   }
 
   if (kind !== 'ready') {
     return <div className="flex flex-1 items-center justify-center text-foreground-muted" />;
   }
 
-  return <ActiveProject />;
+  return (
+    <ProjectAvailabilityBoundary projectId={projectId}>
+      <ActiveProject />
+    </ProjectAvailabilityBoundary>
+  );
 });
 
-function ProjectBootstrappingPanel() {
+function ProjectContextHydratingPanel() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
       <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
-      <p className="font-sans text-xs text-foreground-passive">Setting up project…</p>
+      <p className="font-sans text-xs text-foreground-passive">Loading project…</p>
     </div>
   );
 }
 
-function ProjectBootstrapErrorPanel({ message }: { message: string }) {
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-        <p className="font-sans text-sm font-medium text-foreground-destructive">
-          Failed to set up project
-        </p>
-        <p className="font-sans text-xs text-foreground-passive">{message}</p>
-      </div>
-    </div>
-  );
-}
-
-function ProjectSshDisconnectedPanel({
-  connectionId,
-  projectId,
+export function ProjectContextErrorPanel({
+  error,
+  onRemove,
+  onRetry,
 }: {
-  connectionId: string;
-  projectId: string;
+  error: ProjectContextError;
+  onRemove: () => void;
+  onRetry: () => void;
 }) {
-  const handleReconnect = () => {
-    void getMachinesStore()
-      .connect(connectionId)
-      .then(() => getProjectManagerStore().mountProject(projectId))
-      .catch(() => {});
-  };
-
+  const detail =
+    error.type === 'invalid-project-record'
+      ? 'The saved Project record is invalid.'
+      : error.stage === 'memento'
+        ? 'Saved Project view state could not be loaded.'
+        : 'Project stores could not be initialized.';
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <Unplug className="h-6 w-6 text-foreground-passive" />
-        <p className="font-sans text-sm font-medium text-foreground">SSH not connected</p>
-        <p className="text-xs text-foreground-passive">
-          The SSH connection for this project is unavailable.
-        </p>
-        <button
-          type="button"
-          className="mt-2 text-xs text-foreground underline underline-offset-2 transition-colors hover:text-foreground/80"
-          onClick={handleReconnect}
-        >
-          Reconnect
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ProjectPathNotFoundPanel({
-  path,
-  projectId,
-  title,
-}: {
-  path: string;
-  projectId: string;
-  title: string;
-}) {
-  const confirmDeleteProject = useConfirmDeleteProject();
-
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <TriangleAlert className="h-6 w-6 text-foreground-destructive" />
+        <TriangleAlert className="size-6 text-foreground-destructive" aria-hidden="true" />
         <p className="font-sans text-sm font-medium text-foreground-destructive">
-          Project not found
+          Could not load Project
         </p>
-        {path && <p className="font-mono text-xs break-all text-foreground-passive">{path}</p>}
-        <p className="text-xs text-foreground-passive">
-          The project directory no longer exists at the configured path.
-        </p>
-        <button
-          type="button"
-          className="mt-2 text-xs text-foreground-destructive underline underline-offset-2 transition-colors hover:text-foreground-destructive/80"
-          onClick={() => {
-            void confirmDeleteProject({ projectId, projectLabel: title });
-          }}
-        >
-          Remove Project
-        </button>
+        <p className="font-sans text-xs text-foreground-muted">{detail}</p>
+        <div className="mt-2 flex items-center gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={onRetry}>
+            Retry
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onRemove}>
+            Remove Project
+          </Button>
+        </div>
       </div>
     </div>
   );

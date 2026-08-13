@@ -2,13 +2,12 @@ import type { LayoutStorage } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { WorkspaceChromeStore } from '@core/features/projects/api/browser/stores/workspace-chrome-store';
 import { projectPanelLayoutsMemento } from '@core/features/projects/contributions/mementos';
 import { workspaceChromeStoreToken } from '@core/features/projects/contributions/project-stores';
-import { createLayoutStorage } from '@core/primitives/mementos/browser';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { ViewRef } from '@core/primitives/views/api';
 
@@ -47,9 +46,7 @@ function projectIdFromRef(ref: ViewRef | undefined): string | undefined {
  * design, never a silent reset.
  */
 function hydratedWorkspaceChrome(projectId: string): WorkspaceChromeStore | undefined {
-  const mounted = asMounted(getProjectStore(projectId));
-  if (!mounted || !mounted.space.isHydrated) return undefined;
-  return mounted.get(workspaceChromeStoreToken);
+  return asAvailableProject(getProjectStore(projectId))?.get(workspaceChromeStoreToken);
 }
 
 function createEphemeralLayoutStorage(): LayoutStorage {
@@ -95,14 +92,15 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
     });
   }, []);
 
-  const mounted = activeProjectId ? asMounted(getProjectStore(activeProjectId)) : undefined;
-  const space = mounted && mounted.space.isHydrated ? mounted.space : undefined;
-  const chrome = space && mounted ? mounted.get(workspaceChromeStoreToken) : undefined;
+  const context = activeProjectId
+    ? asAvailableProject(getProjectStore(activeProjectId))
+    : undefined;
+  const chrome = context?.get(workspaceChromeStoreToken);
 
   const ephemeralStorage = useMemo(() => createEphemeralLayoutStorage(), []);
   const layoutStorage = useMemo(
-    () => (space ? createLayoutStorage(space, projectPanelLayoutsMemento) : ephemeralStorage),
-    [space, ephemeralStorage]
+    () => (context ? context.createLayoutStorage(projectPanelLayoutsMemento) : ephemeralStorage),
+    [context, ephemeralStorage]
   );
 
   const state = chrome ? chrome.state : undefined;
@@ -119,7 +117,7 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
       else chrome.commands.enterZenMode();
     },
     layoutStorage,
-    layoutKey: space && activeProjectId ? `project:${activeProjectId}` : 'unscoped',
+    layoutKey: context && activeProjectId ? `project:${activeProjectId}` : 'unscoped',
   };
 
   return (

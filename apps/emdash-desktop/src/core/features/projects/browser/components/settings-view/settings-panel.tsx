@@ -1,7 +1,7 @@
 import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectSettingsStore,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -13,7 +13,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
   const {
     params: { projectId },
   } = useCurrentViewParams(projectViewDef);
-  const mounted = asMounted(getProjectStore(projectId));
+  const context = asAvailableProject(getProjectStore(projectId));
   const store = getProjectSettingsStore(projectId);
   const domains = store?.domains;
   const configMigrations = store?.configMigrations;
@@ -37,7 +37,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
     );
   }
 
-  if (!mounted || !store || !domains || !configMigrations) {
+  if (!context || !store || !domains || !configMigrations) {
     return (
       <div className="flex items-center justify-center py-10">
         <Spinner />
@@ -49,7 +49,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
     <ProjectSettingsForm
       key={projectId}
       projectId={projectId}
-      projectType={mounted.data.type}
+      projectType={context.project.type}
       domains={domains}
       configMigrations={configMigrations}
       onSuccess={() => {}}

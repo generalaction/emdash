@@ -3,8 +3,8 @@
  *
  * The splash lifts when the last-active view can render — mementos and
  * navigation restored, the session/onboarding queries answered, and the one
- * project that view needs mounted — raced against a short timer. If the timer
- * wins, the workspace shows with that project in its existing "opening" state.
+ * Project that view needs hydrated from desktop state — raced against a short
+ * timer. Host readiness and attachment continue independently behind the gate.
  */
 
 export type SplashGateOutcome = 'ready' | 'timeout';
@@ -27,6 +27,19 @@ export function raceSplashGate(
       resolve('ready');
     });
   });
+}
+
+export async function waitForActiveProjectContext(options: {
+  navigationRestored: Promise<unknown>;
+  projectsLoaded: Promise<unknown>;
+  activeProjectId: () => string | undefined;
+  hydrateProjectContext: (projectId: string) => Promise<unknown>;
+}): Promise<void> {
+  await options.navigationRestored;
+  const projectId = options.activeProjectId();
+  if (!projectId) return;
+  await options.projectsLoaded;
+  await options.hydrateProjectContext(projectId);
 }
 
 let resolveAppQueries: (() => void) | undefined;

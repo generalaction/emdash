@@ -1,18 +1,25 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import type { RemoteModel, RemoteState } from '@emdash/wire/state';
-import { makeObservable, observable } from 'mobx';
+import type { RemoteModel } from '@emdash/wire/state';
+import { action, computed, makeObservable, observable } from 'mobx';
 import type { projectsWireContract, ProjectAttachmentState } from '@core/features/projects/api';
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
-import { getMementoClient, type SubjectSpace } from '@core/primitives/mementos/browser';
+import {
+  createLayoutStorage,
+  getMementoClient,
+  type SubjectSpace,
+} from '@core/primitives/mementos/browser';
+import { projectHostRef } from '@core/primitives/projects/api';
 import { projectSchema, type Project } from '@core/primitives/projects/api';
 import {
   ScopedStoreHost,
   type ScopedStoreToken,
   type ScopedStoreValue,
 } from '@core/primitives/scoped-stores/browser';
+import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
+import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
 
 export type ProjectContextError =
   | { type: 'invalid-project-record'; message: string }
@@ -31,15 +38,58 @@ export type ProjectContextLifecycle =
       error: ProjectContextError;
     };
 
+export type ProjectHostAccessState =
+  | { kind: 'offline' }
+  | {
+      kind: 'preparing';
+      phase: Extract<HostAvailabilityState, { kind: 'preparing' }>['phase'];
+    }
+  | { kind: 'attaching' }
+  | { kind: 'ready'; hostGeneration: number };
+
 export interface ProjectHostAccess {
-  readonly attachment: RemoteState<ProjectAttachmentState> | undefined;
+  readonly state: ProjectHostAccessState;
+}
+
+export function deriveProjectHostAccessState(
+  availability: HostAvailabilityState | undefined,
+  attachment: ProjectAttachmentState | undefined
+): ProjectHostAccessState {
+  if (!availability || availability.kind === 'unavailable' || availability.kind === 'suspended') {
+    return { kind: 'offline' };
+  }
+  if (availability.kind === 'preparing') {
+    return { kind: 'preparing', phase: availability.phase };
+  }
+  if (
+    attachment?.kind === 'attached' &&
+    attachment.establishedHostGeneration === availability.generation
+  ) {
+    return { kind: 'ready', hostGeneration: availability.generation };
+  }
+  return { kind: 'attaching' };
 }
 
 class HydratingProjectHostAccess implements ProjectHostAccess {
-  attachment: RemoteState<ProjectAttachmentState> | undefined;
+  availability: HostAvailabilityState | undefined;
+  attachment: ProjectAttachmentState | undefined;
 
   constructor() {
-    makeObservable(this, { attachment: observable.ref });
+    makeObservable(this, {
+      attachment: observable.ref,
+      availability: observable.ref,
+      clear: action,
+      state: computed,
+    });
+  }
+
+  get state(): ProjectHostAccessState {
+    return deriveProjectHostAccessState(this.availability, this.attachment);
+  }
+
+  clear(): void {
+    this.availability = undefined;
+    this.attachment = undefined;
   }
 }
 
@@ -49,7 +99,7 @@ export class ProjectContext {
   private readonly stores: ScopedStoreHost<ProjectScopedStoreContext>;
   private readonly mutableHost: HydratingProjectHostAccess;
   private readonly scope: Scope;
-  private releaseAttachment: (() => void) | undefined;
+  private hostAccessScope: Scope | undefined;
 
   private constructor(
     readonly project: Project,
@@ -64,16 +114,17 @@ export class ProjectContext {
     this.scope = createScope({ label: `project-context:${project.id}` });
     this.scope.add(async () => await releaseSpace(this.space));
     this.scope.add(() => this.stores.dispose());
-    this.scope.add(() => {
-      const release = this.releaseAttachment;
-      this.releaseAttachment = undefined;
-      this.mutableHost.attachment = undefined;
-      release?.();
-    });
+    this.scope.add(async () => await this.releaseHostAccess());
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
     return this.stores.get(token);
+  }
+
+  createLayoutStorage(
+    definition: Parameters<typeof createLayoutStorage<'project'>>[1]
+  ): ReturnType<typeof createLayoutStorage<'project'>> {
+    return createLayoutStorage(this.space, definition);
   }
 
   static async hydrate(record: unknown): Promise<Result<ProjectContext, ProjectContextError>> {
@@ -126,25 +177,55 @@ export class ProjectContext {
     return ok(new ProjectContext(project, space, stores, host));
   }
 
-  trackAttachment(model: RemoteModel<typeof projectsWireContract.attachments>): void {
+  trackHostAccess(
+    availabilityModel: RemoteModel<typeof hostsContract.availability>,
+    attachmentModel: RemoteModel<typeof projectsWireContract.attachments>
+  ): void {
     if (this.scope.disposed) return;
-    const releasePrevious = this.releaseAttachment;
-    this.releaseAttachment = undefined;
-    this.mutableHost.attachment = undefined;
-    releasePrevious?.();
-    const key = { projectId: this.project.id };
-    const release = model.retain(key);
+    void this.releaseHostAccess();
+    const accessScope = createScope({ label: `project-host-access:${this.project.id}` });
+    const availabilityKey = { host: projectHostRef(this.project) };
+    const attachmentKey = { projectId: this.project.id };
+    const releaseAvailability = availabilityModel.retain(availabilityKey);
+    let releaseAttachment: (() => void) | undefined;
     try {
-      this.mutableHost.attachment = model(key).states.state;
-      this.releaseAttachment = release;
+      releaseAttachment = attachmentModel.retain(attachmentKey);
+      const availability = availabilityModel(availabilityKey).states.state;
+      const attachment = attachmentModel(attachmentKey).states.state;
+      observeReadableInAction(
+        availability,
+        (snapshot) => {
+          this.mutableHost.availability = snapshot.value;
+        },
+        { scope: accessScope, immediate: true }
+      );
+      observeReadableInAction(
+        attachment,
+        (snapshot) => {
+          this.mutableHost.attachment = snapshot.value;
+        },
+        { scope: accessScope, immediate: true }
+      );
+      accessScope.add(releaseAvailability);
+      accessScope.add(releaseAttachment);
+      this.hostAccessScope = accessScope;
     } catch (error) {
-      release();
+      releaseAttachment?.();
+      releaseAvailability();
+      void accessScope.dispose();
       throw error;
     }
   }
 
   async dispose(): Promise<void> {
     await this.scope.dispose();
+  }
+
+  private async releaseHostAccess(): Promise<void> {
+    const accessScope = this.hostAccessScope;
+    this.hostAccessScope = undefined;
+    this.mutableHost.clear();
+    await accessScope?.dispose();
   }
 }
 

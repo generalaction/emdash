@@ -39,6 +39,8 @@ import { type LocalProject, type SshProject } from '@core/primitives/projects/ap
 import { splitNameWithOwner } from '@core/primitives/repository/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
+import { hostsContract } from '@core/services/hosts/api';
+import { getHostsClient } from '@core/services/hosts/api/client';
 import type {
   ModeData,
   ProjectCreationCompletion,
@@ -71,6 +73,10 @@ export class ProjectManagerStore {
   private _attachmentsRemote: RemoteModel<typeof projectsWireContract.attachments> | null = null;
   private _attachmentsRemotePromise: Promise<
     RemoteModel<typeof projectsWireContract.attachments>
+  > | null = null;
+  private _hostAvailabilityRemote: RemoteModel<typeof hostsContract.availability> | null = null;
+  private _hostAvailabilityRemotePromise: Promise<
+    RemoteModel<typeof hostsContract.availability>
   > | null = null;
   private _lastSshRecoveryAttemptAt = 0;
   private _disposed = false;
@@ -113,9 +119,9 @@ export class ProjectManagerStore {
 
   /**
    * Resolves once the first project-list snapshot has been applied, so callers
-   * can rely on the sidebar being populated. Project mounts start here but
-   * complete in the background; the boot gate awaits only the one project the
-   * last-active view needs via {@link mountProject}.
+   * can rely on the sidebar being populated. Project contexts and legacy mounts
+   * start here but complete in the background; the boot gate awaits only the
+   * desktop context required by the last-active view.
    */
   load(): Promise<void> {
     if (!this._loadPromise) {
@@ -244,14 +250,21 @@ export class ProjectManagerStore {
           await context.dispose();
           return;
         }
+        void this._hydrateProjectContext(context).catch((error: unknown) => {
+          if (this.projects.get(projectId)?.context?.kind !== 'available') return;
+          log.error('Failed to hydrate Project context tasks', { projectId, error });
+        });
         try {
-          const attachments = await this._getAttachmentsRemote();
+          const [availability, attachments] = await Promise.all([
+            this._getHostAvailabilityRemote(),
+            this._getAttachmentsRemote(),
+          ]);
           if (
             this._isCurrentProjectContextHydration(projectId, identity, store) &&
             store.context?.kind === 'available' &&
             store.context.context === context
           ) {
-            context.trackAttachment(attachments);
+            context.trackHostAccess(availability, attachments);
           }
         } catch (error) {
           if (!this._disposed) {
@@ -294,6 +307,22 @@ export class ProjectManagerStore {
       ));
     });
     return this._attachmentsRemotePromise;
+  }
+
+  private _getHostAvailabilityRemote(): Promise<RemoteModel<typeof hostsContract.availability>> {
+    if (this._hostAvailabilityRemote) return Promise.resolve(this._hostAvailabilityRemote);
+    this._hostAvailabilityRemotePromise ??= getHostsClient().then((client) => {
+      if (this._disposed) throw new Error('ProjectManagerStore is disposed');
+      return (this._hostAvailabilityRemote ??= remote(
+        hostsContract.availability,
+        client.availability,
+        {
+          scope: this._projectContextScope,
+          lingerMs: 0,
+        }
+      ));
+    });
+    return this._hostAvailabilityRemotePromise;
   }
 
   private _applyProjectSnapshotAndEnsureMounted(project: LocalProject | SshProject): void {
@@ -529,6 +558,10 @@ export class ProjectManagerStore {
     return this._startOrReuseProjectMount(projectId, true);
   }
 
+  hydrateProjectContext(projectId: string): Promise<void> {
+    return this._startOrReuseProjectContext(projectId);
+  }
+
   private _startOrReuseProjectMount(projectId: string, retryFailed: boolean): Promise<void> {
     if (this._disposed) return Promise.resolve();
     const inFlight = this._projectMountAttempts.get(projectId);
@@ -673,6 +706,10 @@ export class ProjectManagerStore {
         ? navParams.taskId
         : undefined;
     if (navTaskId) taskManager.provisionTask(navTaskId).catch(() => {});
+  }
+
+  private async _hydrateProjectContext(context: ProjectContext): Promise<void> {
+    await context.get(taskManagerStoreToken).loadTasks();
   }
 
   async deleteProject(projectId: string): Promise<void> {

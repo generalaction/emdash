@@ -38,7 +38,7 @@ export type UnmountedStatus =
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
 const LEGACY_MOUNT_HOST_ACCESS: ProjectHostAccess = Object.freeze({
-  attachment: undefined,
+  state: { kind: 'offline' as const },
 });
 
 /**

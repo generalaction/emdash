@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
   getProjectViewStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -12,7 +12,6 @@ import type { ProjectView } from '@core/features/projects/browser/stores/project
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { ProjectAvailabilityPrototype } from './project-availability.prototype';
 
 const projectViewItems: Array<{ id: ProjectView; label: string }> = [
   { id: 'tasks', label: 'Tasks' },
@@ -59,21 +58,12 @@ export const ActiveProject = observer(function ActiveProject() {
   const {
     params: { projectId },
   } = useCurrentViewParams(projectViewDef);
-  const store = asMounted(getProjectStore(projectId));
+  const context = asAvailableProject(getProjectStore(projectId));
   const view = getProjectViewStore(projectId);
 
-  if (!store || !view) return null;
+  if (!context || !view) return null;
 
   const activeView = view.activeView;
-  const content = (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
-      {activeView === 'tasks' && <TaskList />}
-      {activeView === 'pull-request' && <PullRequestView />}
-      {activeView === 'workspaces' && <ProjectWorkspacesView projectId={projectId} />}
-      {activeView === 'settings' && <SettingsPanel />}
-    </div>
-  );
-
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1060px] flex-col gap-6 px-8">
@@ -83,11 +73,12 @@ export const ActiveProject = observer(function ActiveProject() {
             onChange={(nextView) => view.setProjectView(nextView)}
           />
           <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-            {import.meta.env.DEV ? (
-              <ProjectAvailabilityPrototype>{content}</ProjectAvailabilityPrototype>
-            ) : (
-              content
-            )}
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
+              {activeView === 'tasks' && <TaskList />}
+              {activeView === 'pull-request' && <PullRequestView />}
+              {activeView === 'workspaces' && <ProjectWorkspacesView projectId={projectId} />}
+              {activeView === 'settings' && <SettingsPanel />}
+            </div>
           </div>
         </div>
       </div>

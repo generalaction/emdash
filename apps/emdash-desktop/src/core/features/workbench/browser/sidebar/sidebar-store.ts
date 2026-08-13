@@ -1,6 +1,7 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { type ProjectStore } from '@core/features/projects/api/browser/stores/project';
 import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
+import { asAvailableProject } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import {
@@ -41,6 +42,11 @@ function isVisibleRegularTask(task: TaskStore): boolean {
   );
 }
 
+function projectStores(project: ProjectStore) {
+  if (project.context) return asAvailableProject(project);
+  return project.mountedProject ?? undefined;
+}
+
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
@@ -68,8 +74,9 @@ export class SidebarStore {
       () => {
         const counts: [string, number][] = [];
         for (const [id, project] of this.projectManager.projects) {
-          if (project.mountedProject) {
-            counts.push([id, project.mountedProject.get(taskManagerStoreToken).tasks.size]);
+          const stores = projectStores(project);
+          if (stores) {
+            counts.push([id, stores.get(taskManagerStoreToken).tasks.size]);
           }
         }
         return counts;
@@ -127,10 +134,11 @@ export class SidebarStore {
     for (const project of this.orderedProjects) {
       const projectId = project.id;
       rows.push({ kind: 'project', projectId });
-      if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
-        const tasks = Array.from(
-          project.mountedProject.get(taskManagerStoreToken).tasks.values()
-        ).filter(isVisibleRegularTask);
+      const stores = projectStores(project);
+      if (this.expandedProjectIds.has(projectId) && stores) {
+        const tasks = Array.from(stores.get(taskManagerStoreToken).tasks.values()).filter(
+          isVisibleRegularTask
+        );
         const manualOrder = this.taskOrderByProject[projectId];
         const ordered = manualOrder?.length
           ? this.mergeTaskOrder(projectId, tasks)
@@ -155,9 +163,10 @@ export class SidebarStore {
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];
     for (const project of this.projectManager.projects.values()) {
-      if (!project.mountedProject) continue;
+      const stores = projectStores(project);
+      if (!stores) continue;
       const projectId = project.id;
-      for (const task of project.mountedProject.get(taskManagerStoreToken).tasks.values()) {
+      for (const task of stores.get(taskManagerStoreToken).tasks.values()) {
         if (!isVisibleRegularTask(task) || !task.data.isPinned) continue;
         pairs.push({ projectId, task });
       }
@@ -173,10 +182,12 @@ export class SidebarStore {
    */
   visibleTaskIdsForProject(projectId: string): string[] {
     const project = this.projectManager.projects.get(projectId);
-    if (!project?.mountedProject) return [];
-    const tasks = Array.from(
-      project.mountedProject.get(taskManagerStoreToken).tasks.values()
-    ).filter((task) => isVisibleRegularTask(task) && !task.data.isPinned);
+    if (!project) return [];
+    const stores = projectStores(project);
+    if (!stores) return [];
+    const tasks = Array.from(stores.get(taskManagerStoreToken).tasks.values()).filter(
+      (task) => isVisibleRegularTask(task) && !task.data.isPinned
+    );
     const manualOrder = this.taskOrderByProject[projectId];
     const ordered = manualOrder?.length
       ? this.mergeTaskOrder(projectId, tasks)

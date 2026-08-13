@@ -1,6 +1,5 @@
-import { isUnmountedProject } from '@core/features/projects/api/browser/stores/project';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -17,7 +16,7 @@ import type { Task } from '@core/primitives/tasks/api';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
-  return asMounted(getProjectStore(projectId))?.get(taskManagerStoreToken);
+  return asAvailableProject(getProjectStore(projectId))?.get(taskManagerStoreToken);
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
@@ -47,8 +46,8 @@ export function getTaskIdForAutomationRun(
 
 export type TaskViewKind =
   | 'missing'
-  | 'project-mounting' // project is still opening — task data not yet available
-  | 'project-error' // project failed to open
+  | 'project-hydrating'
+  | 'project-error'
   | 'creating'
   | 'create-error'
   | 'provisioning'
@@ -69,13 +68,11 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
 
   if (!projectStore) return 'missing';
 
-  if (isUnmountedProject(projectStore)) {
-    if (projectStore.unmounted.kind === 'opening') return 'project-mounting';
-    if (projectStore.unmounted.kind === 'failed') return 'project-error';
-    return 'project-mounting';
-  }
-
   if (projectStore.state === 'unregistered') return 'missing';
+  if (!projectStore.context || projectStore.context.kind === 'hydrating') {
+    return 'project-hydrating';
+  }
+  if (projectStore.context.kind === 'desktop-context-failed') return 'project-error';
 
   if (!store) return 'missing';
 

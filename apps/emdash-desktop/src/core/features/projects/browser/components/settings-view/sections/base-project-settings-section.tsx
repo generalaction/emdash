@@ -18,8 +18,8 @@ import {
   useEffectiveSettingsInputs,
 } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import {
-  asMounted,
   getProjectStore,
+  projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import {
   GITHUB_CONNECT_ACCOUNT_OPTION,
@@ -159,7 +159,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
   const inheritedWorktreeRoot =
     placement.layers.hostWorktreeRoot ?? placement.layers.builtInWorktreeRoot;
-  const projectPath = asMounted(getProjectStore(projectId))?.data.path ?? null;
+  const projectPath = projectData(getProjectStore(projectId))?.path ?? null;
   const effectiveWorktreeRoot = effective?.worktreeRoot.value ?? null;
   const effectiveTmux = resolveTmux({
     projectTmux: placementForm.tmux,

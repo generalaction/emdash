@@ -1,8 +1,9 @@
-import { cell, type RemoteModel } from '@emdash/wire/state';
+import { cell, flushStateTurn, type RemoteModel } from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { projectsWireContract } from '@core/features/projects/api';
+import type { ProjectAttachmentState, projectsWireContract } from '@core/features/projects/api';
 import { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
 import { contributeScopedStore, scopedStoreToken } from '@core/primitives/scoped-stores/browser';
+import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
 
 const mocks = vi.hoisted(() => ({
   mementoReportError: vi.fn(),
@@ -20,6 +21,22 @@ vi.mock('@core/primitives/mementos/browser', () => ({
 vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
   projectStoreContributions: mocks.projectStoreContributions,
 }));
+
+function availabilityModel(
+  state: HostAvailabilityState = { kind: 'ready', generation: 1 },
+  onRelease: () => void = () => {}
+): RemoteModel<typeof hostsContract.availability> {
+  const availability = cell(state);
+  const member = {
+    states: { state: availability },
+    mutations: {},
+  };
+  return Object.assign(() => member, {
+    retain: vi.fn(() => onRelease),
+    peekMember: vi.fn(() => member),
+    dispose: vi.fn(async () => {}),
+  }) as unknown as RemoteModel<typeof hostsContract.availability>;
+}
 
 describe('ProjectContext', () => {
   beforeEach(() => {
@@ -203,7 +220,7 @@ describe('ProjectContext', () => {
       updatedAt: '2026-08-13T00:00:00.000Z',
     });
     if (!result.success) throw new Error('Expected context hydration to succeed');
-    const attachment = cell({ kind: 'absent' as const });
+    const attachment = cell<ProjectAttachmentState>({ kind: 'absent' });
     const member = {
       states: { state: attachment },
       mutations: {},
@@ -214,13 +231,23 @@ describe('ProjectContext', () => {
       dispose: vi.fn(async () => {}),
     }) as unknown as RemoteModel<typeof projectsWireContract.attachments>;
 
-    result.data.trackAttachment(model);
-    expect(result.data.host.attachment).toBe(attachment);
+    result.data.trackHostAccess(
+      availabilityModel({ kind: 'ready', generation: 1 }, () =>
+        events.push('availability:release')
+      ),
+      model
+    );
+    expect(result.data.host.state).toEqual({ kind: 'attaching' });
     await result.data.dispose();
     await result.data.dispose();
 
-    expect(events).toEqual(['attachment:release', 'store:dispose', 'space:release']);
-    expect(result.data.host.attachment).toBeUndefined();
+    expect(events).toEqual([
+      'attachment:release',
+      'availability:release',
+      'store:dispose',
+      'space:release',
+    ]);
+    expect(result.data.host.state).toEqual({ kind: 'offline' });
     expect(model.retain).toHaveBeenCalledOnce();
     expect(releaseSpace).toHaveBeenCalledOnce();
   });
@@ -260,12 +287,70 @@ describe('ProjectContext', () => {
       }
     ) as unknown as RemoteModel<typeof projectsWireContract.attachments>;
 
-    result.data.trackAttachment(firstModel);
-    expect(() => result.data.trackAttachment(failedModel)).toThrow('binding failed');
+    result.data.trackHostAccess(availabilityModel(), firstModel);
+    expect(() => result.data.trackHostAccess(availabilityModel(), failedModel)).toThrow(
+      'binding failed'
+    );
     await result.data.dispose();
 
     expect(firstRelease).toHaveBeenCalledOnce();
     expect(failedRelease).toHaveBeenCalledOnce();
-    expect(result.data.host.attachment).toBeUndefined();
+    expect(result.data.host.state).toEqual({ kind: 'offline' });
+  });
+
+  it('derives live Host access without replacing the Project context', async () => {
+    mocks.mementoSubject.mockReturnValue({
+      ready: Promise.resolve(),
+      release: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await ProjectContext.hydrate({
+      type: 'local',
+      id: 'project-id',
+      name: 'Project',
+      path: '/project',
+      baseRef: 'main',
+      repositoryWorkspaceId: null,
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    });
+    if (!result.success) throw new Error('Expected context hydration to succeed');
+
+    const availability = cell<HostAvailabilityState>({
+      kind: 'unavailable',
+      recovery: 'eligible',
+    });
+    const availabilityMember = {
+      states: { state: availability },
+      mutations: {},
+    };
+    const availabilityModel = Object.assign(() => availabilityMember, {
+      retain: vi.fn(() => vi.fn()),
+      peekMember: vi.fn(() => availabilityMember),
+      dispose: vi.fn(async () => {}),
+    }) as unknown as RemoteModel<typeof hostsContract.availability>;
+    const attachment = cell<ProjectAttachmentState>({ kind: 'absent' });
+    const attachmentMember = {
+      states: { state: attachment },
+      mutations: {},
+    };
+    const attachmentModel = Object.assign(() => attachmentMember, {
+      retain: vi.fn(() => vi.fn()),
+      peekMember: vi.fn(() => attachmentMember),
+      dispose: vi.fn(async () => {}),
+    }) as unknown as RemoteModel<typeof projectsWireContract.attachments>;
+    const context = result.data;
+
+    context.trackHostAccess(availabilityModel, attachmentModel);
+    expect(context.host.state).toEqual({ kind: 'offline' });
+
+    availability.set({ kind: 'ready', generation: 2 });
+    attachment.set({ kind: 'attaching', hostGeneration: 2, attemptId: 'attempt-1' });
+    flushStateTurn();
+    expect(context.host.state).toEqual({ kind: 'attaching' });
+
+    attachment.set({ kind: 'attached', establishedHostGeneration: 2 });
+    flushStateTurn();
+    expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 2 });
+    expect(result.data).toBe(context);
   });
 });

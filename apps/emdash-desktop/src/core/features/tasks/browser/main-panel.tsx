@@ -2,6 +2,7 @@ import { Button, Resizable, toast, useCollapsiblePanelBinding } from '@emdash/ui
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
+import { ProjectAvailabilityBoundary } from '@core/features/projects/contributions/browser/project-availability-boundary';
 import {
   getTaskManagerStore,
   getTaskStore,
@@ -29,6 +30,16 @@ export function TaskViewLoadingState({ label }: { label?: string }) {
 }
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
+  const { projectId } = useTaskViewContext();
+
+  return (
+    <ProjectAvailabilityBoundary projectId={projectId}>
+      <TaskMainPanelContent />
+    </ProjectAvailabilityBoundary>
+  );
+});
+
+const TaskMainPanelContent = observer(function TaskMainPanelContent() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
@@ -52,8 +63,8 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     );
   }
 
-  if (kind === 'project-mounting') {
-    return <TaskViewLoadingState label="Opening project…" />;
+  if (kind === 'project-hydrating') {
+    return <TaskViewLoadingState label="Loading project…" />;
   }
 
   if (kind === 'provisioning' && taskStore) {

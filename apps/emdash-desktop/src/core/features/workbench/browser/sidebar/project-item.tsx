@@ -157,7 +157,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               aria-label={`Open project ${projectLabel}`}
               className={cn(
                 'truncate transition-colors select-none',
-                projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
+                projectViewKind(getProjectStore(projectId)) === 'hydrating' &&
                   'text-foreground-tertiary-passive'
               )}
             >
@@ -169,12 +169,12 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               ) : (
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate">{project.name}</span>
-                  {projectViewKind(project) === 'path_not_found' && (
+                  {projectViewKind(project) === 'context_error' && (
                     <Tooltip.Root>
                       <Tooltip.Trigger>
                         <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
                       </Tooltip.Trigger>
-                      <Tooltip.Content>Project not found at path</Tooltip.Content>
+                      <Tooltip.Content>Project context unavailable</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </span>

@@ -2,7 +2,7 @@ import { Button, DropdownMenu, Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
@@ -16,7 +16,7 @@ import { openExternal } from '@core/primitives/desktop-host/browser/host-client'
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 
-const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
+const AvailableProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,
 }: {
   projectId: string;
@@ -111,19 +111,21 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
     return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
   }
 
-  const mounted = asMounted(store);
-  if (!mounted) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
+  const context = asAvailableProject(store);
+  if (!context) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
 
   return (
     <Titlebar
-      leftSlot={<MountedProjectTitlebarLeft projectId={projectId} />}
+      leftSlot={<AvailableProjectTitlebarLeft projectId={projectId} />}
       rightSlot={
         <div className="mr-2 flex items-center gap-2">
           <OpenInMenu
-            path={mounted.data.path}
+            path={context.project.path}
             className="h-7 bg-background"
-            isRemote={mounted.data.type === 'ssh'}
-            sshConnectionId={mounted.data.type === 'ssh' ? mounted.data.connectionId : undefined}
+            isRemote={context.project.type === 'ssh'}
+            sshConnectionId={
+              context.project.type === 'ssh' ? context.project.connectionId : undefined
+            }
           />
         </div>
       }
