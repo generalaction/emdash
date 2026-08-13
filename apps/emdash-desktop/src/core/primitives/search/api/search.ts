@@ -1,7 +1,7 @@
-export type SearchItemKind = 'task' | 'project' | 'conversation' | 'command' | 'file';
+export type PaletteEntityKind = 'task' | 'project' | 'conversation';
 
 export interface SearchItem {
-  kind: SearchItemKind;
+  kind: PaletteEntityKind;
   id: string;
   projectId: string | null;
   taskId: string | null;
@@ -10,13 +10,15 @@ export interface SearchItem {
   score: number;
 }
 
-export interface CommandPaletteQuery {
+export interface PaletteEntitySearchQuery {
+  kind: PaletteEntityKind;
   query: string;
   context?: {
     projectId?: string;
     taskId?: string;
     workspaceId?: string;
   };
+  limit?: number;
 }
 
 export interface WorkspaceFileSearchQuery {

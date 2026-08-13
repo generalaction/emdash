@@ -9,13 +9,10 @@ describe('defineCommand', () => {
       id: 'app.settings',
       title: 'Open Settings',
       category: 'App',
-      keywords: ['preferences'],
     });
 
     expect(command.input.safeParse(undefined).success).toBe(true);
-    expect(command.keywords).toEqual(['preferences']);
     expect(Object.isFrozen(command)).toBe(true);
-    expect(Object.isFrozen(command.keywords)).toBe(true);
     expectTypeOf<CommandInput<typeof command>>().toEqualTypeOf<void>();
   });
 
