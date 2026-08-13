@@ -232,6 +232,23 @@ describe('SearchService palette entity search', () => {
       ]);
       await expect(
         service.searchEntities({
+          kind: 'project',
+          query: 't',
+          context: { projectId: 'project-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'project',
+          id: 'project-1',
+          projectId: null,
+          taskId: null,
+          title: 'Theme project',
+          subtitle: '/repo/theme',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
           kind: 'conversation',
           query: 't',
           context: { projectId: 'project-1', taskId: 'task-1' },
