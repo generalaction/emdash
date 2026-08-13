@@ -2,7 +2,6 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { Terminal } from 'lucide-react';
 import { computed, makeObservable, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import type { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { terminalRegistry } from '@core/features/terminals/api/browser/stores/terminal-registry';
 import type {
@@ -10,6 +9,7 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import type {
   ResolvedTab,
   TabBarItemProps,
@@ -141,7 +141,7 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
   const activeTerminal =
     activeTab?.kind === 'terminal' ? (activeTab.resource as TerminalTabResourceView) : null;
   const activeSession = activeTerminal?.session ?? null;
-  const disabledReason = getProjectLiveActionDisabledReason(taskCtx.projectId);
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(taskCtx.projectId);
   const allSessionIds = terminalTabs
     .map((tab) => tab.resource.session?.sessionId)
     .filter((id): id is string => Boolean(id));

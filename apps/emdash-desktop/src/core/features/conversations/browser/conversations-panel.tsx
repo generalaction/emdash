@@ -1,7 +1,6 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 // TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
@@ -18,6 +17,7 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
@@ -35,7 +35,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { pane } = usePaneContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
-  const disabledReason = getProjectLiveActionDisabledReason(projectId);
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 

@@ -17,6 +17,7 @@ import { TaskConfigPanel } from '@core/features/tasks/contributions/browser/task
 import { TaskStateProvider } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/contributions/browser/task-config/workspace-settings-section';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
@@ -107,9 +108,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const createAvailability = selectedProjectId
     ? taskHostActionAvailability(selectedProjectId)
-    : ({ kind: 'disabled', reason: 'Select a Project.' } as const);
-  const createDisabledReason =
-    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
+    : ({ kind: 'disabled' } as const);
+  const createDisabledReason = !selectedProjectId
+    ? 'Select a Project.'
+    : createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(selectedProjectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   return (
     <>

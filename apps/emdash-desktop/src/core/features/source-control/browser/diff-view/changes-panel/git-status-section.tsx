@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
 import {
   asAvailableProject,
   getProjectStore,
@@ -13,6 +12,7 @@ import { useGitActions } from '@core/features/source-control/api/browser/use-git
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
@@ -24,9 +24,9 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const isDetached = headKind === 'detached';
   const project = getProjectStore(projectId);
   const projectName = projectDisplayName(project) ?? 'repository';
-  const hostAccess = asAvailableProject(project)?.host;
-  const hostActionReason = hostAccess
-    ? projectHostActionUnavailableReason(hostAccess.state)
+  const context = asAvailableProject(project);
+  const hostActionReason = context
+    ? projectAvailabilityUi.getLiveActionDisabledReason(projectId)
     : 'Unavailable until access to this Project is restored.';
   const hostActionDisabled = hostActionReason !== null;
   const repositoryStore = getGitRepositoryStore(projectId);

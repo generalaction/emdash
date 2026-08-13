@@ -7,6 +7,7 @@ import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 
@@ -36,7 +37,11 @@ export const DeleteTaskModal = observer(function DeleteTaskModal({
 
   const taskIds = useMemo(() => tasks.map((t) => t.taskId), [tasks]);
   const hostAction = taskHostActionAvailability(projectId);
-  const hostActionDisabledReason = hostAction.kind === 'disabled' ? hostAction.reason : undefined;
+  const hostActionDisabledReason =
+    hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const { data: preflight = null } = useQuery({
     queryKey: ['deleteTaskPreflight', projectId, taskIds],

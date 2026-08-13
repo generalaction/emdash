@@ -5,12 +5,10 @@ import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { match } from 'ts-pattern';
-import type {
-  ProjectHostAccess,
-  ProjectHostObservation,
-} from '@core/features/projects/api/browser/stores/project-context';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
+import type { ProjectHostObservation } from '@core/features/projects/api/host-observation';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   formatFetchErrorDetail,

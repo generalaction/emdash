@@ -1,12 +1,12 @@
 import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
 import {
   asAvailableProject,
   getProjectSettingsStore,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
+import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import type {
@@ -26,7 +26,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
     (store?.durableDomains ? unavailableSettingsDomains(store.durableDomains) : null);
   const configMigrations = store?.configMigrations;
   const hostActionReason = context
-    ? (projectHostActionUnavailableReason(context.host.state) ??
+    ? (getProjectLiveActionDisabledReason(projectId) ??
       (hostDomains?.kind === 'unavailable'
         ? 'Host-backed settings are unavailable until they finish loading.'
         : null))

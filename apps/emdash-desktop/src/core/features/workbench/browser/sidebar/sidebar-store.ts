@@ -42,10 +42,6 @@ function isVisibleRegularTask(task: TaskStore): boolean {
   );
 }
 
-function projectStores(project: ProjectStore) {
-  return asAvailableProject(project);
-}
-
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
@@ -73,9 +69,9 @@ export class SidebarStore {
       () => {
         const counts: [string, number][] = [];
         for (const [id, project] of this.projectManager.projects) {
-          const stores = projectStores(project);
-          if (stores) {
-            counts.push([id, stores.get(taskManagerStoreToken).tasks.size]);
+          const context = asAvailableProject(project);
+          if (context) {
+            counts.push([id, context.get(taskManagerStoreToken).tasks.size]);
           }
         }
         return counts;
@@ -133,9 +129,9 @@ export class SidebarStore {
     for (const project of this.orderedProjects) {
       const projectId = project.id;
       rows.push({ kind: 'project', projectId });
-      const stores = projectStores(project);
-      if (this.expandedProjectIds.has(projectId) && stores) {
-        const tasks = Array.from(stores.get(taskManagerStoreToken).tasks.values()).filter(
+      const context = asAvailableProject(project);
+      if (this.expandedProjectIds.has(projectId) && context) {
+        const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
           isVisibleRegularTask
         );
         const manualOrder = this.taskOrderByProject[projectId];
@@ -162,10 +158,10 @@ export class SidebarStore {
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];
     for (const project of this.projectManager.projects.values()) {
-      const stores = projectStores(project);
-      if (!stores) continue;
+      const context = asAvailableProject(project);
+      if (!context) continue;
       const projectId = project.id;
-      for (const task of stores.get(taskManagerStoreToken).tasks.values()) {
+      for (const task of context.get(taskManagerStoreToken).tasks.values()) {
         if (!isVisibleRegularTask(task) || !task.data.isPinned) continue;
         pairs.push({ projectId, task });
       }
@@ -182,9 +178,9 @@ export class SidebarStore {
   visibleTaskIdsForProject(projectId: string): string[] {
     const project = this.projectManager.projects.get(projectId);
     if (!project) return [];
-    const stores = projectStores(project);
-    if (!stores) return [];
-    const tasks = Array.from(stores.get(taskManagerStoreToken).tasks.values()).filter(
+    const context = asAvailableProject(project);
+    if (!context) return [];
+    const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
       (task) => isVisibleRegularTask(task) && !task.data.isPinned
     );
     const manualOrder = this.taskOrderByProject[projectId];

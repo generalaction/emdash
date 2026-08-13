@@ -92,10 +92,7 @@ describe('taskViewKind Project context routing', () => {
       })
     );
 
-    expect(taskHostActionAvailability('project-id')).toEqual({
-      kind: 'disabled',
-      reason: 'This action requires live Project access.',
-    });
+    expect(taskHostActionAvailability('project-id')).toEqual({ kind: 'disabled' });
   });
 
   it('enables Host-backed Task actions when effective attachment is ready', () => {

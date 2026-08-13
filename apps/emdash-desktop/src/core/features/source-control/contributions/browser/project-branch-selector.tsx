@@ -1,7 +1,6 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
-import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
 import {
   asAvailableProject,
   getProjectStore,
@@ -11,6 +10,7 @@ import {
   BranchSelector,
   type BranchLabelRemoteMode,
 } from '@core/features/source-control/browser/components/branch-selector';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 
 export interface ProjectBranchSelectorProps {
   projectId: string;
@@ -34,9 +34,9 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   showRemoteSelectorFooter = false,
 }: ProjectBranchSelectorProps) {
   const repo = getGitRepositoryStore(projectId);
-  const host = asAvailableProject(getProjectStore(projectId))?.host;
-  const refreshDisabledReason = host
-    ? projectHostActionUnavailableReason(host.state)
+  const context = asAvailableProject(getProjectStore(projectId));
+  const refreshDisabledReason = context
+    ? projectAvailabilityUi.getLiveActionDisabledReason(projectId)
     : 'Unavailable until access to this Project is restored.';
   // The effective base remote from the resolver; undefined at zero remotes,
   // which simply hides the remote-selector footer (no remote branches exist).

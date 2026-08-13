@@ -1,11 +1,14 @@
 import { isRuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-resolution/api';
 import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
-import type { ProjectHostAccessState } from './stores/project-context';
+import {
+  projectAttachmentIssueRecovery,
+  type ProjectIssueRecovery,
+} from '@core/features/projects/api/browser/project-attachment-recovery';
+import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 
-export const PROJECT_HOST_ACTION_DISABLED_REASON = 'This action requires live Project access.';
-
-export type ProjectIssueRecovery = 'automatic' | 'manual' | 'blocked' | 'dispose-context';
+export const DEFAULT_PROJECT_LIVE_ACTION_DISABLED_REASON =
+  'This action requires live Project access.';
 
 export type ProjectAvailabilitySemantic =
   | RuntimeUnavailableReason
@@ -28,85 +31,16 @@ export type ProjectAttachmentIssueClassification = {
 export function classifyProjectAttachmentIssue(
   issue: ProjectAttachmentError
 ): ProjectAttachmentIssueClassification {
-  if (isRuntimeResolveError(issue)) {
-    if (issue.type === 'not-configured') {
-      return {
-        semantic: issue.type,
-        recovery: 'blocked',
-        correctiveActions: ['configure'],
-      };
-    }
-    if (issue.type === 'host-identity-lost') {
-      return {
-        semantic: issue.type,
-        recovery: 'blocked',
-        correctiveActions: ['relink-project', 'remove-project'],
-      };
-    }
-    switch (issue.reason) {
-      case 'offline':
-      case 'connection-failed':
-      case 'daemon-start-failed':
-      case 'runtime-unavailable':
-        return {
-          semantic: issue.reason,
-          recovery: 'automatic',
-          correctiveActions: ['retry', 'diagnostics'],
-        };
-      case 'artifact-download-failed':
-      case 'install-failed':
-        return {
-          semantic: issue.reason,
-          recovery: 'manual',
-          correctiveActions: ['retry', 'diagnostics'],
-        };
-      case 'unsupported-platform':
-        return {
-          semantic: issue.reason,
-          recovery: 'blocked',
-          correctiveActions: ['diagnostics'],
-        };
-      case 'protocol-upgrade-client':
-        return {
-          semantic: issue.reason,
-          recovery: 'blocked',
-          correctiveActions: ['update-client'],
-        };
-      case 'protocol-upgrade-server':
-        return {
-          semantic: issue.reason,
-          recovery: 'blocked',
-          correctiveActions: ['diagnostics', 'retry'],
-        };
-    }
-  }
-  switch (issue.type) {
-    case 'attachment-unavailable':
-      return {
-        semantic: issue.type,
-        recovery: 'automatic',
-        correctiveActions: [],
-      };
-    case 'repository-missing':
-      return {
-        semantic: issue.type,
-        recovery: 'manual',
-        correctiveActions: ['retry'],
-      };
-    case 'repository-unavailable':
-    case 'unexpected':
-      return {
-        semantic: issue.type,
-        recovery: 'manual',
-        correctiveActions: ['retry', 'diagnostics'],
-      };
-    case 'project-missing':
-      return {
-        semantic: issue.type,
-        recovery: 'dispose-context',
-        correctiveActions: [],
-      };
-  }
+  const semantic = isRuntimeResolveError(issue)
+    ? issue.type === 'host-unavailable'
+      ? issue.reason
+      : issue.type
+    : issue.type;
+  return {
+    semantic,
+    recovery: projectAttachmentIssueRecovery(issue),
+    correctiveActions: correctiveActionsFor(semantic),
+  };
 }
 
 export type ProjectAvailabilityAction = {
@@ -239,6 +173,35 @@ export function projectLiveActionDisabledReason({
   return presentation
     ? `Live actions are unavailable. ${presentation.title}.`
     : 'Live actions are unavailable for this Project.';
+}
+
+function correctiveActionsFor(semantic: ProjectAvailabilitySemantic): ProjectCorrectiveAction[] {
+  switch (semantic) {
+    case 'offline':
+    case 'connection-failed':
+    case 'daemon-start-failed':
+    case 'runtime-unavailable':
+    case 'artifact-download-failed':
+    case 'install-failed':
+    case 'repository-unavailable':
+    case 'unexpected':
+      return ['retry', 'diagnostics'];
+    case 'unsupported-platform':
+      return ['diagnostics'];
+    case 'protocol-upgrade-client':
+      return ['update-client'];
+    case 'protocol-upgrade-server':
+      return ['diagnostics', 'retry'];
+    case 'not-configured':
+      return ['configure'];
+    case 'host-identity-lost':
+      return ['relink-project', 'remove-project'];
+    case 'attachment-unavailable':
+    case 'project-missing':
+      return [];
+    case 'repository-missing':
+      return ['retry'];
+  }
 }
 
 function offlinePresentation(

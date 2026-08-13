@@ -14,6 +14,7 @@ import {
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
@@ -65,7 +66,10 @@ export const TaskRow = observer(function TaskRow({
   const canPin = task.state !== 'unregistered';
   const hostAction = taskHostActionAvailability(task.data.projectId);
   const archiveDisabledReason =
-    task.state === 'provisioned' && hostAction.kind === 'disabled' ? hostAction.reason : undefined;
+    task.state === 'provisioned' && hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(task.data.projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
   const branchName =

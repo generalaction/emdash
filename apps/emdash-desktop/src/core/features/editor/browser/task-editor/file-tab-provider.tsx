@@ -6,10 +6,10 @@ import { openFileStore } from '@core/features/editor/api/browser/open-file-store
 import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   hostFileRefFromNativePath,
   hostPathFromNative,
@@ -51,7 +51,9 @@ const FileTabContent = observer(function FileTabContent({ host, ctx }: TabConten
 /** Renders the Monaco source and/or preview for the currently active file tab. */
 const FileContent = observer(function FileContent({ host, ctx }: TabContentProps) {
   const taskCtx = ctx as TaskTabContext;
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskCtx.projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
+    taskCtx.projectId
+  );
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile = activeTab?.kind === 'file' ? (activeTab.resource as FileTabResource) : null;
 
@@ -154,7 +156,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     ): Promise<boolean> {
       const fileEntry = resource.entry;
       if (!fileEntry?.dirty) return true;
-      const liveActionDisabledReason = getProjectLiveActionDisabledReason(
+      const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
         (ctx as TaskTabContext).projectId
       );
       if (liveActionDisabledReason) {

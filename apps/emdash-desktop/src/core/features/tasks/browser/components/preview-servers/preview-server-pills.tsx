@@ -1,10 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import {
   usePreviewServers,
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ManualForwardButton } from './manual-forward-button';
 import { PreviewServerPill } from './preview-server-pill';
 
@@ -14,7 +14,9 @@ export const PreviewServerPills = observer(function PreviewServerPills() {
   const workspace = useWorkspace();
   const isRemoteWorkspace = Boolean(workspace.sshConnectionId);
   const servers = previews.servers;
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
+    taskView.projectId
+  );
 
   if (previews.observation.kind === 'unavailable') {
     return (

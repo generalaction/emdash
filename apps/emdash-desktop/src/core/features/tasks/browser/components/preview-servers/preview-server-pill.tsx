@@ -9,11 +9,11 @@ import {
   Square,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import {
   usePreviewServers,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   copyTextToClipboard,
   openExternal,
@@ -34,7 +34,9 @@ export const PreviewServerPill = observer(function PreviewServerPill({
 }) {
   const previews = usePreviewServers();
   const taskView = useTaskComposition();
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
+    taskView.projectId
+  );
   const url = previewServerUrl(server);
   const hasUrl = url !== null;
   // 'not-listening' is advisory: the tunnel is open, so opening the URL is a

@@ -3,10 +3,6 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
-import {
-  getProjectLiveActionDisabledReason,
-  ProjectLiveActionGuard,
-} from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
@@ -25,6 +21,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 
@@ -39,7 +36,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
   const liveActionsDisabled = terminalMgr.hostAccess?.liveAction.kind === 'disabled';
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
   const [mode, setMode] = useState<TerminalDrawerMode>(() =>
     taskView.terminalDrawerActiveItem?.kind === 'script' ? 'scripts' : 'terminals'
@@ -193,7 +190,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       }
       action={
         activeTerminalIsOpenInMain ? undefined : (
-          <ProjectLiveActionGuard projectId={projectId}>
+          <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
             <Button
               disabled={liveActionsDisabled}
               size="sm"
@@ -204,7 +201,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
               New terminal
               <BoundShortcut command="task.newTerminal" variant="keycaps" />
             </Button>
-          </ProjectLiveActionGuard>
+          </projectAvailabilityUi.LiveActionGuard>
         )
       }
     />

@@ -29,10 +29,6 @@ import { ConversationAgentIcon } from '@core/features/conversations/browser/conv
 import { ConversationSelectionControl } from '@core/features/conversations/browser/conversation-selection-control';
 import { conversationTabKind } from '@core/features/conversations/browser/conversation-tab-kind';
 import { deleteConversationBatch } from '@core/features/conversations/browser/delete-conversation-batch';
-import {
-  getProjectLiveActionDisabledReason,
-  ProjectLiveActionGuard,
-} from '@core/features/projects/contributions/browser/project-live-action-guard';
 // TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
@@ -42,6 +38,7 @@ import {
 // TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
 import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -92,7 +89,7 @@ const ConversationRow = observer(function ConversationRow({
   const committedRef = useRef(false);
   const conversations = useConversations();
   const { projectId, taskId } = useTaskViewContext();
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const { paneLayout } = useTaskComposition();
   const openConfirm = useOpenModal('confirmActionModal');
   const selection = view.useSelection();
@@ -395,7 +392,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
   conversations: ConversationManagerStore;
 }) {
   const { projectId, taskId } = useTaskViewContext();
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
   const openCreateConversationModal = useOpenModal('createConversationModal');
@@ -509,7 +506,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
     <div ref={listRootRef} className="relative flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel className="font-medium">Conversations</MicroLabel>
-        <ProjectLiveActionGuard projectId={projectId}>
+        <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
           <Button
             size="sm"
             icon
@@ -519,7 +516,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
           >
             <Plus className="size-3.5" />
           </Button>
-        </ProjectLiveActionGuard>
+        </projectAvailabilityUi.LiveActionGuard>
       </div>
       <ListView.Body>
         <view.List

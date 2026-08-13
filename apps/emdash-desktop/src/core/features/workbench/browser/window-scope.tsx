@@ -11,6 +11,7 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { applyHistoryEntry } from '@core/features/workbench/browser/nav-buttons';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import {
@@ -48,8 +49,15 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       },
     }),
     'app.newTask': () => ({
-      availability: () =>
-        currentProjectId ? taskHostActionAvailability(currentProjectId) : hidden,
+      availability: () => {
+        if (!currentProjectId) return hidden;
+        return taskHostActionAvailability(currentProjectId).kind === 'enabled'
+          ? enabled
+          : disabled(
+              projectAvailabilityUi.getLiveActionDisabledReason(currentProjectId) ??
+                projectAvailabilityUi.defaultLiveActionDisabledReason
+            );
+      },
       execute: (input) => {
         const projectId = input?.projectId ?? currentProjectId;
         if (projectId && taskHostActionAvailability(projectId).kind === 'enabled') {

@@ -6,7 +6,6 @@ import {
   FolderOpen,
   Loader2,
   Plus,
-  RotateCcw,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
@@ -29,6 +28,7 @@ import { taskHostActionAvailability } from '@core/features/tasks/api/browser/tas
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
   useNavigate,
@@ -90,20 +90,24 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
   const hostAccess = getProjectHostAccess(projectId);
+  const hostAccessState = hostAccess?.state;
   const displayedSshConnectionState =
-    hostAccess?.state.kind === 'ready'
-      ? 'connected'
-      : hostAccess?.state.kind === 'degraded' &&
-          ['connecting', 'provisioning', 'handshaking', 'attaching', 'recovering'].includes(
-            hostAccess.state.situation
-          )
+    !hostAccessState || hostAccessState.kind !== 'ready'
+      ? hostAccessState &&
+        ['connecting', 'provisioning', 'handshaking', 'attaching', 'recovering'].includes(
+          hostAccessState.situation
+        )
         ? 'connecting'
-        : 'disconnected';
+        : 'disconnected'
+      : 'connected';
   const ProjectIcon = isSshProject ? FolderInput : isExpanded ? FolderOpen : FolderClosed;
   const projectLabel = project.name ?? 'project';
   const createAvailability = taskHostActionAvailability(projectId);
   const createDisabledReason =
-    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
+    createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
   const navigateToProject = () => navigate(projectViewDef({ projectId }));
 
   const renderSpinnerWithTooltip = () => {
@@ -221,18 +225,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </SidebarMenuRow>
       </ContextMenu.Trigger>
       <ContextMenu.Content>
-        {sshConnectionId && hostAccess?.state.kind === 'degraded' && (
-          <>
-            <ContextMenu.Item
-              disabled={hostAccess.state.recovery === 'blocked'}
-              onClick={() => void hostAccess.recover()}
-            >
-              <RotateCcw className="size-4" />
-              Reconnect
-            </ContextMenu.Item>
-            <ContextMenu.Separator />
-          </>
-        )}
         <ContextMenu.Item
           variant="destructive"
           onClick={() => {

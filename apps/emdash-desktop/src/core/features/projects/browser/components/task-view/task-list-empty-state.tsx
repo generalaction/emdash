@@ -6,6 +6,7 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { useArrowKeyNavigation } from '@core/primitives/react-hooks/browser/use-arrow-key-navigation';
@@ -39,7 +40,10 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   const hasAnyIntegration = supportsGhesIssues || hasAnyIssueIntegration;
   const createAvailability = taskHostActionAvailability(projectId);
   const createDisabledReason =
-    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
+    createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const actions: TaskAction[] = [
     {

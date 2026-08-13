@@ -16,6 +16,7 @@ import {
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
@@ -120,7 +121,10 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
     (taskId) => taskManager.tasks.get(taskId)?.state === 'provisioned'
   );
   const archiveDisabledReason =
-    selectedArchiveNeedsHost && hostAction.kind === 'disabled' ? hostAction.reason : undefined;
+    selectedArchiveNeedsHost && hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const bulkApply = (apply: (id: string) => void) => {
     [...taskView.selectedIds].forEach(apply);
@@ -185,7 +189,10 @@ const TaskListContent = observer(function TaskListContent({
   const openCreateTaskModal = useOpenModal('taskModal');
   const createAvailability = taskHostActionAvailability(projectId);
   const createDisabledReason =
-    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
+    createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const [view] = useState(() =>
     createTaskListView({

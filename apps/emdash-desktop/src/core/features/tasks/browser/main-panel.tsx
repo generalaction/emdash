@@ -2,7 +2,6 @@ import { Button, Resizable, toast, useCollapsiblePanelBinding } from '@emdash/ui
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
-import { ProjectAvailabilityBoundary } from '@core/features/projects/contributions/browser/project-availability-boundary';
 import {
   getTaskManagerStore,
   getTaskStore,
@@ -16,6 +15,7 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
@@ -34,9 +34,9 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId } = useTaskViewContext();
 
   return (
-    <ProjectAvailabilityBoundary projectId={projectId}>
+    <projectAvailabilityUi.Boundary projectId={projectId}>
       <TaskMainPanelContent />
-    </ProjectAvailabilityBoundary>
+    </projectAvailabilityUi.Boundary>
   );
 });
 
@@ -45,7 +45,11 @@ const TaskMainPanelContent = observer(function TaskMainPanelContent() {
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
   const hostAction = taskHostActionAvailability(projectId);
-  const hostActionDisabledReason = hostAction.kind === 'disabled' ? hostAction.reason : undefined;
+  const hostActionDisabledReason =
+    hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
   const workspaceId =
     taskStore && 'workspaceId' in taskStore.data ? taskStore.data.workspaceId : undefined;
 
@@ -254,7 +258,11 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
     void getTaskManagerStore(projectId)?.provisionTask(taskId);
   };
   const action = taskHostActionAvailability(projectId);
-  const retryDisabledReason = action.kind === 'disabled' ? action.reason : undefined;
+  const retryDisabledReason =
+    action.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   if (!showLoader) {
     return null;
