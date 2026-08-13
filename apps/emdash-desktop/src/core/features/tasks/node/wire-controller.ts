@@ -8,16 +8,16 @@ import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspaceRemovalBroker } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
-  createWorkspaceRegistry,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import type { TaskListData, TaskListRow, TaskStatsData } from '@core/primitives/tasks/api';
+import type { TaskStatsData } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes, matchProject } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 import { createTaskOperations } from './controller';
+import type { TaskListOperations } from './task-list-service';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type TasksWireImpl = ContractImpl<ContractDefinitionsOf<typeof tasksWireContract>>;
@@ -31,35 +31,15 @@ export function createTasksWireController(options: {
   db: AppDb;
   runtimes: WorkspaceRemovalBroker;
   service: TaskService;
-  taskSessions: Pick<TaskSessionManager, 'getPersistData' | 'getTask'>;
+  taskList: TaskListOperations;
+  taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
 }): TasksWireController {
   const taskOperations = createTaskOperations(options);
-  const workspaceRegistry = createWorkspaceRegistry(options.db);
   const taskListFamily = family(
     ({ projectId }: { projectId: string }, scope) =>
-      query<TaskListData>({
-        fetch: async () => ({
-          tasks: (await taskOperations.getTasks(projectId)).map((task) => {
-            const row = toTaskRow(task);
-            if (!options.taskSessions.getTask(task.id)) return row;
-            const workspaceId =
-              options.taskSessions.getPersistData(task.id)?.workspaceId ?? task.workspaceId;
-            if (!workspaceId) return row;
-            const workspace = workspaceRegistry.getLive(workspaceId);
-            if (!workspace?.path) return row;
-            return {
-              ...row,
-              activeWorkspace: {
-                workspaceId,
-                path: workspace.path,
-                ...(workspace.sshConnectionId
-                  ? { sshConnectionId: workspace.sshConnectionId }
-                  : {}),
-              },
-            };
-          }),
-        }),
+      query({
+        fetch: () => options.taskList.load(projectId),
         pokes: [
           appDbPokes.tasks.subscription(matchProject(projectId)),
           appDbPokes.conversations.subscription(matchProject(projectId)),
@@ -197,11 +177,6 @@ export function createTasksWireController(options: {
       await taskStatsFamily.dispose();
     },
   };
-}
-
-function toTaskRow(task: Awaited<ReturnType<TaskService['getTasks']>>[number]): TaskListRow {
-  const { prs: _prs, workspaceGit: _workspaceGit, ...row } = task;
-  return row;
 }
 
 async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsData> {

@@ -1,21 +1,17 @@
-import { err, type Result } from '@emdash/shared';
+import type { Result } from '@emdash/shared';
 import { type Contract, type ContractImpl } from '@emdash/wire/rpc';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type {
   workspacesWireContract,
   WorkspaceError,
   WorkspaceProvisionResult,
   WorkspaceSliceError,
 } from '@core/features/workspaces/api';
-import {
-  archiveWorkspaceThroughRegistry,
-  deleteWorkspaceThroughRegistry,
-  type WorkspaceRemovalBroker,
-} from '@core/features/workspaces/api/node/operations/workspace-removal';
+import { LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import type { WorkspaceMutationOperations } from './workspace-mutation-service';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
@@ -27,8 +23,7 @@ export type WorkspacesWireTaskProvisioner = (
 
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
-  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
-  runtimes: WorkspaceRemovalBroker;
+  mutations: WorkspaceMutationOperations;
   provisionTask: WorkspacesWireTaskProvisioner;
   reprovisionWorkspace(
     workspaceId: string,
@@ -53,36 +48,11 @@ export function createWorkspacesWireController(
       reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
-      delete: async (input) => {
-        const [task] = await options.db
-          .select({ projectId: tasks.projectId })
-          .from(tasks)
-          .where(and(eq(tasks.workspaceId, input.workspaceId), isNull(tasks.deletedAt)))
-          .limit(1);
-        if (!task) {
-          return err({
-            type: 'project-missing',
-            message: 'The Project for this workspace was not found.',
-          });
-        }
-        const attached = options.projects.requireAttached(task.projectId);
-        if (!attached.success) return err(attachmentMutationError(attached.error.type));
-        return deleteWorkspaceThroughRegistry(options.db, options.runtimes, input.workspaceId);
-      },
-      archive: (input) => {
-        const attached = options.projects.requireAttached(input.projectId);
-        if (!attached.success) return err(attachmentMutationError(attached.error.type));
-        return archiveWorkspaceThroughRegistry(options.db, options.runtimes, input);
-      },
+      delete: (input) => options.mutations.delete(input),
+      archive: (input) => options.mutations.archive(input),
     },
     async dispose() {},
   };
-}
-
-function attachmentMutationError(type: string): WorkspaceError {
-  return type === 'project-missing'
-    ? workspaceError('project-missing', 'Project was not found.')
-    : workspaceError('project-unavailable', 'This action requires live Project access.');
 }
 
 async function runProvisionJob(
@@ -151,7 +121,7 @@ export function provisionWorkspaceErrorToWorkspaceError(error: unknown): Workspa
       'project-unavailable',
       typeof unavailable.message === 'string'
         ? unavailable.message
-        : 'This action requires live Project access.'
+        : LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE
     );
   }
   if (type === 'cancelled') {

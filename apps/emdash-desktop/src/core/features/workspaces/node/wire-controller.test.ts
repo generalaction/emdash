@@ -9,8 +9,9 @@ vi.mock('@core/services/app-db/node/schema', () => ({
 }));
 
 describe('createWorkspacesWireController', () => {
-  const attachedProjects = {
-    requireAttached: vi.fn(() => ({ success: true as const, data: {} as never })),
+  const mutations = {
+    archive: vi.fn(),
+    delete: vi.fn(),
   };
 
   it('activates a task through the provision job', async () => {
@@ -22,8 +23,7 @@ describe('createWorkspacesWireController', () => {
     );
     const controller = createWorkspacesWireController({
       db: {} as never,
-      projects: attachedProjects,
-      runtimes: {} as never,
+      mutations,
       provisionTask,
       reprovisionWorkspace: vi.fn(),
     });
@@ -55,8 +55,7 @@ describe('createWorkspacesWireController', () => {
     const reprovisionWorkspace = vi.fn(async () => ok({}));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      projects: attachedProjects,
-      runtimes: {} as never,
+      mutations,
       provisionTask: vi.fn(),
       reprovisionWorkspace: reprovisionWorkspace as never,
     });
@@ -70,21 +69,17 @@ describe('createWorkspacesWireController', () => {
     await controller.dispose();
   });
 
-  it('refuses Host-backed mutations when Project attachment is unavailable', async () => {
-    const runtimeClient = vi.fn();
+  it('delegates Host-backed mutations to the mutation service', async () => {
+    const archive = vi.fn(async () => ({
+      success: false as const,
+      error: {
+        type: 'project-unavailable',
+        message: 'This action requires live Project access.',
+      },
+    }));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      projects: {
-        requireAttached: () => ({
-          success: false,
-          error: {
-            type: 'attachment-unavailable',
-            host: {} as never,
-            phase: 'waiting',
-          },
-        }),
-      },
-      runtimes: { client: runtimeClient } as never,
+      mutations: { archive, delete: vi.fn() },
       provisionTask: vi.fn(),
       reprovisionWorkspace: vi.fn(),
     });
@@ -104,7 +99,11 @@ describe('createWorkspacesWireController', () => {
         message: 'This action requires live Project access.',
       },
     });
-    expect(runtimeClient).not.toHaveBeenCalled();
+    expect(archive).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/worktree',
+    });
     await controller.dispose();
   });
 });
