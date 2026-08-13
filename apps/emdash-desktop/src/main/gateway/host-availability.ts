@@ -12,6 +12,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
+import type { ConnectionState } from '@core/primitives/ssh/api';
 import {
   createHostAvailability,
   type HostAvailabilityService,
@@ -23,6 +24,7 @@ import { translateHostPreparationError } from '@core/services/hosts/node/runtime
 export type CreateDesktopHostAvailabilityOptions = {
   scope: Scope;
   hosts: HostService;
+  connectSsh(connectionId: string): Promise<ConnectionState>;
   localReady(): Promise<void>;
 };
 
@@ -64,6 +66,13 @@ async function prepareDesktopHost(
 
   let phase: 'connecting' | 'provisioning' | 'handshaking' = 'connecting';
   try {
+    if (context.cause === 'connect' || context.cause === 'retry') {
+      const connectionState = await waitWithSignal(
+        options.connectSsh(connectionId),
+        context.signal
+      );
+      if (connectionState !== 'connected') throw new Error('Host connection is not available');
+    }
     await options.hosts.client(connectionId, {
       signal: context.signal,
       onPhase(nextPhase) {

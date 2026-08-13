@@ -25,6 +25,7 @@ export async function bootRuntimes(
     const hostAvailability = createDesktopHostAvailability({
       scope,
       hosts: infrastructure.hosts,
+      connectSsh: (connectionId) => infrastructure.ssh.ssh.connect(connectionId),
       localReady: () => runtimeWorkers.runtimeReady(),
     });
     const broker = createDesktopRuntimeBroker(runtimeWorkers.clients, infrastructure.hosts);

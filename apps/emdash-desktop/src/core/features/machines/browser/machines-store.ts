@@ -1,3 +1,4 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
@@ -15,6 +16,7 @@ import type {
   SshHealthState,
 } from '@core/primitives/ssh/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
+import { getHostsClient, type HostsClient } from '@core/services/hosts/api/client';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { getSshClient as getSshDomainClient, type SshClient } from '@core/services/ssh/api/client';
 import { machinesContract } from '../api';
@@ -28,9 +30,9 @@ type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
 export type SystemDependenciesStore = Pick<MachinesStore, 'installSystemDependencies'>;
 
 export type MachinesStoreOptions = {
-  onConnectionReady?: (connectionId: string) => void;
   sshClient?: SshClient;
   machinesClient?: MachinesClient;
+  hostsClient?: Pick<HostsClient, 'disconnect' | 'requestReady'>;
 };
 
 export class MachinesStore {
@@ -43,15 +45,16 @@ export class MachinesStore {
   private modelScope: Scope | undefined;
   private startPromise: Promise<void> | undefined;
   private sshClientPromise: Promise<SshClient> | undefined;
+  private hostsClientPromise: Promise<Pick<HostsClient, 'disconnect' | 'requestReady'>> | undefined;
   private machinesClientPromise: Promise<MachinesClient> | undefined;
   private readonly sshClientOverride?: SshClient;
   private readonly machinesClientOverride?: MachinesClient;
-  private readonly onConnectionReady?: (connectionId: string) => void;
+  private readonly hostsClientOverride?: Pick<HostsClient, 'disconnect' | 'requestReady'>;
 
-  constructor({ onConnectionReady, sshClient, machinesClient }: MachinesStoreOptions = {}) {
-    this.onConnectionReady = onConnectionReady;
+  constructor({ sshClient, machinesClient, hostsClient }: MachinesStoreOptions = {}) {
     this.sshClientOverride = sshClient;
     this.machinesClientOverride = machinesClient;
+    this.hostsClientOverride = hostsClient;
     this.connectionsResource = new Resource<SshConfig[]>(
       async () => (await this.getMachinesClient()).getMachines(undefined),
       []
@@ -123,37 +126,33 @@ export class MachinesStore {
     return this.runtime[connectionId]?.health ?? { status: 'ok' };
   }
 
-  async connect(connectionId: string, options: { force?: boolean } = {}): Promise<void> {
+  async connect(connectionId: string): Promise<void> {
     await this.ensureConnectionsModel();
-    const state = this.stateFor(connectionId);
-    if (
-      state === 'connected' ||
-      state === 'connecting' ||
-      (!options.force && state === 'reconnecting')
-    ) {
-      return;
-    }
-
-    await (await this.getSshClient()).connect({ connectionId });
+    await (
+      await this.getHostsClient()
+    ).requestReady({
+      host: hostRef('remote', connectionId),
+      cause: 'connect',
+    });
   }
 
-  async ensureConnected(connectionId: string, options: { force?: boolean } = {}): Promise<void> {
+  async retry(connectionId: string): Promise<void> {
     await this.ensureConnectionsModel();
-    const state = this.stateFor(connectionId);
-    if (
-      state === 'connected' ||
-      state === 'connecting' ||
-      (!options.force && state === 'reconnecting')
-    ) {
-      return;
-    }
-
-    await (await this.getSshClient()).ensureConnected({ connectionId });
+    await (
+      await this.getHostsClient()
+    ).requestReady({
+      host: hostRef('remote', connectionId),
+      cause: 'retry',
+    });
   }
 
   async disconnect(connectionId: string): Promise<void> {
     await this.ensureConnectionsModel();
-    await (await this.getSshClient()).disconnect({ connectionId });
+    await (
+      await this.getHostsClient()
+    ).disconnect({
+      host: { type: 'remote', id: connectionId },
+    });
   }
 
   async saveConnection(config: SaveConnectionInput): Promise<SshConfig> {
@@ -229,6 +228,13 @@ export class MachinesStore {
     return this.machinesClientPromise;
   }
 
+  private getHostsClient(): Promise<Pick<HostsClient, 'disconnect' | 'requestReady'>> {
+    this.hostsClientPromise ??= this.hostsClientOverride
+      ? Promise.resolve(this.hostsClientOverride)
+      : getHostsClient();
+    return this.hostsClientPromise;
+  }
+
   private async initializeConnectionsModel(): Promise<void> {
     const client = await this.getSshClient();
     if (!this.started) return;
@@ -243,19 +249,10 @@ export class MachinesStore {
     observe(
       model.states.runtime,
       (snapshot) => {
-        const previousRuntime = this.runtimeData;
         const runtime = snapshot.value ?? {};
         runInAction(() => {
           this.runtimeData = runtime;
           if (snapshot.status !== 'loading') this.modelReady = true;
-          for (const [connectionId, value] of Object.entries(runtime)) {
-            if (
-              value.state === 'connected' &&
-              previousRuntime[connectionId]?.state !== 'connected'
-            ) {
-              this.onConnectionReady?.(connectionId);
-            }
-          }
         });
       },
       { scope }

@@ -18,6 +18,12 @@ describe('deriveProjectHostAccessState', () => {
       { kind: 'absent' },
       { kind: 'offline' },
     ],
+    [
+      'suspended Host with a retained attachment',
+      { kind: 'suspended', reason: 'user-disconnected' },
+      { kind: 'attached', establishedHostGeneration: 1 },
+      { kind: 'offline' },
+    ],
     ['availability still loading', undefined, undefined, { kind: 'offline' }],
     [
       'connecting Host',

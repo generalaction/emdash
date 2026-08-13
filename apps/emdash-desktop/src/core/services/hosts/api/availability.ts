@@ -38,12 +38,14 @@ export type HostAvailabilityState = z.output<typeof hostAvailabilityStateSchema>
 export type HostReady = z.output<typeof hostReadySchema>;
 export type HostPreparingPhase = Extract<HostAvailabilityState, { kind: 'preparing' }>['phase'];
 export type RecoveryCause = 'demand' | 'connect' | 'retry' | 'ssh-edge' | 'online' | 'focus';
+export type ExplicitRecoveryCause = Extract<RecoveryCause, 'connect' | 'retry'>;
 
 export interface HostAvailability {
   state(host: HostRef): Readable<HostAvailabilityState>;
   stateFor(host: HostRef): HostAvailabilityState;
   requireReady(host: HostRef): Result<HostReady, RuntimeResolveError>;
   ensureReady(host: HostRef, cause: RecoveryCause): Promise<Result<HostReady, RuntimeResolveError>>;
+  requestReady(host: HostRef, cause: ExplicitRecoveryCause): void;
   invalidate(host: HostRef, issue?: RuntimeResolveError): void;
   suspend(host: HostRef): void;
 }

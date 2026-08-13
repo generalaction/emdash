@@ -10,7 +10,6 @@ import {
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { getGithubClient } from '@core/features/github/api/browser/client';
-import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import {
@@ -78,20 +77,10 @@ export class ProjectManagerStore {
   private _hostAvailabilityRemotePromise: Promise<
     RemoteModel<typeof hostsContract.availability>
   > | null = null;
-  private _lastSshRecoveryAttemptAt = 0;
   private _disposed = false;
-  private readonly _handleOnline = (): void => {
-    this.retryDisconnectedSshProjects({ force: true });
-  };
-  private readonly _handleFocus = (): void => {
-    this.retryDisconnectedSshProjects();
-  };
 
   constructor() {
     makeObservable(this, { projects: observable, pendingCreationIds: observable });
-
-    globalThis.window?.addEventListener('online', this._handleOnline);
-    globalThis.window?.addEventListener('focus', this._handleFocus);
   }
 
   dispose(): void {
@@ -109,12 +98,6 @@ export class ProjectManagerStore {
     void this._projectContextScope.dispose();
     void this._projectListScope.dispose();
     void this._projectListRemote?.dispose();
-    globalThis.window?.removeEventListener('online', this._handleOnline);
-    globalThis.window?.removeEventListener('focus', this._handleFocus);
-  }
-
-  onSshConnectionReady(connectionId: string): void {
-    this._mountDisconnectedSshProjects(connectionId);
   }
 
   /**
@@ -788,57 +771,6 @@ export class ProjectManagerStore {
         });
       }
       throw err;
-    }
-  }
-
-  retryDisconnectedSshProjects(options: { force?: boolean } = {}): void {
-    const now = Date.now();
-    if (!options.force && now - this._lastSshRecoveryAttemptAt < 5_000) return;
-
-    const connectionIds = new Set<string>();
-    for (const store of this.projects.values()) {
-      if (
-        isUnmountedProject(store) &&
-        store.unmounted.kind === 'failed' &&
-        store.unmounted.code === 'ssh-disconnected' &&
-        store.data.type === 'ssh'
-      ) {
-        connectionIds.add(store.data.connectionId);
-      }
-    }
-
-    if (connectionIds.size === 0) return;
-    this._lastSshRecoveryAttemptAt = now;
-
-    for (const connectionId of connectionIds) {
-      const state = getMachinesStore().stateFor(connectionId);
-      if (state === 'connected') {
-        this._mountDisconnectedSshProjects(connectionId);
-        continue;
-      }
-      if (state === 'connecting') continue;
-      void getMachinesStore()
-        .ensureConnected(connectionId, { force: true })
-        .then(() => {
-          if (getMachinesStore().stateFor(connectionId) === 'connected') {
-            this._mountDisconnectedSshProjects(connectionId);
-          }
-        })
-        .catch(() => {});
-    }
-  }
-
-  private _mountDisconnectedSshProjects(connectionId: string): void {
-    for (const [projectId, store] of this.projects) {
-      if (
-        isUnmountedProject(store) &&
-        store.unmounted.kind === 'failed' &&
-        store.unmounted.code === 'ssh-disconnected' &&
-        store.data.type === 'ssh' &&
-        store.data.connectionId === connectionId
-      ) {
-        this.mountProject(projectId).catch(() => {});
-      }
     }
   }
 

@@ -1,9 +1,8 @@
 import type { HostDependencySnapshot } from '@emdash/core/services/host-dependencies/api';
 import { ok } from '@emdash/shared';
-import { deferred, type Deferred } from '@emdash/shared/testing';
 import { cell, expose, peek, produce } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   machinesContract,
   type InstallMachineSystemDependenciesInput,
@@ -12,6 +11,11 @@ import {
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { MachinesStore } from './machines-store';
+
+const hostCommands = vi.hoisted(() => ({
+  requestReady: vi.fn(async () => {}),
+  disconnect: vi.fn(async () => {}),
+}));
 
 const savedConnection: SshConfig = {
   id: 'ssh-1',
@@ -24,40 +28,25 @@ const savedConnection: SshConfig = {
 };
 
 describe('MachinesStore', () => {
-  it('notifies for initially connected entries and connected transitions only', async () => {
-    const onConnectionReady = vi.fn();
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('routes Connect through the Hosts-owned explicit readiness command', async () => {
     const fixture = setup({
       runtime: {
-        'ssh-1': runtimeEntry('connected'),
-        'ssh-2': runtimeEntry('disconnected'),
+        'ssh-1': runtimeEntry('disconnected'),
       },
-      onConnectionReady,
     });
 
     await fixture.store.start();
-    expect(onConnectionReady).toHaveBeenCalledTimes(1);
-    expect(onConnectionReady).toHaveBeenCalledWith('ssh-1');
+    await fixture.store.connect('ssh-1');
 
-    fixture.updateRuntime((runtime) => {
-      runtime['ssh-2'] = runtimeEntry('connected');
+    expect(hostCommands.requestReady).toHaveBeenCalledWith({
+      host: { type: 'remote', id: 'ssh-1' },
+      cause: 'connect',
     });
-    await vi.waitFor(() => expect(onConnectionReady).toHaveBeenCalledTimes(2));
-    expect(onConnectionReady).toHaveBeenLastCalledWith('ssh-2');
-
-    fixture.updateRuntime((runtime) => {
-      runtime['ssh-2'] = runtimeEntry('connected');
-    });
-    await Promise.resolve();
-    expect(onConnectionReady).toHaveBeenCalledTimes(2);
-
-    fixture.updateRuntime((runtime) => {
-      runtime['ssh-2'] = runtimeEntry('disconnected');
-    });
-    await vi.waitFor(() => expect(fixture.store.stateFor('ssh-2')).toBe('disconnected'));
-    fixture.updateRuntime((runtime) => {
-      runtime['ssh-2'] = runtimeEntry('connected');
-    });
-    await vi.waitFor(() => expect(onConnectionReady).toHaveBeenCalledTimes(3));
+    expect(fixture.connect).not.toHaveBeenCalled();
 
     await fixture.dispose();
   });
@@ -86,89 +75,34 @@ describe('MachinesStore', () => {
     await fixture.dispose();
   });
 
-  it('allows forced connect while reconnecting', async () => {
+  it('routes Retry through the same Hosts-owned explicit readiness command', async () => {
     const fixture = setup({
       runtime: { 'ssh-1': runtimeEntry('reconnecting') },
     });
     await fixture.store.start();
 
-    await fixture.store.connect('ssh-1');
+    await fixture.store.retry('ssh-1');
+
+    expect(hostCommands.requestReady).toHaveBeenCalledWith({
+      host: { type: 'remote', id: 'ssh-1' },
+      cause: 'retry',
+    });
     expect(fixture.connect).not.toHaveBeenCalled();
-
-    await fixture.store.connect('ssh-1', { force: true });
-    expect(fixture.connect).toHaveBeenCalledWith('ssh-1');
-    expect(fixture.store.stateFor('ssh-1')).toBe('connected');
-
     await fixture.dispose();
   });
 
-  it('routes background ensure requests through the intent-aware SSH procedure', async () => {
+  it('routes Disconnect through Hosts without tearing down SSH from the browser', async () => {
     const fixture = setup({
-      runtime: { 'ssh-1': runtimeEntry('reconnecting') },
-    });
-    await fixture.store.start();
-
-    await fixture.store.ensureConnected('ssh-1');
-    expect(fixture.ensureConnected).not.toHaveBeenCalled();
-
-    await fixture.store.ensureConnected('ssh-1', { force: true });
-    expect(fixture.ensureConnected).toHaveBeenCalledWith('ssh-1');
-    expect(fixture.store.stateFor('ssh-1')).toBe('connected');
-
-    await fixture.dispose();
-  });
-
-  it('shows only server-authoritative connect and disconnect states', async () => {
-    const connectGate = deferred<void>();
-    const connectFixture = setup({
-      runtime: { 'ssh-1': runtimeEntry('disconnected') },
-      connectGate,
-    });
-    await connectFixture.store.start();
-
-    const connect = connectFixture.store.connect('ssh-1');
-    await vi.waitFor(() => expect(connectFixture.store.stateFor('ssh-1')).toBe('connecting'));
-    expect(connectFixture.store.isLoading).toBe(false);
-    connectGate.resolve();
-    await connect;
-    expect(connectFixture.store.stateFor('ssh-1')).toBe('connected');
-    expect(connectFixture.store.isLoading).toBe(false);
-    await connectFixture.dispose();
-
-    const disconnectGate = deferred<void>();
-    const disconnectFixture = setup({
       runtime: { 'ssh-1': runtimeEntry('connected') },
-      disconnectGate,
-    });
-    await disconnectFixture.store.start();
-
-    const disconnect = disconnectFixture.store.disconnect('ssh-1');
-    await vi.waitFor(() => expect(disconnectFixture.disconnect).toHaveBeenCalled());
-    expect(disconnectFixture.store.stateFor('ssh-1')).toBe('connected');
-    expect(disconnectFixture.store.isLoading).toBe(false);
-    disconnectGate.resolve();
-    await disconnect;
-    expect(disconnectFixture.store.stateFor('ssh-1')).toBe('disconnected');
-    expect(disconnectFixture.store.isLoading).toBe(false);
-    await disconnectFixture.dispose();
-  });
-
-  it('shows the server-authoritative error state when connect fails', async () => {
-    const connectGate = deferred<void>();
-    const fixture = setup({
-      runtime: { 'ssh-1': runtimeEntry('disconnected') },
-      connectGate,
-      connectError: 'Authentication failed',
     });
     await fixture.store.start();
 
-    const connect = fixture.store.connect('ssh-1');
-    await vi.waitFor(() => expect(fixture.store.stateFor('ssh-1')).toBe('connecting'));
-    connectGate.resolve();
+    await fixture.store.disconnect('ssh-1');
 
-    await expect(connect).rejects.toThrow('Authentication failed');
-    expect(fixture.store.stateFor('ssh-1')).toBe('error');
-    expect(fixture.store.isLoading).toBe(false);
+    expect(hostCommands.disconnect).toHaveBeenCalledWith({
+      host: { type: 'remote', id: 'ssh-1' },
+    });
+    expect(fixture.disconnect).not.toHaveBeenCalled();
 
     await fixture.dispose();
   });
@@ -254,21 +188,11 @@ function setup(
   options: {
     runtime?: SshConnectionsRuntime;
     saved?: SshConfig[];
-    onConnectionReady?: (connectionId: string) => void;
-    connectGate?: Deferred<void>;
-    disconnectGate?: Deferred<void>;
-    connectError?: string;
     removeRuntimeOnDelete?: boolean;
   } = {}
 ) {
-  const connect = vi.fn(async (_connectionId: string) => {
-    await options.connectGate?.promise;
-    if (options.connectError) throw new Error(options.connectError);
-  });
-  const ensureConnected = vi.fn(async (_connectionId: string) => {});
-  const disconnect = vi.fn(async (_connectionId: string) => {
-    await options.disconnectGate?.promise;
-  });
+  const connect = vi.fn(async (_connectionId: string) => {});
+  const disconnect = vi.fn(async (_connectionId: string) => {});
   const runtime = cell<SshConnectionsRuntime>(options.runtime ?? {});
   const connections = expose(sshContract.connections, { runtime });
   const updateRuntime = (update: (runtime: SshConnectionsRuntime) => void): void => {
@@ -339,7 +263,6 @@ function setup(
       updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connecting');
       });
-      await ensureConnected(connectionId);
       updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connected');
       });
@@ -379,14 +302,13 @@ function setup(
   const store = new MachinesStore({
     sshClient: sshWire.client,
     machinesClient: machinesWire.client,
-    onConnectionReady: options.onConnectionReady,
+    hostsClient: hostCommands,
   });
 
   return {
     store,
     updateRuntime,
     connect,
-    ensureConnected,
     disconnect,
     saveMachine,
     renameMachine,

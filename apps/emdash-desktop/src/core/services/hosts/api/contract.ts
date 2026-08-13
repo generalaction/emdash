@@ -28,8 +28,17 @@ export const hostServerStateSchema = z.object({
 
 const hostServerRuntimeSchema = z.record(z.string(), hostServerStateSchema);
 const connectionInputSchema = z.object({ connectionId: z.string().min(1) });
+const remoteHostRefSchema = hostRefSchema.transform((host, context) => {
+  if (host.type === 'remote') return { type: 'remote' as const, id: host.id };
+  context.addIssue({ code: 'custom', message: 'A remote Host is required' });
+  return z.NEVER;
+});
 const refreshServerStateInputSchema = connectionInputSchema.extend({
   force: z.boolean().optional(),
+});
+const requestReadyInputSchema = z.object({
+  host: hostRefSchema,
+  cause: z.enum(['connect', 'retry']),
 });
 
 export type HostServerStatus = z.infer<typeof hostServerStatusSchema>;
@@ -49,6 +58,8 @@ export const hostsContract = defineContract({
       state: liveState({ data: hostAvailabilityStateSchema }),
     },
   }),
+  disconnect: procedure({ input: z.object({ host: remoteHostRefSchema }), output: z.void() }),
+  requestReady: procedure({ input: requestReadyInputSchema, output: z.void() }),
   serverStates: liveModel({
     key: z.void(),
     states: {

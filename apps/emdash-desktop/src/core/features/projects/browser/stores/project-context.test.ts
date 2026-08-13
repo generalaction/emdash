@@ -369,6 +369,16 @@ describe('ProjectContext', () => {
     flushStateTurn();
     expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 2 });
     expect(result.data).toBe(context);
+
+    availability.set({ kind: 'suspended', reason: 'user-disconnected' });
+    flushStateTurn();
+    expect(context.host.state).toEqual({ kind: 'offline' });
+    expect(result.data).toBe(context);
+
+    availability.set({ kind: 'ready', generation: 3 });
+    flushStateTurn();
+    expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 3 });
+    expect(result.data).toBe(context);
   });
 
   it('acknowledges and coalesces recovery without claiming Host access is live', async () => {

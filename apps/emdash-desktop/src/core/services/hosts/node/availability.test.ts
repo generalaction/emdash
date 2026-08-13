@@ -168,6 +168,46 @@ describe('HostAvailability', () => {
     await scope.dispose();
   });
 
+  it('keeps suspension through transport changes until explicit Connect requests readiness', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const host = hostRef('remote', 'ssh-1');
+    const explicit = deferred<ReturnType<typeof ok<void>>>();
+    const causes: string[] = [];
+    const availability = createHostAvailability({
+      scope,
+      readiness: {
+        prepare: async (_host, context) => {
+          causes.push(context.cause);
+          return await explicit.promise;
+        },
+      },
+    });
+
+    availability.suspend(host);
+    availability.invalidate(host);
+    await expect(availability.ensureReady(host, 'ssh-edge')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'host-unavailable', reason: 'offline' },
+    });
+
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'suspended',
+      reason: 'user-disconnected',
+    });
+    expect(causes).toEqual([]);
+
+    availability.requestReady(host, 'connect');
+    await vi.waitFor(() => expect(causes).toEqual(['connect']));
+    expect(availability.stateFor(host)).toMatchObject({
+      kind: 'preparing',
+      phase: 'connecting',
+    });
+
+    explicit.resolve(ok());
+    await vi.waitFor(() => expect(availability.stateFor(host).kind).toBe('ready'));
+    await scope.dispose();
+  });
+
   it('supports local runtime readiness and advances the generation after a fresh cycle', async () => {
     const scope = createScope({ label: 'host-availability-test' });
     const handshake = deferred<void>();

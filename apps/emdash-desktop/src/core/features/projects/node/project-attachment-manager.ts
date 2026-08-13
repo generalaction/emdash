@@ -148,7 +148,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
         attachmentTargetIdentity(entry.project) === attachmentTargetIdentity(project)
       ) {
         entry.project = project;
-        void this.options.availability.ensureReady(projectHostRef(project), recoveryCause);
+        this.options.availability.requestReady(projectHostRef(project), recoveryCause);
         return ok();
       }
       await this.cancelAttempt(entry);
@@ -157,7 +157,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
       entry.state.set({ kind: 'absent' });
       this.bindHost(entry, project);
     }
-    void this.options.availability.ensureReady(projectHostRef(project), recoveryCause);
+    this.options.availability.requestReady(projectHostRef(project), recoveryCause);
     return ok();
   }
 

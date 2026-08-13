@@ -55,9 +55,6 @@ const mocks = vi.hoisted(() => ({
   taskProvision: vi.fn(),
   updateProjectConnection: vi.fn(),
   updateProjectSettings: vi.fn(),
-  sshConnect: vi.fn(),
-  sshEnsureConnected: vi.fn(),
-  sshStateFor: vi.fn(),
 }));
 
 let projectListState: ReturnType<typeof cell<ProjectListData>>;
@@ -119,14 +116,6 @@ vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
     invalidateSubject: vi.fn(),
   }),
   getNavigationHistory: () => ({ prune: vi.fn() }),
-}));
-
-vi.mock('@core/features/machines/contributions/app-stores', () => ({
-  getMachinesStore: () => ({
-    connect: mocks.sshConnect,
-    ensureConnected: mocks.sshEnsureConnected,
-    stateFor: mocks.sshStateFor,
-  }),
 }));
 
 vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({
@@ -252,6 +241,8 @@ function createHostsWire() {
   });
   return createTestWire(hostsContract, {
     availability: availabilityProvider,
+    disconnect: vi.fn(),
+    requestReady: vi.fn(),
     serverStates: expose(hostsContract.serverStates, {
       runtime: () => cell({}),
     }),
@@ -351,9 +342,6 @@ describe('ProjectManagerStore project creation', () => {
       success: true,
       data: { githubAccountId: 'github.com:42' },
     });
-    mocks.sshConnect.mockResolvedValue(undefined);
-    mocks.sshEnsureConnected.mockResolvedValue(undefined);
-    mocks.sshStateFor.mockReturnValue('disconnected');
   });
 
   it('discards project and child task mementos before disposing a deleted project', async () => {
@@ -1308,81 +1296,6 @@ describe('ProjectManagerStore project creation', () => {
     });
     await vi.waitFor(() =>
       expect(mocks.openProject).toHaveBeenCalledWith({ projectId: 'optimistic-project' })
-    );
-  });
-
-  it('removes window listeners on dispose', () => {
-    const addEventListener = vi.fn();
-    const removeEventListener = vi.fn();
-    vi.stubGlobal('window', { addEventListener, removeEventListener });
-    const store = new ProjectManagerStore();
-
-    store.dispose();
-    store.dispose();
-
-    expect(removeEventListener).toHaveBeenCalledWith('online', expect.any(Function));
-    expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
-    expect(addEventListener).toHaveBeenCalledWith('online', expect.any(Function));
-    expect(addEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
-    expect(removeEventListener).toHaveBeenCalledTimes(2);
-  });
-
-  it('retries SSH-disconnected projects without mounting before the connection is ready', async () => {
-    const store = new ProjectManagerStore();
-    const project = sshProject();
-    store.projects.set(
-      project.id,
-      createUnmountedProject(project, {
-        kind: 'failed',
-        message: project.connectionId,
-        code: 'ssh-disconnected',
-      })
-    );
-
-    store.retryDisconnectedSshProjects({ force: true });
-    await Promise.resolve();
-
-    expect(mocks.sshEnsureConnected).toHaveBeenCalledWith('ssh-1', { force: true });
-    expect(mocks.openProject).not.toHaveBeenCalled();
-  });
-
-  it('mounts SSH-disconnected projects after a connection-ready notification', async () => {
-    const store = new ProjectManagerStore();
-    const project = sshProject();
-    store.projects.set(
-      project.id,
-      createUnmountedProject(project, {
-        kind: 'failed',
-        message: project.connectionId,
-        code: 'ssh-disconnected',
-      })
-    );
-
-    store.onSshConnectionReady('ssh-1');
-
-    await vi.waitFor(() =>
-      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
-    );
-  });
-
-  it('mounts SSH-disconnected projects when the connection is already connected', async () => {
-    mocks.sshStateFor.mockReturnValue('connected');
-    const store = new ProjectManagerStore();
-    const project = sshProject();
-    store.projects.set(
-      project.id,
-      createUnmountedProject(project, {
-        kind: 'failed',
-        message: project.connectionId,
-        code: 'ssh-disconnected',
-      })
-    );
-
-    store.retryDisconnectedSshProjects({ force: true });
-
-    expect(mocks.sshEnsureConnected).not.toHaveBeenCalled();
-    await vi.waitFor(() =>
-      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
     );
   });
 

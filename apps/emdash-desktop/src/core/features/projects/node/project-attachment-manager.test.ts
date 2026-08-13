@@ -60,7 +60,7 @@ describe('ProjectAttachmentManager', () => {
     await scope.dispose();
   });
 
-  it('retains its Provider across ordinary Host disconnect and reconnect', async () => {
+  it('retains its Provider across explicit Host suspension and Connect', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const availability = createHostAvailability({
       scope,
@@ -86,7 +86,7 @@ describe('ProjectAttachmentManager', () => {
     const state = manager.track(project.id, owner);
     await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
 
-    availability.invalidate(project.host);
+    availability.suspend(project.host);
 
     expect(peek(state)).toEqual({
       kind: 'attached',
@@ -115,6 +115,103 @@ describe('ProjectAttachmentManager', () => {
     await scope.dispose();
   });
 
+  it('degrades every attached Project on a suspended Host without disposing Providers', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const first = sshProject();
+    const second = {
+      ...sshProject(),
+      id: 'project-2',
+      name: 'Second Project',
+      path: '/second-repo',
+    };
+    const projects = new Map([
+      [first.id, first],
+      [second.id, second],
+    ]);
+    const providers = new Map([
+      [first.id, projectProvider()],
+      [second.id, projectProvider()],
+    ]);
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async (projectId) => projects.get(projectId),
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: async (project) => {
+          const provider = providers.get(project.id);
+          if (!provider) throw new Error('Missing test Provider');
+          return ok(provider);
+        },
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const firstState = manager.track(first.id, owner);
+    const secondState = manager.track(second.id, owner);
+    await vi.waitFor(() => expect(peek(firstState).kind).toBe('attached'));
+    await vi.waitFor(() => expect(peek(secondState).kind).toBe('attached'));
+
+    availability.suspend(first.host);
+
+    expect(peek(firstState).kind).toBe('attached');
+    expect(peek(secondState).kind).toBe('attached');
+    expect(manager.requireAttached(first.id)).toMatchObject({
+      success: false,
+      error: { type: 'host-unavailable', reason: 'offline' },
+    });
+    expect(manager.requireAttached(second.id)).toMatchObject({
+      success: false,
+      error: { type: 'host-unavailable', reason: 'offline' },
+    });
+    expect(providers.get(first.id)?.dispose).not.toHaveBeenCalled();
+    expect(providers.get(second.id)?.dispose).not.toHaveBeenCalled();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('cancels an in-flight attachment on Host suspension and disposes a late Provider', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    const project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open: () => opened.promise,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+
+    availability.suspend(project.host);
+
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'absent',
+        attemptedHostGeneration: 1,
+      })
+    );
+    opened.resolve(ok(provider));
+    await vi.waitFor(() => expect(provider.dispose).toHaveBeenCalledOnce());
+    expect(manager.getProject(project.id)).toBeUndefined();
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
   it.each([
     ['SSH Connect', sshProject(), 'connect'],
     ['local Retry', localProject(), 'retry'],
@@ -126,7 +223,7 @@ describe('ProjectAttachmentManager', () => {
         scope,
         readiness: { prepare: async () => ok() },
       });
-      const ensureReady = vi.spyOn(availability, 'ensureReady');
+      const requestReady = vi.spyOn(availability, 'requestReady');
       const manager = createProjectAttachmentManager({
         scope,
         availability,
@@ -139,7 +236,7 @@ describe('ProjectAttachmentManager', () => {
 
       await expect(manager.recover(project.id)).resolves.toEqual(ok());
 
-      expect(ensureReady).toHaveBeenCalledWith(project.host, cause);
+      expect(requestReady).toHaveBeenCalledWith(project.host, cause);
       await scope.dispose();
     }
   );

@@ -43,6 +43,7 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { WorkspacesListView } from '../components/workspaces-list-view';
 import { useHostServerState } from '../use-host-server-state';
 import { useMachineMetrics } from '../use-machine-metrics';
+import { useMachineAvailability } from '../use-machine-status-kind';
 
 type MachineDetailsSection =
   | 'system'
@@ -115,6 +116,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const openMachineModal = useOpenModal('addSshConnModal');
   const state = machine ? machinesStore.stateFor(machine.id) : 'disconnected';
   const connected = state === 'connected';
+  const availability = useMachineAvailability(machine?.id);
   const [name, setName] = useState(machine?.name ?? '');
   const [isRenaming, setIsRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -125,12 +127,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     enabled: !!machine,
     connected,
   });
-  const machineStatus = deriveMachineStatusKind({
-    connectionState: state,
-    workspaceServerStatus: workspaceServer.state?.status,
-    workspaceServerError: workspaceServer.state?.error !== undefined,
-    workspaceServerLoading: workspaceServer.loading,
-  });
+  const machineStatus = deriveMachineStatusKind({ availability });
   const serverUsable = isServerUsable(workspaceServer.state);
   const metrics = useMachineMetrics(machine?.id, serverUsable);
 
@@ -169,16 +166,24 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const connectMachine = async () => {
     try {
       await machinesStore.connect(machine.id);
-    } catch (error) {
-      toast.error('Failed to connect to machine', { description: String(error) });
+    } catch {
+      toast.error('Could not request a Machine connection');
+    }
+  };
+
+  const retryMachine = async () => {
+    try {
+      await machinesStore.retry(machine.id);
+    } catch {
+      toast.error('Could not retry the Machine connection');
     }
   };
 
   const disconnectMachine = async () => {
     try {
       await machinesStore.disconnect(machine.id);
-    } catch (error) {
-      toast.error('Failed to disconnect from machine', { description: String(error) });
+    } catch {
+      toast.error('Could not disconnect the Machine');
     }
   };
 
@@ -329,8 +334,10 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
               <MachineConnectionRow
                 machine={machine}
                 state={state}
+                availability={availability}
                 onEdit={editConnectionSettings}
                 onConnect={connectMachine}
+                onRetry={retryMachine}
                 onDisconnect={disconnectMachine}
               />
               <div

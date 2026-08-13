@@ -9,9 +9,54 @@ import {
   WorkspaceServerProtocolError,
   WorkspaceServerProvisionError,
 } from '@core/services/hosts/node/workspace-server';
-import { createDesktopHostAvailability } from './host-availability';
+import {
+  createDesktopHostAvailability as createProductionHostAvailability,
+  type CreateDesktopHostAvailabilityOptions,
+} from './host-availability';
+
+function createDesktopHostAvailability(
+  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh'> & {
+    connectSsh?: CreateDesktopHostAvailabilityOptions['connectSsh'];
+  }
+) {
+  return createProductionHostAvailability({
+    ...options,
+    connectSsh: options.connectSsh ?? (async () => 'connected'),
+  });
+}
 
 describe('desktop Host availability', () => {
+  it.each(['connect', 'retry'] as const)(
+    'records explicit SSH connection intent before %s prepares runtime readiness',
+    async (cause) => {
+      const scope = createScope({ label: 'desktop-host-availability-test' });
+      const order: string[] = [];
+      const availability = createDesktopHostAvailability({
+        scope,
+        hosts: {
+          client: vi.fn(async () => {
+            order.push('runtime');
+            return {};
+          }),
+          onInvalidate: () => () => {},
+        } as unknown as HostService,
+        connectSsh: vi.fn(async () => {
+          order.push('transport');
+          return 'connected' as const;
+        }),
+        localReady: async () => {},
+      });
+
+      availability.requestReady(hostRef('remote', 'ssh-1'), cause);
+      await vi.waitFor(() =>
+        expect(availability.stateFor(hostRef('remote', 'ssh-1')).kind).toBe('ready')
+      );
+
+      expect(order).toEqual(['transport', 'runtime']);
+      await scope.dispose();
+    }
+  );
+
   it('uses the existing SSH provisioner and Wire handshake before publishing ready', async () => {
     const scope = createScope({ label: 'desktop-host-availability-test' });
     const provisioning = deferred<void>();
@@ -157,9 +202,11 @@ describe('desktop Host availability', () => {
   it('waits for the existing local Wire workers before publishing local readiness', async () => {
     const scope = createScope({ label: 'desktop-host-availability-test' });
     const handshake = deferred<void>();
+    const connectSsh = vi.fn(async () => 'connected' as const);
     const availability = createDesktopHostAvailability({
       scope,
       hosts: { onInvalidate: () => () => {} } as unknown as HostService,
+      connectSsh,
       localReady: () => handshake.promise,
     });
 
@@ -172,6 +219,7 @@ describe('desktop Host availability', () => {
     });
     handshake.resolve();
     await expect(pending).resolves.toMatchObject({ success: true });
+    expect(connectSsh).not.toHaveBeenCalled();
 
     await scope.dispose();
   });

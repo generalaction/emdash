@@ -403,7 +403,8 @@ export const desktopNodeControllers = {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
   hosts: {
-    create: ({ hostAvailability, hosts }) => createHostsWireController(hosts, hostAvailability),
+    create: ({ hostAvailability, hosts, ssh }) =>
+      createHostsWireController(hosts, hostAvailability, ssh.ssh),
   },
   tasks: {
     create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) =>

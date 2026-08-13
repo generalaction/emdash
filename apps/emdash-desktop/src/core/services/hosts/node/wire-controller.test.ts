@@ -4,7 +4,7 @@ import { createScope } from '@emdash/shared/concurrency';
 import { waitFor } from '@emdash/shared/testing';
 import { cell, expose, remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { hostsContract } from '../api';
 import { createHostAvailability } from './availability';
 import type { HostService } from './host-service';
@@ -20,7 +20,16 @@ describe('Hosts Wire availability', () => {
     const host = hostRef('remote', 'ssh-1');
     const serverStates = expose(hostsContract.serverStates, { runtime: cell({}) });
     const service = { stateModel: { host: serverStates } } as HostService;
-    const wire = createTestWire(hostsContract, createHostsWireController(service, availability));
+    const disconnect = vi.fn(async () => {
+      expect(availability.stateFor(host)).toEqual({
+        kind: 'suspended',
+        reason: 'user-disconnected',
+      });
+    });
+    const wire = createTestWire(
+      hostsContract,
+      createHostsWireController(service, availability, { disconnect })
+    );
     const model = remote(hostsContract.availability, wire.client.availability);
     const state = model({ host }).states.state;
 
@@ -35,6 +44,10 @@ describe('Hosts Wire availability', () => {
       kind: 'ready',
       generation: 1,
     });
+
+    await wire.client.disconnect({ host: { type: 'remote', id: 'ssh-1' } });
+    expect(disconnect).toHaveBeenCalledWith('ssh-1');
+    await waitFor(() => snapshot(state).value?.kind === 'suspended');
 
     await model.dispose();
     await wire.dispose();

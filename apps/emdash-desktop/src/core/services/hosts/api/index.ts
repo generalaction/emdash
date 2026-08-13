@@ -3,6 +3,7 @@ import type { WorkspaceServerTarget } from './targets';
 export {
   hostAvailabilityStateSchema,
   hostReadySchema,
+  type ExplicitRecoveryCause,
   type HostAvailability,
   type HostAvailabilityState,
   type HostPreparingPhase,

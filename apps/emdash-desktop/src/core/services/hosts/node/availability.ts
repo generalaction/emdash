@@ -9,6 +9,7 @@ import type { LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, peek, type Cell, type Readable } from '@emdash/wire/state';
 import {
   hostsContract,
+  type ExplicitRecoveryCause,
   type HostAvailability,
   type HostAvailabilityState,
   type HostPreparingPhase,
@@ -18,6 +19,7 @@ import {
 
 export type HostReadinessContext = {
   readonly signal: AbortSignal;
+  readonly cause: RecoveryCause;
   setPhase(phase: HostPreparingPhase): void;
 };
 
@@ -123,6 +125,7 @@ export class HostAvailabilityService implements HostAvailability {
     const run = runScope.run('prepare', (signal) =>
       this.options.readiness.prepare(host, {
         signal,
+        cause,
         setPhase: (phase) => {
           if (this.runs.get(key)?.identity !== identity) return;
           this.setState(host, { kind: 'preparing', phase, attempt: 1 });
@@ -139,6 +142,10 @@ export class HostAvailabilityService implements HostAvailability {
       });
     this.runs.set(key, { identity, scope: runScope, cause, promise });
     return promise;
+  }
+
+  requestReady(host: HostRef, cause: ExplicitRecoveryCause): void {
+    void this.ensureReady(host, cause);
   }
 
   suspend(host: HostRef): void {
