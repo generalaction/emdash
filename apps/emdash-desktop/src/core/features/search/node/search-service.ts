@@ -28,6 +28,7 @@ import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
   CommandPaletteQuery,
+  PaletteEntitySearchQuery,
   SearchItem,
   SearchItemKind,
   WorkspaceFileHit,
@@ -43,6 +44,7 @@ type FtsRow = {
   project_id: string | null;
   task_id: string | null;
   title: string;
+  keywords?: string;
   rank: number;
 };
 
@@ -169,6 +171,97 @@ export class SearchService {
       }
     } finally {
       await jobs.dispose();
+    }
+  }
+
+  async searchEntities({
+    kind,
+    query,
+    context,
+    limit = 50,
+  }: PaletteEntitySearchQuery): Promise<SearchItem[]> {
+    const trimmed = query.trim();
+    const resultLimit = Math.max(1, Math.min(limit, 100));
+    if (!trimmed) {
+      return this.recents(context)
+        .filter((item) => item.kind === kind)
+        .slice(0, resultLimit);
+    }
+    const taskId = context?.taskId;
+    if (kind === 'conversation' && !taskId) return [];
+
+    try {
+      let rows: FtsRow[];
+      if (trimmed.length < 3) {
+        const pattern = `%${trimmed}%`;
+        rows = (
+          kind === 'conversation'
+            ? this.deps.sqlite
+                .prepare(
+                  `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                   FROM search_index
+                   WHERE item_type = ? AND task_id = ? AND (title LIKE ? OR keywords LIKE ?)
+                   ORDER BY title
+                   LIMIT ?`
+                )
+                .all(kind, taskId, pattern, pattern, resultLimit)
+            : this.deps.sqlite
+                .prepare(
+                  `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                   FROM search_index
+                   WHERE item_type = ? AND (title LIKE ? OR keywords LIKE ?)
+                   ORDER BY title
+                   LIMIT ?`
+                )
+                .all(kind, pattern, pattern, resultLimit)
+        ) as FtsRow[];
+      } else {
+        const terms = trimmed
+          .split(/[\s\-_]+/)
+          .filter((term) => term.length >= 3)
+          .map((term) => `"${term}"`)
+          .join(' AND ');
+        rows = (
+          kind === 'conversation'
+            ? this.deps.sqlite
+                .prepare(
+                  `SELECT item_type, item_id, project_id, task_id, title, keywords,
+                          bm25(search_index) AS rank
+                   FROM search_index
+                   WHERE search_index MATCH ? AND item_type = ? AND task_id = ?
+                   ORDER BY rank
+                   LIMIT ?`
+                )
+                .all(terms, kind, taskId, resultLimit)
+            : this.deps.sqlite
+                .prepare(
+                  `SELECT item_type, item_id, project_id, task_id, title, keywords,
+                          bm25(search_index) AS rank
+                   FROM search_index
+                   WHERE search_index MATCH ? AND item_type = ?
+                   ORDER BY rank
+                   LIMIT ?`
+                )
+                .all(terms, kind, resultLimit)
+        ) as FtsRow[];
+      }
+
+      return rows.map((row) => ({
+        kind,
+        id: row.item_id,
+        projectId: row.project_id,
+        taskId: row.task_id,
+        title: row.title,
+        subtitle: row.keywords ?? '',
+        score: row.rank,
+      }));
+    } catch (error) {
+      log.warn('SearchService: palette entity query failed', {
+        kind,
+        query,
+        error: String(error),
+      });
+      return [];
     }
   }
 

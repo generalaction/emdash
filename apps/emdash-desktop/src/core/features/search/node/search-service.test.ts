@@ -2,6 +2,7 @@ import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { createController } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
+import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
@@ -180,6 +181,64 @@ describe('SearchService runtime file search', () => {
       expect(progress).toEqual([{ files }]);
     } finally {
       await upstream.dispose();
+    }
+  });
+});
+
+describe('SearchService palette entity search', () => {
+  it('returns kind-filtered candidates for one-character queries', async () => {
+    const sqlite = new Database(':memory:');
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE search_index USING fts5(
+        item_type,
+        item_id UNINDEXED,
+        project_id UNINDEXED,
+        task_id UNINDEXED,
+        title,
+        keywords,
+        tokenize = 'trigram case_sensitive 0'
+      );
+      INSERT INTO search_index VALUES
+        ('task', 'task-1', 'project-1', NULL, 'Theme task', 'THEME-123'),
+        ('project', 'project-1', NULL, NULL, 'Theme project', '/repo/theme'),
+        ('conversation', 'conversation-1', 'project-1', 'task-1', 'Theme chat', '');
+    `);
+    const service = createSearchService({
+      db: {} as never,
+      sqlite,
+      acquireWorkspaceRuntime: mocks.workspaceGet,
+      searchFileSearchRoot: mocks.fileSearch,
+      getSearchExclusions: mocks.getSearchExclusions,
+      tasks: { on: vi.fn() } as never,
+    });
+
+    try {
+      await expect(
+        service.searchEntities({
+          kind: 'task',
+          query: 't',
+          context: { projectId: 'project-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'task',
+          id: 'task-1',
+          projectId: 'project-1',
+          taskId: null,
+          title: 'Theme task',
+          subtitle: 'THEME-123',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'conversation',
+          query: 't',
+          context: { taskId: 'other-task' },
+        })
+      ).resolves.toEqual([]);
+    } finally {
+      sqlite.close();
     }
   });
 });

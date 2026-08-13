@@ -4,6 +4,7 @@ import { defineContract, liveJob, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   CommandPaletteQuery,
+  PaletteEntitySearchQuery,
   SearchItem,
   WorkspaceFileHit,
   WorkspaceFileSearchQuery,
@@ -29,6 +30,10 @@ export const searchDomain = 'search' as const;
 export const searchContract = defineContract({
   commandPalette: procedure({
     input: z.custom<CommandPaletteQuery>(),
+    output: z.custom<SearchItem[]>(),
+  }),
+  searchPaletteEntities: procedure({
+    input: z.custom<PaletteEntitySearchQuery>(),
     output: z.custom<SearchItem[]>(),
   }),
   searchWorkspaceFiles: procedure({

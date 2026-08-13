@@ -1,4 +1,5 @@
 export type SearchItemKind = 'task' | 'project' | 'conversation' | 'command' | 'file';
+export type PaletteEntityKind = Extract<SearchItemKind, 'task' | 'project' | 'conversation'>;
 
 export interface SearchItem {
   kind: SearchItemKind;
@@ -17,6 +18,13 @@ export interface CommandPaletteQuery {
     taskId?: string;
     workspaceId?: string;
   };
+}
+
+export interface PaletteEntitySearchQuery {
+  kind: PaletteEntityKind;
+  query: string;
+  context?: CommandPaletteQuery['context'];
+  limit?: number;
 }
 
 export interface WorkspaceFileSearchQuery {
