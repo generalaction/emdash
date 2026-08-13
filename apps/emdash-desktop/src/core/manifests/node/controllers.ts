@@ -86,6 +86,7 @@ import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { HostService } from '@core/services/hosts/node';
+import type { HostAvailabilityService } from '@core/services/hosts/node/availability';
 import { createHostsWireController } from '@core/services/hosts/node/wire-controller';
 import {
   createLoggingWireController,
@@ -119,6 +120,7 @@ export type DesktopControllerContext = {
   readonly editorBuffer: EditorBufferService;
   readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
   readonly gitCredentials: GitCredentialsService;
+  readonly hostAvailability: HostAvailabilityService;
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostOperations: DesktopHostControllerOperations;
   readonly issueProviders: IssueProviderRegistry;
@@ -401,7 +403,7 @@ export const desktopNodeControllers = {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
   hosts: {
-    create: ({ hosts }) => createHostsWireController(hosts),
+    create: ({ hostAvailability, hosts }) => createHostsWireController(hosts, hostAvailability),
   },
   tasks: {
     create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) =>

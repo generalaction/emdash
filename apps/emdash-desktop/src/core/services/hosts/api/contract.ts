@@ -1,5 +1,7 @@
+import { hostRefSchema } from '@emdash/core/primitives/host/api';
 import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { hostAvailabilityStateSchema } from './availability';
 
 export const hostServerStatusSchema = z.enum([
   'not-installed',
@@ -41,6 +43,12 @@ export function isServerUsable(state: HostServerState | undefined): boolean {
 export const hostsDomain = 'hosts' as const;
 
 export const hostsContract = defineContract({
+  availability: liveModel({
+    key: z.object({ host: hostRefSchema }),
+    states: {
+      state: liveState({ data: hostAvailabilityStateSchema }),
+    },
+  }),
   serverStates: liveModel({
     key: z.void(),
     states: {

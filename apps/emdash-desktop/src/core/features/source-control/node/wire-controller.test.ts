@@ -133,6 +133,7 @@ describe('createSourceControlWireController', () => {
     const resolveError: RuntimeResolveError = {
       type: 'host-unavailable',
       host: LOCAL_HOST_REF,
+      reason: 'runtime-unavailable',
       message: 'Runtime unavailable',
     };
     const controller = createSourceControlWireController({

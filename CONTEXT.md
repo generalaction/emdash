@@ -66,6 +66,12 @@ attachment survives an ordinary Host disconnect; Host-dependent capabilities rep
 loss and resume when transport reconnects.
 _Avoid_: Treating SSH connection state as Project availability
 
+**Host availability**:
+The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
+only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
+owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
+_Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
+
 **Task**:
 A desktop-owned unit of agent work, linked to the Workspace it runs in.
 

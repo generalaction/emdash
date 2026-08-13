@@ -37,7 +37,12 @@ describe('automation runtime resolution', () => {
       connectionId: 'ssh-1',
     });
     mocks.client.mockResolvedValue(
-      err({ type: 'host-unavailable', host: remote, message: 'Remote unavailable' })
+      err({
+        type: 'host-unavailable',
+        host: remote,
+        reason: 'runtime-unavailable',
+        message: 'Remote unavailable',
+      })
     );
 
     await expect(resolveAutomationRuntimeClient(dependencies, 'project-1')).rejects.toMatchObject({
@@ -79,7 +84,12 @@ describe('automation runtime resolution', () => {
       connectionId: 'ssh-1',
     });
     mocks.client.mockResolvedValue(
-      err({ type: 'host-unavailable', host: remote, message: 'Remote unavailable' })
+      err({
+        type: 'host-unavailable',
+        host: remote,
+        reason: 'runtime-unavailable',
+        message: 'Remote unavailable',
+      })
     );
 
     await expect(getAutomationRuntimeAvailability(dependencies, 'project-1')).resolves.toEqual({

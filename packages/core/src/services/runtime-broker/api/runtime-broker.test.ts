@@ -21,6 +21,7 @@ describe('RuntimeBroker', () => {
         err({
           type: 'host-unavailable',
           host,
+          reason: 'runtime-unavailable',
           message: 'Remote runtime sessions are not enabled',
         }),
     });
@@ -29,6 +30,7 @@ describe('RuntimeBroker', () => {
       err({
         type: 'host-unavailable',
         host: remote,
+        reason: 'runtime-unavailable',
         message: 'Remote runtime sessions are not enabled',
       })
     );

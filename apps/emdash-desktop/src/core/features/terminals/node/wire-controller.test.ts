@@ -62,6 +62,7 @@ describe('createTerminalsWireController', () => {
     const resolveError = {
       type: 'host-unavailable' as const,
       host: remoteHost,
+      reason: 'runtime-unavailable' as const,
       message: 'Remote runtime sessions are not enabled',
     };
     const controller = createTerminalsWireController({
@@ -108,6 +109,7 @@ describe('createTerminalsWireController', () => {
     const resolveError = {
       type: 'host-unavailable' as const,
       host: remoteHost,
+      reason: 'runtime-unavailable' as const,
       message: 'Remote runtime sessions are not enabled',
     };
     const controller = createTerminalsWireController({

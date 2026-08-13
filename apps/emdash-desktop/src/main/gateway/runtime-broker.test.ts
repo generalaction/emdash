@@ -2,6 +2,7 @@ import { hostRef } from '@emdash/core/primitives/host/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { describe, expect, it, vi } from 'vitest';
 import type { HostService } from '@core/services/hosts/node';
+import { WorkspaceServerProvisionError } from '@core/services/hosts/node/workspace-server';
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
 describe('desktop runtime broker remote sessions', () => {
@@ -36,7 +37,31 @@ describe('desktop runtime broker remote sessions', () => {
 
     await expect(broker.client(hostRef('remote', 'ssh-1'))).resolves.toMatchObject({
       success: false,
-      error: { type: 'host-unavailable', message: 'connection failed' },
+      error: {
+        type: 'host-unavailable',
+        reason: 'runtime-unavailable',
+        message: 'connection failed',
+      },
+    });
+  });
+
+  it('preserves typed Host provisioning reasons for existing runtime callers', async () => {
+    const broker = createDesktopRuntimeBroker(
+      {} as never,
+      {
+        client: async () => {
+          throw new WorkspaceServerProvisionError('install-failed', 'raw lower-level message');
+        },
+      } as never
+    );
+
+    await expect(broker.client(hostRef('remote', 'ssh-1'))).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'host-unavailable',
+        reason: 'install-failed',
+        message: 'Host runtime installation failed',
+      },
     });
   });
 });
