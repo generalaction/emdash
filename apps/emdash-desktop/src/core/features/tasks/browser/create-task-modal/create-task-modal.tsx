@@ -16,8 +16,8 @@ import { useInitialConversationState } from '@core/features/tasks/contributions/
 import { TaskConfigPanel } from '@core/features/tasks/contributions/browser/task-config/task-config-panel';
 import { TaskStateProvider } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/contributions/browser/task-config/workspace-settings-section';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';

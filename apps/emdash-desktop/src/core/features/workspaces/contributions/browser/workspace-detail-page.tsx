@@ -14,8 +14,8 @@ import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useId, useMemo, type ReactNode } from 'react';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import type {
   ProjectWorkspaceGitStats,

@@ -17,7 +17,7 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {

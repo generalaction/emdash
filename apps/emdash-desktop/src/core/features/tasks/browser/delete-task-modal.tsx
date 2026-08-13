@@ -6,8 +6,8 @@ import { useMemo, useState } from 'react';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 

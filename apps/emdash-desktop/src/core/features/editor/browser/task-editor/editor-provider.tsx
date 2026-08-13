@@ -7,8 +7,8 @@ import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-a
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { editorScope } from '@core/features/workbench/contributions/scopes';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { useTheme } from '@core/primitives/theme/browser';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';

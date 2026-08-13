@@ -11,8 +11,8 @@ import { getTaskGitCheckoutStore } from '@core/features/source-control/api/brows
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {

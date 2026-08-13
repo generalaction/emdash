@@ -18,7 +18,7 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
 

@@ -37,8 +37,8 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 // TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
 import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-registry';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 

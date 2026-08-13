@@ -53,8 +53,8 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useTabLayout } from '@core/features/workbench/api/browser/task-tab-registry';
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   copyTextToClipboard,
   getHostClient,

@@ -3,7 +3,7 @@ import { Globe, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
 export const ManualForwardButton = observer(function ManualForwardButton() {
