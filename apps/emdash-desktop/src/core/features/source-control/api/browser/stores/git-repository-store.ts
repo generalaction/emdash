@@ -11,12 +11,12 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { buildRendererRepoFacts } from '@core/features/projects/api/browser/effective-settings/renderer-repo-facts';
-import type {
-  ProjectHostAccess,
-  ProjectHostObservation,
-} from '@core/features/projects/api/browser/stores/project-context';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
-import type { HostObservation } from '@core/features/projects/api/host-observation';
+import type {
+  HostObservation,
+  ProjectHostObservation,
+} from '@core/features/projects/api/host-observation';
 import type { ProviderRepositoryResult } from '@core/features/repository/api';
 import { getRepositoryClient } from '@core/features/repository/api/client';
 import {

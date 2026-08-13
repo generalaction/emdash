@@ -208,7 +208,8 @@ describe('ProjectAvailabilityBanner', () => {
     expect(alert?.textContent).not.toContain('raw filesystem failure');
   });
 
-  it('renders exact blocked corrective actions and safely disables an unowned relink flow', async () => {
+  it('renders and dispatches both Host identity corrective actions', async () => {
+    const relink = vi.fn();
     const remove = vi.fn();
     await render(
       sshProject,
@@ -223,18 +224,20 @@ describe('ProjectAvailabilityBanner', () => {
         },
       },
       undefined,
-      { 'remove-project': remove }
+      { 'relink-project': relink, 'remove-project': remove }
     );
 
     const alert = host.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('This Project is no longer linked to a Machine');
     expect(alert?.textContent).not.toContain('deleted-connection-id');
     const buttons = [...(alert?.querySelectorAll('button') ?? [])];
-    const relink = buttons.find((button) => button.textContent === 'Relink Project');
+    const relinkButton = buttons.find((button) => button.textContent === 'Relink Project');
     const removeButton = buttons.find((button) => button.textContent === 'Remove Project');
-    expect(relink?.getAttribute('aria-disabled')).toBe('true');
+    expect(relinkButton?.getAttribute('aria-disabled')).toBe('false');
     expect(removeButton?.getAttribute('aria-disabled')).toBe('false');
+    await act(async () => relinkButton?.click());
     await act(async () => removeButton?.click());
+    expect(relink).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledOnce();
   });
 

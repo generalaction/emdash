@@ -2,11 +2,14 @@ import { Tooltip } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type { ReactElement } from 'react';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
-import { projectLiveActionDisabledReason } from '@core/features/projects/api/browser/project-availability-classifier';
 import {
   asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import {
+  DEFAULT_PROJECT_LIVE_ACTION_DISABLED_REASON,
+  projectLiveActionDisabledReason,
+} from '@core/features/projects/browser/project-availability-presentation';
 
 export const ProjectLiveActionGuard = observer(function ProjectLiveActionGuard({
   children,
@@ -32,7 +35,8 @@ export const ProjectLiveActionGuard = observer(function ProjectLiveActionGuard({
 
 export function getProjectLiveActionDisabledReason(projectId: string): string | null {
   const context = asAvailableProject(getProjectStore(projectId));
-  if (!context || context.host.state.kind === 'ready') return null;
+  if (!context) return DEFAULT_PROJECT_LIVE_ACTION_DISABLED_REASON;
+  if (context.host.state.kind === 'ready') return null;
   const project = context.project;
   const machine =
     project.type === 'ssh'

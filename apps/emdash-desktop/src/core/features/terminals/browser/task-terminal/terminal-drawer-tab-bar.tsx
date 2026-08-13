@@ -8,7 +8,6 @@ import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ProjectLiveActionGuard } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
@@ -19,6 +18,7 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -137,7 +137,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                 }
               />
             ))}
-            <ProjectLiveActionGuard projectId={projectId}>
+            <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
               <NewTerminalButton
                 disabled={liveActionsDisabled}
                 shellMenuState={shellMenuState}
@@ -145,7 +145,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                 onRetryShellAvailability={onRetryShellAvailability}
                 onAddTerminal={onAddTerminal}
               />
-            </ProjectLiveActionGuard>
+            </projectAvailabilityUi.LiveActionGuard>
           </>
         ) : (
           scripts.map((script) => (

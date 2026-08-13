@@ -3,10 +3,7 @@ import { deferred } from '@emdash/shared/testing';
 import { cell, flushStateTurn, type RemoteModel } from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectAttachmentState, projectsWireContract } from '@core/features/projects/api';
-import {
-  projectHostActionUnavailableReason,
-  ProjectContext,
-} from '@core/features/projects/api/browser/stores/project-context';
+import { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
 import { contributeScopedStore, scopedStoreToken } from '@core/primitives/scoped-stores/browser';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
 
@@ -26,19 +23,6 @@ vi.mock('@core/primitives/mementos/browser', () => ({
 vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
   projectStoreContributions: mocks.projectStoreContributions,
 }));
-
-describe('projectHostActionUnavailableReason', () => {
-  it('provides an advisory reason without adding a recovery action', () => {
-    expect(
-      projectHostActionUnavailableReason({
-        kind: 'degraded',
-        situation: 'offline',
-        recovery: 'automatic',
-      })
-    ).toContain('Machine is offline');
-    expect(projectHostActionUnavailableReason({ kind: 'ready', hostGeneration: 1 })).toBeNull();
-  });
-});
 
 function availabilityModel(
   state: HostAvailabilityState | ReturnType<typeof cell<HostAvailabilityState>> = {

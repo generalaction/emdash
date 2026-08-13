@@ -1,4 +1,4 @@
-import type { HostObservation } from '@core/features/projects/api/browser/stores/project-context';
+import type { HostObservation } from '@core/features/projects/api/host-observation';
 import {
   workspaceRemovalNeedsAttention,
   type MeasureProjectWorkspacesResult,

@@ -2,14 +2,14 @@ import { Dialog, Tooltip } from '@emdash/ui/react/primitives';
 import { Globe, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
 export const ManualForwardButton = observer(function ManualForwardButton() {
   const [open, setOpen] = useState(false);
   const taskView = useTaskComposition();
-  const disabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(taskView.projectId);
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !disabledReason && setOpen(next)}>

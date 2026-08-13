@@ -1,4 +1,3 @@
-import { PROJECT_HOST_ACTION_DISABLED_REASON } from '@core/features/projects/api/browser/project-availability-classifier';
 import {
   asAvailableProject,
   getProjectManagerStore,
@@ -32,14 +31,12 @@ export function getRegisteredTaskData(projectId: string, taskId: string): Task |
   return registeredTaskData(store);
 }
 
-export type TaskHostActionAvailability = { kind: 'enabled' } | { kind: 'disabled'; reason: string };
+export type TaskHostActionAvailability = { kind: 'enabled' } | { kind: 'disabled' };
 
 /** Host-backed Task verbs stay visible while degraded and share one accessible reason. */
 export function taskHostActionAvailability(projectId: string): TaskHostActionAvailability {
   const context = asAvailableProject(getProjectStore(projectId));
-  return context?.host.liveAction.kind === 'enabled'
-    ? { kind: 'enabled' }
-    : { kind: 'disabled', reason: PROJECT_HOST_ACTION_DISABLED_REASON };
+  return context?.host.liveAction.kind === 'enabled' ? { kind: 'enabled' } : { kind: 'disabled' };
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */

@@ -13,9 +13,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useId, useMemo, type ReactNode } from 'react';
-import { PROJECT_HOST_ACTION_DISABLED_REASON } from '@core/features/projects/api/browser/project-availability-classifier';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import type {
   ProjectWorkspaceGitStats,
@@ -194,7 +194,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   const liveActionsEnabled = host?.liveAction.kind === 'enabled';
   const hostActionDisabledReason = liveActionsEnabled
     ? undefined
-    : PROJECT_HOST_ACTION_DISABLED_REASON;
+    : projectAvailabilityUi.defaultLiveActionDisabledReason;
   const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: liveActionsEnabled });
   const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
   const observation =
@@ -386,7 +386,8 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
             role="status"
             className="rounded-md border border-border-warning bg-background-warning px-3 py-2 text-xs text-foreground-warning"
           >
-            Showing the last observed workspace data. {PROJECT_HOST_ACTION_DISABLED_REASON}
+            Showing the last observed workspace data.{' '}
+            {projectAvailabilityUi.defaultLiveActionDisabledReason}
           </div>
         )}
         <RepositoryHeader

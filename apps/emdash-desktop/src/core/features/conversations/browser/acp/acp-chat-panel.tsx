@@ -39,7 +39,6 @@ import {
   getProjectViewStore,
   projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { getSearchClient } from '@core/features/search/api/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
@@ -53,6 +52,7 @@ import {
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
@@ -243,7 +243,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
-  const disabledReason = getProjectLiveActionDisabledReason(store.projectId);
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(store.projectId);
 
   // Autofocus when the slot becomes available.
   useEffect(() => {

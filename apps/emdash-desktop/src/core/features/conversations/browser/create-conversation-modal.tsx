@@ -8,10 +8,10 @@ import { nextDefaultConversationTitle } from '@core/features/conversations/api/b
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
@@ -39,7 +39,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     'initial-conversation:chat-ui-enabled',
     false
   );
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));

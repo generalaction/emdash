@@ -3,7 +3,6 @@ import { Button, SplitButton, Tooltip, useToast } from '@emdash/ui/react/primiti
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { projectHostActionUnavailableReason } from '@core/features/projects/api/browser/stores/project-context';
 import {
   asAvailableProject,
   getProjectStore,
@@ -18,6 +17,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { pullRequestErrorMessage } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
@@ -113,9 +113,9 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
-  const hostAccess = asAvailableProject(getProjectStore(projectId))?.host;
-  const hostActionReason = hostAccess
-    ? projectHostActionUnavailableReason(hostAccess.state)
+  const context = asAvailableProject(getProjectStore(projectId));
+  const hostActionReason = context
+    ? projectAvailabilityUi.getLiveActionDisabledReason(projectId)
     : 'Unavailable until access to this Project is restored.';
   const hostActionDisabled = hostActionReason !== null;
 

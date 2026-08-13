@@ -3,12 +3,12 @@ import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { editorScope } from '@core/features/workbench/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { useTheme } from '@core/primitives/theme/browser';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -52,7 +52,7 @@ export const EditorProvider = observer(function EditorProvider({
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const editorScopeImplementation = {
     'editor.save': () => ({
       availability: () =>

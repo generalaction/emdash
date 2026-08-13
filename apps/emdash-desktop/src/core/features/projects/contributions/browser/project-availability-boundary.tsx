@@ -9,6 +9,7 @@ import { ProjectAvailabilityFrame } from '@core/features/projects/browser/compon
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 
 export const ProjectAvailabilityBoundary = observer(function ProjectAvailabilityBoundary({
@@ -20,6 +21,7 @@ export const ProjectAvailabilityBoundary = observer(function ProjectAvailability
 }) {
   const context = asAvailableProject(getProjectStore(projectId));
   const confirmDeleteProject = useConfirmDeleteProject();
+  const openRelinkProject = useOpenModal('relinkProjectModal');
   const { navigate } = useNavigate();
   if (!context) return children;
 
@@ -46,11 +48,12 @@ export const ProjectAvailabilityBoundary = observer(function ProjectAvailability
         connect: () => context.host.recover(),
         retry: () => context.host.recover(),
         configure: openHostDetails,
-        ...(project.type === 'ssh' ? { diagnostics: openHostDetails } : {}),
+        diagnostics: openHostDetails,
         'update-client': () => {
           navigate(settingsViewDef({ tab: 'general' }));
           void getUpdateStore().check();
         },
+        'relink-project': () => openRelinkProject({ projectId }),
         'remove-project': () =>
           confirmDeleteProject({
             projectId,

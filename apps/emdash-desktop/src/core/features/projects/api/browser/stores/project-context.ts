@@ -9,7 +9,7 @@ import type {
   ProjectAttachmentState,
   ProjectRecoveryRequestError,
 } from '@core/features/projects/api';
-import { classifyProjectAttachmentIssue } from '@core/features/projects/api/browser/project-availability-classifier';
+import { projectAttachmentIssueRecovery } from '@core/features/projects/api/browser/project-attachment-recovery';
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
@@ -68,27 +68,6 @@ export type LiveActionAvailability =
   | { kind: 'enabled' }
   | { kind: 'disabled'; state: ProjectHostAccessState };
 
-export function projectHostActionUnavailableReason(state: ProjectHostAccessState): string | null {
-  if (state.kind === 'ready') return null;
-  switch (state.situation) {
-    case 'offline':
-      return 'Unavailable while this Project’s Machine is offline.';
-    case 'connecting':
-      return 'Unavailable while Emdash connects to this Project’s Machine.';
-    case 'provisioning':
-    case 'handshaking':
-      return 'Unavailable while this Project’s Machine is preparing.';
-    case 'attaching':
-    case 'recovering':
-      return 'Unavailable while Emdash restores access to this Project.';
-    case 'attention':
-    case 'suspended':
-      return 'Unavailable until access to this Project is restored.';
-  }
-}
-
-export type { HostObservation, ProjectHostObservation } from '../../host-observation';
-
 export interface ProjectHostAccess {
   readonly state: ProjectHostAccessState;
   readonly liveAction: LiveActionAvailability;
@@ -141,9 +120,9 @@ export function deriveProjectHostAccessState(
     return { kind: 'degraded', situation: 'attaching', recovery: 'automatic' };
   }
   const issue = attachment.lastFailure;
-  const classification = classifyProjectAttachmentIssue(issue);
-  if (classification.recovery === 'dispose-context') return null;
-  if (classification.recovery === 'automatic' && issue.type === 'attachment-unavailable') {
+  const recovery = projectAttachmentIssueRecovery(issue);
+  if (recovery === 'dispose-context') return null;
+  if (recovery === 'automatic' && issue.type === 'attachment-unavailable') {
     return {
       kind: 'degraded',
       situation: 'attaching',
@@ -154,7 +133,7 @@ export function deriveProjectHostAccessState(
   return {
     kind: 'degraded',
     situation: 'attention',
-    recovery: classification.recovery,
+    recovery,
     issue,
   };
 }

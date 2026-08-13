@@ -43,7 +43,6 @@ import type { FilesStore } from '@core/features/editor/browser/task-editor/store
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { getFilesClient } from '@core/features/files/api/browser/client';
-import { getProjectLiveActionDisabledReason } from '@core/features/projects/contributions/browser/project-live-action-guard';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { openFile as openWorkbenchFile } from '@core/features/workbench/api/browser/open-file';
@@ -55,6 +54,7 @@ import {
 import { useTabLayout } from '@core/features/workbench/api/browser/task-tab-registry';
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   copyTextToClipboard,
   getHostClient,
@@ -224,7 +224,9 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const tabLayout = useTabLayout();
   const editorView = taskView.editorView;
   const files = editorView.files;
-  const liveActionDisabledReason = getProjectLiveActionDisabledReason(taskView.projectId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
+    taskView.projectId
+  );
   const liveActionsDisabled = Boolean(liveActionDisabledReason);
   const { value: filesSettings } = useAppSettingsKey('files');
   const openConfirmActionModal = useOpenModal('confirmActionModal');

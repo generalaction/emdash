@@ -1,11 +1,11 @@
 import { Button } from '@emdash/ui/react/primitives';
 import { CloudOff, Loader2 } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
+import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 import {
   classifyProjectAvailability,
   type ProjectAvailabilityAction,
-} from '@core/features/projects/api/browser/project-availability-classifier';
-import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
+} from '@core/features/projects/browser/project-availability-presentation';
 import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
