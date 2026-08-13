@@ -60,7 +60,7 @@ describe('task palette provider', () => {
       kind: 'task',
       query: 't',
       context: { projectId: 'project-1', taskId: 'task-active' },
-      limit: 20,
+      limit: 50,
     });
     expect(matches).toMatchObject([
       {
@@ -265,7 +265,7 @@ describe('task palette provider', () => {
       kind: 'task',
       query: 'fix',
       context: {},
-      limit: 20,
+      limit: 50,
     });
   });
 

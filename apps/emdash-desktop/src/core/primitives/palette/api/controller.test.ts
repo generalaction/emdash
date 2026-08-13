@@ -149,6 +149,40 @@ describe('PaletteController', () => {
     expect(controller.getSnapshot().results[0]?.match.id).toBe('second-0');
   });
 
+  it('clears previous results immediately while delaying provider work', async () => {
+    vi.useFakeTimers();
+    const search = vi.fn(({ query }: { query: string }) => matches(query, 1, 'exact'));
+    const controller = new PaletteController(
+      definePaletteProviderCatalog([
+        {
+          ...provider({ kind: 'commands', keyword: '@commands', results: [] }),
+          search,
+        },
+      ])
+    );
+
+    try {
+      const first = controller.setInput('first', {}, 100);
+      const second = controller.setInput('second', {}, 100);
+
+      expect(controller.getSnapshot()).toMatchObject({
+        query: 'second',
+        results: [],
+        pending: true,
+      });
+      expect(search).not.toHaveBeenCalled();
+
+      await vi.runAllTimersAsync();
+      await Promise.all([first, second]);
+
+      expect(search).toHaveBeenCalledOnce();
+      expect(search).toHaveBeenCalledWith({ query: 'second', context: {} });
+      expect(controller.getSnapshot().results[0]?.match.id).toBe('second-0');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('uses context and recency only inside a match band and resolves ties deterministically', async () => {
     const controller = new PaletteController(
       definePaletteProviderCatalog([

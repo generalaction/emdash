@@ -8,7 +8,7 @@ import {
 } from '@core/primitives/palette/api';
 import type { PaletteEntitySearchQuery, SearchItem } from '@core/primitives/search/api';
 
-const TASK_SOURCE_LIMIT = 20;
+const TASK_SOURCE_LIMIT = 50;
 const RECENT_TASK_LIMIT = 5;
 const RECENCY_CEILING = Date.parse('2100-01-01T00:00:00.000Z');
 

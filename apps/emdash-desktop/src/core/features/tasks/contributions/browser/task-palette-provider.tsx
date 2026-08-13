@@ -4,7 +4,10 @@ import {
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient } from '@core/features/search/api/client';
-import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import {
+  getTaskManagerStore,
+  getTaskStore,
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import {
   createTaskPaletteProviderDef,
   type TaskPaletteMatch,
@@ -16,7 +19,6 @@ import {
 } from '@core/features/tasks/browser/palette/task-palette-source';
 import type { PaletteProviderDef } from '@core/primitives/palette/api';
 import { isRegistered, registeredTaskData } from '@core/primitives/task-state/browser/task-state';
-import { taskManagerStoreToken } from './project-store-tokens';
 
 function listNotificationTasks(): TaskPaletteNotificationTask[] {
   const tasks: TaskPaletteNotificationTask[] = [];
@@ -24,8 +26,10 @@ function listNotificationTasks(): TaskPaletteNotificationTask[] {
   for (const projectStore of getProjectManagerStore().projects.values()) {
     const project = asMounted(projectStore);
     if (!project) continue;
+    const taskManager = getTaskManagerStore(project.data.id);
+    if (!taskManager) continue;
 
-    for (const [taskId, taskStore] of project.get(taskManagerStoreToken).tasks) {
+    for (const [taskId, taskStore] of taskManager.tasks) {
       if (!isRegistered(taskStore)) continue;
       const conversations = conversationRegistry.get(taskId);
       if (!conversations) continue;

@@ -12,7 +12,6 @@ import {
   type PaletteProviderDef,
   type PaletteResult,
 } from '@core/primitives/palette/api';
-import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 interface CommandPaletteProps {
@@ -103,7 +102,6 @@ export function CommandPaletteView({
   onClose,
 }: CommandPaletteViewProps) {
   const [input, setInput] = useState('');
-  const debouncedInput = useDebounce(input, 100);
   const inputRef = useRef<HTMLInputElement>(null);
   const controller = useMemo(() => new PaletteController(providerCatalog), [providerCatalog]);
   const context = useMemo(
@@ -120,8 +118,8 @@ export function CommandPaletteView({
   const inputChrome = getInputChrome(input, providerCatalog);
 
   useEffect(() => {
-    void controller.setInput(debouncedInput, context);
-  }, [context, controller, debouncedInput]);
+    void controller.setInput(input, context, input.trim() ? 100 : 0);
+  }, [context, controller, input]);
 
   const handleInputChange = (value: string) => {
     setInput(inputChrome.keyword ? `${inputChrome.keyword} ${value}` : value);

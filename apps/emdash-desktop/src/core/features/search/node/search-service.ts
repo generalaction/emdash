@@ -58,6 +58,10 @@ type RecentConversationRow = {
   task_id: string;
 };
 
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
 export type SearchServiceDeps = {
   db: AppDb;
   sqlite: Database.Database;
@@ -187,60 +191,60 @@ export class SearchService {
     if (kind === 'conversation' && !taskId) return [];
 
     try {
-      let rows: FtsRow[];
-      if (trimmed.length < 3) {
-        const pattern = `%${trimmed}%`;
-        rows = (
-          kind === 'conversation'
-            ? this.deps.sqlite
-                .prepare(
-                  `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
-                   FROM search_index
-                   WHERE item_type = ? AND task_id = ? AND (title LIKE ? OR keywords LIKE ?)
-                   ORDER BY title
-                   LIMIT ?`
-                )
-                .all(kind, taskId, pattern, pattern, resultLimit)
-            : this.deps.sqlite
-                .prepare(
-                  `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
-                   FROM search_index
-                   WHERE item_type = ? AND (title LIKE ? OR keywords LIKE ?)
-                   ORDER BY title
-                   LIMIT ?`
-                )
-                .all(kind, pattern, pattern, resultLimit)
-        ) as FtsRow[];
-      } else {
-        const terms = trimmed
-          .split(/[\s\-_]+/)
-          .filter((term) => term.length >= 3)
-          .map((term) => `"${term}"`)
-          .join(' AND ');
-        rows = (
-          kind === 'conversation'
-            ? this.deps.sqlite
-                .prepare(
-                  `SELECT item_type, item_id, project_id, task_id, title, keywords,
-                          bm25(search_index) AS rank
-                   FROM search_index
-                   WHERE search_index MATCH ? AND item_type = ? AND task_id = ?
-                   ORDER BY rank
-                   LIMIT ?`
-                )
-                .all(terms, kind, taskId, resultLimit)
-            : this.deps.sqlite
-                .prepare(
-                  `SELECT item_type, item_id, project_id, task_id, title, keywords,
-                          bm25(search_index) AS rank
-                   FROM search_index
-                   WHERE search_index MATCH ? AND item_type = ?
-                   ORDER BY rank
-                   LIMIT ?`
-                )
-                .all(terms, kind, resultLimit)
-        ) as FtsRow[];
-      }
+      const escaped = escapeLike(trimmed);
+      const prefixPattern = `${escaped}%`;
+      const substringPattern = `%${escaped}%`;
+      const fuzzyPattern = `%${Array.from(trimmed).map(escapeLike).join('%')}%`;
+      const rows = (
+        kind === 'conversation'
+          ? this.deps.sqlite
+              .prepare(
+                `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                 FROM search_index
+                 WHERE item_type = ? AND task_id = ?
+                   AND (title LIKE ? ESCAPE '\\' OR keywords LIKE ? ESCAPE '\\')
+                 ORDER BY CASE
+                   WHEN lower(title) = lower(?) THEN 0
+                   WHEN title LIKE ? ESCAPE '\\' THEN 1
+                   WHEN title LIKE ? ESCAPE '\\' THEN 2
+                   ELSE 3
+                 END, length(title), title
+                 LIMIT ?`
+              )
+              .all(
+                kind,
+                taskId,
+                fuzzyPattern,
+                fuzzyPattern,
+                trimmed,
+                prefixPattern,
+                substringPattern,
+                resultLimit
+              )
+          : this.deps.sqlite
+              .prepare(
+                `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                 FROM search_index
+                 WHERE item_type = ?
+                   AND (title LIKE ? ESCAPE '\\' OR keywords LIKE ? ESCAPE '\\')
+                 ORDER BY CASE
+                   WHEN lower(title) = lower(?) THEN 0
+                   WHEN title LIKE ? ESCAPE '\\' THEN 1
+                   WHEN title LIKE ? ESCAPE '\\' THEN 2
+                   ELSE 3
+                 END, length(title), title
+                 LIMIT ?`
+              )
+              .all(
+                kind,
+                fuzzyPattern,
+                fuzzyPattern,
+                trimmed,
+                prefixPattern,
+                substringPattern,
+                resultLimit
+              )
+      ) as FtsRow[];
 
       return rows.map((row) => ({
         kind,
@@ -426,6 +430,7 @@ export class SearchService {
           projectId: tasks.projectId,
           name: tasks.name,
           archivedAt: tasks.archivedAt,
+          linkedIssue: tasks.linkedIssue,
           workspaceKind: workspaces.kind,
           workspaceConfig: workspaces.config,
         })
@@ -453,7 +458,10 @@ export class SearchService {
             kind: t.workspaceKind,
             config: t.workspaceConfig,
           });
-          upsertStmt.run('task', t.id, t.projectId, null, t.name, branchName ?? '');
+          const keywords = [branchName, t.linkedIssue?.identifier, t.linkedIssue?.title]
+            .filter(Boolean)
+            .join(' ');
+          upsertStmt.run('task', t.id, t.projectId, null, t.name, keywords);
         }
         for (const p of allProjects) {
           upsertStmt.run('project', p.id, null, null, p.name, p.path ?? '');

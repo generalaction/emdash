@@ -71,58 +71,67 @@ export class PaletteController {
     this.emit();
   }
 
-  setInput(input: string, context: PaletteContext): Promise<void> {
+  setInput(input: string, context: PaletteContext, delayMs = 0): Promise<void> {
     const generation = ++this.generation;
     const parsed = parseInput(input, this.catalog);
     const { query, mode } = parsed;
     const providers = mode ? [mode.provider] : this.catalog.providers;
-    const providerResults = new Map<PaletteProviderDef, readonly PaletteProviderMatch[]>();
-    const pending: Promise<void>[] = [];
     this.snapshot = {
       input,
       query,
       mode: mode ? { kind: mode.provider.kind, keyword: mode.provider.keyword } : undefined,
       results: [],
       selectedIdentity: undefined,
-      pending: false,
+      pending: delayMs > 0,
     };
     this.emit();
 
-    for (const provider of providers) {
-      const source =
-        query.length === 0
-          ? (provider.idle?.(context) ?? [])
-          : query.length < provider.minQueryLength
-            ? []
-            : provider.search({ query, context });
-      if (isPromise(source)) {
-        pending.push(
-          Promise.resolve(source)
-            .then((matches) => {
-              if (generation !== this.generation) return;
-              providerResults.set(provider, matches);
-              this.publish(input, query, mode?.provider, providerResults, true);
-            })
-            .catch((error: unknown) => {
-              if (generation !== this.generation) return;
-              log.warn('PaletteController: provider query failed', {
-                provider: provider.kind,
-                query,
-                error: String(error),
-              });
-              providerResults.set(provider, []);
-              this.publish(input, query, mode?.provider, providerResults, true);
-            })
-        );
-      } else {
-        providerResults.set(provider, source);
-      }
-    }
+    const run = (): Promise<void> => {
+      if (generation !== this.generation) return Promise.resolve();
+      const providerResults = new Map<PaletteProviderDef, readonly PaletteProviderMatch[]>();
+      const pending: Promise<void>[] = [];
 
-    this.publish(input, query, mode?.provider, providerResults, pending.length > 0);
-    return Promise.all(pending).then(() => {
-      if (generation !== this.generation) return;
-      this.publish(input, query, mode?.provider, providerResults, false);
+      for (const provider of providers) {
+        const source =
+          query.length === 0
+            ? (provider.idle?.(context) ?? [])
+            : query.length < provider.minQueryLength
+              ? []
+              : provider.search({ query, context });
+        if (isPromise(source)) {
+          pending.push(
+            Promise.resolve(source)
+              .then((matches) => {
+                if (generation !== this.generation) return;
+                providerResults.set(provider, matches);
+                this.publish(input, query, mode?.provider, providerResults, true);
+              })
+              .catch((error: unknown) => {
+                if (generation !== this.generation) return;
+                log.warn('PaletteController: provider query failed', {
+                  provider: provider.kind,
+                  query,
+                  error: String(error),
+                });
+                providerResults.set(provider, []);
+                this.publish(input, query, mode?.provider, providerResults, true);
+              })
+          );
+        } else {
+          providerResults.set(provider, source);
+        }
+      }
+
+      this.publish(input, query, mode?.provider, providerResults, pending.length > 0);
+      return Promise.all(pending).then(() => {
+        if (generation !== this.generation) return;
+        this.publish(input, query, mode?.provider, providerResults, false);
+      });
+    };
+
+    if (delayMs <= 0) return run();
+    return new Promise((resolve) => {
+      setTimeout(() => void run().then(resolve), delayMs);
     });
   }
 
