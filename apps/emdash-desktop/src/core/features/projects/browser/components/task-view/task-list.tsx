@@ -6,6 +6,7 @@ import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useState } from 'react';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { TaskViewStore } from '@core/features/projects/browser/stores/project-view';
+import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-selected-tasks';
 import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
@@ -16,7 +17,6 @@ import {
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {

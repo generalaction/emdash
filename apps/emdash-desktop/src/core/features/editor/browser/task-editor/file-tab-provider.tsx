@@ -8,8 +8,8 @@ import { FileTabResource } from '@core/features/editor/api/browser/task-editor/s
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { openModal } from '@core/manifests/browser/modal-api';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   hostFileRefFromNativePath,
   hostPathFromNative,

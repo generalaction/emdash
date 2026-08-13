@@ -75,7 +75,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
       >
         {hostObservationKind === 'stale' ? (
           <p role="status" className="pb-2 text-xs text-foreground-muted">
-            Host-derived settings may be out of date while this Project is unavailable.
+            {projectType === 'local'
+              ? 'Repository-backed settings may be out of date while the local runtime is unavailable.'
+              : 'Repository-backed settings may be out of date while this Project’s Machine is unavailable.'}
           </p>
         ) : null}
         <Field.Group>
@@ -97,8 +99,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               role="status"
               className="border-t border-border py-6 text-sm text-foreground-muted"
             >
-              Repository-backed settings are unavailable until this Project’s Machine can be
-              observed.
+              {projectType === 'local'
+                ? 'Repository-backed settings are unavailable until the local runtime is ready.'
+                : 'Repository-backed settings are unavailable until this Project’s Machine is ready.'}
             </div>
           ) : (
             <ShareableSettingsSection

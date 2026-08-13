@@ -1,13 +1,13 @@
 import type { Result } from '@emdash/shared';
 import { type Contract, type ContractImpl } from '@emdash/wire/rpc';
 import { and, eq, isNull } from 'drizzle-orm';
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type {
   workspacesWireContract,
   WorkspaceError,
   WorkspaceProvisionResult,
   WorkspaceSliceError,
 } from '@core/features/workspaces/api';
-import { LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
@@ -121,7 +121,7 @@ export function provisionWorkspaceErrorToWorkspaceError(error: unknown): Workspa
       'project-unavailable',
       typeof unavailable.message === 'string'
         ? unavailable.message
-        : LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE
+        : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
     );
   }
   if (type === 'cancelled') {

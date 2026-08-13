@@ -1,3 +1,4 @@
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { deleteProjectWorkspaces } from './operations/delete-project-workspaces';
@@ -25,7 +26,7 @@ export function createProjectWorkspaceOperations(
       const message =
         attached.error.type === 'project-missing'
           ? 'Project was not found.'
-          : 'This action requires live Project access.';
+          : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE;
       return Promise.resolve({
         scannedAt: new Date().toISOString(),
         projectId: input.projectId,
@@ -43,9 +44,7 @@ export function createProjectWorkspaceOperations(
           path,
           success: false as const,
           reason: projectMissing ? ('project-missing' as const) : ('project-unavailable' as const),
-          message: projectMissing
-            ? 'Project was not found.'
-            : 'This action requires live Project access.',
+          message: projectMissing ? 'Project was not found.' : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
         })),
       });
     },

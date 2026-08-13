@@ -15,7 +15,7 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';

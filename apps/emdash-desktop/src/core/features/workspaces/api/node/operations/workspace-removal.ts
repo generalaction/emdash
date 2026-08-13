@@ -11,6 +11,7 @@ import {
   conversationRegistryTable as conversationRows,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import { projectIsBeingDeleted } from '@core/features/projects/api/node/project-deletion';
 import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import {
@@ -34,8 +35,6 @@ import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reco
  */
 
 export type WorkspaceRemovalResult = Result<MutationAck, MutationError>;
-
-export const LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE = 'This action requires live Project access.';
 
 type DeleteVerbError = { type: string; message?: string };
 
@@ -193,7 +192,7 @@ async function removeWorkspaceThroughRegistry(
     if (!client.success) {
       return err({
         type: 'project-unavailable',
-        message: LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE,
+        message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
       });
     }
     const verb = client.data.workspaceRegistry;
@@ -205,7 +204,7 @@ async function removeWorkspaceThroughRegistry(
       if (removed.error.type === 'host-unreachable') {
         return err({
           type: 'project-unavailable',
-          message: LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE,
+          message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
         });
       }
       return err({

@@ -1,14 +1,16 @@
 import { isRuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-resolution/api';
-import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
+import {
+  PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api/attachments';
 import {
   projectAttachmentIssueRecovery,
   type ProjectIssueRecovery,
 } from '@core/features/projects/api/browser/project-attachment-recovery';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 
-export const DEFAULT_PROJECT_LIVE_ACTION_DISABLED_REASON =
-  'This action requires live Project access.';
+export const DEFAULT_PROJECT_LIVE_ACTION_DISABLED_REASON = PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE;
 
 export type ProjectAvailabilitySemantic =
   | RuntimeUnavailableReason

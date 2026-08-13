@@ -301,7 +301,9 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         <Field.Root>
           <Field.Label>Worktree root</Field.Label>
           <Field.Description className="text-foreground-muted">
-            Host-derived worktree placement has not been observed for this Project.
+            {projectType === 'local'
+              ? 'Worktree placement is unavailable until the local runtime is ready.'
+              : 'Worktree placement is unavailable until this Project’s Machine is ready.'}
           </Field.Description>
         </Field.Root>
       ) : (

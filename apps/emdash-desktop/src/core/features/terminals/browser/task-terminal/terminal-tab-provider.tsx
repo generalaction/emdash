@@ -9,7 +9,7 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import type {
   ResolvedTab,
   TabBarItemProps,

@@ -17,7 +17,10 @@ import {
 } from '@core/features/conversations/api/node/registry';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
-import type { ProjectAttachmentError } from '@core/features/projects/api';
+import {
+  PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
@@ -451,7 +454,7 @@ function projectUnavailable(
   return {
     type: 'project-unavailable',
     reason: error.type,
-    message: 'This action requires live Project access.',
+    message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
   };
 }
 

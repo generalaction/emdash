@@ -1,9 +1,8 @@
-import { hostRefSchema, type HostRef } from '@emdash/core/primitives/host/api';
-import {
-  runtimeResolveErrorSchema,
-  type RuntimeResolveError,
-} from '@emdash/core/primitives/runtime-resolution/api';
+import { hostRefSchema } from '@emdash/core/primitives/host/api';
+import { runtimeResolveErrorSchema } from '@emdash/core/primitives/runtime-resolution/api';
 import { z } from 'zod';
+
+export const PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE = 'This action requires live Project access.';
 
 const projectAttachmentSpecificErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('project-missing'), projectId: z.string() }),
@@ -47,22 +46,7 @@ export const projectAttachmentStateSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
-export type ProjectAttachmentError =
-  | RuntimeResolveError
-  | { type: 'project-missing'; projectId: string }
-  | {
-      type: 'attachment-unavailable';
-      host: HostRef;
-      phase: 'waiting' | 'attaching';
-    }
-  | { type: 'repository-missing'; path: string }
-  | { type: 'repository-unavailable'; path: string; message: string }
-  | {
-      type: 'unexpected';
-      stage: 'repository-stat' | 'session-open';
-      message: string;
-    };
-
+export type ProjectAttachmentError = z.output<typeof projectAttachmentErrorSchema>;
 export type ProjectAttachmentState = z.output<typeof projectAttachmentStateSchema>;
 
 export type ProjectRecoveryRequestError = {

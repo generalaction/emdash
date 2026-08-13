@@ -10,7 +10,7 @@ import {
   BranchSelector,
   type BranchLabelRemoteMode,
 } from '@core/features/source-control/browser/components/branch-selector';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 
 export interface ProjectBranchSelectorProps {
   projectId: string;

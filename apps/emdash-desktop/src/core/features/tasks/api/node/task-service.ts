@@ -5,7 +5,10 @@ import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
-import type { ProjectAttachmentError } from '@core/features/projects/api';
+import {
+  PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type {
   ProjectProvider,
@@ -504,7 +507,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message:
           attached.error.type === 'project-missing'
             ? 'Project was not found.'
-            : 'This action requires live Project access.',
+            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
       });
     }
     return this.dependencies.sessions.teardownTask(taskId, mode);
@@ -538,7 +541,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           message:
             attached.error.type === 'project-missing'
               ? 'Project was not found.'
-              : 'This action requires live Project access.',
+              : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
         });
       }
     }
@@ -558,7 +561,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         throw new Error(
           attached.error.type === 'project-missing'
             ? 'Project was not found.'
-            : 'This action requires live Project access.'
+            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
         );
       }
     }
@@ -611,7 +614,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         throw new Error(
           attached.error.type === 'project-missing'
             ? 'Project was not found.'
-            : 'This action requires live Project access.'
+            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
         );
       }
     }
@@ -684,6 +687,6 @@ function provisionProjectError(
     : {
         type: 'project-unavailable',
         reason: error.type,
-        message: 'This action requires live Project access.',
+        message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
       };
 }

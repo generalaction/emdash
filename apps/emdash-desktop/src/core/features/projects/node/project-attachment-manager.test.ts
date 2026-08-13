@@ -806,7 +806,10 @@ describe('ProjectAttachmentManager', () => {
     expect(ensureReady).not.toHaveBeenCalled();
 
     availability.invalidate(project.host);
-    await availability.ensureReady(project.host, 'retry');
+    availability.wake(project.host, 'ssh-edge');
+    await vi.waitFor(() =>
+      expect(availability.stateFor(project.host)).toEqual({ kind: 'ready', generation: 2 })
+    );
 
     expect(statRepository).toHaveBeenCalledOnce();
     expect(peek(state)).toMatchObject({

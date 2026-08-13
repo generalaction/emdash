@@ -6,11 +6,15 @@ import { defineViewRuntime } from '@core/primitives/views/react';
 import { ProjectMainPanel } from './components/main-panel/main-panel';
 import { ProjectTitlebar } from './components/project-titlebar';
 
+function ProjectMainPanelSlot() {
+  return <ProjectMainPanel />;
+}
+
 export const projectViewRuntime = defineViewRuntime(projectViewDef, {
   slots: {
     wrap: ProjectViewWrapper,
     titlebar: ProjectTitlebar,
-    main: ProjectMainPanel,
+    main: ProjectMainPanelSlot,
   },
   resolve: ({ projectId }) => {
     return getProjectManagerStore().projects.has(projectId) ||

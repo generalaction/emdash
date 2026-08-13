@@ -114,7 +114,7 @@ export class PreviewServerStore implements Disposable {
       return err({
         type: 'project-unavailable',
         projectId: this.projectId,
-        reason: state.kind === 'degraded' ? state.situation : state.kind,
+        reason: state.kind !== 'ready' ? state.situation : state.kind,
         message: 'Live actions are unavailable for this Project.',
       });
     }

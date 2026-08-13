@@ -5,6 +5,7 @@ import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { match } from 'ts-pattern';
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
@@ -356,7 +357,7 @@ export class TaskManagerStore {
 
   async createTask(params: CreateTaskParams) {
     if (!this.host.requireLive().success) {
-      throw new Error('This action requires live Project access.');
+      throw new Error(PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE);
     }
     runInAction(() => {
       const { taskConfig } = params;

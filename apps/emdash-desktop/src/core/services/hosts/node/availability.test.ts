@@ -251,7 +251,7 @@ describe('HostAvailability', () => {
     await scope.dispose();
   });
 
-  it('lets an SSH edge restart exhausted recovery for automatic demand only', async () => {
+  it('lets an SSH edge restart exhausted cold-boot recovery with passive demand', async () => {
     const scope = createScope({ label: 'host-availability-test' });
     const project = createScope({ label: 'project' });
     const host = hostRef('remote', 'ssh-1');
@@ -262,7 +262,7 @@ describe('HostAvailability', () => {
       retrySchedule: retrySchedules.sequence([]),
       readiness: { prepare },
     });
-    availability.demand(host, 'automatic', project);
+    const demand = availability.demand(host, 'automatic', project);
     await vi.waitFor(() =>
       expect(availability.stateFor(host)).toEqual({
         kind: 'unavailable',
@@ -270,17 +270,49 @@ describe('HostAvailability', () => {
         recovery: 'manual',
       })
     );
-
-    availability.wakeDemanded('online');
-    availability.wakeDemanded('focus');
-    await Promise.resolve();
-    expect(prepare).toHaveBeenCalledOnce();
+    demand.setMode('passive');
 
     availability.wake(host, 'ssh-edge');
     await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
     await vi.waitFor(() =>
       expect(availability.stateFor(host)).toEqual({ kind: 'ready', generation: 1 })
     );
+
+    await project.dispose();
+    await scope.dispose();
+  });
+
+  it('keeps online and focus dormant for passive demand after automatic exhaustion', async () => {
+    const scope = createScope({ label: 'host-availability-test' });
+    const project = createScope({ label: 'project' });
+    const host = hostRef('remote', 'ssh-1');
+    const failure = runtimeHostUnavailable(host, 'connection-failed', 'Host is offline');
+    const prepare = vi.fn().mockResolvedValueOnce(err(failure)).mockResolvedValueOnce(ok());
+    const availability = createHostAvailability({
+      scope,
+      retrySchedule: retrySchedules.sequence([]),
+      readiness: { prepare },
+    });
+    const demand = availability.demand(host, 'automatic', project);
+    await vi.waitFor(() =>
+      expect(availability.stateFor(host)).toEqual({
+        kind: 'unavailable',
+        issue: failure,
+        recovery: 'manual',
+      })
+    );
+    demand.setMode('passive');
+
+    availability.wakeDemanded('online');
+    availability.wakeDemanded('focus');
+    await Promise.resolve();
+
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      issue: failure,
+      recovery: 'manual',
+    });
 
     await project.dispose();
     await scope.dispose();

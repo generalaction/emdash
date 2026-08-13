@@ -21,7 +21,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 

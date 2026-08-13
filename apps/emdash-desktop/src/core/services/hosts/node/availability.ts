@@ -146,7 +146,8 @@ export class HostAvailabilityService implements HostAvailability {
   wake(host: HostRef, cause: HostWakeCause): void {
     const key = formatHostRef(host);
     const demand = this.demands.get(key);
-    if (!demand || !hasAutomaticDemand(demand)) return;
+    if (!demand || !hasActiveDemand(demand)) return;
+    if (cause !== 'ssh-edge' && !hasAutomaticDemand(demand)) return;
     const state = this.stateFor(host);
     if (!allowsRecoveryForCause(state, cause)) return;
     if (cause === 'focus') {
@@ -441,6 +442,13 @@ function inactiveDemandLease(mode: HostDemandMode): HostDemandLease {
 function hasAutomaticDemand(entry: HostDemandEntry): boolean {
   for (const lease of entry.leases) {
     if (!lease.released && lease.mode === 'automatic') return true;
+  }
+  return false;
+}
+
+function hasActiveDemand(entry: HostDemandEntry): boolean {
+  for (const lease of entry.leases) {
+    if (!lease.released) return true;
   }
   return false;
 }

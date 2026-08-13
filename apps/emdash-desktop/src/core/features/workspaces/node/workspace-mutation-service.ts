@@ -1,10 +1,10 @@
 import { err } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import {
   archiveWorkspaceThroughRegistry,
   deleteWorkspaceThroughRegistry,
-  LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE,
   type ArchiveWorkspaceInput,
   type WorkspaceRemovalBroker,
   type WorkspaceRemovalResult,
@@ -77,5 +77,5 @@ function attachmentMutationError(type: string): {
 } {
   return type === 'project-missing'
     ? { type: 'project-missing', message: 'Project was not found.' }
-    : { type: 'project-unavailable', message: LIVE_PROJECT_ACCESS_REQUIRED_MESSAGE };
+    : { type: 'project-unavailable', message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE };
 }

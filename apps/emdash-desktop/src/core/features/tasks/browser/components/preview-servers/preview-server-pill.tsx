@@ -13,7 +13,7 @@ import {
   usePreviewServers,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
+import { projectAvailabilityUi } from '@core/manifests/browser/browser-contributions';
 import {
   copyTextToClipboard,
   openExternal,
