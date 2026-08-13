@@ -4,7 +4,6 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
-import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { CreateProjectResult } from '@core/primitives/projects/api';
@@ -33,7 +32,6 @@ export type CreateProjectOnHostParams = {
 export type CreateProjectDependencies = {
   db: AppDb;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  projects: Pick<ProjectAttachmentManager, 'openProject'>;
 };
 
 export async function createProject(
@@ -152,8 +150,6 @@ async function createProjectOnHost(
     });
   }
   project.repositoryWorkspaceId = repositoryWorkspaceId;
-
-  await dependencies.projects.openProject(project);
 
   projectEvents._emit('project:created', project);
   appDbPokes.projects.poke({ projectId: project.id });

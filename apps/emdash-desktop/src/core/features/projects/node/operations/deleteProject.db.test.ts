@@ -136,7 +136,7 @@ describe('deleteProject', () => {
       deleteOrphans: vi.fn(async () => ({ success: true as const, data: undefined })),
     };
     const automations = { removeProjectDeployments: vi.fn(async () => {}) };
-    const projectsManager = { closeProject: vi.fn(async () => {}) };
+    const projectsManager = { invalidate: vi.fn(async () => {}) };
     const pullRequests = { deleteProjectData: vi.fn(async () => {}) };
     const telemetry = { capture: vi.fn() };
     const dependencies: ProjectDeletionDependencies = {
@@ -166,6 +166,14 @@ describe('deleteProject', () => {
     const { registry, runtimes } = makeRuntimes();
     const { dependencies, automations, projectsManager, pullRequests, telemetry } =
       makeDependencies(runtimes);
+    projectsManager.invalidate.mockImplementationOnce(async () => {
+      const [tombstoned] = await fixture.db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, 'project-1'));
+      expect(tombstoned?.deletedAt).not.toBeNull();
+      expect(await fixture.db.select().from(tasks)).toHaveLength(2);
+    });
 
     const result = await deleteProject(dependencies, 'project-1');
 
@@ -186,7 +194,10 @@ describe('deleteProject', () => {
     expect(workspaceRegistry.getLive('workspace-2')).toBeUndefined();
     expect(workspaceRegistry.getLive('repo-root')).toBeUndefined();
     expect(pullRequests.deleteProjectData).toHaveBeenCalledWith('project-1');
-    expect(projectsManager.closeProject).toHaveBeenCalledWith('project-1', 'deletion');
+    expect(projectsManager.invalidate).toHaveBeenCalledWith('project-1', 'deletion');
+    expect(projectsManager.invalidate.mock.invocationCallOrder[0]!).toBeLessThan(
+      registry.deleteWorktree.mock.invocationCallOrder[0]!
+    );
     expect(automations.removeProjectDeployments).toHaveBeenCalledWith('project-1');
     expect(telemetry.capture).toHaveBeenCalledWith('project_deleted', {
       project_id: 'project-1',

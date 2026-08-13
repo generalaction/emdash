@@ -44,7 +44,7 @@ export type ProjectDeletionDependencies = {
   automations: Pick<AutomationsService, 'removeProjectDeployments'>;
   getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
   logger: Logger;
-  projects: Pick<ProjectAttachmentManager, 'closeProject'>;
+  projects: Pick<ProjectAttachmentManager, 'invalidate'>;
   pullRequests: { deleteProjectData(projectId: string): Promise<void> };
   sessionCleanup: TaskSessionCleanup;
   telemetry: Pick<TelemetryService, 'capture'>;
@@ -87,6 +87,12 @@ export async function deleteProject(
     return err({ type: 'project-deleting', message: 'Project is already being deleted.' });
   }
   appDbPokes.projects.poke({ projectId });
+  await dependencies.projects.invalidate(projectId, 'deletion').catch((error: unknown) => {
+    dependencies.logger.warn('deleteProject: failed to dispose project attachment', {
+      projectId,
+      error: String(error),
+    });
+  });
 
   const taskRows = await db.select().from(tasks).where(eq(tasks.projectId, projectId));
   const registryRows = await loadProjectRegistryRows(db, project);
@@ -152,12 +158,6 @@ async function purgeProjectLocalState(
 ): Promise<void> {
   const { db } = dependencies;
   await dependencies.pullRequests.deleteProjectData(projectId);
-  await dependencies.projects.closeProject(projectId, 'deletion').catch((error: unknown) => {
-    dependencies.logger.warn('deleteProject: failed to close project before purge', {
-      projectId,
-      error: String(error),
-    });
-  });
   await dependencies.automations.removeProjectDeployments(projectId);
   await db.delete(projects).where(eq(projects.id, projectId));
   const client = await dependencies.getMementosRuntimeClient();

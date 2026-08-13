@@ -238,22 +238,7 @@ export class ProjectManagerStore {
           log.error('Failed to hydrate Project context tasks', { projectId, error });
         });
         try {
-          const [availability, attachments] = await Promise.all([
-            this._getHostAvailabilityRemote(),
-            this._getAttachmentsRemote(),
-          ]);
-          if (
-            this._isCurrentProjectContextHydration(projectId, identity, store) &&
-            store.context?.kind === 'available' &&
-            store.context.context === context
-          ) {
-            context.trackHostAccess(
-              availability,
-              attachments,
-              async () => (await getProjectsWireClient()).recoverAttachment({ projectId }),
-              () => this._disposeMissingProjectContext(projectId, store, context)
-            );
-          }
+          await this._trackProjectContextHostAccess(projectId, store, context);
         } catch (error) {
           if (!this._disposed) {
             log.error('Failed to track project attachment', { projectId, error });
@@ -320,6 +305,31 @@ export class ProjectManagerStore {
     });
     store.mountedProject?.dispose();
     void context.dispose().catch(() => log.error('Failed to dispose a missing Project context'));
+  }
+
+  private async _trackProjectContextHostAccess(
+    projectId: string,
+    store: ProjectStore,
+    context: ProjectContext
+  ): Promise<void> {
+    const [availability, attachments] = await Promise.all([
+      this._getHostAvailabilityRemote(),
+      this._getAttachmentsRemote(),
+    ]);
+    if (
+      this._disposed ||
+      this.projects.get(projectId) !== store ||
+      store.context?.kind !== 'available' ||
+      store.context.context !== context
+    ) {
+      return;
+    }
+    context.trackHostAccess(
+      availability,
+      attachments,
+      async () => (await getProjectsWireClient()).recoverAttachment({ projectId }),
+      () => this._disposeMissingProjectContext(projectId, store, context)
+    );
   }
 
   private _getAttachmentsRemote(): Promise<RemoteModel<typeof projectsWireContract.attachments>> {
@@ -833,6 +843,9 @@ export class ProjectManagerStore {
     runInAction(() => {
       store.updateData({ ...data, connectionId: newConnectionId });
     });
+    if (store.context?.kind === 'available') {
+      await this._trackProjectContextHostAccess(projectId, store, store.context.context);
+    }
     void this._remountProject(projectId).catch(() => {});
   }
 

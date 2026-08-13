@@ -234,15 +234,9 @@ export async function bootServices(
     broker: runtimes,
     getSettings: () => appSettingsService,
     findProjectByPath: (host, projectPath) => getProjectByPath(db, host, projectPath),
-    // The stored per-project worktree-root override through the one settings
-    // provider model (spec: github-git-settings §6): the mounted provider when
-    // the project is open, the shared row reader before it mounts (automation
-    // deploys resolve placement at boot).
+    // Placement is record-only and must not depend on Host attachment.
     getStoredProjectWorktreeRoot: async (projectId) => {
-      const mounted = projectManager.getProject(projectId);
-      const stored = mounted
-        ? await mounted.settings.getStoredGitSettings()
-        : await loadStoredGitSettings(db, projectId);
+      const stored = await loadStoredGitSettings(db, projectId);
       return stored.worktreeRoot;
     },
   });
@@ -488,7 +482,20 @@ export async function bootServices(
   );
   const githubApiAuthService = new GitHubApiAuthService(providerAccountRegistry);
   const resolveProjectGitHubAccount = createProjectGitHubAccountResolver({
-    projects: projectManager,
+    getProjectById: (projectId) => getProjectById(db, projectId),
+    getStoredGitSettings: (projectId) => loadStoredGitSettings(db, projectId),
+    getRepoFacts: async (project) => {
+      const attached = projectManager.getProject(project.id);
+      if (attached) return attached.repoFacts.get();
+      const runtime = await runtimes.client(projectHostRef(project));
+      if (!runtime.success) return null;
+      const cache = createRepoFactsCache(runtime.data.git, repositorySelector(project.path), true);
+      try {
+        return await cache.get();
+      } finally {
+        await cache.dispose();
+      }
+    },
     listAccounts: () => githubAccountService.listAccounts(),
   });
   // Emdash git credential helper (spec: github-git-settings §4): loopback
@@ -505,8 +512,8 @@ export async function bootServices(
   });
   const gitCredentials = createGitCredentialsService({
     getAgentGitCredentialsSetting: async (projectId) => {
-      const settings = await projectManager.getProject(projectId)?.settings.getStoredGitSettings();
-      return settings?.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
+      const settings = await loadStoredGitSettings(db, projectId);
+      return settings.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS;
     },
     resolveProjectGitHubAccount,
     listAccounts: () => githubAccountService.listAccounts(),

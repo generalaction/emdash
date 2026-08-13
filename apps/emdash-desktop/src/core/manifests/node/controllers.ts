@@ -46,6 +46,7 @@ import { createPreviewServersWireController } from '@core/features/preview-serve
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
+import { getProjectById } from '@core/features/projects/node/operations/getProjects';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
@@ -343,14 +344,14 @@ export const desktopNodeControllers = {
       ),
   },
   automations: {
-    create: ({ automations, db, logger, projects, runtimes, taskService }) =>
+    create: ({ automations, db, logger, runtimes, taskService }) =>
       createAutomationsWireController({
         db,
-        getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+        getProjectById: (projectId) => getProjectById(db, projectId),
         logger,
         runtime: {
           runtimes,
-          getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+          getProjectById: (projectId) => getProjectById(db, projectId),
         },
         service: automations,
         taskService,

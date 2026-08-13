@@ -917,6 +917,57 @@ describe('ProjectAttachmentManager', () => {
     await scope.dispose();
   });
 
+  it('rebinds after relink even when destructive disposal of the old Provider fails', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project = sshProject();
+    const staleProvider = projectProvider();
+    vi.mocked(staleProvider.dispose).mockRejectedValue(new Error('dispose failed'));
+    const currentProvider = projectProvider();
+    const open = vi
+      .fn()
+      .mockResolvedValueOnce(ok(staleProvider))
+      .mockResolvedValueOnce(ok(currentProvider));
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => project,
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const closed = vi.fn();
+    manager.on('projectClosed', closed);
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attached'));
+    project = {
+      ...project,
+      connectionId: 'ssh-2',
+      updatedAt: '2026-08-13T00:00:01.000Z',
+      host: hostRef('remote', 'ssh-2'),
+    };
+
+    await expect(manager.invalidate(project.id, 'relink')).resolves.toBeUndefined();
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 2,
+      })
+    );
+
+    expect(staleProvider.dispose).toHaveBeenCalledOnce();
+    expect(closed).toHaveBeenCalledOnce();
+    expect(manager.requireAttached(project.id)).toEqual(ok(currentProvider));
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
   it('cancels in-flight ownership before the shutdown release phase completes', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const availability = createHostAvailability({

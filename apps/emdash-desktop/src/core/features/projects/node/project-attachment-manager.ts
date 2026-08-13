@@ -193,14 +193,25 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
   async invalidate(projectId: string, cause: AttachmentInvalidationCause): Promise<void> {
     const entry = this.entries.get(projectId);
     if (!entry) return;
-    await this.cancelAttempt(entry);
-    await this.disposeProvider(entry);
-    await entry.hostScope?.dispose();
+    const cleanup = await Promise.allSettled([
+      this.cancelAttempt(entry),
+      this.disposeProvider(entry),
+      entry.hostScope?.dispose() ?? Promise.resolve(),
+    ]);
     entry.hostScope = undefined;
     entry.project = undefined;
     entry.state.set({ kind: 'absent' });
-    if (cause === 'deletion' || cause === 'owner-released' || cause === 'shutdown') return;
-    await this.initializeEntry(entry);
+    if (cause !== 'deletion' && cause !== 'owner-released' && cause !== 'shutdown') {
+      await this.initializeEntry(entry);
+    }
+    for (const result of cleanup) {
+      if (result.status === 'fulfilled') continue;
+      log.error('ProjectAttachmentManager: attachment invalidation cleanup failed', {
+        projectId,
+        cause,
+        error: result.reason,
+      });
+    }
   }
 
   async openProject(

@@ -1,10 +1,11 @@
-import {
-  resolveProjectEffectiveSettings,
-  type ProjectEffectiveSettingsSource,
-  type RepoFactsSource,
-} from '@core/features/projects/api/node/settings/effective-settings';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import type { Resolved } from '@core/primitives/project-settings/api';
+import {
+  resolveEffectiveSettings,
+  type RepoFacts,
+  type Resolved,
+  type StoredProjectGitSettings,
+} from '@core/primitives/project-settings/api';
+import type { Project } from '@core/primitives/projects/api';
 
 /**
  * The GitHub account a project's API calls run as, straight from the blessed
@@ -24,33 +25,27 @@ export type ProjectGitHubAccountResolver = (
   projectId: string
 ) => Promise<ProjectGitHubAccountResolution>;
 
-type ProjectGitHubAccountProject = {
-  settings: ProjectEffectiveSettingsSource;
-  repoFacts: RepoFactsSource;
-};
-
-type ProjectLookup = {
-  getProject(projectId: string): ProjectGitHubAccountProject | undefined;
-};
-
 export function createProjectGitHubAccountResolver(deps: {
-  projects: ProjectLookup;
+  getProjectById(projectId: string): Promise<Project | undefined>;
+  getStoredGitSettings(projectId: string): Promise<StoredProjectGitSettings>;
+  getRepoFacts(project: Project): Promise<RepoFacts | null>;
   listAccounts(): Promise<GitHubAccountSummary[]>;
 }): ProjectGitHubAccountResolver {
   return async (projectId) => {
-    const project = deps.projects.getProject(projectId);
+    const project = await deps.getProjectById(projectId);
     if (!project) {
-      // A caller-precondition violation, not a resolution outcome (spec §7):
-      // unmounted projects surface as a plain invariant error at the Wire
-      // boundary instead of an account state.
-      throw new Error(`Project ${projectId} is not mounted.`);
+      throw new Error(`Project ${projectId} does not exist.`);
     }
-    const effective = await resolveProjectEffectiveSettings({
-      settings: project.settings,
-      repoFacts: project.repoFacts,
-      accounts: await deps.listAccounts(),
-      projectId,
-    });
+    const [stored, repoFacts, accounts] = await Promise.all([
+      deps.getStoredGitSettings(projectId),
+      deps.getRepoFacts(project),
+      deps.listAccounts(),
+    ]);
+    const effective = resolveEffectiveSettings(
+      { project: stored, builtInWorktreeRoot: '' },
+      repoFacts ?? { remotes: [], localBranches: [] },
+      accounts
+    );
     return effective.githubAccount;
   };
 }

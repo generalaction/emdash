@@ -15,7 +15,7 @@ import { getProjectById } from './getProjects';
 export type InitializeRepositoryDependencies = {
   db: AppDb;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  projects: Pick<ProjectAttachmentManager, 'closeProject' | 'openProject'>;
+  projects: Pick<ProjectAttachmentManager, 'invalidate'>;
 };
 
 export async function initializeRepository(
@@ -66,20 +66,14 @@ export async function initializeRepository(
       message: `Project ${projectId} not found after initializing its repository`,
     });
   }
-  const closeResult = await dependencies.projects.closeProject(projectId, 'repository-changed');
-  if (!closeResult.success) {
-    log.warn('initializeRepository: failed to close project before reopening', {
-      projectId,
-      error: closeResult.error.type,
+  await dependencies.projects
+    .invalidate(projectId, 'repository-changed')
+    .catch((error: unknown) => {
+      log.warn('initializeRepository: failed to invalidate the previous attachment', {
+        projectId,
+        error: String(error),
+      });
     });
-  }
-  const openResult = await dependencies.projects.openProject(project);
-  if (!openResult.success) {
-    log.warn('initializeRepository: failed to reopen project after initializing repository', {
-      projectId,
-      error: openResult.error.type,
-    });
-  }
 
   appDbPokes.projects.poke({ projectId });
   return ok(project);
