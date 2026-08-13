@@ -15,10 +15,25 @@ import {
 
 class FakeWatchService implements IWatchService {
   readonly roots = new Map<string, (events: WatchEvent[]) => void>();
+  readonly watchCalls = new Map<string, number>();
+  private readonly failures = new Set<string>();
+
+  fail(root: string): void {
+    this.failures.add(root);
+  }
+
+  recover(root: string): void {
+    this.failures.delete(root);
+  }
+
   watch(root: string, onEvents: (events: WatchEvent[]) => void, _options?: WatchOptions) {
+    this.watchCalls.set(root, (this.watchCalls.get(root) ?? 0) + 1);
     this.roots.set(root, onEvents);
     return {
-      ready: () => Promise.resolve(),
+      ready: () =>
+        this.failures.has(root)
+          ? Promise.reject(new Error(`Watcher failed for ${root}`))
+          : Promise.resolve(),
       release: () => {
         this.roots.delete(root);
         return Promise.resolve();
@@ -89,9 +104,12 @@ function createHarness(
     pollIntervalMs?: number;
     active?: Set<string>;
     block?: () => Promise<void>;
+    fail?: string[];
+    watchRetryDelayMs?: number;
   } = {}
 ): Harness {
   const watcher = new FakeWatchService();
+  for (const root of options.fail ?? []) watcher.fail(root);
   const requests: ScanRequest[] = [];
   const scheduler = new WorkspaceScanScheduler({
     watcher,
@@ -104,6 +122,7 @@ function createHarness(
     debounceMs: options.debounceMs ?? 20,
     activeDebounceMs: options.activeDebounceMs ?? 5,
     pollIntervalMs: options.pollIntervalMs ?? 60 * 60_000,
+    watchRetryDelayMs: options.watchRetryDelayMs,
   });
   scheduler.start();
   return { watcher, requests, scheduler };
@@ -251,6 +270,42 @@ describe('WorkspaceScanScheduler', () => {
         expect(requests).toContainEqual({ kind: 'repository', id: 'repo-1' });
         // Missing records poll too — that is how a returned path is noticed.
         expect(requests).toContainEqual({ kind: 'workspace', id: 'dir-1', mode: 'full' });
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('keeps polling when native watcher startup fails', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const { requests, scheduler } = createHarness([repo], {
+      debounceMs: 1,
+      pollIntervalMs: 25,
+      fail: ['/repos/main', path.join('/repos/main', '.git')],
+    });
+    try {
+      await eventually(() => {
+        expect(requests).toContainEqual({ kind: 'repository', id: 'repo-1' });
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('reattaches a failed native watcher after the path recovers', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const { watcher, requests, scheduler } = createHarness([repo], {
+      debounceMs: 1,
+      fail: ['/repos/main'],
+      watchRetryDelayMs: 5,
+    });
+    try {
+      watcher.recover('/repos/main');
+      await eventually(() => expect(watcher.watchCalls.get('/repos/main')).toBe(2));
+
+      watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/recovered.txt' }]);
+      await eventually(() => {
+        expect(requests).toContainEqual({ kind: 'workspace', id: 'repo-1', mode: 'full' });
       });
     } finally {
       await scheduler.dispose();
