@@ -5,6 +5,10 @@ import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { match } from 'ts-pattern';
+import type {
+  ProjectHostAccess,
+  ProjectHostObservation,
+} from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';
@@ -43,7 +47,7 @@ import type {
   Task,
   TaskLifecycleStatus,
   TaskListData,
-  TaskRow,
+  TaskListRow,
   TaskStatsData,
 } from '@core/primitives/tasks/api';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
@@ -59,6 +63,7 @@ type TaskListRemoteMember = ReturnType<RemoteModel<typeof tasksWireContract.task
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   return match(error)
     .with({ type: 'project-not-found' }, () => 'Project not found.')
+    .with({ type: 'project-unavailable' }, (e) => e.message)
     .with(
       { type: 'initial-commit-required' },
       () => 'Create an initial commit to enable branch-based tasks.'
@@ -145,7 +150,7 @@ export class TaskManagerStore {
   private _taskStatsRemote: RemoteModel<typeof tasksWireContract.taskStats> | null = null;
   private _taskListView: OptimisticView<TaskListData> | null = null;
   private _taskListData: TaskListData | null = null;
-  private _taskStats: TaskStatsData = { byWorkspaceId: {} };
+  private _taskStats: TaskStatsData = { byWorkspaceId: {}, observedAt: null };
   private _taskListAttemptScope: Scope | null = null;
   private readonly _taskMutations: TaskStoreMutations = {
     rename: (task, name) => this._renameTask(task, name),
@@ -160,11 +165,21 @@ export class TaskManagerStore {
   constructor(
     projectId: string,
     settingsStore: ProjectSettingsStore,
+    private readonly host: ProjectHostAccess,
     private readonly projectStores?: ScopedStoreLookup
   ) {
     this.projectId = projectId;
     this._settingsStore = settingsStore;
     makeObservable(this, { tasks: observable });
+  }
+
+  get taskStatsObservation(): ProjectHostObservation<TaskStatsData> {
+    const observedAt = this._taskStats.observedAt;
+    return this.host.observe(
+      observedAt == null
+        ? { kind: 'never-observed' }
+        : { kind: 'observed', value: this._taskStats, observedAt }
+    );
   }
 
   loadTasks(): Promise<void> {
@@ -207,10 +222,10 @@ export class TaskManagerStore {
           }
           if (!current.value) return;
           this._taskListData = current.value;
-          this._reconcileTaskRows(current.value.tasks);
+          const reconciled = this._reconcileTaskRows(current.value.tasks);
           if (!resolved) {
             resolved = true;
-            resolve();
+            void reconciled.then(resolve, reject);
           }
         },
         { scope: attemptScope }
@@ -241,7 +256,8 @@ export class TaskManagerStore {
     }
   }
 
-  private _reconcileTaskRows(rows: readonly TaskRow[]): void {
+  private async _reconcileTaskRows(rows: readonly TaskListRow[]): Promise<void> {
+    const activeTaskReady: Promise<void>[] = [];
     reconcileKeyedEntities({
       rows,
       stores: this.tasks,
@@ -252,6 +268,19 @@ export class TaskManagerStore {
         store.setWorkspaceProjection(
           task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
         );
+        if (row.activeWorkspace) {
+          store.transitionToProvisioned(
+            task,
+            row.activeWorkspace.path,
+            row.activeWorkspace.workspaceId,
+            row.activeWorkspace.sshConnectionId
+          );
+          activeTaskReady.push(
+            store.ready().then(() => {
+              if (this.tasks.get(task.id) === store && isProvisioned(store)) store.activate();
+            })
+          );
+        }
         return store;
       },
       update: (current, row) => {
@@ -261,9 +290,21 @@ export class TaskManagerStore {
         );
         if (isUnregistered(current)) {
           current.transitionToUnprovisioned(task);
-          return;
         }
         if (!isDeepEqual(current.data, task)) current.data = task;
+        if (row.activeWorkspace && !isProvisioned(current)) {
+          current.transitionToProvisioned(
+            task,
+            row.activeWorkspace.path,
+            row.activeWorkspace.workspaceId,
+            row.activeWorkspace.sshConnectionId
+          );
+          activeTaskReady.push(
+            current.ready().then(() => {
+              if (this.tasks.get(task.id) === current && isProvisioned(current)) current.activate();
+            })
+          );
+        }
       },
       shouldKeepMissing: (_taskId, task) => isUnregistered(task),
       remove: (task, taskId) => {
@@ -271,12 +312,14 @@ export class TaskManagerStore {
         getNavigation().invalidateSubject(taskSubject({ taskId }));
       },
     });
+    await Promise.all(activeTaskReady);
   }
 
-  private _taskFromRow(row: TaskRow): Task {
+  private _taskFromRow(row: TaskListRow): Task {
+    const { activeWorkspace: _activeWorkspace, ...taskRow } = row;
     const git = row.workspaceId ? this._taskStats.byWorkspaceId[row.workspaceId] : undefined;
     return {
-      ...row,
+      ...taskRow,
       prs: [],
       workspaceGit: git,
     };
@@ -314,6 +357,9 @@ export class TaskManagerStore {
   }
 
   async createTask(params: CreateTaskParams) {
+    if (!this.host.requireLive().success) {
+      throw new Error('This action requires live Project access.');
+    }
     runInAction(() => {
       const { taskConfig } = params;
       this.tasks.set(
@@ -391,7 +437,7 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
-    await getProjectManagerStore().mountProject(this.projectId);
+    if (!this.host.requireLive().success) return;
     await this.loadTasks();
 
     const inFlight = this._provisionPromises.get(taskId);
@@ -504,6 +550,7 @@ export class TaskManagerStore {
   }
 
   async teardownTask(taskId: string): Promise<void> {
+    if (!this.host.requireLive().success) return;
     const inFlight = this._teardownPromises.get(taskId);
     if (inFlight) return inFlight;
 
@@ -522,7 +569,8 @@ export class TaskManagerStore {
 
     const promise = getTasksWireClient()
       .then((client) => client.teardownTask({ projectId: this.projectId, taskId }))
-      .then(() => {
+      .then((result) => {
+        throwIfMutationFailed(result);
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
@@ -623,6 +671,7 @@ export class TaskManagerStore {
   async archiveTask(taskId: string): Promise<void> {
     const currentTask = this.tasks.get(taskId);
     if (!currentTask || !isRegistered(currentTask)) return;
+    if (isProvisioned(currentTask) && !this.host.requireLive().success) return;
     const archivedAt = new Date().toISOString();
     const result = await this._runTaskListMutation(
       (member) => member.mutations.archive,

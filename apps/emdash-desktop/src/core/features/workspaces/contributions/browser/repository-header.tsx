@@ -1,6 +1,7 @@
 import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/components';
 import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
+import { useId } from 'react';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import type {
   ProjectWorkspaceGitStats,
@@ -21,6 +22,7 @@ export function RepositoryHeader({
   loadingGitStats,
   warnings,
   onDelete,
+  actionDisabledReason,
 }: {
   project: { id: string; name: string };
   rootRow: ProjectWorkspaceRow;
@@ -32,8 +34,10 @@ export function RepositoryHeader({
   loadingGitStats: boolean;
   warnings: readonly string[];
   onDelete(): void;
+  actionDisabledReason?: string;
 }) {
   const healthStatus = status;
+  const disabledReasonId = useId();
 
   return (
     <section className="rounded-lg border border-border bg-background-secondary/40 px-4 py-3">
@@ -70,10 +74,20 @@ export function RepositoryHeader({
             </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="end">
-            <DropdownMenu.Item variant="destructive" onClick={onDelete}>
+            <DropdownMenu.Item
+              variant="destructive"
+              disabled={!!actionDisabledReason}
+              aria-describedby={actionDisabledReason ? disabledReasonId : undefined}
+              onClick={onDelete}
+            >
               <Trash2Icon aria-hidden />
               Delete
             </DropdownMenu.Item>
+            {actionDisabledReason && (
+              <span id={disabledReasonId} className="sr-only">
+                {actionDisabledReason}
+              </span>
+            )}
           </DropdownMenu.Content>
         </DropdownMenu.Root>
       </div>

@@ -349,8 +349,8 @@ export async function bootServices(
     killTerminals: (database, scope, context, targets) =>
       killLifecycleTerminalSessions(sessionCleanupDependencies, database, scope, context, targets),
   };
-  // Host reachability (ADR 0005): creation-side flows fail fast against offline
-  // hosts; the probe is a plain read of the SSH connection state.
+  // Legacy consumers still read raw SSH reachability. Task/workspace mutations use
+  // ProjectAttachmentManager.requireAttached instead.
   const hostIsReachable = createHostReachabilityProbe(infrastructure.ssh.manager);
   const taskService = new TaskService({
     db,
@@ -362,7 +362,6 @@ export async function bootServices(
     createConversationProvider,
     workspaceIdentity,
     creations: workspaceCreations,
-    hostIsReachable,
     // Plain task deletion (spec §3): no kernel submit; the host-artifact half rides
     // the workspace removal verbs and the reconcile-sweep tombstones.
     deletion: {

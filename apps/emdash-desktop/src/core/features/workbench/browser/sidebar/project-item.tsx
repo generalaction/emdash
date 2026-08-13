@@ -26,6 +26,7 @@ import {
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -101,6 +102,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : isExpanded ? FolderOpen : FolderClosed;
   const projectLabel = project.name ?? 'project';
+  const createAvailability = taskHostActionAvailability(projectId);
+  const createDisabledReason =
+    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
   const openProject = () => navigate(projectViewDef({ projectId }));
 
   const renderSpinnerWithTooltip = () => {
@@ -187,7 +191,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               render={
                 <SidebarItemMiniButton
                   type="button"
-                  aria-label={`New task for ${projectLabel}`}
+                  aria-label={
+                    createDisabledReason
+                      ? `New task for ${projectLabel}. ${createDisabledReason}`
+                      : `New task for ${projectLabel}`
+                  }
                   className={
                     'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
                   }
@@ -196,15 +204,19 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                     e.stopPropagation();
                     void openCreateTaskModal({ projectId });
                   }}
-                  disabled={project.state === 'unregistered'}
+                  disabled={project.state === 'unregistered' || !!createDisabledReason}
                 >
                   <Plus className="h-4 w-4" />
                 </SidebarItemMiniButton>
               }
             />
             <Tooltip.Content>
-              New Task
-              <BoundShortcut command="app.newTask" variant="keycaps" />
+              {createDisabledReason ?? (
+                <>
+                  New Task
+                  <BoundShortcut command="app.newTask" variant="keycaps" />
+                </>
+              )}
             </Tooltip.Content>
           </Tooltip.Root>
         </SidebarMenuRow>

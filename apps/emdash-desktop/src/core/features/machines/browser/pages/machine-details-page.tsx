@@ -26,6 +26,10 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { McpPanel } from '@core/features/mcp/contributions/browser/McpPanel';
+import {
+  asAvailableProject,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { AgentsPanel } from '@core/features/settings/contributions/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/contributions/browser/SkillsPanel';
 import { WorkspaceDetailPage } from '@core/features/workspaces/contributions/browser/workspace-detail-page';
@@ -93,11 +97,12 @@ export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDeta
 ) {
   const machineId = props.path[0];
   const machine = getMachinesStore().connections.find((connection) => connection.id === machineId);
+  const project = asAvailableProject(getProjectStore(props.detailId));
   if (!machineId) return null;
   return (
     <WorkspaceDetailPage
       scope={{ kind: 'machine', machineId }}
-      connected={machine ? getMachinesStore().stateFor(machine.id) === 'connected' : false}
+      host={project?.host}
       machineName={machine?.name}
       projectId={props.detailId}
       onDeletedAll={props.closeDetail}

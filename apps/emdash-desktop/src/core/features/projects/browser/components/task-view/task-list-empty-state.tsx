@@ -4,6 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
@@ -36,13 +37,17 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
     !isGitHubDotComHost(repositoryStore.providerRepository.host)
   );
   const hasAnyIntegration = supportsGhesIssues || hasAnyIssueIntegration;
+  const createAvailability = taskHostActionAvailability(projectId);
+  const createDisabledReason =
+    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
 
   const actions: TaskAction[] = [
     {
       label: 'Create a Task from a Branch',
       description: 'Create a task from an existing branch',
       icon: GitBranch,
-      disabled: false,
+      disabled: !!createDisabledReason,
+      disabledReason: createDisabledReason,
       onActivate: () => void openTaskModal({ projectId, strategy: 'from-branch' }),
     },
     {
@@ -51,7 +56,8 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
         ? 'Link and create a task from an issue'
         : 'Configure issue integrations',
       icon: CircleDot,
-      disabled: false,
+      disabled: !!createDisabledReason,
+      disabledReason: createDisabledReason,
       onActivate: () =>
         hasAnyIntegration
           ? void openTaskModal({ projectId, strategy: 'from-issue' })
@@ -61,8 +67,8 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       label: 'Create from Pull Request',
       description: 'Create a task from a pull request',
       icon: GitPullRequest,
-      disabled: !supportsPullRequests,
-      disabledReason: 'No remote repository connected',
+      disabled: !!createDisabledReason || !supportsPullRequests,
+      disabledReason: createDisabledReason ?? 'No remote repository connected',
       onActivate: () => void openTaskModal({ projectId, strategy: 'from-pull-request' }),
     },
   ];
@@ -101,7 +107,7 @@ function TaskActionRow({
   return (
     <button
       type="button"
-      aria-label={label}
+      aria-label={disabledReason ? `${label}. ${disabledReason}` : label}
       disabled={disabled}
       onClick={disabled ? undefined : onActivate}
       onMouseEnter={disabled ? undefined : onMouseEnter}

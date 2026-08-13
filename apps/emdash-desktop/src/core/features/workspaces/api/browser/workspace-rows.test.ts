@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
-import { joinWorkspaceRows } from './workspace-rows';
+import { joinWorkspaceRows, workspaceRowsHostObservation } from './workspace-rows';
 
 describe('joinWorkspaceRows', () => {
   it('joins usage and mirror git stats into one row', () => {
@@ -111,6 +111,25 @@ describe('joinWorkspaceRows', () => {
     const [joined] = joinWorkspaceRows({ rows: [row] });
 
     expect(joined).toMatchObject({ status: 'setting-up' });
+  });
+
+  it('exposes previously observed Workspace summaries with their latest observation time', () => {
+    const observedAt = '2026-08-13T12:00:00.000Z';
+    const rows = joinWorkspaceRows({
+      rows: [{ ...workspaceRow(), lastObservedAt: observedAt }],
+    });
+
+    expect(workspaceRowsHostObservation(rows)).toEqual({
+      kind: 'observed',
+      value: rows,
+      observedAt: Date.parse(observedAt),
+    });
+  });
+
+  it('reports a never-observed Workspace summary as unavailable input', () => {
+    const rows = joinWorkspaceRows({ rows: [workspaceRow()] });
+
+    expect(workspaceRowsHostObservation(rows)).toEqual({ kind: 'never-observed' });
   });
 });
 

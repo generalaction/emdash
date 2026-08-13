@@ -1,3 +1,4 @@
+import type { HostObservation } from '@core/features/projects/api/browser/stores/project-context';
 import {
   workspaceRemovalNeedsAttention,
   type MeasureProjectWorkspacesResult,
@@ -43,6 +44,20 @@ export function joinWorkspaceRows(sources: WorkspaceRowSources): JoinedWorkspace
       gitStats: row.gitStats ?? undefined,
     };
   });
+}
+
+export function workspaceRowsHostObservation(
+  rows: readonly JoinedWorkspaceRow[]
+): HostObservation<readonly JoinedWorkspaceRow[]> {
+  const observedAt = rows.reduce((latest, joined) => {
+    const timestamp = joined.row.lastObservedAt
+      ? Date.parse(joined.row.lastObservedAt)
+      : Number.NaN;
+    return Number.isFinite(timestamp) ? Math.max(latest, timestamp) : latest;
+  }, 0);
+  return observedAt > 0
+    ? { kind: 'observed', value: rows, observedAt }
+    : { kind: 'never-observed' };
 }
 
 /**

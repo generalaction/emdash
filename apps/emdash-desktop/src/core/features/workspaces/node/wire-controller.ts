@@ -1,6 +1,7 @@
-import type { Result } from '@emdash/shared';
+import { err, type Result } from '@emdash/shared';
 import { type Contract, type ContractImpl } from '@emdash/wire/rpc';
 import { and, eq, isNull } from 'drizzle-orm';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type {
   workspacesWireContract,
   WorkspaceError,
@@ -26,6 +27,7 @@ export type WorkspacesWireTaskProvisioner = (
 
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   runtimes: WorkspaceRemovalBroker;
   provisionTask: WorkspacesWireTaskProvisioner;
   reprovisionWorkspace(
@@ -51,12 +53,36 @@ export function createWorkspacesWireController(
       reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
-      delete: (input) =>
-        deleteWorkspaceThroughRegistry(options.db, options.runtimes, input.workspaceId),
-      archive: (input) => archiveWorkspaceThroughRegistry(options.db, options.runtimes, input),
+      delete: async (input) => {
+        const [task] = await options.db
+          .select({ projectId: tasks.projectId })
+          .from(tasks)
+          .where(and(eq(tasks.workspaceId, input.workspaceId), isNull(tasks.deletedAt)))
+          .limit(1);
+        if (!task) {
+          return err({
+            type: 'project-missing',
+            message: 'The Project for this workspace was not found.',
+          });
+        }
+        const attached = options.projects.requireAttached(task.projectId);
+        if (!attached.success) return err(attachmentMutationError(attached.error.type));
+        return deleteWorkspaceThroughRegistry(options.db, options.runtimes, input.workspaceId);
+      },
+      archive: (input) => {
+        const attached = options.projects.requireAttached(input.projectId);
+        if (!attached.success) return err(attachmentMutationError(attached.error.type));
+        return archiveWorkspaceThroughRegistry(options.db, options.runtimes, input);
+      },
     },
     async dispose() {},
   };
+}
+
+function attachmentMutationError(type: string): WorkspaceError {
+  return type === 'project-missing'
+    ? workspaceError('project-missing', 'Project was not found.')
+    : workspaceError('project-unavailable', 'This action requires live Project access.');
 }
 
 async function runProvisionJob(
@@ -115,6 +141,18 @@ export function provisionWorkspaceErrorToWorkspaceError(error: unknown): Workspa
   if (type === 'no-intent') return workspaceError('no-intent', 'Workspace has no setup intent');
   if (type === 'missing-workspace') {
     return workspaceError('missing-workspace', 'Workspace row is missing');
+  }
+  if (type === 'project-missing') {
+    return workspaceError('project-missing', 'Project was not found');
+  }
+  if (type === 'project-unavailable') {
+    const unavailable = error as { message?: unknown };
+    return workspaceError(
+      'project-unavailable',
+      typeof unavailable.message === 'string'
+        ? unavailable.message
+        : 'This action requires live Project access.'
+    );
   }
   if (type === 'cancelled') {
     const cancelled = error as { message?: unknown };

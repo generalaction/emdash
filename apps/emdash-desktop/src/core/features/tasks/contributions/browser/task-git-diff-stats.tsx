@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
@@ -9,17 +10,25 @@ export function useTaskGitDiffStats(task: TaskStore): {
   linesAdded: number;
   linesDeleted: number;
   visible: boolean;
+  freshness: 'fresh' | 'stale' | 'unavailable';
 } {
   const projectId = isRegistered(task) ? task.data.projectId : undefined;
+  const observation = projectId ? getTaskManagerStore(projectId)?.taskStatsObservation : undefined;
   const git = projectId ? getTaskGitCheckoutStore(projectId, task.data.id) : undefined;
   const cachedGit = isRegistered(task) ? task.data.workspaceGit : undefined;
   const linesAdded = git?.totalLinesAdded ?? cachedGit?.linesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? cachedGit?.linesDeleted ?? 0;
   const visible =
+    (observation?.kind === 'fresh' || observation?.kind === 'stale') &&
     (git !== undefined || cachedGit !== undefined) &&
     !git?.error &&
     (linesAdded > 0 || linesDeleted > 0);
-  return { linesAdded, linesDeleted, visible };
+  return {
+    linesAdded,
+    linesDeleted,
+    visible,
+    freshness: observation?.kind ?? 'unavailable',
+  };
 }
 
 /**
@@ -35,7 +44,7 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
   task: TaskStore;
   className?: string;
 }) {
-  const { linesAdded, linesDeleted, visible } = useTaskGitDiffStats(task);
+  const { linesAdded, linesDeleted, visible, freshness } = useTaskGitDiffStats(task);
 
   if (!visible) return null;
 
@@ -48,6 +57,7 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
       aria-label={[
         linesAdded > 0 ? `${linesAdded} lines added` : null,
         linesDeleted > 0 ? `${linesDeleted} lines removed` : null,
+        freshness === 'stale' ? 'last observed while Project access was available' : null,
       ]
         .filter(Boolean)
         .join(', ')}

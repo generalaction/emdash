@@ -1,4 +1,4 @@
-import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
+import { hostRef } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import type { TaskRow } from '@core/services/app-db/node/schema';
@@ -7,6 +7,7 @@ import { createTask as createTaskOperation } from './createTask';
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getProject: vi.fn(),
+  requireAttached: vi.fn(),
   select: vi.fn(),
   hostIsReachable: vi.fn(),
   resolveWorktreeRoot: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock('@core/features/workspaces/api/node/registry/workspace-tombstones', () =
 }));
 const hostIsReachable = mocks.hostIsReachable;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
-const projects = { getProject: mocks.getProject };
+const projects = { requireAttached: mocks.requireAttached };
 const placement = { resolveWorktreeRoot: mocks.resolveWorktreeRoot };
 const hostConversations = {
   create: vi.fn(async (input: { id: string }) => ({ success: true as const, data: input })),
@@ -55,9 +56,9 @@ function createTask(
   _db: typeof db,
   _projects: typeof projects,
   _hostIsReachable: typeof hostIsReachable,
-  params: Parameters<typeof createTaskOperation>[6]
+  params: Parameters<typeof createTaskOperation>[5]
 ) {
-  return createTaskOperation(db, projects, hostIsReachable, placement, runtimes, creations, params);
+  return createTaskOperation(db, projects, placement, runtimes, creations, params);
 }
 
 /** Awaits the background worktree creation kicked off for the inserted workspace row. */
@@ -184,6 +185,15 @@ describe('createTask', () => {
         getBaseRemote: vi.fn(async () => 'origin'),
         getEffectiveRemotes: vi.fn(async () => ({ baseRemote: 'origin', pushRemote: 'fork' })),
       },
+    });
+    mocks.requireAttached.mockImplementation(() => {
+      const project = mocks.getProject();
+      return project
+        ? { success: true as const, data: project }
+        : {
+            success: false as const,
+            error: { type: 'project-missing' as const, projectId: 'project-1' },
+          };
     });
     mocks.findWorkspaceTombstoneConflict.mockReturnValue(undefined);
     mocks.hostIsReachable.mockReturnValue(true);
@@ -629,9 +639,16 @@ describe('createTask', () => {
       await settleCreation(wsInsert.id);
     });
 
-    it('refuses creation when the remote host is unreachable', async () => {
+    it('refuses creation when effective Project attachment is unavailable', async () => {
       makeProjectRemote();
-      mocks.hostIsReachable.mockReturnValue(false);
+      mocks.requireAttached.mockReturnValue({
+        success: false,
+        error: {
+          type: 'attachment-unavailable',
+          host: hostRef('remote', 'conn-1'),
+          phase: 'waiting',
+        },
+      });
       const { captured } = setupTransactionMock();
 
       const result = await createTask(db, projects, hostIsReachable, {
@@ -651,11 +668,13 @@ describe('createTask', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.type).toBe('provision-failed');
+        expect(result.error).toEqual({
+          type: 'project-unavailable',
+          reason: 'attachment-unavailable',
+          message: 'This action requires live Project access.',
+        });
       }
-      expect(mocks.hostIsReachable).toHaveBeenCalledWith(
-        formatHostRef(hostRef('remote', 'conn-1'))
-      );
+      expect(mocks.hostIsReachable).not.toHaveBeenCalled();
       expect(captured).toHaveLength(0);
     });
 
@@ -686,9 +705,16 @@ describe('createTask', () => {
       );
     });
 
-    it('refuses repository-instance creation when the remote host is unreachable', async () => {
+    it('refuses repository-instance creation without effective Project attachment', async () => {
       makeProjectRemote();
-      mocks.hostIsReachable.mockReturnValue(false);
+      mocks.requireAttached.mockReturnValue({
+        success: false,
+        error: {
+          type: 'attachment-unavailable',
+          host: hostRef('remote', 'conn-1'),
+          phase: 'waiting',
+        },
+      });
       const { captured } = setupTransactionMock();
 
       const result = await createTask(db, projects, hostIsReachable, {

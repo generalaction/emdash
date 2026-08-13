@@ -20,7 +20,6 @@ export const ProjectWorkspacesView = observer(function ProjectWorkspacesView({
   const context = asAvailableProject(getProjectStore(projectId));
   if (!context) return null;
   const project = context.project;
-  const connected = context.host.state.kind === 'ready';
 
   if (project.type === 'ssh') {
     const machinesStore = getMachinesStore();
@@ -30,7 +29,7 @@ export const ProjectWorkspacesView = observer(function ProjectWorkspacesView({
     return (
       <WorkspaceDetailPage
         scope={{ kind: 'machine', machineId: project.connectionId }}
-        connected={connected}
+        host={context.host}
         machineName={machine?.name}
         projectId={projectId}
       />
@@ -38,6 +37,6 @@ export const ProjectWorkspacesView = observer(function ProjectWorkspacesView({
   }
 
   return (
-    <WorkspaceDetailPage scope={{ kind: 'local' }} connected={connected} projectId={projectId} />
+    <WorkspaceDetailPage scope={{ kind: 'local' }} host={context.host} projectId={projectId} />
   );
 });

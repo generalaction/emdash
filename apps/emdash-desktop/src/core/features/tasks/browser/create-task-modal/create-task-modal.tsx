@@ -9,6 +9,7 @@ import {
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { ConversationField } from '@core/features/tasks/contributions/browser/task-config/conversation-field';
 import { useInitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { TaskConfigPanel } from '@core/features/tasks/contributions/browser/task-config/task-config-panel';
@@ -108,6 +109,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     navigate,
     onCreated: complete,
   });
+  const createAvailability = selectedProjectId
+    ? taskHostActionAvailability(selectedProjectId)
+    : ({ kind: 'disabled', reason: 'Select a Project.' } as const);
+  const createDisabledReason =
+    createAvailability.kind === 'disabled' ? createAvailability.reason : undefined;
 
   return (
     <>
@@ -159,7 +165,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           variant="primary"
           size="sm"
           onClick={handleCreateTask}
-          disabled={!canCreate || initialConversation.issueContextEditorOpen}
+          disabled={
+            !canCreate || initialConversation.issueContextEditorOpen || !!createDisabledReason
+          }
+          title={createDisabledReason}
+          aria-label={createDisabledReason ? `Create. ${createDisabledReason}` : 'Create'}
         >
           Create
         </ConfirmButton>

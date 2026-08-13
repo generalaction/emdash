@@ -35,8 +35,8 @@ export function createTaskOperations(dependencies: {
         projectId
       );
     },
-    async teardownTask(_projectId: string, taskId: string) {
-      return taskService.teardown(taskId, 'terminate');
+    async teardownTask(projectId: string, taskId: string) {
+      return taskService.teardown(projectId, taskId, 'terminate');
     },
     generateTaskName,
   };

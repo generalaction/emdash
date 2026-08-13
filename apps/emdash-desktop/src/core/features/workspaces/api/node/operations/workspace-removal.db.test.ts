@@ -11,9 +11,9 @@ import { deleteWorkspaceThroughRegistry } from './workspace-removal';
 
 /**
  * Workspace removal through the registry verbs (ADR 0005): one fail-fast host RPC,
- * then the mirror row untracks. An unreachable host tombstones the row instead of
- * refusing (ADR 0006) — durable intent, no queue. Conversation coupling stays spec
- * §7.1: archive semantics by default, explicit per-record deletes on opt-in.
+ * then the mirror row untracks. An unavailable attachment or mid-call disconnect
+ * refuses without creating recovery work. Conversation coupling stays spec §7.1:
+ * archive semantics by default, explicit per-record deletes on opt-in.
  */
 describe('deleteWorkspaceThroughRegistry', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -112,7 +112,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
   });
 
-  describe('unreachable host (ADR 0006): tombstone instead of refusal', () => {
+  describe('unreachable host: fail-fast without recovery work', () => {
     function unreachableRuntimes() {
       return {
         client: vi.fn(async () => ({
@@ -122,7 +122,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
       };
     }
 
-    it('tombstones the row with frozen options and returns success; nothing queues', async () => {
+    it('refuses without changing the durable row or conversations', async () => {
       await seedWorktree();
       seedConversationAtPath('conv-stay', '/repo/.worktrees/example');
 
@@ -133,22 +133,20 @@ describe('deleteWorkspaceThroughRegistry', () => {
         { deleteBranch: true, deleteConversations: true }
       );
 
-      expect(result).toEqual({ success: true, data: {} });
-      // Nothing queues anywhere: the removal path takes no operation submitter at all;
-      // the tombstoned row is the durable intent.
-      const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
-      // The row stays live — the visible pending state — with the options and the
-      // target record UUID frozen at delete time.
-      expect(row).toBeDefined();
-      expect(row?.deletionTombstone).toMatchObject({
-        targetRecordId: 'workspace-1',
-        options: { deleteBranch: true, deleteConversations: true },
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'project-unavailable',
+          message: 'This action requires live Project access.',
+        },
       });
-      // The conversation cascade rides the frozen option, not an immediate delete.
+      const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
+      expect(row).toBeDefined();
+      expect(row?.deletionTombstone).toBeNull();
       expect(createConversationRegistry(fixture.db).getLive('conv-stay')).toBeDefined();
     });
 
-    it('suppresses a delete double-fire: one tombstone, both calls succeed', async () => {
+    it('refuses repeated calls without recording queued intent', async () => {
       await seedWorktree();
       const runtimes = unreachableRuntimes();
 
@@ -159,14 +157,14 @@ describe('deleteWorkspaceThroughRegistry', () => {
         deleteBranch: false,
       });
 
-      expect(first.success).toBe(true);
-      expect(second.success).toBe(true);
+      expect(first.success).toBe(false);
+      expect(second.success).toBe(false);
       expect(
         createWorkspaceRegistry(fixture.db).getLive('workspace-1')?.deletionTombstone
-      ).toMatchObject({ options: { deleteBranch: true, deleteConversations: false } });
+      ).toBeNull();
     });
 
-    it('tombstones when the verb itself reports host-unreachable', async () => {
+    it('refuses when the verb reports a mid-call disconnect', async () => {
       await seedWorktree();
       const { registry, runtimes } = makeRuntimes();
       registry.deleteWorktree.mockResolvedValueOnce({
@@ -176,10 +174,16 @@ describe('deleteWorkspaceThroughRegistry', () => {
 
       const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'project-unavailable',
+          message: 'This action requires live Project access.',
+        },
+      });
       expect(
         createWorkspaceRegistry(fixture.db).getLive('workspace-1')?.deletionTombstone
-      ).toMatchObject({ targetRecordId: 'workspace-1' });
+      ).toBeNull();
     });
 
     it('still refuses while a live task references the workspace — no tombstone', async () => {

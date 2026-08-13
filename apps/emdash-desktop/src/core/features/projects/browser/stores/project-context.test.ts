@@ -409,6 +409,13 @@ describe('ProjectContext', () => {
     attachment.set({ kind: 'attached', establishedHostGeneration: 2 });
     flushStateTurn();
     expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 2 });
+    expect(
+      context.host.observe({ kind: 'observed', value: { linesAdded: 3 }, observedAt: 123 })
+    ).toEqual({
+      kind: 'fresh',
+      value: { linesAdded: 3 },
+      observedAt: 123,
+    });
     expect(result.data).toBe(context);
 
     availability.set({ kind: 'suspended', reason: 'user-disconnected' });
@@ -418,11 +425,26 @@ describe('ProjectContext', () => {
       situation: 'suspended',
       recovery: 'manual',
     });
+    expect(
+      context.host.observe({ kind: 'observed', value: { linesAdded: 3 }, observedAt: 123 })
+    ).toEqual({
+      kind: 'stale',
+      value: { linesAdded: 3 },
+      observedAt: 123,
+    });
+    expect(context.host.observe({ kind: 'never-observed' })).toEqual({ kind: 'unavailable' });
     expect(result.data).toBe(context);
 
     availability.set({ kind: 'ready', generation: 3 });
     flushStateTurn();
     expect(context.host.state).toEqual({ kind: 'ready', hostGeneration: 3 });
+    expect(
+      context.host.observe({ kind: 'observed', value: { linesAdded: 3 }, observedAt: 123 })
+    ).toEqual({
+      kind: 'fresh',
+      value: { linesAdded: 3 },
+      observedAt: 123,
+    });
     expect(result.data).toBe(context);
   });
 

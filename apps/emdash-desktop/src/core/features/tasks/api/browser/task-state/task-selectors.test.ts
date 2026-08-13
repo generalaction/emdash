@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectStore } from '@core/features/projects/api/browser/stores/project';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { taskViewKind } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import {
+  taskHostActionAvailability,
+  taskViewKind,
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 
 const projectManager = {
   projects: new Map<string, ProjectStore>(),
@@ -69,5 +72,49 @@ describe('taskViewKind Project context routing', () => {
     const task = { state: 'provisioned' } as TaskStore;
 
     expect(taskViewKind(task, 'project-id')).toBe('ready');
+  });
+
+  it('keeps Host-backed Task actions visible but disabled with the shared reason', () => {
+    const state = {
+      kind: 'degraded' as const,
+      situation: 'offline' as const,
+      recovery: 'automatic' as const,
+    };
+    projectManager.projects.set(
+      'project-id',
+      projectWithContext({
+        kind: 'available',
+        context: {
+          project: { id: 'project-id' },
+          host: {
+            state,
+            liveAction: { kind: 'disabled', state },
+          },
+        } as never,
+      })
+    );
+
+    expect(taskHostActionAvailability('project-id')).toEqual({
+      kind: 'disabled',
+      reason: 'This action requires live Project access.',
+    });
+  });
+
+  it('enables Host-backed Task actions when effective attachment is ready', () => {
+    projectManager.projects.set(
+      'project-id',
+      projectWithContext({
+        kind: 'available',
+        context: {
+          project: { id: 'project-id' },
+          host: {
+            state: { kind: 'ready', hostGeneration: 1 },
+            liveAction: { kind: 'enabled' },
+          },
+        } as never,
+      })
+    );
+
+    expect(taskHostActionAvailability('project-id')).toEqual({ kind: 'enabled' });
   });
 });

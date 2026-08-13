@@ -1,9 +1,11 @@
 import { Button, Checkbox, Dialog } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
@@ -19,7 +21,10 @@ export type DeleteTaskModalResult = {
   deleteConversations: boolean;
 };
 
-export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
+export const DeleteTaskModal = observer(function DeleteTaskModal({
+  projectId,
+  tasks,
+}: DeleteTaskModalArgs) {
   const { complete, dismiss } = useModalController('deleteTaskModal');
   const { deleteBranchByDefault } = useTaskSettings();
   const [deleteWorktree, setDeleteWorktree] = useState(true);
@@ -30,9 +35,12 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
   const isBulk = count > 1;
 
   const taskIds = useMemo(() => tasks.map((t) => t.taskId), [tasks]);
+  const hostAction = taskHostActionAvailability(projectId);
+  const hostActionDisabledReason = hostAction.kind === 'disabled' ? hostAction.reason : undefined;
 
   const { data: preflight = null } = useQuery({
     queryKey: ['deleteTaskPreflight', projectId, taskIds],
+    enabled: !hostActionDisabledReason,
     staleTime: Infinity,
     queryFn: async () => {
       try {
@@ -44,14 +52,15 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
     },
   });
 
-  const isLoading = preflight === null;
+  const isLoading = !hostActionDisabledReason && preflight === null;
 
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
   const dirtyTasks = preflight?.filter((t) => t.hasUncommittedChanges) ?? [];
   const branchTasks = preflight?.filter((t) => t.hasDeletableBranch) ?? [];
   // Nothing is queued for an unreachable host (ADR 0006): artifact deletion is
   // disabled with the reason shown, never silently deferred.
-  const hostUnreachable = worktreeTasks.some((t) => t.hostReachable === false);
+  const hostUnreachable =
+    !!hostActionDisabledReason || worktreeTasks.some((t) => t.hostReachable === false);
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
@@ -167,10 +176,32 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
           </div>
         )}
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
+        {hostActionDisabledReason && (
+          <div
+            role="status"
+            className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning"
+          >
+            <TriangleAlert className="mt-px size-3.5 shrink-0" />
+            <span>
+              {hostActionDisabledReason} The Task record can still be deleted without removing Host
+              artifacts.
+            </span>
+          </div>
+        )}
+
+        <label
+          className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          aria-disabled={!!hostActionDisabledReason}
+        >
           <Checkbox
-            checked={deleteConversations}
+            checked={deleteConversations && !hostActionDisabledReason}
             onCheckedChange={(checked) => setDeleteConversations(Boolean(checked))}
+            disabled={!!hostActionDisabledReason}
+            aria-label={
+              hostActionDisabledReason
+                ? `Delete conversations. ${hostActionDisabledReason}`
+                : 'Delete conversations'
+            }
           />
           Delete conversations
         </label>
@@ -186,7 +217,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
             complete({
               deleteWorktree: effectiveDeleteWorktree,
               deleteBranch: showBranchCheckbox && shouldDeleteBranch,
-              deleteConversations,
+              deleteConversations: deleteConversations && !hostActionDisabledReason,
             })
           }
         >
@@ -195,7 +226,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
       </Dialog.Footer>
     </>
   );
-}
+});
 
 export const deleteTaskModal = defineModal<DeleteTaskModalResult>()({
   id: 'deleteTaskModal',

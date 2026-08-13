@@ -41,9 +41,9 @@ import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/cl
  * Task deletion as plain desktop code (operation-log retirement spec §3, §7): the
  * desktop-local stages — session kill, conversation cascade, row purge — complete
  * immediately in one transaction and never block on a host. The host-artifact half
- * rides the workspace removal verbs: a reachable host removes the worktree now, an
- * unreachable one gets a durable deletion tombstone for the reconcile sweep
- * (ADR 0006). Nothing submits to the operations kernel.
+ * rides the workspace removal verbs: a reachable host removes the worktree now, while
+ * a mid-call disconnect leaves the workspace row unchanged for an explicit retry.
+ * Nothing submits to the operations kernel.
  */
 
 export type DeleteTaskInput = {
@@ -142,7 +142,7 @@ export async function deleteTask(
 
   // The host-artifact half, after the desktop rows committed: the verb call is
   // fail-fast and best-effort here — a failure leaves the workspace row live for a
-  // later removal from the workspaces surface; an unreachable host tombstones the row.
+  // later explicit removal from the workspaces surface.
   if (task.workspaceId && !workspaceShared && input.deleteWorktree !== false) {
     await deleteWorkspaceThroughRegistry(db, dependencies.runtimes, task.workspaceId, {
       deleteBranch: input.deleteBranch ?? false,

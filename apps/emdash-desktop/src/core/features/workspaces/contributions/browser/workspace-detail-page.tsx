@@ -12,7 +12,9 @@ import { Button, DropdownMenu, RelativeTime, toast, Tooltip } from '@emdash/ui/r
 import { useQueryClient } from '@tanstack/react-query';
 import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useId, useMemo, type ReactNode } from 'react';
+import { PROJECT_HOST_ACTION_DISABLED_REASON } from '@core/features/projects/api/browser/project-availability-classifier';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import type {
@@ -28,7 +30,10 @@ import {
   type WorkspacesScope,
 } from '../../api/browser/use-workspace-groups';
 import { useWorkspaceRows } from '../../api/browser/use-workspace-rows';
-import type { JoinedWorkspaceRow } from '../../api/browser/workspace-rows';
+import {
+  workspaceRowsHostObservation,
+  type JoinedWorkspaceRow,
+} from '../../api/browser/workspace-rows';
 import { aggregateWorkspaceStatus } from '../../api/browser/workspace-runtime-status';
 import { GitStatsCell } from './git-stats-cell';
 import { WorkspaceRemovalAttentionPanel } from './removal-attention-panel';
@@ -77,14 +82,21 @@ type WorkspaceRowActionHandlers = {
 };
 
 function buildDetailColumns(
-  handlers: WorkspaceRowActionHandlers
+  handlers: WorkspaceRowActionHandlers,
+  hostActionDisabledReason?: string
 ): CollectionViewColumn<WorkspaceDetailListItem>[] {
   return [
     ...DETAIL_COLUMNS,
     {
       id: 'actions',
       width: '2.5rem',
-      cell: (item) => <RowActionsMenu item={item} handlers={handlers} />,
+      cell: (item) => (
+        <RowActionsMenu
+          item={item}
+          handlers={handlers}
+          hostActionDisabledReason={hostActionDisabledReason}
+        />
+      ),
     },
   ];
 }
@@ -165,13 +177,13 @@ const DETAIL_COLUMNS: CollectionViewColumn<WorkspaceDetailListItem>[] = [
  */
 export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   scope,
-  connected,
+  host,
   machineName,
   projectId,
   onDeletedAll,
 }: {
   scope: WorkspacesScope;
-  connected: boolean;
+  host?: ProjectHostAccess;
   machineName?: string;
   projectId: string;
   /** Called after a full successful project-wide delete; settings hosts navigate back, the project tab stays. */
@@ -179,8 +191,14 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 }) {
   const openConfirm = useOpenModal('confirmActionModal');
   const queryClient = useQueryClient();
-  const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: connected });
+  const liveActionsEnabled = host?.liveAction.kind === 'enabled';
+  const hostActionDisabledReason = liveActionsEnabled
+    ? undefined
+    : PROJECT_HOST_ACTION_DISABLED_REASON;
+  const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: liveActionsEnabled });
   const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
+  const observation =
+    host?.observe(workspaceRowsHostObservation(rows)) ?? ({ kind: 'unavailable' } as const);
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
@@ -326,24 +344,35 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 
   const columns = useMemo(
     () =>
-      buildDetailColumns({
-        onCleanArtifacts: (item) => void handleCleanArtifacts(item),
-        onDelete: (item) => void handleDeleteRow(item),
-      }),
-    [handleCleanArtifacts, handleDeleteRow]
+      buildDetailColumns(
+        {
+          onCleanArtifacts: (item) => void handleCleanArtifacts(item),
+          onDelete: (item) => void handleDeleteRow(item),
+        },
+        hostActionDisabledReason
+      ),
+    [handleCleanArtifacts, handleDeleteRow, hostActionDisabledReason]
   );
 
-  if (!connected) {
+  if (workspaceQuery.isLoading && liveActionsEnabled) {
+    return <WorkspacesLoadingState label="Loading workspace" />;
+  }
+  if (workspaceQuery.isError && observation.kind === 'unavailable') {
+    return <WorkspacesErrorState error={workspaceQuery.error} title="Could not load workspace." />;
+  }
+  if (observation.kind === 'unavailable') {
     return (
       <WorkspacesOfflineState
-        title={machineName ? `${machineName} is offline` : 'Machine offline'}
-        description="Workspaces load here as soon as the machine reconnects."
+        title={liveActionsEnabled ? 'Workspace data unavailable' : undefined}
+        description={
+          liveActionsEnabled
+            ? 'This Host has not observed any workspaces for the Project yet.'
+            : machineName
+              ? `${machineName} has not provided a workspace observation yet.`
+              : 'Workspace data will appear after live Project access returns.'
+        }
       />
     );
-  }
-  if (workspaceQuery.isLoading) return <WorkspacesLoadingState label="Loading workspace" />;
-  if (workspaceQuery.isError) {
-    return <WorkspacesErrorState error={workspaceQuery.error} title="Could not load workspace." />;
   }
   if (!group || !rootJoined || !rootRow) {
     return <WorkspacesEmptyState message="Workspace not found." />;
@@ -352,6 +381,14 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   return (
     <Tooltip.Provider delay={150}>
       <div className="flex min-h-0 flex-col gap-6 pb-4">
+        {observation.kind === 'stale' && (
+          <div
+            role="status"
+            className="rounded-md border border-border-warning bg-background-warning px-3 py-2 text-xs text-foreground-warning"
+          >
+            Showing the last observed workspace data. {PROJECT_HOST_ACTION_DISABLED_REASON}
+          </div>
+        )}
         <RepositoryHeader
           project={group.project}
           rootRow={rootRow}
@@ -365,6 +402,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
           loadingGitStats={false}
           warnings={group.warnings}
           onDelete={() => void handleDelete()}
+          actionDisabledReason={hostActionDisabledReason}
         />
 
         <WorkspaceRemovalAttentionPanel rows={rows.map((joined) => joined.row)} />
@@ -426,10 +464,13 @@ function buildWorktreeItem({
 function RowActionsMenu({
   item,
   handlers,
+  hostActionDisabledReason,
 }: {
   item: WorkspaceDetailListItem;
   handlers: WorkspaceRowActionHandlers;
+  hostActionDisabledReason?: string;
 }) {
+  const disabledReasonId = useId();
   const { canCleanArtifacts, canDelete } = item.row;
   if (!canCleanArtifacts && !canDelete) return null;
   return (
@@ -447,7 +488,8 @@ function RowActionsMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
         <DropdownMenu.Item
-          disabled={!canCleanArtifacts}
+          disabled={!canCleanArtifacts || !!hostActionDisabledReason}
+          aria-describedby={hostActionDisabledReason ? disabledReasonId : undefined}
           onClick={() => handlers.onCleanArtifacts(item)}
         >
           <BrushCleaningIcon aria-hidden />
@@ -456,12 +498,18 @@ function RowActionsMenu({
         <DropdownMenu.Separator />
         <DropdownMenu.Item
           variant="destructive"
-          disabled={!canDelete}
+          disabled={!canDelete || !!hostActionDisabledReason}
+          aria-describedby={hostActionDisabledReason ? disabledReasonId : undefined}
           onClick={() => handlers.onDelete(item)}
         >
           <Trash2Icon aria-hidden />
           Delete
         </DropdownMenu.Item>
+        {hostActionDisabledReason && (
+          <span id={disabledReasonId} className="sr-only">
+            {hostActionDisabledReason}
+          </span>
+        )}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   );
