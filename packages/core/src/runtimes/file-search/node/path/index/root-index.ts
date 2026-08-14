@@ -114,11 +114,12 @@ export class RootIndex {
   private async reconcileOnce(signal: AbortSignal): Promise<void> {
     let build: PathIndexBuild | undefined;
     try {
-      try {
-        await waitWithSignal(this.watch.ready(), signal, 'Root index cancelled');
-      } catch (error) {
-        if (signal.aborted) throw error;
-        throw new RootWatchError('File-search watcher could not attach to the root', error);
+      const attached = await waitWithSignal(this.watch.ready(), signal, 'Root index cancelled');
+      if (!attached.success) {
+        throw new RootWatchError(
+          'File-search watcher could not attach to the root',
+          attached.error
+        );
       }
       throwIfAborted(signal, 'Root index cancelled');
       const activeBuild = this.options.store.beginBuild(this.options.root.id);

@@ -8,6 +8,7 @@ export {
   type FsWatchKey,
   type FsWatchStreamEvent,
 } from './contract';
+export { requireWatchReady } from './models';
 export type {
   IWatchService,
   WatchEvent,

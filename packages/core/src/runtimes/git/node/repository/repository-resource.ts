@@ -11,7 +11,7 @@ import {
 import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
-import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
+import { requireWatchReady, type IWatchService, type WatchHandle } from '#services/fs-watch/api';
 import type { GitRepository } from './git-repository';
 import { RepositoryFamilyLane } from './repository-family-lane';
 import { classifyGitWatchEvents, type WorktreeWatchEffects } from './watch-classifier';
@@ -54,7 +54,7 @@ export class RepositoryResource {
   static async create(options: RepositoryResourceOptions): Promise<RepositoryResource> {
     const resource = new RepositoryResource(options);
     try {
-      await resource.commonDirWatch.ready();
+      await requireWatchReady(resource.commonDirWatch);
       return resource;
     } catch (error) {
       await resource.dispose();

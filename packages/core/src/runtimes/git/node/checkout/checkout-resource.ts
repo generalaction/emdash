@@ -23,7 +23,7 @@ import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import type { RepositoryResource } from '#runtimes/git/node/repository/repository-resource';
 import type { WorktreeWatchEffects } from '#runtimes/git/node/repository/watch-classifier';
-import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
+import { requireWatchReady, type IWatchService, type WatchHandle } from '#services/fs-watch/api';
 import { GitFileContentRegistry } from './file-content-registry';
 import type { GitCheckout } from './git-checkout';
 
@@ -67,7 +67,7 @@ export class CheckoutResource {
   static async create(options: CheckoutResourceOptions): Promise<CheckoutResource> {
     const resource = new CheckoutResource(options);
     try {
-      await resource.worktreeWatch.ready();
+      await requireWatchReady(resource.worktreeWatch);
       return resource;
     } catch (error) {
       await resource.dispose();

@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createTestWire, FakeWorkerProcessSpawner } from '@emdash/wire/testing';
@@ -13,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
   fsWatchContract,
+  requireWatchReady,
   type IWatchService,
   type WatchEvent,
   type WatchHandle,
@@ -39,14 +41,14 @@ describe('processWatchBackend', () => {
 
     const readyStates: string[] = [];
     const handle = service.watch('/tmp/project', () => {});
-    const ready = handle.ready().then(() => readyStates.push('ready'));
+    const ready = requireWatchReady(handle).then(() => readyStates.push('ready'));
     await waitFor(() => spawner.processes.length === 1);
     await startChild(spawner.latest(), childService);
     await flush();
 
     expect(readyStates).toEqual([]);
     await waitFor(() => childService.watches.length === 1);
-    childService.latest().readyDeferred.resolve();
+    childService.latest().readyDeferred.resolve(ok(undefined));
     await ready;
     expect(readyStates).toEqual(['ready']);
 
@@ -71,11 +73,11 @@ describe('processWatchBackend', () => {
     const handle = service.watch('/tmp/project', () => {}, {
       onResync: () => resyncs.push('resync'),
     });
-    const ready = handle.ready();
+    const ready = requireWatchReady(handle);
     await waitFor(() => spawner.processes.length === 1);
     await startChild(spawner.latest(), childService);
     await waitFor(() => childService.watches.length === 1);
-    childService.latest().readyDeferred.resolve();
+    childService.latest().readyDeferred.resolve(ok(undefined));
     await ready;
 
     spawner.latest().emitExit({ code: 1 });
@@ -85,7 +87,7 @@ describe('processWatchBackend', () => {
 
     expect(resyncs).toEqual([]);
     await waitFor(() => childService.watches.length === 2);
-    childService.latest().readyDeferred.resolve();
+    childService.latest().readyDeferred.resolve(ok(undefined));
     await waitFor(() => resyncs.length === 1);
     expect(resyncs).toEqual(['resync']);
 
@@ -117,11 +119,11 @@ describe('processWatchBackend', () => {
     await waitFor(() => spawner.processes.length === 1);
     await startChild(spawner.latest(), childService);
     await waitFor(() => childService.watches.length === 1);
-    childService.latest().readyDeferred.resolve();
+    childService.latest().readyDeferred.resolve(ok(undefined));
 
     await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
-      undefined,
-      undefined,
+      ok(undefined),
+      ok(undefined),
     ]);
     expect(childService.watches).toHaveLength(1);
 
@@ -143,7 +145,7 @@ describe('processWatchBackend', () => {
     const firstSubscription = firstWire.client.events.subscribe(key, { onEvent: () => {} });
     const secondSubscription = secondWire.client.events.subscribe(key, { onEvent: () => {} });
     await waitFor(() => service.watches.length === 1);
-    service.latest().readyDeferred.resolve();
+    service.latest().readyDeferred.resolve(ok(undefined));
 
     const [first, second] = await Promise.all([firstSubscription, secondSubscription]);
     expect(service.watches).toHaveLength(1);
@@ -167,7 +169,7 @@ describe('processWatchBackend', () => {
     );
 
     await waitFor(() => service.watches.length === 1);
-    service.latest().readyDeferred.reject(new Error('native startup failed'));
+    service.latest().readyDeferred.resolve(err(new Error('native startup failed')));
 
     await expect(subscription).rejects.toThrow('native startup failed');
     expect(service.latest().released).toBe(true);
@@ -253,7 +255,7 @@ class FakeWatchService implements IWatchService {
 }
 
 class FakeWatch implements WatchHandle {
-  readonly readyDeferred = createDeferred<void>();
+  readonly readyDeferred = createDeferred<Result<void, unknown>>();
   released = false;
 
   constructor(
@@ -262,7 +264,7 @@ class FakeWatch implements WatchHandle {
     readonly options?: WatchOptions
   ) {}
 
-  ready(): Promise<void> {
+  ready(): Promise<Result<void, unknown>> {
     return this.readyDeferred.promise;
   }
 

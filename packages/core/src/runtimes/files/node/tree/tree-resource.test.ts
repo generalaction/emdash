@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -265,7 +266,7 @@ class ManualWatcher implements IWatchService {
     this.onEvents = onEvents;
     this.onResync = options.onResync;
     return {
-      ready: async () => {},
+      ready: async () => ok(undefined),
       release: async () => {
         this.onEvents = undefined;
         this.onResync = undefined;

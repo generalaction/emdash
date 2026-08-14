@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostAbsolutePath } from '#primitives/path/api';
@@ -97,7 +98,7 @@ class FailingScanner implements PathScanner {
 
 class NoopWatchService implements IWatchService {
   watch() {
-    return { ready: async () => {}, release: async () => {} };
+    return { ready: async () => ok(undefined), release: async () => {} };
   }
 
   async dispose(): Promise<void> {}
