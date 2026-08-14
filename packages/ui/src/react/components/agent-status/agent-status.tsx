@@ -1,7 +1,6 @@
 import { Tooltip } from '@react/primitives/tooltip';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
-import { BrailleSpinner } from './braille-spinner';
 import * as styles from './agent-status.css';
 
 export type AgentStatusKind = 'working' | 'awaiting-input' | 'error' | 'completed' | 'idle';
@@ -26,6 +25,18 @@ const STATUS_LABELS: Record<ActiveAgentStatusKind, string> = {
   error: 'Agent error',
   completed: 'Agent completed',
 };
+
+const DOT_POINTS = [
+  [6, 6],
+  [12, 6],
+  [18, 6],
+  [6, 12],
+  [12, 12],
+  [18, 12],
+  [6, 18],
+  [12, 18],
+  [18, 18],
+] as const;
 
 function toCssLength(size: string | number) {
   return typeof size === 'number' ? `${size}px` : size;
@@ -74,7 +85,13 @@ function AgentStatus({
 function AgentStatusGlyph({ status }: { status: ActiveAgentStatusKind }) {
   switch (status) {
     case 'working':
-      return <BrailleSpinner />;
+      return (
+        <svg className={cx(styles.icon, styles.workingIcon)} viewBox="0 0 24 24" aria-hidden="true">
+          {DOT_POINTS.map(([cx, cy], index) => (
+            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.85" className={styles.dot[index]} />
+          ))}
+        </svg>
+      );
 
     case 'awaiting-input':
       return (

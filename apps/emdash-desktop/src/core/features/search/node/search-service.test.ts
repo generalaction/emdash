@@ -2,6 +2,7 @@ import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { createController } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
+import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
@@ -53,75 +54,16 @@ describe('SearchService runtime file search', () => {
     mocks.getSearchExclusions.mockResolvedValue(['dist']);
   });
 
-  it('merges runtime file hits after task and conversation search results', async () => {
-    mocks.prepare.mockReturnValue({
-      all: () => [
-        {
-          item_type: 'task',
-          item_id: 'task-1',
-          project_id: 'project-1',
-          task_id: null,
-          title: 'Index task',
-          rank: -1,
-        },
-      ],
-    });
-
-    await expect(
-      searchService.search({
-        query: 'index',
-        context: { projectId: 'project-1', taskId: 'task-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual([
-      {
-        kind: 'task',
-        id: 'task-1',
-        projectId: 'project-1',
-        taskId: null,
-        title: 'Index task',
-        subtitle: '',
-        score: -1,
-      },
-      {
-        kind: 'file',
-        id: '/repo/src/index.ts',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        title: 'index.ts',
-        subtitle: '/repo/src/index.ts',
-        score: 0,
-      },
+  it('delegates path search to the resolved workspace runtime', async () => {
+    await expect(searchService.searchFiles('workspace-1', 'index', 25)).resolves.toEqual([
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
     expect(mocks.fileSearch).toHaveBeenCalledWith(
       expect.objectContaining({ searchPaths: expect.any(Function) }),
       root,
       'index',
-      undefined
+      25
     );
-  });
-
-  it('preserves runtime file hits when the app search index fails', async () => {
-    mocks.prepare.mockImplementation(() => {
-      throw new Error('FTS unavailable');
-    });
-
-    await expect(
-      searchService.search({
-        query: 'index',
-        context: { projectId: 'project-1', taskId: 'task-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual([
-      {
-        kind: 'file',
-        id: '/repo/src/index.ts',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        title: 'index.ts',
-        subtitle: '/repo/src/index.ts',
-        score: 0,
-      },
-    ]);
-    expect(mocks.warn).toHaveBeenCalledOnce();
   });
 
   it('relays progressive content search through the resolved workspace runtime', async () => {
@@ -180,6 +122,115 @@ describe('SearchService runtime file search', () => {
       expect(progress).toEqual([{ files }]);
     } finally {
       await upstream.dispose();
+    }
+  });
+});
+
+describe('SearchService palette entity search', () => {
+  it('returns kind-filtered candidates for one-character queries', async () => {
+    const sqlite = new Database(':memory:');
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE search_index USING fts5(
+        item_type,
+        item_id UNINDEXED,
+        project_id UNINDEXED,
+        task_id UNINDEXED,
+        title,
+        keywords,
+        tokenize = 'trigram case_sensitive 0'
+      );
+      INSERT INTO search_index VALUES
+        ('task', 'task-1', 'project-1', NULL, 'Theme task', 'THEME-123'),
+        ('project', 'project-1', NULL, NULL, 'Theme project', '/repo/theme'),
+        ('conversation', 'conversation-1', 'project-1', 'task-1', 'Theme chat', '');
+    `);
+    const service = createSearchService({
+      db: {} as never,
+      sqlite,
+      acquireWorkspaceRuntime: mocks.workspaceGet,
+      searchFileSearchRoot: mocks.fileSearch,
+      getSearchExclusions: mocks.getSearchExclusions,
+      tasks: { on: vi.fn() } as never,
+    });
+
+    try {
+      await expect(
+        service.searchEntities({
+          kind: 'task',
+          query: 't',
+          context: { projectId: 'project-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'task',
+          id: 'task-1',
+          projectId: 'project-1',
+          taskId: null,
+          title: 'Theme task',
+          subtitle: 'THEME-123',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'task',
+          query: 'tt',
+          context: { projectId: 'project-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'task',
+          id: 'task-1',
+          projectId: 'project-1',
+          taskId: null,
+          title: 'Theme task',
+          subtitle: 'THEME-123',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'project',
+          query: 't',
+          context: { projectId: 'project-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'project',
+          id: 'project-1',
+          projectId: null,
+          taskId: null,
+          title: 'Theme project',
+          subtitle: '/repo/theme',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'conversation',
+          query: 't',
+          context: { projectId: 'project-1', taskId: 'task-1' },
+        })
+      ).resolves.toEqual([
+        {
+          kind: 'conversation',
+          id: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          title: 'Theme chat',
+          subtitle: '',
+          score: 0,
+        },
+      ]);
+      await expect(
+        service.searchEntities({
+          kind: 'conversation',
+          query: 't',
+          context: { taskId: 'other-task' },
+        })
+      ).resolves.toEqual([]);
+    } finally {
+      sqlite.close();
     }
   });
 });

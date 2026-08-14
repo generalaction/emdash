@@ -15,22 +15,25 @@ import {
   toggleThemeCommand,
   zenModeCommand,
 } from '@core/features/workbench/contributions/commands';
-import { definePaletteItem } from '@core/primitives/palette/api';
+import { defineCommandPaletteItem } from '@core/primitives/palette/api';
 
-export const WORKBENCH_PALETTE_ITEMS = [
-  definePaletteItem({ command: settingsCommand, rank: 10 }),
-  definePaletteItem({ command: newProjectCommand, rank: 30 }),
-  definePaletteItem({ command: newTaskCommand, rank: 40 }),
-  definePaletteItem({ command: giveFeedbackCommand, rank: 50 }),
-  definePaletteItem({ command: toggleThemeCommand, rank: 60 }),
-  definePaletteItem({ command: commandPaletteCommand, rank: 70 }),
-  definePaletteItem({ command: openInEditorCommand, rank: 80 }),
-  definePaletteItem({ command: toggleLeftSidebarCommand, rank: 90 }),
-  definePaletteItem({ command: zenModeCommand, rank: 100 }),
-  definePaletteItem({ command: nextTabCommand, rank: 110 }),
-  definePaletteItem({ command: previousTabCommand, rank: 120 }),
-  definePaletteItem({ command: closeTabCommand, rank: 130 }),
-  definePaletteItem({ command: reopenTabCommand, rank: 140 }),
-  definePaletteItem({ command: renameTabCommand, rank: 150 }),
-  definePaletteItem({ command: splitPaneCommand, rank: 160 }),
+export const WORKBENCH_COMMAND_PALETTE_ITEMS = [
+  defineCommandPaletteItem({ command: settingsCommand }),
+  defineCommandPaletteItem({ command: newProjectCommand }),
+  defineCommandPaletteItem({ command: newTaskCommand }),
+  defineCommandPaletteItem({ command: giveFeedbackCommand }),
+  defineCommandPaletteItem({
+    command: toggleThemeCommand,
+    aliases: ['appearance', 'color scheme', 'dark mode', 'light mode'],
+  }),
+  defineCommandPaletteItem({ command: commandPaletteCommand }),
+  defineCommandPaletteItem({ command: openInEditorCommand }),
+  defineCommandPaletteItem({ command: toggleLeftSidebarCommand }),
+  defineCommandPaletteItem({ command: zenModeCommand }),
+  defineCommandPaletteItem({ command: nextTabCommand }),
+  defineCommandPaletteItem({ command: previousTabCommand }),
+  defineCommandPaletteItem({ command: closeTabCommand }),
+  defineCommandPaletteItem({ command: reopenTabCommand }),
+  defineCommandPaletteItem({ command: renameTabCommand }),
+  defineCommandPaletteItem({ command: splitPaneCommand }),
 ] as const;

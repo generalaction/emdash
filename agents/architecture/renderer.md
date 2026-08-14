@@ -41,6 +41,16 @@ Feature views, modals, and task tabs are exposed through `contributions/` and ag
 `src/core/manifests/browser/browser-contributions.ts` and
 `src/core/manifests/browser/task-tab-contributions.ts`.
 
+The command palette uses the same static contribution model. Owning slices export
+`PaletteProviderDef` arrays from `contributions/browser/`, and
+`src/core/manifests/browser/palette-provider-catalog.ts` aggregates the five providers for
+commands, tasks, conversations, files, and projects. The workbench modal only renders
+`PaletteController` output. Argumentless commands opt in separately through
+`CommandPaletteItemDef` contributions aggregated by
+`src/core/manifests/shared/command-palette-catalog.ts`; command matching stays in the renderer,
+while task, conversation, and project providers request kind-filtered candidates through the
+search slice.
+
 ## Shared Renderer Infrastructure (`src/renderer/lib/`)
 
 `src/renderer/lib/` is a thin host shell; portable browser infrastructure lives in

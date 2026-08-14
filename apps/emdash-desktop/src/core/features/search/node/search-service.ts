@@ -23,13 +23,11 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceRuntimeAccess } from '@core/features/workspaces/api/node/runtime-access';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
-import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
-  CommandPaletteQuery,
+  PaletteEntitySearchQuery,
   SearchItem,
-  SearchItemKind,
   WorkspaceFileHit,
 } from '@core/primitives/search/api';
 import type { Task } from '@core/primitives/tasks/api';
@@ -43,6 +41,7 @@ type FtsRow = {
   project_id: string | null;
   task_id: string | null;
   title: string;
+  keywords?: string;
   rank: number;
 };
 
@@ -58,6 +57,10 @@ type RecentConversationRow = {
   project_id: string;
   task_id: string;
 };
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
 
 export type SearchServiceDeps = {
   db: AppDb;
@@ -96,7 +99,6 @@ export class SearchService {
     );
 
     this.backfill();
-    this.seedCommands();
   }
 
   async searchFiles(
@@ -172,80 +174,98 @@ export class SearchService {
     }
   }
 
-  async search({ query, context }: CommandPaletteQuery): Promise<SearchItem[]> {
-    if (!query.trim()) return this.recents(context);
+  async searchEntities({
+    kind,
+    query,
+    context,
+    limit = 50,
+  }: PaletteEntitySearchQuery): Promise<SearchItem[]> {
+    const trimmed = query.trim();
+    const resultLimit = Math.max(1, Math.min(limit, 100));
+    if (!trimmed) {
+      return this.recents(context)
+        .filter((item) => item.kind === kind)
+        .slice(0, resultLimit);
+    }
+    const taskId = context?.taskId;
+    if (kind === 'conversation' && !taskId) return [];
 
-    // Trigram tokenizer requires each term to be at least 3 characters.
-    // Terms shorter than 3 chars are dropped; if nothing survives, fall back
-    // to recents rather than sending an invalid query to SQLite.
-    const terms = query
-      .trim()
-      .split(/[\s\-_]+/)
-      .filter((t) => t.length >= 3);
-
-    if (terms.length === 0) return this.recents(context);
-
-    const fileHitsPromise = context?.workspaceId
-      ? this.searchFiles(context.workspaceId, query)
-      : Promise.resolve([]);
-    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
-
-    let rows: FtsRow[] = [];
     try {
-      if (context?.taskId) {
-        rows = this.deps.sqlite
-          .prepare(
-            `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
-             FROM search_index
-             WHERE search_index MATCH ?
-               AND (item_type != 'conversation' OR task_id = ?)
-             ORDER BY rank
-             LIMIT 30`
-          )
-          .all(ftsQuery, context.taskId) as FtsRow[];
-      } else {
-        rows = this.deps.sqlite
-          .prepare(
-            `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
-             FROM search_index
-             WHERE search_index MATCH ?
-               AND item_type != 'conversation'
-             ORDER BY rank
-             LIMIT 30`
-          )
-          .all(ftsQuery) as FtsRow[];
-      }
-    } catch (e) {
-      log.warn('SearchService: FTS query failed', { query, error: String(e) });
-    }
+      const escaped = escapeLike(trimmed);
+      const prefixPattern = `${escaped}%`;
+      const substringPattern = `%${escaped}%`;
+      const fuzzyPattern = `%${Array.from(trimmed).map(escapeLike).join('%')}%`;
+      const rows = (
+        kind === 'conversation'
+          ? this.deps.sqlite
+              .prepare(
+                `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                 FROM search_index
+                 WHERE item_type = ? AND task_id = ?
+                   AND (title LIKE ? ESCAPE '\\' OR keywords LIKE ? ESCAPE '\\')
+                 ORDER BY CASE
+                   WHEN lower(title) = lower(?) THEN 0
+                   WHEN title LIKE ? ESCAPE '\\' THEN 1
+                   WHEN title LIKE ? ESCAPE '\\' THEN 2
+                   ELSE 3
+                 END, length(title), title
+                 LIMIT ?`
+              )
+              .all(
+                kind,
+                taskId,
+                fuzzyPattern,
+                fuzzyPattern,
+                trimmed,
+                prefixPattern,
+                substringPattern,
+                resultLimit
+              )
+          : this.deps.sqlite
+              .prepare(
+                `SELECT item_type, item_id, project_id, task_id, title, keywords, 0 AS rank
+                 FROM search_index
+                 WHERE item_type = ?
+                   AND (title LIKE ? ESCAPE '\\' OR keywords LIKE ? ESCAPE '\\')
+                 ORDER BY CASE
+                   WHEN lower(title) = lower(?) THEN 0
+                   WHEN title LIKE ? ESCAPE '\\' THEN 1
+                   WHEN title LIKE ? ESCAPE '\\' THEN 2
+                   ELSE 3
+                 END, length(title), title
+                 LIMIT ?`
+              )
+              .all(
+                kind,
+                fuzzyPattern,
+                fuzzyPattern,
+                trimmed,
+                prefixPattern,
+                substringPattern,
+                resultLimit
+              )
+      ) as FtsRow[];
 
-    const results: SearchItem[] = rows.map((r) => ({
-      kind: r.item_type as SearchItemKind,
-      id: r.item_id,
-      projectId: r.project_id,
-      taskId: r.task_id,
-      title: r.title,
-      subtitle: '',
-      score: r.rank,
-    }));
-
-    const fileHits = await fileHitsPromise;
-    for (const hit of fileHits) {
-      results.push({
-        kind: 'file',
-        id: hit.path,
-        projectId: context?.projectId ?? null,
-        taskId: context?.taskId ?? null,
-        title: hit.filename,
-        subtitle: hit.path,
-        score: 0,
+      return rows.map((row) => ({
+        kind,
+        id: row.item_id,
+        projectId: row.project_id,
+        taskId: row.task_id,
+        title: row.title,
+        subtitle: row.keywords ?? '',
+        score: row.rank,
+      }));
+    } catch (error) {
+      log.warn('SearchService: palette entity query failed', {
+        kind,
+        query,
+        error: String(error),
       });
+      return [];
     }
-
-    return results;
   }
 
-  private recents(context?: CommandPaletteQuery['context']): SearchItem[] {
+  private recents(context?: PaletteEntitySearchQuery['context']): SearchItem[] {
     const taskStmt = context?.projectId
       ? this.deps.sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
@@ -396,31 +416,6 @@ export class SearchService {
     }
   }
 
-  private seedCommands(): void {
-    try {
-      this.deps.sqlite.transaction(() => {
-        this.deps.sqlite.prepare(`DELETE FROM search_index WHERE item_type = 'command'`).run();
-        const stmt = this.deps.sqlite.prepare(
-          `INSERT INTO search_index (item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('command', ?, NULL, NULL, ?, ?)`
-        );
-        for (const item of PALETTE_CATALOG.items) {
-          const { command } = item;
-          const keywords = [
-            command.description,
-            ...new Set([...command.keywords, ...(item.keywords ?? [])]),
-          ]
-            .filter(Boolean)
-            .join(' ');
-          stmt.run(command.id, command.title, keywords);
-        }
-      })();
-      log.info('SearchService: seeded commands', { count: PALETTE_CATALOG.items.length });
-    } catch (e) {
-      log.warn('SearchService: seedCommands failed', { error: String(e) });
-    }
-  }
-
   private backfill(): void {
     try {
       const count = (
@@ -435,6 +430,7 @@ export class SearchService {
           projectId: tasks.projectId,
           name: tasks.name,
           archivedAt: tasks.archivedAt,
+          linkedIssue: tasks.linkedIssue,
           workspaceKind: workspaces.kind,
           workspaceConfig: workspaces.config,
         })
@@ -462,7 +458,10 @@ export class SearchService {
             kind: t.workspaceKind,
             config: t.workspaceConfig,
           });
-          upsertStmt.run('task', t.id, t.projectId, null, t.name, branchName ?? '');
+          const keywords = [branchName, t.linkedIssue?.identifier, t.linkedIssue?.title]
+            .filter(Boolean)
+            .join(' ');
+          upsertStmt.run('task', t.id, t.projectId, null, t.name, keywords);
         }
         for (const p of allProjects) {
           upsertStmt.run('project', p.id, null, null, p.name, p.path ?? '');

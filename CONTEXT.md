@@ -48,12 +48,53 @@ _Avoid_: Unqualified "plugins" where the home matters
 The desktop-side grouping that organizes tasks around a repository. An app concept only.
 _Avoid_: Using "project" to mean the git repository on disk
 
+**Project context**:
+The desktop-owned live context of a registered Project: the shell and desktop facts that remain
+available regardless of Host reachability. Failure to reach or inspect the Host never makes the
+Project context unavailable.
+_Avoid_: Project mount (conflates desktop availability with Host attachment)
+
+**Project context error**:
+A typed failure to construct a Project context from durable desktop data. Limited to an invalid
+Project record or failed desktop context hydration; it is the only Project failure class that may
+replace the normal shell.
+_Avoid_: Classifying Host, attachment, or Repository access failures as Project context errors
+
+**Host attachment**:
+The per-Project runtime link to its Host, independent of the Project context. An established
+attachment survives an ordinary Host disconnect; Host-dependent capabilities report the temporary
+loss and resume when transport reconnects.
+_Avoid_: Treating SSH connection state as Project availability
+
 **Task**:
 A desktop-owned unit of agent work, linked to the Workspace it runs in.
+
+**Command palette**:
+The desktop's unified search surface for actions, tasks, projects, conversations, and files. Empty-query suggested actions are a curated idle list, not the catalog.
+_Avoid_: CMDK (the library), treating idle as the full command catalog
+
+**Keyword mode**:
+A command-palette query restricted to one kind by an `@kind` prefix (`@files`, `@commands`, `@tasks`, `@conversations`, `@projects`).
+_Avoid_: Scoped search (Scope is the ownership primitive), treating `@` as a sixth provider
 
 **Host (services/hosts)**:
 `src/core/services/hosts` owns machine lifecycle and workspace-server provisioning under the Host vocabulary (`HostService`, the `hosts` wire domain) — the merged home of the former `remote-machine` and `workspace-server` services. "Machine" remains a UI label only. Host (wire) remains the separately-scoped wire term.
 _Avoid_: Machine (outside UI labels), "remote" as a noun
+
+**Desktop Secret Authority**:
+The desktop-owned authority over user Secret references, storage backends, Host grants,
+rotation and revocation, and the aggregate audit history. Desktop-only consumers resolve
+through it directly; Host-executed consumers reach it through the Host Secret Runtime.
+_Avoid_: Treating the desktop store as the process-injection layer, separate local and
+remote secret authorities
+
+**Host Secret Runtime**:
+The Host-owned capability that authorizes and delivers granted Secrets to Git, agents,
+scripts, and configuration materialization on that Host. The same capability serves the
+local Host and SSH-connected Hosts; locality changes transport and offline availability,
+not ownership or the consumer path.
+_Avoid_: Remote secrets service, calling desktop secret storage directly from Host-executed
+consumers
 
 **Host registry**:
 A host's durable, sole-writer index of its Workspaces: registered paths plus host-computed Observations, pushed to desktops as one live model that merges the durable records with the Runtime overlay. The filesystem stays authoritative — the registry observes it (adopting and un-adopting worktrees), never converges it toward a record. See ADR 0005.
