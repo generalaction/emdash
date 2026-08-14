@@ -73,6 +73,12 @@ describe('ProjectSettingsForm unavailable copy', () => {
 
     expect(host.textContent).toContain(copy);
   });
+
+  it('lets the Project page own vertical scrolling', async () => {
+    await renderForm(root, 'local', 'unavailable');
+
+    expect(host.querySelector('.overflow-y-auto')).toBeNull();
+  });
 });
 
 async function renderForm(

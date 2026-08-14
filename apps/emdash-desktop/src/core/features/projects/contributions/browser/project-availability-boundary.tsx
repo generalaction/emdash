@@ -5,7 +5,10 @@ import {
   asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
-import { ProjectAvailabilityFrame } from '@core/features/projects/browser/components/project-availability-banner';
+import {
+  ProjectAvailabilityFrame,
+  type ProjectAvailabilityLayout,
+} from '@core/features/projects/browser/components/project-availability-banner';
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
@@ -15,9 +18,11 @@ import { useNavigate } from '@core/primitives/navigation/browser/navigation-hook
 export const ProjectAvailabilityBoundary = observer(function ProjectAvailabilityBoundary({
   children,
   projectId,
+  layout,
 }: {
   children: ReactNode;
   projectId: string;
+  layout?: ProjectAvailabilityLayout;
 }) {
   const context = asAvailableProject(getProjectStore(projectId));
   const confirmDeleteProject = useConfirmDeleteProject();
@@ -44,6 +49,7 @@ export const ProjectAvailabilityBoundary = observer(function ProjectAvailability
       project={project}
       state={context.host.state}
       machineName={machine?.name}
+      layout={layout}
       actionHandlers={{
         connect: () => context.host.recover(),
         retry: () => context.host.recover(),

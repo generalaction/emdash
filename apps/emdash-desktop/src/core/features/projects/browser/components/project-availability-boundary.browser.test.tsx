@@ -1,6 +1,6 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectAvailabilityBoundary } from '@core/features/projects/contributions/browser/project-availability-boundary';
@@ -119,6 +119,69 @@ describe('ProjectAvailabilityBoundary', () => {
       projectId: 'project-1',
       projectLabel: 'Review Project',
     });
+  });
+
+  it('places an inline availability banner directly before Project page content', async () => {
+    await act(async () => {
+      root.render(
+        <ProjectAvailabilityBoundary projectId="project-1" layout="inline">
+          <main>Project shell</main>
+        </ProjectAvailabilityBoundary>
+      );
+    });
+
+    const banner = host.querySelector<HTMLElement>('[role="alert"]');
+    expect(banner).not.toBeNull();
+    expect(banner?.nextElementSibling?.textContent).toBe('Project shell');
+  });
+
+  it('keeps inline Project content mounted while availability changes', async () => {
+    const lifecycle = { mounts: 0, unmounts: 0 };
+    const projectContext = context.current as {
+      host: {
+        state:
+          | { kind: 'ready'; hostGeneration: number }
+          | {
+              kind: 'degraded';
+              situation: 'offline';
+              recovery: 'automatic';
+            };
+      };
+    };
+    projectContext.host.state = { kind: 'ready', hostGeneration: 1 };
+
+    function ProjectShell() {
+      useEffect(() => {
+        lifecycle.mounts += 1;
+        return () => {
+          lifecycle.unmounts += 1;
+        };
+      }, []);
+      return <main>Project shell</main>;
+    }
+
+    await act(async () => {
+      root.render(
+        <ProjectAvailabilityBoundary projectId="project-1" layout="inline">
+          <ProjectShell />
+        </ProjectAvailabilityBoundary>
+      );
+    });
+    projectContext.host.state = {
+      kind: 'degraded',
+      situation: 'offline',
+      recovery: 'automatic',
+    };
+    await act(async () => {
+      root.render(
+        <ProjectAvailabilityBoundary projectId="project-1" layout="inline">
+          <ProjectShell />
+        </ProjectAvailabilityBoundary>
+      );
+    });
+
+    expect(host.textContent).toContain('Project shell');
+    expect(lifecycle).toEqual({ mounts: 1, unmounts: 0 });
   });
 
   it('routes local runtime correction to System settings without SSH actions', async () => {

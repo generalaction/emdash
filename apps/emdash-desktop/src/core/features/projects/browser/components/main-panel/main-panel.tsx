@@ -1,6 +1,7 @@
 import { Button } from '@emdash/ui/react/primitives';
 import { Loader2, TriangleAlert } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type { ReactNode } from 'react';
 import { isUnregisteredProject } from '@core/features/projects/api/browser/stores/project';
 import type { ProjectContextError } from '@core/features/projects/api/browser/stores/project-context';
 import {
@@ -15,6 +16,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
+import { ProjectHeader } from './project-header';
 
 export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const {
@@ -30,20 +32,26 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind === 'hydrating') {
-    return <ProjectContextHydratingPanel />;
+    return (
+      <ProjectPageShell projectId={projectId}>
+        <ProjectContextHydratingPanel />
+      </ProjectPageShell>
+    );
   }
 
   if (kind === 'context_error' && store?.context?.kind === 'failed') {
     return (
-      <ProjectContextErrorPanel
-        error={store.context.error}
-        onRemove={() => {
-          void confirmDeleteProject({ projectId, projectLabel: displayName });
-        }}
-        onRetry={() => {
-          void getProjectManagerStore().hydrateProjectContext(projectId);
-        }}
-      />
+      <ProjectPageShell projectId={projectId}>
+        <ProjectContextErrorPanel
+          error={store.context.error}
+          onRemove={() => {
+            void confirmDeleteProject({ projectId, projectLabel: displayName });
+          }}
+          onRetry={() => {
+            void getProjectManagerStore().hydrateProjectContext(projectId);
+          }}
+        />
+      </ProjectPageShell>
     );
   }
 
@@ -52,15 +60,37 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   return (
-    <ProjectAvailabilityBoundary projectId={projectId}>
-      <ActiveProject />
-    </ProjectAvailabilityBoundary>
+    <ProjectPageShell projectId={projectId}>
+      <ProjectAvailabilityBoundary projectId={projectId} layout="inline">
+        <ActiveProject />
+      </ProjectAvailabilityBoundary>
+    </ProjectPageShell>
   );
 });
 
+export function ProjectPageShell({
+  children,
+  projectId,
+}: {
+  children: ReactNode;
+  projectId: string;
+}) {
+  return (
+    <div
+      data-project-page-scroll
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
+    >
+      <div className="mx-auto flex min-h-full w-full max-w-265 flex-col gap-6 px-8 py-10">
+        <ProjectHeader projectId={projectId} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ProjectContextHydratingPanel() {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+    <div className="flex min-h-64 w-full flex-1 flex-col items-center justify-center gap-3">
       <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
       <p className="font-sans text-xs text-foreground-passive">Loading project…</p>
     </div>
@@ -83,7 +113,7 @@ export function ProjectContextErrorPanel({
         ? 'Saved Project view state could not be loaded.'
         : 'Project stores could not be initialized.';
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
+    <div className="flex min-h-64 w-full flex-1 flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <TriangleAlert className="size-6 text-foreground-destructive" aria-hidden="true" />
         <p className="font-sans text-sm font-medium text-foreground-destructive">

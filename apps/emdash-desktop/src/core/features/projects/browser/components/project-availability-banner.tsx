@@ -21,6 +21,8 @@ type ProjectAvailabilityBannerProps = {
   actionHandlers?: ProjectAvailabilityActionHandlers;
 };
 
+export type ProjectAvailabilityLayout = 'frame' | 'inline';
+
 export function ProjectAvailabilityBanner({
   project,
   state,
@@ -121,12 +123,32 @@ export function ProjectAvailabilityFrame({
   state,
   machineName,
   actionHandlers,
-}: ProjectAvailabilityBannerProps & { children: ReactNode }) {
+  layout = 'frame',
+}: ProjectAvailabilityBannerProps & {
+  children: ReactNode;
+  layout?: ProjectAvailabilityLayout;
+}) {
+  if (layout === 'inline') {
+    return (
+      <div className="flex w-full flex-col gap-6">
+        {state.kind !== 'ready' ? (
+          <ProjectAvailabilityBanner
+            project={project}
+            state={state}
+            machineName={machineName}
+            actionHandlers={actionHandlers}
+          />
+        ) : null}
+        {children}
+      </div>
+    );
+  }
+
   if (state.kind === 'ready') return children;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="mx-auto w-full max-w-[1060px] shrink-0 px-8 pt-6">
+      <div className="mx-auto w-full max-w-265 shrink-0 px-8 pt-6">
         <ProjectAvailabilityBanner
           project={project}
           state={state}

@@ -38,6 +38,66 @@ _Avoid_: Conversation (that is the durable record a session carries forward)
 A durable record of an agent exchange, attached to a Workspace. One Conversation outlives its Sessions — the successive live processes that carry it; resuming starts a new Session of the same Conversation. Identified by its own id for its whole life; any provider session handle it holds is a last-observed pointer, not its identity.
 _Avoid_: Session (a conversation is not a process), using the provider's session id as the conversation's identity
 
+**Prompt**:
+A logical user request submitted to an ACP Conversation. Its identity remains stable while the user
+decides whether to retry or recover it; one Prompt may have multiple Prompt attempts.
+_Avoid_: Provider request, turn, treating a resend as proof the earlier dispatch did not execute
+
+**Prompt attempt**:
+One immutable dispatch of a Prompt toward its provider. Every deliberate resend creates a new
+attempt; attempts remain distinct because ACP cannot deduplicate them and more than one may execute.
+_Avoid_: Reusing an attempt for retry, assuming two attempts are exactly-once delivery
+
+**Prompt acceptance**:
+The linearization point where the ACP Conversation owner durably records and orders a Prompt
+attempt. Every later observer and replacement owner sees the accepted attempt. Acceptance does not
+mean the provider has received it, response activity has begun, or the turn has completed; later
+delivery uncertainty is explicit and never authorizes a blind resend.
+_Avoid_: Sent (ambiguous), delivered, completed
+
+**Outcome unknown**:
+A Prompt attempt was accepted but no terminal provider outcome can be proven. It is neither failed
+nor safe to resend. Later Prompts may queue, but provider dispatch remains blocked until the
+attempt is reconciled or explicitly abandoned by replacing the Session. This state survives owner
+restart as non-content lifecycle metadata.
+_Avoid_: Failed, timed out, retryable
+
+**Delayed Prompt attempt**:
+An accepted, nonterminal Prompt attempt that has exceeded a user-facing latency threshold while
+provider contact remains intact. Delay changes only its presentation; elapsed time never makes an
+attempt failed or outcome unknown.
+_Avoid_: Timed out, failed, stalled (unless progress is actually known to have stopped)
+
+**Prompt cancellation**:
+The provider-confirmed terminal cancelled outcome of a Prompt attempt. Sending a cancellation
+request records intent but does not cancel the attempt; a racing normal terminal outcome wins, and
+lost provider contact produces Outcome unknown.
+_Avoid_: Treating cancellation requested or local process termination as confirmed cancellation
+
+**Prompt abandonment**:
+The explicit local terminal decision to stop reconciling an Outcome-unknown Prompt attempt. The
+unknown provider outcome remains visible; abandonment replaces the Session before later queued
+Prompts may dispatch. Late provider evidence is recorded alongside the immutable abandonment; it
+never reopens the replaced Session or reorders newer work.
+_Avoid_: Failed, cancelled, deleting the uncertain attempt, automatically retrying it
+
+**Prompt order**:
+The ACP Conversation owner's single total order of accepted Prompt attempts and queue mutations.
+Every Desktop converges on it, and provider dispatch follows it.
+_Avoid_: Per-Desktop order, arrival order at the provider, unordered merge
+
+**Queued Prompt payload**:
+The Host-durable content needed to fulfill an accepted Prompt attempt that has not reached provider
+dispatch. It is removed from the lifecycle store at first dispatch and is never reliability
+diagnostic data or a durable response transcript.
+_Avoid_: Offline queue, retaining dispatched Prompt content in lifecycle state
+
+**Provider dispatch**:
+The safety-first durable transition that marks a Prompt attempt dispatching and atomically removes
+its Queued Prompt payload before provider I/O. After this point Emdash never automatically
+redelivers the attempt; a crash before the provider write can be proven becomes Outcome unknown.
+_Avoid_: Provider acknowledgement, treating dispatch as proof the provider received the Prompt
+
 **Plugins**:
 One word, three homes — say which one you mean: the capability framework (`@emdash/shared/plugins`), the concrete agent providers (`@emdash/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
 _Avoid_: Unqualified "plugins" where the home matters
@@ -66,12 +126,6 @@ attachment survives an ordinary Host disconnect; Host-dependent capabilities rep
 loss and resume when transport reconnects.
 _Avoid_: Treating SSH connection state as Project availability
 
-**Host availability**:
-The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
-only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
-owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
-_Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
-
 **Task**:
 A desktop-owned unit of agent work, linked to the Workspace it runs in.
 
@@ -87,20 +141,88 @@ _Avoid_: Scoped search (Scope is the ownership primitive), treating `@` as a six
 `src/core/services/hosts` owns machine lifecycle and workspace-server provisioning under the Host vocabulary (`HostService`, the `hosts` wire domain) — the merged home of the former `remote-machine` and `workspace-server` services. "Machine" remains a UI label only. Host (wire) remains the separately-scoped wire term.
 _Avoid_: Machine (outside UI labels), "remote" as a noun
 
+**Host availability**:
+The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
+only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
+owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
+_Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
+
 **Desktop Secret Authority**:
 The desktop-owned authority over user Secret references, storage backends, Host grants,
 rotation and revocation, and the aggregate audit history. Desktop-only consumers resolve
-through it directly; Host-executed consumers reach it through the Host Secret Runtime.
+through it directly; it pushes desired grant/policy projections to Host Secret Runtimes.
 _Avoid_: Treating the desktop store as the process-injection layer, separate local and
 remote secret authorities
 
+**Authority identity**:
+The logical cryptographic identity that signs Host enrollment and desired Secret projections.
+It has exactly one active writer epoch; moving it between desktops is an active-passive transfer,
+not replicated multi-writer authority.
+_Avoid_: Desktop client ID, app installation ID, Wire connection
+
+**Host security identity**:
+The cryptographic identity generated and held by a Host Secret Runtime to receive grants and
+prove enrollment. It is distinct from Host routing identity and the SSH host key; local identity
+is ephemeral, while an independently lived Host persists it.
+_Avoid_: `HostRef`, SSH connection ID, SSH host key, workspace-server daemon ID
+
+**Host enrollment**:
+The user-approved, cryptographically authenticated relationship between one Authority identity
+and one Host security identity. SSH host-key trust authenticates the transport endpoint;
+enrollment separately authorizes signed Secret projections and survives reconnects.
+_Avoid_: SSH connection, Host attachment, workspace-server installation
+
+**Secret reference (`SecretRef`)**:
+The stable opaque identity of one logical user Secret across value replacement and storage
+location changes. The Desktop Secret Authority alone maps it to the current source, and only
+Authority-owned bindings point to it; consumer configuration never retains a backend locator,
+reference, or value directly.
+_Avoid_: Backend route, external-manager locator, Secret binding, material revision
+
+**Secret binding (`SecretBindingId`)**:
+The stable opaque identity of one authorized relationship between a Secret and a consumer
+owner or slot. Every Desktop and Host consumer resolves through a binding, never a Secret
+reference; the Desktop Secret Authority owns the binding-to-reference relationship.
+_Avoid_: Secret reference, plaintext capability, backend locator
+
+**Secret material revision**:
+One immutable version of the material identified by a Secret reference. The Desktop Secret
+Authority designates exactly one current revision; replacement creates and activates a new
+revision without changing the reference, and inactive revisions are never resolution fallback.
+_Avoid_: Secret reference, Host projection revision, backup
+
+**Secret revocation**:
+The Authority lifecycle transition that makes a Secret reference permanently unresolvable and
+revokes its Host uses. Existing bindings remain as broken relationships for explicit repair;
+backend cleanup and upstream-provider revocation are separate effects.
+_Avoid_: Detaching one binding, deleting ciphertext only, automatic consumer deletion
+
 **Host Secret Runtime**:
 The Host-owned capability that authorizes and delivers granted Secrets to Git, agents,
-scripts, and configuration materialization on that Host. The same capability serves the
-local Host and SSH-connected Hosts; locality changes transport and offline availability,
-not ownership or the consumer path.
+scripts, and configuration materialization from the latest acknowledged Authority projection
+on that Host. The same capability serves the local Host and SSH-connected Hosts; locality
+changes transport and projection persistence, not ownership or the consumer path.
 _Avoid_: Remote secrets service, calling desktop secret storage directly from Host-executed
 consumers
+
+**Host Secret projection**:
+The complete, Authority-signed desired authorization state for one enrolled Host, plus its
+referenced sealed grant records. The Host Runtime atomically acknowledges one projection and
+uses only that state; it is a security-policy derivative, not a Host artifact inventory, and is
+the deliberate desired-state exception to the inventory-and-command model.
+_Avoid_: Host registry inventory, mutation log, Desktop cache, per-use callback
+
+**Host offline authorization**:
+The Authority-signed deadline through which an independently lived Host may use its latest
+acknowledged Secret projection without the Desktop. It is bounded to at most 30 days and may be
+shortened by binding or provider expiry; offline means daemon-restart-capable, not indefinite.
+_Avoid_: Credential expiry, permanent grant, ambient Host credential
+
+**Secret use journal**:
+The Host-owned append-only operational record of authorization decisions, disclosure outcomes,
+and Secret lease lifecycle. A decision becomes durable before disclosure; Desktop aggregation
+adds history but does not turn a compromised Host into a trustworthy witness.
+_Avoid_: Secret value log, tamper-proof audit witness, renderer diagnostics
 
 **Host registry**:
 A host's durable, sole-writer index of its Workspaces: registered paths plus host-computed Observations, pushed to desktops as one live model that merges the durable records with the Runtime overlay. The filesystem stays authoritative — the registry observes it (adopting and un-adopting worktrees), never converges it toward a record. See ADR 0005.
