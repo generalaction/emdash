@@ -27,6 +27,7 @@ describe('HostServerOperations', () => {
       status: 'stopped',
       version: '1.2.3',
       latestVersion: '1.2.4',
+      updateAvailable: true,
     });
     await fixture.dispose();
   });
@@ -40,6 +41,7 @@ describe('HostServerOperations', () => {
       status: 'healthy',
       version: '1.2.3',
       latestVersion: '1.2.4',
+      updateAvailable: true,
       startedAt: 100,
     });
     await fixture.dispose();
@@ -55,6 +57,7 @@ describe('HostServerOperations', () => {
       status: 'healthy',
       version: '1.2.3',
       latestVersion: '1.2.4',
+      updateAvailable: true,
       error: { code: 'protocol-upgrade-server' },
     });
     await fixture.dispose();
@@ -85,6 +88,23 @@ describe('HostServerOperations', () => {
     expect(fixture.status('ssh-1')).toEqual({
       status: 'healthy',
       version: '1.2.3',
+      startedAt: 100,
+    });
+    await fixture.dispose();
+  });
+
+  it('publishes an older fallback version without offering a downgrade', async () => {
+    const fixture = createFixture();
+    fixture.installer.installedVersion.mockResolvedValue('1.2.4-canary.42');
+    fixture.installer.availableVersion.mockResolvedValue('1.2.3');
+    fixture.wire.dialOnce.mockResolvedValue(handshake('1.2.4-canary.42'));
+
+    await fixture.operations.refresh('ssh-1');
+
+    expect(fixture.status('ssh-1')).toEqual({
+      status: 'healthy',
+      version: '1.2.4-canary.42',
+      latestVersion: '1.2.3',
       startedAt: 100,
     });
     await fixture.dispose();
@@ -178,13 +198,13 @@ function protocolError(action: 'upgrade-client' | 'upgrade-server'): WorkspaceSe
   });
 }
 
-function handshake(): WireInitializeResult {
+function handshake(appVersion = '1.2.3'): WireInitializeResult {
   return {
     protocolVersion: PROTOCOL_VERSION,
     agreedVersion: PROTOCOL_VERSION,
     agreedMinor: 0,
     server: {
-      appVersion: '1.2.3',
+      appVersion,
       daemonId: 'daemon-1',
       startedAt: 100,
     },

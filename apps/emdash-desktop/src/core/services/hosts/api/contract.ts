@@ -14,6 +14,7 @@ export const hostServerStateSchema = z.object({
   status: hostServerStatusSchema,
   version: z.string().optional(),
   latestVersion: z.string().optional(),
+  updateAvailable: z.boolean().optional(),
   startedAt: z.number().optional(),
   detail: z.string().optional(),
   error: z
