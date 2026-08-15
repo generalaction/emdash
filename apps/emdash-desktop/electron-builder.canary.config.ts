@@ -47,6 +47,8 @@ const config: Configuration = {
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     extendInfo: {
+      NSLocalNetworkUsageDescription:
+        'Emdash needs local network access to connect to SSH hosts on your network.',
       NSMicrophoneUsageDescription:
         'Emdash needs microphone access for voice dictation and voice mode features.',
     },
