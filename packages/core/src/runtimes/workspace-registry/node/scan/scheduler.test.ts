@@ -27,6 +27,8 @@ class FakeWatchService implements IWatchService {
   readonly roots = new Map<string, FakeWatchAttempt>();
   readonly attempts: FakeWatchAttempt[] = [];
 
+  // Readiness stays pending until a test resolves or rejects it. Event-classification tests
+  // inject at the scheduler seam directly; readiness behavior has its own explicit coverage.
   watch(root: string, onEvents: (events: WatchEvent[]) => void, options?: WatchOptions) {
     const ready = deferred<Result<void, unknown>>();
     const attempt: FakeWatchAttempt = {
@@ -49,7 +51,6 @@ class FakeWatchService implements IWatchService {
     void ready.promise.then((attached) => {
       if (!attached.success && !attempt.released) attempt.onError?.(attached.error);
     });
-    queueMicrotask(() => ready.resolve(ok(undefined)));
     return handle;
   }
 
@@ -65,6 +66,13 @@ class FakeWatchService implements IWatchService {
     const attempt = this.roots.get(root);
     if (!attempt) throw new Error(`No active watch for ${root}`);
     attempt.ready.resolve(err(error));
+    return attempt;
+  }
+
+  resolveReady(root: string): FakeWatchAttempt {
+    const attempt = this.roots.get(root);
+    if (!attempt) throw new Error(`No active watch for ${root}`);
+    attempt.ready.resolve(ok(undefined));
     return attempt;
   }
 
@@ -150,6 +158,29 @@ function createHarness(
 }
 
 describe('WorkspaceScanScheduler', () => {
+  it('rescans a target when its watcher becomes ready', async () => {
+    const directory: ScanTarget = {
+      id: 'dir-1',
+      kind: 'directory',
+      path: '/plain',
+      parentId: null,
+      gitAdminName: null,
+      observedStatus: 'present',
+      lastObservedAt: 0,
+    };
+    const { watcher, requests, scheduler } = createHarness([directory], { debounceMs: 1 });
+    try {
+      expect(requests).toHaveLength(0);
+      watcher.resolveReady('/plain');
+
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: 'dir-1', mode: 'full' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
   it('classifies ref-only gitdir events onto the cheap path, index onto the full path', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     const wt = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
