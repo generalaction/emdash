@@ -22,6 +22,11 @@ const toolingAlias = {
   'better-sqlite3': resolve(__dirname, 'tooling/node-deps/node_modules/better-sqlite3'),
 };
 
+const mainDbAlias = {
+  ...toolingAlias,
+  electron: resolve(__dirname, 'tooling/vitest/electron-main-db.ts'),
+};
+
 export default defineConfig({
   resolve: { alias },
   test: {
@@ -52,9 +57,10 @@ export default defineConfig({
       },
       {
         // Main-process integration tests that need a real SQLite connection.
-        // Uses toolingAlias so better-sqlite3 resolves to the system-Node build.
+        // Uses mainDbAlias so native dependencies resolve to their system-Node
+        // test implementations without requiring an installed Electron runtime.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: mainDbAlias },
         test: {
           name: 'main-db',
           environment: 'node',
