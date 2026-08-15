@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { app } from 'electron';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
+import { IS_CANARY } from '@core/primitives/app-identity/api/app-identity';
 import type { SshService } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { sshConnections } from '@core/services/app-db/node/schema';
@@ -36,6 +37,7 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     machineEvents: ssh.machines,
     installBaseUrl: hostSettings.installBaseUrl,
     installCommand: hostSettings.installCommand ?? undefined,
+    releaseChannel: IS_CANARY ? 'canary' : 'stable',
     devAutoUpdate: process.env['EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE'] === '1',
     client: { id: clientId, appVersion: app.getVersion() },
     logger: log,

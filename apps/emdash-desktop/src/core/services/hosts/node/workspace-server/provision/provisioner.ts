@@ -207,19 +207,25 @@ export class WorkspaceServerProvisioner {
       return null;
     }
 
+    // Dev versions put a commit SHA before their timestamp, so SemVer order does not represent
+    // build recency. Any different published dev artifact must replace the running one.
     if (availableVersion === handshake.server.appVersion) return null;
-    await this.install(connectionId, signal);
+    await this.install(connectionId, signal, availableVersion);
     await this.restart(connectionId, layout, signal);
     return await this.waitUntilReady(target, signal);
   }
 
-  private async install(connectionId: string, signal: AbortSignal): Promise<void> {
+  private async install(
+    connectionId: string,
+    signal: AbortSignal,
+    version?: string
+  ): Promise<void> {
     this.deps.model.set(connectionId, {
       status: 'booting',
       detail: 'Installing workspace server',
     });
     try {
-      await this.deps.installer.install(connectionId, signal);
+      await this.deps.installer.install(connectionId, signal, version);
     } catch (error) {
       if (error instanceof WorkspaceServerInstallError) {
         throw provisionError(error.code, error.message, error);

@@ -1,5 +1,11 @@
 import path from 'node:path';
 import { quoteArg } from '@emdash/core/primitives/exec/api';
+import {
+  channelPointerPath,
+  parseChannelPointer,
+  protocolMajor,
+  type ReleaseChannel,
+} from '@emdash/core/workspace-server';
 import { validateWorkspaceServerVersion, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 
@@ -23,12 +29,25 @@ export class WorkspaceServerInstallError extends Error {
   }
 }
 
+export type WorkspaceServerInstallerOptions = {
+  ssh: WorkspaceServerSshPort;
+  baseUrl?: string;
+  installCommand?: string;
+  releaseChannel?: ReleaseChannel;
+};
+
 export class WorkspaceServerInstaller {
-  constructor(
-    private readonly ssh: WorkspaceServerSshPort,
-    private readonly baseUrl = DEFAULT_WORKSPACE_SERVER_INSTALL_BASE_URL,
-    private readonly installCommand?: string
-  ) {}
+  private readonly ssh: WorkspaceServerSshPort;
+  private readonly baseUrl: string;
+  private readonly installCommand?: string;
+  private readonly releaseChannel: ReleaseChannel;
+
+  constructor(options: WorkspaceServerInstallerOptions) {
+    this.ssh = options.ssh;
+    this.baseUrl = options.baseUrl ?? DEFAULT_WORKSPACE_SERVER_INSTALL_BASE_URL;
+    this.installCommand = options.installCommand;
+    this.releaseChannel = options.releaseChannel ?? 'stable';
+  }
 
   async installedVersion(
     connectionId: string,
@@ -67,11 +86,12 @@ export class WorkspaceServerInstaller {
     return version;
   }
 
-  async install(connectionId: string, signal?: AbortSignal): Promise<void> {
+  async install(connectionId: string, signal?: AbortSignal, version?: string): Promise<void> {
+    const selectedVersion = version ?? (await this.availableVersion(connectionId, signal));
     const proxy = await this.ssh.ensureProxy(connectionId);
     const command = this.installCommand
-      ? renderCustomInstallCommand(this.installCommand, this.baseUrl)
-      : buildWorkspaceServerInstallCommand(this.baseUrl);
+      ? renderCustomInstallCommand(this.installCommand, this.baseUrl, selectedVersion)
+      : buildWorkspaceServerInstallCommand(this.baseUrl, selectedVersion);
     const result = await proxy.execScript(command, {
       signal,
       timeoutMs: 5 * 60_000,
@@ -93,9 +113,14 @@ export class WorkspaceServerInstaller {
   }
 
   async availableVersion(connectionId: string, signal?: AbortSignal): Promise<string> {
+    const expectedProtocolMajor = protocolMajor();
     const proxy = await this.ssh.ensureProxy(connectionId);
     const result = await proxy.execScript(
-      buildWorkspaceServerAvailableVersionCommand(this.baseUrl),
+      buildWorkspaceServerChannelPointerCommand(
+        this.baseUrl,
+        this.releaseChannel,
+        expectedProtocolMajor
+      ),
       {
         signal,
         timeoutMs: 10_000,
@@ -106,46 +131,73 @@ export class WorkspaceServerInstaller {
     if (result.exitCode !== 0) {
       throw new WorkspaceServerInstallError(
         'artifact-download-failed',
-        `Could not resolve the latest workspace-server version: ${
+        `Could not resolve the workspace-server ${this.releaseChannel} channel pointer: ${
           result.stderr.trim() || `exit ${result.exitCode}`
         }`
       );
     }
 
-    const version = result.stdout.trim();
-    try {
-      validateWorkspaceServerVersion(version);
-    } catch (error) {
+    const pointer = parseChannelPointer(result.stdout, expectedProtocolMajor);
+    if (!pointer.success) {
+      const reason =
+        pointer.error.type === 'invalid'
+          ? pointer.error.reason
+          : `expected protocol major ${pointer.error.expected}, received ${pointer.error.actual}`;
       throw new WorkspaceServerInstallError(
         'artifact-download-failed',
-        `The latest workspace-server version is invalid: ${version}`,
-        { cause: error }
+        `The workspace-server ${this.releaseChannel} channel pointer is invalid: ${reason}`
       );
     }
-    return version;
+    return pointer.data.artifactVersion;
   }
 }
 
-export function buildWorkspaceServerAvailableVersionCommand(baseUrl: string): string {
+export function buildWorkspaceServerChannelPointerCommand(
+  baseUrl: string,
+  channel: ReleaseChannel,
+  expectedProtocolMajor: number
+): string {
   const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
-  const latestUrl = new URL('latest.txt', ensureTrailingSlash(normalizedBaseUrl));
-  const quotedLatestUrl = quoteArg(latestUrl.href, 'posix');
+  const pointerUrl = new URL(
+    channelPointerPath(channel, expectedProtocolMajor),
+    ensureTrailingSlash(normalizedBaseUrl)
+  );
+  const quotedPointerUrl = quoteArg(pointerUrl.href, 'posix');
+  const stableFallbackUrl =
+    channel === 'canary'
+      ? quoteArg(
+          new URL(
+            channelPointerPath('stable', expectedProtocolMajor),
+            ensureTrailingSlash(normalizedBaseUrl)
+          ).href,
+          'posix'
+        )
+      : undefined;
+  const curlCommand = stableFallbackUrl
+    ? `curl -fsSL -- ${quotedPointerUrl} 2>/dev/null || curl -fsSL -- ${stableFallbackUrl}`
+    : `curl -fsSL -- ${quotedPointerUrl}`;
+  const wgetCommand = stableFallbackUrl
+    ? `wget -qO- -- ${quotedPointerUrl} 2>/dev/null || wget -qO- -- ${stableFallbackUrl}`
+    : `wget -qO- -- ${quotedPointerUrl}`;
   return `set -eu
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL -- ${quotedLatestUrl}
+  ${curlCommand}
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO- -- ${quotedLatestUrl}
+  ${wgetCommand}
 else
   echo "curl or wget is required to download workspace-server metadata" >&2
   exit 41
 fi`;
 }
 
-export function buildWorkspaceServerInstallCommand(baseUrl: string): string {
+export function buildWorkspaceServerInstallCommand(baseUrl: string, version: string): string {
   const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
-  const scriptUrl = new URL('install.sh', ensureTrailingSlash(normalizedBaseUrl)).href;
+  const selectedVersion = validateWorkspaceServerVersion(version);
+  const scriptUrl = new URL(`${selectedVersion}/install.sh`, ensureTrailingSlash(normalizedBaseUrl))
+    .href;
   const quotedScriptUrl = quoteArg(scriptUrl, 'posix');
   const quotedBaseUrl = quoteArg(normalizedBaseUrl, 'posix');
+  const quotedVersion = quoteArg(selectedVersion, 'posix');
   return `set -eu
 install_script=\${TMPDIR:-/tmp}/emdash-workspace-server-install-$$.sh
 cleanup() { rm -f -- "$install_script"; }
@@ -153,7 +205,7 @@ trap cleanup EXIT HUP INT TERM
 if ! curl -fsSL --output "$install_script" -- ${quotedScriptUrl}; then
   exit 41
 fi
-sh "$install_script" --base-url ${quotedBaseUrl}`;
+sh "$install_script" --base-url ${quotedBaseUrl} --version ${quotedVersion}`;
 }
 
 function validateInstallBaseUrl(value: string): string {
@@ -180,10 +232,12 @@ function ensureTrailingSlash(value: string): string {
   return value.endsWith('/') ? value : `${value}/`;
 }
 
-function renderCustomInstallCommand(command: string, baseUrl: string): string {
+function renderCustomInstallCommand(command: string, baseUrl: string, version: string): string {
   const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
+  const selectedVersion = validateWorkspaceServerVersion(version);
   const scriptUrl = new URL('install.sh', ensureTrailingSlash(normalizedBaseUrl)).href;
   return command
     .replaceAll('{{scriptUrl}}', quoteArg(scriptUrl, 'posix'))
-    .replaceAll('{{baseUrl}}', quoteArg(normalizedBaseUrl, 'posix'));
+    .replaceAll('{{baseUrl}}', quoteArg(normalizedBaseUrl, 'posix'))
+    .replaceAll('{{version}}', quoteArg(selectedVersion, 'posix'));
 }
