@@ -41,9 +41,10 @@ pnpm run test
   computes the affected set using `nrwl/nx-set-shas` and the PR base/head SHAs.
 - CI installs with `--ignore-scripts`, so the workflow explicitly installs the
   native side project (`pnpm --dir apps/emdash-desktop/tooling/node-deps install`)
-  for the DB-backed Vitest projects, and sets `EMDASH_TEST_SKIP_BROWSER=1` to
-  skip the Playwright-backed `browser` projects (app and chat-ui) until browser
-  provisioning is proven stable in CI.
+  for the DB-backed Vitest projects. It also rebuilds and load-checks `node-pty`
+  from `@emdash/core`, a workspace that declares the dependency. CI sets
+  `EMDASH_TEST_SKIP_BROWSER=1` to skip the Playwright-backed `browser` projects
+  (app and chat-ui) until browser provisioning is proven stable in CI.
 - The full suite (including `browser` projects) is still expected locally before merging.
 
 ## Focused Validation
