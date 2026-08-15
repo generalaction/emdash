@@ -87,5 +87,4 @@ export type ChangesListViewMode = ChangesViewMode[ChangesSection];
 
 export type HostSettings = {
   installBaseUrl: string;
-  installCommand: string | null;
 };

@@ -65,13 +65,21 @@ describe('workspace-server installer command', () => {
 
   it('executes a pinned hosted installer through the SSH proxy', async () => {
     const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    const ensureProxy = vi.fn(async () => ({ execScript }) as never);
+    const exec = vi
+      .fn()
+      .mockResolvedValue({ stdout: 'versions/0.1.0-dev.abc123\n', stderr: '', exitCode: 0 });
+    const ensureProxy = vi.fn(async () => ({ exec, execScript }) as never);
     const installer = new WorkspaceServerInstaller({
       ssh: { ensureProxy },
       baseUrl: installBaseUrl,
     });
+    const layout = workspaceServerLayout('/home/devuser');
 
-    await installer.install('ssh-1', undefined, '0.1.0-dev.abc123');
+    await installer.install({
+      connectionId: 'ssh-1',
+      layout,
+      version: '0.1.0-dev.abc123',
+    });
 
     expect(ensureProxy).toHaveBeenCalledWith('ssh-1');
     expect(execScript).toHaveBeenCalledWith(
@@ -79,6 +87,10 @@ describe('workspace-server installer command', () => {
       expect.objectContaining({ timeoutMs: 300_000 })
     );
     expect(execScript.mock.calls[0]?.[0]).toContain('--version 0.1.0-dev.abc123');
+    expect(exec).toHaveBeenCalledWith(
+      { command: 'readlink', args: ['--', layout.currentLink] },
+      expect.objectContaining({ timeoutMs: 10_000 })
+    );
   });
 
   it('resolves the channel pointer before installing when no version is provided', async () => {
@@ -86,13 +98,21 @@ describe('workspace-server installer command', () => {
       .fn()
       .mockResolvedValueOnce({ stdout: pointerBody('0.1.0'), stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
-    const ensureProxy = vi.fn(async () => ({ execScript }) as never);
+    const exec = vi.fn().mockResolvedValue({
+      stdout: 'versions/0.1.0\n',
+      stderr: '',
+      exitCode: 0,
+    });
+    const ensureProxy = vi.fn(async () => ({ exec, execScript }) as never);
     const installer = new WorkspaceServerInstaller({
       ssh: { ensureProxy },
       baseUrl: installBaseUrl,
     });
 
-    await installer.install('ssh-1');
+    await installer.install({
+      connectionId: 'ssh-1',
+      layout: workspaceServerLayout('/home/devuser'),
+    });
 
     expect(execScript).toHaveBeenCalledTimes(2);
     expect(execScript.mock.calls[0]?.[0]).toContain(
@@ -160,37 +180,28 @@ describe('workspace-server installer command', () => {
     });
   });
 
-  it('uses a custom install command with substituted placeholders when configured', async () => {
+  it('rejects an install that does not select the requested version', async () => {
     const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    const exec = vi.fn().mockResolvedValue({
+      stdout: 'versions/1.2.2\n',
+      stderr: '',
+      exitCode: 0,
+    });
     const installer = new WorkspaceServerInstaller({
-      ssh: { ensureProxy: vi.fn(async () => ({ execScript }) as never) },
+      ssh: { ensureProxy: vi.fn(async () => ({ exec, execScript }) as never) },
       baseUrl: installBaseUrl,
-      installCommand:
-        'curl -fsSL {{scriptUrl}} | sh -s -- --base-url {{baseUrl}} --version {{version}}',
     });
 
-    await installer.install('ssh-1', undefined, '0.1.0-dev.abc123');
-
-    expect(execScript).toHaveBeenCalledWith(
-      `curl -fsSL ${installBaseUrl}/0.1.0-dev.abc123/install.sh | sh -s -- --base-url ${installBaseUrl} --version 0.1.0-dev.abc123`,
-      expect.objectContaining({ timeoutMs: 300_000 })
-    );
-  });
-
-  it('pins legacy custom install commands that omit the version placeholder', async () => {
-    const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    const installer = new WorkspaceServerInstaller({
-      ssh: { ensureProxy: vi.fn(async () => ({ execScript }) as never) },
-      baseUrl: installBaseUrl,
-      installCommand: 'curl -fsSL {{scriptUrl}} | sh -s -- --base-url {{baseUrl}}',
+    await expect(
+      installer.install({
+        connectionId: 'ssh-1',
+        layout: workspaceServerLayout('/home/devuser'),
+        version: '1.2.3',
+      })
+    ).rejects.toMatchObject({
+      code: 'install-failed',
+      message: expect.stringContaining('installed 1.2.2 instead of 1.2.3'),
     });
-
-    await installer.install('ssh-1', undefined, '0.1.1-canary.42');
-
-    expect(execScript).toHaveBeenCalledWith(
-      `curl -fsSL ${installBaseUrl}/0.1.1-canary.42/install.sh | sh -s -- --base-url ${installBaseUrl} --version 0.1.1-canary.42`,
-      expect.objectContaining({ timeoutMs: 300_000 })
-    );
   });
 
   it.each([
@@ -204,7 +215,13 @@ describe('workspace-server installer command', () => {
       baseUrl: 'https://releases.example.test/workspace-server',
     });
 
-    await expect(installer.install('ssh-1', undefined, '1.2.3')).rejects.toMatchObject({ code });
+    await expect(
+      installer.install({
+        connectionId: 'ssh-1',
+        layout: workspaceServerLayout('/home/devuser'),
+        version: '1.2.3',
+      })
+    ).rejects.toMatchObject({ code });
   });
 
   it('rejects a current link that points outside the managed versions directory', async () => {

@@ -160,7 +160,7 @@ export class WorkspaceServerProvisioner {
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
-          await this.install(connectionId, signal);
+          await this.install(connectionId, layout, signal);
           await this.restart(connectionId, layout, signal);
           this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
           return target;
@@ -168,7 +168,7 @@ export class WorkspaceServerProvisioner {
           break;
       }
 
-      await this.install(connectionId, signal);
+      await this.install(connectionId, layout, signal);
       await this.start(connectionId, layout, signal);
 
       this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
@@ -210,13 +210,14 @@ export class WorkspaceServerProvisioner {
     // Dev versions put a commit SHA before their timestamp, so SemVer order does not represent
     // build recency. Any different published dev artifact must replace the running one.
     if (availableVersion === handshake.server.appVersion) return null;
-    await this.install(connectionId, signal, availableVersion);
+    await this.install(connectionId, layout, signal, availableVersion);
     await this.restart(connectionId, layout, signal);
     return await this.waitUntilReady(target, signal);
   }
 
   private async install(
     connectionId: string,
+    layout: WorkspaceServerLayout,
     signal: AbortSignal,
     version?: string
   ): Promise<void> {
@@ -225,7 +226,7 @@ export class WorkspaceServerProvisioner {
       detail: 'Installing workspace server',
     });
     try {
-      await this.deps.installer.install(connectionId, signal, version);
+      await this.deps.installer.install({ connectionId, layout, signal, version });
     } catch (error) {
       if (error instanceof WorkspaceServerInstallError) {
         throw provisionError(error.code, error.message, error);

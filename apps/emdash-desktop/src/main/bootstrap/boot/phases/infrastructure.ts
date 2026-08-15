@@ -36,7 +36,6 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     ssh: { manager: ssh.manager, connect: ssh.ssh },
     machineEvents: ssh.machines,
     installBaseUrl: hostSettings.installBaseUrl,
-    installCommand: hostSettings.installCommand ?? undefined,
     releaseChannel: IS_CANARY ? 'canary' : 'stable',
     devAutoUpdate: process.env['EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE'] === '1',
     client: { id: clientId, appVersion: app.getVersion() },

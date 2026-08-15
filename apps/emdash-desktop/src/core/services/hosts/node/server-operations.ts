@@ -69,7 +69,7 @@ export class HostServerOperations {
         status: 'booting',
         detail: 'Installing workspace server',
       });
-      await this.deps.installer.install(connectionId, signal);
+      await this.deps.installer.install({ connectionId, layout, signal });
       const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
       this.deps.state.set(connectionId, {
         status: 'booting',
@@ -143,7 +143,7 @@ export class HostServerOperations {
         status: 'booting',
         detail: 'Updating workspace server',
       });
-      await this.deps.installer.install(connectionId, signal);
+      await this.deps.installer.install({ connectionId, layout, signal });
       const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
       this.deps.state.set(connectionId, {
         status: 'shutting-down',

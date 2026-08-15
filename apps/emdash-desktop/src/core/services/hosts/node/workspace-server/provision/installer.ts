@@ -6,6 +6,7 @@ import {
   protocolMajor,
   type ReleaseChannel,
 } from '@emdash/core/workspace-server';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { validateWorkspaceServerVersion, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 
@@ -32,20 +33,24 @@ export class WorkspaceServerInstallError extends Error {
 export type WorkspaceServerInstallerOptions = {
   ssh: WorkspaceServerSshPort;
   baseUrl?: string;
-  installCommand?: string;
   releaseChannel?: ReleaseChannel;
+};
+
+export type WorkspaceServerInstallOptions = {
+  connectionId: string;
+  layout: WorkspaceServerLayout;
+  signal?: AbortSignal;
+  version?: string;
 };
 
 export class WorkspaceServerInstaller {
   private readonly ssh: WorkspaceServerSshPort;
   private readonly baseUrl: string;
-  private readonly installCommand?: string;
   private readonly releaseChannel: ReleaseChannel;
 
   constructor(options: WorkspaceServerInstallerOptions) {
     this.ssh = options.ssh;
     this.baseUrl = options.baseUrl ?? DEFAULT_WORKSPACE_SERVER_INSTALL_BASE_URL;
-    this.installCommand = options.installCommand;
     this.releaseChannel = options.releaseChannel ?? 'stable';
   }
 
@@ -55,6 +60,53 @@ export class WorkspaceServerInstaller {
     signal?: AbortSignal
   ): Promise<string | undefined> {
     const proxy = await this.ssh.ensureProxy(connectionId);
+    return await this.installedVersionFromProxy(proxy, layout, signal);
+  }
+
+  async install(options: WorkspaceServerInstallOptions): Promise<void> {
+    const selectedVersion =
+      options.version ?? (await this.availableVersion(options.connectionId, options.signal));
+    const command = buildWorkspaceServerInstallCommand(this.baseUrl, selectedVersion);
+    const proxy = await this.ssh.ensureProxy(options.connectionId);
+    const result = await proxy.execScript(command, {
+      signal: options.signal,
+      timeoutMs: 5 * 60_000,
+      maxStdoutBytes: 256 * 1_024,
+      maxStderrBytes: 256 * 1_024,
+    });
+    if (result.exitCode !== 0) {
+      const code =
+        result.exitCode === 40
+          ? 'unsupported-platform'
+          : result.exitCode === 41
+            ? 'artifact-download-failed'
+            : 'install-failed';
+      throw new WorkspaceServerInstallError(
+        code,
+        `Workspace-server installation failed: ${result.stderr.trim() || `exit ${result.exitCode}`}`
+      );
+    }
+
+    const installedVersion = await this.installedVersionFromProxy(
+      proxy,
+      options.layout,
+      options.signal
+    );
+    if (installedVersion !== selectedVersion) {
+      throw new WorkspaceServerInstallError(
+        'install-failed',
+        installedVersion === undefined
+          ? `Workspace-server installation did not select requested version ${selectedVersion}`
+          : `Workspace-server installation installed ${installedVersion} instead of ${selectedVersion}`
+      );
+    }
+  }
+
+  private async installedVersionFromProxy(
+    proxy: SshClientProxy,
+    layout: WorkspaceServerLayout,
+    signal?: AbortSignal
+  ): Promise<string | undefined> {
     const result = await proxy.exec(
       { command: 'readlink', args: ['--', layout.currentLink] },
       {
@@ -84,32 +136,6 @@ export class WorkspaceServerInstaller {
       );
     }
     return version;
-  }
-
-  async install(connectionId: string, signal?: AbortSignal, version?: string): Promise<void> {
-    const selectedVersion = version ?? (await this.availableVersion(connectionId, signal));
-    const proxy = await this.ssh.ensureProxy(connectionId);
-    const command = this.installCommand
-      ? renderCustomInstallCommand(this.installCommand, this.baseUrl, selectedVersion)
-      : buildWorkspaceServerInstallCommand(this.baseUrl, selectedVersion);
-    const result = await proxy.execScript(command, {
-      signal,
-      timeoutMs: 5 * 60_000,
-      maxStdoutBytes: 256 * 1_024,
-      maxStderrBytes: 256 * 1_024,
-    });
-    if (result.exitCode === 0) return;
-
-    const code =
-      result.exitCode === 40
-        ? 'unsupported-platform'
-        : result.exitCode === 41
-          ? 'artifact-download-failed'
-          : 'install-failed';
-    throw new WorkspaceServerInstallError(
-      code,
-      `Workspace-server installation failed: ${result.stderr.trim() || `exit ${result.exitCode}`}`
-    );
   }
 
   async availableVersion(connectionId: string, signal?: AbortSignal): Promise<string> {
@@ -230,18 +256,4 @@ function validateInstallBaseUrl(value: string): string {
 
 function ensureTrailingSlash(value: string): string {
   return value.endsWith('/') ? value : `${value}/`;
-}
-
-function renderCustomInstallCommand(command: string, baseUrl: string, version: string): string {
-  const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
-  const selectedVersion = validateWorkspaceServerVersion(version);
-  const scriptUrl = new URL(`${selectedVersion}/install.sh`, ensureTrailingSlash(normalizedBaseUrl))
-    .href;
-  const hasVersionPlaceholder = command.includes('{{version}}');
-  const quotedVersion = quoteArg(selectedVersion, 'posix');
-  const rendered = command
-    .replaceAll('{{scriptUrl}}', quoteArg(scriptUrl, 'posix'))
-    .replaceAll('{{baseUrl}}', quoteArg(normalizedBaseUrl, 'posix'))
-    .replaceAll('{{version}}', quotedVersion);
-  return hasVersionPlaceholder ? rendered : `${rendered} --version ${quotedVersion}`;
 }

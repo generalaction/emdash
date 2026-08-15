@@ -11,6 +11,5 @@ export const hostSettingsContribution = defineSettingsContribution<'remoteMachin
     installBaseUrl:
       process.env['EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL'] ??
       'https://releases.emdash.sh/workspace-server',
-    installCommand: process.env['EMDASH_WORKSPACE_SERVER_INSTALL_COMMAND'] ?? null,
   }),
 });

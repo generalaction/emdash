@@ -31,7 +31,6 @@ export type CreateHostServiceDeps = {
   };
   machineEvents: MachineMutationEvents;
   installBaseUrl?: string;
-  installCommand?: string;
   releaseChannel?: ReleaseChannel;
   devAutoUpdate?: boolean;
   client?: { id: string; appVersion: string };
@@ -64,7 +63,6 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
   const installer = new WorkspaceServerInstaller({
     ssh,
     baseUrl: deps.installBaseUrl,
-    installCommand: deps.installCommand,
     releaseChannel: deps.releaseChannel,
   });
   const daemon = new RemoteWorkspaceServerDaemon(ssh);

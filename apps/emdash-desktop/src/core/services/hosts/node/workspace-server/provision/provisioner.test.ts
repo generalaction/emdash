@@ -105,9 +105,11 @@ describe('WorkspaceServerProvisioner', () => {
       expect.any(AbortSignal)
     );
     expect(fixture.installer.install).toHaveBeenCalledWith(
-      'ssh-1',
-      expect.any(AbortSignal),
-      '1.2.4-dev.abc123'
+      expect.objectContaining({
+        connectionId: 'ssh-1',
+        signal: expect.any(AbortSignal),
+        version: '1.2.4-dev.abc123',
+      })
     );
     expect(fixture.daemon.restart).toHaveBeenCalledOnce();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
