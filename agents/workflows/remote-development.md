@@ -13,6 +13,8 @@ or shell-profile code.
 - `apps/workspace-server/src/` — daemon entry point, socket serving, runtime wiring
 - `packages/core/src/workspace-server/` — shared wire contract, schemas, protocol
   versioning, and workspace-server-specific APIs
+- `packages/core/src/workspace-server/releases.ts` — channel-pointer schema, strict
+  release versions, and protocol-major pointer paths
 - `src/core/services/ssh/` — desktop SSH connection management, credentials, config
   parsing, and transport setup
 - `src/core/services/hosts/` — managed remote install/ensure flow and the
@@ -30,6 +32,8 @@ or shell-profile code.
   `hostDependencies` component, not an Electron-side SSH execution context
 - the desktop owns the managed install under `~/.emdash/workspace-server`; remote
   runtime calls begin only after the workspace-server provisioner reports ready
+- managed installs read the desktop channel's pointer for its protocol major, then
+  run the immutable versioned `install.sh` with the pointer's artifact version pinned
 
 ## Rules
 
