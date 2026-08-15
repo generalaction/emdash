@@ -119,9 +119,7 @@ const iconClasses: Record<ScenarioDefinition['tone'], string> = {
 };
 
 function parseVariant(value: string | null): PrototypeVariant {
-  return variants.some((variant) => variant.id === value)
-    ? (value as PrototypeVariant)
-    : 'banner';
+  return variants.some((variant) => variant.id === value) ? (value as PrototypeVariant) : 'banner';
 }
 
 function parseScenario(value: string | null): PrototypeScenario {
@@ -141,10 +139,7 @@ function initialPrototypeState(): {
   };
 }
 
-function replacePrototypeParams(
-  variant: PrototypeVariant,
-  scenario: PrototypeScenario
-): void {
+function replacePrototypeParams(variant: PrototypeVariant, scenario: PrototypeScenario): void {
   const url = new URL(window.location.href);
   url.searchParams.set('projectAvailabilityVariant', variant);
   url.searchParams.set('projectAvailabilityScenario', scenario);
@@ -198,9 +193,7 @@ export function ProjectAvailabilityPrototype({ children }: { children: ReactNode
 
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
-        updateScenario(
-          nextInOrder(scenarioOrder, scenario, event.key === 'ArrowUp' ? -1 : 1)
-        );
+        updateScenario(nextInOrder(scenarioOrder, scenario, event.key === 'ArrowUp' ? -1 : 1));
       }
     };
 
@@ -374,7 +367,9 @@ function RailVariant({
                     active && 'border-foreground bg-foreground'
                   )}
                 />
-                <span className={complete || active ? 'text-foreground' : 'text-foreground-passive'}>
+                <span
+                  className={complete || active ? 'text-foreground' : 'text-foreground-passive'}
+                >
                   {label}
                 </span>
               </li>
