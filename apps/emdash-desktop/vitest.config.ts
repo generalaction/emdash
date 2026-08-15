@@ -72,9 +72,8 @@ export default defineConfig({
       },
       {
         // Fixture generator — run explicitly via `pnpm run db:fixtures`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'fixtures',
           environment: 'node',
@@ -84,9 +83,8 @@ export default defineConfig({
       },
       {
         // Migration tests — run explicitly via `pnpm run test:migrations`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'migrations',
           environment: 'node',
@@ -97,6 +95,7 @@ export default defineConfig({
       {
         // Release script unit tests (artifacts, version helpers).
         extends: true,
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'scripts',
           environment: 'node',
