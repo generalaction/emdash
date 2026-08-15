@@ -2,29 +2,41 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  protocolMajor,
+  PROTOCOL_VERSION,
+  serializeChannelPointer,
+  type ChannelPointer,
+} from '@emdash/core/workspace-server';
 import { S3mini } from 's3mini';
-import { artifactArchiveName, parsePackageTarget, type PackageTarget } from './package-helpers';
+import {
+  artifactArchiveName,
+  parsePackageTarget,
+  releaseTargets,
+  type PackageTarget,
+} from './package-helpers';
 import {
   artifactVersionFromArchiveName,
+  assertPointerVersionPublishedInRun,
+  cacheControlForObjectKey,
+  channelPointerObjectKey,
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
   installScriptObjectKey,
   latestVersionContents,
   latestVersionObjectKey,
+  parseUploadArgs,
   parseArtifactChecksum,
-  releaseTargets,
+  publishesStableRootObjects,
   versionedArtifactObjectKey,
+  versionedInstallScriptObjectKey,
+  type UploadOptions,
 } from './upload-helpers';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, '..');
 const artifactsDirectory = join(appDirectory, 'dist-artifacts');
-
-type UploadOptions = {
-  version?: string;
-  targets?: PackageTarget[];
-};
 
 type UploadConfig = {
   label: string;
@@ -51,6 +63,17 @@ async function main(): Promise<void> {
     targets,
     !devUpload && options.targets === undefined
   );
+  const installScriptData = new Uint8Array(await readFile(join(appDirectory, 'install.sh')));
+  const versionedInstallScript: ValidatedArtifact = {
+    path: join(appDirectory, 'install.sh'),
+    key: versionedInstallScriptObjectKey(version),
+    sha256: sha256(installScriptData),
+  };
+  const pointer: ChannelPointer = {
+    artifactVersion: version,
+    protocolVersion: PROTOCOL_VERSION,
+  };
+  const pointerData = new TextEncoder().encode(serializeChannelPointer(pointer));
   const config = resolveUploadConfig();
   const s3 = new S3mini({
     accessKeyId: config.accessKeyId,
@@ -59,65 +82,28 @@ async function main(): Promise<void> {
     region: 'auto',
   });
 
-  for (const artifact of artifacts) {
+  for (const artifact of [...artifacts, versionedInstallScript]) {
     await uploadImmutableArtifact(s3, artifact);
   }
+  const publishedVersions = new Set([version]);
 
-  await uploadMutableObject(
-    s3,
-    installScriptObjectKey,
-    new Uint8Array(await readFile(join(appDirectory, 'install.sh')))
-  );
-  await uploadMutableObject(
-    s3,
-    latestVersionObjectKey,
-    new TextEncoder().encode(latestVersionContents(version))
-  );
-
-  process.stdout.write(`Published workspace-server ${version} to ${config.label}\n`);
-}
-
-function parseUploadArgs(args: string[]): UploadOptions {
-  const targets: PackageTarget[] = [];
-  let version: string | undefined;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index];
-    if (argument === '--target') {
-      const value = args[index + 1];
-      if (value === undefined) throw new Error('--target requires a value');
-      targets.push(parsePackageTarget(value));
-      index += 1;
-      continue;
-    }
-    if (argument.startsWith('--target=')) {
-      targets.push(parsePackageTarget(argument.slice('--target='.length)));
-      continue;
-    }
-    if (argument === '--version') {
-      const value = args[index + 1];
-      if (value === undefined) throw new Error('--version requires a value');
-      version = value;
-      index += 1;
-      continue;
-    }
-    if (argument.startsWith('--version=')) {
-      version = argument.slice('--version='.length);
-      continue;
-    }
-    throw new Error(`Unknown upload option '${argument}'`);
+  if (publishesStableRootObjects(options.channels)) {
+    await uploadMutableObject(s3, installScriptObjectKey, installScriptData);
+    await uploadMutableObject(
+      s3,
+      latestVersionObjectKey,
+      new TextEncoder().encode(latestVersionContents(version))
+    );
   }
 
-  return {
-    version,
-    targets:
-      targets.length === 0
-        ? undefined
-        : targets.filter(
-            (target, index) =>
-              targets.findIndex((candidate) => candidate.id === target.id) === index
-          ),
-  };
+  assertPointerVersionPublishedInRun(pointer, publishedVersions);
+  for (const channel of options.channels) {
+    await uploadMutableObject(s3, channelPointerObjectKey(channel, protocolMajor()), pointerData);
+  }
+
+  process.stdout.write(
+    `Published workspace-server ${version} to ${config.label} (${options.channels.join(', ')})\n`
+  );
 }
 
 function resolveUploadTargets(options: UploadOptions, devUpload: boolean): PackageTarget[] {
@@ -241,10 +227,12 @@ async function uploadImmutableArtifact(s3: S3mini, artifact: ValidatedArtifact):
   }
 
   process.stdout.write(`Uploading ${artifact.key}\n`);
-  const response = await s3.putAnyObject(
+  const response = await s3.putObject(
     artifact.key,
     localData,
-    contentTypeForObjectKey(artifact.key)
+    contentTypeForObjectKey(artifact.key),
+    undefined,
+    uploadHeadersForObjectKey(artifact.key)
   );
   if (!response.ok) {
     throw new Error(`Upload failed for ${artifact.key} with HTTP ${response.status}`);
@@ -252,14 +240,14 @@ async function uploadImmutableArtifact(s3: S3mini, artifact: ValidatedArtifact):
 }
 
 async function uploadMutableObject(s3: S3mini, key: string, data: Uint8Array): Promise<void> {
-  const remoteData = await s3.getObjectArrayBuffer(key);
-  if (remoteData !== null && sha256(new Uint8Array(remoteData)) === sha256(data)) {
-    process.stdout.write(`Skipping unchanged object ${key}\n`);
-    return;
-  }
-
   process.stdout.write(`Uploading ${key}\n`);
-  const response = await s3.putObject(key, data, contentTypeForObjectKey(key));
+  const response = await s3.putObject(
+    key,
+    data,
+    contentTypeForObjectKey(key),
+    undefined,
+    uploadHeadersForObjectKey(key)
+  );
   if (!response.ok) {
     throw new Error(`Upload failed for ${key} with HTTP ${response.status}`);
   }
@@ -303,6 +291,11 @@ function requireEnv(name: string): string {
 
 function sha256(data: Uint8Array): string {
   return createHash('sha256').update(data).digest('hex');
+}
+
+function uploadHeadersForObjectKey(key: string): Parameters<S3mini['putObject']>[4] {
+  // s3mini forwards arbitrary additional headers but narrows this parameter to x-amz-* headers.
+  return { 'Cache-Control': cacheControlForObjectKey(key) } as Parameters<S3mini['putObject']>[4];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

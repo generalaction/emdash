@@ -33,6 +33,7 @@ import {
   ripgrepDistributionName,
   ripgrepDistributionUrl,
   RIPGREP_VERSION,
+  validatePackageVersion,
   type PackageTarget,
   type PackageAdapterAssetInfo,
 } from './package-helpers.ts';
@@ -82,7 +83,7 @@ async function main(): Promise<void> {
 
   validateTargetHosts(options.targets);
 
-  const packageMetadata = await readPackageMetadata();
+  const packageMetadata = await readPackageMetadata(options.version);
   process.stdout.write(`Workspace-server package version: ${packageMetadata.version}\n`);
   const nodeVersion = (await readFile(join(repositoryDirectory, '.nvmrc'), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+$/.test(nodeVersion)) {
@@ -191,18 +192,31 @@ async function packageTarget(options: {
   }
 }
 
-async function readPackageMetadata(): Promise<PackageMetadata> {
+async function readPackageMetadata(explicitVersion?: string): Promise<PackageMetadata> {
   const raw: unknown = JSON.parse(await readFile(join(appDirectory, 'package.json'), 'utf8'));
   if (!isRecord(raw) || typeof raw['name'] !== 'string' || typeof raw['version'] !== 'string') {
     throw new Error('workspace-server package.json must contain string name and version fields');
   }
-  const version = await resolvePackageVersion(raw['version']);
+  const version = await resolvePackageVersion(raw['version'], explicitVersion);
   return { name: raw['name'], version: version.value, devBuild: version.devBuild };
 }
 
 async function resolvePackageVersion(
-  baseVersion: string
+  baseVersion: string,
+  explicitVersion?: string
 ): Promise<{ value: string; devBuild: boolean }> {
+  if (explicitVersion !== undefined) {
+    if (
+      process.env['EMDASH_WS_DEV_BUILD'] === '1' ||
+      process.env['EMDASH_WS_DEV_VERSION'] !== undefined
+    ) {
+      throw new Error(
+        '--version cannot be combined with EMDASH_WS_DEV_BUILD or EMDASH_WS_DEV_VERSION'
+      );
+    }
+    return { value: validatePackageVersion(explicitVersion), devBuild: false };
+  }
+
   const explicitDevVersion = process.env['EMDASH_WS_DEV_VERSION']?.trim();
   if (explicitDevVersion !== undefined && explicitDevVersion.length > 0) {
     return { value: createDevPackageVersion(baseVersion, explicitDevVersion), devBuild: true };
@@ -825,7 +839,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function printUsage(): void {
-  process.stdout.write(`Usage: pnpm run package --target <target> [--target <target> ...] [--verify]
+  process.stdout
+    .write(`Usage: pnpm run package --target <target> [--target <target> ...] [--version <version>] [--verify]
 
 Targets:
   linux-x64

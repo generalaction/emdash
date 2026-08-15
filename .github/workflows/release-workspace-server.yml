@@ -2,6 +2,15 @@ name: Release Workspace Server
 
 on:
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        type: choice
+        options:
+          - stable
+          - canary
+        default: canary
 
 permissions:
   contents: read
@@ -15,6 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.metadata.outputs.version }}
+      channel: ${{ steps.metadata.outputs.channel }}
+      matrix: ${{ steps.metadata.outputs.matrix }}
+      probeArtifact: ${{ steps.metadata.outputs.probeArtifact }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,31 +38,30 @@ jobs:
         id: metadata
         shell: bash
         run: |
-          version=$(node -p "require('./apps/workspace-server/package.json').version")
-          protocol_version=$(node <<'NODE'
-          const { readFileSync } = require('node:fs');
-          const source = readFileSync(
-            'packages/core/src/workspace-server/versions/index.ts',
-            'utf8'
-          );
-          const match = /export const PROTOCOL_VERSION = '([^']+)'/.exec(source);
-          if (!match) throw new Error('Could not read workspace-server protocol version');
-          process.stdout.write(match[1]);
-          NODE
-          )
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          channel="${{ inputs.channel }}"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          node --experimental-strip-types \
+            apps/workspace-server/scripts/print-release-metadata.ts \
+            "$channel" \
+            "${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize release metadata
+        shell: bash
+        run: |
+          channel="${{ steps.metadata.outputs.channel }}"
+          version="${{ steps.metadata.outputs.version }}"
           {
             echo "## Workspace-server release"
             echo
+            echo "- Channel: \`$channel\`"
             echo "- App version: \`$version\`"
-            echo "- Protocol version: \`$protocol_version\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Reject an existing immutable release
         shell: bash
         run: |
           version="${{ steps.metadata.outputs.version }}"
-          artifact="emdash-workspace-server-$version-linux-x64.tar.gz"
+          artifact="${{ steps.metadata.outputs.probeArtifact }}"
           url="https://releases.emdash.sh/workspace-server/$version/$artifact"
           if ! status=$(curl --silent --show-error --head --output /dev/null \
             --write-out '%{http_code}' "$url"); then
@@ -75,14 +86,7 @@ jobs:
     needs: version-guard
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - target: linux-x64
-            runner: ubuntu-latest
-          - target: linux-arm64
-            runner: ubuntu-24.04-arm
-          - target: darwin-arm64
-            runner: macos-latest
+      matrix: ${{ fromJSON(needs.version-guard.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -111,7 +115,11 @@ jobs:
 
       - name: Build and verify ${{ matrix.target }}
         working-directory: apps/workspace-server
-        run: pnpm run package --target "${{ matrix.target }}" --verify
+        run: >-
+          pnpm run package
+          --target "${{ matrix.target }}"
+          --version "${{ needs.version-guard.outputs.version }}"
+          --verify
 
       - name: Upload ${{ matrix.target }} artifact
         uses: actions/upload-artifact@v4
@@ -142,6 +150,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Build workspace-server release contract
+        run: pnpm exec nx build @emdash/core
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -153,9 +164,12 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.version-guard.outputs.version }}"
+          channel="${{ needs.version-guard.outputs.channel }}"
           mirror="$RUNNER_TEMP/workspace-server-mirror"
           mkdir -p "$mirror/$version"
-          printf '%s\n' "$version" > "$mirror/latest.txt"
+          if [ "$channel" = stable ]; then
+            printf '%s\n' "$version" > "$mirror/latest.txt"
+          fi
           cp apps/workspace-server/dist-artifacts/* "$mirror/$version/"
 
           docker run --rm --platform linux/amd64 \
@@ -168,7 +182,7 @@ jobs:
               set -eu
               apt-get update
               apt-get install -y --no-install-recommends ca-certificates coreutils curl gzip tar
-              sh /install.sh --base-url file:///mirror
+              sh /install.sh --base-url file:///mirror --version "$VERSION"
               test -x "$HOME/.emdash/workspace-server/current/bin/emdash-workspace-server"
               test "$(readlink "$HOME/.emdash/workspace-server/current")" = "versions/$VERSION"
             '
@@ -180,4 +194,17 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: pnpm run upload:r2
+        run: |
+          channel="${{ needs.version-guard.outputs.channel }}"
+          version="${{ needs.version-guard.outputs.version }}"
+          pnpm run upload:r2 --channel "$channel" --version "$version"
+
+      - name: Verify published channel pointer
+        working-directory: apps/workspace-server
+        run: |
+          channel="${{ needs.version-guard.outputs.channel }}"
+          version="${{ needs.version-guard.outputs.version }}"
+          pnpm exec tsx scripts/verify-pointer.ts \
+            --base-url https://releases.emdash.sh \
+            --channel "$channel" \
+            --version "$version" | tee -a "$GITHUB_STEP_SUMMARY"
