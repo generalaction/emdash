@@ -172,7 +172,23 @@ describe('workspace-server installer command', () => {
     await installer.install('ssh-1', undefined, '0.1.0-dev.abc123');
 
     expect(execScript).toHaveBeenCalledWith(
-      `curl -fsSL ${installBaseUrl}/install.sh | sh -s -- --base-url ${installBaseUrl} --version 0.1.0-dev.abc123`,
+      `curl -fsSL ${installBaseUrl}/0.1.0-dev.abc123/install.sh | sh -s -- --base-url ${installBaseUrl} --version 0.1.0-dev.abc123`,
+      expect.objectContaining({ timeoutMs: 300_000 })
+    );
+  });
+
+  it('pins legacy custom install commands that omit the version placeholder', async () => {
+    const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    const installer = new WorkspaceServerInstaller({
+      ssh: { ensureProxy: vi.fn(async () => ({ execScript }) as never) },
+      baseUrl: installBaseUrl,
+      installCommand: 'curl -fsSL {{scriptUrl}} | sh -s -- --base-url {{baseUrl}}',
+    });
+
+    await installer.install('ssh-1', undefined, '0.1.1-canary.42');
+
+    expect(execScript).toHaveBeenCalledWith(
+      `curl -fsSL ${installBaseUrl}/0.1.1-canary.42/install.sh | sh -s -- --base-url ${installBaseUrl} --version 0.1.1-canary.42`,
       expect.objectContaining({ timeoutMs: 300_000 })
     );
   });

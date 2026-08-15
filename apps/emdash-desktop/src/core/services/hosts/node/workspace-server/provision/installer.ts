@@ -235,9 +235,13 @@ function ensureTrailingSlash(value: string): string {
 function renderCustomInstallCommand(command: string, baseUrl: string, version: string): string {
   const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
   const selectedVersion = validateWorkspaceServerVersion(version);
-  const scriptUrl = new URL('install.sh', ensureTrailingSlash(normalizedBaseUrl)).href;
-  return command
+  const scriptUrl = new URL(`${selectedVersion}/install.sh`, ensureTrailingSlash(normalizedBaseUrl))
+    .href;
+  const hasVersionPlaceholder = command.includes('{{version}}');
+  const quotedVersion = quoteArg(selectedVersion, 'posix');
+  const rendered = command
     .replaceAll('{{scriptUrl}}', quoteArg(scriptUrl, 'posix'))
     .replaceAll('{{baseUrl}}', quoteArg(normalizedBaseUrl, 'posix'))
-    .replaceAll('{{version}}', quoteArg(selectedVersion, 'posix'));
+    .replaceAll('{{version}}', quotedVersion);
+  return hasVersionPlaceholder ? rendered : `${rendered} --version ${quotedVersion}`;
 }
