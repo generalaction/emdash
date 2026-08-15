@@ -136,10 +136,10 @@ pnpm run upload:dev
 `upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
 credentials. It defaults to the host's Linux target, picks the newest matching artifact under
 `dist-artifacts/`, uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
-updates the stable channel pointer last. Stable uploads also update `workspace-server/install.sh`
-and `workspace-server/latest.txt`; pass `--channel canary` for a canary-only upload that leaves
-those root objects unchanged. `pnpm run dev:remote` publishes both channel pointers for its dev
-artifact. Pass `--version` and `--target` when you need an explicit override.
+advances the stable channel pointer. Stable uploads then update `workspace-server/install.sh` and
+`workspace-server/latest.txt`; pass `--channel canary` for a canary-only upload that leaves those
+root objects unchanged. `pnpm run dev:remote` publishes both channel pointers for its dev artifact.
+Pass `--version` and `--target` when you need an explicit override.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.

@@ -12,6 +12,7 @@ import {
   installScriptObjectKey,
   latestVersionContents,
   latestVersionObjectKey,
+  mutableReleaseObjectKeys,
   parseUploadArgs,
   parseArtifactChecksum,
   publishesStableRootObjects,
@@ -128,6 +129,14 @@ describe('workspace-server R2 upload helpers', () => {
   it('does not select legacy root objects for a canary-only upload', () => {
     expect(publishesStableRootObjects(['canary'])).toBe(false);
     expect(publishesStableRootObjects(['canary', 'stable'])).toBe(true);
+  });
+
+  it('publishes the stable channel pointer before legacy root selectors', () => {
+    expect(mutableReleaseObjectKeys(['stable'], 1)).toEqual([
+      channelPointerObjectKey('stable', 1),
+      installScriptObjectKey,
+      latestVersionObjectKey,
+    ]);
   });
 
   it('only permits pointers to versions published in the current run', () => {

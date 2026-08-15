@@ -19,16 +19,15 @@ import {
   artifactVersionFromArchiveName,
   assertPointerVersionPublishedInRun,
   cacheControlForObjectKey,
-  channelPointerObjectKey,
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
   installScriptObjectKey,
   latestVersionContents,
   latestVersionObjectKey,
+  mutableReleaseObjectKeys,
   parseUploadArgs,
   parseArtifactChecksum,
-  publishesStableRootObjects,
   versionedArtifactObjectKey,
   versionedInstallScriptObjectKey,
   type UploadOptions,
@@ -87,18 +86,16 @@ async function main(): Promise<void> {
   }
   const publishedVersions = new Set([version]);
 
-  if (publishesStableRootObjects(options.channels)) {
-    await uploadMutableObject(s3, installScriptObjectKey, installScriptData);
-    await uploadMutableObject(
-      s3,
-      latestVersionObjectKey,
-      new TextEncoder().encode(latestVersionContents(version))
-    );
-  }
-
   assertPointerVersionPublishedInRun(pointer, publishedVersions);
-  for (const channel of options.channels) {
-    await uploadMutableObject(s3, channelPointerObjectKey(channel, protocolMajor()), pointerData);
+  const latestVersionData = new TextEncoder().encode(latestVersionContents(version));
+  for (const key of mutableReleaseObjectKeys(options.channels, protocolMajor())) {
+    const data =
+      key === installScriptObjectKey
+        ? installScriptData
+        : key === latestVersionObjectKey
+          ? latestVersionData
+          : pointerData;
+    await uploadMutableObject(s3, key, data);
   }
 
   process.stdout.write(

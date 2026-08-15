@@ -133,6 +133,17 @@ export function channelPointerUrl(baseUrl: string, channel: ReleaseChannel, majo
   return new URL(channelPointerObjectKey(channel, major), normalizedBaseUrl).toString();
 }
 
+export function mutableReleaseObjectKeys(
+  channels: readonly ReleaseChannel[],
+  major: number
+): string[] {
+  const rootKeys = publishesStableRootObjects(channels)
+    ? [installScriptObjectKey, latestVersionObjectKey]
+    : [];
+  const pointerKeys = channels.map((channel) => channelPointerObjectKey(channel, major));
+  return [...pointerKeys, ...rootKeys];
+}
+
 export function latestVersionContents(version: string): string {
   validateReleaseVersion(version);
   return `${version}\n`;
