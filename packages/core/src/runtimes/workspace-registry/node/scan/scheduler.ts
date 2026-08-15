@@ -143,6 +143,17 @@ export class WorkspaceScanScheduler {
           );
       handleRef.current = handle;
       this.watches.set(key, handle);
+      void handle.ready().then((attached) => {
+        if (!attached.success || this.disposed || this.watches.get(key) !== handle) return;
+
+        // Changes can land after the last scan but before the asynchronous watcher attaches.
+        // Reconcile once at readiness so that startup gap cannot leave observations stale.
+        this.request(
+          gitDir
+            ? { kind: 'repository', id: target.id }
+            : { kind: 'workspace', id: target.id, mode: 'full' }
+        );
+      });
     }
   }
 
