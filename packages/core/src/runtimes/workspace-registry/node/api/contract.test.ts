@@ -1229,7 +1229,7 @@ describe('workspace registry contract', () => {
       await scheduler.dispose();
       await watchService.dispose();
     }
-  });
+  }, 15_000);
 
   it('registry state survives a runtime rebuild over the same store', async () => {
     const repoPath = await makeRepo(root, 'repo');

@@ -154,8 +154,8 @@ runs:
 pnpm nx affected -t format:check typecheck lint test
 ```
 
-The test gate runs with `EMDASH_TEST_SKIP_BROWSER=1` (the Playwright-backed
-`browser` Vitest projects are skipped in CI) and after an explicit
+The test gate omits the Playwright-backed `browser` Vitest projects when Vitest
+detects CI and runs after an explicit
 `pnpm --dir apps/emdash-desktop/tooling/node-deps install`, since the workflow's
 `--ignore-scripts` install skips the postinstall that normally provisions the
 native side project.

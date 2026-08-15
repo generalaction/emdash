@@ -4,6 +4,8 @@ import { playwright } from '@vitest/browser-playwright';
 import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
 
+const skipBrowserProjects = Boolean(process.env.CI || process.env.EMDASH_TEST_SKIP_BROWSER);
+
 export default defineConfig({
   plugins: [vanillaExtractPlugin(), solid()],
   resolve: {
@@ -43,10 +45,10 @@ export default defineConfig({
           include: [],
         },
       },
-      // The browser project is omitted entirely when EMDASH_TEST_SKIP_BROWSER
-      // is set: CI runs without it until Playwright browser provisioning is
-      // proven stable there (see .github/workflows/code-consistency-check.yml).
-      ...(process.env.EMDASH_TEST_SKIP_BROWSER
+      // CI omits the browser project until Playwright provisioning is proven
+      // stable there. EMDASH_TEST_SKIP_BROWSER provides the same escape hatch
+      // for local runs.
+      ...(skipBrowserProjects
         ? []
         : [
             {
