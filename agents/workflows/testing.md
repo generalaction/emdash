@@ -30,7 +30,7 @@ pnpm run test
   - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via Playwright
 - `pnpm run test` runs every project except `fixtures` (`node`, `main-db`,
   `migrations`, `scripts`, and `browser`). Setting `EMDASH_TEST_SKIP_BROWSER=1`
-  omits the Playwright-backed `browser` project (CI does this).
+  omits the Playwright-backed `browser` project locally; CI omits it automatically.
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 
@@ -42,9 +42,9 @@ pnpm run test
 - CI installs with `--ignore-scripts`, so the workflow explicitly installs the
   native side project (`pnpm --dir apps/emdash-desktop/tooling/node-deps install`)
   for the DB-backed Vitest projects. It also rebuilds and load-checks `node-pty`
-  from `@emdash/core`, a workspace that declares the dependency. CI sets
-  `EMDASH_TEST_SKIP_BROWSER=1` to skip the Playwright-backed `browser` projects
-  (app and chat-ui) until browser provisioning is proven stable in CI.
+  from `@emdash/core`, a workspace that declares the dependency. Vitest omits the
+  Playwright-backed `browser` projects (app and chat-ui) when it detects CI until
+  browser provisioning is proven stable there.
 - The full suite (including `browser` projects) is still expected locally before merging.
 
 ## Focused Validation

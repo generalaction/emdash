@@ -10,10 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-      # Skip the Playwright-backed browser Vitest projects (app + chat-ui):
-      # runners have no browsers provisioned. They can join the gate once
-      # browser provisioning is proven stable in CI.
-      EMDASH_TEST_SKIP_BROWSER: '1'
 
     steps:
       - name: Checkout

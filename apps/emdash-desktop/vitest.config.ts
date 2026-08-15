@@ -11,6 +11,8 @@ const alias = {
   '@tooling': resolve(__dirname, 'tooling'),
 };
 
+const skipBrowserProjects = Boolean(process.env.CI || process.env.EMDASH_TEST_SKIP_BROWSER);
+
 // For Node-environment Vitest projects, redirect better-sqlite3 to an
 // isolated copy installed under tooling/node-deps/ (compiled for system Node).
 // The root node_modules/better-sqlite3 stays Electron-compiled at all times,
@@ -100,10 +102,10 @@ export default defineConfig({
           include: ['scripts/**/*.test.ts'],
         },
       },
-      // The browser project is omitted entirely when EMDASH_TEST_SKIP_BROWSER
-      // is set: CI runs without it until Playwright browser provisioning is
-      // proven stable there (see .github/workflows/code-consistency-check.yml).
-      ...(process.env.EMDASH_TEST_SKIP_BROWSER
+      // CI omits the browser project until Playwright provisioning is proven
+      // stable there. EMDASH_TEST_SKIP_BROWSER provides the same escape hatch
+      // for local runs.
+      ...(skipBrowserProjects
         ? []
         : [
             {
