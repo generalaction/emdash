@@ -59,8 +59,6 @@ All workspace-server objects live under the `workspace-server/` prefix:
 
 ```text
 workspace-server/
-  install.sh
-  latest.txt
   channels/
     stable/protocol-1.json
     canary/protocol-1.json
@@ -82,9 +80,9 @@ publishes its own immutable artifacts; releases are not promoted between channel
 Both channels build and smoke-verify all three targets, test `install.sh` against a local
 `file://` mirror, and move only their own protocol-major pointer after every immutable object is
 available. Existing versioned objects may only be skipped when their contents have the same
-SHA-256; the uploader refuses to replace different contents. Stable releases also update the
-legacy root `install.sh` and `latest.txt`. Canary releases never change those root objects, so
-`curl | sh` without an explicit version remains on stable.
+SHA-256; the uploader refuses to replace different contents. Channel pointers are the only mutable
+release objects. Installation scripts exist only under immutable version directories, require
+`--version`, and never select a release channel.
 
 The workflow build matrix is derived from `releaseTargets` and its runner mapping in
 `scripts/package-helpers.ts`. Adding or removing a release target there changes both the required
@@ -105,16 +103,24 @@ For a canary build, no package-version change is required: select `canary` or pa
 `-f channel=canary`. Canary versions are derived from the package version and GitHub run number;
 do not write the canary suffix into `package.json`.
 
-For manual recovery, download `install.sh` and pin the immutable artifact version explicitly:
+For manual recovery, download the immutable versioned installer and pin that same version
+explicitly:
 
 ```bash
-sh install.sh --version <version>
+version=<version>
+curl -fsSL "https://releases.emdash.sh/workspace-server/$version/install.sh" |
+  sh -s -- --version "$version"
 ```
 
 The workflow fails before building if the version's Linux x64 archive already exists at
 `https://releases.emdash.sh/workspace-server/`. Pull requests and pushes to `main` that affect the
 workspace server or its bundled workspace packages also run
 `.github/workflows/workspace-server-package-check.yml`, which packages and verifies Linux x64.
+If the publish job fails after immutable artifacts are uploaded, use **Re-run failed jobs** on that
+same GitHub Actions run. This reuses the retained build artifacts byte for byte; do not dispatch a
+new run or choose **Re-run all jobs**. The upload is idempotent: equal immutable objects are skipped
+and mutable selectors converge to the same release. Do not repair a partial publication by editing
+R2 objects manually.
 
 ## Publish to Local Minio
 
@@ -136,10 +142,8 @@ pnpm run upload:dev
 `upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
 credentials. It defaults to the host's Linux target, picks the newest matching artifact under
 `dist-artifacts/`, uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
-advances the stable channel pointer. Stable uploads then update `workspace-server/install.sh` and
-`workspace-server/latest.txt`; pass `--channel canary` for a canary-only upload that leaves those
-root objects unchanged. `pnpm run dev:remote` publishes both channel pointers for its dev artifact.
-Pass `--version` and `--target` when you need an explicit override.
+advances the selected channel pointer. `pnpm run dev:remote` publishes both channel pointers for its
+dev artifact. Pass `--version` and `--target` when you need an explicit override.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.

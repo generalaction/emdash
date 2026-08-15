@@ -9,13 +9,9 @@ import {
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
-  installScriptObjectKey,
-  latestVersionContents,
-  latestVersionObjectKey,
   mutableReleaseObjectKeys,
   parseUploadArgs,
   parseArtifactChecksum,
-  publishesStableRootObjects,
   versionedArtifactObjectKey,
   versionedInstallScriptObjectKey,
 } from './upload-helpers';
@@ -56,8 +52,6 @@ describe('workspace-server R2 upload helpers', () => {
   });
 
   it('places every object under the workspace-server prefix', () => {
-    expect(installScriptObjectKey).toBe('workspace-server/install.sh');
-    expect(latestVersionObjectKey).toBe('workspace-server/latest.txt');
     expect(channelPointerObjectKey('stable', 1)).toBe(
       'workspace-server/channels/stable/protocol-1.json'
     );
@@ -68,7 +62,6 @@ describe('workspace-server R2 upload helpers', () => {
       'workspace-server/1.2.3/server.tar.gz'
     );
     expect(versionedInstallScriptObjectKey('1.2.3')).toBe('workspace-server/1.2.3/install.sh');
-    expect(latestVersionContents('1.2.3')).toBe('1.2.3\n');
   });
 
   it('builds public channel pointer URLs from a bucket root', () => {
@@ -81,16 +74,12 @@ describe('workspace-server R2 upload helpers', () => {
   });
 
   it('rejects unsafe versions and artifact names', () => {
-    expect(() => latestVersionContents('../latest')).toThrow(/Invalid workspace-server/);
-    expect(() => latestVersionContents('1.2.3+build.1')).toThrow(/Invalid workspace-server/);
     expect(() => versionedArtifactObjectKey('1.2.3', '../server.tar.gz')).toThrow(
       /single non-empty path component/
     );
   });
 
   it('assigns content types for release objects', () => {
-    expect(contentTypeForObjectKey(installScriptObjectKey)).toBe('text/x-shellscript');
-    expect(contentTypeForObjectKey(latestVersionObjectKey)).toBe('text/plain');
     expect(contentTypeForObjectKey(channelPointerObjectKey('stable', 1))).toBe('application/json');
     expect(contentTypeForObjectKey('workspace-server/1.2.3/server.tar.gz.sha256')).toBe(
       'text/plain'
@@ -102,8 +91,6 @@ describe('workspace-server R2 upload helpers', () => {
 
   it('assigns cache policy from object mutability', () => {
     expect(cacheControlForObjectKey(channelPointerObjectKey('stable', 1))).toBe('no-cache');
-    expect(cacheControlForObjectKey(installScriptObjectKey)).toBe('no-cache');
-    expect(cacheControlForObjectKey(latestVersionObjectKey)).toBe('no-cache');
     expect(cacheControlForObjectKey(versionedInstallScriptObjectKey('1.2.3'))).toBe(
       'public, max-age=31536000, immutable'
     );
@@ -126,16 +113,11 @@ describe('workspace-server R2 upload helpers', () => {
     expect(() => parseUploadArgs(['--channel'])).toThrow('--channel requires a value');
   });
 
-  it('does not select legacy root objects for a canary-only upload', () => {
-    expect(publishesStableRootObjects(['canary'])).toBe(false);
-    expect(publishesStableRootObjects(['canary', 'stable'])).toBe(true);
-  });
-
-  it('publishes the stable channel pointer before legacy root selectors', () => {
-    expect(mutableReleaseObjectKeys(['stable'], 1)).toEqual([
+  it('publishes one mutable selector per channel and protocol major', () => {
+    expect(mutableReleaseObjectKeys(['stable'], 1)).toEqual([channelPointerObjectKey('stable', 1)]);
+    expect(mutableReleaseObjectKeys(['canary', 'stable'], 1)).toEqual([
+      channelPointerObjectKey('canary', 1),
       channelPointerObjectKey('stable', 1),
-      installScriptObjectKey,
-      latestVersionObjectKey,
     ]);
   });
 

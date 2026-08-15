@@ -56,8 +56,8 @@ the new version. Override the target with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64
 `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
 The remote container is no longer recreated to ingest artifacts. It stays a bare SSH host; the
-desktop provisioner installs the workspace server by curling the same `install.sh` that production
-uses, with the artifact source URL pointed at minio.
+desktop provisioner resolves a minio channel pointer, then curls that version's immutable
+`install.sh` with the artifact source URL pointed at minio.
 
 When testing the desktop app interactively against this remote, launch it with:
 

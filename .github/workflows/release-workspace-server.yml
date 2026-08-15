@@ -164,12 +164,8 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.version-guard.outputs.version }}"
-          channel="${{ needs.version-guard.outputs.channel }}"
           mirror="$RUNNER_TEMP/workspace-server-mirror"
           mkdir -p "$mirror/$version"
-          if [ "$channel" = stable ]; then
-            printf '%s\n' "$version" > "$mirror/latest.txt"
-          fi
           cp apps/workspace-server/dist-artifacts/* "$mirror/$version/"
 
           docker run --rm --platform linux/amd64 \

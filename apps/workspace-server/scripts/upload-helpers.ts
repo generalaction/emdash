@@ -14,8 +14,6 @@ import {
 } from './package-helpers';
 
 export const workspaceServerObjectPrefix = 'workspace-server';
-export const installScriptObjectKey = `${workspaceServerObjectPrefix}/install.sh`;
-export const latestVersionObjectKey = `${workspaceServerObjectPrefix}/latest.txt`;
 
 const mutableCacheControl = 'no-cache';
 const immutableCacheControl = 'public, max-age=31536000, immutable';
@@ -137,16 +135,7 @@ export function mutableReleaseObjectKeys(
   channels: readonly ReleaseChannel[],
   major: number
 ): string[] {
-  const rootKeys = publishesStableRootObjects(channels)
-    ? [installScriptObjectKey, latestVersionObjectKey]
-    : [];
-  const pointerKeys = channels.map((channel) => channelPointerObjectKey(channel, major));
-  return [...pointerKeys, ...rootKeys];
-}
-
-export function latestVersionContents(version: string): string {
-  validateReleaseVersion(version);
-  return `${version}\n`;
+  return channels.map((channel) => channelPointerObjectKey(channel, major));
 }
 
 export function contentTypeForObjectKey(key: string): string {
@@ -157,11 +146,7 @@ export function contentTypeForObjectKey(key: string): string {
 }
 
 export function cacheControlForObjectKey(key: string): string {
-  if (
-    key === installScriptObjectKey ||
-    key === latestVersionObjectKey ||
-    key.startsWith(`${workspaceServerObjectPrefix}/channels/`)
-  ) {
+  if (key.startsWith(`${workspaceServerObjectPrefix}/channels/`)) {
     return mutableCacheControl;
   }
 
@@ -174,10 +159,6 @@ export function cacheControlForObjectKey(key: string): string {
   }
   validateReleaseVersion(relativeKey.slice(0, separatorIndex));
   return immutableCacheControl;
-}
-
-export function publishesStableRootObjects(channels: readonly ReleaseChannel[]): boolean {
-  return channels.includes('stable');
 }
 
 export function assertPointerVersionPublishedInRun(

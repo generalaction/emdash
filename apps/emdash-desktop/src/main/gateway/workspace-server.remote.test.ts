@@ -2,6 +2,7 @@ import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
 import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
+import { parseChannelPointer, protocolMajor } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
@@ -14,8 +15,7 @@ import { createDesktopRuntimeBroker } from './runtime-broker';
 
 const remoteTestEnabled = process.env['EMDASH_TEST_REMOTE_WSS'] === '1';
 const defaultRemoteInstallBaseUrl = 'http://minio:9000/emdash-releases/workspace-server';
-const defaultPublishedVersionUrl =
-  'http://localhost:9000/emdash-releases/workspace-server/latest.txt';
+const defaultPublishedPointerUrl = `http://localhost:9000/emdash-releases/workspace-server/channels/stable/protocol-${protocolMajor()}.json`;
 
 describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker SSH', () => {
   it('installs, resolves a runtime, and preserves the session across an SSH reconnect', async () => {
@@ -42,7 +42,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
     const installBaseUrl =
       process.env['EMDASH_TEST_REMOTE_WSS_INSTALL_BASE_URL'] ?? defaultRemoteInstallBaseUrl;
     const expectedVersion = await readPublishedVersion(
-      process.env['EMDASH_TEST_REMOTE_WSS_LATEST_URL'] ?? defaultPublishedVersionUrl
+      process.env['EMDASH_TEST_REMOTE_WSS_POINTER_URL'] ?? defaultPublishedPointerUrl
     );
     const hosts = createHostService({
       scope,
@@ -206,12 +206,12 @@ async function readPublishedVersion(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(
-      `Could not read workspace-server latest.txt from ${url} (HTTP ${response.status})`
+      `Could not read workspace-server channel pointer from ${url} (HTTP ${response.status})`
     );
   }
-  const version = (await response.text()).trim();
-  if (version.length === 0) {
-    throw new Error(`workspace-server latest.txt from ${url} was empty`);
+  const pointer = parseChannelPointer(await response.text(), protocolMajor());
+  if (!pointer.success) {
+    throw new Error(`Workspace-server channel pointer from ${url} was invalid`);
   }
-  return version;
+  return pointer.data.artifactVersion;
 }

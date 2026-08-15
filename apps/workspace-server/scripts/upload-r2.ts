@@ -22,9 +22,6 @@ import {
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
-  installScriptObjectKey,
-  latestVersionContents,
-  latestVersionObjectKey,
   mutableReleaseObjectKeys,
   parseUploadArgs,
   parseArtifactChecksum,
@@ -87,15 +84,8 @@ async function main(): Promise<void> {
   const publishedVersions = new Set([version]);
 
   assertPointerVersionPublishedInRun(pointer, publishedVersions);
-  const latestVersionData = new TextEncoder().encode(latestVersionContents(version));
   for (const key of mutableReleaseObjectKeys(options.channels, protocolMajor())) {
-    const data =
-      key === installScriptObjectKey
-        ? installScriptData
-        : key === latestVersionObjectKey
-          ? latestVersionData
-          : pointerData;
-    await uploadMutableObject(s3, key, data);
+    await uploadMutableObject(s3, key, pointerData);
   }
 
   process.stdout.write(
