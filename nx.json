@@ -43,6 +43,9 @@
       "inputs": [
         "default",
         {
+          "env": "CI"
+        },
+        {
           "env": "EMDASH_TEST_SKIP_BROWSER"
         }
       ],

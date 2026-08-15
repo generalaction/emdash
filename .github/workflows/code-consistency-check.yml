@@ -10,10 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-      # Skip the Playwright-backed browser Vitest projects (app + chat-ui):
-      # runners have no browsers provisioned. They can join the gate once
-      # browser provisioning is proven stable in CI.
-      EMDASH_TEST_SKIP_BROWSER: '1'
 
     steps:
       - name: Checkout
@@ -54,10 +50,11 @@ jobs:
         # provision native modules never run. Two are needed for tests:
         # - the anchored native side project (system-Node better-sqlite3 copy)
         #   used by the app's main-db/fixtures/migrations Vitest projects
-        # - node-pty's prebuild download, used by PTY-dependent worker specs
+        # - node-pty's platform build, used by PTY-dependent worker specs
         run: |
           pnpm --dir apps/emdash-desktop/tooling/node-deps install --frozen-lockfile
-          pnpm rebuild node-pty
+          pnpm --filter @emdash/core rebuild node-pty
+          pnpm --filter @emdash/core exec node -e "require('node-pty')"
 
       - name: Run affected checks
         run: pnpm nx affected -t format:check typecheck lint test
