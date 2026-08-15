@@ -16,7 +16,7 @@ import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
-import { matchesElectronInput } from '@core/primitives/keybindings/api';
+import { detectPlatformContext, matchesElectronInput } from '@core/primitives/keybindings/api';
 import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import {
   defineViewScope,
@@ -28,6 +28,8 @@ import {
 } from '@core/primitives/view-scopes/api';
 import { ViewScopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from './keybinding-dispatcher';
+
+const platform = detectPlatformContext();
 
 function implementationFor<TDefinition extends ViewScopeDefinition>(
   definition: TDefinition,
@@ -45,18 +47,19 @@ function implementationFor<TDefinition extends ViewScopeDefinition>(
   ) as unknown as ViewScopeImpl<TDefinition>;
 }
 
-function eventFor(key: string, code: string, metaKey = true) {
+function eventFor(key: string, code: string, primaryModifier = true) {
+  const modifier = platform.os === 'mac' ? 'Meta' : 'Control';
   return {
     key,
     code,
-    ctrlKey: false,
-    metaKey,
+    ctrlKey: primaryModifier && modifier === 'Control',
+    metaKey: primaryModifier && modifier === 'Meta',
     altKey: false,
     shiftKey: false,
     repeat: false,
     isComposing: false,
     target: null,
-    getModifierState: (modifier: string) => metaKey && modifier === 'Meta',
+    getModifierState: (candidate: string) => primaryModifier && candidate === modifier,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
   } as unknown as KeyboardEvent;
@@ -91,8 +94,9 @@ describe('KeybindingDispatcher catalog integration', () => {
     });
     runtime.activate(modal);
     const dispatcher = new KeybindingDispatcher(
-      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
-      runtime
+      new KeybindingService(COMMAND_CATALOG.defs, platform),
+      runtime,
+      platform
     );
 
     expect(dispatcher.dispatch(eventFor('Escape', 'Escape', false)).kind).toBe('winner');
@@ -106,8 +110,9 @@ describe('KeybindingDispatcher catalog integration', () => {
     const execute = vi.fn();
     const runtime = createRuntime(execute);
     const dispatcher = new KeybindingDispatcher(
-      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
-      runtime
+      new KeybindingService(COMMAND_CATALOG.defs, platform),
+      runtime,
+      platform
     );
 
     expect(dispatcher.dispatch(eventFor(',', 'Comma')).kind).toBe('winner');
@@ -124,8 +129,9 @@ describe('KeybindingDispatcher catalog integration', () => {
       [newConversationCommand.id]: disabled('Unavailable'),
     });
     const dispatcher = new KeybindingDispatcher(
-      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
-      runtime
+      new KeybindingService(COMMAND_CATALOG.defs, platform),
+      runtime,
+      platform
     );
 
     expect(dispatcher.dispatch(eventFor('t', 'KeyT'))).toEqual({
