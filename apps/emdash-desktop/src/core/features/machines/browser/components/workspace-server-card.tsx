@@ -63,9 +63,8 @@ function workspaceServerUpdateStatus(
   actions: WorkspaceServerActions
 ): UpdateStatus {
   if (
+    state.updateAvailable === true &&
     state.latestVersion !== undefined &&
-    state.version !== undefined &&
-    state.version !== state.latestVersion &&
     state.error?.code !== 'protocol-upgrade-client'
   ) {
     return {

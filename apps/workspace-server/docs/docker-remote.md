@@ -51,12 +51,13 @@ pnpm run dev:remote
 The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
 Silicon, `linux-x64` otherwise), starts the Compose services (`minio`, `minio-setup`, and
 `workspace-remote`), uploads the artifact layout to `http://localhost:9000/emdash-releases`, and
-verifies that minio's `workspace-server/latest.txt` points at the new version. Override the target
-with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
+verifies that minio's stable and canary `workspace-server/channels/*/protocol-1.json` pointers name
+the new version. Override the target with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or
+`EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
 The remote container is no longer recreated to ingest artifacts. It stays a bare SSH host; the
-desktop provisioner installs the workspace server by curling the same `install.sh` that production
-uses, with the artifact source URL pointed at minio.
+desktop provisioner resolves a minio channel pointer, then curls that version's immutable
+`install.sh` with the artifact source URL pointed at minio.
 
 When testing the desktop app interactively against this remote, launch it with:
 
@@ -76,10 +77,10 @@ The `minio` hostname is resolved by the `workspace-remote` container. The host c
 objects through `http://localhost:9000/emdash-releases/workspace-server/`.
 
 `EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
-`appVersion` with `latest.txt` from the configured artifact URL. If they differ, the desktop
-reinstalls and restarts the remote daemon during the next ensure/reconnect. This is development-only;
-production provisioning still keeps compatible running daemons installed until an explicit update or
-protocol upgrade.
+`appVersion` with the artifact version in its channel pointer for the desktop protocol major. If
+they differ, the desktop reinstalls that exact version and restarts the remote daemon during the next
+ensure/reconnect. This is development-only; production provisioning still keeps compatible running
+daemons installed until an explicit update or protocol upgrade.
 
 ## Re-publish Without Restarting Docker
 
@@ -94,7 +95,8 @@ pnpm run upload:dev
 
 Use `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` when publishing an x64 artifact from Apple Silicon, or
 pass `--version` / `--target` to override detection. With the desktop running in dev-auto-update
-mode, the next ensure/reconnect sees the new `latest.txt`, reinstalls, and restarts the daemon.
+mode, the next ensure/reconnect sees the updated channel pointer, installs its pinned artifact
+version, and restarts the daemon.
 
 Run the desktop connection smoke test against the installed daemon:
 

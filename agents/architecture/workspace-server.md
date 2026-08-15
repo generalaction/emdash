@@ -14,14 +14,18 @@ failures, exhausted SSH reconnects, and machine edits invalidate it.
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
 `run/`. When the daemon is absent or negotiation reports `upgrade-server`, the desktop downloads
-and executes the hosted `apps/workspace-server/install.sh` on the remote. The script resolves the
-latest published version, detects Linux architecture and glibc support, pulls the matching artifact,
-verifies its SHA-256 sidecar, and extracts it before `current` changes. There is no desktop-pinned
-server version: compatible same-major daemons remain installed until a future explicit update.
+the channel pointer for its protocol major, then downloads and executes that version's immutable
+`apps/workspace-server/install.sh` on the remote with the selected version pinned. Canary desktops
+fall back to the stable pointer when no canary pointer exists. The script detects Linux architecture
+and glibc support, pulls the matching artifact, verifies its SHA-256 sidecar, and extracts it before
+`current` changes. Compatible same-major daemons remain installed until a future explicit update.
+The desktop offers that update only when the channel pointer names a strictly newer SemVer artifact
+version; equal and older pointer versions leave the running daemon alone.
 `EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
 development; the Docker remote dev setup publishes Linux builds to local minio and uses
 `http://minio:9000/emdash-releases/workspace-server` so remote installation exercises the same
-curl-based object-store path as production.
+curl-based object-store path as production. Provisioning verifies that every successful install
+selected the exact version named by the resolved channel pointer.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
@@ -64,7 +68,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '9.0.0';
+export const PROTOCOL_VERSION = '1.0.0';
 ```
 
 ### What each component means
@@ -205,6 +209,7 @@ The desktop forwards the read-only agent hook-status procedure to the selected h
 | Path | Role |
 |------|------|
 | [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
+| [`packages/core/src/workspace-server/releases.ts`](../../packages/core/src/workspace-server/releases.ts) | Release channels, pointer schema, strict artifact versions, and pointer paths |
 | [`packages/core/src/workspace-server/wire/schemas.ts`](../../packages/core/src/workspace-server/wire/schemas.ts) | initialize/health schemas |
 | [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | aggregate control-plane and core-runtime wire contract |
 | [`packages/core/src/workspace-server/port-forwards/contract.ts`](../../packages/core/src/workspace-server/port-forwards/contract.ts) | daemon-local preview port inspection contract |
@@ -216,4 +221,4 @@ The desktop forwards the read-only agent hook-status procedure to the selected h
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |
 | [`apps/emdash-desktop/src/core/services/hosts/`](../../apps/emdash-desktop/src/core/services/hosts/) | Desktop orchestration and lifecycle policy for SSH hosts |
 | [`apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`](../../apps/emdash-desktop/src/core/services/hosts/node/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
-| [`apps/workspace-server/install.sh`](../../apps/workspace-server/install.sh) | Remote platform detection and atomic latest-artifact installation |
+| [`apps/workspace-server/install.sh`](../../apps/workspace-server/install.sh) | Remote platform detection and atomic pinned-artifact installation |

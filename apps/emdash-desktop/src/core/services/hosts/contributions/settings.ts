@@ -4,7 +4,6 @@ import { defineSettingsSchemaContribution } from '@core/primitives/settings/api'
 
 const hostSettingsSchema = z.object({
   installBaseUrl: z.string(),
-  installCommand: z.string().nullable(),
 });
 
 // The persisted settings key stays 'remoteMachine': it is stored in the app

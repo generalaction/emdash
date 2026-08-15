@@ -91,7 +91,7 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
-  it('dev auto-updates a compatible running daemon when latest.txt advertises a newer version', async () => {
+  it('dev auto-updates a compatible running daemon when its channel pointer advertises a newer version', async () => {
     const fixture = createProvisionerFixture({ devAutoUpdate: true });
     fixture.installer.availableVersion.mockResolvedValue('1.2.4-dev.abc123');
     fixture.dialOnce
@@ -104,7 +104,13 @@ describe('WorkspaceServerProvisioner', () => {
       'ssh-1',
       expect.any(AbortSignal)
     );
-    expect(fixture.installer.install).toHaveBeenCalledOnce();
+    expect(fixture.installer.install).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionId: 'ssh-1',
+        signal: expect.any(AbortSignal),
+        version: '1.2.4-dev.abc123',
+      })
+    );
     expect(fixture.daemon.restart).toHaveBeenCalledOnce();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
     expect(fixture.status('ssh-1')).toMatchObject({

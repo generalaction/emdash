@@ -62,6 +62,7 @@ case "$base_url" in
   https://* | http://* | file://*) ;;
   *) fail 41 "base URL must use https, http, or file" ;;
 esac
+[ -n "$version" ] || fail 42 "--version is required"
 
 case "$(uname -s 2>/dev/null || true)" in
   Linux) os=linux ;;
@@ -104,12 +105,6 @@ cleanup_metadata() {
 }
 trap cleanup_metadata EXIT HUP INT TERM
 
-if [ -z "$version" ]; then
-  if ! download "$base_url/latest.txt" "$temporary_metadata"; then
-    fail 41 "could not download the latest workspace-server version"
-  fi
-  version=$(tr -d '\r\n' < "$temporary_metadata")
-fi
 if ! printf '%s\n' "$version" |
   grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$'; then
   fail 41 "invalid workspace-server version '$version'"
@@ -117,13 +112,9 @@ fi
 
 artifact=emdash-workspace-server-$version-$os-$arch.tar.gz
 artifact_url=$base_url/$version/$artifact
-fallback_artifact_url=$base_url/$artifact
 if [ -z "$sha256" ]; then
   if ! download "$artifact_url.sha256" "$temporary_metadata"; then
-    if ! download "$fallback_artifact_url.sha256" "$temporary_metadata"; then
-      fail 41 "could not download the checksum for $artifact"
-    fi
-    artifact_url=$fallback_artifact_url
+    fail 41 "could not download the checksum for $artifact"
   fi
   sha256=$(awk -v expected="$artifact" '
     NF == 2 {
@@ -210,11 +201,7 @@ fi
 rm -rf -- "$staging" "$archive"
 mkdir -p -- "$staging"
 if ! download "$artifact_url" "$archive"; then
-  if [ "$artifact_url" = "$fallback_artifact_url" ] ||
-    ! download "$fallback_artifact_url" "$archive"; then
-    fail 41 "could not download $artifact"
-  fi
-  artifact_url=$fallback_artifact_url
+  fail 41 "could not download $artifact"
 fi
 if ! printf '%s  %s\n' "$sha256" "$archive" | sha256sum -c - >/dev/null; then
   fail 41 "checksum verification failed for $artifact"

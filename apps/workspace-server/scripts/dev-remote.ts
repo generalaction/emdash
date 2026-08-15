@@ -2,7 +2,13 @@ import { spawn, type StdioOptions } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  parseChannelPointer,
+  protocolMajor,
+  type ReleaseChannel,
+} from '@emdash/core/workspace-server';
 import { createDevPackageVersion } from './package-helpers.ts';
+import { channelPointerUrl } from './upload-helpers.ts';
 
 const linuxTargets = ['linux-arm64', 'linux-x64'] as const;
 type LinuxTarget = (typeof linuxTargets)[number];
@@ -44,7 +50,17 @@ async function main(): Promise<void> {
   process.stdout.write(`Uploading workspace-server ${expectedVersion} to local minio...\n`);
   await runCommand(
     'tsx',
-    ['scripts/upload-r2.ts', '--version', expectedVersion, '--target', target],
+    [
+      'scripts/upload-r2.ts',
+      '--version',
+      expectedVersion,
+      '--target',
+      target,
+      '--channel',
+      'stable',
+      '--channel',
+      'canary',
+    ],
     {
       cwd: appDirectory,
       env: {
@@ -103,23 +119,40 @@ async function devBuildIdentifier(): Promise<string> {
 }
 
 async function verifyPublishedVersion(expectedVersion: string): Promise<void> {
-  process.stdout.write('Verifying the published minio latest.txt...\n');
+  const channels = ['stable', 'canary'] as const satisfies readonly ReleaseChannel[];
+  const major = protocolMajor();
+  process.stdout.write(`Verifying the published minio protocol-${major} channel pointers...\n`);
   const deadline = Date.now() + 30_000;
-  const latestUrl = `${minioHostEndpoint.replace(/\/$/, '')}/workspace-server/latest.txt`;
-  let lastError = 'latest.txt was never checked';
+  let lastError = 'channel pointers were never checked';
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(latestUrl);
-      if (!response.ok) {
-        lastError = `latest.txt returned HTTP ${response.status}`;
-      } else {
-        const version = (await response.text()).trim();
-        if (version === expectedVersion) {
-          process.stdout.write(`Published latest.txt points at ${version}\n`);
-          return;
+      let allPointersMatch = true;
+      for (const channel of channels) {
+        const pointerUrl = channelPointerUrl(minioHostEndpoint, channel, major);
+        const response = await fetch(pointerUrl);
+        if (!response.ok) {
+          lastError = `${channel} pointer returned HTTP ${response.status}`;
+          allPointersMatch = false;
+          break;
         }
-        lastError = `latest.txt reports ${version}, expected ${expectedVersion}`;
+
+        const pointer = parseChannelPointer(await response.text(), major);
+        if (!pointer.success) {
+          lastError = `${channel} pointer is invalid: ${JSON.stringify(pointer.error)}`;
+          allPointersMatch = false;
+          break;
+        }
+        if (pointer.data.artifactVersion !== expectedVersion) {
+          lastError = `${channel} pointer reports ${pointer.data.artifactVersion}, expected ${expectedVersion}`;
+          allPointersMatch = false;
+          break;
+        }
+      }
+
+      if (allPointersMatch) {
+        process.stdout.write(`Published stable and canary pointers point at ${expectedVersion}\n`);
+        return;
       }
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
