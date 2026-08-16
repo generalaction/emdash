@@ -65,6 +65,7 @@ function configState() {
 
 function fixture() {
   const patch = vi.fn(async () => ok(undefined));
+  const hostPatch = vi.fn(async () => ok(undefined));
   const patchPersonalProjectConfig = vi.fn(async () => ok(configState()));
   const refreshProjectConfig = vi.fn(async () => ok(configState()));
   const getProjectConfig = vi.fn(async () => ok(configState()));
@@ -76,9 +77,18 @@ function fixture() {
   const project = {
     projectId: 'project-1',
     repoPath: '/repo',
-    project: { repositoryWorkspaceId: 'repo-1' },
+    project: {
+      type: 'local' as const,
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      baseRef: 'main',
+      repositoryWorkspaceId: 'repo-1',
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    },
     settings: {
-      patch,
+      patch: hostPatch,
       getStoredGitSettings: vi.fn(async () => ({
         baseRemote: 'origin',
         pushRemote: 'stale-fork',
@@ -102,14 +112,35 @@ function fixture() {
       projectConfig: { state: projectConfigState },
     },
   };
+  const readDurable = vi.fn(async () =>
+    ok({
+      gitIdentity: {
+        stored: {
+          baseRemote: 'origin',
+          pushRemote: 'stale-fork',
+          agentGitCredentials: 'none' as const,
+        },
+      },
+      placement: {
+        stored: { worktreeRoot: '/project/worktrees', tmux: true },
+      },
+    })
+  );
   const service = new ProjectSettingsService({
     db: {} as never,
-    projects: { getProject: () => project as never },
+    projects: { requireAttached: () => ok(project as never) },
     workspaceIdentity: {} as never,
+    loadProject: async () => project.project,
+    durableSettings: {
+      read: readDurable,
+      patch,
+    },
   });
   return {
     service,
     patch,
+    hostPatch,
+    readDurable,
     patchPersonalProjectConfig,
     refreshProjectConfig,
     getProjectConfig,
@@ -139,7 +170,17 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.domains.lifecycle).toMatchObject({
+    expect(result.data.host.kind).toBe('observed');
+    if (result.data.host.kind !== 'observed') return;
+    const domains = {
+      ...result.data.host.value.domains,
+      ...result.data.durable,
+      placement: {
+        ...result.data.host.value.domains.placement,
+        ...result.data.durable.placement,
+      },
+    };
+    expect(domains.lifecycle).toMatchObject({
       personal: { scripts: { setup: 'old setup' }, autoRunRun: true },
       team: { scripts: { setup: 'team setup' } },
       resolved: {
@@ -164,14 +205,14 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         },
       ],
     });
-    expect(result.data.domains.gitIdentity).toEqual({
+    expect(domains.gitIdentity).toEqual({
       stored: {
         baseRemote: 'origin',
         pushRemote: 'stale-fork',
         agentGitCredentials: 'none',
       },
     });
-    expect(result.data.domains.placement).toMatchObject({
+    expect(domains.placement).toMatchObject({
       stored: { worktreeRoot: '/project/worktrees', tmux: true },
       layers: {
         hostWorktreeRoot: null,
@@ -235,7 +276,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
   });
 
   it('applies ordinary saves as explicit registry and DB domain patches', async () => {
-    const { service, patch, patchPersonalProjectConfig } = fixture();
+    const { service, patch, hostPatch, patchPersonalProjectConfig } = fixture();
 
     const result = await service.updateProjectSettings('project-1', {
       lifecycle: {
@@ -264,13 +305,14 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         preservePatterns: ['personal/**'],
       },
     });
-    expect(patch).toHaveBeenCalledWith({
+    expect(patch).toHaveBeenCalledWith('project-1', {
       gitIdentity: {
         stored: { baseRemote: 'origin', agentGitCredentials: 'none' },
       },
-      placement: {
-        stored: { worktreeRoot: '/tmp/worktrees', tmux: true },
-      },
+      placement: { stored: { tmux: true } },
+    });
+    expect(hostPatch).toHaveBeenCalledWith({
+      placement: { stored: { worktreeRoot: '/tmp/worktrees' } },
     });
   });
 
@@ -347,5 +389,106 @@ describe('ProjectSettingsService sharing orchestration', () => {
       },
     });
     expect(patchPersonalProjectConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProjectSettingsService offline authority boundaries', () => {
+  it('loads durable settings while effective attachment is unavailable', async () => {
+    const unavailable = {
+      type: 'host-unavailable' as const,
+      host: { type: 'remote' as const, id: 'ssh-private-id' },
+      reason: 'offline' as const,
+      message: 'Host is offline',
+    };
+    const loadProject = vi.fn(async () => ({
+      type: 'ssh' as const,
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      baseRef: 'main',
+      connectionId: 'ssh-private-id',
+      repositoryWorkspaceId: 'repo-1',
+      createdAt: '2026-08-13T00:00:00.000Z',
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    }));
+    const readDurable = vi.fn(async () =>
+      ok({
+        gitIdentity: {
+          stored: {
+            baseRemote: 'origin',
+            githubAccount: { kind: 'none' as const },
+          },
+        },
+        placement: { stored: { tmux: true } },
+      })
+    );
+    const requireAttached = vi.fn(() => err(unavailable));
+    const service = new ProjectSettingsService({
+      db: {} as never,
+      projects: { requireAttached },
+      workspaceIdentity: {} as never,
+      loadProject,
+      durableSettings: {
+        read: readDurable,
+        patch: vi.fn(),
+      },
+    } as never);
+
+    await expect(service.getProjectSettingsPage('project-1')).resolves.toEqual(
+      ok({
+        durable: {
+          gitIdentity: {
+            stored: {
+              baseRemote: 'origin',
+              githubAccount: { kind: 'none' },
+            },
+          },
+          placement: { stored: { tmux: true } },
+        },
+        host: { kind: 'never-observed' },
+      })
+    );
+    expect(loadProject).toHaveBeenCalledWith('project-1');
+    expect(readDurable).toHaveBeenCalledWith('project-1');
+    expect(requireAttached).toHaveBeenCalledWith('project-1');
+  });
+
+  it('preserves the typed attachment race for Host-backed writes', async () => {
+    const unavailable = {
+      type: 'attachment-unavailable' as const,
+      host: { type: 'local' as const },
+      phase: 'waiting' as const,
+    };
+    const service = new ProjectSettingsService({
+      db: {} as never,
+      projects: { requireAttached: vi.fn(() => err(unavailable)) },
+      workspaceIdentity: {} as never,
+      loadProject: vi.fn(async () => ({
+        type: 'local',
+        id: 'project-1',
+        name: 'Project',
+        path: '/repo',
+        baseRef: 'main',
+        repositoryWorkspaceId: 'repo-1',
+        createdAt: '2026-08-13T00:00:00.000Z',
+        updatedAt: '2026-08-13T00:00:00.000Z',
+      })),
+      durableSettings: {
+        read: vi.fn(async () =>
+          ok({
+            gitIdentity: { stored: {} },
+            placement: { stored: {} },
+          })
+        ),
+        patch: vi.fn(async () => ok()),
+      },
+    } as never);
+
+    await expect(
+      service.shareProjectSettingsToConfig('project-1', {
+        target: { type: 'project' },
+        fields: ['scripts.setup'],
+      })
+    ).resolves.toEqual(err(unavailable));
   });
 });

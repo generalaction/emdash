@@ -7,8 +7,8 @@ import {
   type EffectiveSettingsInputs,
 } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import {
-  getProjectManagerStore,
-  mountedProjectData,
+  getProjectStore,
+  projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { compileWorktreeGitPlan, type WorkspaceConfig } from '@core/primitives/workspaces/api';
 
@@ -27,7 +27,7 @@ export const WorktreeDestinationPreview = observer(function WorktreeDestinationP
   workspaceConfig: WorkspaceConfig;
 }) {
   const inputs = useEffectiveSettingsInputs(projectId);
-  const projectPath = mountedProjectData(getProjectManagerStore().projects.get(projectId))?.path;
+  const projectPath = projectData(getProjectStore(projectId))?.path;
 
   if (!inputs || projectPath === undefined) return null;
   return (

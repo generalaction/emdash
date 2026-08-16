@@ -34,10 +34,10 @@ import { IntegrationIcon } from '@core/features/integrations/contributions/brows
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {
-  asMounted,
   getProjectSshConnectionId,
   getProjectStore,
   getProjectViewStore,
+  projectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient } from '@core/features/search/api/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
@@ -52,6 +52,7 @@ import {
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
@@ -242,6 +243,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(store.projectId);
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
@@ -431,9 +433,9 @@ const ComposerForStore = observer(function ComposerForStore({
     () => getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
   );
   const issueProviderContext = useObserver(() => {
-    const mounted = asMounted(getProjectStore(store.projectId));
+    const project = projectData(getProjectStore(store.projectId));
     return {
-      projectPath: mounted?.data.path,
+      projectPath: project?.path,
       repositoryUrl:
         getGitRepositoryStore(store.projectId)?.issueRepositoryUrl ??
         getGitRepositoryStore(store.projectId)?.canonicalRepositoryUrl ??
@@ -586,55 +588,66 @@ const ComposerForStore = observer(function ComposerForStore({
   return createPortal(
     <>
       <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
-      <ChatComposer
-        isWorking={a.isWorking}
-        canSubmit={a.canSubmit}
-        onSubmit={handleSubmit}
-        onInputChange={(text) => store.setDraftText(text)}
-        onSubmitWhileWorking={handleSubmit}
-        onStop={a.isWorking ? handleStop : undefined}
-        permissionRequest={permissionRequest}
-        permissionQueueCount={store.permissionQueue.length}
-        onResolvePermission={handleResolvePermission}
-        queuedPrompts={store.queuedPrompts}
-        onEditQueuedPrompt={(id, text) => store.editQueuedPrompt(id, text)}
-        onDeleteQueuedPrompt={(id) => store.deleteQueuedPrompt(id)}
-        onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
-        onSendQueuedPromptNow={handleSendQueuedPromptNow}
-        editorApiRef={editorApiRef}
-        modelOptions={store.modelOptions}
-        selectedModel={store.model ?? undefined}
-        onModelChange={handleModelChange}
-        effortOptions={store.effortOptions}
-        selectedEffort={store.effort ?? undefined}
-        onEffortChange={handleEffortChange}
-        permissionModeOptions={store.permissionModeOptions}
-        selectedPermissionMode={store.permissionMode ?? undefined}
-        onPermissionModeChange={handleModeChange}
-        mcpServers={store.mcpServers}
-        agentOptions={agentOptions}
-        selectedAgent={providerId ?? undefined}
-        agentLocked
-        onAgentChange={() => {}}
-        contextUsage={
-          store.usage
-            ? {
-                used: store.usage.contextUsed,
-                size: store.usage.contextSize,
-                cost: store.usage.cost,
-              }
-            : null
-        }
-        mentionProvider={mentionProvider}
-        renderMentionIcon={renderMentionIcon}
-        queryCommands={querySlashItems}
-        attachments={attachments}
-        onAttachmentsChange={handleAttachmentsChange}
-        onAttach={handleAttach}
-        onImageFilesDropped={(files) => void addImageFiles(files)}
-        onFilesDropped={insertFileMentions}
-        onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
-      />
+      {disabledReason && (
+        <div
+          className="mx-3 mb-1 rounded-md border bg-background/95 px-2 py-1 text-center text-xs text-foreground-muted"
+          tabIndex={0}
+          role="note"
+        >
+          {disabledReason}
+        </div>
+      )}
+      <div inert={disabledReason ? true : undefined}>
+        <ChatComposer
+          isWorking={a.isWorking}
+          canSubmit={a.canSubmit}
+          onSubmit={handleSubmit}
+          onInputChange={(text) => store.setDraftText(text)}
+          onSubmitWhileWorking={handleSubmit}
+          onStop={a.isWorking ? handleStop : undefined}
+          permissionRequest={permissionRequest}
+          permissionQueueCount={store.permissionQueue.length}
+          onResolvePermission={handleResolvePermission}
+          queuedPrompts={store.queuedPrompts}
+          onEditQueuedPrompt={(id, text) => store.editQueuedPrompt(id, text)}
+          onDeleteQueuedPrompt={(id) => store.deleteQueuedPrompt(id)}
+          onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
+          onSendQueuedPromptNow={handleSendQueuedPromptNow}
+          editorApiRef={editorApiRef}
+          modelOptions={store.modelOptions}
+          selectedModel={store.model ?? undefined}
+          onModelChange={handleModelChange}
+          effortOptions={store.effortOptions}
+          selectedEffort={store.effort ?? undefined}
+          onEffortChange={handleEffortChange}
+          permissionModeOptions={store.permissionModeOptions}
+          selectedPermissionMode={store.permissionMode ?? undefined}
+          onPermissionModeChange={handleModeChange}
+          mcpServers={store.mcpServers}
+          agentOptions={agentOptions}
+          selectedAgent={providerId ?? undefined}
+          agentLocked
+          onAgentChange={() => {}}
+          contextUsage={
+            store.usage
+              ? {
+                  used: store.usage.contextUsed,
+                  size: store.usage.contextSize,
+                  cost: store.usage.cost,
+                }
+              : null
+          }
+          mentionProvider={mentionProvider}
+          renderMentionIcon={renderMentionIcon}
+          queryCommands={querySlashItems}
+          attachments={attachments}
+          onAttachmentsChange={handleAttachmentsChange}
+          onAttach={handleAttach}
+          onImageFilesDropped={(files) => void addImageFiles(files)}
+          onFilesDropped={insertFileMentions}
+          onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
+        />
+      </div>
     </>,
     composerSlot
   );
@@ -818,8 +831,15 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   if (!store) return null;
 
-  const showComposer = !store.historyLoading && store.loadError === null;
-  const showHero = showComposer && store.isEmpty;
+  const unavailableWithoutTranscript =
+    store.loadError?.kind === 'unavailable' && store.messageCount === 0;
+  const showBlockingOverlay =
+    store.historyLoading ||
+    (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
+    unavailableWithoutTranscript;
+  const showComposer =
+    !store.historyLoading && (store.loadError === null || store.loadError.kind === 'unavailable');
+  const showHero = showComposer && store.isEmpty && store.loadError === null;
 
   return (
     <div ref={rootRef} className="surface-paper relative h-full overflow-hidden bg-(--em-surface)">
@@ -842,17 +862,22 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           Hide the composer in error state so the overlay owns the whole content area.
           Precedence: error > loading. */}
       {overlaySlot &&
-        (store.loadError !== null || store.historyLoading) &&
+        showBlockingOverlay &&
         createPortal(
           <div
             // The library-owned overlay slot is pointer-events: none by design;
             // opt back in so the Sign in / Retry buttons are clickable.
             className={`pointer-events-auto absolute inset-0 flex items-center justify-center text-sm text-foreground-muted ${
-              store.loadError !== null || store.historyLoading ? 'bg-(--em-surface)' : ''
+              showBlockingOverlay ? 'bg-(--em-surface)' : ''
             }`}
             aria-live="polite"
           >
-            {store.loadError !== null ? (
+            {store.loadError?.kind === 'unavailable' ? (
+              <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
+                <span className="text-foreground">Chat unavailable</span>
+                <span className="text-xs text-foreground-muted">{store.loadError.message}</span>
+              </div>
+            ) : store.loadError !== null ? (
               store.loadError.kind === 'auth_required' ? (
                 <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
                   <span className="text-foreground">

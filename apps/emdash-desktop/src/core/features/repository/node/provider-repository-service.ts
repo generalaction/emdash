@@ -1,15 +1,23 @@
 import { err, Result } from '@emdash/shared';
 import { match } from 'ts-pattern';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
-import type { ProviderRepositoryResult } from '@core/primitives/repository/api';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import type { ProviderRepositoryResult } from '../api';
 
 export class ProviderRepositoryService {
-  constructor(private readonly projects: Pick<ProjectSessionManager, 'getProject'>) {}
+  constructor(
+    private readonly dependencies: {
+      projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
+      loadProject(projectId: string): Promise<unknown | undefined>;
+    }
+  ) {}
 
   async resolveProject(projectId: string): Promise<ProviderRepositoryResult> {
-    const project = this.projects.getProject(projectId);
-    if (!project) return err({ type: 'no_remote' });
+    const record = await this.dependencies.loadProject(projectId);
+    if (!record) return err({ type: 'project-missing', projectId });
+    const attached = this.dependencies.projects.requireAttached(projectId);
+    if (!attached.success) return attached;
+    const project = attached.data;
 
     const remoteState = await project.getRemoteState();
     if (!remoteState.hasRemote) return err({ type: 'no_remote' });

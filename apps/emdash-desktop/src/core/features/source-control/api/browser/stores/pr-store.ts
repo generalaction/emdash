@@ -1,11 +1,13 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import type { ProjectHostObservation } from '@core/features/projects/api/host-observation';
 import {
   checkoutSelector,
   getSourceControlClient,
@@ -39,20 +41,46 @@ export class PrStore {
     string,
     { resource: Resource<GitChange[]>; baseRefOid: string; headRefOid: string }
   >();
+  private _pullRequests: PullRequest[] | null = null;
+  private _pullRequestsObservedAt = 0;
+  private readonly _pullRequestsDisposer: () => void;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly gitRepositoryStore: GitRepositoryStore,
     private readonly gitCheckoutStore: GitCheckoutStore,
-    private readonly taskStore: TaskStore
+    private readonly taskStore: TaskStore,
+    private readonly clock: Clock = systemClock
   ) {
     makeAutoObservable(this);
+    this._pullRequestsDisposer = reaction(
+      () => (isRegistered(this.taskStore) ? [...((this.taskStore.data as Task).prs ?? [])] : null),
+      (pullRequests) => {
+        if (pullRequests === null) return;
+        runInAction(() => {
+          this._pullRequests = pullRequests;
+          this._pullRequestsObservedAt = this.clock.now();
+        });
+      },
+      { fireImmediately: true }
+    );
   }
 
   get pullRequests(): PullRequest[] {
-    if (!isRegistered(this.taskStore)) return [];
-    return (this.taskStore.data as Task).prs ?? [];
+    return this._pullRequests ?? [];
+  }
+
+  get pullRequestsObservation(): ProjectHostObservation<PullRequest[]> {
+    return this.gitRepositoryStore.observeHost(
+      this._pullRequests
+        ? {
+            kind: 'observed',
+            value: this._pullRequests,
+            observedAt: this._pullRequestsObservedAt,
+          }
+        : { kind: 'never-observed' }
+    );
   }
 
   get currentPr(): PullRequest | undefined {
@@ -86,12 +114,12 @@ export class PrStore {
     }
     const instruction = compilePrUpdateInstruction(pr, { baseRemote: baseRemote.name });
     if (!instruction) return { success: false, error: 'Could not determine the PR number' };
-    const project = asMounted(getProjectStore(this.projectId));
+    const project = asAvailableProject(getProjectStore(this.projectId));
     if (!project) return { success: false, error: 'The project is not available' };
 
     const client = await getWorkspaceRegistryWireClient();
     const result = await client.updateWorktree({
-      host: projectHostRef(project.data),
+      host: projectHostRef(project.project),
       workspaceId: this.workspaceId,
       remote: instruction.remote,
       sourceRef: instruction.sourceRef,
@@ -224,6 +252,7 @@ export class PrStore {
   }
 
   dispose(): void {
+    this._pullRequestsDisposer();
     for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 
@@ -315,6 +344,7 @@ function describeUpdateCheckoutError(error: UpdateWorktreeError | RuntimeResolve
       return 'The workspace is not an updatable worktree.';
     case 'host-unavailable':
     case 'not-configured':
+    case 'host-identity-lost':
       return error.message;
   }
 }

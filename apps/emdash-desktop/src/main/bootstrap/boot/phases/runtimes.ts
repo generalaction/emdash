@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { projects, tasks } from '@core/services/app-db/node/schema';
 import { desktopRuntimes, type DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { startDesktopWorkers, type DesktopWorkersHandle } from '@main/gateway/desktop-workers';
+import { createDesktopHostAvailability } from '@main/gateway/host-availability';
 import { createDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { log } from '@main/lib/logger';
 import { appScope } from '../../core/app-scope';
@@ -20,9 +21,19 @@ export async function bootRuntimes(
       scope,
       getFilesSettings: () => database.appSettings.get('files'),
     });
-    const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.hosts);
-    runMementosOrphanPruning(database, workers.clients.mementos);
-    return desktopRuntimes(workers, broker, scope);
+    const runtimeWorkers = workers;
+    const broker = createDesktopRuntimeBroker(runtimeWorkers.clients, infrastructure.hosts);
+    scope.add(() => broker.dispose());
+    const hostAvailability = createDesktopHostAvailability({
+      scope,
+      hosts: infrastructure.hosts,
+      runtimes: broker,
+      connectSsh: (connectionId) => infrastructure.ssh.ssh.connect(connectionId),
+      sshEvents: infrastructure.ssh.manager,
+      localReady: () => runtimeWorkers.runtimeReady(),
+    });
+    runMementosOrphanPruning(database, runtimeWorkers.clients.mementos);
+    return desktopRuntimes(runtimeWorkers, broker, hostAvailability, scope);
   } catch (error) {
     try {
       await workers?.dispose();

@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
-  asMounted: () => undefined,
+  asAvailableProject: () => undefined,
   getProjectManagerStore: () => {
     throw new Error('Idle project inventory is not used by this test');
   },

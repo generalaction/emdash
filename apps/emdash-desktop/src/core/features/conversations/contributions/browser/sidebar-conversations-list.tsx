@@ -38,6 +38,7 @@ import {
 // TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
 import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -88,6 +89,7 @@ const ConversationRow = observer(function ConversationRow({
   const committedRef = useRef(false);
   const conversations = useConversations();
   const { projectId, taskId } = useTaskViewContext();
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const { paneLayout } = useTaskComposition();
   const openConfirm = useOpenModal('confirmActionModal');
   const selection = view.useSelection();
@@ -147,6 +149,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleKillSession = () => {
+    if (liveActionDisabledReason) return;
     void openConfirm({
       title: 'Kill session',
       description: `"${displayTitle}" will be stopped. The conversation will remain available as inactive/resumable.`,
@@ -271,7 +274,12 @@ const ConversationRow = observer(function ConversationRow({
         {isSessionActive && (
           <>
             <ContextMenu.Separator />
-            <ContextMenu.Item variant="destructive" onClick={handleKillSession}>
+            <ContextMenu.Item
+              variant="destructive"
+              disabled={Boolean(liveActionDisabledReason)}
+              title={liveActionDisabledReason ?? undefined}
+              onClick={handleKillSession}
+            >
               <Square className="size-4" />
               Kill session
             </ContextMenu.Item>
@@ -384,6 +392,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
   conversations: ConversationManagerStore;
 }) {
   const { projectId, taskId } = useTaskViewContext();
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
   const openCreateConversationModal = useOpenModal('createConversationModal');
@@ -394,6 +403,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
   const listRootRef = useRef<HTMLDivElement>(null);
 
   const handleCreate = () => {
+    if (liveActionDisabledReason) return;
     void openCreateConversationModal({
       projectId,
       taskId,
@@ -496,9 +506,17 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
     <div ref={listRootRef} className="relative flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel className="font-medium">Conversations</MicroLabel>
-        <Button size="sm" icon variant="ghost" onClick={handleCreate}>
-          <Plus className="size-3.5" />
-        </Button>
+        <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
+          <Button
+            size="sm"
+            icon
+            variant="ghost"
+            disabled={Boolean(liveActionDisabledReason)}
+            onClick={handleCreate}
+          >
+            <Plus className="size-3.5" />
+          </Button>
+        </projectAvailabilityUi.LiveActionGuard>
       </div>
       <ListView.Body>
         <view.List

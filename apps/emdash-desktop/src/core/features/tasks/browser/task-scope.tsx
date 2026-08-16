@@ -14,12 +14,14 @@ import {
   getRegisteredTaskData,
   getTaskManagerStore,
   getTaskStore,
+  taskHostActionAvailability,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
@@ -307,15 +309,26 @@ const taskScopeImplementation = {
     },
   }),
   'task.archive': (params) => ({
-    availability: () =>
-      taskAvailability(
+    availability: () => {
+      const task = getTaskStore(params.projectId, params.taskId);
+      if (task?.state === 'provisioned') {
+        const hostAction = taskHostActionAvailability(params.projectId);
+        if (hostAction.kind === 'disabled') {
+          return disabled(
+            projectAvailabilityUi.getLiveActionDisabledReason(params.projectId) ??
+              projectAvailabilityUi.defaultLiveActionDisabledReason
+          );
+        }
+      }
+      return taskAvailability(
         params,
         () => {
-          const task = getRegisteredTaskData(params.projectId, params.taskId);
-          return Boolean(task && !task.archivedAt);
+          const data = getRegisteredTaskData(params.projectId, params.taskId);
+          return Boolean(data && !data.archivedAt);
         },
         'Task is already archived'
-      ),
+      );
+    },
     execute: () => {
       void getTaskManagerStore(params.projectId)
         ?.archiveTask(params.taskId)

@@ -185,7 +185,8 @@ export class TaskComposition {
       this.paneLayout,
       projectId,
       workspaceId,
-      this.space.handle(taskEditorTreeMemento)
+      this.space.handle(taskEditorTreeMemento),
+      this._terminals.hostAccess
     );
 
     makeAutoObservable<
@@ -308,7 +309,13 @@ export class TaskComposition {
       this.releaseWorkspace();
       return;
     }
-    if (this._acquiredWorkspaceId === workspaceId) return;
+    if (
+      this._acquiredWorkspaceId === workspaceId &&
+      this._workspace?.path === path &&
+      this._workspace.sshConnectionId === sshConnectionId
+    ) {
+      return;
+    }
 
     this.suspend();
     this.releaseWorkspace();
@@ -325,7 +332,9 @@ export class TaskComposition {
   }
 
   private releaseWorkspace(): void {
-    if (this._acquiredWorkspaceId) workspaceRegistry.release(this._acquiredWorkspaceId);
+    if (this._acquiredWorkspaceId) {
+      workspaceRegistry.release(this._acquiredWorkspaceId, this._workspace ?? undefined);
+    }
     this._acquiredWorkspaceId = null;
     this._workspace = null;
   }
@@ -353,6 +362,7 @@ export class TaskComposition {
       projectId: this.projectId,
       workspaceId,
       connectionId: workspace.sshConnectionId,
+      hostAccess: this._terminals.hostAccess,
     });
     this.previewServers.start();
 

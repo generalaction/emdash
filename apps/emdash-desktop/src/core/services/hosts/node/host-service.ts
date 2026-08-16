@@ -1,12 +1,13 @@
 import type { ReleaseChannel } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
+import { waitWithSignal } from '@emdash/shared/scheduling';
 import type { SshService } from '@core/primitives/ssh/api';
 import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import type {
   SshConnectionManager,
   SshConnectionManagerEvent,
 } from '@core/primitives/ssh/api/node/ssh-connection-manager';
-import type { HostInvalidation, MachineMutationEvents } from '../api';
+import type { HostInvalidation, HostPreparingPhase, MachineMutationEvents } from '../api';
 import { HostServerOperations } from './server-operations';
 import { HostStateModel } from './state-model';
 import {
@@ -37,13 +38,18 @@ export type CreateHostServiceDeps = {
   logger?: HostServiceLog;
 };
 
+export type HostClientOptions = {
+  signal: AbortSignal;
+  onPhase(phase: HostPreparingPhase): void;
+};
+
 /**
  * Orchestrates transport, provisioning, and lifecycle for remote runtime clients.
  * Machine persistence and CRUD remain owned by the feature-level MachinesService.
  */
 export interface HostService {
   readonly stateModel: HostStateModel;
-  client(connectionId: string): Promise<WorkspaceServerConnection>;
+  client(connectionId: string, options?: HostClientOptions): Promise<WorkspaceServerConnection>;
   refreshServerState(connectionId: string, options?: { force?: boolean }): Promise<void>;
   installServer(connectionId: string): Promise<void>;
   startServer(connectionId: string): Promise<void>;
@@ -133,8 +139,25 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
   let disposePromise: Promise<void> | undefined;
   return {
     stateModel,
-    async client(connectionId) {
-      const target = await provisioner.ensure(connectionId);
+    async client(connectionId, options) {
+      if (options) {
+        options.onPhase('connecting');
+        const connectionState = await waitWithSignal(
+          deps.ssh.connect.ensureConnected(connectionId),
+          options.signal
+        );
+        if (connectionState !== 'connected') {
+          throw new Error('Host connection is not available');
+        }
+        options.onPhase('provisioning');
+      }
+      const target = options
+        ? await waitWithSignal(provisioner.ensure(connectionId), options.signal)
+        : await provisioner.ensure(connectionId);
+      if (options) {
+        options.onPhase('handshaking');
+        return await waitWithSignal(wire.client(target), options.signal);
+      }
       return wire.client(target);
     },
     refreshServerState: (connectionId, options) => serverOperations.refresh(connectionId, options),

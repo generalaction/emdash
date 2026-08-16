@@ -11,6 +11,7 @@ import { getProjectSshConnectionId } from '@core/features/projects/api/browser/s
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
@@ -38,6 +39,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     'initial-conversation:chat-ui-enabled',
     false
   );
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents(hostRefFromConnectionId(connectionId));
@@ -71,7 +73,15 @@ export const CreateConversationModal = observer(function CreateConversationModal
   );
 
   const handleCreateConversation = useCallback(async () => {
-    if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
+    if (
+      liveActionDisabledReason ||
+      createDisabled ||
+      isSubmitting ||
+      !conversationMgr ||
+      !providerId
+    ) {
+      return;
+    }
     const id = crypto.randomUUID();
     setIsSubmitting(true);
     setError(null);
@@ -95,6 +105,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     }
   }, [
     conversationMgr,
+    liveActionDisabledReason,
     createDisabled,
     isSubmitting,
     providerId,
@@ -169,13 +180,18 @@ export const CreateConversationModal = observer(function CreateConversationModal
             </Field.Root>
           ) : null}
           {error && <p className="text-destructive text-xs">{error}</p>}
+          {liveActionDisabledReason && (
+            <p className="text-xs text-foreground-muted" role="note" tabIndex={0}>
+              {liveActionDisabledReason}
+            </p>
+          )}
         </Field.Group>
       </Dialog.Body>
       <Dialog.Footer>
         <ConfirmButton
           variant="primary"
           onClick={() => void handleCreateConversation()}
-          disabled={createDisabled || isSubmitting}
+          disabled={Boolean(liveActionDisabledReason) || createDisabled || isSubmitting}
         >
           {isSubmitting ? 'Creating...' : 'Create'}
         </ConfirmButton>

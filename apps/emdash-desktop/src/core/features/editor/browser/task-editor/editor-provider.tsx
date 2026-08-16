@@ -8,8 +8,9 @@ import { useTaskViewContext } from '@core/features/tasks/contributions/browser/t
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { editorScope } from '@core/features/workbench/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { useTheme } from '@core/primitives/theme/browser';
-import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { installMonacoFacetBinder } from '../monaco/install-monaco-facet-binder';
@@ -45,21 +46,28 @@ export const EditorProvider = observer(function EditorProvider({
 }: {
   children: ReactNode;
 }) {
-  const { taskId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
   const taskView = useTaskComposition();
   const { editorView, paneLayout } = taskView;
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const editorScopeImplementation = {
     'editor.save': () => ({
-      availability: () => (getActiveFilePath(paneTabManager) ? enabled : hidden),
+      availability: () =>
+        liveActionDisabledReason
+          ? disabled(liveActionDisabledReason)
+          : getActiveFilePath(paneTabManager)
+            ? enabled
+            : hidden,
       execute: () => {
         const path = getActiveFilePath(paneTabManager);
         if (path) void editorView.saveFile(path);
       },
     }),
     'editor.saveAll': () => ({
+      availability: () => (liveActionDisabledReason ? disabled(liveActionDisabledReason) : enabled),
       execute: () => {
         void editorView.saveAllFiles();
       },

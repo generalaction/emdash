@@ -9,6 +9,7 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import type {
   ResolvedTab,
   TabBarItemProps,
@@ -82,6 +83,7 @@ class TerminalTabResource implements TerminalTabResourceView {
   }
 
   onActivateIntent(): void {
+    if (this.terminalManager.hostAccess?.liveAction.kind === 'disabled') return;
     const session = this.session;
     if (session?.status === 'disconnected') void session.connect();
   }
@@ -139,6 +141,7 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
   const activeTerminal =
     activeTab?.kind === 'terminal' ? (activeTab.resource as TerminalTabResourceView) : null;
   const activeSession = activeTerminal?.session ?? null;
+  const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(taskCtx.projectId);
   const allSessionIds = terminalTabs
     .map((tab) => tab.resource.session?.sessionId)
     .filter((id): id is string => Boolean(id));
@@ -159,6 +162,13 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
           }
         />
       }
+      unavailableState={
+        <EmptyState
+          label="Terminal unavailable"
+          description={disabledReason ?? 'Live actions are unavailable.'}
+        />
+      }
+      disabledReason={disabledReason}
       remoteConnectionId={taskCtx.getRemoteConnectionId?.()}
       workspaceId={taskCtx.workspaceId}
     />

@@ -1,10 +1,10 @@
 import type { ProjectConfigState } from '@emdash/core/runtimes/workspace-registry/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { LiveSource } from '@emdash/wire/rpc';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
-import type { StoredPlacementSettings } from '@core/features/projects/api/node/settings/provider';
 import { projectEvents } from '@core/features/projects/node';
 import { getProjectConfigEnsuringRegistration } from '@core/features/workspaces/api/node/registry-verbs';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
@@ -13,7 +13,6 @@ import {
   type MigrateProjectConfigRequest,
   type PlacementContext,
   type ProjectSettingsWriteTargetOption,
-  type StoredProjectGitSettings,
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import {
@@ -23,7 +22,13 @@ import {
   tombstonePatchFor,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { getProjectById } from '../../../node/operations/getProjects';
+import {
+  createDesktopProjectSettingsAuthority,
+  type DurableProjectSettingsAuthority,
+} from '../../../node/settings/durable-project-settings';
 import {
   inspectProjectConfigMigrations,
   migrateProjectConfigFromProvider,
@@ -37,8 +42,10 @@ import { shareProjectSettingsToConfig as writeSharedProjectSettingsToConfig } fr
 import {
   projectConfigDomainsFromState,
   type MigrateProjectConfigResult,
+  type ProjectDurableSettingsDomains,
+  type ProjectHostSettingsSnapshot,
   type ProjectSettingsDomainPatch,
-  type ProjectSettingsDomains,
+  type ProjectSettingsError,
   type ProjectSettingsPage,
 } from '../../project-settings-page';
 
@@ -51,14 +58,26 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     log.error(`ProjectSettingsService: ${String(name)} hook error`, { error: e })
   );
   private _disposeRendererBridge: (() => void) | null = null;
+  private readonly durableSettings: DurableProjectSettingsAuthority;
+  private readonly loadProject: (projectId: string) => Promise<Project | undefined>;
+  private readonly clock: Clock;
 
   constructor(
     private readonly dependencies: {
       db: AppDb;
-      projects: Pick<ProjectSessionManager, 'getProject'>;
+      projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
       workspaceIdentity: WorkspaceIdentityService;
+      durableSettings?: DurableProjectSettingsAuthority;
+      loadProject?: (projectId: string) => Promise<Project | undefined>;
+      clock?: Clock;
     }
-  ) {}
+  ) {
+    this.durableSettings =
+      dependencies.durableSettings ?? createDesktopProjectSettingsAuthority(dependencies.db);
+    this.loadProject =
+      dependencies.loadProject ?? ((projectId) => getProjectById(dependencies.db, projectId));
+    this.clock = dependencies.clock ?? systemClock;
+  }
 
   on<K extends keyof ProjectSettingsHooks>(name: K, handler: ProjectSettingsHooks[K]) {
     return this._hooks.on(name, handler);
@@ -72,8 +91,9 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   }
 
   async getProjectConfigLiveSource(projectId: string): Promise<LiveSource> {
-    const project = this.requireProject(projectId);
-    if (!project.success) throw new Error(`Project '${projectId}' was not found`);
+    const project = this.dependencies.projects.requireAttached(projectId);
+    if (!project.success)
+      throw new Error(`Project Host access is unavailable: ${project.error.type}`);
     const workspaceId = project.data.project.repositoryWorkspaceId;
     if (!workspaceId) throw new Error(`Project '${projectId}' has no repository workspace`);
     return project.data.workspaceRegistry.projectConfig
@@ -83,24 +103,50 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
 
   async getProjectSettingsPage(
     projectId: string
-  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
-    const project = this.requireProject(projectId);
-    if (!project.success) return project;
-    return this.getProjectSettingsPageForProject(project.data);
+  ): Promise<Result<ProjectSettingsPage, ProjectSettingsError>> {
+    const record = await this.requireProjectRecord(projectId);
+    if (!record.success) return record;
+    const durable = await this.durableSettings.read(projectId);
+    if (!durable.success) return durable;
+    const project = this.dependencies.projects.requireAttached(projectId);
+    if (!project.success) {
+      return ok({
+        durable: durable.data,
+        host: { kind: 'never-observed' },
+      });
+    }
+    return this.getProjectSettingsPageForProject(project.data, durable.data);
   }
 
   async updateProjectSettings(
     projectId: string,
     patch: ProjectSettingsDomainPatch
-  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
-    const project = this.requireProject(projectId);
-    if (!project.success) return project;
+  ): Promise<Result<ProjectSettingsPage, ProjectSettingsError>> {
+    const record = await this.requireProjectRecord(projectId);
+    if (!record.success) return record;
+    const hostPatch = hostSettingsPatch(patch);
+    const project =
+      Object.keys(hostPatch).length > 0
+        ? this.dependencies.projects.requireAttached(projectId)
+        : undefined;
+    if (project && !project.success) return project;
+
+    if (patch.gitIdentity || patch.placement?.stored.tmux !== undefined) {
+      const durable = await this.durableSettings.patch(projectId, {
+        ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
+        ...(patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')
+          ? { placement: { stored: { tmux: patch.placement.stored.tmux } } }
+          : {}),
+      });
+      if (!durable.success) return durable;
+    }
 
     const personalPatch = {
       ...patch.lifecycle?.personal,
       ...patch.fileHandling?.personal,
     };
     if (Object.keys(personalPatch).length > 0) {
+      if (!project?.success) return err({ type: 'error' });
       const workspaceId = project.data.project.repositoryWorkspaceId;
       if (!workspaceId) return err({ type: 'error' });
       const result = await project.data.workspaceRegistry.patchPersonalProjectConfig({
@@ -110,15 +156,17 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
       if (!result.success) return err({ type: 'error' });
     }
 
-    if (patch.gitIdentity || patch.placement) {
+    if (patch.placement && Object.hasOwn(patch.placement.stored, 'worktreeRoot')) {
+      if (!project?.success) return err({ type: 'error' });
       const result = await project.data.settings.patch({
-        ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
-        ...(patch.placement ? { placement: patch.placement } : {}),
+        placement: {
+          stored: { worktreeRoot: patch.placement.stored.worktreeRoot },
+        },
       });
       if (!result.success) return result;
     }
 
-    const page = await this.getProjectSettingsPageForProject(project.data);
+    const page = await this.getProjectSettingsPage(projectId);
     if (!page.success) return page;
     this.emitSettingsChanged(projectId);
     return page;
@@ -127,8 +175,8 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   async shareProjectSettingsToConfig(
     projectId: string,
     request: WriteProjectConfigRequest
-  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
-    const project = this.requireProject(projectId);
+  ): Promise<Result<ProjectSettingsPage, ProjectSettingsError>> {
+    const project = this.dependencies.projects.requireAttached(projectId);
     if (!project.success) return project;
 
     const resolvedTargets = await resolveAllProjectSettingsTargets(
@@ -178,7 +226,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
       });
     }
 
-    const page = await this.getProjectSettingsPageForProject(project.data);
+    const page = await this.getProjectSettingsPage(projectId);
     if (!page.success) return page;
     this.emitSettingsChanged(projectId);
     return page;
@@ -187,8 +235,8 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   async migrateProjectConfig(
     projectId: string,
     request: MigrateProjectConfigRequest
-  ): Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>> {
-    const project = this.requireProject(projectId);
+  ): Promise<Result<MigrateProjectConfigResult, ProjectSettingsError>> {
+    const project = this.dependencies.projects.requireAttached(projectId);
     if (!project.success) return project;
 
     const config = await this.resolveHostProjectConfig(project.data);
@@ -212,53 +260,54 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     });
     if (!result.success) return result;
 
-    const page = await this.getProjectSettingsPageForProject(project.data);
+    const page = await this.getProjectSettingsPage(projectId);
     if (!page.success) return page;
     this.emitSettingsChanged(projectId);
     return ok({ page: page.data, migration: result.data });
   }
 
-  private requireProject(projectId: string): Result<ProjectProvider, UpdateProjectSettingsError> {
-    const project = this.dependencies.projects.getProject(projectId);
+  private async requireProjectRecord(
+    projectId: string
+  ): Promise<Result<Project, UpdateProjectSettingsError>> {
+    const project = await this.loadProject(projectId);
     return project ? ok(project) : err({ type: 'project-not-found' });
   }
 
   private async getProjectSettingsPageForProject(
-    project: ProjectProvider
-  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
+    project: ProjectProvider,
+    durable: ProjectDurableSettingsDomains
+  ): Promise<Result<ProjectSettingsPage, ProjectSettingsError>> {
     const config = await this.resolveHostProjectConfig(project);
     if (!config.success) return config;
-    const [storedGitSettings, storedPlacementSettings, placementContext, resolvedTargets] =
-      await Promise.all([
-        project.settings.getStoredGitSettings(),
-        project.settings.getStoredPlacementSettings(),
-        project.settings.getPlacementContext(),
-        resolveAllProjectSettingsTargets(
-          this.dependencies.db,
-          this.dependencies.workspaceIdentity,
-          project
-        ),
-      ]);
+    const [placementContext, resolvedTargets] = await Promise.all([
+      project.settings.getPlacementContext(),
+      resolveAllProjectSettingsTargets(
+        this.dependencies.db,
+        this.dependencies.workspaceIdentity,
+        project
+      ),
+    ]);
     const writeTargets = getProjectSettingsWriteTargets(resolvedTargets);
     const configMigrations = hasConfiguredShareableProjectSettings(config.data.personalConfig)
       ? []
       : await inspectProjectConfigMigrations(project);
     return ok({
-      domains: projectSettingsDomains(
-        config.data,
-        storedGitSettings,
-        storedPlacementSettings,
-        placementContext,
-        writeTargets
-      ),
-      configMigrations,
-      shouldPromptConfigMigration: configMigrations.length > 0,
+      durable,
+      host: {
+        kind: 'observed',
+        observedAt: this.clock.now(),
+        value: {
+          domains: projectHostSettingsDomains(config.data, durable, placementContext, writeTargets),
+          configMigrations,
+          shouldPromptConfigMigration: configMigrations.length > 0,
+        },
+      },
     });
   }
 
   private async resolveHostProjectConfig(
     project: ProjectProvider
-  ): Promise<Result<ProjectConfigState, UpdateProjectSettingsError>> {
+  ): Promise<Result<ProjectConfigState, ProjectSettingsError>> {
     const workspaceId = project.project.repositoryWorkspaceId;
     if (!workspaceId) return err({ type: 'error' });
     const result = await getProjectConfigEnsuringRegistration(
@@ -296,26 +345,17 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   }
 }
 
-function projectSettingsDomains(
+function projectHostSettingsDomains(
   config: ProjectConfigState,
-  storedGitSettings: StoredProjectGitSettings,
-  storedPlacementSettings: StoredPlacementSettings,
+  durable: ProjectDurableSettingsDomains,
   placementContext: PlacementContext,
   writeTargets: ProjectSettingsWriteTargetOption[]
-): ProjectSettingsDomains {
-  const { worktreeRoot, ...storedGitIdentity } = storedGitSettings;
+): ProjectHostSettingsSnapshot['domains'] {
+  const worktreeRoot = durable.placement.stored.worktreeRoot;
+  const tmux = durable.placement.stored.tmux;
   return {
     ...projectConfigDomainsFromState(config, writeTargets),
-    gitIdentity: {
-      stored: storedGitIdentity,
-    },
     placement: {
-      stored: {
-        ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
-        ...(storedPlacementSettings.tmux !== undefined
-          ? { tmux: storedPlacementSettings.tmux }
-          : {}),
-      },
       layers: placementContext,
       resolved: {
         worktreeRoot: resolveWorktreeRoot({
@@ -325,11 +365,22 @@ function projectSettingsDomains(
           homeDirectory: placementContext.homeDirectory,
         }),
         tmux: resolveTmux({
-          projectTmux: storedPlacementSettings.tmux,
+          projectTmux: tmux,
           hostTmux: placementContext.hostTmux,
           appDefaultTmux: placementContext.appDefaultTmux,
         }),
       },
     },
+  };
+}
+
+function hostSettingsPatch(patch: ProjectSettingsDomainPatch): ProjectSettingsDomainPatch {
+  const worktreeRoot = patch.placement?.stored.worktreeRoot;
+  return {
+    ...(patch.lifecycle ? { lifecycle: patch.lifecycle } : {}),
+    ...(patch.fileHandling ? { fileHandling: patch.fileHandling } : {}),
+    ...(patch.placement && Object.hasOwn(patch.placement.stored, 'worktreeRoot')
+      ? { placement: { stored: { worktreeRoot } } }
+      : {}),
   };
 }

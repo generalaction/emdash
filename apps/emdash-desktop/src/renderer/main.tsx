@@ -47,6 +47,7 @@ import {
   appQueriesSettled,
   raceSplashGate,
   SPLASH_GATE_TIMEOUT_MS,
+  waitForActiveProjectContext,
 } from '@renderer/lib/boot/splash-gate';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -144,23 +145,23 @@ async function bootstrap() {
     wireNavigationTelemetry(getNavigation());
   });
 
-  // The list snapshot resolves load(); every project then mounts in the
-  // background. The gate below additionally awaits only the one project the
-  // restored view needs.
+  // The list snapshot resolves load(); Host attachment may continue in the
+  // background. The gate below awaits only desktop context for the Project
+  // required by the restored view.
   const projectsLoaded = getProjectManagerStore()
     .load()
     .then(() => bootMark('projects-loaded'));
-  const activeProjectReady = (async () => {
-    await navigationRestored;
-    const ref = getNavigation().currentRef;
-    const projectId =
-      ref.viewId === 'project' || ref.viewId === 'task'
+  const activeProjectReady = waitForActiveProjectContext({
+    navigationRestored,
+    projectsLoaded,
+    activeProjectId: () => {
+      const ref = getNavigation().currentRef;
+      return ref.viewId === 'project' || ref.viewId === 'task'
         ? (ref.params as { projectId?: string }).projectId
         : undefined;
-    if (!projectId) return;
-    await projectsLoaded;
-    await getProjectManagerStore().mountProject(projectId);
-  })();
+    },
+    hydrateProjectContext: (projectId) => getProjectManagerStore().hydrateProjectContext(projectId),
+  });
 
   const gate = raceSplashGate(
     [navigationRestored, activeProjectReady, appQueriesSettled()],

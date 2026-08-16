@@ -1,9 +1,11 @@
 import {
-  isUnmountedProject,
   isUnregisteredProject,
-  type MountedProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
+import type {
+  ProjectContext,
+  ProjectHostAccess,
+} from '@core/features/projects/api/browser/stores/project-context';
 import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectManagerStoreToken } from '@core/features/projects/contributions/app-store-tokens';
@@ -26,53 +28,41 @@ export function getProjectStore(projectId: string): ProjectStore | undefined {
 }
 
 /** Summary for routing the project shell; call only inside `observer` (or other MobX reactions). */
-export type ProjectViewKind =
-  | 'missing'
-  | 'creating'
-  | 'bootstrapping'
-  | 'mount_error'
-  | 'path_not_found'
-  | 'ssh_disconnected'
-  | 'idle_unmounted'
-  | 'ready';
+export type ProjectViewKind = 'missing' | 'creating' | 'hydrating' | 'context_error' | 'ready';
 
 export function projectViewKind(store: ProjectStore | undefined): ProjectViewKind {
   if (!store) return 'missing';
   if (isUnregisteredProject(store)) return 'creating';
-  if (isUnmountedProject(store)) {
-    if (store.unmounted.kind === 'opening') return 'bootstrapping';
-    if (store.unmounted.kind === 'failed') {
-      if (store.unmounted.code === 'path-not-found') return 'path_not_found';
-      if (store.unmounted.code === 'ssh-disconnected') return 'ssh_disconnected';
-      return 'mount_error';
-    }
-    return 'idle_unmounted';
-  }
+  if (!store.context || store.context.kind === 'hydrating') return 'hydrating';
+  if (store.context.kind === 'failed') return 'context_error';
   return 'ready';
 }
 
-/** Returns the mounted project payload if ready, otherwise undefined. */
-export function asMounted(store: ProjectStore | undefined): MountedProject | undefined {
-  return store?.mountedProject ?? undefined;
+/** Returns the desktop Project context when hydration has completed. */
+export function asAvailableProject(store: ProjectStore | undefined): ProjectContext | undefined {
+  return store?.context?.kind === 'available' ? store.context.context : undefined;
 }
 
-/** Returns the id of the first mounted project, or undefined if none are mounted. */
-export function firstMountedProjectId(): string | undefined {
+/** Returns the single project-owned seam for live Host access. */
+export function getProjectHostAccess(projectId: string): ProjectHostAccess | undefined {
+  return asAvailableProject(getProjectStore(projectId))?.host;
+}
+
+/** Returns the id of the first Project with an available desktop context. */
+export function firstAvailableProjectId(): string | undefined {
   for (const [id, store] of getProjectManagerStore().projects.entries()) {
-    if (asMounted(store)) return id;
+    if (asAvailableProject(store)) return id;
   }
   return undefined;
 }
 
-export function mountedProjectData(
-  store: ProjectStore | undefined
-): LocalProject | SshProject | null {
-  return store?.mountedProject?.data ?? null;
+export function projectData(store: ProjectStore | undefined): LocalProject | SshProject | null {
+  return store?.data ?? null;
 }
 
-/** Returns the SSH connection id for a mounted SSH project, otherwise undefined. */
+/** Returns the SSH connection id for an SSH Project, otherwise undefined. */
 export function getProjectSshConnectionId(projectId: string): string | undefined {
-  const data = mountedProjectData(getProjectStore(projectId));
+  const data = projectData(getProjectStore(projectId));
   return data?.type === 'ssh' ? data.connectionId : undefined;
 }
 
@@ -81,22 +71,12 @@ export function projectDisplayName(store: ProjectStore | undefined): string | un
   return store?.name ?? undefined;
 }
 
-export function unmountedMountErrorMessage(store: ProjectStore | undefined): string {
-  if (store && isUnmountedProject(store) && store.unmounted.kind === 'failed') {
-    if (store.unmounted.code === 'path-not-found') {
-      return `No project found at ${store.unmounted.message || 'the configured path'}`;
-    }
-    return store.unmounted.message || 'Failed to open project';
-  }
-  return 'Failed to open project';
-}
-
-/** Returns the ProjectSettingsStore for a mounted project, or undefined if not ready. */
+/** Returns the ProjectSettingsStore for an available Project context. */
 export function getProjectSettingsStore(projectId: string): ProjectSettingsStore | undefined {
-  return asMounted(getProjectStore(projectId))?.get(projectSettingsStoreToken);
+  return asAvailableProject(getProjectStore(projectId))?.get(projectSettingsStoreToken);
 }
 
-/** Returns the ProjectViewStore for a mounted project, or undefined if not ready. */
+/** Returns the ProjectViewStore for an available Project context. */
 export function getProjectViewStore(projectId: string): ProjectViewStore | undefined {
-  return asMounted(getProjectStore(projectId))?.get(projectViewStoreToken);
+  return asAvailableProject(getProjectStore(projectId))?.get(projectViewStoreToken);
 }

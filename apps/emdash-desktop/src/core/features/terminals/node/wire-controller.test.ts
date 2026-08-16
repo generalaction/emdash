@@ -17,7 +17,7 @@ const identity = {
 const controllerDeps = {
   db: {} as never,
   logger: { warn: vi.fn() } as never,
-  projects: { getProject: vi.fn() },
+  projects: { requireAttached: vi.fn(() => ok({} as never)) },
   settings: { get: vi.fn(async () => ({ defaultShell: 'default' })) } as never,
   telemetry: { capture: vi.fn() } as never,
   terminalShell: {
@@ -62,6 +62,7 @@ describe('createTerminalsWireController', () => {
     const resolveError = {
       type: 'host-unavailable' as const,
       host: remoteHost,
+      reason: 'runtime-unavailable' as const,
       message: 'Remote runtime sessions are not enabled',
     };
     const controller = createTerminalsWireController({
@@ -108,6 +109,7 @@ describe('createTerminalsWireController', () => {
     const resolveError = {
       type: 'host-unavailable' as const,
       host: remoteHost,
+      reason: 'runtime-unavailable' as const,
       message: 'Remote runtime sessions are not enabled',
     };
     const controller = createTerminalsWireController({
@@ -161,31 +163,32 @@ describe('createTerminalsWireController', () => {
       workspaceRegistry: { getProjectConfig },
       terminals: { start },
     };
+    const requireAttached = vi.fn(() =>
+      ok({
+        projectId: identity.projectId,
+        repoPath: '/repo',
+        settings: {
+          resolveTmux,
+          getStoredGitSettings: vi.fn(async () => ({
+            defaultBranch: { remote: null, branch: 'main' },
+          })),
+          getPlacementContext: vi.fn(async () => ({
+            hostWorktreeRoot: null,
+            builtInWorktreeRoot: '/tmp/worktrees',
+            homeDirectory: '/tmp',
+            hostTmux: null,
+            appDefaultTmux: false,
+          })),
+        },
+        repoFacts: {
+          get: vi.fn(async () => ({ remotes: [], localBranches: ['main'] })),
+        },
+      })
+    );
     const controller = createTerminalsWireController({
       ...controllerDeps,
       db: { select } as never,
-      projects: {
-        getProject: vi.fn(() => ({
-          projectId: identity.projectId,
-          repoPath: '/repo',
-          settings: {
-            resolveTmux,
-            getStoredGitSettings: vi.fn(async () => ({
-              defaultBranch: { remote: null, branch: 'main' },
-            })),
-            getPlacementContext: vi.fn(async () => ({
-              hostWorktreeRoot: null,
-              builtInWorktreeRoot: '/tmp/worktrees',
-              homeDirectory: '/tmp',
-              hostTmux: null,
-              appDefaultTmux: false,
-            })),
-          },
-          repoFacts: {
-            get: vi.fn(async () => ({ remotes: [], localBranches: ['main'] })),
-          },
-        })),
-      } as never,
+      projects: { requireAttached } as never,
       runtimes: {
         client: vi.fn(async () => ok(runtime)),
       } as unknown as TerminalsRuntimeBroker,
@@ -216,6 +219,7 @@ describe('createTerminalsWireController', () => {
       })
     );
     expect(getProjectConfig).toHaveBeenCalledWith({ workspaceId: identity.workspaceId });
+    expect(requireAttached).toHaveBeenCalledWith(identity.projectId);
     expect(resolveTmux).toHaveBeenCalledOnce();
   });
 

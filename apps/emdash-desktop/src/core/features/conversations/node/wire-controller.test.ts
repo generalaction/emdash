@@ -191,6 +191,7 @@ describe('createConversationsWireController', () => {
     });
     const topic = encodeTopic(conversationsContract.acp.sessions.states.list.id, {
       host: formatHostRef(remoteHost),
+      projectId: target.projectId,
     });
 
     const lease = controller.acquireLive(topic);
@@ -215,6 +216,7 @@ describe('createConversationsWireController', () => {
     });
     const topic = encodeTopic(conversationsContract.tui.sessions.states.list.id, {
       host: formatHostRef(remoteHost),
+      projectId: target.projectId,
     });
 
     const lease = controller.acquireLive(topic);
@@ -229,6 +231,7 @@ describe('createConversationsWireController', () => {
     const resolveError: RuntimeResolveError = {
       type: 'host-unavailable',
       host: LOCAL_HOST_REF,
+      reason: 'runtime-unavailable',
       message: 'Runtime unavailable',
     };
     const controller = setupController({
@@ -246,11 +249,47 @@ describe('createConversationsWireController', () => {
       })
     ).resolves.toEqual(err(resolveError));
   });
+
+  it('requires effective project attachment before live conversation calls', async () => {
+    const resolvedHosts: HostRef[] = [];
+    const attachmentError = {
+      type: 'project-missing' as const,
+      projectId: target.projectId,
+    };
+    const controller = setupController({
+      client: {},
+      attachmentError,
+      resolvedHosts,
+    });
+
+    await expect(
+      controller.call('acp.sendPrompt', {
+        conversationId: target.conversationId,
+        prompt: { text: 'hello' },
+      })
+    ).resolves.toEqual(err(attachmentError));
+    await expect(
+      controller.call('dehydrateConversation', {
+        projectId: target.projectId,
+        taskId: target.taskId,
+        conversationId: target.conversationId,
+      })
+    ).resolves.toEqual(err(attachmentError));
+    const topic = encodeTopic(conversationsContract.acp.sessions.states.list.id, {
+      host: formatHostRef(LOCAL_HOST_REF),
+      projectId: target.projectId,
+    });
+    const lease = controller.acquireLive(topic);
+    await expect(lease?.ready()).rejects.toThrow('project-missing');
+    await lease?.release();
+    expect(resolvedHosts).toEqual([]);
+  });
 });
 
 function setupController(options: {
   client: object;
   runtimeError?: RuntimeResolveError;
+  attachmentError?: { type: 'project-missing'; projectId: string };
   resolvedHosts?: HostRef[];
   hooks?: Partial<{
     persistAcpMode: (target: TestRuntimeTarget, modeId: string) => Promise<void>;
@@ -273,7 +312,11 @@ function setupController(options: {
     } as never,
     workspaceIdentity: {} as never,
     telemetry: { capture: vi.fn() } as never,
-    projects: { getProject: vi.fn() },
+    projects: {
+      requireAttached: vi.fn(() =>
+        options.attachmentError ? err(options.attachmentError) : ok({} as never)
+      ),
+    },
     taskSessions: { getTask: vi.fn() },
     withCompensation: async ({ action }) => action(),
     hostIsReachable: () => true,

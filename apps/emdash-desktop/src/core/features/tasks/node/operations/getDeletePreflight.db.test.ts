@@ -73,7 +73,11 @@ describe('getDeletePreflight', () => {
       observedAt: 1_700_000_000_000,
     });
 
-    const result = await getDeletePreflight(fixture.db, () => true, ['task-1']);
+    const result = await getDeletePreflight(
+      fixture.db,
+      { requireAttached: () => ({ success: true, data: {} as never }) },
+      ['task-1']
+    );
 
     expect(result.tasks).toEqual([
       {
@@ -89,10 +93,23 @@ describe('getDeletePreflight', () => {
     ]);
   });
 
-  it('treats a workspace without observations as clean and surfaces unreachable hosts', async () => {
+  it('treats a workspace without observations as clean and surfaces unavailable attachment', async () => {
     await seedTask();
 
-    const result = await getDeletePreflight(fixture.db, () => false, ['task-1']);
+    const result = await getDeletePreflight(
+      fixture.db,
+      {
+        requireAttached: () => ({
+          success: false,
+          error: {
+            type: 'attachment-unavailable',
+            host: {} as never,
+            phase: 'waiting',
+          },
+        }),
+      },
+      ['task-1']
+    );
 
     expect(result.tasks[0]).toMatchObject({
       hasWorktree: true,
@@ -105,7 +122,11 @@ describe('getDeletePreflight', () => {
   });
 
   it('returns the no-worktree shape for unknown tasks', async () => {
-    const result = await getDeletePreflight(fixture.db, () => true, ['missing']);
+    const result = await getDeletePreflight(
+      fixture.db,
+      { requireAttached: () => ({ success: true, data: {} as never }) },
+      ['missing']
+    );
 
     expect(result.tasks).toEqual([
       {

@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import {
   createWorkspaceRegistry,
   liveWorkspaces,
@@ -15,6 +16,7 @@ import { projects, tasks } from '@core/services/app-db/node/schema';
  */
 export async function updateProjectConnection(
   db: AppDb,
+  attachments: Pick<ProjectAttachmentManager, 'invalidate'>,
   projectId: string,
   connectionId: string
 ): Promise<void> {
@@ -62,4 +64,6 @@ export async function updateProjectConnection(
       .run();
   });
   appDbPokes.projects.poke({ projectId });
+  appDbPokes.workspaces.poke({ projectId });
+  await attachments.invalidate(projectId, 'relink');
 }

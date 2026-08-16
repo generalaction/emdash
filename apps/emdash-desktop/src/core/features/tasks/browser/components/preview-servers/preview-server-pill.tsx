@@ -13,6 +13,7 @@ import {
   usePreviewServers,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   copyTextToClipboard,
   openExternal,
@@ -33,6 +34,9 @@ export const PreviewServerPill = observer(function PreviewServerPill({
 }) {
   const previews = usePreviewServers();
   const taskView = useTaskComposition();
+  const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(
+    taskView.projectId
+  );
   const url = previewServerUrl(server);
   const hasUrl = url !== null;
   // 'not-listening' is advisory: the tunnel is open, so opening the URL is a
@@ -87,10 +91,13 @@ export const PreviewServerPill = observer(function PreviewServerPill({
               Remote port not listening yet
             </div>
           ) : null}
+          {liveActionDisabledReason ? (
+            <div className="mt-1 text-xs text-foreground-warning">{liveActionDisabledReason}</div>
+          ) : null}
         </div>
         <DropdownMenu.Separator />
         <DropdownMenu.Item
-          disabled={!canOpen}
+          disabled={!canOpen || Boolean(liveActionDisabledReason)}
           onClick={() => {
             if (canOpen && url) {
               taskView.paneLayout.open('browser', { initialUrl: url });
@@ -102,7 +109,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
           Open in Emdash Browser
         </DropdownMenu.Item>
         <DropdownMenu.Item
-          disabled={!canOpen}
+          disabled={!canOpen || Boolean(liveActionDisabledReason)}
           onClick={() => canOpen && url && void openExternal(url)}
         >
           <ExternalLink className="size-3.5" />
@@ -114,12 +121,19 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
         {server.kind === 'forwarded' ? (
-          <DropdownMenu.Item onClick={() => void previews.restart(server.id)}>
+          <DropdownMenu.Item
+            disabled={Boolean(liveActionDisabledReason)}
+            onClick={() => void previews.restart(server.id)}
+          >
             <RefreshCcw className="size-3.5" />
             Restart Forward
           </DropdownMenu.Item>
         ) : null}
-        <DropdownMenu.Item variant="destructive" onClick={() => void previews.stop(server.id)}>
+        <DropdownMenu.Item
+          disabled={Boolean(liveActionDisabledReason)}
+          variant="destructive"
+          onClick={() => void previews.stop(server.id)}
+        >
           <Square className="size-3.5" />
           Stop
         </DropdownMenu.Item>

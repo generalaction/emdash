@@ -1,5 +1,4 @@
 import { MachinesStore } from '@core/features/machines/browser/machines-store';
-import { projectManagerStoreToken } from '@core/features/projects/contributions/app-store-tokens';
 import {
   contributeScopedStore,
   getAppStores,
@@ -12,14 +11,7 @@ const machinesStoreToken = scopedStoreToken<MachinesStore>('machines.store');
 export const machinesAppStoreContributions: readonly AppScopedStoreContribution[] = [
   contributeScopedStore({
     token: machinesStoreToken,
-    // The projects store is resolved through the lookup at callback time, not
-    // at construction, so contribution order between the two slices is free.
-    create: (_context, stores) =>
-      new MachinesStore({
-        onConnectionReady: (connectionId) => {
-          stores.get(projectManagerStoreToken).onSshConnectionReady(connectionId);
-        },
-      }),
+    create: () => new MachinesStore(),
     activate: (store) => void store.start(),
     dispose: (store) => store.dispose(),
   }),

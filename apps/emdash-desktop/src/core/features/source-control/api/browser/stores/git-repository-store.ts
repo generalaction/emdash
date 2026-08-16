@@ -8,10 +8,17 @@ import {
 } from '@emdash/core/runtimes/git/api';
 import { err } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { buildRendererRepoFacts } from '@core/features/projects/api/browser/effective-settings/renderer-repo-facts';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
+import type {
+  HostObservation,
+  ProjectHostObservation,
+} from '@core/features/projects/api/host-observation';
+import type { ProviderRepositoryResult } from '@core/features/repository/api';
 import { getRepositoryClient } from '@core/features/repository/api/client';
 import {
   getSourceControlClient,
@@ -24,7 +31,7 @@ import {
   type RepoFacts,
   type StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
-import type { ProviderRepository, ProviderRepositoryResult } from '@core/primitives/repository/api';
+import type { ProviderRepository } from '@core/primitives/repository/api';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../..';
@@ -42,14 +49,19 @@ export class GitRepositoryStore {
   private loadError: string | null = null;
   private refsState: GitRefsState | null = null;
   private remotesData: GitRemotesState | null = null;
+  private refsObservedAt = 0;
+  private remotesObservedAt = 0;
 
   readonly providerRepositoryInfo: Resource<ProviderRepositoryResult>;
   readonly gitDefaultBranchInfo: Resource<Awaited<ReturnType<typeof loadDefaultBranch>>>;
   private settingsDisposer: (() => void) | null = null;
+  private hostDisposer: (() => void) | null = null;
 
   constructor(
     private readonly projectId: string,
-    private readonly settingsStore: ProjectSettingsStore
+    private readonly settingsStore: ProjectSettingsStore,
+    private readonly host: ProjectHostAccess,
+    private readonly clock: Clock = systemClock
   ) {
     this.providerRepositoryInfo = new Resource<ProviderRepositoryResult>(
       () => getRepositoryClient().then((client) => client.resolveProvider({ projectId })),
@@ -75,6 +87,9 @@ export class GitRepositoryStore {
       refsState: observable.ref,
       remotesData: observable.ref,
       branches: computed,
+      refsObservation: computed,
+      remotesObservation: computed,
+      providerRepositoryObservation: computed,
       localBranches: computed,
       remoteBranches: computed,
       storedGitSettings: computed,
@@ -104,6 +119,14 @@ export class GitRepositoryStore {
         this.providerRepositoryInfo.invalidate();
       }
     );
+    this.hostDisposer = reaction(
+      () => this.host.state.kind,
+      (kind, previous) => {
+        if (kind !== 'ready' || previous === undefined || previous === 'ready') return;
+        void this.retry();
+      },
+      { fireImmediately: true }
+    );
   }
 
   start(): void {
@@ -130,8 +153,6 @@ export class GitRepositoryStore {
       this.model = null;
       this.startPromise = null;
       this.loadError = null;
-      this.refsState = null;
-      this.remotesData = null;
     });
     try {
       await remote?.dispose();
@@ -163,6 +184,8 @@ export class GitRepositoryStore {
     this.gitDefaultBranchInfo.dispose();
     this.settingsDisposer?.();
     this.settingsDisposer = null;
+    this.hostDisposer?.();
+    this.hostDisposer = null;
     const scope = this.remoteScope;
     const remote = this.remote;
     this.remoteScope = null;
@@ -204,6 +227,38 @@ export class GitRepositoryStore {
 
   get branches(): (LocalBranch | RemoteBranch)[] {
     return this.refs?.branches ?? [];
+  }
+
+  get refsObservation(): ProjectHostObservation<GitRefsState> {
+    return this.host.observe(
+      this.refsState
+        ? { kind: 'observed', value: this.refsState, observedAt: this.refsObservedAt }
+        : { kind: 'never-observed' }
+    );
+  }
+
+  get remotesObservation(): ProjectHostObservation<GitRemotesState> {
+    return this.host.observe(
+      this.remotesData
+        ? { kind: 'observed', value: this.remotesData, observedAt: this.remotesObservedAt }
+        : { kind: 'never-observed' }
+    );
+  }
+
+  get providerRepositoryObservation(): ProjectHostObservation<ProviderRepositoryResult> {
+    return this.host.observe(
+      this.providerRepositoryInfo.data
+        ? {
+            kind: 'observed',
+            value: this.providerRepositoryInfo.data,
+            observedAt: this.providerRepositoryInfo.lastUpdatedAt,
+          }
+        : { kind: 'never-observed' }
+    );
+  }
+
+  observeHost<T>(observation: HostObservation<T>): ProjectHostObservation<T> {
+    return this.host.observe(observation);
   }
 
   get localBranches(): LocalBranch[] {
@@ -422,9 +477,11 @@ export class GitRepositoryStore {
       });
       const model = gitRemote(repositorySelector(this.projectId));
       pin(scope, Object.values(model.states));
-      await waitForRepositoryModel(model, scope, (refs, remotes) => {
+      await waitForRepositoryModel(model, scope, this.clock, (refs, remotes, refsAt, remotesAt) => {
         this.refsState = refs;
         this.remotesData = remotes;
+        this.refsObservedAt = refsAt;
+        this.remotesObservedAt = remotesAt;
       });
       if (!this.started) {
         await gitRemote.dispose();
@@ -460,15 +517,23 @@ async function loadDefaultBranch(projectId: string, remote: string | null) {
 function waitForRepositoryModel(
   model: RepositoryRemoteMember,
   scope: Scope,
-  setData: (refs: GitRefsState, remotes: GitRemotesState) => void
+  clock: Clock,
+  setData: (
+    refs: GitRefsState,
+    remotes: GitRemotesState,
+    refsObservedAt: number,
+    remotesObservedAt: number
+  ) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let resolved = false;
     let refs: GitRefsState | undefined;
     let remotes: GitRemotesState | undefined;
+    let refsObservedAt = 0;
+    let remotesObservedAt = 0;
     const publish = () => {
       if (!refs || !remotes) return;
-      setData(refs, remotes);
+      setData(refs, remotes, refsObservedAt, remotesObservedAt);
       if (!resolved) {
         resolved = true;
         resolve();
@@ -485,6 +550,7 @@ function waitForRepositoryModel(
           }
           if (!current.value) return;
           refs = current.value;
+          refsObservedAt = clock.now();
           publish();
         });
       },
@@ -500,6 +566,7 @@ function waitForRepositoryModel(
           }
           if (!current.value) return;
           remotes = current.value;
+          remotesObservedAt = clock.now();
           publish();
         });
       },

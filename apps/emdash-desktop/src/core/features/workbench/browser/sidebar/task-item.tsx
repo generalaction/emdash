@@ -6,6 +6,7 @@ import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-sto
 import {
   getTaskManagerStore,
   getTaskStore,
+  taskHostActionAvailability,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
@@ -13,6 +14,7 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import {
   useNavigate,
   useViewParams,
@@ -86,6 +88,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   };
 
   const canPin = task.state !== 'unregistered';
+  const hostAction = taskHostActionAvailability(projectId);
+  const archiveDisabledReason =
+    task.state === 'provisioned' && hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const workspaceStore = getTaskWorkspace(projectId, taskId);
   const git = getTaskGitCheckoutStore(projectId, taskId);
@@ -101,6 +109,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={false}
+      archiveDisabledReason={archiveDisabledReason}
       branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}

@@ -72,6 +72,26 @@ describe('HostService', () => {
       expect(mocks.ensure).toHaveBeenCalledWith('ssh-1');
       expect(mocks.client).toHaveBeenCalledWith(target);
       expect(resolved.target).toBe(target);
+      expect(fixture.ensureConnected).not.toHaveBeenCalled();
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it('reports connection, provisioning, and handshake phases through the readiness path', async () => {
+    const fixture = createFixture();
+    const onPhase = vi.fn();
+
+    try {
+      await fixture.service.client('ssh-1', {
+        signal: new AbortController().signal,
+        onPhase,
+      });
+
+      expect(fixture.ensureConnected).toHaveBeenCalledWith('ssh-1');
+      expect(mocks.ensure).toHaveBeenCalledWith('ssh-1');
+      expect(mocks.client).toHaveBeenCalledWith(target);
+      expect(onPhase.mock.calls).toEqual([['connecting'], ['provisioning'], ['handshaking']]);
     } finally {
       await fixture.dispose();
     }
@@ -112,6 +132,24 @@ describe('HostService', () => {
       expect(fixture.invalidations).toEqual([
         { connectionId: 'ssh-1', reason: 'reconnect-failed' },
       ]);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it('resolves the replacement Wire connection after SSH reconnect exhaustion', async () => {
+    const fixture = createFixture();
+    const first = { ...connection(), client: { generation: 1 } as never };
+    const recovered = { ...connection(), client: { generation: 2 } as never };
+    mocks.client.mockResolvedValueOnce(first).mockResolvedValueOnce(recovered);
+
+    try {
+      await expect(fixture.service.client('ssh-1')).resolves.toBe(first);
+      fixture.sshEventListener?.({ type: 'reconnect-failed', connectionId: 'ssh-1' });
+      await vi.waitFor(() => expect(mocks.invalidateConnection).toHaveBeenCalledWith('ssh-1'));
+
+      await expect(fixture.service.client('ssh-1')).resolves.toBe(recovered);
+      expect(mocks.client).toHaveBeenCalledTimes(2);
     } finally {
       await fixture.dispose();
     }
@@ -184,11 +222,12 @@ function createFixture() {
     off: vi.fn(),
     getProxy: vi.fn(),
   };
+  const ensureConnected = vi.fn(async () => 'connected' as const);
   const service = createHostService({
     scope: parentScope,
     ssh: {
       manager: manager as never,
-      connect: { ensureConnected: vi.fn() },
+      connect: { ensureConnected },
     },
     machineEvents: {
       on: vi.fn((_event, listener) => {
@@ -204,6 +243,7 @@ function createFixture() {
 
   return {
     service,
+    ensureConnected,
     invalidations,
     get sshEventListener() {
       return sshEventListener;

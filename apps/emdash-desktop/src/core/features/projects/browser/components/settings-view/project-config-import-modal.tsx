@@ -11,8 +11,10 @@ import type {
   ProjectConfigMigrationDestination,
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
-import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import type { MigrateProjectConfigResult } from '../../../api/project-settings-page';
+import type {
+  MigrateProjectConfigResult,
+  ProjectSettingsError,
+} from '../../../api/project-settings-page';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type ImportStatus = 'idle' | 'importing' | 'imported' | 'error';
@@ -21,7 +23,7 @@ export type ProjectConfigImportModalArgs = {
   migrations: ProjectConfigMigration[];
   migrateProjectConfig: (
     request: MigrateProjectConfigRequest
-  ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
+  ) => Promise<Result<MigrateProjectConfigResult, ProjectSettingsError>>;
 };
 
 function unknownErrorMessage(error: unknown): string {

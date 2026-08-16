@@ -49,7 +49,14 @@ export type IssueAccountError =
   | { type: 'token_missing'; host: string; accountId: string; message: string }
   | { type: 'auth_required'; host?: string; message: string };
 
-export type IssueListError = IssueError | IssueAccountError;
+export type IssueProjectUnavailableError = {
+  type: 'project_unavailable';
+  projectId: string;
+  reason: string;
+  message: string;
+};
+
+export type IssueListError = IssueError | IssueAccountError | IssueProjectUnavailableError;
 
 export type IssueListResult = Result<LinkedIssue[], IssueListError>;
 

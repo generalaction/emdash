@@ -6,10 +6,14 @@ import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useState } from 'react';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { TaskViewStore } from '@core/features/projects/browser/stores/project-view';
+import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-selected-tasks';
 import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
-import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import {
+  getTaskManagerStore,
+  taskHostActionAvailability,
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -112,6 +116,15 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
   projectId: string;
 }) {
   if (taskView.count === 0) return null;
+  const hostAction = taskHostActionAvailability(projectId);
+  const selectedArchiveNeedsHost = [...taskView.selectedIds].some(
+    (taskId) => taskManager.tasks.get(taskId)?.state === 'provisioned'
+  );
+  const archiveDisabledReason =
+    selectedArchiveNeedsHost && hostAction.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const bulkApply = (apply: (id: string) => void) => {
     [...taskView.selectedIds].forEach(apply);
@@ -126,6 +139,9 @@ const TasksSelectionBar = observer(function TasksSelectionBar({
           <Button
             variant="secondary"
             size="sm"
+            disabled={!!archiveDisabledReason}
+            title={archiveDisabledReason}
+            aria-label={archiveDisabledReason ? `Archive. ${archiveDisabledReason}` : 'Archive'}
             onClick={() => bulkApply((id) => void taskManager.archiveTask(id))}
           >
             <Archive className="size-3.5" />
@@ -171,6 +187,12 @@ const TaskListContent = observer(function TaskListContent({
 }) {
   const { navigate } = useNavigate();
   const openCreateTaskModal = useOpenModal('taskModal');
+  const createAvailability = taskHostActionAvailability(projectId);
+  const createDisabledReason =
+    createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
 
   const [view] = useState(() =>
     createTaskListView({
@@ -190,7 +212,13 @@ const TaskListContent = observer(function TaskListContent({
     <view.Root>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3">
         <TasksTabs view={view} taskView={taskView} taskManager={taskManager} />
-        <Button variant="primary" onClick={() => void openCreateTaskModal({ projectId })}>
+        <Button
+          variant="primary"
+          disabled={!!createDisabledReason}
+          title={createDisabledReason}
+          aria-label={createDisabledReason ? `Create Task. ${createDisabledReason}` : 'Create Task'}
+          onClick={() => void openCreateTaskModal({ projectId })}
+        >
           Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
         </Button>
       </div>

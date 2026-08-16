@@ -4,7 +4,7 @@ import { Activity, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
@@ -294,13 +294,13 @@ export const ActivityBadge = observer(function ActivityBadge({
 
   const retryPush = async () => {
     const workspaceId = taskStore.workspaceId;
-    const project = asMounted(getProjectStore(projectId));
+    const project = asAvailableProject(getProjectStore(projectId));
     if (!workspaceId || !project) return;
     setIsRetrying(true);
     try {
       const client = await getWorkspaceRegistryWireClient();
       const result = await client.retryStep({
-        host: projectHostRef(project.data),
+        host: projectHostRef(project.project),
         workspaceId,
         step: 'push-branch',
       });

@@ -11,7 +11,12 @@ import { type LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentError } from '@core/features/projects/api';
+import {
+  requireAttachedProjectOrThrow,
+  withAttachedProject,
+} from '@core/features/projects/api/node/attached-project';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import {
   terminalsContract,
@@ -41,7 +46,7 @@ import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
-  projects: Pick<ProjectSessionManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   runtimes: TerminalsRuntimeBroker;
   settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;
@@ -67,7 +72,11 @@ type TerminalContext = Readonly<{
   taskEnvVars: Record<string, string>;
   gitCredentials?: GitCredentialsSessionSpec;
 }>;
-type TerminalControllerError = TerminalError | RuntimeResolveError | TerminalSliceContextError;
+type TerminalControllerError =
+  | TerminalError
+  | RuntimeResolveError
+  | ProjectAttachmentError
+  | TerminalSliceContextError;
 
 const DEFAULT_TERMINAL_SIZE = { cols: 80, rows: 24 };
 
@@ -296,63 +305,60 @@ async function resolveTerminalContext(
     )
     .limit(1);
   if (!taskRow) return err(terminalError('missing-task', `Task ${terminal.taskId} not found`));
-  if (!taskRow.workspaceId) {
+  const workspaceId = taskRow.workspaceId;
+  if (!workspaceId) {
     return err(terminalError('missing-workspace', `Task ${terminal.taskId} has no workspace`));
   }
 
-  const project = options.projects.getProject(terminal.projectId);
-  if (!project) {
-    return err(terminalError('missing-project', `Project ${terminal.projectId} not found`));
-  }
-  const identity = await options.workspaceIdentity.resolve(taskRow.workspaceId);
-  if (!identity) {
-    return err(
-      terminalError('missing-workspace', `Workspace ${taskRow.workspaceId} was not found`)
-    );
-  }
-
-  return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
-    // Effective default branch through the blessed resolver (spec:
-    // github-git-settings §2); null (unresolvable) omits the env var.
-    const [effective, tmux, projectConfig] = await Promise.all([
-      resolveProjectEffectiveSettings({
-        settings: project.settings,
-        repoFacts: project.repoFacts,
-      }),
-      project.settings.resolveTmux(),
-      client.workspaceRegistry.getProjectConfig({ workspaceId: identity.workspaceId }),
-    ]);
-    const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-    if (!projectConfig.success) {
-      return err(
-        terminalError(
-          'missing-workspace',
-          `Workspace ${identity.workspaceId} has no project configuration`
-        )
-      );
+  return withAttachedProject(options.projects, terminal.projectId, async (project) => {
+    const identity = await options.workspaceIdentity.resolve(workspaceId);
+    if (!identity) {
+      return err(terminalError('missing-workspace', `Workspace ${workspaceId} was not found`));
     }
-    const gitCredentials = await options.resolveSessionGitCredentials({
-      projectId: terminal.projectId,
-      host: identity.host,
-    });
-    return ok({
-      identity,
-      workspace: workspaceRef(identity),
-      key: toTerminalKey(
+
+    return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
+      // Effective default branch through the blessed resolver (spec:
+      // github-git-settings §2); null (unresolvable) omits the env var.
+      const [effective, tmux, projectConfig] = await Promise.all([
+        resolveProjectEffectiveSettings({
+          settings: project.settings,
+          repoFacts: project.repoFacts,
+        }),
+        project.settings.resolveTmux(),
+        client.workspaceRegistry.getProjectConfig({ workspaceId: identity.workspaceId }),
+      ]);
+      const defaultBranch = effective.defaultBranch.value?.branch ?? null;
+      if (!projectConfig.success) {
+        return err(
+          terminalError(
+            'missing-workspace',
+            `Workspace ${identity.workspaceId} has no project configuration`
+          )
+        );
+      }
+      const gitCredentials = await options.resolveSessionGitCredentials({
+        projectId: terminal.projectId,
+        host: identity.host,
+      });
+      return ok({
         identity,
-        makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
-      ),
-      tmuxEnabled: tmux.value,
-      shellSetup: projectConfig.data.resolved.shellSetup?.value,
-      taskEnvVars: getTaskEnvVars({
-        taskId: terminal.taskId,
-        taskName: taskRow.name,
-        taskPath: identity.path,
-        projectPath: project.repoPath,
-        defaultBranch,
-        portSeed: identity.path,
-      }),
-      gitCredentials,
+        workspace: workspaceRef(identity),
+        key: toTerminalKey(
+          identity,
+          makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
+        ),
+        tmuxEnabled: tmux.value,
+        shellSetup: projectConfig.data.resolved.shellSetup?.value,
+        taskEnvVars: getTaskEnvVars({
+          taskId: terminal.taskId,
+          taskName: taskRow.name,
+          taskPath: identity.path,
+          projectPath: project.repoPath,
+          defaultBranch,
+          portSeed: identity.path,
+        }),
+        gitCredentials,
+      });
     });
   });
 }
@@ -361,7 +367,7 @@ async function withTerminalRuntime<T, E>(
   options: CreateTerminalsWireControllerOptions,
   input: TerminalRuntimeKey,
   work: (client: HostRuntimesClient['terminals'], key: TerminalKey) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
+): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   return withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
     work(client.terminals, toTerminalKey(identity, input.terminalId))
   );
@@ -371,11 +377,13 @@ async function withWorkspaceRuntime<T, E>(
   options: CreateTerminalsWireControllerOptions,
   workspaceId: string,
   work: (client: HostRuntimesClient, identity: WorkspaceIdentity) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
+): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const runtime = await options.runtimes.client(identity.host);
-  if (!runtime.success) return err(runtime.error);
-  return await work(runtime.data, identity);
+  return withAttachedProject(options.projects, identity.projectId, async () => {
+    const runtime = await options.runtimes.client(identity.host);
+    if (!runtime.success) return err(runtime.error);
+    return await work(runtime.data, identity);
+  });
 }
 
 async function resolveRuntimeSource(
@@ -384,6 +392,7 @@ async function resolveRuntimeSource(
   source: (client: HostRuntimesClient, identity: WorkspaceIdentity) => LiveSource
 ): Promise<LiveSource> {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
+  requireAttachedProjectOrThrow(options.projects, identity.projectId);
   const runtime = await options.runtimes.client(identity.host);
   if (!runtime.success) throwTerminalsRuntimeResolveError(runtime.error);
   return source(runtime.data, identity);

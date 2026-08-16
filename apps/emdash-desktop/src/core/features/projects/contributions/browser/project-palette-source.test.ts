@@ -7,13 +7,14 @@ import {
 } from './project-palette-source';
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
-  asMounted: (store: ProjectStore) => store.mountedProject ?? undefined,
+  asAvailableProject: (store: ProjectStore) =>
+    store.context?.kind === 'available' ? store.context.context : undefined,
   getProjectManagerStore: () => {
     throw new Error('Project manager should be injected by this test');
   },
 }));
 
-function projectStore(id: string, mounted = true): ProjectStore {
+function projectStore(id: string, contextAvailable = true): ProjectStore {
   const data = {
     type: 'local' as const,
     id,
@@ -26,7 +27,21 @@ function projectStore(id: string, mounted = true): ProjectStore {
   };
   return {
     name: data.name,
-    mountedProject: mounted ? { data } : null,
+    context: contextAvailable
+      ? {
+          kind: 'available',
+          context: {
+            project: data,
+            host: {
+              state: {
+                kind: 'degraded',
+                situation: 'offline',
+                recovery: 'manual',
+              },
+            },
+          },
+        }
+      : { kind: 'hydrating', project: data },
   } as ProjectStore;
 }
 
@@ -60,11 +75,11 @@ describe('project palette source', () => {
     });
   });
 
-  it('returns only applicable mounted projects for idle contexts', () => {
+  it('returns available Projects for idle contexts while Host access is degraded', () => {
     const projects = [
       projectStore('current'),
       projectStore('one'),
-      projectStore('unmounted', false),
+      projectStore('context-unavailable', false),
       projectStore('two'),
       projectStore('three'),
       projectStore('four'),

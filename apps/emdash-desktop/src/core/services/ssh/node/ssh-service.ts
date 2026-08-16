@@ -7,6 +7,7 @@ import type {
   SshConfig,
   SshService as SshServiceContract,
 } from '@core/primitives/ssh/api';
+import { SshConnectionNotFoundError } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   sshConnections as sshConnectionsTable,
@@ -163,7 +164,7 @@ export class SshService implements SshServiceContract {
       .from(sshConnectionsTable)
       .where(eq(sshConnectionsTable.id, connectionId))
       .limit(1);
-    if (!row) throw new Error(`SSH connection ${connectionId} not found`);
+    if (!row) throw new SshConnectionNotFoundError(connectionId);
     return row;
   }
 

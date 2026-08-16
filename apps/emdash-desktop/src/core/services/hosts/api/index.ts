@@ -1,5 +1,15 @@
 import type { WorkspaceServerTarget } from './targets';
 
+export {
+  hostAvailabilityStateSchema,
+  hostReadySchema,
+  type ExplicitRecoveryCause,
+  type HostAvailability,
+  type HostAvailabilityState,
+  type HostPreparingPhase,
+  type HostReady,
+  type RecoveryCause,
+} from './availability';
 export type {
   LocalWorkspaceServerTarget,
   SshWorkspaceServerTarget,

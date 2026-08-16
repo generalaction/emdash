@@ -1,10 +1,16 @@
 import { serializedHostRefSchema } from '@emdash/core/primitives/host/api';
+import {
+  runtimeResolveErrorSchema,
+  type RuntimeResolveError,
+} from '@emdash/core/primitives/runtime-resolution/api';
 import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
+import type { Result } from '@emdash/shared';
 import {
   defineContract,
   downloadFile,
   eventStream,
+  fallible,
   liveLog,
   liveModel,
   liveState,
@@ -12,16 +18,16 @@ import {
   uploadFile,
 } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import {
+  projectAttachmentErrorSchema,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api/attachments';
 import type {
   Conversation,
   ConversationEvent,
   CreateConversationParams,
   HostConversationRow,
 } from '@core/primitives/conversations/api';
-import {
-  runtimeFallibleProcedure,
-  runtimeResolveErrorUnion,
-} from '@core/primitives/desktop-runtime/api/fallible-contract';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({
@@ -30,7 +36,42 @@ const conversationLocation = z.object({
   conversationId: z.string(),
 });
 const attachmentKey = conversationKey.extend({ attachmentId: z.string() });
-const hostSessionsKey = z.object({ host: serializedHostRefSchema });
+const hostSessionsKey = z.object({
+  host: serializedHostRefSchema,
+  projectId: z.string(),
+});
+
+const projectAttachmentFailureSchema = z.object({
+  success: z.literal(false),
+  error: projectAttachmentErrorSchema,
+});
+const runtimeResolveFailureSchema = z.object({
+  success: z.literal(false),
+  error: runtimeResolveErrorSchema,
+});
+
+type ProjectRuntimeResult<OutputSchema extends z.ZodTypeAny> =
+  z.output<OutputSchema> extends Result<infer Data, infer Error>
+    ? Result<Data, Error | RuntimeResolveError | ProjectAttachmentError>
+    : never;
+
+function runtimeFallibleProcedure<
+  InputSchema extends z.ZodTypeAny,
+  OutputSchema extends z.ZodTypeAny,
+>(input: InputSchema, output: OutputSchema) {
+  return procedure({
+    input,
+    output: z.union([
+      output,
+      runtimeResolveFailureSchema,
+      projectAttachmentFailureSchema,
+    ]) as z.ZodType<ProjectRuntimeResult<OutputSchema>>,
+  });
+}
+
+function projectAttachmentErrorUnion<ErrorSchema extends z.ZodTypeAny>(error: ErrorSchema) {
+  return z.union([error, runtimeResolveErrorSchema, projectAttachmentErrorSchema]);
+}
 
 const desktopAcpSessions = liveModel({
   key: hostSessionsKey,
@@ -98,12 +139,12 @@ const conversationsAcpContract = defineContract({
     input: conversationKey.extend({ originalPath: z.string().optional() }),
     accept: acpApiContract.uploadAttachment.accept,
     result: acpApiContract.uploadAttachment.result,
-    error: runtimeResolveErrorUnion(acpApiContract.uploadAttachment.error),
+    error: projectAttachmentErrorUnion(acpApiContract.uploadAttachment.error),
   }),
   downloadAttachment: downloadFile({
     input: attachmentKey,
     meta: acpApiContract.downloadAttachment.meta,
-    error: runtimeResolveErrorUnion(acpApiContract.downloadAttachment.error),
+    error: projectAttachmentErrorUnion(acpApiContract.downloadAttachment.error),
   }),
   deleteAttachment: runtimeFallibleProcedure(attachmentKey, acpApiContract.deleteAttachment.output),
   getHistory: runtimeFallibleProcedure(
@@ -139,23 +180,26 @@ export const conversationsContract = defineContract({
     input: z.void(),
     output: z.custom<Conversation[]>(),
   }),
-  createConversation: procedure({
+  createConversation: fallible({
     input: z.custom<CreateConversationParams>(),
-    output: z.custom<Conversation>(),
+    data: z.custom<Conversation>(),
+    error: projectAttachmentErrorSchema,
   }),
   deleteConversation: procedure({
     input: conversationLocation,
     output: z.void(),
   }),
-  hydrateConversation: procedure({
+  hydrateConversation: fallible({
     input: conversationLocation.extend({
       initialSize: z.object({ cols: z.number(), rows: z.number() }).optional(),
     }),
-    output: z.void(),
+    data: z.void(),
+    error: projectAttachmentErrorSchema,
   }),
-  dehydrateConversation: procedure({
+  dehydrateConversation: fallible({
     input: conversationLocation,
-    output: z.void(),
+    data: z.void(),
+    error: projectAttachmentErrorSchema,
   }),
   renameConversation: procedure({
     input: z.object({ conversationId: z.string(), name: z.string() }),

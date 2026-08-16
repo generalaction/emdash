@@ -9,6 +9,7 @@ export interface ProjectSettingsFooterProps {
   saveStatus: ProjectSettingsSaveStatus;
   canShareConfig: boolean;
   shareDisabled: boolean;
+  hostActionReason: string | null;
   onShare: () => void;
   onUndo: () => void;
   onSave: () => void;
@@ -19,6 +20,7 @@ export function ProjectSettingsFooter({
   saveStatus,
   canShareConfig,
   shareDisabled,
+  hostActionReason,
   onShare,
   onUndo,
   onSave,
@@ -31,21 +33,27 @@ export function ProjectSettingsFooter({
     <div className="flex justify-between gap-2 pt-5">
       <Tooltip.Provider delay={150}>
         <Tooltip.Root>
-          <Tooltip.Trigger>
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0 gap-1.5"
-              disabled={shareDisabled}
-              hidden={!canShareConfig}
-              onClick={onShare}
-            >
-              Share with team
-            </Button>
-          </Tooltip.Trigger>
+          <Tooltip.Trigger
+            render={
+              <Button
+                type="button"
+                variant="secondary"
+                className="shrink-0 gap-1.5"
+                disabled={shareDisabled}
+                hidden={!canShareConfig && !hostActionReason}
+                aria-disabled={hostActionReason !== null}
+                aria-description={hostActionReason ?? undefined}
+                onClick={() => {
+                  if (!hostActionReason) onShare();
+                }}
+              >
+                Share with team
+              </Button>
+            }
+          />
           <Tooltip.Content side="bottom" align="end">
-            Writes selected settings to .emdash.json. Commit that file to share these defaults with
-            your team.
+            {hostActionReason ??
+              'Writes selected settings to .emdash.json. Commit that file to share these defaults with your team.'}
           </Tooltip.Content>
         </Tooltip.Root>
       </Tooltip.Provider>

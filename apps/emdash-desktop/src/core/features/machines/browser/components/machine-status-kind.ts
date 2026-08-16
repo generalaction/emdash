@@ -1,33 +1,13 @@
 import type { MachineStatusKind } from '@emdash/ui/react/components';
-import type { ConnectionState } from '@core/primitives/ssh/api';
-import type { HostServerStatus } from '@core/services/hosts/api';
+import type { HostAvailabilityState } from '@core/services/hosts/api';
 
 export function deriveMachineStatusKind({
-  connectionState,
-  workspaceServerStatus,
-  workspaceServerError,
-  workspaceServerLoading,
+  availability,
 }: {
-  connectionState: ConnectionState;
-  workspaceServerStatus: HostServerStatus | undefined;
-  workspaceServerError?: boolean;
-  workspaceServerLoading: boolean;
+  availability: HostAvailabilityState | undefined;
 }): MachineStatusKind {
-  if (connectionState === 'error') return 'error';
-  if (connectionState === 'connecting' || connectionState === 'reconnecting') {
-    return 'initializing';
-  }
-  if (connectionState === 'disconnected') return 'idle';
-
-  if (
-    workspaceServerLoading ||
-    workspaceServerStatus === 'booting' ||
-    workspaceServerStatus === 'shutting-down'
-  ) {
-    return 'initializing';
-  }
-  if (workspaceServerError) return 'error';
-  if (workspaceServerStatus === 'healthy') return 'successful';
-
-  return 'error';
+  if (!availability || availability.kind === 'suspended') return 'idle';
+  if (availability.kind === 'preparing') return 'initializing';
+  if (availability.kind === 'ready') return 'successful';
+  return availability.issue ? 'error' : 'idle';
 }

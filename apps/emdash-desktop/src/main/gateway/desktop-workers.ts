@@ -140,6 +140,8 @@ export type DesktopRuntimeWorkers = {
 export type DesktopWorkersHandle = {
   readonly clients: DesktopRuntimeClients;
   readonly workers: DesktopRuntimeWorkers;
+  /** Resolves after every local Host runtime has completed its Wire worker handshake. */
+  runtimeReady(): Promise<void>;
   /**
    * Activate per-worker vitals self-sampling (telemetry-sampled sessions
    * only). Reaches every live worker and any worker spawned later.
@@ -466,6 +468,23 @@ function startDesktopWorkersWithHost(
       }
     )
   );
+  const runtimeReady = Promise.all([
+    acpReady,
+    agentConfigReady,
+    automationsReady,
+    conversationsReady,
+    fileSearchReady,
+    filesReady,
+    gitReady,
+    hostSettingsReady,
+    mementosReady,
+    pullRequestsReady,
+    resourceUsageReady,
+    scriptsReady,
+    terminalsReady,
+    tuiAgentsReady,
+    workspaceRegistryReady,
+  ]).then(() => {});
 
   let disposePromise: Promise<void> | undefined;
   return {
@@ -495,6 +514,7 @@ function startDesktopWorkersWithHost(
       acp: deferredWorkerStatus(acpStart.then((result) => result.worker)),
       tuiAgents: deferredWorkerStatus(tuiAgentsReady.then((result) => result.worker)),
     },
+    runtimeReady: () => runtimeReady,
     dispose() {
       disposePromise ??= (async () => {
         // The automations worker persists run state; stop it gracefully first

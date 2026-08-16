@@ -50,9 +50,6 @@ vi.mock('@main/core/agent-status/tui-agent-status-bridge', () => ({
 vi.mock('@core/features/automations/api/node/automations-service', () => ({
   automationsService: { stop: vi.fn() },
 }));
-vi.mock('@core/features/projects/api/node/project-manager', () => ({
-  projectManager: { release: vi.fn(), dispose: vi.fn() },
-}));
 vi.spyOn(databaseInstance, 'closeAppDb').mockImplementation(mocks.closeAppDb);
 vi.mock('@main/host/updates/update-service', () => ({
   updateService: mocks.updateService,
@@ -103,11 +100,20 @@ describe('quit cleanup phases', () => {
 
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();
     expect(mocks.editorBuffersDispose).toHaveBeenCalledOnce();
+    expect(mocks.projectsRelease.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.runtimesDispose.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.projectsRelease.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.projectsDispose.mock.invocationCallOrder[0]!
+    );
     expect(mocks.appScopeDispose.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.closeAppDb.mock.invocationCallOrder[0]!
     );
     expect(mocks.closeAppDb.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.telemetryDispose.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.closeAppDb.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.projectsDispose.mock.invocationCallOrder[0]!
     );
   });
 });

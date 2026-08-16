@@ -1,4 +1,3 @@
-import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { createProject } from './create-project';
@@ -16,8 +15,7 @@ describe('project creation without a git repository', () => {
   let rows: Record<string, unknown>[];
   let filesStat: ReturnType<typeof vi.fn>;
   let ensureRepository: ReturnType<typeof vi.fn>;
-  let closeProject: ReturnType<typeof vi.fn>;
-  let openProject: ReturnType<typeof vi.fn>;
+  let invalidate: ReturnType<typeof vi.fn>;
   let dependencies: Parameters<typeof initializeRepository>[0];
 
   beforeEach(() => {
@@ -27,8 +25,7 @@ describe('project creation without a git repository', () => {
       data: { type: 'directory' },
     });
     ensureRepository = vi.fn();
-    closeProject = vi.fn().mockResolvedValue(ok());
-    openProject = vi.fn().mockResolvedValue(ok({}));
+    invalidate = vi.fn().mockResolvedValue(undefined);
     mocks.registerRepositoryWorkspace.mockReturnValue('repo-workspace-1');
     dependencies = {
       db: createFakeDb(rows),
@@ -41,7 +38,7 @@ describe('project creation without a git repository', () => {
           },
         }),
       },
-      projects: { closeProject, openProject },
+      projects: { invalidate },
     } as unknown as Parameters<typeof initializeRepository>[0];
   });
 
@@ -49,12 +46,11 @@ describe('project creation without a git repository', () => {
     vi.clearAllMocks();
   });
 
-  it('creates a project row for a non-git folder when init is not requested', async () => {
+  it('returns the durable Project without allocating an attachment after registration', async () => {
     ensureRepository.mockResolvedValue({
       success: false,
       error: { type: 'not-repository', path: hostPathFromNative('/workspace/plain-folder') },
     });
-
     const result = await createProject(dependencies, {
       type: 'local',
       id: 'project-plain',
@@ -69,7 +65,6 @@ describe('project creation without a git repository', () => {
     // fabricated 'main' (spec: github-git-settings §3).
     expect(result.data.baseRef).toBeNull();
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
-    expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
 
     const row = rows.find((entry) => entry.id === 'project-plain');
     expect(row?.baseRef).toBeNull();
@@ -101,8 +96,7 @@ describe('project creation without a git repository', () => {
     });
     expect(result.data.baseRef).toBe('main');
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
-    expect(closeProject).toHaveBeenCalledWith('project-plain');
-    expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
+    expect(invalidate).toHaveBeenCalledWith('project-plain', 'repository-changed');
 
     const row = rows.find((entry) => entry.id === 'project-plain');
     expect(row?.baseRef).toBe('main');

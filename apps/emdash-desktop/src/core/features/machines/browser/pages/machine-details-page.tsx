@@ -26,6 +26,10 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { McpPanel } from '@core/features/mcp/contributions/browser/McpPanel';
+import {
+  asAvailableProject,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { AgentsPanel } from '@core/features/settings/contributions/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/contributions/browser/SkillsPanel';
 import { WorkspaceDetailPage } from '@core/features/workspaces/contributions/browser/workspace-detail-page';
@@ -43,6 +47,7 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { WorkspacesListView } from '../components/workspaces-list-view';
 import { useHostServerState } from '../use-host-server-state';
 import { useMachineMetrics } from '../use-machine-metrics';
+import { useMachineAvailability } from '../use-machine-status-kind';
 
 type MachineDetailsSection =
   | 'system'
@@ -92,11 +97,12 @@ export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDeta
 ) {
   const machineId = props.path[0];
   const machine = getMachinesStore().connections.find((connection) => connection.id === machineId);
+  const project = asAvailableProject(getProjectStore(props.detailId));
   if (!machineId) return null;
   return (
     <WorkspaceDetailPage
       scope={{ kind: 'machine', machineId }}
-      connected={machine ? getMachinesStore().stateFor(machine.id) === 'connected' : false}
+      host={project?.host}
       machineName={machine?.name}
       projectId={props.detailId}
       onDeletedAll={props.closeDetail}
@@ -115,6 +121,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const openMachineModal = useOpenModal('addSshConnModal');
   const state = machine ? machinesStore.stateFor(machine.id) : 'disconnected';
   const connected = state === 'connected';
+  const availability = useMachineAvailability(machine?.id);
   const [name, setName] = useState(machine?.name ?? '');
   const [isRenaming, setIsRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -125,12 +132,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     enabled: !!machine,
     connected,
   });
-  const machineStatus = deriveMachineStatusKind({
-    connectionState: state,
-    workspaceServerStatus: workspaceServer.state?.status,
-    workspaceServerError: workspaceServer.state?.error !== undefined,
-    workspaceServerLoading: workspaceServer.loading,
-  });
+  const machineStatus = deriveMachineStatusKind({ availability });
   const serverUsable = isServerUsable(workspaceServer.state);
   const metrics = useMachineMetrics(machine?.id, serverUsable);
 
@@ -169,16 +171,24 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const connectMachine = async () => {
     try {
       await machinesStore.connect(machine.id);
-    } catch (error) {
-      toast.error('Failed to connect to machine', { description: String(error) });
+    } catch {
+      toast.error('Could not request a Machine connection');
+    }
+  };
+
+  const retryMachine = async () => {
+    try {
+      await machinesStore.retry(machine.id);
+    } catch {
+      toast.error('Could not retry the Machine connection');
     }
   };
 
   const disconnectMachine = async () => {
     try {
       await machinesStore.disconnect(machine.id);
-    } catch (error) {
-      toast.error('Failed to disconnect from machine', { description: String(error) });
+    } catch {
+      toast.error('Could not disconnect the Machine');
     }
   };
 
@@ -329,8 +339,10 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
               <MachineConnectionRow
                 machine={machine}
                 state={state}
+                availability={availability}
                 onEdit={editConnectionSettings}
                 onConnect={connectMachine}
+                onRetry={retryMachine}
                 onDisconnect={disconnectMachine}
               />
               <div

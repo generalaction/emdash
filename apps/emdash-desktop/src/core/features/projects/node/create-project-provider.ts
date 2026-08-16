@@ -42,7 +42,7 @@ import {
 } from '@core/services/runtime-broker/node/git';
 import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
-import { migrateProjectSettingsOnMount } from './settings/migrations/migrate-project-settings-on-mount';
+import { migrateProjectSettingsOnAttachment } from './settings/migrations/migrate-project-settings-on-attachment';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
 import { createRepoFactsCache } from './settings/repo-facts';
@@ -167,7 +167,7 @@ export async function createProvider(
       }
     );
     await settings.ensure();
-    await migrateProjectSettingsOnMount(project, settings, runtime.data.workspaceRegistry, {
+    await migrateProjectSettingsOnAttachment(project, settings, runtime.data.workspaceRegistry, {
       migrateAppWorktreeRoot: dependencies.migrateAppWorktreeRoot,
     });
 

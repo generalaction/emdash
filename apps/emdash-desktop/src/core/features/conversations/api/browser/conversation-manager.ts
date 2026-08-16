@@ -9,6 +9,11 @@ import { action, computed, makeObservable, observable, reaction, runInAction } f
 import { conversationsContract } from '@core/features/conversations/api';
 // TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
 import { makeFileLinkHandlers } from '@core/features/editor/api/browser/open-file-in-file-editor';
+import {
+  classifyLiveRuntimeObservation,
+  type LiveRuntimeObservation,
+} from '@core/features/projects/api/browser/live-runtime-observation';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
@@ -41,6 +46,9 @@ export class ConversationManagerStore implements Disposable {
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
+  private readonly _disposeHostReaction: () => void;
+  private _hasObservedTuiSessions = false;
+  private _hasObservedAcpSessions = false;
 
   /** Data layer: plain Conversation records loaded from the main process. */
   readonly list: Resource<Conversation[]>;
@@ -55,16 +63,23 @@ export class ConversationManagerStore implements Disposable {
     private readonly projectId: string,
     private readonly taskId: string,
     preloaded: Conversation[] | undefined,
-    private readonly sessionHost: () => SerializedHostRef
+    private readonly sessionHost: () => SerializedHostRef,
+    readonly hostAccess?: ProjectHostAccess
   ) {
-    makeObservable(this, {
-      conversations: observable,
-      sessions: observable,
-      activeTuiSessionIds: observable,
-      activeAcpSessionIds: observable,
-      activeSessionIds: computed,
-      taskStatus: computed,
-    });
+    makeObservable<ConversationManagerStore, '_hasObservedAcpSessions' | '_hasObservedTuiSessions'>(
+      this,
+      {
+        conversations: observable,
+        sessions: observable,
+        activeTuiSessionIds: observable,
+        activeAcpSessionIds: observable,
+        _hasObservedTuiSessions: observable,
+        _hasObservedAcpSessions: observable,
+        activeSessionIds: computed,
+        taskStatus: computed,
+        runtimeObservation: computed,
+      }
+    );
 
     const hasPreloaded = preloaded !== undefined;
     this.list = new Resource<Conversation[]>(
@@ -115,6 +130,13 @@ export class ConversationManagerStore implements Disposable {
         });
       },
       { fireImmediately: true }
+    );
+    this._disposeHostReaction = reaction(
+      () => this.hostAccess?.state,
+      (state) => {
+        if (state?.kind !== 'ready') return;
+        for (const session of this.sessions.values()) session.resumeIfRequested();
+      }
     );
 
     this.offAgentStatusChanged = this.listenToAgentStatusChanged();
@@ -173,12 +195,13 @@ export class ConversationManagerStore implements Disposable {
     if (typeof window === 'undefined') return () => {};
     let currentScope: ReturnType<typeof createScope> | undefined;
     const disposeReaction = reaction(
-      this.sessionHost,
-      (host) => {
+      () => ({ host: this.sessionHost(), accessKind: this.hostAccess?.state.kind }),
+      ({ host, accessKind }) => {
         void currentScope?.dispose();
+        currentScope = undefined;
+        if (accessKind !== undefined && accessKind !== 'ready') return;
         currentScope = createScope({ label: `conversation-manager:tui-sessions:${host}` });
         const scope = currentScope;
-        this.handleTuiSessionListChanged({});
         void (async () => {
           const client = await getConversationsClient();
           if (scope.disposed) return;
@@ -186,7 +209,7 @@ export class ConversationManagerStore implements Disposable {
             scope,
             lingerMs: 15_000,
           });
-          const member = sessions({ host });
+          const member = sessions({ host, projectId: this.projectId });
           observe(
             member.states.list,
             (snapshot) => this.handleTuiSessionListChanged(snapshot.value ?? {}),
@@ -204,6 +227,7 @@ export class ConversationManagerStore implements Disposable {
 
   private handleTuiSessionListChanged(list: TuiSessionList): void {
     runInAction(() => {
+      this._hasObservedTuiSessions = true;
       this.activeTuiSessionIds.clear();
       for (const [conversationId, session] of Object.entries(list)) {
         if (session.status === 'starting' || session.status === 'running') {
@@ -217,12 +241,13 @@ export class ConversationManagerStore implements Disposable {
     if (typeof window === 'undefined') return () => {};
     let currentScope: ReturnType<typeof createScope> | undefined;
     const disposeReaction = reaction(
-      this.sessionHost,
-      (host) => {
+      () => ({ host: this.sessionHost(), accessKind: this.hostAccess?.state.kind }),
+      ({ host, accessKind }) => {
         void currentScope?.dispose();
+        currentScope = undefined;
+        if (accessKind !== undefined && accessKind !== 'ready') return;
         currentScope = createScope({ label: `conversation-manager:acp-sessions:${host}` });
         const scope = currentScope;
-        this.handleAcpSessionListChanged({});
         void (async () => {
           const client = await getConversationsClient();
           if (scope.disposed) return;
@@ -230,7 +255,7 @@ export class ConversationManagerStore implements Disposable {
             scope,
             lingerMs: 15_000,
           });
-          const member = sessions({ host });
+          const member = sessions({ host, projectId: this.projectId });
           observe(
             member.states.list,
             (snapshot) => this.handleAcpSessionListChanged(snapshot.value ?? {}),
@@ -248,6 +273,7 @@ export class ConversationManagerStore implements Disposable {
 
   private handleAcpSessionListChanged(list: Record<string, SessionSummary>): void {
     runInAction(() => {
+      this._hasObservedAcpSessions = true;
       this.activeAcpSessionIds.clear();
       for (const [conversationId, session] of Object.entries(list)) {
         if (session.lifecycle !== 'closed') {
@@ -300,6 +326,23 @@ export class ConversationManagerStore implements Disposable {
     return new Set([...this.activeTuiSessionIds, ...this.activeAcpSessionIds]);
   }
 
+  get runtimeObservation(): LiveRuntimeObservation<{
+    activeTuiSessionIds: string[];
+    activeAcpSessionIds: string[];
+  }> {
+    const observed =
+      this._hasObservedTuiSessions || this._hasObservedAcpSessions
+        ? {
+            activeTuiSessionIds: [...this.activeTuiSessionIds],
+            activeAcpSessionIds: [...this.activeAcpSessionIds],
+          }
+        : undefined;
+    return classifyLiveRuntimeObservation(
+      this.hostAccess?.state ?? { kind: 'ready', hostGeneration: 0 },
+      observed
+    );
+  }
+
   isSessionActive(conversationId: string): boolean {
     return (
       this.activeTuiSessionIds.has(conversationId) || this.activeAcpSessionIds.has(conversationId)
@@ -327,14 +370,19 @@ export class ConversationManagerStore implements Disposable {
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     // ACP conversations start lazily and have no PTY, so skip the size wait.
     const initialSize =
       params.type === 'acp'
         ? params.initialSize
         : (params.initialSize ?? (await this.resolveInitialSize()));
-    const conversation = await (
+    const result = await (
       await getConversationsClient()
     ).createConversation({ ...params, initialSize });
+    if (!result.success) throw new Error(result.error.type);
+    const conversation = result.data;
     runInAction(() => {
       this.addConversation(conversation);
     });
@@ -342,11 +390,14 @@ export class ConversationManagerStore implements Disposable {
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     // Hydrate is a no-op spawn-wise for ACP conversations; only PTY-backed
     // conversations benefit from waiting on a pane measurement.
     const isPty = this.conversations.get(conversationId)?.data.type !== 'acp';
     const initialSize = isPty ? await this.resolveInitialSize(conversationId) : undefined;
-    await (
+    const result = await (
       await getConversationsClient()
     ).hydrateConversation({
       projectId: this.projectId,
@@ -354,18 +405,21 @@ export class ConversationManagerStore implements Disposable {
       conversationId,
       initialSize,
     });
+    if (!result.success) throw new Error(result.error.type);
   }
 
   async dehydrateConversation(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
     session?.dispose();
-    await (
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+    const result = await (
       await getConversationsClient()
     ).dehydrateConversation({
       projectId: this.projectId,
       taskId: this.taskId,
       conversationId,
     });
+    if (!result.success) throw new Error(conversationErrorMessage(result.error));
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -399,13 +453,18 @@ export class ConversationManagerStore implements Disposable {
   async killSession(conversationId: string): Promise<void> {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      throw new Error('Live actions are unavailable for this Project.');
+    }
     const client = await getConversationsClient();
     const result =
       conversation.data.type === 'acp'
         ? await client.acp.kill({ conversationId })
         : await client.tui.kill({ conversationId });
     if (!result.success) {
-      throw new Error(result.error.message ?? `Failed to kill session '${conversationId}'`);
+      throw new Error(
+        conversationErrorMessage(result.error, `Failed to kill session '${conversationId}'`)
+      );
     }
     runInAction(() => {
       this.activeAcpSessionIds.delete(conversationId);
@@ -440,6 +499,7 @@ export class ConversationManagerStore implements Disposable {
 
   dispose(): void {
     this._disposeReaction();
+    this._disposeHostReaction();
     this.offAgentStatusChanged?.();
     this.offAgentStatusChanged = null;
     this.offTuiSessionState?.();
@@ -466,9 +526,17 @@ export class ConversationManagerStore implements Disposable {
       undefined,
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      connector
+      connector,
+      () => this.hostAccess?.liveAction.kind !== 'disabled'
     );
   }
+}
+
+function conversationErrorMessage(
+  error: { type: string; message?: string },
+  fallback = `Conversation operation failed: ${error.type}`
+): string {
+  return error.message ?? fallback;
 }
 
 function createNoopConnector(): FrontendPtyConnector {

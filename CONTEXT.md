@@ -81,6 +81,12 @@ _Avoid_: Scoped search (Scope is the ownership primitive), treating `@` as a six
 `src/core/services/hosts` owns machine lifecycle and workspace-server provisioning under the Host vocabulary (`HostService`, the `hosts` wire domain) — the merged home of the former `remote-machine` and `workspace-server` services. "Machine" remains a UI label only. Host (wire) remains the separately-scoped wire term.
 _Avoid_: Machine (outside UI labels), "remote" as a noun
 
+**Host availability**:
+The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
+only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
+owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
+_Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
+
 **Desktop Secret Authority**:
 The desktop-owned authority over user Secret references, storage backends, Host grants,
 rotation and revocation, and the aggregate audit history. Desktop-only consumers resolve

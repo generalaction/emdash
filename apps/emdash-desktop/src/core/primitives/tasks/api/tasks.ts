@@ -82,8 +82,19 @@ export type Task = {
 
 export type TaskRow = Omit<Task, 'prs' | 'workspaceGit'>;
 
+export type TaskActiveWorkspace = {
+  workspaceId: string;
+  path: string;
+  sshConnectionId?: string;
+};
+
+export type TaskListRow = TaskRow & {
+  /** Desktop-owned active-session metadata; does not require current Host attachment. */
+  activeWorkspace?: TaskActiveWorkspace;
+};
+
 export type TaskListData = {
-  tasks: TaskRow[];
+  tasks: TaskListRow[];
 };
 
 /** One workspace lifecycle step (host registry contract): machine facts only. */
@@ -128,11 +139,14 @@ export type WorkspaceObservedPrFacts = {
 };
 
 export type TaskStatsData = {
+  /** Latest Host observation represented in this snapshot; null means never observed. */
+  observedAt?: number | null;
   byWorkspaceId: Record<string, { linesAdded: number; linesDeleted: number }>;
   workspaceById?: Record<
     string,
     {
       path: string | null;
+      observedAt?: number | null;
       observedStatus: 'present' | 'missing' | null;
       /** In-flight createWorktree stage from the host runtime overlay. */
       creation: { stage: string; startedAt: number } | null;
@@ -167,6 +181,7 @@ export type CreateTaskParams = {
 
 export type CreateTaskError =
   | { type: 'project-not-found' }
+  | { type: 'project-unavailable'; reason: string; message: string }
   | { type: 'initial-commit-required'; branch: string }
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
@@ -204,6 +219,8 @@ export type ProvisionTaskResult = {
 export type ProvisionWorkspaceError =
   | { type: 'no-intent' }
   | { type: 'missing-workspace' }
+  | { type: 'project-missing'; projectId: string }
+  | { type: 'project-unavailable'; reason: string; message: string }
   | { type: 'cancelled'; message?: string }
   | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string }
   | RuntimeResolveError;

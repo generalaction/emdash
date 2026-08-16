@@ -23,7 +23,7 @@ import {
 import { observer } from 'mobx-react-lite';
 import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -132,14 +132,14 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const linesDeleted = gitCheckout.totalLinesDeleted;
   const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
-  const projectStore = asMounted(getProjectStore(projectId));
+  const projectContext = asAvailableProject(getProjectStore(projectId));
 
   const projectName = projectDisplayName(getProjectStore(projectId));
   const { navigate } = useNavigate();
 
   if (!taskStore || !taskPayload) return null;
 
-  const isRemoteProject = projectStore?.data.type === 'ssh';
+  const isRemoteProject = projectContext?.project.type === 'ssh';
   return (
     <Titlebar
       leftSlot={

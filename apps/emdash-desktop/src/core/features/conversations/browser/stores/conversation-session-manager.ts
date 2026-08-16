@@ -1,3 +1,4 @@
+import { reaction } from 'mobx';
 import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -18,6 +19,7 @@ import { ConversationHydrationReconciler } from './conversation-hydration-reconc
  */
 export class ConversationSessionManager {
   private readonly _reconciler: ConversationHydrationReconciler;
+  private readonly _disposeHostReaction: () => void;
   /** Ref counts per conversationId — session stays alive while count > 0. */
   private readonly _refCounts = new Map<string, number>();
 
@@ -27,6 +29,12 @@ export class ConversationSessionManager {
       getConversations: () => conversationRegistry.get(taskId),
       log,
     });
+    this._disposeHostReaction = reaction(
+      () => conversationRegistry.get(taskId)?.hostAccess?.state.kind,
+      (kind) => {
+        if (kind === 'ready') this.sync();
+      }
+    );
   }
 
   /**
@@ -35,7 +43,7 @@ export class ConversationSessionManager {
    */
   acquire(conversationId: string): ConversationStore | undefined {
     this._refCounts.set(conversationId, (this._refCounts.get(conversationId) ?? 0) + 1);
-    this._reconciler.sync(new Set(this._refCounts.keys()));
+    this.sync();
     return conversationRegistry.get(this.taskId)?.conversations.get(conversationId);
   }
 
@@ -51,12 +59,18 @@ export class ConversationSessionManager {
     } else {
       this._refCounts.set(conversationId, count - 1);
     }
-    this._reconciler.sync(new Set(this._refCounts.keys()));
+    this.sync();
   }
 
   dispose(): void {
+    this._disposeHostReaction();
     this._reconciler.dispose();
     this._refCounts.clear();
+  }
+
+  private sync(): void {
+    if (conversationRegistry.get(this.taskId)?.hostAccess?.liveAction.kind === 'disabled') return;
+    this._reconciler.sync(new Set(this._refCounts.keys()));
   }
 }
 

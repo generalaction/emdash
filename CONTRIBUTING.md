@@ -260,8 +260,8 @@ State and stores:
 
 - Access task managers through `getTaskManagerStore(projectId)`, not
   `project.taskManager`.
-- Access mounted projects through `asMounted(getProjectStore(id))`.
-- Never use `asProvisioned(...)!` or `asMounted(...)!`; use explicit null checks.
+- Access available Project contexts through `asAvailableProject(getProjectStore(id))`.
+- Never use `asProvisioned(...)!` or `asAvailableProject(...)!`; use explicit null checks.
 - State guards should check `kind !== 'ready'` rather than enumerate non-ready
   states.
 - Task selectors live in

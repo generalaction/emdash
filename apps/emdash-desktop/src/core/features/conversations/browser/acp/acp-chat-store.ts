@@ -17,7 +17,7 @@ import type {
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { getAgentsClient, hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import {
   registerConversationCommands,
@@ -26,6 +26,7 @@ import {
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -55,6 +56,7 @@ type PermissionQueueItem = {
 
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
+  | { kind: 'unavailable'; message: string }
   | { kind: 'generic'; message: string };
 
 export class AcpChatStore {
@@ -73,11 +75,13 @@ export class AcpChatStore {
   private _draftRev = 0;
   private _pendingDraftRev: number | null = null;
   private _draftTimer: number | null = null;
+  private readonly _disposeHostReaction: () => void;
 
   constructor(
     readonly conversationId: string,
     readonly projectId: string,
-    readonly taskId: string
+    readonly taskId: string,
+    readonly hostAccess?: ProjectHostAccess
   ) {
     this.chatContext = getSharedChatContext();
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
@@ -120,6 +124,21 @@ export class AcpChatStore {
       exportTranscript: action,
       retry: action,
     });
+    this._disposeHostReaction = reaction(
+      () => this.hostAccess?.state.kind,
+      (kind) => {
+        if (
+          kind === 'ready' &&
+          this._bootstrapped &&
+          !this.historyLoading &&
+          this.loadError?.kind === 'unavailable'
+        ) {
+          this.historyLoading = true;
+          this.loadError = null;
+          void this._runBootstrap();
+        }
+      }
+    );
   }
 
   get model(): string | null {
@@ -209,12 +228,13 @@ export class AcpChatStore {
 
   get affordances(): AgentAffordances {
     const state = this.session?.sessionState.current();
+    const liveActionsEnabled = this.hostAccess?.liveAction.kind !== 'disabled';
     return {
       isWorking: state?.isGenerating ?? false,
       isBusy: state?.isGenerating ?? false,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: state?.canSubmit ?? false,
-      canCancel: state?.canCancel ?? false,
+      canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
+      canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
   }
 
@@ -247,6 +267,7 @@ export class AcpChatStore {
     name?: string;
     originalPath?: string;
   }): Promise<AttachmentRef | null> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
       const result = await this.session?.uploadAttachment(input);
       if (!result) {
@@ -278,6 +299,7 @@ export class AcpChatStore {
     attachments: AcpPromptAttachment[] = [],
     hiddenContext?: string | Promise<string | undefined>
   ): void {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
@@ -388,6 +410,7 @@ export class AcpChatStore {
   }
 
   dispose(): void {
+    this._disposeHostReaction();
     unregisterConversationCommands(this.conversationId);
     if (this._draftTimer !== null) {
       window.clearTimeout(this._draftTimer);
@@ -399,6 +422,16 @@ export class AcpChatStore {
   }
 
   private async _runBootstrap(): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      runInAction(() => {
+        this.historyLoading = false;
+        this.loadError = {
+          kind: 'unavailable',
+          message: 'Live chat is unavailable until Project access returns.',
+        };
+      });
+      return;
+    }
     const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
       ?.data.providerId;
     try {
@@ -426,7 +459,13 @@ export class AcpChatStore {
       });
       runInAction(() => {
         this.historyLoading = false;
-        this.loadError = toLoadError(error);
+        this.loadError =
+          this.hostAccess?.liveAction.kind === 'disabled'
+            ? {
+                kind: 'unavailable',
+                message: 'Live chat is unavailable until Project access returns.',
+              }
+            : toLoadError(error);
       });
       if (this.loadError?.kind === 'auth_required' && providerId) {
         void this._refreshAuthStatus(providerId);
@@ -462,6 +501,7 @@ export class AcpChatStore {
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
   ): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const session = this.session;
     if (!session) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));

@@ -20,7 +20,7 @@ vi.mock('@core/features/conversations/browser/acp/acp-chat-panel', () => ({
 
 function projectManager(projects: { id: string; createdAt: string }[]): SidebarProjectManager {
   return {
-    projects: new Map(projects.map((p) => [p.id, { ...p, mountedProject: null }])),
+    projects: new Map(projects.map((p) => [p.id, { ...p, context: null }])),
   } as unknown as SidebarProjectManager;
 }
 
@@ -56,8 +56,12 @@ function projectManagerWithTasks(
           {
             id: project.id,
             createdAt: project.createdAt,
-            mountedProject: {
-              get: (token: unknown) => (token === taskManagerStoreToken ? taskManager : undefined),
+            context: {
+              kind: 'available',
+              context: {
+                get: (token: unknown) =>
+                  token === taskManagerStoreToken ? taskManager : undefined,
+              },
             },
           },
         ];
@@ -168,7 +172,8 @@ describe('SidebarStore project ordering', () => {
       },
     ]);
     const project = manager.projects.get('project-1')!;
-    const tasks = project.mountedProject!.get(taskManagerStoreToken).tasks;
+    const context = project.context?.kind === 'available' ? project.context.context : undefined;
+    const tasks = context!.get(taskManagerStoreToken).tasks;
     tasks.get('regular-task')!.data.isPinned = true;
     tasks.get('automation-task')!.data.isPinned = true;
     tasks.get('automation-task')!.data.type = 'automation-run';

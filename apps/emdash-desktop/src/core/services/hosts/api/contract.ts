@@ -1,5 +1,7 @@
+import { hostRefSchema } from '@emdash/core/primitives/host/api';
 import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { hostAvailabilityStateSchema } from './availability';
 
 export const hostServerStatusSchema = z.enum([
   'not-installed',
@@ -27,8 +29,20 @@ export const hostServerStateSchema = z.object({
 
 const hostServerRuntimeSchema = z.record(z.string(), hostServerStateSchema);
 const connectionInputSchema = z.object({ connectionId: z.string().min(1) });
+const remoteHostRefSchema = hostRefSchema.transform((host, context) => {
+  if (host.type === 'remote') return { type: 'remote' as const, id: host.id };
+  context.addIssue({ code: 'custom', message: 'A remote Host is required' });
+  return z.NEVER;
+});
 const refreshServerStateInputSchema = connectionInputSchema.extend({
   force: z.boolean().optional(),
+});
+const requestReadyInputSchema = z.object({
+  host: hostRefSchema,
+  cause: z.enum(['connect', 'retry']),
+});
+const wakeInputSchema = z.object({
+  cause: z.enum(['online', 'focus']),
 });
 
 export type HostServerStatus = z.infer<typeof hostServerStatusSchema>;
@@ -42,6 +56,15 @@ export function isServerUsable(state: HostServerState | undefined): boolean {
 export const hostsDomain = 'hosts' as const;
 
 export const hostsContract = defineContract({
+  availability: liveModel({
+    key: z.object({ host: hostRefSchema }),
+    states: {
+      state: liveState({ data: hostAvailabilityStateSchema }),
+    },
+  }),
+  disconnect: procedure({ input: z.object({ host: remoteHostRefSchema }), output: z.void() }),
+  requestReady: procedure({ input: requestReadyInputSchema, output: z.void() }),
+  wake: procedure({ input: wakeInputSchema, output: z.void() }),
   serverStates: liveModel({
     key: z.void(),
     states: {

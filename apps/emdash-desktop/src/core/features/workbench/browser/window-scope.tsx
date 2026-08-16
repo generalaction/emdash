@@ -3,11 +3,15 @@ import { useLayoutEffect, type ReactNode } from 'react';
 import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture-trace';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { toggleAppTheme } from '@core/features/settings/api/browser/theme-toggle';
-import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import {
+  getRegisteredTaskData,
+  taskHostActionAvailability,
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { applyHistoryEntry } from '@core/features/workbench/browser/nav-buttons';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import {
@@ -45,10 +49,20 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       },
     }),
     'app.newTask': () => ({
-      availability: () => (currentProjectId ? enabled : hidden),
+      availability: () => {
+        if (!currentProjectId) return hidden;
+        return taskHostActionAvailability(currentProjectId).kind === 'enabled'
+          ? enabled
+          : disabled(
+              projectAvailabilityUi.getLiveActionDisabledReason(currentProjectId) ??
+                projectAvailabilityUi.defaultLiveActionDisabledReason
+            );
+      },
       execute: (input) => {
         const projectId = input?.projectId ?? currentProjectId;
-        if (projectId) void openModal('taskModal', { projectId });
+        if (projectId && taskHostActionAvailability(projectId).kind === 'enabled') {
+          void openModal('taskModal', { projectId });
+        }
       },
     }),
     'app.giveFeedback': () => ({

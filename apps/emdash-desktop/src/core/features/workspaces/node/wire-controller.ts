@@ -1,20 +1,17 @@
 import type { Result } from '@emdash/shared';
 import { type Contract, type ContractImpl } from '@emdash/wire/rpc';
 import { and, eq, isNull } from 'drizzle-orm';
+import { PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE } from '@core/features/projects/api/attachments';
 import type {
   workspacesWireContract,
   WorkspaceError,
   WorkspaceProvisionResult,
   WorkspaceSliceError,
 } from '@core/features/workspaces/api';
-import {
-  archiveWorkspaceThroughRegistry,
-  deleteWorkspaceThroughRegistry,
-  type WorkspaceRemovalBroker,
-} from '@core/features/workspaces/api/node/operations/workspace-removal';
 import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import type { WorkspaceMutationOperations } from './workspace-mutation-service';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
@@ -26,7 +23,7 @@ export type WorkspacesWireTaskProvisioner = (
 
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
-  runtimes: WorkspaceRemovalBroker;
+  mutations: WorkspaceMutationOperations;
   provisionTask: WorkspacesWireTaskProvisioner;
   reprovisionWorkspace(
     workspaceId: string,
@@ -51,9 +48,8 @@ export function createWorkspacesWireController(
       reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
-      delete: (input) =>
-        deleteWorkspaceThroughRegistry(options.db, options.runtimes, input.workspaceId),
-      archive: (input) => archiveWorkspaceThroughRegistry(options.db, options.runtimes, input),
+      delete: (input) => options.mutations.delete(input),
+      archive: (input) => options.mutations.archive(input),
     },
     async dispose() {},
   };
@@ -115,6 +111,18 @@ export function provisionWorkspaceErrorToWorkspaceError(error: unknown): Workspa
   if (type === 'no-intent') return workspaceError('no-intent', 'Workspace has no setup intent');
   if (type === 'missing-workspace') {
     return workspaceError('missing-workspace', 'Workspace row is missing');
+  }
+  if (type === 'project-missing') {
+    return workspaceError('project-missing', 'Project was not found');
+  }
+  if (type === 'project-unavailable') {
+    const unavailable = error as { message?: unknown };
+    return workspaceError(
+      'project-unavailable',
+      typeof unavailable.message === 'string'
+        ? unavailable.message
+        : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
+    );
   }
   if (type === 'cancelled') {
     const cancelled = error as { message?: unknown };

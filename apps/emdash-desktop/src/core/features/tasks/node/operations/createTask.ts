@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { CreateConversationInput } from '@emdash/core/runtimes/conversations/api';
 import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-registry/api';
 import { err, ok, type Result } from '@emdash/shared';
@@ -17,7 +17,11 @@ import {
 } from '@core/features/conversations/api/node/registry';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import {
+  PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -36,7 +40,6 @@ import {
 } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
-import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -74,15 +77,16 @@ export interface PreparedCreateTask {
  */
 export async function prepareCreateTask(
   db: AppDb,
-  projectSessions: Pick<ProjectSessionManager, 'getProject'>,
-  hostIsReachable: HostReachabilityProbe,
+  projectSessions: Pick<ProjectAttachmentManager, 'requireAttached'>,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   params: CreateTaskParams
 ): Promise<Result<PreparedCreateTask, CreateTaskError>> {
-  const project = projectSessions.getProject(params.projectId);
-  if (!project) {
+  const attached = projectSessions.requireAttached(params.projectId);
+  if (!attached.success && attached.error.type === 'project-missing') {
     return err({ type: 'project-not-found' });
   }
+  if (!attached.success) return err(projectUnavailable(attached.error));
+  const project = attached.data;
 
   const { workspaceConfig } = params;
   const initialStatus: TaskLifecycleStatus = params.taskConfig.initialStatus ?? 'in_progress';
@@ -136,16 +140,6 @@ export async function prepareCreateTask(
   );
   if (tombstoneConflict) {
     return err(tombstoneConflict);
-  }
-
-  // Creation is UX-gated on host availability (spec §6.3, one rule for every target
-  // kind): verbs are plain fail-fast RPCs (ADR 0005), so starting new work against an
-  // offline host is refused outright. Deletions never hit this gate.
-  if (project.host.type === 'remote' && !hostIsReachable(formatHostRef(project.host))) {
-    return err({
-      type: 'provision-failed',
-      message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
-    });
   }
 
   let conversationWorkspacePath: string | null = null;
@@ -400,14 +394,13 @@ export function finalizeCreateTask(
 
 export async function createTask(
   db: AppDb,
-  projects: Pick<ProjectSessionManager, 'getProject'>,
-  hostIsReachable: HostReachabilityProbe,
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   runtimes: ConversationsRuntimeBroker,
   creations: WorkspaceCreations,
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const prepared = await prepareCreateTask(db, projects, hostIsReachable, placement, params);
+  const prepared = await prepareCreateTask(db, projects, placement, params);
   if (!prepared.success) return prepared;
 
   // Host-first ordering (spec §6.2): the index is authoritative for conversation
@@ -453,6 +446,16 @@ export async function createTask(
   }
 
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));
+}
+
+function projectUnavailable(
+  error: ProjectAttachmentError
+): Extract<CreateTaskError, { type: 'project-unavailable' }> {
+  return {
+    type: 'project-unavailable',
+    reason: error.type,
+    message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  };
 }
 
 /**

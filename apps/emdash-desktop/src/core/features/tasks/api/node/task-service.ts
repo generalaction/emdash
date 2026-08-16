@@ -5,8 +5,15 @@ import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
-import type { ProvisionResult as SessionProvisionResult } from '@core/features/projects/api/node/project-provider';
+import {
+  PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+  type ProjectAttachmentError,
+} from '@core/features/projects/api';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import type {
+  ProjectProvider,
+  ProvisionResult as SessionProvisionResult,
+} from '@core/features/projects/api/node/project-provider';
 import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provider-assembly';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
@@ -15,7 +22,6 @@ import {
   deactivateWorkspaceParticipants,
   type WorkspaceLifecycleParticipant,
 } from '@core/features/workspaces/api/node/lifecycle-participants';
-import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import {
@@ -30,7 +36,6 @@ import type { WorkspaceIdentityService } from '@core/features/workspaces/api/nod
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -88,7 +93,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   constructor(
     private readonly dependencies: {
       db: AppDb;
-      projects: Pick<ProjectSessionManager, 'getProject'>;
+      projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
       sessions: TaskSessionManager;
       workspacePlacement: WorkspacePlacementResolver;
       runtimes: RuntimeBroker;
@@ -97,7 +102,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       workspaceIdentity: WorkspaceIdentityService;
       creations: WorkspaceCreations;
       deletion: TaskDeletionDependencies;
-      hostIsReachable: HostReachabilityProbe;
     }
   ) {}
 
@@ -109,7 +113,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const result = await createTask(
       this.dependencies.db,
       this.dependencies.projects,
-      this.dependencies.hostIsReachable,
       this.dependencies.workspacePlacement,
       this.dependencies.runtimes,
       this.dependencies.creations,
@@ -159,8 +162,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
+    const attached = this.dependencies.projects.requireAttached(row.projectId);
+    if (!attached.success) return err(provisionProjectError(attached.error));
+
     const startedAt = Date.now();
-    const result = await this._activateWorkspace(row, signal);
+    const result = await this._activateWorkspace(row, attached.data, signal);
     if (!result.success) return err(result.error);
 
     await this._registerAndPersist(taskId, result.data);
@@ -181,6 +187,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   private async _activateWorkspace(
     taskRow: typeof tasks.$inferSelect,
+    project: ProjectProvider,
     signal?: AbortSignal
   ): Promise<Result<ActivatedTask, ProvisionWorkspaceError>> {
     if (!taskRow.workspaceId) return err({ type: 'missing-workspace' });
@@ -210,7 +217,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         });
       }
     } else if (needsReplay) {
-      const replayed = await this.replayWorktreeCreation(workspaceRow);
+      const replayed = await this.replayWorktreeCreation(workspaceRow, project);
       if (signal?.aborted) {
         return err({ type: 'cancelled', message: 'Workspace activation was cancelled' });
       }
@@ -251,8 +258,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     }
 
     const task = mapTaskRowToTask(taskRow);
-    const project = this.dependencies.projects.getProject(task.projectId);
-    if (!project) return err({ type: 'missing-workspace' });
     await activateWorkspaceParticipants(
       this.dependencies.lifecycleParticipants,
       access.data.identity
@@ -348,20 +353,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    * identical spec recompiled from stored provenance (idempotent per ADR 0005).
    */
   private async replayWorktreeCreation(
-    workspaceRow: WorkspaceRow
+    workspaceRow: WorkspaceRow,
+    project: ProjectProvider
   ): Promise<WorkspaceCreationOutcome> {
     const config = workspaceRow.config;
     if (!config || !workspaceRow.path || workspaceRow.kind !== 'worktree') {
       return err({ stage: 'replay', message: 'Workspace provenance is incomplete.' });
-    }
-    const [task] = await this.dependencies.db
-      .select({ projectId: tasks.projectId })
-      .from(tasks)
-      .where(and(eq(tasks.workspaceId, workspaceRow.id), isNull(tasks.deletedAt)))
-      .limit(1);
-    const project = task ? this.dependencies.projects.getProject(task.projectId) : undefined;
-    if (!project) {
-      return err({ stage: 'replay', message: 'Workspace project was not found.' });
     }
     if (config.git.kind === 'none') {
       return err({
@@ -428,13 +425,30 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         message: 'Workspace provenance is incomplete.',
       });
     }
+    const [task] = await this.dependencies.db
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(and(eq(tasks.workspaceId, workspaceRow.id), isNull(tasks.deletedAt)))
+      .limit(1);
+    if (!task) {
+      return err({
+        type: 'project-missing',
+        message: 'The Project for this workspace was not found.',
+      });
+    }
+    const attached = this.dependencies.projects.requireAttached(task.projectId);
+    if (!attached.success) {
+      const unavailable = provisionProjectError(attached.error);
+      return err({
+        type: unavailable.type,
+        message:
+          unavailable.type === 'project-missing'
+            ? 'The Project for this workspace was not found.'
+            : unavailable.message,
+      });
+    }
     if (options.removeFirst) {
-      const host = operationHostRef({ workspace: workspaceRow });
-      const client = await this.dependencies.runtimes.client(host);
-      if (!client.success) {
-        return err({ type: 'host-unreachable', message: client.error.message });
-      }
-      const removed = await client.data.workspaceRegistry.deleteWorktree({
+      const removed = await attached.data.workspaceRegistry.deleteWorktree({
         workspaceId,
         deleteBranch: false,
       });
@@ -442,7 +456,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         return err({ type: 'delete-failed', message: `Removal failed (${removed.error.type}).` });
       }
     }
-    const replayed = await this.replayWorktreeCreation(workspaceRow);
+    const replayed = await this.replayWorktreeCreation(workspaceRow, attached.data);
     if (!replayed.success) {
       return err({ type: replayed.error.stage, message: replayed.error.message });
     }
@@ -459,9 +473,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     if (!row) throw new Error(`Task not found: ${taskId}`);
 
     const task = mapTaskRowToTask(row);
-    const project = this.dependencies.projects.getProject(task.projectId);
-    if (!project) throw new Error(`Project not found: ${task.projectId}`);
-
     await this.dependencies.sessions.registerTask(taskId, data, task.projectId);
 
     await this.dependencies.db
@@ -472,14 +483,38 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   async teardown(
+    projectId: string,
     taskId: string,
     mode: Parameters<TaskSessionManager['teardownTask']>[1] = 'terminate'
-  ): Promise<Result<void, TeardownTaskError>> {
+  ): Promise<
+    Result<
+      void,
+      TeardownTaskError | { type: 'project-missing' | 'project-unavailable'; message: string }
+    >
+  > {
+    const [task] = await this.dependencies.db
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+      .limit(1);
+    if (!task || task.projectId !== projectId) {
+      return err({ type: 'project-missing', message: 'Project was not found.' });
+    }
+    const attached = this.dependencies.projects.requireAttached(task.projectId);
+    if (!attached.success) {
+      return err({
+        type: attached.error.type === 'project-missing' ? 'project-missing' : 'project-unavailable',
+        message:
+          attached.error.type === 'project-missing'
+            ? 'Project was not found.'
+            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+      });
+    }
     return this.dependencies.sessions.teardownTask(taskId, mode);
   }
 
   async getDeletePreflight(taskIds: string[]) {
-    return getDeletePreflight(this.dependencies.db, this.dependencies.hostIsReachable, taskIds);
+    return getDeletePreflight(this.dependencies.db, this.dependencies.projects, taskIds);
   }
 
   /**
@@ -535,6 +570,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskId: string,
     telemetry: Pick<TelemetryService, 'capture'>
   ): Promise<void> {
+    const [task] = await this.dependencies.db
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+      .limit(1);
+    if (task && task.projectId !== projectId) throw new Error('Project was not found.');
     await archiveTask(
       this.dependencies.db,
       this.dependencies.sessions,
@@ -594,4 +635,16 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   setTaskPinned = (taskId: string, isPinned: boolean) =>
     setTaskPinned(this.dependencies.db, taskId, isPinned);
   getTasks = (projectId?: string) => getTasks(this.dependencies.db, projectId);
+}
+
+function provisionProjectError(
+  error: ProjectAttachmentError
+): Extract<ProvisionWorkspaceError, { type: 'project-missing' | 'project-unavailable' }> {
+  return error.type === 'project-missing'
+    ? error
+    : {
+        type: 'project-unavailable',
+        reason: error.type,
+        message: PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
+      };
 }

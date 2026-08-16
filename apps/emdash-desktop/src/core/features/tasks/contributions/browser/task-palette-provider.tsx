@@ -1,13 +1,11 @@
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import type { ProjectStore } from '@core/features/projects/api/browser/stores/project';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient } from '@core/features/search/api/client';
-import {
-  getTaskManagerStore,
-  getTaskStore,
-} from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import {
   createTaskPaletteProviderDef,
   type TaskPaletteMatch,
@@ -19,15 +17,18 @@ import {
 } from '@core/features/tasks/browser/palette/task-palette-source';
 import type { PaletteProviderDef } from '@core/primitives/palette/api';
 import { isRegistered, registeredTaskData } from '@core/primitives/task-state/browser/task-state';
+import { taskManagerStoreToken } from './project-store-tokens';
 
-function listNotificationTasks(): TaskPaletteNotificationTask[] {
+export function listNotificationTasks(
+  projectStores: Iterable<ProjectStore> = getProjectManagerStore().projects.values()
+): TaskPaletteNotificationTask[] {
   const tasks: TaskPaletteNotificationTask[] = [];
 
-  for (const projectStore of getProjectManagerStore().projects.values()) {
-    const project = asMounted(projectStore);
-    if (!project) continue;
-    const taskManager = getTaskManagerStore(project.data.id);
-    if (!taskManager) continue;
+  for (const projectStore of projectStores) {
+    const projectContext = asAvailableProject(projectStore);
+    if (!projectContext) continue;
+    const projectId = projectContext.project.id;
+    const taskManager = projectContext.get(taskManagerStoreToken);
 
     for (const [taskId, taskStore] of taskManager.tasks) {
       if (!isRegistered(taskStore)) continue;
@@ -35,7 +36,7 @@ function listNotificationTasks(): TaskPaletteNotificationTask[] {
       if (!conversations) continue;
 
       tasks.push({
-        projectId: project.data.id,
+        projectId,
         taskId,
         title: taskStore.data.name,
         status: conversations.taskStatus,

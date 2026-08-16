@@ -1,16 +1,17 @@
-import { err } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type {
   IssueContextOpts,
   IssueProvider,
   IssueQueryOpts,
   IssueSearchOpts,
 } from '@core/features/issues/api/node/issue-provider';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
   IssueContextResult,
   IssueListResult,
+  IssueProjectUnavailableError,
   IssueProviderType,
 } from '@core/primitives/issue-providers/api';
 import type { IssueProviderRegistry } from './registry';
@@ -24,7 +25,7 @@ const DEFAULT_CAPABILITIES = {
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;
 
 export type IssueOperationsDependencies = {
-  projects: Pick<ProjectSessionManager, 'getProject'>;
+  projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   providers: IssueProviderRegistry;
 };
 
@@ -80,28 +81,39 @@ async function checkProviderConnection(provider: IssueProvider): Promise<Connect
 async function withResolvedRemote<T extends IssueQueryOpts>(
   dependencies: IssueOperationsDependencies,
   opts: T
-): Promise<T> {
-  if (!opts.projectId) return opts;
-  const project = dependencies.projects.getProject(opts.projectId);
-  if (!project) return opts;
+): Promise<Result<T, IssueProjectUnavailableError>> {
+  if (!opts.projectId) return ok(opts);
+  const providedRepositoryUrl = opts.repositoryUrl?.trim();
+  if (providedRepositoryUrl) {
+    return ok({ ...opts, repositoryUrl: providedRepositoryUrl });
+  }
+  const attached = dependencies.projects.requireAttached(opts.projectId);
+  if (!attached.success) {
+    return err({
+      type: 'project_unavailable',
+      projectId: opts.projectId,
+      reason: attached.error.type,
+      message:
+        'message' in attached.error
+          ? attached.error.message
+          : 'Project runtime is unavailable for issue lookup.',
+    });
+  }
+  const project = attached.data;
 
   const remote = await project.gitRepository.getBaseRemote().catch(() => undefined);
   const selectedRemote = opts.remote?.trim() || remote;
-  const providedRepositoryUrl = opts.repositoryUrl?.trim();
+  const repositoryUrl = selectedRemote
+    ? (
+        await project.git.repository.model
+          .state(project.repository, 'remotes')
+          .snapshot()
+          .then((snapshot) => snapshot.data.remotes)
+          .catch(() => [])
+      ).find((candidate) => candidate.name === selectedRemote)?.url
+    : undefined;
 
-  const remoteRepositoryUrl =
-    !providedRepositoryUrl && selectedRemote
-      ? (
-          await project.git.repository.model
-            .state(project.repository, 'remotes')
-            .snapshot()
-            .then((snapshot) => snapshot.data.remotes)
-            .catch(() => [])
-        ).find((candidate) => candidate.name === selectedRemote)?.url
-      : undefined;
-  const repositoryUrl = providedRepositoryUrl ?? remoteRepositoryUrl;
-
-  return { ...opts, remote: selectedRemote, repositoryUrl };
+  return ok({ ...opts, remote: selectedRemote, repositoryUrl });
 }
 
 export async function checkConnection(
@@ -156,7 +168,8 @@ export async function listIssues(
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  return issueProvider.listIssues(await withResolvedRemote(dependencies, opts));
+  const resolved = await withResolvedRemote(dependencies, opts);
+  return resolved.success ? issueProvider.listIssues(resolved.data) : resolved;
 }
 
 export async function searchIssues(
@@ -169,7 +182,8 @@ export async function searchIssues(
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  return issueProvider.searchIssues(await withResolvedRemote(dependencies, opts));
+  const resolved = await withResolvedRemote(dependencies, opts);
+  return resolved.success ? issueProvider.searchIssues(resolved.data) : resolved;
 }
 
 export async function getIssueContext(
@@ -186,5 +200,6 @@ export async function getIssueContext(
     return err({ type: 'generic', message: `${provider} does not support issue context.` });
   }
 
-  return issueProvider.getIssueContext(await withResolvedRemote(dependencies, opts));
+  const resolved = await withResolvedRemote(dependencies, opts);
+  return resolved.success ? issueProvider.getIssueContext(resolved.data) : resolved;
 }

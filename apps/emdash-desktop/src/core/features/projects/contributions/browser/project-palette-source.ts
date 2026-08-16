@@ -1,6 +1,6 @@
 import type { ProjectStore } from '@core/features/projects/api/browser/stores/project';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getSearchClient, type SearchClient } from '@core/features/search/api/client';
@@ -34,14 +34,14 @@ export function getIdleProjectPaletteEntities(
   const matches: SearchItem[] = [];
   const stores = projectStores ?? getProjectManagerStore().projects.values();
   for (const projectStore of stores) {
-    const mounted = asMounted(projectStore);
-    if (!mounted || mounted.data.id === context.projectId) continue;
+    const projectContext = asAvailableProject(projectStore);
+    if (!projectContext || projectContext.project.id === context.projectId) continue;
     matches.push({
       kind: 'project',
-      id: mounted.data.id,
+      id: projectContext.project.id,
       projectId: null,
       taskId: null,
-      title: projectStore.name ?? mounted.data.id,
+      title: projectStore.name ?? projectContext.project.id,
       subtitle: '',
       score: 0,
     });

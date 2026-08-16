@@ -9,6 +9,11 @@ vi.mock('@core/services/app-db/node/schema', () => ({
 }));
 
 describe('createWorkspacesWireController', () => {
+  const mutations = {
+    archive: vi.fn(),
+    delete: vi.fn(),
+  };
+
   it('activates a task through the provision job', async () => {
     const provisionTask = vi.fn(async () =>
       ok({
@@ -18,7 +23,7 @@ describe('createWorkspacesWireController', () => {
     );
     const controller = createWorkspacesWireController({
       db: {} as never,
-      runtimes: {} as never,
+      mutations,
       provisionTask,
       reprovisionWorkspace: vi.fn(),
     });
@@ -50,7 +55,7 @@ describe('createWorkspacesWireController', () => {
     const reprovisionWorkspace = vi.fn(async () => ok({}));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      runtimes: {} as never,
+      mutations,
       provisionTask: vi.fn(),
       reprovisionWorkspace: reprovisionWorkspace as never,
     });
@@ -61,6 +66,44 @@ describe('createWorkspacesWireController', () => {
     await controller.impl.removeAndReprovision?.({ workspaceId: 'workspace-1' }, {} as never);
     expect(reprovisionWorkspace).toHaveBeenCalledWith('workspace-1', { removeFirst: true });
 
+    await controller.dispose();
+  });
+
+  it('delegates Host-backed mutations to the mutation service', async () => {
+    const archive = vi.fn(async () => ({
+      success: false as const,
+      error: {
+        type: 'project-unavailable',
+        message: 'This action requires live Project access.',
+      },
+    }));
+    const controller = createWorkspacesWireController({
+      db: {} as never,
+      mutations: { archive, delete: vi.fn() },
+      provisionTask: vi.fn(),
+      reprovisionWorkspace: vi.fn(),
+    });
+
+    const result = await controller.impl.archive?.(
+      {
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        workspacePath: '/repo/worktree',
+      },
+      {} as never
+    );
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'project-unavailable',
+        message: 'This action requires live Project access.',
+      },
+    });
+    expect(archive).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/worktree',
+    });
     await controller.dispose();
   });
 });

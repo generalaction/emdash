@@ -87,8 +87,8 @@ function warnAboutBrokenSettings(effective: EffectiveSettings, projectId?: strin
 
 /**
  * Stored git settings parsed straight from a project-settings DB row, for
- * flows that resolve before the project is mounted (e.g. automation deploys
- * at boot). Applies the lazy stored-model migration in memory only — no
+ * desktop flows that resolve without live Project Host access (for example,
+ * automation deployment at boot). Applies the lazy stored-model migration in memory only — no
  * write-back; the settings provider persists it on its next read.
  */
 export function storedGitSettingsFromRow(
@@ -100,10 +100,10 @@ export function storedGitSettingsFromRow(
 }
 
 /**
- * Stored git settings for a possibly-unmounted project, straight from the
- * project-settings row via `storedGitSettingsFromRow`. Worktree placement
- * uses this before projects mount (e.g. automation deploys at boot); mounted
- * projects should read the settings provider instead. An unreadable row
+ * Stored git settings for a registered Project, straight from the
+ * project-settings row via `storedGitSettingsFromRow`. Desktop-only placement
+ * may read this without a Host attachment; Host-backed features should use the
+ * settings provider. An unreadable row
  * degrades to "nothing stored" — never a blocked flow.
  */
 export async function loadStoredGitSettings(

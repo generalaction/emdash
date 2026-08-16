@@ -3,25 +3,24 @@ import type { Project } from '@core/primitives/projects/api';
 import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { ProjectSettingsMigrationReader } from './migration-reader';
 
-export type ProjectSettingsMountMigrationOptions = {
+export type ProjectSettingsAttachmentMigrationOptions = {
   migrateAppWorktreeRoot?: () => Promise<void>;
 };
 
-export async function migrateProjectSettingsOnMount(
-  project: Pick<Project, 'id' | 'repositoryWorkspaceId'>,
+export async function migrateProjectSettingsOnAttachment(
+  project: Pick<Project, 'repositoryWorkspaceId'>,
   settings: ProjectSettingsMigrationReader,
   workspaceRegistry: Pick<
     WorkspaceRegistryRuntimeClient,
     'getProjectConfig' | 'importLegacyLifecycleSettings'
   >,
-  options: ProjectSettingsMountMigrationOptions = {}
+  options: ProjectSettingsAttachmentMigrationOptions = {}
 ): Promise<void> {
   if (options.migrateAppWorktreeRoot) {
     try {
       await options.migrateAppWorktreeRoot();
     } catch (error) {
-      log.warn('App worktree-root migration failed; retrying when a project mounts', {
-        projectId: project.id,
+      log.warn('App worktree-root migration failed; retrying on next Project attachment', {
         error,
       });
     }
@@ -53,26 +52,21 @@ export async function migrateProjectSettingsOnMount(
     });
     if (!migrated.success) {
       log.warn(
-        'Host rejected the lifecycle settings migration; retrying when the project reopens',
-        {
-          projectId: project.id,
-          error: migrated.error,
-        }
+        'Host rejected the lifecycle settings migration; retrying on next Project attachment',
+        { error: migrated.error }
       );
       return;
     }
     if (!migrated.data.legacyDesktopSettingsMigrated) {
       log.warn(
-        'Host did not confirm the lifecycle settings migration; retrying when the project reopens',
-        { projectId: project.id }
+        'Host did not confirm the lifecycle settings migration; retrying on next Project attachment'
       );
       return;
     }
     await settings.finalizeLegacyLifecycleSettings();
   } catch (error) {
-    // Project mounting remains available; the absent completion marker retries next open.
-    log.warn('Lifecycle settings migration failed; retrying when the project reopens', {
-      projectId: project.id,
+    // Attachment remains available; the absent completion marker retries on the next allocation.
+    log.warn('Lifecycle settings migration failed; retrying on next Project attachment', {
       error,
     });
   }

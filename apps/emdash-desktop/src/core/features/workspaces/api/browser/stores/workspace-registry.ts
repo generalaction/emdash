@@ -12,8 +12,14 @@ export class WorkspaceRegistryStore {
   acquire(context: WorkspaceScopedStoreContext): WorkspaceStore {
     const existing = this.entries.get(context.workspaceId);
     if (existing) {
-      existing.refCount += 1;
-      return existing.store;
+      if (
+        existing.store.path === context.path &&
+        existing.store.sshConnectionId === context.sshConnectionId
+      ) {
+        existing.refCount += 1;
+        return existing.store;
+      }
+      existing.store.dispose();
     }
 
     const store = new WorkspaceStore(context);
@@ -34,9 +40,9 @@ export class WorkspaceRegistryStore {
     entry.store.activate();
   }
 
-  release(workspaceId: string): void {
+  release(workspaceId: string, expectedStore?: WorkspaceStore): void {
     const entry = this.entries.get(workspaceId);
-    if (!entry) {
+    if (!entry || (expectedStore && entry.store !== expectedStore)) {
       return;
     }
 

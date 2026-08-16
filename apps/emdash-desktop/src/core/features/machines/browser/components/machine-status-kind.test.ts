@@ -2,96 +2,58 @@ import { describe, expect, it } from 'vitest';
 import { deriveMachineStatusKind } from './machine-status-kind';
 
 describe('deriveMachineStatusKind', () => {
-  it('is idle while SSH is disconnected', () => {
+  it.each([
+    { kind: 'suspended', reason: 'user-disconnected' },
+    { kind: 'unavailable', recovery: 'eligible' },
+  ] as const)('is idle while runtime readiness is $kind', (availability) => {
     expect(
       deriveMachineStatusKind({
-        connectionState: 'disconnected',
-        workspaceServerStatus: undefined,
-        workspaceServerLoading: false,
+        availability,
       })
     ).toBe('idle');
   });
 
-  it.each(['connecting', 'reconnecting'] as const)(
-    'is initializing while SSH is %s',
-    (connectionState) => {
+  it.each(['connecting', 'provisioning', 'handshaking'] as const)(
+    'is initializing while Host readiness is %s',
+    (phase) => {
       expect(
         deriveMachineStatusKind({
-          connectionState,
-          workspaceServerStatus: undefined,
-          workspaceServerLoading: false,
+          availability: { kind: 'preparing', phase, attempt: 1 },
         })
       ).toBe('initializing');
     }
   );
 
-  it('is successful when SSH and the workspace server are connected', () => {
+  it('is successful only when the runtime is ready', () => {
     expect(
       deriveMachineStatusKind({
-        connectionState: 'connected',
-        workspaceServerStatus: 'healthy',
-        workspaceServerLoading: false,
+        availability: { kind: 'ready', generation: 3 },
       })
     ).toBe('successful');
   });
 
-  it('is an error when the workspace server is running with an error', () => {
+  it('is an error when runtime readiness reports a semantic issue', () => {
     expect(
       deriveMachineStatusKind({
-        connectionState: 'connected',
-        workspaceServerStatus: 'healthy',
-        workspaceServerError: true,
-        workspaceServerLoading: false,
+        availability: {
+          kind: 'unavailable',
+          recovery: 'manual',
+          issue: {
+            type: 'host-unavailable',
+            host: { type: 'remote', id: 'ssh-1' },
+            reason: 'install-failed',
+            message: 'Host runtime installation failed',
+          },
+        },
       })
     ).toBe('error');
   });
 
-  it.each(['booting', 'shutting-down'] as const)(
-    'is initializing while the workspace server is %s',
-    (workspaceServerStatus) => {
-      expect(
-        deriveMachineStatusKind({
-          connectionState: 'connected',
-          workspaceServerStatus,
-          workspaceServerLoading: false,
-        })
-      ).toBe('initializing');
-    }
-  );
-
-  it('is initializing while the workspace server state is loading', () => {
+  it('is idle until Hosts publishes runtime availability', () => {
     expect(
       deriveMachineStatusKind({
-        connectionState: 'connected',
-        workspaceServerStatus: undefined,
-        workspaceServerLoading: true,
+        availability: undefined,
       })
-    ).toBe('initializing');
-  });
-
-  it.each(['error', 'failed', 'not-installed', 'stopped'] as const)(
-    'is an error when a required connection is unavailable (%s)',
-    (status) => {
-      const connectionState = status === 'error' ? status : 'connected';
-      const workspaceServerStatus = status === 'error' ? undefined : status;
-
-      expect(
-        deriveMachineStatusKind({
-          connectionState,
-          workspaceServerStatus,
-          workspaceServerLoading: false,
-        })
-      ).toBe('error');
-    }
-  );
-
-  it('is an error when a connected machine has no workspace server state', () => {
-    expect(
-      deriveMachineStatusKind({
-        connectionState: 'connected',
-        workspaceServerStatus: undefined,
-        workspaceServerLoading: false,
-      })
-    ).toBe('error');
+    ).toBe('idle');
   });
 });

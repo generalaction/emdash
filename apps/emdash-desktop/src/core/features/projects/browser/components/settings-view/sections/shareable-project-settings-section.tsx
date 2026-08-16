@@ -35,6 +35,7 @@ type ShareableSettingsSectionProps = {
   openImportConfigModal: () => void;
   lifecycle: ProjectLifecycleDomainSnapshot;
   fileHandling: ProjectFileHandlingDomainSnapshot;
+  hostActionReason: string | null;
 };
 
 function titleCase(value: string): string {
@@ -135,6 +136,7 @@ export function ShareableSettingsSection({
   openImportConfigModal,
   lifecycle,
   fileHandling,
+  hostActionReason,
 }: ShareableSettingsSectionProps) {
   const topLevelFields = SHAREABLE_FIELD_DESCRIPTORS.filter((descriptor) => !descriptor.group);
   const lifecycleFields = SHAREABLE_FIELD_DESCRIPTORS.filter(
@@ -165,8 +167,13 @@ export function ShareableSettingsSection({
   };
 
   return (
-    <>
+    <fieldset disabled={hostActionReason !== null} className="contents">
       <Separator />
+      {hostActionReason ? (
+        <p role="status" className="text-xs text-foreground-muted">
+          Repository-backed settings are {hostActionReason.toLocaleLowerCase()}
+        </p>
+      ) : null}
 
       {topLevelFields.map((descriptor, index) => (
         <Fragment key={descriptor.id}>
@@ -249,6 +256,6 @@ export function ShareableSettingsSection({
           onImport={openImportConfigModal}
         />
       </div>
-    </>
+    </fieldset>
   );
 }

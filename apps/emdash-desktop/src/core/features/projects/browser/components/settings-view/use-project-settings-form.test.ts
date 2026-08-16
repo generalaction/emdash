@@ -81,11 +81,29 @@ describe('useProjectSettingsForm', () => {
   });
 
   it('does not roll back a concurrent lifecycle update when saving a touched git field', async () => {
+    const saved = domains('setup C');
     const save = vi.fn(async () =>
       ok({
-        domains: domains('setup C'),
-        configMigrations: [],
-        shouldPromptConfigMigration: false,
+        durable: {
+          gitIdentity: saved.gitIdentity,
+          placement: { stored: saved.placement.stored },
+        },
+        host: {
+          kind: 'observed' as const,
+          observedAt: 1,
+          value: {
+            domains: {
+              lifecycle: saved.lifecycle,
+              fileHandling: saved.fileHandling,
+              placement: {
+                layers: saved.placement.layers,
+                resolved: saved.placement.resolved,
+              },
+            },
+            configMigrations: [],
+            shouldPromptConfigMigration: false,
+          },
+        },
       })
     );
     let current: ReturnType<typeof useProjectSettingsForm> | undefined;

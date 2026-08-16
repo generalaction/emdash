@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import {
+  asAvailableProject,
   getProjectStore,
-  mountedProjectData,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { WorkspaceDetailPage } from '@core/features/workspaces/contributions/browser/workspace-detail-page';
 
@@ -17,8 +17,9 @@ export const ProjectWorkspacesView = observer(function ProjectWorkspacesView({
 }: {
   projectId: string;
 }) {
-  const project = mountedProjectData(getProjectStore(projectId));
-  if (!project) return null;
+  const context = asAvailableProject(getProjectStore(projectId));
+  if (!context) return null;
+  const project = context.project;
 
   if (project.type === 'ssh') {
     const machinesStore = getMachinesStore();
@@ -28,12 +29,14 @@ export const ProjectWorkspacesView = observer(function ProjectWorkspacesView({
     return (
       <WorkspaceDetailPage
         scope={{ kind: 'machine', machineId: project.connectionId }}
-        connected={machine ? machinesStore.stateFor(machine.id) === 'connected' : false}
+        host={context.host}
         machineName={machine?.name}
         projectId={projectId}
       />
     );
   }
 
-  return <WorkspaceDetailPage scope={{ kind: 'local' }} connected projectId={projectId} />;
+  return (
+    <WorkspaceDetailPage scope={{ kind: 'local' }} host={context.host} projectId={projectId} />
+  );
 });

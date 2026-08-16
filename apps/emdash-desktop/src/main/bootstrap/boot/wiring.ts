@@ -73,6 +73,7 @@ export function createDesktopWireOptions(
       repositoryService: github.repositories,
     },
     gitCredentials: services.gitCredentials,
+    hostAvailability: runtimes.hostAvailability,
     hostOperations: {
       openExternal: ({ url }) => appOperations.openExternal(url),
       openPath: ({ path }) => appOperations.openPath(path),
@@ -111,6 +112,7 @@ export function createDesktopWireOptions(
       writeRendererLog: (input) => writeRendererLogEntry(input),
     },
     notifications: services.notifications,
+    previewServerAccess: services.previewServerAccess,
     projectDeletion: services.projectDeletion,
     promptLibrary: services.promptLibrary,
     projects: services.projects,

@@ -1,26 +1,47 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
 import type { MachineStatusKind } from '@emdash/ui/react/components';
-import type { ConnectionState } from '@core/primitives/ssh/api';
+import { remote, type RemoteModel } from '@emdash/wire/state';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
+import { hostsContract, type HostAvailabilityState } from '@core/services/hosts/api';
+import { getHostsClient } from '@core/services/hosts/api/client';
 import { deriveMachineStatusKind } from './components/machine-status-kind';
-import { useHostServerState } from './use-host-server-state';
+
+let availabilityRemotePromise: Promise<RemoteModel<typeof hostsContract.availability>> | undefined;
 
 export function useMachineStatusKind({
   machineId,
-  connectionState,
 }: {
   machineId: string | undefined;
-  connectionState: ConnectionState;
 }): MachineStatusKind {
-  const connected = connectionState === 'connected';
-  const workspaceServer = useHostServerState({
-    machineId,
-    enabled: !!machineId && connected,
-    connected,
-  });
+  const availability = useMachineAvailability(machineId);
+  return deriveMachineStatusKind({ availability });
+}
 
-  return deriveMachineStatusKind({
-    connectionState,
-    workspaceServerStatus: workspaceServer.state?.status,
-    workspaceServerError: workspaceServer.state?.error !== undefined,
-    workspaceServerLoading: workspaceServer.loading,
-  });
+export function useMachineAvailability(
+  machineId: string | undefined
+): HostAvailabilityState | undefined {
+  const availability = useRemoteModelState(
+    hostsContract.availability,
+    getAvailabilityRemote,
+    { host: hostRef('remote', machineId ?? 'unselected') },
+    'state',
+    { enabled: machineId !== undefined }
+  );
+
+  return availability.value;
+}
+
+function getAvailabilityRemote(): Promise<RemoteModel<typeof hostsContract.availability>> {
+  availabilityRemotePromise ??= getHostsClient().then((client) =>
+    remote(hostsContract.availability, client.availability, {
+      lingerMs: 15_000,
+    })
+  );
+  return availabilityRemotePromise;
+}
+
+export async function resetMachineAvailabilityForTests(): Promise<void> {
+  const remoteModel = await availabilityRemotePromise;
+  availabilityRemotePromise = undefined;
+  await remoteModel?.dispose();
 }

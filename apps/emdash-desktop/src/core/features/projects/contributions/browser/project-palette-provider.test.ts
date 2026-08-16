@@ -4,7 +4,7 @@ import type { SearchItem } from '@core/primitives/search/api';
 import { createProjectPaletteProvider } from './project-palette-provider';
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
-  asMounted: () => undefined,
+  asAvailableProject: () => undefined,
   getProjectManagerStore: () => {
     throw new Error('Idle project inventory should be injected by this test');
   },

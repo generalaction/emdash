@@ -1,6 +1,5 @@
 import { MachineStatus } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { useMachineStatusKind } from '../use-machine-status-kind';
 
@@ -10,10 +9,8 @@ export const MachineListRow = observer(function MachineListRow({
 }: {
   machine: SshConfig;
 }) {
-  const connectionState = getMachinesStore().stateFor(machine.id);
   const machineStatus = useMachineStatusKind({
     machineId: machine.id,
-    connectionState,
   });
 
   return (

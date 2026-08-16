@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
+  asAvailableProject,
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -11,6 +12,7 @@ import { useGitActions } from '@core/features/source-control/api/browser/use-git
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
@@ -20,7 +22,13 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const headDisplay = git?.headDisplay ?? null;
   const headKind = git?.headKind ?? 'branch';
   const isDetached = headKind === 'detached';
-  const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
+  const project = getProjectStore(projectId);
+  const projectName = projectDisplayName(project) ?? 'repository';
+  const context = asAvailableProject(project);
+  const hostActionReason = context
+    ? projectAvailabilityUi.getLiveActionDisabledReason(projectId)
+    : 'Unavailable until access to this Project is restored.';
+  const hostActionDisabled = hostActionReason !== null;
   const repositoryStore = getGitRepositoryStore(projectId);
   const openAddRemoteModal = useOpenModal('addRemoteModal');
 
@@ -40,7 +48,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const shouldOfferAddRemote = (repositoryStore?.remotes.length ?? 0) === 0;
 
   const handlePublishClick = () => {
-    if (!headDisplay || isDetached || !workspaceId) return;
+    if (hostActionDisabled || !headDisplay || isDetached || !workspaceId) return;
     if (shouldOfferAddRemote) {
       void openAddRemoteModal({
         projectId,
@@ -70,85 +78,112 @@ export const GitStatusSection = observer(function GitStatusSection() {
             {hasUpstream && !isDetached ? (
               <>
                 <Tooltip.Root>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      icon
-                      disabled={isFetching}
-                      onClick={() => fetch()}
-                    >
-                      <RefreshCcw className="size-3" />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{isFetching ? 'Fetching...' : 'Fetch changes'}</Tooltip.Content>
-                </Tooltip.Root>
-                <Tooltip.Root>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      icon
-                      disabled={isPulling || behindCount === 0}
-                      onClick={() => pull()}
-                    >
-                      <ArrowDown className="size-3" />
-                    </Button>
-                  </Tooltip.Trigger>
+                  <Tooltip.Trigger
+                    render={
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        icon
+                        disabled={isFetching}
+                        aria-disabled={hostActionDisabled}
+                        aria-description={hostActionReason ?? undefined}
+                        onClick={() => {
+                          if (!hostActionDisabled) fetch();
+                        }}
+                      >
+                        <RefreshCcw className="size-3" />
+                      </Button>
+                    }
+                  />
                   <Tooltip.Content>
-                    {isPulling
-                      ? 'Pulling...'
-                      : behindCount === 0
-                        ? 'Nothing to pull'
-                        : 'Pull changes'}
+                    {hostActionReason ?? (isFetching ? 'Fetching...' : 'Fetch changes')}
                   </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      icon
-                      disabled={isPushing || aheadCount === 0}
-                      onClick={() => push()}
-                    >
-                      <ArrowUp className="size-3" />
-                    </Button>
-                  </Tooltip.Trigger>
+                  <Tooltip.Trigger
+                    render={
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        icon
+                        disabled={isPulling || behindCount === 0}
+                        aria-disabled={hostActionDisabled}
+                        aria-description={hostActionReason ?? undefined}
+                        onClick={() => {
+                          if (!hostActionDisabled) pull();
+                        }}
+                      >
+                        <ArrowDown className="size-3" />
+                      </Button>
+                    }
+                  />
                   <Tooltip.Content>
-                    {isPushing
-                      ? 'Pushing...'
-                      : aheadCount === 0
-                        ? 'Nothing to push'
-                        : 'Push changes'}
+                    {hostActionReason ??
+                      (isPulling
+                        ? 'Pulling...'
+                        : behindCount === 0
+                          ? 'Nothing to pull'
+                          : 'Pull changes')}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger
+                    render={
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        icon
+                        disabled={isPushing || aheadCount === 0}
+                        aria-disabled={hostActionDisabled}
+                        aria-description={hostActionReason ?? undefined}
+                        onClick={() => {
+                          if (!hostActionDisabled) push();
+                        }}
+                      >
+                        <ArrowUp className="size-3" />
+                      </Button>
+                    }
+                  />
+                  <Tooltip.Content>
+                    {hostActionReason ??
+                      (isPushing
+                        ? 'Pushing...'
+                        : aheadCount === 0
+                          ? 'Nothing to push'
+                          : 'Push changes')}
                   </Tooltip.Content>
                 </Tooltip.Root>
               </>
             ) : (
               !isDetached && (
                 <Tooltip.Root>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      disabled={isPublishing || !headDisplay}
-                      onClick={handlePublishClick}
-                    >
-                      <ArrowUp className="size-3" />
-                      {isPublishing
-                        ? 'Publishing...'
-                        : shouldOfferAddRemote
-                          ? 'Add Remote'
-                          : 'Publish'}
-                    </Button>
-                  </Tooltip.Trigger>
+                  <Tooltip.Trigger
+                    render={
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        disabled={isPublishing || !headDisplay}
+                        aria-disabled={hostActionDisabled}
+                        aria-description={hostActionReason ?? undefined}
+                        onClick={handlePublishClick}
+                      >
+                        <ArrowUp className="size-3" />
+                        {isPublishing
+                          ? 'Publishing...'
+                          : shouldOfferAddRemote
+                            ? 'Add Remote'
+                            : 'Publish'}
+                      </Button>
+                    }
+                  />
                   <Tooltip.Content>
-                    {getPublishTooltipText({
-                      isPublishing,
-                      headDisplay,
-                      headKind,
-                      shouldOfferAddRemote,
-                    })}
+                    {hostActionReason ??
+                      getPublishTooltipText({
+                        isPublishing,
+                        headDisplay,
+                        headKind,
+                        shouldOfferAddRemote,
+                      })}
                   </Tooltip.Content>
                 </Tooltip.Root>
               )

@@ -7,7 +7,7 @@ import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
-import { migrateProjectSettingsOnMount } from './migrations/migrate-project-settings-on-mount';
+import { migrateProjectSettingsOnAttachment } from './migrations/migrate-project-settings-on-attachment';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { HostProjectSettingsProvider } from './providers/host-project-settings-provider';
 
@@ -256,8 +256,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       importLegacyLifecycleSettings,
     };
 
-    await migrateProjectSettingsOnMount(
-      { id, repositoryWorkspaceId: 'repo-1' },
+    await migrateProjectSettingsOnAttachment(
+      { repositoryWorkspaceId: 'repo-1' },
       provider,
       registry as never
     );
@@ -270,8 +270,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       autoRunRun: true,
     });
 
-    await migrateProjectSettingsOnMount(
-      { id, repositoryWorkspaceId: 'repo-1' },
+    await migrateProjectSettingsOnAttachment(
+      { repositoryWorkspaceId: 'repo-1' },
       provider,
       registry as never
     );

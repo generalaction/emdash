@@ -11,12 +11,13 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import type { TaskListData, TaskStatsData } from '@core/primitives/tasks/api';
+import type { TaskStatsData } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes, matchProject } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 import { createTaskOperations } from './controller';
+import type { TaskListOperations } from './task-list-service';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type TasksWireImpl = ContractImpl<ContractDefinitionsOf<typeof tasksWireContract>>;
@@ -30,17 +31,19 @@ export function createTasksWireController(options: {
   db: AppDb;
   runtimes: WorkspaceRemovalBroker;
   service: TaskService;
+  taskList: TaskListOperations;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
 }): TasksWireController {
   const taskOperations = createTaskOperations(options);
   const taskListFamily = family(
     ({ projectId }: { projectId: string }, scope) =>
-      query<TaskListData>({
-        fetch: async () => ({ tasks: (await taskOperations.getTasks(projectId)).map(toTaskRow) }),
+      query({
+        fetch: () => options.taskList.load(projectId),
         pokes: [
           appDbPokes.tasks.subscription(matchProject(projectId)),
           appDbPokes.conversations.subscription(matchProject(projectId)),
+          appDbPokes.workspaces.subscription(matchProject(projectId)),
         ],
         scope,
       }),
@@ -177,13 +180,6 @@ export function createTasksWireController(options: {
   };
 }
 
-function toTaskRow(
-  task: Awaited<ReturnType<TaskService['getTasks']>>[number]
-): TaskListData['tasks'][number] {
-  const { prs: _prs, workspaceGit: _workspaceGit, ...row } = task;
-  return row;
-}
-
 async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsData> {
   const taskRows = await db
     .select({ workspaceId: tasks.workspaceId })
@@ -197,12 +193,18 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       path: workspaces.path,
       observedStatus: workspaces.observedStatus,
       observedGit: workspaces.observedGit,
+      observedAt: workspaces.observedAt,
       runtimeOverlay: workspaces.runtimeOverlay,
       lastCreateOutcome: workspaces.lastCreateOutcome,
     })
     .from(workspaces)
     .where(and(inArray(workspaces.id, workspaceIds), liveWorkspaces()));
   return {
+    observedAt: rows.reduce<number | null>(
+      (latest, row) =>
+        row.observedAt == null ? latest : Math.max(latest ?? row.observedAt, row.observedAt),
+      null
+    ),
     // Mirror diff stats; untracked files' lines count as additions.
     byWorkspaceId: Object.fromEntries(
       rows.flatMap((row) => {
@@ -217,6 +219,7 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
         row.id,
         {
           path: row.path,
+          observedAt: row.observedAt,
           observedStatus: row.observedStatus,
           creation: row.runtimeOverlay?.creation ?? null,
           lastCreateOutcome: row.lastCreateOutcome

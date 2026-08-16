@@ -3,7 +3,7 @@ import { ChevronDown, FolderClosed, FolderInput } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import {
-  asMounted,
+  asAvailableProject,
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 
@@ -33,9 +33,15 @@ export const ProjectSelector = observer(function ProjectSelector({
 
   const options: ProjectOption[] = Array.from(getProjectManagerStore().projects.entries()).flatMap(
     ([id, store]) => {
-      const mounted = asMounted(store);
-      return mounted
-        ? [{ value: id, label: mounted.data.name, isSsh: mounted.data.type === 'ssh' }]
+      const context = asAvailableProject(store);
+      return context
+        ? [
+            {
+              value: id,
+              label: context.project.name,
+              isSsh: context.project.type === 'ssh',
+            },
+          ]
         : [];
     }
   );

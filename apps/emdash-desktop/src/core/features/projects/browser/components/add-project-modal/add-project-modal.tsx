@@ -73,7 +73,7 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
     const projectManager = getProjectManagerStore();
-    await projectManager.mountProject(projectId).catch((error) => {
+    await projectManager.hydrateProjectContext(projectId).catch((error) => {
       log.error(error);
     });
 

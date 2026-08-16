@@ -42,10 +42,12 @@ import type { PromptLibraryService } from '@core/features/library/node/prompt-li
 import { createPromptLibraryWireController } from '@core/features/library/node/wire-controller';
 import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
+import type { PreviewServerAccessOperations } from '@core/features/preview-servers/node/preview-server-access-service';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
+import { getProjectById } from '@core/features/projects/node/operations/getProjects';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
@@ -54,6 +56,7 @@ import { createSkillsWireController } from '@core/features/skills/node/wire-cont
 import { createSourceControlWireController } from '@core/features/source-control/node/wire-controller';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
+import { TaskListService } from '@core/features/tasks/node/task-list-service';
 import { createTasksWireController } from '@core/features/tasks/node/wire-controller';
 import { createTelemetryWireController } from '@core/features/telemetry/node/wire-controller';
 import {
@@ -69,6 +72,7 @@ import {
   type DesktopHostControllerOperations,
 } from '@core/features/workbench/node/wire-controller';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { createLifecycleScriptsWireController } from '@core/features/workspaces/node/lifecycle-scripts-wire-controller';
 import {
@@ -80,12 +84,14 @@ import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
+import { WorkspaceMutationService } from '@core/features/workspaces/node/workspace-mutation-service';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { HostService } from '@core/services/hosts/node';
+import type { HostAvailabilityService } from '@core/services/hosts/node/availability';
 import { createHostsWireController } from '@core/services/hosts/node/wire-controller';
 import {
   createLoggingWireController,
@@ -119,6 +125,7 @@ export type DesktopControllerContext = {
   readonly editorBuffer: EditorBufferService;
   readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
   readonly gitCredentials: GitCredentialsService;
+  readonly hostAvailability: HostAvailabilityService;
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostOperations: DesktopHostControllerOperations;
   readonly issueProviders: IssueProviderRegistry;
@@ -126,9 +133,10 @@ export type DesktopControllerContext = {
   readonly logger: Logger;
   readonly loggingOperations: LoggingControllerOperations;
   readonly notifications: NotificationService;
+  readonly previewServerAccess: PreviewServerAccessOperations;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
-  readonly projects: ProjectSessionManager;
+  readonly projects: ProjectAttachmentManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
   readonly reconcileSweep: ReconcileSweepHandle;
@@ -149,10 +157,7 @@ export type DesktopControllerContext = {
   readonly updateOperations: UpdateOperations;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspacePlacement: WorkspacePlacementResolver;
-  readonly workspaces: Omit<
-    CreateWorkspacesWireControllerOptions,
-    'db' | 'runtimes' | 'workspaceIdentity'
-  >;
+  readonly workspaces: Omit<CreateWorkspacesWireControllerOptions, 'db' | 'mutations'>;
 };
 
 type DesktopDomain = Extract<keyof typeof desktopDomainContracts, string>;
@@ -209,13 +214,14 @@ export const desktopNodeControllers = {
     create: ({ runtimes, ssh }) => createMachinesWireController(ssh.machines, runtimes),
   },
   projectSettings: {
-    create: ({ projects, runtimes, workspaceIdentity }) =>
-      createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
+    create: ({ runtimes, workspaceIdentity }) =>
+      createProjectSettingsWireController({ runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, runtimes, scope, taskService, taskSessions }) => {
+    create: ({ db, projects, runtimes, scope, taskService, taskSessions }) => {
       const controller = createProjectWorkspacesWireController({
         db,
+        projects,
         runtimes,
         taskService,
         taskSessions,
@@ -228,7 +234,11 @@ export const desktopNodeControllers = {
     create: ({ promptLibrary }) => createPromptLibraryWireController(promptLibrary),
   },
   repository: {
-    create: ({ projects }) => createRepositoryWireController(projects),
+    create: ({ db, projects }) =>
+      createRepositoryWireController({
+        projects,
+        loadProject: (projectId) => getProjectById(db, projectId),
+      }),
   },
   search: {
     create: ({ search }) => createSearchWireController(search),
@@ -237,10 +247,11 @@ export const desktopNodeControllers = {
     create: ({ telemetry }) => createTelemetryWireController(telemetry),
   },
   sourceControl: {
-    create: ({ gitCredentials, runtimes, workspaceIdentity }) =>
+    create: ({ gitCredentials, runtimes, workspaceIdentity, projects }) =>
       createSourceControlWireController({
         runtimes,
         workspaceIdentity,
+        projects,
         mintOperationCredentials: gitCredentials.mintOperationCredentials,
       }),
   },
@@ -296,16 +307,18 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, runtimes, scope, workspaces }) =>
-      controllerFromImpl(
+    create: ({ db, projects, runtimes, scope, workspaces }) => {
+      const mutations = new WorkspaceMutationService({ db, projects, runtimes });
+      return controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
-          runtimes,
+          mutations,
         }),
         scope
-      ),
+      );
+    },
   },
   workspaceRegistry: {
     create: ({ db, reconcileSweep, runtimes }) =>
@@ -341,14 +354,14 @@ export const desktopNodeControllers = {
       ),
   },
   automations: {
-    create: ({ automations, db, logger, projects, runtimes, taskService }) =>
+    create: ({ automations, db, logger, runtimes, taskService }) =>
       createAutomationsWireController({
         db,
-        getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+        getProjectById: (projectId) => getProjectById(db, projectId),
         logger,
         runtime: {
           runtimes,
-          getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+          getProjectById: (projectId) => getProjectById(db, projectId),
         },
         service: automations,
         taskService,
@@ -384,7 +397,7 @@ export const desktopNodeControllers = {
       }),
   },
   previewServers: {
-    create: () => createPreviewServersWireController(),
+    create: ({ previewServerAccess }) => createPreviewServersWireController(previewServerAccess),
   },
   github: {
     create: ({ github, logger, telemetry }) =>
@@ -401,21 +414,29 @@ export const desktopNodeControllers = {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
   hosts: {
-    create: ({ hosts }) => createHostsWireController(hosts),
+    create: ({ hostAvailability, hosts, ssh }) =>
+      createHostsWireController(hosts, hostAvailability, ssh.ssh),
   },
   tasks: {
-    create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) =>
-      controllerFromImpl(
+    create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) => {
+      const taskList = new TaskListService({
+        taskService,
+        taskSessions,
+        workspaces: createWorkspaceRegistry(db),
+      });
+      return controllerFromImpl(
         desktopDomainContracts.tasks,
         createTasksWireController({
           db,
           runtimes,
           service: taskService,
+          taskList,
           taskSessions,
           telemetry,
         }),
         scope
-      ),
+      );
+    },
   },
   updates: {
     create: ({ updateOperations }) => createUpdatesWireController(updateOperations),

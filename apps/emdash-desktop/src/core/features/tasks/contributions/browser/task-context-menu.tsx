@@ -7,6 +7,7 @@ interface TaskContextMenuProps {
   isPinned: boolean;
   canPin: boolean;
   isArchived: boolean;
+  archiveDisabledReason?: string;
   branchName?: string;
   onPin: () => void;
   onUnpin: () => void;
@@ -23,6 +24,7 @@ export function TaskContextMenu({
   isPinned,
   canPin,
   isArchived,
+  archiveDisabledReason,
   branchName,
   onPin,
   onUnpin,
@@ -33,6 +35,7 @@ export function TaskContextMenu({
   onConvertAutomation,
   onDelete,
 }: TaskContextMenuProps) {
+  const archiveDisabledReasonId = React.useId();
   const handleCopyBranchName = async () => {
     if (!branchName) return;
 
@@ -79,10 +82,19 @@ export function TaskContextMenu({
           </ContextMenu.Item>
         )}
         {!isArchived && (
-          <ContextMenu.Item onClick={onArchive}>
+          <ContextMenu.Item
+            disabled={!!archiveDisabledReason}
+            aria-describedby={archiveDisabledReason ? archiveDisabledReasonId : undefined}
+            onClick={onArchive}
+          >
             <Archive className="size-4" />
             Archive
           </ContextMenu.Item>
+        )}
+        {archiveDisabledReason && (
+          <span id={archiveDisabledReasonId} className="sr-only">
+            {archiveDisabledReason}
+          </span>
         )}
         {isArchived && onRestore && (
           <ContextMenu.Item onClick={onRestore}>

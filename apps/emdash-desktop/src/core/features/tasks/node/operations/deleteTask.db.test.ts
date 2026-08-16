@@ -167,7 +167,7 @@ describe('deleteTask', () => {
     });
   });
 
-  it('completes the desktop half against an unreachable host: tombstone written, sweep poked', async () => {
+  it('completes the desktop half without queueing workspace recovery when the host drops', async () => {
     await seedTask();
     const { dependencies } = makeDependencies(unreachableRuntimes());
     const poked = vi.fn();
@@ -179,11 +179,10 @@ describe('deleteTask', () => {
     expect(result.success).toBe(true);
     // Desktop stages never block on the host: the task row is already gone.
     expect(await fixture.db.select().from(tasks).where(eq(tasks.id, 'task-1'))).toHaveLength(0);
-    // The workspace row stays live as the visible pending state, carrying the durable
-    // tombstone (ADR 0006). No operation queues anywhere.
+    // The workspace row stays unchanged and can be removed explicitly after access returns.
     const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
-    expect(row?.deletionTombstone).toMatchObject({ targetRecordId: 'workspace-1' });
-    expect(poked).toHaveBeenCalled();
+    expect(row?.deletionTombstone).toBeNull();
+    expect(poked).not.toHaveBeenCalled();
   });
 
   it('cascades accepted conversation deletion as conversation-registry tombstones', async () => {

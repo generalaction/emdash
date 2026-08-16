@@ -67,7 +67,15 @@ export type ManualPreviewServerError =
   | { type: 'not-ssh-workspace'; message: string }
   | { type: 'open-failed'; message: string }
   | { type: 'cancelled'; message: string }
+  | PreviewServerUnavailableError
   | RuntimeResolveError;
+
+export type PreviewServerUnavailableError = {
+  type: 'project-unavailable';
+  projectId: string;
+  reason: string;
+  message: string;
+};
 
 export type ManualPreviewServerResult = Result<PreviewServer, ManualPreviewServerError>;
 

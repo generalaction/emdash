@@ -6,36 +6,35 @@ import {
   FolderOpen,
   Loader2,
   Plus,
-  RotateCcw,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
-import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
-  isUnmountedProject,
   isUnregisteredProject,
   type ProjectCreationStage,
 } from '@core/features/projects/api/browser/stores/project';
 import {
+  getProjectHostAccess,
   getProjectStore,
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { taskHostActionAvailability } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
   useNavigate,
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
-import type { ConnectionState } from '@core/primitives/ssh/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   SidebarItemMiniButton,
@@ -90,18 +89,26 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
-  const sshConnectionState = sshConnectionId ? getMachinesStore().stateFor(sshConnectionId) : null;
-  const displayedSshConnectionState: ConnectionState | null =
-    isUnmountedProject(project) &&
-    project.unmounted.kind === 'failed' &&
-    project.unmounted.code === 'ssh-disconnected' &&
-    sshConnectionState !== 'connected'
-      ? 'disconnected'
-      : sshConnectionState;
-  const canReconnect = sshConnectionState !== 'connected';
+  const hostAccess = getProjectHostAccess(projectId);
+  const hostAccessState = hostAccess?.state;
+  const displayedSshConnectionState =
+    !hostAccessState || hostAccessState.kind !== 'ready'
+      ? hostAccessState &&
+        ['connecting', 'provisioning', 'handshaking', 'attaching', 'recovering'].includes(
+          hostAccessState.situation
+        )
+        ? 'connecting'
+        : 'disconnected'
+      : 'connected';
   const ProjectIcon = isSshProject ? FolderInput : isExpanded ? FolderOpen : FolderClosed;
   const projectLabel = project.name ?? 'project';
-  const openProject = () => navigate(projectViewDef({ projectId }));
+  const createAvailability = taskHostActionAvailability(projectId);
+  const createDisabledReason =
+    createAvailability.kind === 'disabled'
+      ? (projectAvailabilityUi.getLiveActionDisabledReason(projectId) ??
+        projectAvailabilityUi.defaultLiveActionDisabledReason)
+      : undefined;
+  const navigateToProject = () => navigate(projectViewDef({ projectId }));
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -129,7 +136,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           data-active={isProjectActive || undefined}
           isActive={isProjectActive}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={openProject}
+          onClick={navigateToProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1">
             {project.state === 'unregistered' ? (
@@ -157,7 +164,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               aria-label={`Open project ${projectLabel}`}
               className={cn(
                 'truncate transition-colors select-none',
-                projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
+                projectViewKind(getProjectStore(projectId)) === 'hydrating' &&
                   'text-foreground-tertiary-passive'
               )}
             >
@@ -169,12 +176,12 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               ) : (
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate">{project.name}</span>
-                  {projectViewKind(project) === 'path_not_found' && (
+                  {projectViewKind(project) === 'context_error' && (
                     <Tooltip.Root>
                       <Tooltip.Trigger>
                         <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
                       </Tooltip.Trigger>
-                      <Tooltip.Content>Project not found at path</Tooltip.Content>
+                      <Tooltip.Content>Project context unavailable</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </span>
@@ -187,7 +194,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               render={
                 <SidebarItemMiniButton
                   type="button"
-                  aria-label={`New task for ${projectLabel}`}
+                  aria-label={
+                    createDisabledReason
+                      ? `New task for ${projectLabel}. ${createDisabledReason}`
+                      : `New task for ${projectLabel}`
+                  }
                   className={
                     'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
                   }
@@ -196,36 +207,24 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                     e.stopPropagation();
                     void openCreateTaskModal({ projectId });
                   }}
-                  disabled={project.state === 'unregistered'}
+                  disabled={project.state === 'unregistered' || !!createDisabledReason}
                 >
                   <Plus className="h-4 w-4" />
                 </SidebarItemMiniButton>
               }
             />
             <Tooltip.Content>
-              New Task
-              <BoundShortcut command="app.newTask" variant="keycaps" />
+              {createDisabledReason ?? (
+                <>
+                  New Task
+                  <BoundShortcut command="app.newTask" variant="keycaps" />
+                </>
+              )}
             </Tooltip.Content>
           </Tooltip.Root>
         </SidebarMenuRow>
       </ContextMenu.Trigger>
       <ContextMenu.Content>
-        {sshConnectionId && (
-          <>
-            <ContextMenu.Item
-              disabled={!canReconnect}
-              onClick={() => {
-                void getMachinesStore()
-                  .connect(sshConnectionId)
-                  .catch(() => {});
-              }}
-            >
-              <RotateCcw className="size-4" />
-              Reconnect
-            </ContextMenu.Item>
-            <ContextMenu.Separator />
-          </>
-        )}
         <ContextMenu.Item
           variant="destructive"
           onClick={() => {

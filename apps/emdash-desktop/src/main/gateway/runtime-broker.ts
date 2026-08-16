@@ -8,11 +8,15 @@ import {
   RuntimeBroker,
   runtimeHostNotConfigured,
   runtimeHostUnavailable,
-  type HostRuntimesClient,
+  type RuntimeClientSource,
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { HostService } from '@core/services/hosts/node';
+import { translateHostPreparationError, type HostService } from '@core/services/hosts/node';
+import {
+  WorkspaceServerProtocolError,
+  WorkspaceServerProvisionError,
+} from '@core/services/hosts/node/workspace-server';
 import type { DesktopRuntimeClients } from './desktop-workers';
 
 export function createDesktopRuntimeBroker(
@@ -28,14 +32,24 @@ async function resolveDesktopRuntimeClient(
   host: HostRef,
   clients: DesktopRuntimeClients,
   hosts: HostService
-): Promise<Result<HostRuntimesClient, RuntimeResolveError>> {
+): Promise<Result<RuntimeClientSource, RuntimeResolveError>> {
   if (!hostRefEquals(host, LOCAL_HOST_REF)) {
     const connectionId = sshConnectionIdOf(host);
     if (connectionId) {
       try {
         const connection = await hosts.client(connectionId);
-        return ok(connection.client);
+        return ok(
+          connection.connection
+            ? { client: connection.client, connection: connection.connection }
+            : connection.client
+        );
       } catch (error) {
+        if (
+          error instanceof WorkspaceServerProvisionError ||
+          error instanceof WorkspaceServerProtocolError
+        ) {
+          return err(translateHostPreparationError(host, 'handshaking', error));
+        }
         return err(
           runtimeHostUnavailable(
             host,
