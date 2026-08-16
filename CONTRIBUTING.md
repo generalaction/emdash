@@ -425,6 +425,15 @@ Canary releases are dispatched through:
 gh workflow run release-canary.yml --ref main -f arch=both
 ```
 
+Workspace-server releases have an independent version and channel:
+
+```bash
+gh workflow run release-workspace-server.yml --ref main -f channel=stable
+```
+
+See [`apps/workspace-server/docs/packaging.md`](apps/workspace-server/docs/packaging.md) before
+bumping or publishing a workspace-server version.
+
 Production releases publish artifacts to GitHub Releases as the primary update
 feed and Cloudflare R2 as fallback. Canary releases currently publish to R2 only.
 

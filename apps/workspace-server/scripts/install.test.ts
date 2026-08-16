@@ -30,7 +30,14 @@ describe('workspace-server install.sh', () => {
     expect(result.stderr.toString()).toContain('base URL must use https, http, or file');
   });
 
-  it('installs latest atomically and skips the artifact on a repeated run', async () => {
+  it('requires an explicit immutable version', () => {
+    const result = spawnSync('sh', [installScript]);
+
+    expect(result.status).toBe(42);
+    expect(result.stderr.toString()).toContain('--version is required');
+  });
+
+  it('installs a pinned version atomically and skips the artifact on a repeated run', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'emdash-install-script-'));
     const source = resolve(directory, 'source');
     const home = resolve(directory, 'home');
@@ -44,7 +51,6 @@ describe('workspace-server install.sh', () => {
       mkdir(bin, { recursive: true }),
     ]);
     await Promise.all([
-      writeFile(resolve(source, 'latest.txt'), `${version}\n`),
       writeFile(resolve(source, version, artifact), 'fixture archive'),
       writeFile(resolve(source, version, `${artifact}.sha256`), `${'a'.repeat(64)}  ${artifact}\n`),
       writeExecutable(
@@ -105,15 +111,16 @@ fi`
 
     try {
       const baseUrl = pathToFileURL(source).href;
-      const first = spawnSync('sh', [installScript, '--base-url', baseUrl], { env });
+      const args = [installScript, '--base-url', baseUrl, '--version', version];
+      const first = spawnSync('sh', args, { env });
       expect(first.status, first.stderr.toString()).toBe(0);
       expect(await readlink(resolve(home, '.emdash/workspace-server/current'))).toBe(
         `versions/${version}`
       );
 
-      const second = spawnSync('sh', [installScript, '--base-url', baseUrl], { env });
+      const second = spawnSync('sh', args, { env });
       expect(second.status, second.stderr.toString()).toBe(0);
-      expect((await readFile(curlLog, 'utf8')).trim().split('\n')).toHaveLength(5);
+      expect((await readFile(curlLog, 'utf8')).trim().split('\n')).toHaveLength(3);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

@@ -10,6 +10,9 @@ import {
   parseAdapterAssetInfos,
   parsePackageArgs,
   parsePackageTarget,
+  releaseBuildMatrix,
+  releaseMetadataOutput,
+  resolveReleaseVersion,
   ripgrepArchiveChecksum,
   ripgrepArchiveName,
   ripgrepDistributionName,
@@ -29,14 +32,21 @@ describe('workspace-server package helpers', () => {
       ])
     ).toEqual({
       targets: [parsePackageTarget('linux-x64'), parsePackageTarget('darwin-arm64')],
+      version: undefined,
       verify: true,
       help: false,
     });
   });
 
+  it('parses both explicit package version forms', () => {
+    expect(parsePackageArgs(['--version', '1.2.3']).version).toBe('1.2.3');
+    expect(parsePackageArgs(['--version=1.2.4-canary.42']).version).toBe('1.2.4-canary.42');
+  });
+
   it('rejects unsupported targets and missing target values', () => {
     expect(() => parsePackageTarget('win32-x64')).toThrow(/Unsupported target/);
     expect(() => parsePackageArgs(['--target'])).toThrow(/requires a value/);
+    expect(() => parsePackageArgs(['--version'])).toThrow(/requires a value/);
     expect(() => parsePackageArgs(['--wat'])).toThrow(/Unknown packaging option/);
   });
 
@@ -94,6 +104,34 @@ describe('workspace-server package helpers', () => {
     );
     expect(() => createDevPackageVersion('0.1.0', 'not valid')).toThrow(
       /Invalid workspace-server package version/
+    );
+  });
+
+  it('resolves stable and monotonically newer canary release versions', () => {
+    expect(resolveReleaseVersion('stable', '0.1.0', 42)).toBe('0.1.0');
+    expect(resolveReleaseVersion('canary', '0.1.0', 42)).toBe('0.1.1-canary.42');
+    expect(resolveReleaseVersion('canary', '1.2.3-rc.1', 43)).toBe('1.2.4-canary.43');
+    expect(() => resolveReleaseVersion('canary', '0.1.0', 0)).toThrow(/positive safe integer/);
+  });
+
+  it('derives the release build matrix from the shared target list', () => {
+    expect(releaseBuildMatrix()).toEqual({
+      include: [
+        { target: 'linux-x64', runner: 'ubuntu-latest' },
+        { target: 'linux-arm64', runner: 'ubuntu-24.04-arm' },
+        { target: 'darwin-arm64', runner: 'macos-latest' },
+      ],
+    });
+  });
+
+  it('prints one-line GitHub release metadata outputs', () => {
+    expect(releaseMetadataOutput('canary', '0.1.0', 42)).toBe(
+      [
+        'version=0.1.1-canary.42',
+        'matrix={"include":[{"target":"linux-x64","runner":"ubuntu-latest"},{"target":"linux-arm64","runner":"ubuntu-24.04-arm"},{"target":"darwin-arm64","runner":"macos-latest"}]}',
+        'probeArtifact=emdash-workspace-server-0.1.1-canary.42-linux-x64.tar.gz',
+        '',
+      ].join('\n')
     );
   });
 

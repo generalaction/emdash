@@ -483,13 +483,19 @@ describe('workspace registry activation lifecycle', () => {
 
   it('concurrent activate and deactivate on one workspace serialize via the claim', async () => {
     const workspacePath = await makeWorkspace('contended', {
-      prepare: 'sleep 0.3; echo prepare >> order-log',
+      prepare:
+        'echo started > prepare-started; until [ -f prepare-release ]; do sleep 0.01; done; echo prepare >> order-log',
       teardown: 'echo teardown >> order-log',
     });
 
     const activating = wire.client.activateWorkspace({ workspaceId: 'ws-contended' });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await eventually(async () => {
+      await expect(fs.readFile(path.join(workspacePath, 'prepare-started'), 'utf8')).resolves.toBe(
+        'started\n'
+      );
+    });
     const deactivating = wire.client.deactivateWorkspace({ workspaceId: 'ws-contended' });
+    await fs.writeFile(path.join(workspacePath, 'prepare-release'), '');
 
     const [activated, deactivated] = await Promise.all([activating, deactivating]);
     expect(activated.success).toBe(true);

@@ -44,6 +44,7 @@ export class HostStateModel {
           status: 'stopped',
           version: current.version,
           latestVersion: current.latestVersion,
+          updateAvailable: current.updateAvailable,
         };
       })
     );

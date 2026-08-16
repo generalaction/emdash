@@ -59,9 +59,11 @@ All workspace-server objects live under the `workspace-server/` prefix:
 
 ```text
 workspace-server/
-  install.sh
-  latest.txt
+  channels/
+    stable/protocol-1.json
+    canary/protocol-1.json
   <version>/
+    install.sh
     emdash-workspace-server-<version>-linux-x64.tar.gz
     emdash-workspace-server-<version>-linux-x64.tar.gz.sha256
     emdash-workspace-server-<version>-linux-arm64.tar.gz
@@ -70,26 +72,55 @@ workspace-server/
     emdash-workspace-server-<version>-darwin-arm64.tar.gz.sha256
 ```
 
-The release workflow builds and smoke-verifies all three targets, tests `install.sh` against a
-local `file://` mirror of the assembled release, and publishes the versioned artifacts. Existing
-versioned objects may only be skipped when their contents have the same SHA-256; the uploader
-refuses to replace different contents. It uploads `latest.txt` last so an incomplete release is
-never selected by a new installation.
+The release workflow has `stable` and `canary` channels. Stable uses the version from
+`apps/workspace-server/package.json`. Canary increments that version's patch and appends the
+workflow run number: package version `0.1.0` becomes `0.1.1-canary.<run>`. Every run builds and
+publishes its own immutable artifacts; releases are not promoted between channels.
 
-To release:
+Both channels build and smoke-verify all three targets, test `install.sh` against a local
+`file://` mirror, and move only their own protocol-major pointer after every immutable object is
+available. Existing versioned objects may only be skipped when their contents have the same
+SHA-256; the uploader refuses to replace different contents. Channel pointers are the only mutable
+release objects. Installation scripts exist only under immutable version directories, require
+`--version`, and never select a release channel.
+
+The workflow build matrix is derived from `releaseTargets` and its runner mapping in
+`scripts/package-helpers.ts`. Adding or removing a release target there changes both the required
+artifact set and the CI build matrix.
+
+To publish stable:
 
 1. Bump `version` in `apps/workspace-server/package.json`. Never reuse a published version.
 2. Merge the change to `main`.
-3. Dispatch `.github/workflows/release-workspace-server.yml` from GitHub Actions, or run:
+3. Dispatch `.github/workflows/release-workspace-server.yml` from GitHub Actions and select the
+   `stable` channel, or run:
 
 ```bash
-gh workflow run release-workspace-server.yml --ref main
+gh workflow run release-workspace-server.yml --ref main -f channel=stable
+```
+
+For a canary build, no package-version change is required: select `canary` or pass
+`-f channel=canary`. Canary versions are derived from the package version and GitHub run number;
+do not write the canary suffix into `package.json`.
+
+For manual recovery, download the immutable versioned installer and pin that same version
+explicitly:
+
+```bash
+version=<version>
+curl -fsSL "https://releases.emdash.sh/workspace-server/$version/install.sh" |
+  sh -s -- --version "$version"
 ```
 
 The workflow fails before building if the version's Linux x64 archive already exists at
 `https://releases.emdash.sh/workspace-server/`. Pull requests and pushes to `main` that affect the
 workspace server or its bundled workspace packages also run
 `.github/workflows/workspace-server-package-check.yml`, which packages and verifies Linux x64.
+If the publish job fails after immutable artifacts are uploaded, use **Re-run failed jobs** on that
+same GitHub Actions run. This reuses the retained build artifacts byte for byte; do not dispatch a
+new run or choose **Re-run all jobs**. The upload is idempotent: equal immutable objects are skipped
+and mutable selectors converge to the same release. Do not repair a partial publication by editing
+R2 objects manually.
 
 ## Publish to Local Minio
 
@@ -111,8 +142,8 @@ pnpm run upload:dev
 `upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
 credentials. It defaults to the host's Linux target, picks the newest matching artifact under
 `dist-artifacts/`, uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
-updates `workspace-server/install.sh` and `workspace-server/latest.txt` last. Pass `--version` and
-`--target` when you need an explicit override.
+advances the selected channel pointer. `pnpm run dev:remote` publishes both channel pointers for its
+dev artifact. Pass `--version` and `--target` when you need an explicit override.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.

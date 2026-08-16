@@ -99,8 +99,8 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
   `browser`. The browser project needs Playwright browsers — run the doctor.
 - CI (`code-consistency-check.yml`) gates `format:check`, `typecheck`, `lint`,
   and `test` via `nx affected`. The Playwright-backed `browser` projects (app
-  and chat-ui) are skipped there via `EMDASH_TEST_SKIP_BROWSER=1` until
-  browser provisioning is proven stable in CI.
+  and chat-ui) are skipped when Vitest detects CI until browser provisioning is
+  proven stable there.
 - The remote WSS test requires Docker and the workspace-server stack
   (`pnpm run run:docker-remote` from `apps/workspace-server/`) and sets
   `EMDASH_TEST_REMOTE_WSS=1` itself. Run the doctor first; it reports Docker
@@ -126,7 +126,7 @@ running (doctor reports it). See
 | Rebuild native deps | `pnpm run rebuild` | `apps/emdash-desktop/` |
 | Lint-infra allowlists | `pnpm run prune:boundary-allowlists` | root |
 | Task graph | `pnpm run graph` | root |
-| Releases (maintainers) | `gh workflow run release-prod.yml` / `release-canary.yml` | — |
+| Releases (maintainers) | `gh workflow run release-prod.yml` / `release-canary.yml` / `release-workspace-server.yml` | — |
 
 - Local packaging without signing identities still produces installable
   artifacts; mac builds are unsigned/un-notarized and Gatekeeper will warn.
@@ -151,7 +151,7 @@ doctor lists any that are active.
 | `EMDASH_SKIP_ELECTRON_REBUILD=1` | Skip the Electron-ABI rebuild in postinstall (CI sets this implicitly via `--ignore-scripts`) |
 | `EMDASH_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
 | `EMDASH_DISABLE_PTY=1` | Run without PTY support |
-| `EMDASH_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects (CI sets this) |
+| `EMDASH_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects locally |
 | `EMDASH_FORCE_BOOT_FAILURE=1` | Force the boot-failure path for recovery testing |
 | `TELEMETRY_ENABLED=false` | Disable telemetry |
 | `CODEX_SANDBOX_MODE`, `CODEX_APPROVAL_POLICY` | Override Codex provider sandbox/approval behavior |

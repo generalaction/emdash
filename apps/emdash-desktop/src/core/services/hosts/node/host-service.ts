@@ -1,3 +1,4 @@
+import type { ReleaseChannel } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
 import type { SshService } from '@core/primitives/ssh/api';
@@ -31,7 +32,7 @@ export type CreateHostServiceDeps = {
   };
   machineEvents: MachineMutationEvents;
   installBaseUrl?: string;
-  installCommand?: string;
+  releaseChannel?: ReleaseChannel;
   devAutoUpdate?: boolean;
   client?: { id: string; appVersion: string };
   logger?: HostServiceLog;
@@ -65,7 +66,11 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
   const ssh = createWorkspaceServerSshPort(deps.ssh);
   const host = new RemoteHostProbe(ssh);
   const wire = createWireConnectionManager({ scope, ssh, client: deps.client });
-  const installer = new WorkspaceServerInstaller(ssh, deps.installBaseUrl, deps.installCommand);
+  const installer = new WorkspaceServerInstaller({
+    ssh,
+    baseUrl: deps.installBaseUrl,
+    releaseChannel: deps.releaseChannel,
+  });
   const daemon = new RemoteWorkspaceServerDaemon(ssh);
   const provisioner = new WorkspaceServerProvisioner({
     scope,

@@ -1,4 +1,4 @@
-import type { WireInitializeResult } from '@emdash/core/workspace-server';
+import { isNewerRelease, type WireInitializeResult } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import { retry, retrySchedules, systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { HostStateModel } from './state-model';
@@ -69,7 +69,7 @@ export class HostServerOperations {
         status: 'booting',
         detail: 'Installing workspace server',
       });
-      await this.deps.installer.install(connectionId, signal);
+      await this.deps.installer.install({ connectionId, layout, signal });
       const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
       this.deps.state.set(connectionId, {
         status: 'booting',
@@ -109,7 +109,7 @@ export class HostServerOperations {
       this.deps.state.set(connectionId, {
         status: 'stopped',
         version,
-        ...latestVersionState(this.cachedLatestVersion(connectionId)),
+        ...latestVersionState(this.cachedLatestVersion(connectionId), version),
       });
     });
   }
@@ -143,7 +143,7 @@ export class HostServerOperations {
         status: 'booting',
         detail: 'Updating workspace server',
       });
-      await this.deps.installer.install(connectionId, signal);
+      await this.deps.installer.install({ connectionId, layout, signal });
       const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
       this.deps.state.set(connectionId, {
         status: 'shutting-down',
@@ -193,7 +193,7 @@ export class HostServerOperations {
           this.deps.state.set(connectionId, {
             status: 'stopped',
             version,
-            ...latestVersionState(latestVersion),
+            ...latestVersionState(latestVersion, version),
           });
         }
       }
@@ -248,7 +248,7 @@ export class HostServerOperations {
     this.deps.state.set(connectionId, {
       status: 'healthy',
       version: handshake.server.appVersion,
-      ...latestVersionState(latestVersion),
+      ...latestVersionState(latestVersion, handshake.server.appVersion),
       startedAt: handshake.server.startedAt,
     });
   }
@@ -267,7 +267,7 @@ export class HostServerOperations {
       this.deps.state.set(connectionId, {
         status: 'healthy',
         ...versionState(version),
-        ...latestVersionState(latestVersion),
+        ...latestVersionState(latestVersion, version),
         ...startedAtState(current?.startedAt),
         error: failure,
       });
@@ -276,7 +276,7 @@ export class HostServerOperations {
     this.deps.state.set(connectionId, {
       status: 'failed',
       ...versionState(version),
-      ...latestVersionState(latestVersion),
+      ...latestVersionState(latestVersion, version),
       error: failure,
     });
   }
@@ -367,8 +367,15 @@ function isProtocolFailure(code: string): boolean {
   return code === 'protocol-upgrade-client' || code === 'protocol-upgrade-server';
 }
 
-function latestVersionState(latestVersion: string | undefined): { latestVersion?: string } {
-  return latestVersion === undefined ? {} : { latestVersion };
+function latestVersionState(
+  latestVersion: string | undefined,
+  installedVersion: string | undefined
+): { latestVersion?: string; updateAvailable?: true } {
+  if (latestVersion === undefined) return {};
+  if (installedVersion === undefined || !isNewerRelease(latestVersion, installedVersion)) {
+    return { latestVersion };
+  }
+  return { latestVersion, updateAvailable: true };
 }
 
 function versionState(version: string | undefined): { version?: string } {

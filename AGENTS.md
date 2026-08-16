@@ -92,10 +92,13 @@ Deploy releases only when explicitly asked to do release work:
 ```bash
 gh workflow run release-prod.yml --ref main -f arch=both
 gh workflow run release-canary.yml --ref main -f arch=both
+gh workflow run release-workspace-server.yml --ref main -f channel=stable
 ```
 
 Production releases publish artifacts to GitHub Releases and Cloudflare R2. Canary
-releases currently publish to R2 only.
+releases currently publish to R2 only. See
+[workspace-server packaging](apps/workspace-server/docs/packaging.md) for its independent release
+and channel rules.
 
 ## Code Style & Conventions
 

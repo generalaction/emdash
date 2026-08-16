@@ -11,13 +11,15 @@ const alias = {
   '@tooling': resolve(__dirname, 'tooling'),
 };
 
-// For Node-environment Vitest projects, redirect better-sqlite3 to an
-// isolated copy installed under tooling/node-deps/ (compiled for system Node).
-// The root node_modules/better-sqlite3 stays Electron-compiled at all times,
-// so no rebuild dance is needed when switching between app dev and tests.
-const toolingAlias = {
+const skipBrowserProjects = Boolean(process.env.CI || process.env.EMDASH_TEST_SKIP_BROWSER);
+
+// Node-environment Vitest projects run without Electron. Redirect better-sqlite3 to
+// the isolated system-Node build and make Electron unavailable unless a test injects it.
+// The root native dependencies stay Electron-compiled for app development.
+const systemNodeAlias = {
   ...alias,
   'better-sqlite3': resolve(__dirname, 'tooling/node-deps/node_modules/better-sqlite3'),
+  electron: resolve(__dirname, 'tooling/vitest/electron-system-node.ts'),
 };
 
 export default defineConfig({
@@ -28,10 +30,10 @@ export default defineConfig({
         // All existing tests that run in a Node.js environment.
         // Migration tests are excluded — run them via `pnpm run test:migrations`.
         // DB integration tests (*.db.test.ts) are excluded — run under the main-db project.
-        // Uses toolingAlias so slice tests that open real SQLite (e.g. via the
-        // sqlite-store primitive) load the system-Node build, not the Electron one.
+        // Uses systemNodeAlias so native dependencies resolve to their system-Node
+        // test implementations without requiring an installed Electron runtime.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'node',
           environment: 'node',
@@ -50,9 +52,10 @@ export default defineConfig({
       },
       {
         // Main-process integration tests that need a real SQLite connection.
-        // Uses toolingAlias so better-sqlite3 resolves to the system-Node build.
+        // Uses systemNodeAlias so native dependencies resolve to their system-Node
+        // test implementations without requiring an installed Electron runtime.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'main-db',
           environment: 'node',
@@ -69,9 +72,8 @@ export default defineConfig({
       },
       {
         // Fixture generator — run explicitly via `pnpm run db:fixtures`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'fixtures',
           environment: 'node',
@@ -81,9 +83,8 @@ export default defineConfig({
       },
       {
         // Migration tests — run explicitly via `pnpm run test:migrations`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'migrations',
           environment: 'node',
@@ -94,16 +95,17 @@ export default defineConfig({
       {
         // Release script unit tests (artifacts, version helpers).
         extends: true,
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'scripts',
           environment: 'node',
           include: ['scripts/**/*.test.ts'],
         },
       },
-      // The browser project is omitted entirely when EMDASH_TEST_SKIP_BROWSER
-      // is set: CI runs without it until Playwright browser provisioning is
-      // proven stable there (see .github/workflows/code-consistency-check.yml).
-      ...(process.env.EMDASH_TEST_SKIP_BROWSER
+      // CI omits the browser project until Playwright provisioning is proven
+      // stable there. EMDASH_TEST_SKIP_BROWSER provides the same escape hatch
+      // for local runs.
+      ...(skipBrowserProjects
         ? []
         : [
             {
