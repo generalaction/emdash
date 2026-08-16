@@ -112,6 +112,7 @@ export function createDesktopWireOptions(
       writeRendererLog: (input) => writeRendererLogEntry(input),
     },
     notifications: services.notifications,
+    previewServerAccess: services.previewServerAccess,
     projectDeletion: services.projectDeletion,
     promptLibrary: services.promptLibrary,
     projects: services.projects,

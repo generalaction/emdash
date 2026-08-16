@@ -1,6 +1,7 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import {
   asAvailableProject,
@@ -49,7 +50,8 @@ export class PrStore {
     private readonly workspaceId: string,
     private readonly gitRepositoryStore: GitRepositoryStore,
     private readonly gitCheckoutStore: GitCheckoutStore,
-    private readonly taskStore: TaskStore
+    private readonly taskStore: TaskStore,
+    private readonly clock: Clock = systemClock
   ) {
     makeAutoObservable(this);
     this._pullRequestsDisposer = reaction(
@@ -58,7 +60,7 @@ export class PrStore {
         if (pullRequests === null) return;
         runInAction(() => {
           this._pullRequests = pullRequests;
-          this._pullRequestsObservedAt = Date.now();
+          this._pullRequestsObservedAt = this.clock.now();
         });
       },
       { fireImmediately: true }

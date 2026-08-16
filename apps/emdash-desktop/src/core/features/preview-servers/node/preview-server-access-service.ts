@@ -30,7 +30,7 @@ export interface PreviewServerAccessServiceDependencies {
 }
 
 export class PreviewServerAccessService implements PreviewServerAccessOperations {
-  private readonly observedWorkspaces = new Set<string>();
+  private readonly observedWorkspaces = new Map<string, Set<string>>();
 
   constructor(private readonly dependencies: PreviewServerAccessServiceDependencies) {}
 
@@ -38,13 +38,17 @@ export class PreviewServerAccessService implements PreviewServerAccessOperations
     projectId: string;
     workspaceId: string;
   }): Promise<Result<PreviewServer[], PreviewServerUnavailableError>> {
-    const key = `${input.projectId}:${input.workspaceId}`;
     const attached = this.requireProject(input.projectId);
-    if (!attached.success && !this.observedWorkspaces.has(key)) return attached;
+    const observed = this.observedWorkspaces.get(input.projectId)?.has(input.workspaceId) ?? false;
+    if (!attached.success && !observed) return attached;
 
     const servers = this.dependencies.previewServers.listForWorkspace(input);
-    if (attached.success) this.observedWorkspaces.add(key);
+    if (attached.success) this.observeWorkspace(input.projectId, input.workspaceId);
     return ok(servers);
+  }
+
+  forgetProject(projectId: string): void {
+    this.observedWorkspaces.delete(projectId);
   }
 
   async forwardManual(input: ManualPreviewServerRequest): Promise<ManualPreviewServerResult> {
@@ -75,6 +79,15 @@ export class PreviewServerAccessService implements PreviewServerAccessOperations
   private requireProject(projectId: string): Result<void, PreviewServerUnavailableError> {
     const attached = this.dependencies.projects.requireAttached(projectId);
     return attached.success ? ok<void>() : err(projectUnavailable(projectId, attached.error));
+  }
+
+  private observeWorkspace(projectId: string, workspaceId: string): void {
+    let workspaces = this.observedWorkspaces.get(projectId);
+    if (!workspaces) {
+      workspaces = new Set();
+      this.observedWorkspaces.set(projectId, workspaces);
+    }
+    workspaces.add(workspaceId);
   }
 }
 

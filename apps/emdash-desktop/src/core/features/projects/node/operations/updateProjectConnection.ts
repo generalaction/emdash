@@ -64,5 +64,6 @@ export async function updateProjectConnection(
       .run();
   });
   appDbPokes.projects.poke({ projectId });
+  appDbPokes.workspaces.poke({ projectId });
   await attachments.invalidate(projectId, 'relink');
 }

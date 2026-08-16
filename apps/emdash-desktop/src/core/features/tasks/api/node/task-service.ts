@@ -527,44 +527,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       .from(tasks)
       .where(eq(tasks.id, input.taskId))
       .limit(1);
-    if (
-      row &&
-      (input.deleteWorktree !== false ||
-        input.deleteConversations !== false ||
-        !!this.dependencies.sessions.getTask(input.taskId))
-    ) {
-      const attached = this.dependencies.projects.requireAttached(row.projectId);
-      if (!attached.success) {
-        return err({
-          type:
-            attached.error.type === 'project-missing' ? 'project-missing' : 'project-unavailable',
-          message:
-            attached.error.type === 'project-missing'
-              ? 'Project was not found.'
-              : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE,
-        });
-      }
-    }
     const result = await deleteTask(this.dependencies.deletion, input);
     if (result.success && row) this.notifyTaskDeleted(input.taskId, row.projectId);
     return result;
   }
 
   async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions): Promise<void> {
-    if (
-      options?.deleteWorktree !== false ||
-      options?.deleteConversations !== false ||
-      !!this.dependencies.sessions.getTask(taskId)
-    ) {
-      const attached = this.dependencies.projects.requireAttached(projectId);
-      if (!attached.success) {
-        throw new Error(
-          attached.error.type === 'project-missing'
-            ? 'Project was not found.'
-            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
-        );
-      }
-    }
     const result = await deleteTask(this.dependencies.deletion, {
       taskId,
       deleteWorktree: options?.deleteWorktree,
@@ -608,16 +576,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
       .limit(1);
     if (task && task.projectId !== projectId) throw new Error('Project was not found.');
-    if (this.dependencies.sessions.getTask(taskId)) {
-      const attached = this.dependencies.projects.requireAttached(task?.projectId ?? projectId);
-      if (!attached.success) {
-        throw new Error(
-          attached.error.type === 'project-missing'
-            ? 'Project was not found.'
-            : PROJECT_LIVE_ACCESS_REQUIRED_MESSAGE
-        );
-      }
-    }
     await archiveTask(
       this.dependencies.db,
       this.dependencies.sessions,

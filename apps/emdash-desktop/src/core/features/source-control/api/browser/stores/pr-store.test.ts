@@ -1,3 +1,4 @@
+import { createManualClock } from '@emdash/shared/testing';
 import { observable } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
@@ -33,11 +34,19 @@ describe('PrStore Host observations', () => {
       state: 'provisioned' as const,
       data: { prs: [pullRequest] },
     }) as unknown as TaskStore;
-    const store = new PrStore('project-1', 'workspace-1', repository, {} as GitCheckoutStore, task);
+    const store = new PrStore(
+      'project-1',
+      'workspace-1',
+      repository,
+      {} as GitCheckoutStore,
+      task,
+      createManualClock(1_786_000_000_000)
+    );
 
     expect(store.pullRequestsObservation).toMatchObject({
       kind: 'fresh',
       value: [pullRequest],
+      observedAt: 1_786_000_000_000,
     });
 
     state.set({ kind: 'degraded', situation: 'offline', recovery: 'automatic' });

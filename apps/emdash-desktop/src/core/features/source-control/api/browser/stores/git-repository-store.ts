@@ -8,6 +8,7 @@ import {
 } from '@emdash/core/runtimes/git/api';
 import { err } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { buildRendererRepoFacts } from '@core/features/projects/api/browser/effective-settings/renderer-repo-facts';
@@ -59,7 +60,8 @@ export class GitRepositoryStore {
   constructor(
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
-    private readonly host: ProjectHostAccess
+    private readonly host: ProjectHostAccess,
+    private readonly clock: Clock = systemClock
   ) {
     this.providerRepositoryInfo = new Resource<ProviderRepositoryResult>(
       () => getRepositoryClient().then((client) => client.resolveProvider({ projectId })),
@@ -475,7 +477,7 @@ export class GitRepositoryStore {
       });
       const model = gitRemote(repositorySelector(this.projectId));
       pin(scope, Object.values(model.states));
-      await waitForRepositoryModel(model, scope, (refs, remotes, refsAt, remotesAt) => {
+      await waitForRepositoryModel(model, scope, this.clock, (refs, remotes, refsAt, remotesAt) => {
         this.refsState = refs;
         this.remotesData = remotes;
         this.refsObservedAt = refsAt;
@@ -515,6 +517,7 @@ async function loadDefaultBranch(projectId: string, remote: string | null) {
 function waitForRepositoryModel(
   model: RepositoryRemoteMember,
   scope: Scope,
+  clock: Clock,
   setData: (
     refs: GitRefsState,
     remotes: GitRemotesState,
@@ -547,7 +550,7 @@ function waitForRepositoryModel(
           }
           if (!current.value) return;
           refs = current.value;
-          refsObservedAt = Date.now();
+          refsObservedAt = clock.now();
           publish();
         });
       },
@@ -563,7 +566,7 @@ function waitForRepositoryModel(
           }
           if (!current.value) return;
           remotes = current.value;
-          remotesObservedAt = Date.now();
+          remotesObservedAt = clock.now();
           publish();
         });
       },

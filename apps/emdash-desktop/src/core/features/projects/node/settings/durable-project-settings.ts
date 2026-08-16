@@ -1,18 +1,14 @@
-import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type {
   ProjectDurableSettingsDomains,
   ProjectSettingsDomainPatch,
 } from '@core/features/projects/api/project-settings-page';
-import type { StoredBaseProjectSettings } from '@core/primitives/project-settings/api';
-import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import {
-  legacyBaseProjectSettingsSchema,
-  legacyLifecycleSettingsFromStored,
-  withLegacyLifecycleSettings,
-} from './migrations/legacy-stored-project-settings';
-import { migrateStoredBaseProjectSettings } from './migrations/stored-settings';
+  storedBaseProjectSettingsSchema,
+  type StoredBaseProjectSettings,
+} from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { compactUndefined, readJson } from './project-settings-json';
 import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
 
@@ -78,24 +74,9 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
         });
       }
       const current = row ?? (await this.storage.get(projectId));
-      const legacyLifecycle = current
-        ? legacyLifecycleSettingsFromStored(
-            readJson(
-              current.baseProjectSettingsJson,
-              legacyBaseProjectSettingsSchema,
-              'base project settings'
-            ),
-            readJson(
-              current.shareableProjectSettingsJson,
-              emdashConfigSchema,
-              'legacy shareable project settings'
-            )
-          )
-        : {};
+      if (!current) throw new Error(`Failed to create Project settings row for ${projectId}`);
       await this.storage.update(projectId, {
-        baseProjectSettingsJson: JSON.stringify(
-          compactUndefined(withLegacyLifecycleSettings(next, legacyLifecycle))
-        ),
+        baseProjectSettingsJson: JSON.stringify(compactUndefined(next)),
       });
       return ok();
     } catch (error) {
@@ -109,10 +90,10 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
     if (!row) return {};
     const raw = readJson(
       row.baseProjectSettingsJson,
-      legacyBaseProjectSettingsSchema,
+      storedBaseProjectSettingsSchema,
       'base project settings'
     );
-    return migrateStoredBaseProjectSettings(raw, null).next;
+    return raw;
   }
 }
 

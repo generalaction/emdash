@@ -113,6 +113,23 @@ describe('TaskStore provision state', () => {
     expect(store.workspaceSshConnectionId).toBeUndefined();
   });
 
+  it('refreshes a provisioned workspace binding without recreating task contributions', () => {
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', 'ssh-1');
+
+    store.refreshWorkspaceBinding(task, '/tmp/workspace-1-renamed', 'workspace-1', 'ssh-2');
+
+    expect(store).toMatchObject({
+      state: 'provisioned',
+      workspaceId: 'workspace-1',
+      workspacePath: '/tmp/workspace-1-renamed',
+      workspaceSshConnectionId: 'ssh-2',
+    });
+    expect(contributionMocks.dispose).not.toHaveBeenCalled();
+    expect(contributionMocks.create).toHaveBeenCalledOnce();
+  });
+
   it('disposes contributed stores exactly once', () => {
     const store = createUnprovisionedTask(makeTask());
 

@@ -21,6 +21,7 @@ export type RuntimeClientSource =
 export interface RuntimeClientBinding {
   readonly client: HostRuntimesClient;
   rebind(source: RuntimeClientSource): boolean;
+  dispose(): void;
 }
 
 export function createRuntimeClientBinding(source: RuntimeClientSource): RuntimeClientBinding {
@@ -48,6 +49,10 @@ class ConnectionRuntimeClientBinding implements RuntimeClientBinding {
     this.connection.rebind(source.connection);
     return true;
   }
+
+  dispose(): void {
+    this.connection.dispose();
+  }
 }
 
 class DirectRuntimeClientBinding implements RuntimeClientBinding {
@@ -55,6 +60,10 @@ class DirectRuntimeClientBinding implements RuntimeClientBinding {
 
   rebind(source: RuntimeClientSource): boolean {
     return !isConnectionSource(source) && source === this.client;
+  }
+
+  dispose(): void {
+    // Direct clients are owned by their runtime worker.
   }
 }
 

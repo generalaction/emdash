@@ -117,6 +117,50 @@ describe('RuntimeBroker', () => {
     expect(secondDetach).toHaveBeenCalledOnce();
   });
 
+  it('disposes retained attachments when an incompatible binding replaces them', async () => {
+    const host = hostRef('remote', 'remote-1');
+    const detach = vi.fn();
+    const broker = new RuntimeBroker({
+      resolve: () =>
+        ok({
+          client: {} as HostRuntimesClient,
+          connection: connection(vi.fn(async () => detach)),
+        }),
+    });
+    const retained = await broker.client(host);
+    expect(retained.success).toBe(true);
+    if (!retained.success) throw new Error('Expected the first Host runtime');
+    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    await handle.attach(vi.fn());
+
+    broker.rebind(host, {} as HostRuntimesClient);
+
+    expect(detach).toHaveBeenCalledOnce();
+  });
+
+  it('disposes all retained bindings idempotently', async () => {
+    const host = hostRef('remote', 'remote-1');
+    const detach = vi.fn();
+    const broker = new RuntimeBroker({
+      resolve: () =>
+        ok({
+          client: {} as HostRuntimesClient,
+          connection: connection(vi.fn(async () => detach)),
+        }),
+    });
+    const retained = await broker.client(host);
+    expect(retained.success).toBe(true);
+    if (!retained.success) throw new Error('Expected the first Host runtime');
+    const handle = retained.data.files.tree.model.state({} as never, 'tree');
+    await handle.attach(vi.fn());
+
+    broker.dispose();
+    broker.dispose();
+
+    expect(detach).toHaveBeenCalledOnce();
+    await expect(handle.attach(vi.fn())).rejects.toMatchObject({ code: 'DISCONNECTED' });
+  });
+
   it('ignores a client resolution superseded by an explicit Host rebind', async () => {
     const host = hostRef('remote', 'remote-1');
     const staleResolution = deferred<RuntimeSessionResolution>();

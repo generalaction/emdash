@@ -43,6 +43,7 @@ export function createTasksWireController(options: {
         pokes: [
           appDbPokes.tasks.subscription(matchProject(projectId)),
           appDbPokes.conversations.subscription(matchProject(projectId)),
+          appDbPokes.workspaces.subscription(matchProject(projectId)),
         ],
         scope,
       }),

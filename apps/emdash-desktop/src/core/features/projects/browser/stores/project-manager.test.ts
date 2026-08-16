@@ -19,9 +19,11 @@ import {
   createUnregisteredProject,
   isUnregisteredProject,
 } from '@core/features/projects/api/browser/stores/project';
-import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
+import { ProjectManagerStore as BrowserProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
+import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 import { hostsContract, type HostAvailabilityState } from '@core/services/hosts/api';
 
 const mocks = vi.hoisted(() => ({
@@ -66,6 +68,24 @@ let wire: ReturnType<typeof createProjectWire> | undefined;
 let hostAvailabilityState: ReturnType<typeof cell<HostAvailabilityState>>;
 let hostsWire: ReturnType<typeof createHostsWire> | undefined;
 
+const projectStoreContributions = [
+  {
+    token: taskManagerStoreToken,
+    create: () => ({
+      tasks: new Map(),
+      loadTasks: mocks.taskListLoad,
+      provisionTask: mocks.taskProvision,
+    }),
+    dispose: mocks.projectContextStoreDispose,
+  },
+] satisfies readonly ScopedStoreContribution<ProjectScopedStoreContext>[];
+
+class ProjectManagerStore extends BrowserProjectManagerStore {
+  constructor() {
+    super(projectStoreContributions);
+  }
+}
+
 vi.mock('@core/features/github/api/browser/client', () => ({
   getGithubClient: async () => ({
     createRepository: mocks.createGithubRepository,
@@ -95,20 +115,6 @@ vi.mock('@core/primitives/mementos/browser', () => ({
     reportError: mocks.mementoReportError,
     subject: mocks.mementoSubject,
   }),
-}));
-
-vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
-  projectStoreContributions: [
-    {
-      token: { id: 'tasks.manager' },
-      create: () => ({
-        tasks: new Map(),
-        loadTasks: mocks.taskListLoad,
-        provisionTask: mocks.taskProvision,
-      }),
-      dispose: mocks.projectContextStoreDispose,
-    },
-  ],
 }));
 
 vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({

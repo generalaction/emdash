@@ -14,6 +14,10 @@ import { createConversationOperations } from '@core/features/conversations/node/
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
 import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
 import type { ProjectAttachmentError } from '@core/features/projects/api';
+import {
+  requireAttachedProjectOrThrow,
+  withAttachedProject,
+} from '@core/features/projects/api/node/attached-project';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -122,30 +126,27 @@ export function createConversationsWireController(
 
   return createController(conversationsContract, {
     getConversations: () => conversationOperations.getConversations(),
-    createConversation: async (input) => {
-      const attached = options.projects.requireAttached(input.projectId);
-      if (!attached.success) return err(attached.error);
-      return ok(await conversationOperations.createConversation(input));
-    },
+    createConversation: (input) =>
+      withAttachedProject(options.projects, input.projectId, async () =>
+        ok(await conversationOperations.createConversation(input))
+      ),
     deleteConversation: ({ projectId, taskId, conversationId }) =>
       conversationOperations.deleteConversation(projectId, taskId, conversationId),
-    hydrateConversation: async ({ projectId, taskId, conversationId, initialSize }) => {
-      const attached = options.projects.requireAttached(projectId);
-      if (!attached.success) return err(attached.error);
-      await conversationOperations.hydrateConversation(
-        projectId,
-        taskId,
-        conversationId,
-        initialSize
-      );
-      return ok<void>();
-    },
-    dehydrateConversation: async ({ projectId, taskId, conversationId }) => {
-      const attached = options.projects.requireAttached(projectId);
-      if (!attached.success) return err(attached.error);
-      await conversationOperations.dehydrateConversation(projectId, taskId, conversationId);
-      return ok<void>();
-    },
+    hydrateConversation: ({ projectId, taskId, conversationId, initialSize }) =>
+      withAttachedProject(options.projects, projectId, async () => {
+        await conversationOperations.hydrateConversation(
+          projectId,
+          taskId,
+          conversationId,
+          initialSize
+        );
+        return ok<void>();
+      }),
+    dehydrateConversation: ({ projectId, taskId, conversationId }) =>
+      withAttachedProject(options.projects, projectId, async () => {
+        await conversationOperations.dehydrateConversation(projectId, taskId, conversationId);
+        return ok<void>();
+      }),
     renameConversation: ({ conversationId, name }) =>
       conversationOperations.renameConversation(conversationId, name),
     getConversationsForTask: ({ projectId, taskId }) =>
@@ -417,11 +418,11 @@ async function withConversationRuntime<T, E>(
   ) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError | ProjectAttachmentError>> {
   const target = await targetPromise;
-  const attached = options.projects.requireAttached(target.projectId);
-  if (!attached.success) return err(attached.error);
-  const result = await options.runtimes.client(target.host);
-  if (!result.success) return err(result.error);
-  return await work(result.data, target);
+  return withAttachedProject(options.projects, target.projectId, async () => {
+    const result = await options.runtimes.client(target.host);
+    if (!result.success) return err(result.error);
+    return await work(result.data, target);
+  });
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
@@ -448,8 +449,7 @@ async function resolveProjectRuntimeSource(
   hostPromise: Promise<HostRef>,
   source: (client: ConversationsHostRuntimesClient) => LiveSource
 ): Promise<LiveSource> {
-  const attached = options.projects.requireAttached(projectId);
-  if (!attached.success) throw new Error(attached.error.type);
+  requireAttachedProjectOrThrow(options.projects, projectId);
   return resolveRuntimeSource(options.runtimes, hostPromise, source);
 }
 
@@ -470,17 +470,17 @@ async function openAttachmentDownload(
   call: { signal?: AbortSignal }
 ) {
   const target = await targetPromise;
-  const attached = options.projects.requireAttached(target.projectId);
-  if (!attached.success) return err(attached.error);
-  const runtime = await options.runtimes.client(target.host);
-  if (!runtime.success) return err(runtime.error);
-  const result = await runtime.data.acp.downloadAttachment(
-    { conversationId: target.conversationId, attachmentId },
-    call
-  );
-  if (!result.success) return result;
-  return {
-    success: true as const,
-    data: { meta: result.data.meta, source: result.data.chunks() },
-  };
+  return withAttachedProject(options.projects, target.projectId, async () => {
+    const runtime = await options.runtimes.client(target.host);
+    if (!runtime.success) return err(runtime.error);
+    const result = await runtime.data.acp.downloadAttachment(
+      { conversationId: target.conversationId, attachmentId },
+      call
+    );
+    if (!result.success) return result;
+    return {
+      success: true as const,
+      data: { meta: result.data.meta, source: result.data.chunks() },
+    };
+  });
 }

@@ -42,8 +42,7 @@ import type { PromptLibraryService } from '@core/features/library/node/prompt-li
 import { createPromptLibraryWireController } from '@core/features/library/node/wire-controller';
 import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
-import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
-import { PreviewServerAccessService } from '@core/features/preview-servers/node/preview-server-access-service';
+import type { PreviewServerAccessOperations } from '@core/features/preview-servers/node/preview-server-access-service';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
@@ -134,6 +133,7 @@ export type DesktopControllerContext = {
   readonly logger: Logger;
   readonly loggingOperations: LoggingControllerOperations;
   readonly notifications: NotificationService;
+  readonly previewServerAccess: PreviewServerAccessOperations;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
   readonly projects: ProjectAttachmentManager;
@@ -397,10 +397,7 @@ export const desktopNodeControllers = {
       }),
   },
   previewServers: {
-    create: ({ projects }) =>
-      createPreviewServersWireController(
-        new PreviewServerAccessService({ projects, previewServers: previewServerService })
-      ),
+    create: ({ previewServerAccess }) => createPreviewServersWireController(previewServerAccess),
   },
   github: {
     create: ({ github, logger, telemetry }) =>

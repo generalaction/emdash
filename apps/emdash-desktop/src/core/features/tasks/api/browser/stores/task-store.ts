@@ -151,6 +151,18 @@ export class TaskStore implements TaskState {
     this.errorMessage = undefined;
   }
 
+  refreshWorkspaceBinding(
+    data: Task,
+    path: string,
+    workspaceId: string,
+    sshConnectionId?: string
+  ): void {
+    this.data = { ...data, workspaceId };
+    this.workspaceId = workspaceId;
+    this.workspacePath = path;
+    this.workspaceSshConnectionId = sshConnectionId;
+  }
+
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
     this.workspaceId = null;
     this.workspacePath = null;

@@ -19,7 +19,8 @@ import {
   type ProjectCreationStage,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
-import { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
+import { ProjectContext } from '@core/features/projects/browser/stores/project-context';
+import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
@@ -33,6 +34,7 @@ import {
 } from '@core/primitives/navigation/browser/navigation-selectors';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
+import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import { hostsContract } from '@core/services/hosts/api';
@@ -70,7 +72,9 @@ export class ProjectManagerStore {
   > | null = null;
   private _disposed = false;
 
-  constructor() {
+  constructor(
+    private readonly projectStoreContributions: readonly ScopedStoreContribution<ProjectScopedStoreContext>[]
+  ) {
     makeObservable(this, { projects: observable, pendingCreationIds: observable });
   }
 
@@ -178,7 +182,7 @@ export class ProjectManagerStore {
     runInAction(() => {
       store.context = { kind: 'hydrating', project };
     });
-    const promise = ProjectContext.hydrate(project)
+    const promise = ProjectContext.hydrate(project, this.projectStoreContributions)
       .then(async (result) => {
         if (!this._isCurrentProjectContextHydration(projectId, identity, store)) {
           if (result.success) await result.data.dispose();
@@ -670,7 +674,11 @@ export class ProjectManagerStore {
       store.updateData({ ...data, connectionId: newConnectionId });
     });
     if (store.context?.kind === 'available') {
-      await this._trackProjectContextHostAccess(projectId, store, store.context.context);
+      await this._trackProjectContextHostAccess(
+        projectId,
+        store,
+        store.context.context as ProjectContext
+      );
     }
   }
 

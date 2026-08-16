@@ -177,33 +177,126 @@ export function projectLiveActionDisabledReason({
     : 'Live actions are unavailable for this Project.';
 }
 
+type IssuePresentationDescriptor = {
+  correctiveActions: readonly ProjectCorrectiveAction[];
+  title: (host: ProjectAvailabilityHost, machineName: string | undefined) => string;
+  detail?: (host: ProjectAvailabilityHost) => string;
+};
+
+const issuePresentationDescriptors: Record<
+  ProjectAvailabilitySemantic,
+  IssuePresentationDescriptor
+> = {
+  offline: {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host, machineName) =>
+      host.kind === 'local' ? 'Local runtime is unavailable' : `${machineName} is offline`,
+  },
+  'connection-failed': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host, machineName) =>
+      host.kind === 'local'
+        ? 'Local runtime connection failed'
+        : `Could not connect to ${machineName}`,
+  },
+  'daemon-start-failed': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host, machineName) =>
+      host.kind === 'local'
+        ? 'Local runtime could not start'
+        : `Could not start ${machineName}'s workspace server`,
+  },
+  'artifact-download-failed': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host) =>
+      host.kind === 'local'
+        ? 'Local runtime download failed'
+        : 'Could not download the workspace server',
+  },
+  'install-failed': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host) =>
+      host.kind === 'local'
+        ? 'Local runtime installation failed'
+        : 'Could not install the workspace server',
+  },
+  'unsupported-platform': {
+    correctiveActions: ['diagnostics'],
+    title: (host, machineName) =>
+      host.kind === 'local' ? 'This platform is not supported' : `${machineName} is not supported`,
+    detail: (host) =>
+      host.kind === 'local'
+        ? 'Review system details before moving this Project to a supported computer.'
+        : 'Review Machine details before moving this Project to a supported Machine.',
+  },
+  'protocol-upgrade-client': {
+    correctiveActions: ['update-client'],
+    title: () => 'Update Emdash to use this Project',
+    detail: () => 'Install the latest Emdash version to restore Project access.',
+  },
+  'protocol-upgrade-server': {
+    correctiveActions: ['diagnostics', 'retry'],
+    title: (host, machineName) =>
+      host.kind === 'local'
+        ? 'Update the local runtime'
+        : `Update ${machineName}'s workspace server`,
+    detail: () => 'Update the workspace server, then retry Project access.',
+  },
+  'runtime-unavailable': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: (host, machineName) =>
+      host.kind === 'local'
+        ? 'Local runtime is unavailable'
+        : `${machineName}'s workspace server is unavailable`,
+  },
+  'not-configured': {
+    correctiveActions: ['configure'],
+    title: (host, machineName) =>
+      host.kind === 'local'
+        ? 'Local runtime is not configured'
+        : `${machineName} is not configured`,
+    detail: (host) =>
+      host.kind === 'local'
+        ? 'Configure the local runtime to restore live features.'
+        : 'Configure this Machine to restore live features.',
+  },
+  'host-identity-lost': {
+    correctiveActions: ['relink-project', 'remove-project'],
+    title: (host) =>
+      host.kind === 'local'
+        ? 'This Project lost its local runtime link'
+        : 'This Project is no longer linked to a Machine',
+    detail: (host) =>
+      host.kind === 'local'
+        ? 'Relink this Project to a local runtime or remove it from Emdash.'
+        : 'Relink this Project to a Machine or remove it from Emdash.',
+  },
+  'attachment-unavailable': {
+    correctiveActions: [],
+    title: (host, machineName) =>
+      host.kind === 'local' ? 'Opening Project locally' : `Opening Project on ${machineName}`,
+  },
+  'project-missing': {
+    correctiveActions: [],
+    title: () => '',
+  },
+  'repository-missing': {
+    correctiveActions: ['retry'],
+    title: () => 'Repository is missing',
+    detail: () => 'Restore the repository or relink the Project, then retry.',
+  },
+  'repository-unavailable': {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: () => 'Repository is unavailable',
+  },
+  unexpected: {
+    correctiveActions: ['retry', 'diagnostics'],
+    title: () => 'Project access failed',
+  },
+};
+
 function correctiveActionsFor(semantic: ProjectAvailabilitySemantic): ProjectCorrectiveAction[] {
-  switch (semantic) {
-    case 'offline':
-    case 'connection-failed':
-    case 'daemon-start-failed':
-    case 'runtime-unavailable':
-    case 'artifact-download-failed':
-    case 'install-failed':
-    case 'repository-unavailable':
-    case 'unexpected':
-      return ['retry', 'diagnostics'];
-    case 'unsupported-platform':
-      return ['diagnostics'];
-    case 'protocol-upgrade-client':
-      return ['update-client'];
-    case 'protocol-upgrade-server':
-      return ['diagnostics', 'retry'];
-    case 'not-configured':
-      return ['configure'];
-    case 'host-identity-lost':
-      return ['relink-project', 'remove-project'];
-    case 'attachment-unavailable':
-    case 'project-missing':
-      return [];
-    case 'repository-missing':
-      return ['retry'];
-  }
+  return [...issuePresentationDescriptors[semantic].correctiveActions];
 }
 
 function offlinePresentation(
@@ -243,60 +336,7 @@ function issueTitle(
   machineName: string | undefined,
   semantic: ProjectAvailabilitySemantic
 ): string {
-  switch (semantic) {
-    case 'offline':
-      return host.kind === 'local' ? 'Local runtime is unavailable' : `${machineName} is offline`;
-    case 'connection-failed':
-      return host.kind === 'local'
-        ? 'Local runtime connection failed'
-        : `Could not connect to ${machineName}`;
-    case 'daemon-start-failed':
-      return host.kind === 'local'
-        ? 'Local runtime could not start'
-        : `Could not start ${machineName}'s workspace server`;
-    case 'artifact-download-failed':
-      return host.kind === 'local'
-        ? 'Local runtime download failed'
-        : 'Could not download the workspace server';
-    case 'install-failed':
-      return host.kind === 'local'
-        ? 'Local runtime installation failed'
-        : 'Could not install the workspace server';
-    case 'unsupported-platform':
-      return host.kind === 'local'
-        ? 'This platform is not supported'
-        : `${machineName} is not supported`;
-    case 'protocol-upgrade-client':
-      return 'Update Emdash to use this Project';
-    case 'protocol-upgrade-server':
-      return host.kind === 'local'
-        ? 'Update the local runtime'
-        : `Update ${machineName}'s workspace server`;
-    case 'runtime-unavailable':
-      return host.kind === 'local'
-        ? 'Local runtime is unavailable'
-        : `${machineName}'s workspace server is unavailable`;
-    case 'not-configured':
-      return host.kind === 'local'
-        ? 'Local runtime is not configured'
-        : `${machineName} is not configured`;
-    case 'host-identity-lost':
-      return host.kind === 'local'
-        ? 'This Project lost its local runtime link'
-        : 'This Project is no longer linked to a Machine';
-    case 'attachment-unavailable':
-      return host.kind === 'local'
-        ? 'Opening Project locally'
-        : `Opening Project on ${machineName}`;
-    case 'repository-missing':
-      return 'Repository is missing';
-    case 'repository-unavailable':
-      return 'Repository is unavailable';
-    case 'unexpected':
-      return 'Project access failed';
-    case 'project-missing':
-      return '';
-  }
+  return issuePresentationDescriptors[semantic].title(host, machineName);
 }
 
 function issueDetail(
@@ -311,28 +351,10 @@ function issueDetail(
   if (automaticExhausted) {
     return 'Automatic recovery stopped after six attempts. Retry when access is available.';
   }
-  switch (semantic) {
-    case 'unsupported-platform':
-      return host.kind === 'local'
-        ? 'Review system details before moving this Project to a supported computer.'
-        : 'Review Machine details before moving this Project to a supported Machine.';
-    case 'protocol-upgrade-client':
-      return 'Install the latest Emdash version to restore Project access.';
-    case 'protocol-upgrade-server':
-      return 'Update the workspace server, then retry Project access.';
-    case 'not-configured':
-      return host.kind === 'local'
-        ? 'Configure the local runtime to restore live features.'
-        : 'Configure this Machine to restore live features.';
-    case 'host-identity-lost':
-      return host.kind === 'local'
-        ? 'Relink this Project to a local runtime or remove it from Emdash.'
-        : 'Relink this Project to a Machine or remove it from Emdash.';
-    case 'repository-missing':
-      return 'Restore the repository or relink the Project, then retry.';
-    default:
-      return 'Project data remains available. Correct the problem, then retry.';
-  }
+  return (
+    issuePresentationDescriptors[semantic].detail?.(host) ??
+    'Project data remains available. Correct the problem, then retry.'
+  );
 }
 
 function recoveryActions(

@@ -50,7 +50,9 @@ import {
 } from '@core/features/library/node/prompt-library-service';
 import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
+import { PreviewServerAccessService } from '@core/features/preview-servers/node/preview-server-access-service';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import { projectEvents } from '@core/features/projects/api/node/project-events';
 import { loadStoredGitSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
@@ -157,6 +159,7 @@ export type ServicesBundle = {
   readonly hostIsReachable: HostReachabilityProbe;
   readonly hostAttachments: HostAttachmentRegistry;
   readonly notifications: ReturnType<typeof createNotificationService>;
+  readonly previewServerAccess: PreviewServerAccessService;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly projects: ProjectAttachmentManager;
@@ -305,6 +308,15 @@ export async function bootServices(
     availability: desktopRuntimes.hostAvailability,
     adapter: projectAttachmentAdapter,
   });
+  const previewServerAccess = new PreviewServerAccessService({
+    projects: projectManager,
+    previewServers: previewServerService,
+  });
+  appScope.add(
+    projectEvents.on('project:deleted', (projectId) => {
+      previewServerAccess.forgetProject(projectId);
+    })
+  );
   const projectSettingsService = new ProjectSettingsService({
     db,
     projects: projectManager,
@@ -785,6 +797,7 @@ export async function bootServices(
     hostAttachments,
     issueProviders,
     notifications: notificationService,
+    previewServerAccess,
     promptLibrary: promptLibraryService,
     projectDeletion,
     projects: projectManager,

@@ -290,20 +290,32 @@ export class TaskManagerStore {
         if (isUnregistered(current)) {
           current.transitionToUnprovisioned(task);
         }
-        if (!isDeepEqual(current.data, task)) current.data = task;
-        if (row.activeWorkspace && !isProvisioned(current)) {
-          current.transitionToProvisioned(
-            task,
-            row.activeWorkspace.path,
-            row.activeWorkspace.workspaceId,
-            row.activeWorkspace.sshConnectionId
-          );
-          activeTaskReady.push(
-            current.ready().then(() => {
-              if (this.tasks.get(task.id) === current && isProvisioned(current)) current.activate();
-            })
-          );
+        if (row.activeWorkspace) {
+          if (isProvisioned(current)) {
+            const { path, workspaceId, sshConnectionId } = row.activeWorkspace;
+            if (
+              current.workspacePath !== path ||
+              current.workspaceId !== workspaceId ||
+              current.workspaceSshConnectionId !== sshConnectionId
+            ) {
+              current.refreshWorkspaceBinding(task, path, workspaceId, sshConnectionId);
+            }
+          } else {
+            current.transitionToProvisioned(
+              task,
+              row.activeWorkspace.path,
+              row.activeWorkspace.workspaceId,
+              row.activeWorkspace.sshConnectionId
+            );
+            activeTaskReady.push(
+              current.ready().then(() => {
+                if (this.tasks.get(task.id) === current && isProvisioned(current))
+                  current.activate();
+              })
+            );
+          }
         }
+        if (!isDeepEqual(current.data, task)) current.data = task;
       },
       shouldKeepMissing: (_taskId, task) => isUnregistered(task),
       remove: (task, taskId) => {

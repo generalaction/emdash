@@ -1,4 +1,5 @@
 import type { ProjectConfigState } from '@emdash/core/runtimes/workspace-registry/api';
+import { createManualClock } from '@emdash/shared/testing';
 import { createEventStreamHost } from '@emdash/wire/live';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
@@ -192,7 +193,8 @@ describe('ProjectSettingsStore offline settings', () => {
 describe('ProjectSettingsStore project config live model', () => {
   it('updates renderer domain snapshots from live config without refetching the page', async () => {
     const access = projectHostAccess({ kind: 'ready', hostGeneration: 1 });
-    const store = new ProjectSettingsStore('project-1', access.host);
+    const clock = createManualClock(1_786_000_000_000);
+    const store = new ProjectSettingsStore('project-1', access.host, clock);
     await store.load();
     expect(store.domains?.lifecycle.personal.scripts?.setup).toBe('first setup');
 
@@ -200,6 +202,7 @@ describe('ProjectSettingsStore project config live model', () => {
     await waitFor(() => store.domains?.lifecycle.personal.scripts?.setup === 'second setup');
 
     expect(store.domains?.lifecycle.resolved.setup?.value).toBe('second setup');
+    expect(store.hostDomains).toMatchObject({ observedAt: 1_786_000_000_000 });
     expect(getProjectSettingsPage).toHaveBeenCalledTimes(1);
     store.dispose();
   });

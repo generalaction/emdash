@@ -5,6 +5,7 @@ import type {
   GitRemotesState,
 } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
+import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { observable } from 'mobx';
@@ -56,11 +57,12 @@ function settingsStore(storedGitSettings: StoredProjectGitSettings | null): Proj
   } as unknown as ProjectSettingsStore;
 }
 
-async function startStore(stored: StoredProjectGitSettings | null = null) {
+async function startStore(stored: StoredProjectGitSettings | null = null, clock?: ManualClock) {
   const store = new GitRepositoryStore(
     'project-1',
     settingsStore(stored),
-    projectHostAccess({ kind: 'ready', hostGeneration: 1 }).host
+    projectHostAccess({ kind: 'ready', hostGeneration: 1 }).host,
+    clock
   );
   store.start();
   await waitFor(() => !store.loading);
@@ -104,6 +106,14 @@ describe('GitRepositoryStore', () => {
     await wire?.dispose();
     wire = undefined;
     vi.clearAllMocks();
+  });
+
+  it('timestamps Git observations through the injected clock', async () => {
+    const store = await startStore(null, createManualClock(1_786_000_000_000));
+
+    expect(store.refsObservation).toMatchObject({ observedAt: 1_786_000_000_000 });
+    expect(store.remotesObservation).toMatchObject({ observedAt: 1_786_000_000_000 });
+    store.dispose();
   });
 
   describe('with zero remotes', () => {

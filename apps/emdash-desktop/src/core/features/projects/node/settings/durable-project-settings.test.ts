@@ -44,4 +44,38 @@ describe('DesktopProjectSettingsAuthority', () => {
     });
     expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('baseRemote');
   });
+
+  it('does not preserve migration-only lifecycle settings during a durable patch', async () => {
+    const shareable = JSON.stringify({
+      preservePatterns: ['.env.local'],
+      scripts: { setup: 'pnpm install' },
+    });
+    const row: StoredProjectSettings = {
+      baseProjectSettingsJson: JSON.stringify({
+        baseRemote: 'origin',
+        autoRunSetupScriptOnTaskCreation: false,
+        autoRunRunScriptOnTaskCreation: true,
+      }),
+      shareableProjectSettingsJson: shareable,
+      legacyConfigMigratedAt: null,
+    };
+    const storage: ProjectSettingsStorage = {
+      get: vi.fn(async () => row),
+      insertIfMissing: vi.fn(),
+      update: vi.fn(async (_projectId, patch) => {
+        Object.assign(row, patch);
+      }),
+    };
+    const authority = new DesktopProjectSettingsAuthority(storage);
+
+    await authority.patch('project-1', {
+      gitIdentity: { stored: { pushRemote: 'fork' } },
+    });
+
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
+      baseRemote: 'origin',
+      pushRemote: 'fork',
+    });
+    expect(row.shareableProjectSettingsJson).toBe(shareable);
+  });
 });

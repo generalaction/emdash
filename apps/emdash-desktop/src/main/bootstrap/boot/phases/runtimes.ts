@@ -23,6 +23,7 @@ export async function bootRuntimes(
     });
     const runtimeWorkers = workers;
     const broker = createDesktopRuntimeBroker(runtimeWorkers.clients, infrastructure.hosts);
+    scope.add(() => broker.dispose());
     const hostAvailability = createDesktopHostAvailability({
       scope,
       hosts: infrastructure.hosts,

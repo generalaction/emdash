@@ -34,5 +34,3 @@ export const featureModalDefs = [
   ...tasksBrowserContributions.modalDefs,
   ...workbenchBrowserContributions.modalDefs,
 ] as const;
-
-export { projectAvailabilityUi } from './project-availability-ui';

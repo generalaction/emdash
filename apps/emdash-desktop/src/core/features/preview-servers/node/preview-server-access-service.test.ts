@@ -61,6 +61,32 @@ describe('PreviewServerAccessService', () => {
     await expect(service.listForWorkspace(input)).resolves.toEqual(ok([server]));
   });
 
+  it('forgets every workspace for one detached project without evicting other projects', async () => {
+    const { requireAttached, service } = harness();
+    const secondWorkspace = { projectId: input.projectId, workspaceId: 'workspace-2' };
+    const otherProject = { projectId: 'project-2', workspaceId: 'workspace-3' };
+
+    await service.listForWorkspace(input);
+    await service.listForWorkspace(secondWorkspace);
+    await service.listForWorkspace(otherProject);
+
+    requireAttached.mockReturnValue(err(unavailable));
+    await expect(service.listForWorkspace(input)).resolves.toEqual(ok([server]));
+    await expect(service.listForWorkspace(otherProject)).resolves.toEqual(ok([server]));
+
+    service.forgetProject(input.projectId);
+
+    await expect(service.listForWorkspace(input)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'project-unavailable', projectId: input.projectId },
+    });
+    await expect(service.listForWorkspace(secondWorkspace)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'project-unavailable', projectId: input.projectId },
+    });
+    await expect(service.listForWorkspace(otherProject)).resolves.toEqual(ok([server]));
+  });
+
   it('checks effective project attachment before live mutations', async () => {
     const { previewServers, requireAttached, service } = harness();
     requireAttached.mockReturnValue(err(unavailable));

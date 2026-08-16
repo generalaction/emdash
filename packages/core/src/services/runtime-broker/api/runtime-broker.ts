@@ -55,6 +55,7 @@ export class RuntimeBroker {
     const key = formatHostRef(host);
     let binding = this.bindings.get(key);
     if (!binding || !binding.rebind(source)) {
+      binding?.dispose();
       binding = createRuntimeClientBinding(source);
       this.bindings.set(key, binding);
     }
@@ -63,5 +64,11 @@ export class RuntimeBroker {
 
   async invalidate(host: HostRef): Promise<void> {
     await this.options.invalidate?.(host);
+  }
+
+  dispose(): void {
+    for (const binding of this.bindings.values()) binding.dispose();
+    this.bindings.clear();
+    this.rebindEpochs.clear();
   }
 }

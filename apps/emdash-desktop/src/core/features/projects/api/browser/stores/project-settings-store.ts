@@ -1,6 +1,7 @@
 import type { ProjectConfigState } from '@emdash/core/runtimes/workspace-registry/api';
 import { ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
@@ -38,7 +39,8 @@ export class ProjectSettingsStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly host: ProjectHostAccess
+    private readonly host: ProjectHostAccess,
+    private readonly clock: Clock = systemClock
   ) {
     this._configScope = createScope({ label: `project-settings-config:${projectId}` });
     this.pageData = new Resource(async () => {
@@ -189,7 +191,7 @@ export class ProjectSettingsStore {
               if (snapshot.value && this._hostSettings.kind === 'observed') {
                 this._hostSettings = {
                   ...this._hostSettings,
-                  observedAt: Date.now(),
+                  observedAt: this.clock.now(),
                   value: {
                     ...this._hostSettings.value,
                     domains: {

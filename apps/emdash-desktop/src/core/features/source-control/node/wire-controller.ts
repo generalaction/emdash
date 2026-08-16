@@ -20,6 +20,10 @@ import type {
   GitCredentialsService,
 } from '@core/features/github/api/node/services/git-credentials-service';
 import type { ProjectAttachmentError } from '@core/features/projects/api';
+import {
+  requireAttachedProjectOrThrow,
+  withAttachedProject,
+} from '@core/features/projects/api/node/attached-project';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
@@ -162,16 +166,14 @@ function createRepositoryModelProvider({
         project.git.repository.model.state(project.repository, name).asLiveSource()
       ),
     async runMutation(name, envelope) {
-      const project = projects.requireAttached(envelope.key.projectId);
-      if (!project.success) {
-        return project as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
-      }
-      return forwardModelMutation(
-        project.data.git.repository.model,
-        sourceControlContract.repository.model,
-        name,
-        envelope,
-        project.data.repository
+      return withAttachedProject(projects, envelope.key.projectId, (project) =>
+        forwardModelMutation(
+          project.git.repository.model,
+          sourceControlContract.repository.model,
+          name,
+          envelope,
+          project.repository
+        )
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
@@ -222,12 +224,12 @@ async function withRepositoryRuntime<T extends { projectId: string }, R, E>(
   ) => Promise<Result<R, E>>
 ): Promise<Result<R, E | ProjectAttachmentError>> {
   const { projectId, ...rest } = input;
-  const project = options.projects.requireAttached(projectId);
-  if (!project.success) return project;
-  return work(project.data.git, {
-    ...rest,
-    repository: project.data.repository.repository,
-  });
+  return withAttachedProject(options.projects, projectId, (project) =>
+    work(project.git, {
+      ...rest,
+      repository: project.repository.repository,
+    })
+  );
 }
 
 async function resolveProjectSource(
@@ -235,11 +237,12 @@ async function resolveProjectSource(
   projectId: string,
   source: (project: ProjectProvider) => LiveSource
 ): Promise<LiveSource> {
-  const project = projects.requireAttached(projectId);
-  if (!project.success) {
-    throw new Error(`Project attachment unavailable: ${project.error.type}`);
-  }
-  return source(project.data);
+  const project = requireAttachedProjectOrThrow(
+    projects,
+    projectId,
+    (error) => new Error(`Project attachment unavailable: ${error.type}`)
+  );
+  return source(project);
 }
 
 async function withCheckoutRuntime<T extends { workspaceId: string }, R, E>(
@@ -316,20 +319,18 @@ async function runRepositoryJob<
   handle: (git: HostRuntimesClient['git']) => LiveJobClientHandle<Def>
 ): Promise<Result<JobResult<Def>, JobError<Def> | ProjectAttachmentError>> {
   const { projectId, ...rest } = input;
-  const project = options.projects.requireAttached(projectId);
-  if (!project.success) {
-    return project as Result<JobResult<Def>, JobError<Def>>;
-  }
-  return withOperationCredentials(options, project.data, (credentials) =>
-    runUpstreamJob(
-      definition,
-      handle(project.data.git),
-      {
-        ...rest,
-        repository: project.data.repository.repository,
-        credentials,
-      } as JobInput<Def>,
-      context
+  return withAttachedProject(options.projects, projectId, (project) =>
+    withOperationCredentials(options, project, (credentials) =>
+      runUpstreamJob(
+        definition,
+        handle(project.git),
+        {
+          ...rest,
+          repository: project.repository.repository,
+          credentials,
+        } as JobInput<Def>,
+        context
+      )
     )
   );
 }

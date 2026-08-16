@@ -3,14 +3,19 @@ import { deferred } from '@emdash/shared/testing';
 import { cell, flushStateTurn, type RemoteModel } from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectAttachmentState, projectsWireContract } from '@core/features/projects/api';
-import { ProjectContext } from '@core/features/projects/api/browser/stores/project-context';
-import { contributeScopedStore, scopedStoreToken } from '@core/primitives/scoped-stores/browser';
+import { ProjectContext as BrowserProjectContext } from '@core/features/projects/browser/stores/project-context';
+import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
+import {
+  contributeScopedStore,
+  scopedStoreToken,
+  type ScopedStoreContribution,
+} from '@core/primitives/scoped-stores/browser';
 import type { hostsContract, HostAvailabilityState } from '@core/services/hosts/api';
 
 const mocks = vi.hoisted(() => ({
   mementoReportError: vi.fn(),
   mementoSubject: vi.fn(),
-  projectStoreContributions: [] as object[],
+  projectStoreContributions: [] as ScopedStoreContribution<ProjectScopedStoreContext>[],
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({
@@ -20,9 +25,10 @@ vi.mock('@core/primitives/mementos/browser', () => ({
   }),
 }));
 
-vi.mock('@core/manifests/browser/project-scoped-stores', () => ({
-  projectStoreContributions: mocks.projectStoreContributions,
-}));
+const ProjectContext = {
+  hydrate: (record: unknown) =>
+    BrowserProjectContext.hydrate(record, mocks.projectStoreContributions),
+};
 
 function availabilityModel(
   state: HostAvailabilityState | ReturnType<typeof cell<HostAvailabilityState>> = {

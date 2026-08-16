@@ -271,6 +271,47 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
+  it('refreshes an active Task workspace binding after an SSH relink', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    taskListState.set({
+      tasks: [
+        {
+          ...task,
+          activeWorkspace: {
+            workspaceId: 'workspace-1',
+            path: '/tmp/workspace-1',
+            sshConnectionId: 'ssh-1',
+          },
+        },
+      ],
+    });
+    await manager.loadTasks();
+    const store = manager.tasks.get(task.id);
+
+    taskListState.set({
+      tasks: [
+        {
+          ...task,
+          activeWorkspace: {
+            workspaceId: 'workspace-1',
+            path: '/tmp/workspace-1',
+            sshConnectionId: 'ssh-2',
+          },
+        },
+      ],
+    });
+
+    await vi.waitFor(() => expect(store?.workspaceSshConnectionId).toBe('ssh-2'));
+    expect(manager.tasks.get(task.id)).toBe(store);
+    expect(store).toMatchObject({
+      state: 'provisioned',
+      workspaceId: 'workspace-1',
+      workspacePath: '/tmp/workspace-1',
+    });
+    manager.dispose();
+  });
+
   it('keeps observed Task stats as stale while Host access is unavailable', async () => {
     const manager = makeTaskManager();
     taskListState.set({ tasks: [makeTask()] });
