@@ -92,7 +92,8 @@ describe('ProjectHeader', () => {
     await act(async () => root.render(<ProjectHeader projectId="project-1" />));
 
     expect(host.querySelector('h1')?.textContent).toBe('Emdash');
-    expect(host.querySelector('.lucide-folder-open')).not.toBeNull();
+    const identityIcon = host.querySelector('[data-severity="neutral"]');
+    expect(identityIcon?.querySelector('.lucide-folder-open')).not.toBeNull();
     expect(host.querySelector('.lucide-folder-input')).toBeNull();
 
     const repository = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
@@ -123,7 +124,8 @@ describe('ProjectHeader', () => {
 
     await act(async () => root.render(<ProjectHeader projectId="project-1" />));
 
-    expect(host.querySelector('.lucide-folder-input')).not.toBeNull();
+    const identityIcon = host.querySelector('[data-severity="neutral"]');
+    expect(identityIcon?.querySelector('.lucide-folder-input')).not.toBeNull();
     expect(host.querySelector('.lucide-folder-open')).toBeNull();
     const openIn = host.querySelector<HTMLButtonElement>('[aria-label="Open In"]');
     expect(openIn?.dataset.remote).toBe('true');

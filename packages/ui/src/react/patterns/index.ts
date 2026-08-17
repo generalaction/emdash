@@ -1,5 +1,7 @@
 export { CollectionToolbar, type CollectionToolbarProps } from './collection-toolbar';
 
+export { EntityHeader, type EntityHeaderProps } from './entity-header';
+
 export {
   CollectionView,
   CollectionViewCell,

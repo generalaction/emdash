@@ -34,6 +34,25 @@ A working directory on a host that emdash tracks — a repository, a worktree, o
 A running process (terminal or agent process) attached to a Workspace on a host. Host-owned; dies with its workspace.
 _Avoid_: Conversation (that is the durable record a session carries forward)
 
+**Session materialization**:
+The Host-authoritative fact that an explicit command or recovery intent tried to make a
+Conversation's Session live by starting fresh or resuming its last-observed provider pointer. Its
+metadata-only outcome says whether continuity was fresh, restored, definitively unavailable, or
+ambiguous; it does not imply any Prompt outcome.
+_Avoid_: Session (the running process produced by a successful materialization), Prompt attempt
+
+**Session generation**:
+The monotonically increasing fence for one Conversation's live Session incarnation. Replacement
+or rematerialization advances it so late work from an older incarnation cannot change current
+Conversation state.
+_Avoid_: Provider connection generation (one provider connection may carry multiple Sessions)
+
+**Provider connection generation**:
+The fence for one lifetime of a pooled provider connection, shared by every Session it carries.
+Provider evidence is current only when both its Session generation and provider connection
+generation match.
+_Avoid_: Session generation
+
 **Conversation**:
 A durable record of an agent exchange, attached to a Workspace. One Conversation outlives its Sessions — the successive live processes that carry it; resuming starts a new Session of the same Conversation. Identified by its own id for its whole life; any provider session handle it holds is a last-observed pointer, not its identity.
 _Avoid_: Session (a conversation is not a process), using the provider's session id as the conversation's identity
@@ -293,8 +312,24 @@ The one retry/backoff word. The `retrySchedule(options)` constructor lives besid
 _Avoid_: Backoff/BackoffSchedule (dissolved), per-package retry vocabularies
 
 **Secret**:
-The wrapper for secret-adjacent values (`secret`, `isSecret`, `reveal`, `REDACTED`), exported from the prelude. Values stay wrapped through internal plumbing and logging (the logger replaces them with `[REDACTED]`); `reveal` only at true boundaries — the process env of a spawn, an HTTP header, OS keychain writes.
-_Avoid_: Revealing early and passing plaintext through layers, logging revealed values
+The wrapper for actual secret material: tokens, passwords, private keys, passphrases, bearer capabilities, and decrypted backend values. It stays wrapped through internal and Wire plumbing; `Secret.expose()` is the one plaintext disclosure spelling and is lint-allowlisted only at true sinks.
+_Avoid_: Revealing early, `reveal()` aliases, using Secret for public ciphertext/signatures, logging exposed values
+
+**Sensitive**:
+The wrapper for non-secret security artifacts that generic egress must redact, such as public enrollment keys, signatures, ciphertext, signed manifests, raw audit payloads, and encrypted locators. It is an egress classification, not a Secret authorization boundary.
+_Avoid_: Using Sensitive to bypass Secret disclosure controls, treating all redacted artifacts as secret material
+
+**Secret Wire envelope**:
+The strict versioned structural carrier declared by `wireSecret` or `wireSensitive` to preserve a protected wrapper across a process boundary. It marks sensitivity for schema validation and redaction but does not encrypt; Host grant confidentiality uses a separate HPKE envelope.
+_Avoid_: Host grant envelope, logging placeholder, generic recursive Secret discovery
+
+**Emdash Git credential helper**:
+The packaged, stateless Host-local adapter implementing Git's credential-helper protocol. It asks the Host Secret Runtime through a scoped Git credential channel and writes a granted credential only to Git's response stream; it never chooses an account or stores a credential.
+_Avoid_: ASKPASS broker, provider-native helper, Secret resolver, global credential store
+
+**Git credential channel capability**:
+The ephemeral bearer right minted by the Host Secret Runtime for one Git operation or Session. It binds an exact Workspace, consumer, Secret binding, HTTPS target, purpose, Runtime boot, expiry, and optional use budget; it confers no grant enumeration or caller-selected binding.
+_Avoid_: Secret binding, provider token, reusable Host credential, desktop nonce
 
 **Package conventions**:
 Ownership-drop: a primitive that takes ownership of a value fires `onDrop` exactly once for every taken-then-discarded value, and rejecting a value never fires it (the caller kept ownership). Never-silent: optional failure hooks default to logger-backed reporting rather than swallowing.

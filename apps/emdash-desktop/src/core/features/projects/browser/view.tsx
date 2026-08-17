@@ -4,7 +4,6 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { ProjectMainPanel } from './components/main-panel/main-panel';
-import { ProjectTitlebar } from './components/project-titlebar';
 
 function ProjectMainPanelSlot() {
   return <ProjectMainPanel />;
@@ -13,7 +12,6 @@ function ProjectMainPanelSlot() {
 export const projectViewRuntime = defineViewRuntime(projectViewDef, {
   slots: {
     wrap: ProjectViewWrapper,
-    titlebar: ProjectTitlebar,
     main: ProjectMainPanelSlot,
   },
   resolve: ({ projectId }) => {

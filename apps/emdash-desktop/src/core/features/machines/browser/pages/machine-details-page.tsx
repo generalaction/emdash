@@ -1,5 +1,5 @@
 import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
-import { SettingsCard } from '@emdash/ui/react/patterns';
+import { EntityHeader, SettingsCard } from '@emdash/ui/react/patterns';
 import {
   Button,
   DropdownMenu,
@@ -231,67 +231,68 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
 
   return (
     <div className="flex flex-col gap-6 pb-10">
-      <div className="flex min-w-0 items-center gap-2">
-        {isRenaming ? (
-          <Input
-            bare
-            ref={renameFieldRef}
-            value={name}
-            className="min-w-0 flex-1 px-0 text-lg!"
-            onChange={(e) => setName(e.target.value)}
-            onBlur={(event) => void commitName(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                event.currentTarget.blur();
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                event.currentTarget.value = machine.name;
-                setName(machine.name);
-                setIsRenaming(false);
-              }
-            }}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            <MachineStatus size="2rem" status={machineStatus} />
-            <Heading level={1} tone="default">
+      <EntityHeader
+        icon={<MachineStatus size="2rem" status={machineStatus} />}
+        title={
+          isRenaming ? (
+            <Input
+              bare
+              ref={renameFieldRef}
+              value={name}
+              className="min-w-0 flex-1 px-0 text-lg!"
+              onChange={(e) => setName(e.target.value)}
+              onBlur={(event) => void commitName(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.currentTarget.value = machine.name;
+                  setName(machine.name);
+                  setIsRenaming(false);
+                }
+              }}
+            />
+          ) : (
+            <Heading level={1} tone="default" className="min-w-0 flex-1 truncate">
               {machine.name}
             </Heading>
-          </div>
-        )}
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger
-            render={
-              <Button
-                type="button"
-                variant="secondary"
-                size="xs"
-                icon
-                aria-label="Machine actions"
-                className="ml-auto"
-              />
-            }
-          >
-            <EllipsisIcon />
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end">
-            <DropdownMenu.Item onClick={() => setIsRenaming(true)} disabled={isRenaming}>
-              <PencilIcon />
-              Rename
-            </DropdownMenu.Item>
-            <DropdownMenu.Separator />
-            <DropdownMenu.Item
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => void requestDelete()}
+          )
+        }
+        actions={
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger
+              render={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xs"
+                  icon
+                  aria-label="Machine actions"
+                />
+              }
             >
-              <Trash2Icon />
-              {deleting ? 'Deleting…' : 'Delete'}
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </div>
+              <EllipsisIcon />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end">
+              <DropdownMenu.Item onClick={() => setIsRenaming(true)} disabled={isRenaming}>
+                <PencilIcon />
+                Rename
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                variant="destructive"
+                disabled={deleting}
+                onClick={() => void requestDelete()}
+              >
+                <Trash2Icon />
+                {deleting ? 'Deleting…' : 'Delete'}
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+        }
+      />
 
       <div className="grid grid-cols-6 gap-2">
         <MachineDetailsCard
