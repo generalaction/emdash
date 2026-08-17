@@ -516,7 +516,9 @@ export class ConversationManagerStore implements Disposable {
   }
 
   private createSession(conversation: Conversation): PtySession {
-    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId, {
+      target: 'right',
+    });
     const connector =
       conversation.type === 'acp'
         ? createNoopConnector()

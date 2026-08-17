@@ -124,16 +124,35 @@ describe('makeFileLinkHandlers', () => {
     mocks.openPath.mockResolvedValue({ success: true, data: undefined });
   });
 
-  it('routes onOpenFile through the seam with no existence precheck', async () => {
-    const handlers = makeFileLinkHandlers('project-1', 'task-1');
+  it('routes conversation file links to the adjacent pane with no existence precheck', async () => {
+    const handlers = makeFileLinkHandlers('project-1', 'task-1', { target: 'right' });
     handlers.onOpenFile('docs/spec-the-agent-mentioned.md');
     await flushMicrotasks();
 
     expect(mocks.openFile).toHaveBeenCalledWith(
       hostFileRefFromNativePath('/repo/docs/spec-the-agent-mentioned.md'),
-      expect.anything()
+      {
+        context: { projectId: 'project-1', taskId: 'task-1' },
+        target: 'right',
+        reveal: true,
+      }
     );
     expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it('keeps the active-pane default for non-conversation terminal links', async () => {
+    const handlers = makeFileLinkHandlers('project-1', 'task-1');
+    handlers.onOpenFile('src/terminal-link.ts');
+    await flushMicrotasks();
+
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/repo/src/terminal-link.ts'),
+      {
+        context: { projectId: 'project-1', taskId: 'task-1' },
+        target: 'active',
+        reveal: true,
+      }
+    );
   });
 
   it('routes onOpenExternal to the explicit openWithOS verb', async () => {
