@@ -24,11 +24,6 @@ import type {
   ChatView,
 } from '@core/features/conversations/api/browser/chat/chat-transcript';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-// TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
-import {
-  openFileInAdjacentPane,
-  openFileInTaskEditor,
-} from '@core/features/editor/api/browser/open-file-in-file-editor';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
@@ -62,6 +57,7 @@ import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
+import { createTranscriptFileCommands } from './transcript-file-commands';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -779,8 +775,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     setViewer({ src, alt });
   }, []);
 
-  const transcriptCommands = useMemo<ChatCommands>(
-    () => ({
+  const transcriptCommands = useMemo<ChatCommands>(() => {
+    const fileCommands = store
+      ? createTranscriptFileCommands({ projectId: store.projectId, taskId: store.taskId })
+      : null;
+    return {
       onViewImage: (arg) => {
         if (arg.attachment.dataUrl || !store) {
           handleViewerOpen(arg.attachment.dataUrl, arg.attachment.name);
@@ -797,15 +796,12 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           svg: store?.chatContext.sharedCaches.renderMermaid(arg.chart) ?? null,
         });
       },
-      onOpenFile: (arg) => {
-        if (!store) return;
-        const open = arg.source === 'diff' ? openFileInAdjacentPane : openFileInTaskEditor;
-        void open(store.projectId, store.taskId, arg.path);
-      },
+      classifyLink: fileCommands?.classifyLink,
+      onOpenFile: fileCommands?.onOpenFile,
       onClickMention: (arg: Parameters<NonNullable<ChatCommands['onClickMention']>>[0]) => {
         if (!store) return;
         if (arg.kind === 'file') {
-          void openFileInTaskEditor(store.projectId, store.taskId, arg.id);
+          fileCommands?.openMentionFile(arg.id);
           return;
         }
         if (arg.kind === 'issue') {
@@ -825,9 +821,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
             });
         }
       },
-    }),
-    [store, handleViewerOpen]
-  );
+    };
+  }, [store, handleViewerOpen]);
 
   if (!store) return null;
 
