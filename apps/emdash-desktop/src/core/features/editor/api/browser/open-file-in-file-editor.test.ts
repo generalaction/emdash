@@ -92,6 +92,21 @@ describe('task file opening', () => {
     expect(mocks.openPath).not.toHaveBeenCalled();
   });
 
+  it('resolves parent-relative paths outside the workspace through the same seam', async () => {
+    mocks.getWorkspace.mockReturnValue({
+      workspaceId: 'workspace-1',
+      path: '/repo/worktree',
+    });
+
+    await openFileInTaskEditor('project-1', 'task-1', '../shared/types.ts');
+
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/repo/shared/types.ts'),
+      expect.anything()
+    );
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
   it('resolves absolute paths outside a remote workspace onto the remote host', async () => {
     mocks.getWorkspace.mockReturnValue({
       workspaceId: 'workspace-1',
