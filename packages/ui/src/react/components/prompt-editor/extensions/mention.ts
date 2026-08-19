@@ -1,7 +1,8 @@
 /**
  * @ mention extension.
  *
- * Produces atomic inline `mention` nodes with attrs { id, label, name, kind, pending }.
+ * Produces atomic inline `mention` nodes with attrs
+ * { id, label, name, kind, pending, serializedText }.
  *  - `id`    – stable identifier (e.g. file path).
  *  - `label` – full-path text serialized as `@label` in clipboard/plain text.
  *  - `name`  – short display name shown inside the pill (basename by default).
@@ -42,6 +43,7 @@ export function buildMentionExtension(
         name: { default: null },
         kind: { default: 'custom' },
         pending: { default: false },
+        serializedText: { default: null },
       };
     },
     addNodeView() {
@@ -57,11 +59,14 @@ export function buildMentionExtension(
   }).configure({
     HTMLAttributes: { class: 'mention-chip' },
     renderText({ node }) {
+      const serializedText = node.attrs.serializedText as string | null;
+      if (serializedText) return serializedText;
       const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
       const name = node.attrs.name as string | null;
       return serializeMentionLabel(label, node.attrs.kind as string | null, name);
     },
     renderHTML({ node }) {
+      const serializedText = node.attrs.serializedText as string | null;
       const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
       const name = node.attrs.name as string | null;
       return [
@@ -72,9 +77,10 @@ export function buildMentionExtension(
           'data-label': node.attrs.label as string,
           'data-name': (node.attrs.name as string | null) ?? '',
           'data-kind': node.attrs.kind as string,
+          'data-serialized-text': serializedText ?? '',
           class: 'mention-chip',
         },
-        serializeMentionLabel(label, node.attrs.kind as string | null, name),
+        serializedText ?? serializeMentionLabel(label, node.attrs.kind as string | null, name),
       ];
     },
     // Widen to the default SuggestionOptions to bypass the MentionNodeAttrs constraint;

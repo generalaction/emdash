@@ -26,6 +26,11 @@ export interface MentionItem {
    */
   name?: string;
   /**
+   * Exact serialized token to preserve for a controlled mention.
+   * Omit for the canonical serialization derived from label, name, and kind.
+   */
+  serializedText?: string;
+  /**
    * Optional icon rendered in the suggestion popup (not in the pill — the pill
    * derives its icon from `kind`/`label`). Pass a React element, e.g. a lucide icon.
    */
@@ -89,6 +94,10 @@ export interface PromptEditorRef {
   clear(): void;
   /** Read the current serialized plain text. */
   getText(): string;
+  /** Read the current selection as offsets into the serialized plain text. */
+  getSelection(): { from: number; to: number };
+  /** Resolve viewport coordinates to an offset in the serialized plain text. */
+  getPositionAtCoordinates(coordinates: { left: number; top: number }): number | null;
   /** Replace the editor contents with serialized plain text. */
   setText(text: string): void;
   /** Imperatively insert a mention node at the current cursor position. */
@@ -101,17 +110,35 @@ export interface PromptEditorRef {
   setMentionPending(id: string, pending: boolean): void;
 }
 
+export type PromptSubmitShortcut = 'enter' | 'mod-enter' | 'none';
+
 export interface PromptEditorProps {
+  /**
+   * Optional controlled serialized plain-text value.
+   * Omit this prop to keep the editor internally managed.
+   */
+  value?: string;
   /** Controlled placeholder text when the editor is empty. */
   placeholder?: string;
   /** Whether the editor is disabled (read-only, no input). */
   disabled?: boolean;
   /** Called with the serialized plain-text value on every change. */
   onChange?: (text: string) => void;
-  /** Called when the user submits (Enter with no open suggestion). */
+  /** Keyboard shortcut that submits when no suggestion is open. Defaults to Enter. */
+  submitShortcut?: PromptSubmitShortcut;
+  /** Whether a successful submit clears the editor. Defaults to true. */
+  clearOnSubmit?: boolean;
+  /** Whether the submit callback runs for an empty document. Defaults to false. */
+  allowEmptySubmit?: boolean;
+  /** Called when the user submits with the configured shortcut. */
   onSubmit?: (text: string) => void;
   /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
   onMentionInsert?: (item: MentionItem) => void;
+  /**
+   * Controlled mention metadata used to restore serialized @labels as rich inline nodes.
+   * Entries absent from the serialized value are ignored.
+   */
+  mentions?: readonly MentionItem[];
   /**
    * Preferred: typed provider for @ mention suggestions.
    * When both `mentionProvider` and `queryMentions` are provided,
@@ -133,6 +160,10 @@ export interface PromptEditorProps {
    * Return an empty array if no commands are available.
    */
   queryCommands?: (query: string) => Promise<CommandItem[]>;
+  /** Controlled visibility gate for the command popup. Omit for editor-owned visibility. */
+  commandPopupOpen?: boolean;
+  /** Called when the command suggestion lifecycle opens or closes. */
+  onCommandPopupOpenChange?: (open: boolean) => void;
   /**
    * Called when a / command with behavior='execute' is selected.
    * The trigger range is deleted; text is NOT inserted.
