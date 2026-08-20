@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '../lifecycle';
+import { once, type Lease, type Unsubscribe } from '../lifecycle';
 import { err, ok, type Result } from '../result';
 import { createScope, type Scope } from './scope';
 
@@ -56,6 +56,8 @@ type RegistryEntry<Value, StartError, StopError> = {
   tail: Promise<unknown> | undefined;
   startPromise: Promise<Result<Value, StartError>> | undefined;
   stopPromise: Promise<Result<void, StopError>> | undefined;
+  leaseCount: number;
+  leaseWaiters: Set<() => void>;
 };
 
 export interface LifecycleRegistry<
@@ -73,6 +75,11 @@ export interface LifecycleRegistry<
   state(key: string): LifecycleRegistryState<Value, StartError, StopError>;
   states(): Map<string, LifecycleRegistryState<Value, StartError, StopError>>;
   start(input: StartInput): Promise<Result<Value, StartError>>;
+  use<T, UseError>(
+    input: StartInput,
+    operation: (value: Value) => MaybePromise<Result<T, UseError>>
+  ): Promise<Result<T, StartError | UseError>>;
+  acquire(input: StartInput): Promise<Result<Lease<Value>, StartError>>;
   register(key: string, value: Value): Promise<Value>;
   stop(key: string, context?: StopContext): Promise<Result<void, StopError>>;
   forceRemove(key: string, reason?: unknown): Promise<void>;
@@ -156,43 +163,48 @@ class LifecycleRegistryImpl<
     const existing = valueFromState(entry.state);
     if (existing !== undefined) return Promise.resolve(ok(existing));
 
-    const promise = this.enqueue(entry, async () => {
-      const current = valueFromState(entry.state);
-      if (current !== undefined) return ok(current);
-
-      const scope = this._scope.child(entry.key);
-      entry.scope = scope;
-      this.transition(entry, { kind: 'starting' });
-
-      try {
-        const result = await scope
-          .run('start', (signal) => this._options.start(input, scope, signal))
-          .value();
-
-        if (result.success) {
-          this.transition(entry, { kind: 'ready', value: result.data });
-          return result;
-        }
-
-        await scope.dispose(result.error);
-        entry.scope = undefined;
-        this.transition(entry, { kind: 'start-failed', error: result.error });
-        return err(result.error);
-      } catch (error) {
-        // Observers must never see a permanent 'starting': surface the thrown
-        // failure before the scope teardown and rethrow.
-        this.transition(entry, { kind: 'start-failed', error: error as StartError });
-        await scope.dispose(error);
-        entry.scope = undefined;
-        throw error;
-      }
-    }).finally(() => {
+    const promise = this.enqueue(entry, () => this.startEntry(entry, input)).finally(() => {
       if (entry.startPromise === promise) entry.startPromise = undefined;
     });
 
     entry.startPromise = promise;
     promise.catch(() => {});
     return promise;
+  }
+
+  use<T, UseError>(
+    input: StartInput,
+    operation: (value: Value) => MaybePromise<Result<T, UseError>>
+  ): Promise<Result<T, StartError | UseError>> {
+    this.assertOpen();
+    const entry = this.ensureEntry(this._options.keyOf(input));
+    if (entry.stopPromise) return entry.stopPromise.then(() => this.use(input, operation));
+    return this.enqueue(entry, async () => {
+      const started = await this.ensureStarted(entry, input);
+      if (!started.success) return err(started.error);
+      return operation(started.data);
+    });
+  }
+
+  acquire(input: StartInput): Promise<Result<Lease<Value>, StartError>> {
+    this.assertOpen();
+    const entry = this.ensureEntry(this._options.keyOf(input));
+    if (entry.stopPromise) return entry.stopPromise.then(() => this.acquire(input));
+    return this.enqueue(entry, async () => {
+      const started = await this.ensureStarted(entry, input);
+      if (!started.success) return started;
+      entry.leaseCount += 1;
+      return ok({
+        value: started.data,
+        release: once(async () => {
+          entry.leaseCount = Math.max(0, entry.leaseCount - 1);
+          if (entry.leaseCount !== 0) return;
+          const waiters = [...entry.leaseWaiters];
+          entry.leaseWaiters.clear();
+          for (const resolve of waiters) resolve();
+        }),
+      });
+    });
   }
 
   register(key: string, value: Value): Promise<Value> {
@@ -221,13 +233,22 @@ class LifecycleRegistryImpl<
     if (entry.stopPromise) return entry.stopPromise;
 
     const promise = this.enqueue(entry, async () => {
-      const value = valueFromState(entry.state);
-      if (value === undefined) return ok<void>();
+      let value = valueFromState(entry.state);
+      if (value === undefined) {
+        await this.removeEntry(entry, 'stop without value');
+        return ok<void>();
+      }
 
       const scope = entry.scope;
       if (!scope) return ok<void>();
 
       this.transition(entry, { kind: 'stopping', value });
+      await this.waitForLeases(entry);
+      value = valueFromState(entry.state);
+      if (value === undefined) {
+        await this.removeEntry(entry, 'stop without value');
+        return ok<void>();
+      }
       const result = await scope
         .run('stop', (signal) => this._options.stop(key, value, context, scope, signal))
         .value();
@@ -294,6 +315,8 @@ class LifecycleRegistryImpl<
         tail: undefined,
         startPromise: undefined,
         stopPromise: undefined,
+        leaseCount: 0,
+        leaseWaiters: new Set(),
       };
       this._entries.set(key, entry);
     }
@@ -320,6 +343,54 @@ class LifecycleRegistryImpl<
       })
       .catch(() => {});
     return promise;
+  }
+
+  private ensureStarted(
+    entry: RegistryEntry<Value, StartError, StopError>,
+    input: StartInput
+  ): Promise<Result<Value, StartError>> {
+    const current = valueFromState(entry.state);
+    return current === undefined ? this.startEntry(entry, input) : Promise.resolve(ok(current));
+  }
+
+  private async startEntry(
+    entry: RegistryEntry<Value, StartError, StopError>,
+    input: StartInput
+  ): Promise<Result<Value, StartError>> {
+    const current = valueFromState(entry.state);
+    if (current !== undefined) return ok(current);
+
+    const scope = this._scope.child(entry.key);
+    entry.scope = scope;
+    this.transition(entry, { kind: 'starting' });
+
+    try {
+      const result = await scope
+        .run('start', (signal) => this._options.start(input, scope, signal))
+        .value();
+
+      if (result.success) {
+        this.transition(entry, { kind: 'ready', value: result.data });
+        return result;
+      }
+
+      await scope.dispose(result.error);
+      entry.scope = undefined;
+      this.transition(entry, { kind: 'start-failed', error: result.error });
+      return err(result.error);
+    } catch (error) {
+      // Observers must never see a permanent 'starting': surface the thrown
+      // failure before the scope teardown and rethrow.
+      this.transition(entry, { kind: 'start-failed', error: error as StartError });
+      await scope.dispose(error);
+      entry.scope = undefined;
+      throw error;
+    }
+  }
+
+  private waitForLeases(entry: RegistryEntry<Value, StartError, StopError>): Promise<void> {
+    if (entry.leaseCount === 0) return Promise.resolve();
+    return new Promise<void>((resolve) => entry.leaseWaiters.add(resolve));
   }
 
   private async removeEntry(

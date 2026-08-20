@@ -87,6 +87,69 @@ describe('LifecycleRegistry', () => {
     expect(registry.get('task-1')).toEqual({ id: 'task-1', generation: 2 });
   });
 
+  it('atomically starts and uses one generation for concurrent operations', async () => {
+    const startDeferred = deferred<Result<Resource, TestError>>();
+    const start = vi.fn(async () => startDeferred.promise);
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
+      keyOf: (input) => input.id,
+      start,
+      stop: async () => ok(),
+    });
+
+    const first = registry.use({ id: 'task-1' }, async (resource) => ok(resource.generation));
+    const second = registry.use({ id: 'task-1' }, async (resource) => ok(resource.generation));
+    await Promise.resolve();
+    expect(start).toHaveBeenCalledTimes(1);
+
+    startDeferred.resolve(ok({ id: 'task-1', generation: 1 }));
+
+    await expect(first).resolves.toEqual(ok(1));
+    await expect(second).resolves.toEqual(ok(1));
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for acquired leases before tearing down an activation', async () => {
+    const resource = { id: 'task-1', generation: 1 };
+    const stop = vi.fn(async () => ok<void>());
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
+      keyOf: (input) => input.id,
+      start: async () => ok(resource),
+      stop,
+    });
+    const acquired = await registry.acquire({ id: 'task-1' });
+    if (!acquired.success) throw new Error('expected activation lease');
+
+    const stopped = registry.stop('task-1');
+    await Promise.resolve();
+
+    expect(registry.state('task-1')).toEqual({ kind: 'stopping', value: resource });
+    expect(stop).not.toHaveBeenCalled();
+
+    await acquired.data.release();
+    await expect(stopped).resolves.toEqual(ok());
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(registry.has('task-1')).toBe(false);
+  });
+
+  it('starts a new generation when use arrives behind an in-flight stop', async () => {
+    const stopDeferred = deferred<Result<void, TestError>>();
+    let generation = 1;
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
+      keyOf: (input) => input.id,
+      start: async (input) => ok({ id: input.id, generation: generation++ }),
+      stop: async () => stopDeferred.promise,
+    });
+    await registry.start({ id: 'task-1' });
+
+    const stopped = registry.stop('task-1');
+    const used = registry.use({ id: 'task-1' }, async (resource) => ok(resource));
+    stopDeferred.resolve(ok());
+
+    await expect(stopped).resolves.toEqual(ok());
+    await expect(used).resolves.toEqual(ok({ id: 'task-1', generation: 2 }));
+    expect(registry.get('task-1')).toEqual({ id: 'task-1', generation: 2 });
+  });
+
   it('disposes partial start scope on failure and clears the error on retry', async () => {
     const cleanup = vi.fn();
     let shouldFail = true;
