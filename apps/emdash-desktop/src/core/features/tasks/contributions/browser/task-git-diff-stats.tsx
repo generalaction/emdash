@@ -18,9 +18,10 @@ export function useTaskGitDiffStats(task: TaskStore): {
   const cachedGit = isRegistered(task) ? task.data.workspaceGit : undefined;
   const linesAdded = git?.totalLinesAdded ?? cachedGit?.linesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? cachedGit?.linesDeleted ?? 0;
+  const hasObservedCachedGit =
+    (observation?.kind === 'fresh' || observation?.kind === 'stale') && cachedGit !== undefined;
   const visible =
-    (observation?.kind === 'fresh' || observation?.kind === 'stale') &&
-    (git !== undefined || cachedGit !== undefined) &&
+    (git !== undefined || hasObservedCachedGit) &&
     !git?.error &&
     (linesAdded > 0 || linesDeleted > 0);
   return {
