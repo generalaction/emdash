@@ -11,8 +11,8 @@ import {
   isUnprovisioned,
   isUnregistered,
   registeredTaskData,
+  type RegisteredTaskData,
 } from '@core/primitives/task-state/browser/task-state';
-import type { Task } from '@core/primitives/tasks/api';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
@@ -25,7 +25,10 @@ export function getTaskStore(projectId: string, taskId: string): TaskStore | und
 }
 
 /** Registered task payload (`Task`) when the row exists and is not unregistered; otherwise undefined. */
-export function getRegisteredTaskData(projectId: string, taskId: string): Task | undefined {
+export function getRegisteredTaskData(
+  projectId: string,
+  taskId: string
+): RegisteredTaskData | undefined {
   const store = getTaskStore(projectId, taskId);
   if (!store) return undefined;
   return registeredTaskData(store);

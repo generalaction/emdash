@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -81,6 +82,32 @@ describe('TaskStore provision state', () => {
     createUnprovisionedTask(makeTask({ workspaceId: undefined }));
 
     expect(contributionMocks.create).toHaveBeenCalledOnce();
+  });
+
+  it('keeps renderer-derived PR data outside the registered task payload', () => {
+    const store = createUnprovisionedTask(
+      makeTask({
+        prs: [{ url: 'https://github.com/emdash/emdash/pull/42' } as Task['prs'][number]],
+      })
+    );
+
+    expect('prs' in store.data).toBe(false);
+  });
+
+  it('retains persistent PR association state when operational task stores are disposed', () => {
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    const association = getTaskPrAssociationStore(store);
+    association.setAssociation(
+      [{ url: 'https://github.com/emdash/emdash/pull/42' } as Task['prs'][number]],
+      { kind: 'unknown' }
+    );
+
+    store.transitionToDryUnprovisioned(task);
+
+    expect(getTaskPrAssociationStore(store)).toBe(association);
+    expect(association.pullRequests).toHaveLength(1);
+    expect(contributionMocks.dispose).toHaveBeenCalledOnce();
   });
 
   it('keeps task contributions stable when the authoritative workspace identity changes', () => {

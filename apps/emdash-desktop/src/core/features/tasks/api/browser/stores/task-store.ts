@@ -1,6 +1,7 @@
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
+import { taskPersistentStoreContributions } from '@core/manifests/browser/task-persistent-stores';
 import { taskStoreContributions } from '@core/manifests/browser/task-scoped-stores';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -12,6 +13,7 @@ import {
 } from '@core/primitives/scoped-stores/browser';
 import {
   registeredTaskData,
+  type RegisteredTaskData,
   type TaskState,
   type UnprovisionedTaskPhase,
   type UnregisteredTaskData,
@@ -25,19 +27,21 @@ import type {
   WorkspaceLifecycleStepInfo,
   WorkspaceObservedPrFacts,
 } from '@core/primitives/tasks/api';
-import type { PrCheckoutDrift } from '@core/services/pull-requests/api';
 
 export type TaskStoreMutations = {
-  rename(task: Task, name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>>;
-  updateStatus(task: Task, status: TaskLifecycleStatus): Promise<void>;
-  setPinned(task: Task, isPinned: boolean): Promise<void>;
-  updateLinkedIssue(task: Task, issue?: LinkedIssue): Promise<void>;
-  convertAutomationTask(task: Task): Promise<void>;
+  rename(
+    task: RegisteredTaskData,
+    name: string
+  ): Promise<Result<RenameTaskSuccess, RenameTaskError>>;
+  updateStatus(task: RegisteredTaskData, status: TaskLifecycleStatus): Promise<void>;
+  setPinned(task: RegisteredTaskData, isPinned: boolean): Promise<void>;
+  updateLinkedIssue(task: RegisteredTaskData, issue?: LinkedIssue): Promise<void>;
+  convertAutomationTask(task: RegisteredTaskData): Promise<void>;
 };
 
 export class TaskStore implements TaskState {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
-  data: UnregisteredTaskData | Task;
+  data: UnregisteredTaskData | RegisteredTaskData;
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
 
@@ -58,11 +62,7 @@ export class TaskStore implements TaskState {
   workspaceLifecycle: WorkspaceLifecycleStepInfo[] | null = null;
   /** Observed PR-association facts (mirror observedGit v2); null when unobserved. */
   workspaceObservedPr: WorkspaceObservedPrFacts | null = null;
-  /**
-   * Derived checkout drift (observation × PR cache), written runtime-only by the
-   * task-PR sync coordinator alongside `Task.prs`; null reads as unknown.
-   */
-  prCheckoutDrift: PrCheckoutDrift | null = null;
+  private persistentStores: ScopedStoreHost<TaskScopedStoreContext>;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -78,7 +78,7 @@ export class TaskStore implements TaskState {
   }
 
   constructor(
-    data: UnregisteredTaskData | Task,
+    data: UnregisteredTaskData | Task | RegisteredTaskData,
     state: TaskStore['state'],
     phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null = null,
     projectId: string = 'projectId' in data ? data.projectId : '',
@@ -86,9 +86,9 @@ export class TaskStore implements TaskState {
     private readonly mutations: TaskStoreMutations = unavailableMutations
   ) {
     this.state = state;
-    this.data = data;
+    this.data = state === 'unregistered' ? data : withoutPullRequests(data as Task);
     this.phase = phase;
-    makeAutoObservable<TaskStore, 'stores'>(this, {
+    makeAutoObservable<TaskStore, 'persistentStores' | 'stores'>(this, {
       workspaceId: observable,
       workspacePath: observable,
       workspaceSshConnectionId: observable,
@@ -97,15 +97,19 @@ export class TaskStore implements TaskState {
       workspaceCreateOutcome: observable,
       workspaceLifecycle: observable,
       workspaceObservedPr: observable,
-      prCheckoutDrift: observable,
+      persistentStores: false,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
     });
-    this.stores = new ScopedStoreHost(
-      { projectId, taskId: data.id, task: this, projectStores },
-      taskStoreContributions
-    );
+    const context = { projectId, taskId: data.id, task: this, projectStores };
+    this.persistentStores = new ScopedStoreHost(context, taskPersistentStoreContributions);
+    try {
+      this.stores = new ScopedStoreHost(context, taskStoreContributions);
+    } catch (error) {
+      this.persistentStores.dispose();
+      throw error;
+    }
   }
 
   setWorkspaceProjection(projection?: {
@@ -129,6 +133,7 @@ export class TaskStore implements TaskState {
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
+    if (this.persistentStores.has(token)) return this.persistentStores.get(token);
     return this.stores.get(token);
   }
 
@@ -137,12 +142,12 @@ export class TaskStore implements TaskState {
   }
 
   transitionToProvisioned(
-    data: Task,
+    data: Task | RegisteredTaskData,
     path: string,
     workspaceId: string,
     sshConnectionId?: string
   ): void {
-    this.data = { ...data, workspaceId };
+    this.data = { ...withoutPullRequests(data), workspaceId };
     this.workspaceId = workspaceId;
     this.workspacePath = path;
     this.workspaceSshConnectionId = sshConnectionId;
@@ -152,30 +157,39 @@ export class TaskStore implements TaskState {
   }
 
   refreshWorkspaceBinding(
-    data: Task,
+    data: Task | RegisteredTaskData,
     path: string,
     workspaceId: string,
     sshConnectionId?: string
   ): void {
-    this.data = { ...data, workspaceId };
+    this.data = { ...withoutPullRequests(data), workspaceId };
     this.workspaceId = workspaceId;
     this.workspacePath = path;
     this.workspaceSshConnectionId = sshConnectionId;
   }
 
-  transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
+  transitionToUnprovisioned(
+    data: Task | RegisteredTaskData,
+    phase: UnprovisionedTaskPhase = 'idle'
+  ): void {
     this.workspaceId = null;
     this.workspacePath = null;
     this.workspaceSshConnectionId = undefined;
-    this.data = data;
+    this.data = withoutPullRequests(data);
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
   }
 
-  transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
-    this.dispose();
-    this.data = data;
+  transitionToDryUnprovisioned(
+    data: Task | RegisteredTaskData,
+    phase: UnprovisionedTaskPhase = 'idle'
+  ): void {
+    this.stores.dispose();
+    this.workspaceId = null;
+    this.workspacePath = null;
+    this.workspaceSshConnectionId = undefined;
+    this.data = withoutPullRequests(data);
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
@@ -197,6 +211,7 @@ export class TaskStore implements TaskState {
 
   dispose(): void {
     this.stores.dispose();
+    this.persistentStores.dispose();
     this.workspaceId = null;
     this.workspacePath = null;
     this.workspaceSshConnectionId = undefined;
@@ -271,11 +286,17 @@ export function createUnregisteredTask(
 }
 
 export function createUnprovisionedTask(
-  data: Task,
+  data: Task | RegisteredTaskData,
   projectStores?: ScopedStoreLookup,
   mutations?: TaskStoreMutations
 ): TaskStore {
   return new TaskStore(data, 'unprovisioned', 'idle', data.projectId, projectStores, mutations);
+}
+
+function withoutPullRequests(data: Task | RegisteredTaskData): RegisteredTaskData {
+  if (!('prs' in data)) return data;
+  const { prs: _prs, ...task } = data;
+  return task;
 }
 
 const unavailableProjectStores: ScopedStoreLookup = {

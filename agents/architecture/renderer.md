@@ -37,6 +37,10 @@ Cross-slice task-view lifecycle and workspace composition live in
 `src/core/features/workbench/browser/task-composition-state.ts`; task, project, and workspace
 stores expose feature-owned children through scoped-store tokens.
 
+Task children have two explicit lifetimes: lightweight persistent stores survive session teardown
+for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
+disposed when the task session is torn down (`task-scoped-stores.ts`).
+
 Feature views, modals, and task tabs are exposed through `contributions/` and aggregated by
 `src/core/manifests/browser/browser-contributions.ts` and
 `src/core/manifests/browser/task-tab-contributions.ts`.

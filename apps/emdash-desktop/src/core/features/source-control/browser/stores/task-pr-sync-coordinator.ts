@@ -1,8 +1,9 @@
 import { isDeepEqual } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, type RemoteModel } from '@emdash/wire/state';
-import { reaction, runInAction, toJS } from 'mobx';
+import { reaction, toJS } from 'mobx';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
@@ -42,6 +43,8 @@ export class TaskPrSyncCoordinator {
           const observed = store.workspaceObservedPr;
           return [
             store.workspaceId,
+            (store.data as Task).workspaceId ?? '',
+            store.workspaceObservedStatus ?? '',
             git?.branchName ?? '',
             git?.headOid ?? '',
             observed?.branch ?? '',
@@ -93,10 +96,13 @@ export class TaskPrSyncCoordinator {
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
     const repositoryUrl = this.repository.pullRequestRepositoryUrl;
+    // Missing repository context prevents a refresh; it does not prove that the
+    // task's last-known PR stopped existing.
     if (!repositoryUrl) return;
+    const association = getTaskPrAssociationStore(store);
     const inputs = associationInputs(store);
-    // Nothing observed and no checkout yet: leave the association alone rather than
-    // clearing it on a transiently input-less read (startup, store teardown).
+    // With no checkout evidence, there is nothing authoritative that can supersede
+    // the task's last-known association.
     if (inputs.observed === null && inputs.checkoutBranch === null) return;
 
     let prs: Task['prs'];
@@ -119,11 +125,8 @@ export class TaskPrSyncCoordinator {
       pr: selectCurrentPr(prs) ?? null,
       syncedAt: this.lastSyncedAt,
     });
-    runInAction(() => {
-      if (!isRegistered(store)) return;
-      (store.data as Task).prs = prs;
-      store.prCheckoutDrift = drift;
-    });
+    if (!isRegistered(store)) return;
+    association.setAssociation(prs, drift);
   }
 
   private async watchSync(repositoryUrl: string | null): Promise<void> {

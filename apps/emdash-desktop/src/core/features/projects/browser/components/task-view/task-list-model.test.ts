@@ -1,6 +1,9 @@
 import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import type { AgentStatus } from '@core/primitives/agents/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import { createTaskListView, type ReadyTask, type TaskListTab } from './task-list-model';
 
 const agentStatuses = new Map<string, AgentStatus>();
@@ -20,8 +23,11 @@ function task(overrides: {
   lastInteractedAt?: string;
   prs?: PrFixture[];
 }): ReadyTask {
+  const association = new TaskPrAssociationStore();
+  association.setAssociation((overrides.prs ?? []) as PullRequest[], { kind: 'unknown' });
   return {
     state: 'provisioned',
+    get: () => association,
     data: {
       id: overrides.id,
       name: overrides.name ?? overrides.id,
@@ -29,7 +35,6 @@ function task(overrides: {
       createdAt: overrides.createdAt ?? '2026-01-01T00:00:00Z',
       updatedAt: overrides.updatedAt ?? '2026-01-01T00:00:00Z',
       lastInteractedAt: overrides.lastInteractedAt,
-      prs: overrides.prs ?? [],
       type: 'task',
     },
   } as unknown as ReadyTask;
@@ -132,6 +137,20 @@ describe('createTaskListView', () => {
     );
 
     expect(visibleIds(view)).toEqual(['merged', 'open', 'closed', 'draft', 'none']);
+  });
+
+  it('re-sorts when a task-scoped PR association changes', () => {
+    const first = task({ id: 'a' });
+    const second = task({ id: 'b' });
+    const { view } = createView([first, second], { sortBy: 'pr-status' });
+    expect(visibleIds(view)).toEqual(['a', 'b']);
+
+    getTaskPrAssociationStore(second).setAssociation(
+      [{ status: 'merged', isDraft: false, createdAt: '2026-01-01T00:00:00Z' } as PullRequest],
+      { kind: 'unknown' }
+    );
+
+    expect(visibleIds(view)).toEqual(['b', 'a']);
   });
 
   it('puts tasks needing attention first for the unread sort', () => {

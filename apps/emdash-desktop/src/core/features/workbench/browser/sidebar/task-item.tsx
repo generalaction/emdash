@@ -1,7 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import {
+  getTaskGitCheckoutStore,
+  getTaskPrAssociationStore,
+} from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import {
   getTaskManagerStore,
@@ -152,8 +155,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 });
 
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
-  if (!('prs' in task.data)) return null;
-  const pr = selectCurrentPr(task.data.prs);
+  const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
   return pr ? (
     <span onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <PrBadge variant="compact" pr={pr} hoverDelay={100} />
