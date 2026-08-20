@@ -224,6 +224,36 @@ describe('AgentPluginHost', () => {
     ]);
   });
 
+  it('passes the OrcaRouter API key from the host environment to spawned agents', async () => {
+    const buildSpawn = vi.fn(() => ({ command: 'test', args: [], cwd: '/work' }));
+    const host = createHost(
+      [
+        plugin({
+          acp: { kind: 'supported' },
+          behavior: { acp: { buildSpawn } as unknown as IAcpBehavior },
+        }),
+      ],
+      async () => ({
+        HOME: '/home/test',
+        PATH: '/bin',
+        ORCAROUTER_API_KEY: 'sk-orca-test',
+      })
+    );
+
+    const result = await host.buildAcpSpawn('test', {
+      cwd: '/work',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        env: expect.objectContaining({
+          ORCAROUTER_API_KEY: 'sk-orca-test',
+        }),
+      },
+    });
+  });
+
   it('binds machine dependencies for auth status checks', async () => {
     const checkStatus = vi.fn(async () => ({ kind: 'authenticated' as const, account: 'ada' }));
     const host = createHost([

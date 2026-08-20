@@ -50,6 +50,7 @@ export const plugin = definePlugin(
             { name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' },
             { name: 'OPENAI_API_KEY', label: 'OpenAI API key' },
             { name: 'GEMINI_API_KEY', label: 'Gemini API key' },
+            { name: 'ORCAROUTER_API_KEY', label: 'OrcaRouter API key' },
           ],
         },
       ],
