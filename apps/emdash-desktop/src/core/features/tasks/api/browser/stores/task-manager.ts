@@ -283,7 +283,8 @@ export class TaskManagerStore {
         return store;
       },
       update: (current, row) => {
-        const task = this._taskFromRow(row);
+        const prs = isRegistered(current) ? current.data.prs : [];
+        const task = this._taskFromRow(row, prs);
         current.setWorkspaceProjection(
           task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
         );
@@ -326,12 +327,12 @@ export class TaskManagerStore {
     await Promise.all(activeTaskReady);
   }
 
-  private _taskFromRow(row: TaskListRow): Task {
+  private _taskFromRow(row: TaskListRow, prs: Task['prs'] = []): Task {
     const { activeWorkspace: _activeWorkspace, ...taskRow } = row;
     const git = row.workspaceId ? this._taskStats.byWorkspaceId[row.workspaceId] : undefined;
     return {
       ...taskRow,
-      prs: [],
+      prs,
       workspaceGit: git,
     };
   }

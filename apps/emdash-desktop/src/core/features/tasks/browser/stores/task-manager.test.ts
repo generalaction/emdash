@@ -347,6 +347,27 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
+  it('preserves runtime PR associations across task-list emissions', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    const { prs: _prs, workspaceGit: _workspaceGit, ...taskRow } = task;
+    taskListState.set({ tasks: [taskRow] });
+    await manager.loadTasks();
+    const store = manager.tasks.get(task.id)!;
+
+    runInAction(() => {
+      (store.data as Task).prs = [
+        { url: 'https://github.com/emdash/emdash/pull/42' } as Task['prs'][number],
+      ];
+    });
+
+    taskListState.set({ tasks: [{ ...taskRow, name: 'Task 1 renamed elsewhere' }] });
+
+    await vi.waitFor(() => expect(store.data.name).toBe('Task 1 renamed elsewhere'));
+    expect((store.data as Task).prs).toHaveLength(1);
+    manager.dispose();
+  });
+
   it('reports never-observed Task stats as unavailable', async () => {
     const manager = makeTaskManager();
     taskListState.set({ tasks: [makeTask()] });
