@@ -20,7 +20,6 @@ import {
   sessionUsageSchema,
 } from '#runtimes/acp/api/models/config';
 import { planStateSchema } from '#runtimes/acp/api/models/plan';
-import { promptDraftSchema } from '#runtimes/acp/api/models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '#runtimes/acp/api/models/session';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import {
@@ -38,7 +37,6 @@ import {
   acpSendPromptErrorSchema,
   acpSetModeOptionErrorSchema,
   acpSetModelOptionErrorSchema,
-  acpSetPromptDraftErrorSchema,
   acpStartErrorSchema,
 } from './errors';
 import {
@@ -62,12 +60,11 @@ import {
   sendPromptResponseSchema,
   setModeOptionCommandSchema,
   setModelOptionCommandSchema,
-  setPromptDraftCommandSchema,
   uploadAttachmentCommandSchema,
   uploadAttachmentResponseSchema,
 } from './schemas';
 
-const startResultSchema = z.object({ sessionId: z.string() });
+const startResultSchema = z.object({ sessionId: z.string(), activationId: z.string() });
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 
@@ -124,10 +121,6 @@ export const acpApiContract = defineContract({
     input: resolvePermissionCommandSchema,
     error: acpResolvePermissionErrorSchema,
   }),
-  setPromptDraft: fallible({
-    input: setPromptDraftCommandSchema,
-    error: acpSetPromptDraftErrorSchema,
-  }),
   exportAcpTranscript: fallible({
     input: exportAcpTranscriptCommandSchema,
     data: z.object({ transcript: z.string() }),
@@ -176,13 +169,13 @@ export const acpApiContract = defineContract({
   session: liveModel({
     key: sessionKeySchema,
     states: {
+      activationId: liveState({ data: z.string().nullable() }),
       state: liveState({ data: sessionStateSchema }),
       config: liveState({ data: sessionConfigStateSchema }),
       usage: liveState({ data: sessionUsageSchema.nullable() }),
       plan: liveState({ data: planStateSchema.nullable() }),
       agents: liveState({ data: z.array(agentStateSchema) }),
       activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
-      draft: liveState({ data: promptDraftSchema.nullable() }),
       terminals: liveState({ data: z.array(terminalStateSchema) }),
       mcpServers: liveState({ data: z.array(sessionMcpServerSchema) }),
     },

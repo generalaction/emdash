@@ -23,6 +23,7 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -69,6 +70,7 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;
   hostIsReachable: (hostRef: SerializedHostRef) => boolean;
+  getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
 }>;
 
 export function createConversationsWireController(
@@ -92,6 +94,7 @@ export function createConversationsWireController(
     runtimes: options.runtimes,
     hostIsReachable: options.hostIsReachable,
     workspaceIdentity: options.workspaceIdentity,
+    getMementosRuntimeClient: options.getMementosRuntimeClient,
   });
   const target = (conversationId: string) => resolveTarget(conversationId);
   const run = <T, E>(
@@ -190,29 +193,49 @@ export function createConversationsWireController(
       kill: (input, meta) =>
         run(input.conversationId, (client) => client.acp.kill(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.sendPrompt(input, { ...callOptions(meta), timeoutMs: 0 })
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.sendPrompt(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            { ...callOptions(meta), timeoutMs: 0 }
+          )
         ),
       editQueuedPrompt: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.editQueuedPrompt(input, callOptions(meta))
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.editQueuedPrompt(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
         ),
       deleteQueuedPrompt: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.deleteQueuedPrompt(input, callOptions(meta))
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.deleteQueuedPrompt(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
         ),
       changeQueuePromptOrder: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.changeQueuePromptOrder(input, callOptions(meta))
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.changeQueuePromptOrder(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
         ),
       cancelTurn: (input, meta) =>
         run(input.conversationId, (client) => client.acp.cancelTurn(input, callOptions(meta))),
       setModelOption: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.setModelOption(input, callOptions(meta))),
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.setModelOption(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
+        ),
       setModeOption: async (input, meta) => {
         const runtimeTarget = await target(input.conversationId);
         return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
-          const result = await client.acp.setModeOption(input, callOptions(meta));
+          const result = await client.acp.setModeOption(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          );
           if (result.success) {
             await hooks.persistAcpMode(runtimeTarget, input.value);
           }
@@ -220,17 +243,26 @@ export function createConversationsWireController(
         });
       },
       resolvePermission: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.resolvePermission(input, callOptions(meta))
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.resolvePermission(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
         ),
-      setPromptDraft: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.setPromptDraft(input, callOptions(meta))),
       exportAcpTranscript: (input, meta) =>
-        run(input.conversationId, (client) =>
-          client.acp.exportAcpTranscript(input, callOptions(meta))
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.exportAcpTranscript(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
         ),
       exportRawAcpLog: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.exportRawAcpLog(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
+        ),
       uploadAttachment: ({ conversationId, originalPath }, file, meta) =>
         run(conversationId, (client) =>
           client.acp.uploadAttachment({ conversationId, originalPath }, file, callOptions(meta))
@@ -242,7 +274,12 @@ export function createConversationsWireController(
           client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
         ),
       getHistory: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.getHistory(input, callOptions(meta))),
+        run(input.conversationId, (client, runtimeTarget) =>
+          client.acp.getHistory(
+            { ...input, activation: requireAcpInput(runtimeTarget) },
+            callOptions(meta)
+          )
+        ),
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
@@ -335,6 +372,11 @@ function missingAcpInputError(target: ConversationRuntimeTarget): Error {
     );
   }
   return new Error(`Conversation '${target.conversationId}' is not an ACP conversation`);
+}
+
+function requireAcpInput(target: ConversationRuntimeTarget): ConversationsAcpStartInput {
+  if (!target.acpInput) throw missingAcpInputError(target);
+  return target.acpInput;
 }
 
 async function resolveConversationRuntimeTarget(

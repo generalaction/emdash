@@ -1,16 +1,38 @@
+import { flushStateTurn, peek } from '@emdash/wire/state';
 import { describe, expect, it } from 'vitest';
-import { createAcpSessionsLiveHost, produceCell } from './live-models';
+import { initialSessionConfigState } from '#runtimes/acp/api';
+import { createAcpSessionLiveHost, inactiveSessionState } from './live-models';
 
 describe('ACP live models', () => {
-  it('executes cell producers once', async () => {
-    const host = createAcpSessionsLiveHost();
-    let calls = 0;
+  it('derives every exposed state from one activation snapshot', async () => {
+    const host = createAcpSessionLiveHost();
+    const projection = host.models('conversation-1');
 
-    produceCell(host.model.states.list, () => {
-      calls += 1;
+    expect(peek(projection.states.state)).toBe(inactiveSessionState);
+    const inactiveAgents = peek(projection.states.agents);
+
+    projection.source.set({
+      activationId: 'activation-1',
+      state: { ...inactiveSessionState, lifecycle: 'ready', canSubmit: true },
+      config: initialSessionConfigState,
+      usage: null,
+      plan: null,
+      agents: [],
+      activeTurn: null,
+      terminals: [],
+      mcpServers: [],
     });
+    flushStateTurn();
 
-    expect(calls).toBe(1);
+    expect(peek(projection.states.activationId)).toBe('activation-1');
+    expect(peek(projection.states.state)).toMatchObject({ lifecycle: 'ready', canSubmit: true });
+
+    projection.source.set(null);
+    flushStateTurn();
+
+    expect(peek(projection.states.activationId)).toBeNull();
+    expect(peek(projection.states.state)).toBe(inactiveSessionState);
+    expect(peek(projection.states.agents)).toBe(inactiveAgents);
     await host.dispose();
   });
 });

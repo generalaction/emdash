@@ -14,6 +14,12 @@ export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
 /** No conversation with the given id is tracked in the runtime. */
 export type ConversationNotFoundError = BaseError<'conversation_not_found'>;
 
+/** The durable conversation exists, but no activation descriptor was supplied. */
+export type ActivationMissingError = BaseError<'activation_missing'>;
+
+/** The command addressed an activation that has already been replaced. */
+export type StaleActivationError = BaseError<'stale_activation'>;
+
 /**
  * A command was issued but the current lifecycle state does not allow it,
  * e.g. Prompt while already working.
@@ -47,6 +53,8 @@ export type SetModeFailedError = BaseError<'set_mode_failed', SerializedError>;
 export type AcpRuntimeError =
   | ProviderUnsupportedError
   | ConversationNotFoundError
+  | ActivationMissingError
+  | StaleActivationError
   | InvalidStateError
   | SpawnFailedError
   | InitializeFailedError
@@ -66,26 +74,23 @@ export type AcpStartError =
   | InvalidStateError;
 export type AcpResumeError = AcpStartError;
 export type AcpKillError = never;
-export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;
-export type AcpQueueMutationError = ConversationNotFoundError | InvalidStateError;
+export type AcpActivationError = AcpStartError | ActivationMissingError;
+export type AcpSendPromptError = AcpActivationError | StaleActivationError | PromptFailedError;
+export type AcpQueueMutationError = AcpActivationError | StaleActivationError;
 export type AcpEditQueuedPromptError = AcpQueueMutationError;
 export type AcpDeleteQueuedPromptError = AcpQueueMutationError;
 export type AcpChangeQueuePromptOrderError = AcpQueueMutationError;
 export type AcpResolvePermissionError = AcpQueueMutationError;
-export type AcpSetPromptDraftError = ConversationNotFoundError;
 export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
 export type AcpSetModelOptionError =
-  | ConversationNotFoundError
-  | InvalidStateError
+  | AcpActivationError
+  | StaleActivationError
   | SetConfigFailedError;
-export type AcpSetModeOptionError =
-  | ConversationNotFoundError
-  | InvalidStateError
-  | SetModeFailedError;
-export type AcpExportTranscriptError = ConversationNotFoundError;
-export type AcpExportRawLogError = ConversationNotFoundError;
+export type AcpSetModeOptionError = AcpActivationError | StaleActivationError | SetModeFailedError;
+export type AcpExportTranscriptError = AcpActivationError | StaleActivationError;
+export type AcpExportRawLogError = AcpActivationError | StaleActivationError;
 export type AcpAttachmentError = InvalidStateError;
-export type AcpGetHistoryError = never;
+export type AcpGetHistoryError = AcpActivationError | StaleActivationError;
 
 export const acpErr = {
   providerUnsupported: (providerId: string) =>
@@ -93,6 +98,12 @@ export const acpErr = {
 
   conversationNotFound: (conversationId: string) =>
     fail('conversation_not_found', { message: conversationId }),
+
+  activationMissing: (conversationId: string) =>
+    fail('activation_missing', { message: `Conversation '${conversationId}' is inactive` }),
+
+  staleActivation: (activationId: string) =>
+    fail('stale_activation', { message: `ACP activation '${activationId}' is stale` }),
 
   invalidState: (message: string) => fail('invalid_state', { message }),
 
@@ -131,6 +142,8 @@ const failedErrorSchema = <T extends string>(type: T) =>
 
 export const providerUnsupportedErrorSchema = plainTagErrorSchema('provider_unsupported');
 export const conversationNotFoundErrorSchema = plainTagErrorSchema('conversation_not_found');
+export const activationMissingErrorSchema = plainTagErrorSchema('activation_missing');
+export const staleActivationErrorSchema = plainTagErrorSchema('stale_activation');
 export const invalidStateErrorSchema = plainTagErrorSchema('invalid_state');
 export const spawnFailedErrorSchema = failedErrorSchema('spawn_failed');
 export const initializeFailedErrorSchema = failedErrorSchema('initialize_failed');
@@ -151,42 +164,55 @@ export const acpStartErrorSchema = z.discriminatedUnion('type', [
 ]);
 export const acpResumeErrorSchema = acpStartErrorSchema;
 export const acpKillErrorSchema = z.never();
-export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
-  conversationNotFoundErrorSchema,
+const acpActivationErrorSchemas = [
+  providerUnsupportedErrorSchema,
+  authRequiredErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
   invalidStateErrorSchema,
+  activationMissingErrorSchema,
+] as const;
+export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
+  ...acpActivationErrorSchemas,
+  staleActivationErrorSchema,
   promptFailedErrorSchema,
 ]);
 export const acpQueueMutationErrorSchema = z.discriminatedUnion('type', [
-  conversationNotFoundErrorSchema,
-  invalidStateErrorSchema,
+  ...acpActivationErrorSchemas,
+  staleActivationErrorSchema,
 ]);
 export const acpEditQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
 export const acpDeleteQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
 export const acpChangeQueuePromptOrderErrorSchema = acpQueueMutationErrorSchema;
 export const acpResolvePermissionErrorSchema = acpQueueMutationErrorSchema;
-export const acpSetPromptDraftErrorSchema = conversationNotFoundErrorSchema;
 export const acpCancelTurnErrorSchema = z.discriminatedUnion('type', [
   invalidStateErrorSchema,
   cancelFailedErrorSchema,
 ]);
 export const acpSetModelOptionErrorSchema = z.discriminatedUnion('type', [
-  conversationNotFoundErrorSchema,
-  invalidStateErrorSchema,
+  ...acpActivationErrorSchemas,
+  staleActivationErrorSchema,
   setConfigFailedErrorSchema,
 ]);
 export const acpSetModeOptionErrorSchema = z.discriminatedUnion('type', [
-  conversationNotFoundErrorSchema,
-  invalidStateErrorSchema,
+  ...acpActivationErrorSchemas,
+  staleActivationErrorSchema,
   setModeFailedErrorSchema,
 ]);
-export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
-export const acpExportRawLogErrorSchema = conversationNotFoundErrorSchema;
+export const acpExportTranscriptErrorSchema = z.discriminatedUnion('type', [
+  ...acpActivationErrorSchemas,
+  staleActivationErrorSchema,
+]);
+export const acpExportRawLogErrorSchema = acpExportTranscriptErrorSchema;
 export const acpAttachmentErrorSchema = invalidStateErrorSchema;
-export const acpGetHistoryErrorSchema = z.never();
+export const acpGetHistoryErrorSchema = acpExportTranscriptErrorSchema;
 
 export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [
   providerUnsupportedErrorSchema,
   conversationNotFoundErrorSchema,
+  activationMissingErrorSchema,
+  staleActivationErrorSchema,
   invalidStateErrorSchema,
   spawnFailedErrorSchema,
   initializeFailedErrorSchema,

@@ -15,12 +15,10 @@ import type {
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
-  AcpSetPromptDraftError,
   AcpStartError,
   AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
-  PromptDraftUpdate,
   PromptInput,
   PromptPlacement,
   ResumeResult,
@@ -67,7 +65,7 @@ export class AcpRuntime {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
         return buildAgentClient(context, manager, { fs, terminals: terminalPort });
       },
-      onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
+      onClosed: (key, generation, exitCode) => manager?.onProcessClosed(key, generation, exitCode),
     });
     manager = new SessionManager(deps, this.connections, this.terminals, {
       fs,
@@ -76,7 +74,9 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
+  startSession(
+    input: AcpStartInput
+  ): Promise<Result<{ sessionId: string; activationId: string }, AcpStartError>> {
     return this.manager.start(input);
   }
 
@@ -86,8 +86,14 @@ export class AcpRuntime {
   ): Promise<Result<ResumeResult, AcpResumeError>> {
     const result = await this.manager.start(input);
     if (!result.success) return result;
-    const page = this.manager.getHistory(input.conversationId, undefined, limit);
-    return ok({ sessionId: result.data.sessionId, ...page });
+    const page = await this.manager.getHistory(input.conversationId, undefined, limit);
+    if (!page.success)
+      return acpErr.invalidState('ACP session history was unavailable after resume');
+    return ok({
+      sessionId: result.data.sessionId,
+      activationId: result.data.activationId,
+      ...page.data,
+    });
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
@@ -106,70 +112,88 @@ export class AcpRuntime {
   sendPrompt(
     conversationId: string,
     prompt: PromptInput,
-    placement?: PromptPlacement
+    placement?: PromptPlacement,
+    activation?: AcpStartInput,
+    activationId?: string
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-    return this.manager.prompt({ conversationId, prompt, placement });
+    return this.manager.prompt({ conversationId, prompt, placement }, activation, activationId);
   }
 
   editQueuedPrompt(
     conversationId: string,
     id: string,
-    prompt: PromptInput
-  ): Result<void, AcpEditQueuedPromptError> {
-    return this.manager.editQueuedPrompt(conversationId, id, prompt);
+    prompt: PromptInput,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<void, AcpEditQueuedPromptError>> {
+    return this.manager.editQueuedPrompt(conversationId, id, prompt, activation, activationId);
   }
 
-  deleteQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
-    return this.manager.removeQueuedPrompt(conversationId, id);
+  deleteQueuedPrompt(
+    conversationId: string,
+    id: string,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<void, AcpDeleteQueuedPromptError>> {
+    return this.manager.removeQueuedPrompt(conversationId, id, activation, activationId);
   }
 
   changeQueuePromptOrder(
     conversationId: string,
-    ids: readonly string[]
-  ): Result<void, AcpChangeQueuePromptOrderError> {
-    return this.manager.reorderQueue(conversationId, ids);
+    ids: readonly string[],
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<void, AcpChangeQueuePromptOrderError>> {
+    return this.manager.reorderQueue(conversationId, ids, activation, activationId);
   }
 
   cancelTurn(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
     return this.manager.cancel(conversationId);
   }
 
-  setPromptDraft(
-    conversationId: string,
-    draft: PromptDraftUpdate
-  ): Result<void, AcpSetPromptDraftError> {
-    return this.manager.setPromptDraft(conversationId, draft);
-  }
-
   resolvePermission(
     conversationId: string,
     requestId: string,
-    optionId: string
-  ): Result<void, AcpResolvePermissionError> {
-    return this.manager.resolvePermission(conversationId, requestId, optionId);
+    optionId: string,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<void, AcpResolvePermissionError>> {
+    return this.manager.resolvePermission(
+      conversationId,
+      requestId,
+      optionId,
+      activation,
+      activationId
+    );
   }
 
   setModeOption(
     conversationId: string,
-    modeId: string
+    modeId: string,
+    activation?: AcpStartInput,
+    activationId?: string
   ): Promise<Result<void, AcpSetModeOptionError>> {
-    return this.manager.setMode(conversationId, modeId);
+    return this.manager.setMode(conversationId, modeId, activation, activationId);
   }
 
   setModelOption(
     conversationId: string,
     dimension: 'model' | 'effort',
-    value: string
+    value: string,
+    activation?: AcpStartInput,
+    activationId?: string
   ): Promise<Result<void, AcpSetModelOptionError>> {
-    return this.manager.setConfigOption(conversationId, dimension, value);
+    return this.manager.setConfigOption(conversationId, dimension, value, activation, activationId);
   }
 
   getHistory(
     conversationId: string,
     before?: number,
-    limit?: number
-  ): Result<HistoryPage, AcpGetHistoryError> {
-    return ok(this.manager.getHistory(conversationId, before, limit));
+    limit?: number,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<HistoryPage, AcpGetHistoryError>> {
+    return this.manager.getHistory(conversationId, before, limit, activation, activationId);
   }
 
   getChatHistory(conversationId: string): {
@@ -179,12 +203,20 @@ export class AcpRuntime {
     return this.manager.getChatHistory(conversationId);
   }
 
-  exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
-    return this.manager.exportParsedTranscript(conversationId);
+  exportParsedTranscript(
+    conversationId: string,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<string, AcpExportTranscriptError>> {
+    return this.manager.exportParsedTranscript(conversationId, activation, activationId);
   }
 
-  exportRawAcpLog(conversationId: string): Result<string, AcpExportRawLogError> {
-    return this.manager.exportRawAcpLog(conversationId);
+  exportRawAcpLog(
+    conversationId: string,
+    activation?: AcpStartInput,
+    activationId?: string
+  ): Promise<Result<string, AcpExportRawLogError>> {
+    return this.manager.exportRawAcpLog(conversationId, activation, activationId);
   }
 
   getSessionState(conversationId: string): SessionState {
@@ -266,7 +298,7 @@ export class AcpRuntime {
   }
 
   async dispose(): Promise<void> {
-    this.manager.dispose();
+    await this.manager.dispose();
     this.killAllTerminals();
     await this.connections.dispose();
   }

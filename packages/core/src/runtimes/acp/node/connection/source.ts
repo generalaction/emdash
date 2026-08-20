@@ -20,6 +20,7 @@ type AcpConnectionProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 
 export interface AcpConnectionContext {
   key: string;
+  generation: number;
   providerId: string;
   cwd: string;
   normalize: AcpSessionUpdateNormalizer;
@@ -40,7 +41,7 @@ export interface CreateAcpConnectionSourceDeps {
   clock?: Clock;
   idleTtlMs?: number;
   buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
-  onClosed: (key: string, exitCode: number | null) => void;
+  onClosed: (key: string, generation: number, exitCode: number | null) => void;
 }
 
 export interface AcpConnectionKey {
@@ -54,11 +55,12 @@ export type AcpConnectionSource = ResourceCache<AcpConnectionKey, PooledAcpProce
 export function createAcpConnectionSource(
   deps: CreateAcpConnectionSourceDeps
 ): AcpConnectionSource {
+  let nextGeneration = 0;
   const source: AcpConnectionSource = createResourceCache<AcpConnectionKey, PooledAcpProcess>({
     key: acpConnectionCacheKey,
     clock: deps.clock,
     idleTtlMs: deps.idleTtlMs,
-    create: (key, scope) => provisionAcpConnection(deps, key, scope),
+    create: (key, scope) => provisionAcpConnection(deps, key, ++nextGeneration, scope),
     onError: (error, keyId) => {
       deps.logger.warn('AcpConnectionSource: provisioning failed', {
         key: keyId,
@@ -86,6 +88,7 @@ export function isAcpConnectionError(error: unknown): error is AcpConnectionErro
 async function provisionAcpConnection(
   deps: CreateAcpConnectionSourceDeps,
   key: AcpConnectionKey,
+  generation: number,
   scope: Scope
 ): Promise<PooledAcpProcess> {
   const binding = deps.agentHost.resolveAcp(key.providerId);
@@ -118,17 +121,19 @@ async function provisionAcpConnection(
       buildClient: (agent, normalize) =>
         deps.buildClient(agent, {
           key: routeKey,
+          generation,
           providerId: key.providerId,
           cwd: key.cwd,
           normalize,
         }),
-      onClosed: (exitCode) => deps.onClosed(routeKey, exitCode),
+      onClosed: (exitCode) => deps.onClosed(routeKey, generation, exitCode),
     }
   );
   if (isErr(connection)) throw connection.error;
 
   return {
     key: routeKey,
+    generation,
     providerId: key.providerId,
     cwd: key.cwd,
     agent: connection.data.agent,

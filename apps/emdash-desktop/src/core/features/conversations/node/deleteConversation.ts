@@ -5,9 +5,11 @@ import {
   conversationRegistryTable as conversations,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
+import { conversationSubject } from '@core/features/conversations/contributions/subject';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
+import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { removeConversationOrTombstone } from './remove-conversation';
 
 /**
@@ -22,7 +24,8 @@ export async function deleteConversation(
   projectId: string,
   taskId: string,
   conversationId: string,
-  telemetry: Pick<TelemetryService, 'capture'>
+  telemetry: Pick<TelemetryService, 'capture'>,
+  getMementosRuntimeClient: () => Promise<MementosRuntimeClient>
 ): Promise<void> {
   const [convRow] = await db
     .select({
@@ -44,6 +47,9 @@ export async function deleteConversation(
   if (!convRow) return;
 
   await removeConversationOrTombstone(db, runtimes, convRow);
+  const mementos = await getMementosRuntimeClient();
+  const deletedDraft = await mementos.deleteBySubject(conversationSubject({ conversationId }));
+  if (!deletedDraft.success) throw new Error(deletedDraft.error.message);
 
   conversationEvents._emit('conversation:deleted', conversationId);
   appDbPokes.conversations.poke({ projectId, taskId });

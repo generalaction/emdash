@@ -3,6 +3,7 @@ import type { ConversationsRuntimeBroker } from '@core/features/conversations/ap
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type {
   CompensationRunner,
   ConversationWorkspaceIdentityResolver,
@@ -28,6 +29,7 @@ export function createConversationOperations(dependencies: {
   runtimes: ConversationsRuntimeBroker;
   hostIsReachable: (hostRef: SerializedHostRef) => boolean;
   workspaceIdentity: ConversationWorkspaceIdentityResolver;
+  getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
 }) {
   const { db, telemetry, withCompensation } = dependencies;
   return {
@@ -43,7 +45,15 @@ export function createConversationOperations(dependencies: {
         workspaceIdentity: dependencies.workspaceIdentity,
       }),
     deleteConversation: (projectId: string, taskId: string, conversationId: string) =>
-      deleteConversation(db, dependencies.runtimes, projectId, taskId, conversationId, telemetry),
+      deleteConversation(
+        db,
+        dependencies.runtimes,
+        projectId,
+        taskId,
+        conversationId,
+        telemetry,
+        dependencies.getMementosRuntimeClient
+      ),
     hydrateConversation: (
       projectId: string,
       taskId: string,
@@ -80,6 +90,12 @@ export function createConversationOperations(dependencies: {
     linkConversationToTask: (input: Parameters<typeof linkConversationToTask>[1]) =>
       linkConversationToTask(db, input),
     deleteHostConversation: (conversationId: string) =>
-      deleteHostConversation(db, dependencies.runtimes, conversationId, telemetry),
+      deleteHostConversation(
+        db,
+        dependencies.runtimes,
+        conversationId,
+        telemetry,
+        dependencies.getMementosRuntimeClient
+      ),
   };
 }

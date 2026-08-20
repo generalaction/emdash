@@ -1,11 +1,11 @@
 import { isOk } from '@emdash/shared';
+import { createManualClock } from '@emdash/shared/testing';
 import { peek, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
   acpRuntimeErrorSchema,
-  promptDraftSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   sessionUsageSchema,
@@ -31,7 +31,6 @@ describe('ACP API contract schemas', () => {
     expect(() => sessionConfigStateSchema.parse(peek(live.states.config))).not.toThrow();
     expect(() => sessionUsageSchema.nullable().parse(peek(live.states.usage))).not.toThrow();
     expect(() => transcriptTurnSchema.nullable().parse(peek(live.states.activeTurn))).not.toThrow();
-    expect(() => promptDraftSchema.nullable().parse(peek(live.states.draft))).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {
@@ -47,7 +46,10 @@ describe('ACP API contract schemas', () => {
       await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
       const started = await contractClient.start(input);
-      expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
+      expect(started).toEqual({
+        success: true,
+        data: { sessionId: 'session-1', activationId: expect.any(String) },
+      });
 
       await vi.waitFor(() => {
         expect(snapshot(summaries.states.list).value?.['conv-wire']).toMatchObject({
@@ -61,6 +63,85 @@ describe('ACP API contract schemas', () => {
       expect(snapshot(session.states.state).value).toMatchObject({ lifecycle: 'ready' });
     } finally {
       await sessions.dispose();
+      await sessionRemote.dispose();
+      wire.dispose();
+    }
+  });
+
+  it('publishes idle eviction through an attached Wire projection and rematerializes atomically', async () => {
+    const clock = createManualClock(0);
+    const h = makeAcpHarness({
+      clock,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: 1_000 },
+        sweepIntervalMs: 10_000,
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const sessionRemote = remote(acpApiContract.session, wire.client.session);
+    const member = sessionRemote({ conversationId: 'conv-wire-idle' });
+    const input = makeStartInput({ conversationId: 'conv-wire-idle' });
+
+    try {
+      await member.states.state.refresh();
+      await member.states.activationId.refresh();
+      expect(snapshot(member.states.state).value?.lifecycle).toBe('closed');
+
+      const started = await wire.client.start(input);
+      if (!started.success) throw new Error('expected ACP activation');
+      await vi.waitFor(() => {
+        expect(snapshot(member.states.state).value?.lifecycle).toBe('ready');
+        expect(snapshot(member.states.activationId).value).toBe(started.data.activationId);
+      });
+
+      await clock.advanceBy(1_200);
+      await rt.manager.sweepNow();
+      await vi.waitFor(() => {
+        expect(snapshot(member.states.state).value?.lifecycle).toBe('closed');
+        expect(snapshot(member.states.activationId).value).toBeNull();
+      });
+
+      const history = await wire.client.getHistory({
+        conversationId: input.conversationId,
+        before: undefined,
+        limit: 100,
+        activation: input,
+      });
+      expect(history).toEqual({ success: true, data: { turns: [], nextCursor: null } });
+      expect(h.agent.newSession).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => expect(snapshot(member.states.state).value?.lifecycle).toBe('ready'));
+    } finally {
+      await sessionRemote.dispose();
+      wire.dispose();
+    }
+  });
+
+  it('reconnects a new Wire client to an inactive conversation', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-wire-reconnect' });
+    await rt.startSession(input);
+    await rt.stopSession(input.conversationId);
+
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const sessionRemote = remote(acpApiContract.session, wire.client.session);
+    const member = sessionRemote({ conversationId: input.conversationId });
+    try {
+      await member.states.state.refresh();
+      expect(snapshot(member.states.state).value?.lifecycle).toBe('closed');
+
+      h.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-reconnected' });
+      const history = await wire.client.getHistory({
+        conversationId: input.conversationId,
+        before: undefined,
+        limit: 100,
+        activation: input,
+      });
+
+      expect(history.success).toBe(true);
+      await vi.waitFor(() => expect(snapshot(member.states.state).value?.lifecycle).toBe('ready'));
+    } finally {
       await sessionRemote.dispose();
       wire.dispose();
     }

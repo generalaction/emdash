@@ -41,21 +41,6 @@ describe('SessionCell prompts', () => {
     expect(history.committed[0].outcome).toEqual({ kind: 'done', reason: 'end_turn' });
   });
 
-  it('stores prompt drafts by monotonic revision and clears them after submit', async () => {
-    const { cell, agent } = makeCell();
-    agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
-
-    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'old' } }))).toBe(true);
-    expect(isOk(cell.setPromptDraft({ rev: 1, input: { text: 'stale' } }))).toBe(true);
-    expect(cell.promptDraft).toMatchObject({ text: 'old', rev: 1 });
-
-    expect(isOk(cell.setPromptDraft({ rev: 2, input: { text: 'new' } }))).toBe(true);
-    expect(cell.promptDraft).toMatchObject({ text: 'new', rev: 2 });
-
-    await cell.prompt({ text: 'send' });
-    expect(cell.promptDraft).toBeNull();
-  });
-
   it('queues while working and drains after the active turn settles', async () => {
     const { cell, agent } = makeCell();
     let resolveFirst!: (value: { stopReason: 'end_turn' }) => void;

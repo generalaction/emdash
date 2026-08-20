@@ -378,6 +378,7 @@ export const desktopNodeControllers = {
       logger,
       projects,
       providerSettings,
+      runtimeClients,
       runtimes,
       taskSessions,
       telemetry,
@@ -394,6 +395,7 @@ export const desktopNodeControllers = {
         workspaceIdentity,
         withCompensation: compensation,
         hostIsReachable,
+        getMementosRuntimeClient: runtimeClients.getMementosRuntimeClient,
       }),
   },
   previewServers: {

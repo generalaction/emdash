@@ -1,21 +1,17 @@
-import {
-  planStateSchema,
-  promptDraftSchema,
-  sessionUsageSchema,
-  sessionConfigStateSchema,
-  sessionMcpServerSchema,
-  sessionStateSchema,
-  terminalStateSchema,
-  transcriptTurnSchema,
-  type AttachmentMimeType,
-  type AttachmentRef,
-  type AcpRuntimeError,
-  type HistoryPage,
-  type PromptDraftUpdate,
-  type PromptInput,
-  type PromptPlacement,
-  type SessionState,
-  type TerminalState,
+import type {
+  AttachmentMimeType,
+  AttachmentRef,
+  AcpRuntimeError,
+  HistoryPage,
+  PlanState,
+  PromptInput,
+  PromptPlacement,
+  SessionConfigState,
+  SessionMcpServer,
+  SessionState,
+  SessionUsage,
+  TerminalState,
+  TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api/client';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
@@ -25,7 +21,6 @@ import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
 import { type BlobSource } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
-import { z } from 'zod';
 import {
   getConversationsClient,
   type ConversationsClient,
@@ -83,14 +78,14 @@ export class AcpStartError extends Error {
 }
 
 export class AcpLiveSession {
+  readonly activationId: RemoteValueState<string | null>;
   readonly sessionState: RemoteValueState<SessionState>;
-  readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
-  readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
-  readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: RemoteValueState<z.infer<typeof transcriptTurnSchema> | null>;
-  readonly draft: RemoteValueState<z.infer<typeof promptDraftSchema> | null>;
+  readonly config: RemoteValueState<SessionConfigState>;
+  readonly usage: RemoteValueState<SessionUsage | null>;
+  readonly plan: RemoteValueState<PlanState | null>;
+  readonly activeTurn: RemoteValueState<TranscriptTurn | null>;
   readonly terminals: RemoteValueState<TerminalState[]>;
-  readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
+  readonly mcpServers: RemoteValueState<SessionMcpServer[]>;
   private readonly scope = createScope({ label: 'acp-live-session' });
   private readonly terminalLogs = new Map<
     string,
@@ -100,7 +95,8 @@ export class AcpLiveSession {
 
   private constructor(
     readonly conversationId: string,
-    private readonly client: ConversationsClient['acp']
+    private readonly client: ConversationsClient['acp'],
+    private readonly activationFence: string
   ) {
     const key = { conversationId };
     const sessionRemote = remote(conversationsContract.acp.session, client.session, {
@@ -108,26 +104,14 @@ export class AcpLiveSession {
       lingerMs: 15_000,
     });
     const member = sessionRemote(key);
-    this.sessionState = remoteValueState(member.states.state, sessionStateSchema, this.scope);
-    this.config = remoteValueState(member.states.config, sessionConfigStateSchema, this.scope);
-    this.usage = remoteValueState(member.states.usage, sessionUsageSchema.nullable(), this.scope);
-    this.plan = remoteValueState(member.states.plan, planStateSchema.nullable(), this.scope);
-    this.activeTurn = remoteValueState(
-      member.states.activeTurn,
-      transcriptTurnSchema.nullable(),
-      this.scope
-    );
-    this.draft = remoteValueState(member.states.draft, promptDraftSchema.nullable(), this.scope);
-    this.terminals = remoteValueState(
-      member.states.terminals,
-      z.array(terminalStateSchema),
-      this.scope
-    );
-    this.mcpServers = remoteValueState(
-      member.states.mcpServers,
-      z.array(sessionMcpServerSchema),
-      this.scope
-    );
+    this.activationId = remoteValueState(member.states.activationId, this.scope);
+    this.sessionState = remoteValueState(member.states.state, this.scope);
+    this.config = remoteValueState(member.states.config, this.scope);
+    this.usage = remoteValueState(member.states.usage, this.scope);
+    this.plan = remoteValueState(member.states.plan, this.scope);
+    this.activeTurn = remoteValueState(member.states.activeTurn, this.scope);
+    this.terminals = remoteValueState(member.states.terminals, this.scope);
+    this.mcpServers = remoteValueState(member.states.mcpServers, this.scope);
   }
 
   static async create(conversationId: string): Promise<AcpLiveSession> {
@@ -139,21 +123,27 @@ export class AcpLiveSession {
     if (!result.success) {
       throw new AcpStartError(result.error);
     }
-    const session = new AcpLiveSession(conversationId, client);
+    const session = new AcpLiveSession(conversationId, client, result.data.activationId);
     try {
       await withTimeout(
         Promise.all([
+          session.activationId.ready,
           session.sessionState.ready,
           session.config.ready,
           session.usage.ready,
           session.plan.ready,
           session.activeTurn.ready,
-          session.draft.ready,
           session.terminals.ready,
           session.mcpServers.ready,
         ]),
         'Timed out connecting ACP live models'
       );
+      if (
+        session.activationId.current() !== result.data.activationId ||
+        session.sessionState.current().lifecycle === 'closed'
+      ) {
+        throw new Error('ACP activation changed while connecting live models');
+      }
       return session;
     } catch (error) {
       session.dispose();
@@ -161,7 +151,7 @@ export class AcpLiveSession {
     }
   }
 
-  start(): Promise<Result<{ sessionId: string }, unknown>> {
+  start(): Promise<Result<{ sessionId: string; activationId: string }, unknown>> {
     return this.client.start({ conversationId: this.conversationId });
   }
 
@@ -178,19 +168,28 @@ export class AcpLiveSession {
   }
 
   getHistory(before?: number, limit = 50): Promise<Result<HistoryPage, unknown>> {
-    return this.client.getHistory({ conversationId: this.conversationId, before, limit });
+    return this.client.getHistory({
+      conversationId: this.conversationId,
+      before,
+      limit,
+      activationId: this.activationFence,
+    });
   }
 
   async exportTranscript(): Promise<Result<string, unknown>> {
     const result = await this.client.exportAcpTranscript({
       conversationId: this.conversationId,
+      activationId: this.activationFence,
     });
     if (!result.success) return result;
     return { success: true, data: result.data.transcript };
   }
 
   async exportRawAcpLog(): Promise<Result<string, unknown>> {
-    const result = await this.client.exportRawAcpLog({ conversationId: this.conversationId });
+    const result = await this.client.exportRawAcpLog({
+      conversationId: this.conversationId,
+      activationId: this.activationFence,
+    });
     if (!result.success) return result;
     return { success: true, data: result.data.log };
   }
@@ -244,37 +243,60 @@ export class AcpLiveSession {
     placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, unknown>> {
     return this.client.sendPrompt(
-      { conversationId: this.conversationId, prompt, placement },
+      {
+        conversationId: this.conversationId,
+        prompt,
+        placement,
+        activationId: this.activationFence,
+      },
       { timeoutMs: 0 }
     );
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {
-    return this.client.editQueuedPrompt({ conversationId: this.conversationId, id, input });
+    return this.client.editQueuedPrompt({
+      conversationId: this.conversationId,
+      id,
+      input,
+      activationId: this.activationFence,
+    });
   }
 
   deleteQueuedPrompt(id: string): Promise<Result<void, unknown>> {
-    return this.client.deleteQueuedPrompt({ conversationId: this.conversationId, id });
+    return this.client.deleteQueuedPrompt({
+      conversationId: this.conversationId,
+      id,
+      activationId: this.activationFence,
+    });
   }
 
   changeQueuePromptOrder(ids: string[]): Promise<Result<void, unknown>> {
-    return this.client.changeQueuePromptOrder({ conversationId: this.conversationId, ids });
+    return this.client.changeQueuePromptOrder({
+      conversationId: this.conversationId,
+      ids,
+      activationId: this.activationFence,
+    });
   }
 
   cancelTurn(): Promise<Result<void, unknown>> {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setPromptDraft(draft: PromptDraftUpdate): Promise<Result<void, unknown>> {
-    return this.client.setPromptDraft({ conversationId: this.conversationId, draft });
-  }
-
   setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {
-    return this.client.setModelOption({ conversationId: this.conversationId, dimension, value });
+    return this.client.setModelOption({
+      conversationId: this.conversationId,
+      dimension,
+      value,
+      activationId: this.activationFence,
+    });
   }
 
   setModeOption(value: string): Promise<Result<void, unknown>> {
-    return this.client.setModeOption({ conversationId: this.conversationId, value });
+    return this.client.setModeOption({
+      conversationId: this.conversationId,
+      value,
+      activationId: this.activationFence,
+    });
   }
 
   resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {
@@ -282,10 +304,14 @@ export class AcpLiveSession {
       conversationId: this.conversationId,
       requestId,
       optionId,
+      activationId: this.activationFence,
     });
   }
 
   async terminalOutput(terminalId: string): Promise<AcpTerminalOutput> {
+    if (this.disposed || this.activationId.current() !== this.activationFence) {
+      throw new Error('ACP activation changed before terminal output could be attached');
+    }
     const existing = this.terminalLogs.get(terminalId);
     if (existing) return existing.output;
     const store = createLineLogStore();
@@ -301,7 +327,11 @@ export class AcpLiveSession {
     };
     this.terminalLogs.set(terminalId, { replica, output });
     await replica.ready;
-    if (this.disposed) void replica.dispose();
+    if (this.disposed || this.activationId.current() !== this.activationFence) {
+      this.terminalLogs.delete(terminalId);
+      await replica.dispose();
+      throw new Error('ACP activation changed while terminal output was attaching');
+    }
     return output;
   }
 
@@ -321,7 +351,6 @@ async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
 
 export function remoteValueState<T>(
   source: Readable<T | undefined>,
-  schema: z.ZodType<T>,
   parentScope: Scope
 ): RemoteValueState<T> {
   const scope = parentScope.child('remote-value-state');
@@ -334,13 +363,13 @@ export function remoteValueState<T>(
     if (settled.status === 'error' && settled.value === undefined) {
       throw readableError(settled.error);
     }
-    if (settled.value !== undefined) update(schema.parse(settled.value));
+    if (settled.value !== undefined) update(settled.value);
   });
   observe(
     source,
     (snapshot) => {
       if (snapshot.value !== undefined) {
-        const next = schema.parse(snapshot.value);
+        const next = snapshot.value;
         update(next);
         changes.emit(next);
       }

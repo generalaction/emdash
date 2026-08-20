@@ -1,9 +1,11 @@
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import type { ConversationRemovalBroker } from '@core/features/conversations/api/node/operations/conversation-removal';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
+import { conversationSubject } from '@core/features/conversations/contributions/subject';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
+import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { removeConversationOrTombstone } from './remove-conversation';
 
 /**
@@ -16,13 +18,17 @@ export async function deleteHostConversation(
   db: AppDb,
   runtimes: ConversationRemovalBroker,
   conversationId: string,
-  telemetry: Pick<TelemetryService, 'capture'>
+  telemetry: Pick<TelemetryService, 'capture'>,
+  getMementosRuntimeClient: () => Promise<MementosRuntimeClient>
 ): Promise<void> {
   const row = createConversationRegistry(db).getLive(conversationId);
   // Idempotent toward the caller: an absent row is a no-op.
   if (!row) return;
 
   await removeConversationOrTombstone(db, runtimes, row);
+  const mementos = await getMementosRuntimeClient();
+  const deletedDraft = await mementos.deleteBySubject(conversationSubject({ conversationId }));
+  if (!deletedDraft.success) throw new Error(deletedDraft.error.message);
 
   conversationEvents._emit('conversation:deleted', conversationId);
   appDbPokes.conversations.poke({
