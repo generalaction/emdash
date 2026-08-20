@@ -2,14 +2,23 @@ import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import {
   type CheckoutHeadState,
   type CheckoutStatusState,
-  type FileGitStatus,
   type GitChange,
-  type GitChangeStatus,
 } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
-import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
+import {
+  cell,
+  derived,
+  observe,
+  optimistic,
+  pin,
+  remote,
+  snapshot,
+  type Cell,
+  type OptimisticView,
+  type RemoteModel,
+} from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { getFilesClient } from '@core/features/files/api/browser/client';
 import {
@@ -22,6 +31,15 @@ import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/work
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../../api';
+import {
+  type CheckoutChangesState,
+  emptyCheckoutChangesState,
+  projectCheckoutChanges,
+  reduceStageAll,
+  reduceStageFiles,
+  reduceUnstageAll,
+  reduceUnstageFiles,
+} from './checkout-changes-state';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 // A healthy checkout model emits status and head within a few seconds; a wait
@@ -42,6 +60,8 @@ export class GitCheckoutStore {
   private syncError: string | null = null;
   private statusData: CheckoutStatusState | null = null;
   private headData: CheckoutHeadState | null = null;
+  private changesMetadata: Cell<CheckoutChangesState> | null = null;
+  private changesView: OptimisticView<CheckoutChangesState> | null = null;
   private changesRequest = 0;
   private stagedChanges: GitChange[] = [];
   private unstagedChanges: GitChange[] = [];
@@ -100,7 +120,7 @@ export class GitCheckoutStore {
     const model = this.model;
     if (!model) return;
     await Promise.all([model.states.status.refresh(), model.states.head.refresh()]);
-    await this.refreshChanges();
+    await this.refreshDiffMetadata();
   }
 
   async retry(): Promise<void> {
@@ -115,6 +135,8 @@ export class GitCheckoutStore {
       this.syncError = null;
       this.statusData = null;
       this.headData = null;
+      this.changesMetadata = null;
+      this.changesView = null;
       this.stagedChanges = [];
       this.unstagedChanges = [];
     });
@@ -136,6 +158,8 @@ export class GitCheckoutStore {
     this.model = null;
     this.statusData = null;
     this.headData = null;
+    this.changesMetadata = null;
+    this.changesView = null;
     void (async () => {
       try {
         await remote?.dispose();
@@ -235,23 +259,23 @@ export class GitCheckoutStore {
   }
 
   async stageFiles(paths: string[]) {
-    const model = await this.requireModel();
-    return settleMutation(model.mutations.stage({ paths: paths.map(gitFilePath) }));
+    const { model, view } = await this.requireChangesMutation();
+    return view.run(model.mutations.stage, { paths: paths.map(gitFilePath) }, reduceStageFiles);
   }
 
   async stageAllFiles() {
-    const model = await this.requireModel();
-    return settleMutation(model.mutations.stageAll({}));
+    const { model, view } = await this.requireChangesMutation();
+    return view.run(model.mutations.stageAll, {}, reduceStageAll);
   }
 
   async unstageFiles(paths: string[]) {
-    const model = await this.requireModel();
-    return settleMutation(model.mutations.unstage({ paths: paths.map(gitFilePath) }));
+    const { model, view } = await this.requireChangesMutation();
+    return view.run(model.mutations.unstage, { paths: paths.map(gitFilePath) }, reduceUnstageFiles);
   }
 
   async unstageAllFiles() {
-    const model = await this.requireModel();
-    return settleMutation(model.mutations.unstageAll({}));
+    const { model, view } = await this.requireChangesMutation();
+    return view.run(model.mutations.unstageAll, {}, reduceUnstageAll);
   }
 
   async discardFiles(paths: string[]) {
@@ -309,6 +333,16 @@ export class GitCheckoutStore {
     return this.model;
   }
 
+  private async requireChangesMutation(): Promise<{
+    model: CheckoutRemoteMember;
+    view: OptimisticView<CheckoutChangesState>;
+  }> {
+    const model = await this.requireModel();
+    const view = this.changesView;
+    if (!view) throw new Error(this.syncError ?? 'Git checkout changes are unavailable');
+    return { model, view };
+  }
+
   private async bindRuntime(): Promise<void> {
     const scope = createScope({ label: `git-checkout-store:${this.workspaceId}` });
     let checkoutRemote: CheckoutRemote | null = null;
@@ -319,6 +353,21 @@ export class GitCheckoutStore {
         lingerMs: 15_000,
       });
       const model = checkoutRemote(checkoutSelector(this.workspaceId));
+      const changesMetadata = cell(emptyCheckoutChangesState());
+      const baseChanges = derived(() =>
+        projectCheckoutChanges(snapshot(model.states.status).value, snapshot(changesMetadata).value)
+      );
+      const changesView = optimistic(baseChanges);
+      observe(
+        changesView,
+        (current) => {
+          runInAction(() => {
+            this.stagedChanges = current.value?.staged ?? [];
+            this.unstagedChanges = current.value?.unstaged ?? [];
+          });
+        },
+        { scope }
+      );
       pin(scope, Object.values(model.states));
       await runWithTimeout(
         () =>
@@ -326,7 +375,7 @@ export class GitCheckoutStore {
             setStatus: (status) => {
               this.statusData = status;
               this.revision += 1;
-              void this.refreshChanges();
+              void this.refreshDiffMetadata(changesMetadata);
             },
             setHead: (head) => {
               this.headData = head;
@@ -344,6 +393,8 @@ export class GitCheckoutStore {
         this.remote = checkoutRemote;
         this.remoteScope = scope;
         this.model = model;
+        this.changesMetadata = changesMetadata;
+        this.changesView = changesView;
         this.syncError = null;
       });
     } catch (error) {
@@ -360,13 +411,13 @@ export class GitCheckoutStore {
     }
   }
 
-  private async refreshChanges(): Promise<void> {
+  private async refreshDiffMetadata(
+    metadata: Cell<CheckoutChangesState> | null = this.changesMetadata
+  ): Promise<void> {
+    if (!metadata) return;
     const status = this.status;
     if (!status || status.kind !== 'ok') {
-      runInAction(() => {
-        this.stagedChanges = [];
-        this.unstagedChanges = [];
-      });
+      metadata.set(emptyCheckoutChangesState());
       return;
     }
     const request = ++this.changesRequest;
@@ -384,13 +435,14 @@ export class GitCheckoutStore {
       return;
     }
 
-    const staged = completeChanges(stagedResult.data.files, status.entries, 'staged');
-    const unstaged = completeChanges(unstagedResult.data.files, status.entries, 'unstaged');
-    await addUntrackedLineCounts(unstaged, this.workspacePath, this.sshConnectionId);
+    const enriched = projectCheckoutChanges(status, {
+      staged: stagedResult.data.files,
+      unstaged: unstagedResult.data.files,
+    });
+    await addUntrackedLineCounts(enriched.unstaged, this.workspacePath, this.sshConnectionId);
     if (request !== this.changesRequest || !this.started) return;
+    metadata.set(enriched);
     runInAction(() => {
-      this.stagedChanges = staged;
-      this.unstagedChanges = unstaged;
       this.syncError = null;
     });
   }
@@ -402,28 +454,6 @@ async function settleMutation<
   const invocation = await invocationPromise;
   if (invocation.result.success) await invocation.settled;
   return invocation.result;
-}
-
-function completeChanges(
-  changes: GitChange[],
-  entries: Record<string, FileGitStatus>,
-  side: 'staged' | 'unstaged'
-): GitChange[] {
-  const byPath = new Map(changes.map((change) => [change.path, change]));
-  for (const entry of Object.values(entries)) {
-    const changed =
-      side === 'staged'
-        ? entry.index !== 'unmodified' && entry.index !== 'untracked' && entry.index !== 'ignored'
-        : entry.worktree !== 'unmodified' && entry.worktree !== 'ignored';
-    if (!changed || byPath.has(entry.path)) continue;
-    byPath.set(entry.path, {
-      path: entry.path,
-      status: changeStatus(entry),
-      additions: 0,
-      deletions: 0,
-    });
-  }
-  return [...byPath.values()];
 }
 
 function waitForCheckoutModel(
@@ -477,17 +507,6 @@ function waitForCheckoutModel(
       { scope }
     );
   });
-}
-
-function changeStatus(entry: FileGitStatus): GitChangeStatus {
-  if (entry.isConflicted || entry.index === 'unmerged' || entry.worktree === 'unmerged') {
-    return 'conflicted';
-  }
-  const code = entry.worktree !== 'unmodified' ? entry.worktree : entry.index;
-  if (code === 'added' || code === 'copied' || code === 'untracked') return 'added';
-  if (code === 'deleted') return 'deleted';
-  if (code === 'renamed') return 'renamed';
-  return 'modified';
 }
 
 async function addUntrackedLineCounts(
