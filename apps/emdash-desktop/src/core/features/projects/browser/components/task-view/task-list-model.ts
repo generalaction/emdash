@@ -2,11 +2,12 @@ import type { ExternalSelectionStore } from '@emdash/ui/react/patterns';
 import { createListView, createTextMatcher } from '@emdash/ui/react/patterns';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import type { ProjectTaskSortBy } from '@core/features/projects/contributions/mementos';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { type Task } from '@core/primitives/tasks/api';
+import type { RegisteredTaskData } from '@core/primitives/task-state/browser/task-state';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
 
-export type ReadyTask = TaskStore & { data: Task };
+export type ReadyTask = TaskStore & { data: RegisteredTaskData };
 
 export type TaskListTab = 'active' | 'archived';
 
@@ -15,7 +16,7 @@ function latestInstant(task: ReadyTask) {
 }
 
 function prStatusRank(task: ReadyTask) {
-  const pr = selectCurrentPr(task.data.prs);
+  const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
   if (!pr) return 4;
   if (pr.status === 'merged') return 0;
   if (pr.status === 'open' && !pr.isDraft) return 1;

@@ -35,6 +35,7 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
+  type RegisteredTaskData,
 } from '@core/primitives/task-state/browser/task-state';
 import type {
   CreateTaskError,
@@ -43,7 +44,6 @@ import type {
   DeleteTaskOptions,
   RenameTaskError,
   RenameTaskSuccess,
-  Task,
   TaskLifecycleStatus,
   TaskListData,
   TaskListRow,
@@ -326,12 +326,11 @@ export class TaskManagerStore {
     await Promise.all(activeTaskReady);
   }
 
-  private _taskFromRow(row: TaskListRow): Task {
+  private _taskFromRow(row: TaskListRow): RegisteredTaskData {
     const { activeWorkspace: _activeWorkspace, ...taskRow } = row;
     const git = row.workspaceId ? this._taskStats.byWorkspaceId[row.workspaceId] : undefined;
     return {
       ...taskRow,
-      prs: [],
       workspaceGit: git,
     };
   }
@@ -474,7 +473,7 @@ export class TaskManagerStore {
     const task = this.tasks.get(taskId);
     if (!task || !isUnprovisioned(task)) return;
 
-    const wsId = (task.data as Task).workspaceId;
+    const wsId = task.data.workspaceId;
     if (!wsId) {
       const message = 'This task does not have a workspace record and cannot be opened.';
       runInAction(() => {
@@ -613,7 +612,7 @@ export class TaskManagerStore {
   }
 
   private async _renameTask(
-    task: Task,
+    task: RegisteredTaskData,
     name: string
   ): Promise<SharedResult<RenameTaskSuccess, RenameTaskError>> {
     const result = await this._runTaskListMutation(
@@ -628,7 +627,10 @@ export class TaskManagerStore {
     return ok(result.data.data);
   }
 
-  private async _updateTaskStatus(task: Task, status: TaskLifecycleStatus): Promise<void> {
+  private async _updateTaskStatus(
+    task: RegisteredTaskData,
+    status: TaskLifecycleStatus
+  ): Promise<void> {
     const changedAt = new Date().toISOString();
     const result = await this._runTaskListMutation(
       (member) => member.mutations.setStatus,
@@ -643,7 +645,7 @@ export class TaskManagerStore {
     throwIfMutationFailed(result);
   }
 
-  private async _setTaskPinned(task: Task, isPinned: boolean): Promise<void> {
+  private async _setTaskPinned(task: RegisteredTaskData, isPinned: boolean): Promise<void> {
     const result = await this._runTaskListMutation(
       (member) => member.mutations.setPinned,
       { taskId: task.id, isPinned },
@@ -655,7 +657,7 @@ export class TaskManagerStore {
     throwIfMutationFailed(result);
   }
 
-  private async _updateLinkedIssue(task: Task, issue?: LinkedIssue): Promise<void> {
+  private async _updateLinkedIssue(task: RegisteredTaskData, issue?: LinkedIssue): Promise<void> {
     const result = await this._runTaskListMutation(
       (member) => member.mutations.setLinkedIssue,
       { taskId: task.id, issue },
@@ -667,7 +669,7 @@ export class TaskManagerStore {
     throwIfMutationFailed(result);
   }
 
-  private async _convertAutomationTask(task: Task): Promise<void> {
+  private async _convertAutomationTask(task: RegisteredTaskData): Promise<void> {
     const result = await this._runTaskListMutation(
       (member) => member.mutations.convertAutomation,
       { taskId: task.id },

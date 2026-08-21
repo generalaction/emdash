@@ -1,5 +1,8 @@
 import type { Task, TaskLifecycleStatus } from '@core/primitives/tasks/api';
 
+/** Browser task-list state; renderer-derived PR association lives in its feature store. */
+export type RegisteredTaskData = Omit<Task, 'prs'>;
+
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
 export type UnprovisionedTaskPhase =
@@ -23,7 +26,7 @@ export type UnregisteredTaskData = {
 
 export interface TaskState {
   readonly state: 'unregistered' | 'unprovisioned' | 'provisioned';
-  readonly data: UnregisteredTaskData | Task;
+  readonly data: UnregisteredTaskData | RegisteredTaskData;
   readonly phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   readonly errorMessage: string | undefined;
   readonly workspaceId: string | null;
@@ -39,13 +42,13 @@ export type UnregisteredTaskState = TaskState & {
 
 export type UnprovisionedTaskState = TaskState & {
   state: 'unprovisioned';
-  data: Task;
+  data: RegisteredTaskData;
   phase: UnprovisionedTaskPhase;
 };
 
 export type ProvisionedTaskState = TaskState & {
   state: 'provisioned';
-  data: Task;
+  data: RegisteredTaskData;
   workspaceId: string;
 };
 
@@ -67,7 +70,7 @@ export function isProvisioned<T extends TaskState>(task: T): task is T & Provisi
   return task.state === 'provisioned';
 }
 
-export function registeredTaskData(task: TaskState): Task | undefined {
+export function registeredTaskData(task: TaskState): RegisteredTaskData | undefined {
   return isRegistered(task) ? task.data : undefined;
 }
 

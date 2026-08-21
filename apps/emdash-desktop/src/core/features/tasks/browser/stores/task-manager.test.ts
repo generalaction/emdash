@@ -9,6 +9,7 @@ import type {
   ProjectHostAccessState,
 } from '@core/features/projects/api/browser/stores/project-context';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { tasksWireContract } from '@core/features/tasks/api';
 import { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
 import { createUnprovisionedTask } from '@core/features/tasks/api/browser/stores/task-store';
@@ -29,6 +30,16 @@ let taskListState: ReturnType<typeof cell<TaskListData>>;
 let taskStatsState: ReturnType<typeof cell<TaskStatsData>>;
 let wire: ReturnType<typeof createTaskWire> | undefined;
 let hostState: ProjectHostAccessState;
+
+vi.mock('@core/manifests/browser/task-persistent-stores', async () => {
+  const { sourceControlPersistentTaskStoreContributions } =
+    await import('@core/features/source-control/contributions/browser/task-stores');
+  return {
+    taskPersistentStoreContributions: sourceControlPersistentTaskStoreContributions.filter(
+      (contribution) => contribution.token.id === 'source-control.task-pr-association'
+    ),
+  };
+});
 
 vi.mock('@core/manifests/browser/task-scoped-stores', () => ({
   taskStoreContributions: [],
@@ -344,6 +355,43 @@ describe('TaskManagerStore lifecycle', () => {
     expect(store?.data).toMatchObject({
       workspaceGit: { linesAdded: 7, linesDeleted: 2 },
     });
+    manager.dispose();
+  });
+
+  it('keeps renderer-derived PR state out of task-list payloads', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    const { prs: _prs, workspaceGit: _workspaceGit, ...taskRow } = task;
+    taskListState.set({ tasks: [taskRow] });
+    await manager.loadTasks();
+    const store = manager.tasks.get(task.id)!;
+    const association = getTaskPrAssociationStore(store);
+    association.setAssociation(
+      [{ url: 'https://github.com/emdash/emdash/pull/42' } as Task['prs'][number]],
+      { kind: 'unknown' }
+    );
+
+    taskListState.set({ tasks: [{ ...taskRow, name: 'Task 1 renamed elsewhere' }] });
+
+    await vi.waitFor(() => expect(store.data.name).toBe('Task 1 renamed elsewhere'));
+    expect('prs' in store.data).toBe(false);
+    expect(association.pullRequests).toHaveLength(1);
+    manager.dispose();
+  });
+
+  it('removes the durable workspace without introducing PR state into task data', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    const { prs: _prs, workspaceGit: _workspaceGit, ...taskRow } = task;
+    taskListState.set({ tasks: [taskRow] });
+    await manager.loadTasks();
+    const store = manager.tasks.get(task.id)!;
+
+    const { workspaceId: _workspaceId, ...rowWithoutWorkspace } = taskRow;
+    taskListState.set({ tasks: [rowWithoutWorkspace] });
+
+    await vi.waitFor(() => expect((store.data as Task).workspaceId).toBeUndefined());
+    expect('prs' in store.data).toBe(false);
     manager.dispose();
   });
 

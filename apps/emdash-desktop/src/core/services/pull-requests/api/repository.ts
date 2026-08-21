@@ -26,7 +26,7 @@ export function recognizePullRequestUrl(
   return `${repositoryUrl}/pull/${match[1]}`;
 }
 
-export function selectCurrentPr(pullRequests: PullRequest[]): PullRequest | undefined {
+export function selectCurrentPr(pullRequests: readonly PullRequest[]): PullRequest | undefined {
   const open = pullRequests.find((pullRequest) => pullRequest.status === 'open');
   if (open) return open;
   return pullRequests.reduce<PullRequest | undefined>(
