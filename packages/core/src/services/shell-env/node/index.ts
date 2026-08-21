@@ -13,6 +13,7 @@ export {
   type CaptureShellEnvOptions,
 } from './capture';
 export { createShellEnvManager, type CreateShellEnvManagerOptions } from './manager';
+export { buildUserShellEnvSeed } from './user-env';
 export {
   DEFAULT_SHELL_ENV_PRESERVE_KEYS,
   SHELL_ENV_CAPTURE_GUARD,

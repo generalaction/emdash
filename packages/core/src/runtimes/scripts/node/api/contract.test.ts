@@ -19,6 +19,7 @@ describe('scripts runtime contract', () => {
     spawner = new FakePtySpawner();
     runtime = new ScriptsRuntime({
       spawner,
+      userEnv: { HOME: '/home/test', PATH: '/usr/bin', SHELL: '/bin/sh', USER_VALUE: 'kept' },
       portProbe: async () => true,
     });
     wire = createTestWire(scriptsContract, createScriptsController(runtime));
@@ -85,8 +86,9 @@ describe('scripts runtime contract', () => {
       EMDASH_TASK_NAME: 'feature-x',
       EMDASH_ROOT_PATH: '/repos/app',
     });
-    // CI is never injected: it is whatever the worker's own environment carries.
-    expect(spec.env?.CI).toBe(process.env.CI);
+    expect(spec.env?.USER_VALUE).toBe('kept');
+    expect(spec.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    expect(spec.env?.NODE_ENV).toBeUndefined();
 
     spawner.processes[0]!.emitData('installing...\n');
     spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });

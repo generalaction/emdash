@@ -8,6 +8,7 @@ import { createTerminalsController } from './api/controller';
 import { TerminalsRuntime } from './runtime/runtime';
 
 export const terminalsComponentConfigSchema = z.object({
+  userEnv: z.record(z.string(), z.string()),
   lifecycle: z
     .object({
       terminal: idlePolicyConfigSchema.optional(),
@@ -22,13 +23,14 @@ export const terminalsComponent = defineWireComponent({
   requirements: {},
   configSchema: terminalsComponentConfigSchema,
   create: ({ config, instance, logger, scope }) => {
-    const exec = new NodeExecutionContext({ env: process.env });
+    const exec = new NodeExecutionContext({ env: config.userEnv });
     const runtime = new TerminalsRuntime({
       spawner: new NodePtySpawner(),
+      userEnv: config.userEnv,
       exec,
       scope,
       lifecycle: config.lifecycle,
-      shellResolver: createNodeTerminalShellResolver(),
+      shellResolver: createNodeTerminalShellResolver({ env: config.userEnv }),
       logger,
     });
     scope.add(() => runtime.dispose());

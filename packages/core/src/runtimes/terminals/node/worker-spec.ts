@@ -11,6 +11,7 @@ type TerminalsWorkerOptions = WireComponentWorkerCreateOptions<
 export type TerminalsWorkerSpecInput = {
   executable: string;
   env: NodeJS.ProcessEnv;
+  userEnv: Record<string, string>;
   /**
    * Genuinely per-app policy: the desktop keeps terminals alive for the app's
    * lifetime, while a detachable server reaps terminals nobody is attached to.
@@ -29,7 +30,7 @@ export function terminalsWorkerSpec(
       executable: input.executable,
       env: input.env,
       dependencies: {},
-      config: { lifecycle: input.lifecycle },
+      config: { userEnv: input.userEnv, lifecycle: input.lifecycle },
     },
   ];
 }

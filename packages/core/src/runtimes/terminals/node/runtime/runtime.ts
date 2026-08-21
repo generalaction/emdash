@@ -68,6 +68,7 @@ type PreviewOutputSource = {
 
 export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
+  userEnv: Readonly<Record<string, string>>;
   exec?: IExecutionContext;
   scope?: Scope;
   clock?: Clock;
@@ -97,6 +98,7 @@ export class TerminalsRuntime {
   );
 
   private readonly registry: PtyRegistry;
+  private readonly userEnv: Record<string, string>;
   private readonly exec: IExecutionContext | undefined;
   private readonly scope: Scope;
   private readonly clock: Clock;
@@ -114,6 +116,7 @@ export class TerminalsRuntime {
     this.registry = new PtyRegistry(options.spawner, {
       onSessionChanged: (key, session) => this.syncSession(key, session),
     });
+    this.userEnv = { ...options.userEnv };
     this.exec = options.exec;
     this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
     this.clock = options.clock ?? systemClock;
@@ -311,6 +314,7 @@ export class TerminalsRuntime {
 
     const shellProfile = await this.resolveShellProfile(key, spec.shellIntent);
     const env = buildTerminalEnv({
+      baseEnv: this.userEnv,
       shellProfile,
       overrides: spec.env,
       gitCredentials: spec.gitCredentials,

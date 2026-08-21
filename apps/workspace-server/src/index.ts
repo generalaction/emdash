@@ -57,6 +57,7 @@ async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Dis
       scope,
       socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
       env: shellEnv.env,
+      userShellEnv: shellEnv.getUserShellEnv(),
       refreshShellEnv: () => shellEnv.refresh(),
       logger,
     });

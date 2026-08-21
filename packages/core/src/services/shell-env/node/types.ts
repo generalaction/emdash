@@ -26,7 +26,10 @@ export type ShellEnvLogger = {
 };
 
 export type ShellEnvManager = {
+  /** The operational host process environment updated for compatibility consumers. */
   readonly env: NodeJS.ProcessEnv;
+  /** Returns an owned user-shell snapshot with host runtime controls excluded. */
+  getUserShellEnv(): Record<string, string>;
   refresh(): Promise<void>;
 };
 

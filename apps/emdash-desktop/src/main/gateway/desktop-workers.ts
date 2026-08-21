@@ -83,7 +83,7 @@ import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { isUserEnvResolved, refreshUserEnv } from '@main/lib/userEnv';
+import { getUserShellEnv, isUserEnvResolved, refreshUserEnv } from '@main/lib/userEnv';
 import { desktopWorkerPath } from './worker-paths';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
@@ -164,9 +164,9 @@ export type StartDesktopWorkersDeps = {
  * failure rejects that worker's queued and future calls (ticket 01's
  * queueing). Worker readiness continues to settle in the background.
  *
- * Security ordering: workers inherit `process.env` at spawn, so the
- * login-shell env capture must have completed before this function runs (see
- * agents/risky-areas/pty.md). This is asserted, not assumed.
+ * Security ordering: the login-shell capture must complete before this function
+ * snapshots it into the terminal and scripts worker configs (see
+ * agents/risky-areas/pty.md).
  */
 export async function startDesktopWorkers(
   deps: StartDesktopWorkersDeps
@@ -174,7 +174,7 @@ export async function startDesktopWorkers(
   if (!isUserEnvResolved()) {
     throw new Error(
       'Desktop workers must not be created before the login-shell environment capture ' +
-        'completes: workers inherit process.env at spawn (PTY security ordering).'
+        'completes: PTY workers require an owned user-shell snapshot.'
     );
   }
   const workerScope = deps.scope.child('wire-workers');
@@ -207,6 +207,7 @@ function startDesktopWorkersWithHost(
   host: ReturnType<typeof createWireWorkerHost>
 ): Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'> {
   const workersStartedAt = Date.now();
+  const userShellEnv = getUserShellEnv();
   // Logs readiness timing and observes rejection so a background readiness
   // failure never surfaces as an unhandled rejection: the failure reaches
   // callers through the queued clients' per-call rejections.
@@ -309,6 +310,7 @@ function startDesktopWorkersWithHost(
     ...terminalsWorkerSpec({
       executable: desktopWorkerPath('terminals'),
       env: process.env,
+      userEnv: userShellEnv,
       lifecycle: {
         terminal: { kind: 'always' },
       },
@@ -332,6 +334,7 @@ function startDesktopWorkersWithHost(
     ...scriptsWorkerSpec({
       executable: desktopWorkerPath('scripts'),
       env: process.env,
+      userEnv: userShellEnv,
     })
   );
   const scriptsReady = timedReady('scripts', scriptsWorker.ready());

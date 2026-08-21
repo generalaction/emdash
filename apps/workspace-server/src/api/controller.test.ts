@@ -124,7 +124,11 @@ describe('runtime domain forwarding', () => {
       },
       getAvailability: async () => availability,
     };
-    const terminalsRuntime = new TerminalsRuntime({ spawner, shellResolver });
+    const terminalsRuntime = new TerminalsRuntime({
+      spawner,
+      userEnv: {},
+      shellResolver,
+    });
     const terminals = createTestWire(
       terminalsContract,
       createTerminalsController(terminalsRuntime)

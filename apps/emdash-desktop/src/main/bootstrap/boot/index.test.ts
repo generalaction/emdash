@@ -91,8 +91,8 @@ describe('finishBoot', () => {
       mock.mock.invocationCallOrder[0]!;
     expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.database));
     expect(order(mocks.database)).toBeLessThan(order(mocks.runtimes));
-    // PTY security ordering: workers inherit process.env at spawn, so env
-    // capture must complete before the runtimes phase spawns workers.
+    // PTY security ordering: capture must complete before the runtimes phase
+    // snapshots the user env into worker startup config.
     expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.runtimes));
   });
 

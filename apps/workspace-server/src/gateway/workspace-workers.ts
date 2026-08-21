@@ -70,6 +70,7 @@ export type CreateWorkspaceServerRuntimeHostOptions = {
   scope: Scope;
   socketPath?: string;
   env?: NodeJS.ProcessEnv;
+  userShellEnv: Record<string, string>;
   refreshShellEnv?: () => Promise<void>;
   logger?: Logger;
 };
@@ -120,6 +121,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...terminalsWorkerSpec({
       executable: workspaceWorkerPath('terminals'),
       env,
+      userEnv: options.userShellEnv,
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
@@ -142,6 +144,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...scriptsWorkerSpec({
       executable: workspaceWorkerPath('scripts'),
       env,
+      userEnv: options.userShellEnv,
     })
   );
   const acpPromise = conversationsPromise.then((conversations) =>

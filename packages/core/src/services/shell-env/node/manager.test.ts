@@ -49,6 +49,50 @@ describe('createShellEnvManager', () => {
     expect(spawnSyncMock).toHaveBeenCalledTimes(1);
     expect(target.FOO).toBe('bar');
     expect(target.PATH).toBe('/usr/local/bin:/usr/bin');
+    expect(manager.getUserShellEnv()).toMatchObject({
+      FOO: 'bar',
+      PATH: '/usr/local/bin:/usr/bin',
+    });
+  });
+
+  it('keeps runtime controls in the host env but excludes them from the user snapshot', async () => {
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/shell/bin\nUSER_VALUE=kept\n',
+    });
+    const target: NodeJS.ProcessEnv = {
+      PATH: '/worker/bin',
+      NODE_ENV: 'production',
+      ELECTRON_RUN_AS_NODE: '1',
+    };
+    const manager = createShellEnvManager({ target });
+
+    await manager.refresh();
+
+    expect(target.NODE_ENV).toBe('production');
+    expect(target.ELECTRON_RUN_AS_NODE).toBe('1');
+    expect(manager.getUserShellEnv()).toEqual({
+      PATH: '/shell/bin:/worker/bin',
+      USER_VALUE: 'kept',
+    });
+  });
+
+  it('preserves a runtime-named variable when the login shell explicitly exports it', async () => {
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/shell/bin\nNODE_ENV=development\n',
+    });
+    const target: NodeJS.ProcessEnv = { PATH: '/worker/bin', NODE_ENV: 'production' };
+    const manager = createShellEnvManager({ target });
+
+    await manager.refresh();
+
+    expect(target.NODE_ENV).toBe('production');
+    expect(manager.getUserShellEnv().NODE_ENV).toBe('development');
   });
 
   it('logs and keeps the existing env when capture fails', async () => {
