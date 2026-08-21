@@ -80,7 +80,7 @@ export function createCommandsPaletteProvider({
   chordFor,
 }: CommandsPaletteProviderOptions): PaletteProviderDef {
   const resolve = (item: CommandPaletteItemDef): CommandPaletteMatch | undefined => {
-    const bound = viewScopes.getActiveCommand(item.command, { fromCaptureOrigin: true });
+    const bound = viewScopes.getActiveCommand(item.command, { belowActiveCapture: true });
     if (!bound || bound.availability.kind === 'hidden') return undefined;
 
     const presentation = bound.presentation;
