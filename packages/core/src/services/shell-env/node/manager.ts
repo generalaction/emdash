@@ -15,26 +15,40 @@ export function createShellEnvManager(options: CreateShellEnvManagerOptions = {}
   const target = options.target ?? process.env;
   const userEnv = stringEnv(buildUserShellEnvSeed(options.baseEnvForProbe?.() ?? target));
   let inFlight: Promise<void> | undefined;
+  let captureStarted = false;
+  let hasGoodSnapshot = false;
+
+  const refresh = (): Promise<void> => {
+    captureStarted = true;
+    inFlight ??= refreshShellEnv(target, userEnv, hasGoodSnapshot, options)
+      .then((succeeded) => {
+        if (succeeded) hasGoodSnapshot = true;
+      })
+      .finally(() => {
+        inFlight = undefined;
+      });
+    return inFlight;
+  };
 
   return {
     env: target,
-    getUserShellEnv: () => ({ ...userEnv }),
-    refresh() {
-      inFlight ??= refreshShellEnv(target, userEnv, options).finally(() => {
-        inFlight = undefined;
-      });
-      return inFlight;
+    async current() {
+      if (!captureStarted) await refresh();
+      else await inFlight;
+      return { ...userEnv };
     },
+    getUserShellEnv: () => ({ ...userEnv }),
+    refresh,
   };
 }
 
 async function refreshShellEnv(
   target: NodeJS.ProcessEnv,
   userEnv: Record<string, string>,
+  hasGoodSnapshot: boolean,
   options: CreateShellEnvManagerOptions
-): Promise<void> {
+): Promise<boolean> {
   const baseEnv = buildUserShellEnvSeed(options.baseEnvForProbe?.() ?? target);
-  replaceEnv(userEnv, stringEnv(baseEnv));
   const capture = await captureShellEnv({
     baseEnv,
     timeoutMs: options.timeoutMs,
@@ -45,21 +59,25 @@ async function refreshShellEnv(
       shell: capture.error.shell,
       error: capture.error.message,
     });
-    return;
+    if (!hasGoodSnapshot) replaceEnv(userEnv, stringEnv(baseEnv));
+    return false;
   }
 
   applyShellEnvCapture(target, capture.data, options.policy, { mergeBaseEnv: baseEnv });
+  const nextUserEnv = stringEnv(baseEnv);
   applyShellEnvCapture(
-    userEnv,
+    nextUserEnv,
     capture.data,
     { ...options.policy, preserveKeys: new Set() },
     { mergeBaseEnv: baseEnv }
   );
+  replaceEnv(userEnv, nextUserEnv);
 
   options.logger?.info?.('[shell-env] Resolved shell env', {
     source: capture.data.source,
     pathEntries: target.PATH?.split(process.platform === 'win32' ? ';' : ':').length ?? 0,
   });
+  return true;
 }
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {

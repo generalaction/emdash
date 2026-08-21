@@ -31,6 +31,25 @@ beforeEach(() => {
 });
 
 describe('createShellEnvManager', () => {
+  it('starts and awaits the initial capture from current()', async () => {
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/shell/bin\nFOO=initial\n',
+    });
+    const manager = createShellEnvManager({
+      target: { PATH: '/worker/bin' },
+      baseEnvForProbe: () => ({ SHELL: '/bin/bash', PATH: '/worker/bin' }),
+    });
+
+    await expect(manager.current()).resolves.toMatchObject({
+      FOO: 'initial',
+      PATH: '/shell/bin:/worker/bin',
+    });
+    expect(spawnSyncMock).toHaveBeenCalledOnce();
+  });
+
   it('coalesces concurrent refreshes', async () => {
     spawnSyncMock.mockReturnValue({
       error: undefined,
@@ -95,6 +114,38 @@ describe('createShellEnvManager', () => {
     expect(manager.getUserShellEnv().NODE_ENV).toBe('development');
   });
 
+  it('retains the last snapshot until an in-flight refresh publishes atomically', async () => {
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/tools/old\nUSER_VALUE=before-refresh\n',
+    });
+    const manager = createShellEnvManager({
+      target: { PATH: '/worker/bin' },
+      baseEnvForProbe: () => ({ SHELL: '/bin/bash', PATH: '/worker/bin' }),
+    });
+    await manager.refresh();
+
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/tools/new\nUSER_VALUE=after-refresh\n',
+    });
+    const refresh = manager.refresh();
+
+    expect(manager.getUserShellEnv()).toMatchObject({
+      PATH: '/tools/old:/worker/bin',
+      USER_VALUE: 'before-refresh',
+    });
+    await expect(manager.current()).resolves.toMatchObject({
+      PATH: '/tools/new:/worker/bin',
+      USER_VALUE: 'after-refresh',
+    });
+    await refresh;
+  });
+
   it('logs and keeps the existing env when capture fails', async () => {
     const warn = vi.fn();
     spawnSyncMock.mockReturnValue({
@@ -117,5 +168,36 @@ describe('createShellEnvManager', () => {
       expect.objectContaining({ shell: '/bin/bash', error: 'spawn failed' })
     );
     expect(target).toEqual({ PATH: '/usr/bin' });
+    await expect(manager.current()).resolves.toEqual({
+      PATH: '/probe/bin',
+      SHELL: '/bin/bash',
+    });
+  });
+
+  it('retains the last known-good snapshot when a later refresh fails', async () => {
+    spawnSyncMock.mockReturnValue({
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout: 'PATH=/tools/good\nUSER_VALUE=known-good\n',
+    });
+    const manager = createShellEnvManager({
+      target: { PATH: '/worker/bin' },
+      baseEnvForProbe: () => ({ SHELL: '/bin/bash', PATH: '/worker/bin' }),
+    });
+    await manager.refresh();
+
+    spawnSyncMock.mockReturnValue({
+      error: new Error('refresh failed'),
+      status: null,
+      stderr: '',
+      stdout: '',
+    });
+    await manager.refresh();
+
+    await expect(manager.current()).resolves.toMatchObject({
+      PATH: '/tools/good:/worker/bin',
+      USER_VALUE: 'known-good',
+    });
   });
 });
