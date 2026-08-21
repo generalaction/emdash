@@ -150,6 +150,7 @@ export function GitHubIdentityStrip({
               )}
               title={provenanceExplanation(resolved, override)}
             />
+            <span className="shrink-0 text-foreground-muted">Creating as</span>
             {account ? (
               <GitHubAccountSelectLabel account={account} />
             ) : (

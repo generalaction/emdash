@@ -111,7 +111,7 @@ describe('GitHubIdentityStrip', () => {
     expect(buttonByText(strip(), 'Change')).toBeDefined();
   });
 
-  it('prioritizes the account identity over redundant action and provenance copy', async () => {
+  it('uses a concise action-agnostic label while preserving the account identity', async () => {
     host.style.width = '440px';
     await act(async () => {
       root.render(
@@ -134,6 +134,7 @@ describe('GitHubIdentityStrip', () => {
       (element) => element.textContent === '@jschwxrz'
     );
 
+    expect(strip().textContent).toContain('Creating as');
     expect(strip().textContent).not.toContain('Creating repository as');
     expect(strip().textContent?.match(/default/gi)).toHaveLength(1);
     expect(login?.getAttribute('title')).toBe('@jschwxrz');
