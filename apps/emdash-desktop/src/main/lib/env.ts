@@ -5,6 +5,7 @@ const buildSchema = z.object({
   VITE_POSTHOG_KEY: z.string().optional(),
   VITE_POSTHOG_HOST: z.string().optional(),
   VITE_BUILD: z.enum(['canary', 'prod']).default('prod'),
+  VITE_FEEDBACK_RELAY_URL: z.string().optional(),
 });
 
 // Dev-only overrides: read from process.env (supports non-VITE_ prefixed vars,
@@ -12,6 +13,7 @@ const buildSchema = z.object({
 const devSchema = z.object({
   POSTHOG_PROJECT_API_KEY: z.string().optional(),
   POSTHOG_HOST: z.string().optional(),
+  FEEDBACK_RELAY_URL: z.string().optional(),
 });
 
 function parseSection<T extends z.ZodRawShape>(
