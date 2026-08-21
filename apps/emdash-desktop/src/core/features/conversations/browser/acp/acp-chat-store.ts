@@ -3,11 +3,12 @@ import type {
   AttachmentMimeType,
   AttachmentRef,
   PromptAttachment,
-  PromptDraft,
   PromptInput,
   QueuedPrompt,
   SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
+import type { Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -26,12 +27,25 @@ import {
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import {
+  ACP_DRAFT_MAX_LENGTH,
+  acpDraftMemento,
+  type AcpDraftState,
+} from '@core/features/conversations/contributions/mementos';
+import { conversationSubject } from '@core/features/conversations/contributions/subject';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
+import {
+  getMementoClient,
+  type MementoHandle,
+  type SubjectSpace,
+} from '@core/primitives/mementos/browser';
+import { seedNonEmptyHistory } from './acp-history';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
+import { isActivationLostError } from './activation-errors';
 
 export interface AgentAffordances {
   isWorking: boolean;
@@ -57,6 +71,7 @@ type PermissionQueueItem = {
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
   | { kind: 'unavailable'; message: string }
+  | { kind: 'inactive'; message: string }
   | { kind: 'generic'; message: string };
 
 export class AcpChatStore {
@@ -72,10 +87,12 @@ export class AcpChatStore {
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
-  private _draftRev = 0;
-  private _pendingDraftRev: number | null = null;
-  private _draftTimer: number | null = null;
+  private readonly _scope: Scope;
+  private readonly _draftSpace: SubjectSpace<'conversation'>;
+  private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeHostReaction: () => void;
+  private _connectPromise: Promise<AcpLiveSession> | null = null;
+  private _disposed = false;
 
   constructor(
     readonly conversationId: string,
@@ -84,9 +101,12 @@ export class AcpChatStore {
     readonly hostAccess?: ProjectHostAccess
   ) {
     this.chatContext = getSharedChatContext();
+    this._scope = createScope({ label: `acp-chat:${conversationId}` });
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
       uri: conversationId,
     });
+    this._draftSpace = getMementoClient().subject(conversationSubject({ conversationId }));
+    this._draftHandle = this._draftSpace.handle(acpDraftMemento);
     registerConversationCommands(conversationId, () =>
       this.commands.map((command) => command.name)
     );
@@ -138,6 +158,21 @@ export class AcpChatStore {
           void this._runBootstrap();
         }
       }
+    );
+    this._draftHandle.autoPersist(
+      () => ({
+        version: '1' as const,
+        text: this.draftText.slice(0, ACP_DRAFT_MAX_LENGTH),
+      }),
+      this._scope
+    );
+    void this._draftSpace.ready.then(
+      () => {
+        runInAction(() => {
+          this.draftText = this._draftHandle.value.text;
+        });
+      },
+      (error: unknown) => getMementoClient().reportError(error)
     );
   }
 
@@ -233,7 +268,7 @@ export class AcpChatStore {
       isWorking: state?.isGenerating ?? false,
       isBusy: state?.isGenerating ?? false,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
+      canSubmit: liveActionsEnabled && (state?.canSubmit ?? this.loadError?.kind === 'inactive'),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
   }
@@ -301,6 +336,7 @@ export class AcpChatStore {
   ): void {
     if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
+    this.draftText = '';
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
       this.chatState.session.setPendingPrompt({
@@ -320,9 +356,6 @@ export class AcpChatStore {
   setDraftText(text: string): void {
     if (text === this.draftText) return;
     this.draftText = text;
-    this._draftRev += 1;
-    this._pendingDraftRev = this._draftRev;
-    this._scheduleDraftWrite(text, this._draftRev);
   }
 
   stop(): void {
@@ -335,36 +368,29 @@ export class AcpChatStore {
   }
 
   setModel(model: string): void {
-    void this.session
-      ?.setModelOption('model', model)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to change model', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to change model', error));
+    void this._withConnectedSession('Failed to change model', (session) =>
+      session.setModelOption('model', model)
+    );
   }
 
   setMode(modeId: string): void {
-    void this.session
-      ?.setModeOption(modeId)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to change session mode', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to change session mode', error));
+    void this._withConnectedSession('Failed to change session mode', (session) =>
+      session.setModeOption(modeId)
+    );
   }
 
   setEffort(effort: string): void {
-    void this.session
-      ?.setModelOption('effort', effort)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to change effort', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to change effort', error));
+    void this._withConnectedSession('Failed to change effort', (session) =>
+      session.setModelOption('effort', effort)
+    );
   }
 
   resolvePermission(optionId: string): void {
     const request = this.permissionQueue[0];
     if (!request) return;
-    void this.session?.resolvePermission(request.requestId, optionId);
+    void this._withConnectedSession('Failed to resolve permission', (session) =>
+      session.resolvePermission(request.requestId, optionId)
+    );
   }
 
   editQueuedPrompt(id: string, text: string): void {
@@ -375,30 +401,21 @@ export class AcpChatStore {
       hiddenContext: existing.hiddenContext,
       attachments: existing.attachments,
     };
-    void this.session
-      ?.editQueuedPrompt(id, input)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to edit queued prompt', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to edit queued prompt', error));
+    void this._withConnectedSession('Failed to edit queued prompt', (session) =>
+      session.editQueuedPrompt(id, input)
+    );
   }
 
   deleteQueuedPrompt(id: string): void {
-    void this.session
-      ?.deleteQueuedPrompt(id)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to delete queued prompt', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to delete queued prompt', error));
+    void this._withConnectedSession('Failed to delete queued prompt', (session) =>
+      session.deleteQueuedPrompt(id)
+    );
   }
 
   reorderQueuedPrompts(ids: string[]): void {
-    void this.session
-      ?.changeQueuePromptOrder(ids)
-      .then((result) => {
-        if (!result.success) this._toastError('Failed to reorder queued prompts', result.error);
-      })
-      .catch((error: unknown) => this._toastError('Failed to reorder queued prompts', error));
+    void this._withConnectedSession('Failed to reorder queued prompts', (session) =>
+      session.changeQueuePromptOrder(ids)
+    );
   }
 
   sendQueuedPromptNow(id: string): void {
@@ -410,15 +427,89 @@ export class AcpChatStore {
   }
 
   dispose(): void {
+    this._disposed = true;
     this._disposeHostReaction();
     unregisterConversationCommands(this.conversationId);
-    if (this._draftTimer !== null) {
-      window.clearTimeout(this._draftTimer);
-      this._draftTimer = null;
-    }
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
+    void this._scope
+      .dispose()
+      .then(() => this._draftSpace.release())
+      .catch((error: unknown) => getMementoClient().reportError(error));
+  }
+
+  private _connectSession(): Promise<AcpLiveSession> {
+    const current = this.session;
+    if (
+      current &&
+      current.activationId.current() !== null &&
+      current.sessionState.current().lifecycle !== 'closed'
+    ) {
+      return Promise.resolve(current);
+    }
+    if (this._connectPromise) return this._connectPromise;
+
+    const pending = (async () => {
+      const clientSession = await AcpLiveSession.create(this.conversationId);
+      try {
+        const history = await clientSession.getHistory(undefined, 100);
+        if (!history.success) throw resultError(history.error);
+        if (this._disposed) throw new Error('ACP chat store was disposed while connecting');
+
+        runInAction(() => {
+          this.session?.dispose();
+          this.session = clientSession;
+          seedNonEmptyHistory(history.data.turns, (turns) =>
+            this.chatState.transcript.history.seed(turns)
+          );
+          this._subscribeLiveSession(clientSession);
+          this.historyLoading = false;
+          this.loadError = null;
+          this._syncMessageCount();
+        });
+        return clientSession;
+      } catch (error) {
+        clientSession.dispose();
+        throw error;
+      }
+    })().finally(() => {
+      if (this._connectPromise === pending) this._connectPromise = null;
+    });
+    this._connectPromise = pending;
+    return pending;
+  }
+
+  private _loseSession(session: AcpLiveSession): void {
+    if (this.session !== session) return;
+    this._unsubs.splice(0).forEach((unsub) => unsub());
+    this.session = null;
+    session.dispose();
+    this.historyLoading = false;
+    this.loadError = {
+      kind: 'inactive',
+      message: 'This chat is inactive. Retry or send a message to reconnect it.',
+    };
+    this._syncMessageCount();
+  }
+
+  private async _withConnectedSession<T>(
+    title: string,
+    work: (session: AcpLiveSession) => Promise<Result<T, unknown>>
+  ): Promise<void> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+    try {
+      const session = await this._connectSession();
+      const result = await work(session);
+      if (result.success) return;
+      if (isActivationLostError(result.error)) {
+        runInAction(() => this._loseSession(session));
+        return;
+      }
+      this._toastError(title, result.error);
+    } catch (error) {
+      this._toastError(title, error);
+    }
   }
 
   private async _runBootstrap(): Promise<void> {
@@ -435,21 +526,7 @@ export class AcpChatStore {
     const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
       ?.data.providerId;
     try {
-      const clientSession = await AcpLiveSession.create(this.conversationId);
-
-      const history = await clientSession.getHistory(undefined, 100);
-      if (!history.success) throw resultError(history.error);
-
-      runInAction(() => {
-        this.session?.dispose();
-        this.session = clientSession;
-        this.chatState.transcript.history.seed(history.data.turns);
-        this._subscribeLiveSession(clientSession);
-        this._applyDraftSnapshot(clientSession.draft.current());
-        this.historyLoading = false;
-        this.loadError = null;
-        this._syncMessageCount();
-      });
+      await this._connectSession();
     } catch (error) {
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
@@ -502,12 +579,6 @@ export class AcpChatStore {
     hiddenContext?: string | Promise<string | undefined>
   ): Promise<void> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return;
-    const session = this.session;
-    if (!session) {
-      this._toastError('Failed to send message', new Error('ACP session is not connected'));
-      return;
-    }
-
     let resolvedHiddenContext: string | undefined;
     try {
       resolvedHiddenContext = await hiddenContext;
@@ -519,11 +590,18 @@ export class AcpChatStore {
     }
 
     try {
-      const result = await session.sendPrompt({
+      let session = await this._connectSession();
+      const prompt: PromptInput = {
         text,
         ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
-      });
+      };
+      let result = await session.sendPrompt(prompt);
+      if (!result.success && isActivationLostError(result.error)) {
+        runInAction(() => this._loseSession(session));
+        session = await this._connectSession();
+        result = await session.sendPrompt(prompt);
+      }
       if (!result.success) this._toastError('Failed to send message', result.error);
     } catch (error) {
       this._toastError('Failed to send message', error);
@@ -536,27 +614,29 @@ export class AcpChatStore {
 
     const shouldCancelActiveTurn = this.affordances.isWorking;
     const ids = [id, ...current.map((prompt) => prompt.id).filter((promptId) => promptId !== id)];
-    const reorderResult = await this.session?.changeQueuePromptOrder(ids);
-    if (!reorderResult?.success) {
-      this._toastError('Failed to send queued prompt', reorderResult?.error);
+    let session: AcpLiveSession;
+    try {
+      session = await this._connectSession();
+    } catch (error) {
+      this._toastError('Failed to send queued prompt', error);
+      return;
+    }
+    const reorderResult = await session.changeQueuePromptOrder(ids);
+    if (!reorderResult.success) {
+      this._toastError('Failed to send queued prompt', reorderResult.error);
       return;
     }
 
     if (!shouldCancelActiveTurn) return;
-    const cancelResult = await this.session?.cancelTurn();
-    if (!cancelResult?.success) {
-      this._toastError('Failed to send queued prompt', cancelResult?.error);
+    const cancelResult = await session.cancelTurn();
+    if (!cancelResult.success) {
+      this._toastError('Failed to send queued prompt', cancelResult.error);
     }
   }
 
   private async _exportTranscript(kind: 'parsed' | 'raw'): Promise<void> {
-    const session = this.session;
-    if (!session) {
-      this._toastError('Failed to export transcript', new Error('Chat is not loaded.'));
-      return;
-    }
-
     try {
+      const session = await this._connectSession();
       const result =
         kind === 'raw' ? await session.exportRawAcpLog() : await session.exportTranscript();
       if (!result.success) {
@@ -597,64 +677,30 @@ export class AcpChatStore {
         onTurnCommitted: () => void this._refreshHistory(),
       }
     );
+    const activationId = session.activationId.current();
+    const detectHandleLoss = (): void => {
+      if (this.session !== session) return;
+      const currentActivationId = session.activationId.current();
+      if (
+        currentActivationId !== activationId ||
+        currentActivationId === null ||
+        session.sessionState.current().lifecycle === 'closed'
+      ) {
+        this._loseSession(session);
+      }
+    };
     this._unsubs.push(
       disconnectChatSession,
       this._bindTerminalOutputs(session),
       session.sessionState.onChange(() =>
         runInAction(() => {
           this._syncMessageCount();
+          detectHandleLoss();
         })
       ),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount())),
-      session.draft.onChange((draft) =>
-        runInAction(() => {
-          this._applyDraftSnapshot(draft);
-        })
-      )
+      session.activationId.onChange(() => runInAction(detectHandleLoss))
     );
-  }
-
-  private _scheduleDraftWrite(text: string, rev: number): void {
-    if (this._draftTimer !== null) window.clearTimeout(this._draftTimer);
-    this._draftTimer = window.setTimeout(() => {
-      this._draftTimer = null;
-      const draft = { rev, input: text.trim().length > 0 ? { text } : null };
-      void this.session
-        ?.setPromptDraft(draft)
-        .then((result) => {
-          if (!result.success) this._toastError('Failed to sync draft', result.error);
-          if (result.success && draft.input === null && this._pendingDraftRev === rev) {
-            runInAction(() => {
-              this._pendingDraftRev = null;
-            });
-          }
-        })
-        .catch((error: unknown) => this._toastError('Failed to sync draft', error));
-    }, 300);
-  }
-
-  private _applyDraftSnapshot(draft: PromptDraft | null | undefined): void {
-    if (draft === undefined) return;
-    if (draft === null) {
-      if (this._pendingDraftRev === null) {
-        this._draftRev += 1;
-        this.draftText = '';
-      }
-      return;
-    }
-
-    if (this._pendingDraftRev !== null) {
-      if (draft.rev >= this._pendingDraftRev) {
-        this._draftRev = Math.max(this._draftRev, draft.rev);
-        this._pendingDraftRev = null;
-      }
-      return;
-    }
-
-    if (draft.rev >= this._draftRev) {
-      this._draftRev = draft.rev;
-      this.draftText = draft.text;
-    }
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
@@ -667,8 +713,14 @@ export class AcpChatStore {
     const history = await this.session?.getHistory(undefined, 100);
     if (!history?.success) return;
     runInAction(() => {
+      if (
+        !seedNonEmptyHistory(history.data.turns, (turns) =>
+          this.chatState.transcript.history.seed(turns)
+        )
+      ) {
+        return;
+      }
       this.chatState.session.setPendingPrompt(null);
-      this.chatState.transcript.history.seed(history.data.turns);
       this._syncMessageCount();
     });
   }

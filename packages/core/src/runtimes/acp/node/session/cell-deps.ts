@@ -15,7 +15,6 @@ export type ResolvePromptAttachment = (
 export interface SessionCellCallbacks {
   onSessionStateChanged?: () => void;
   onTranscriptChanged?: () => void;
-  onDraftChanged?: () => void;
   onClosed?: (exitCode: number | null) => void;
   onAgentEvent?: (phase: 'start' | 'stop' | 'error') => void;
   onSendQueuedPrompt?: (prompt: QueuedPrompt) => void;

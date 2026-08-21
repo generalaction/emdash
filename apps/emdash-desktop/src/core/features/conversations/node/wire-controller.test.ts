@@ -48,14 +48,14 @@ type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
   it('passes ACP session start through without a client session id write', async () => {
-    const start = vi.fn(async () => ok({ sessionId: 'session-1' }));
+    const start = vi.fn(async () => ok({ sessionId: 'session-1', activationId: 'activation-1' }));
     const controller = setupController({
       client: { acp: { start } },
     });
 
     await expect(
       controller.call('acp.start', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok({ sessionId: 'session-1' }));
+    ).resolves.toEqual(ok({ sessionId: 'session-1', activationId: 'activation-1' }));
 
     // The ACP runtime reports the session id into the conversation index (spec §3.3);
     // the desktop no longer persists it from the response.
@@ -74,7 +74,10 @@ describe('createConversationsWireController', () => {
 
     await expect(controller.call('acp.sendPrompt', input)).resolves.toEqual(ok({ queued: false }));
 
-    expect(sendPrompt).toHaveBeenCalledWith(input, { timeoutMs: 0 });
+    expect(sendPrompt).toHaveBeenCalledWith(
+      { ...input, activation: target.acpInput },
+      { timeoutMs: 0 }
+    );
   });
 
   it('records submitted TUI input only after a successful carriage return', async () => {
@@ -320,6 +323,7 @@ function setupController(options: {
     taskSessions: { getTask: vi.fn() },
     withCompensation: async ({ action }) => action(),
     hostIsReachable: () => true,
+    getMementosRuntimeClient: async () => ({}) as never,
     resolveTarget: async () => target,
     hooks,
   });

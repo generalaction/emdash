@@ -15,13 +15,11 @@ import type {
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
-  AcpSetPromptDraftError,
   AcpStartError,
   AcpStartInputWire,
   AttachmentMimeType,
   AttachmentRef,
   HistoryPage,
-  PromptDraftUpdate,
   PromptInput,
   PromptPlacement,
   ResumeResult,
@@ -32,7 +30,9 @@ export type StartSessionInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    start(input: StartSessionInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
+    start(
+      input: StartSessionInput
+    ): Promise<Result<{ sessionId: string; activationId: string }, AcpStartError>> {
       return runtime.startSession(input);
     },
     resume(
@@ -47,68 +47,121 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       prompt: PromptInput;
       placement?: PromptPlacement;
+      activation: StartSessionInput;
+      activationId?: string;
     }): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-      return runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
+      return runtime.sendPrompt(
+        input.conversationId,
+        input.prompt,
+        input.placement,
+        input.activation,
+        input.activationId
+      );
     },
     editQueuedPrompt(input: {
       conversationId: string;
       id: string;
       input: PromptInput;
-    }): Result<void, AcpEditQueuedPromptError> {
-      return runtime.editQueuedPrompt(input.conversationId, input.id, input.input);
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<void, AcpEditQueuedPromptError>> {
+      return runtime.editQueuedPrompt(
+        input.conversationId,
+        input.id,
+        input.input,
+        input.activation,
+        input.activationId
+      );
     },
     deleteQueuedPrompt(input: {
       conversationId: string;
       id: string;
-    }): Result<void, AcpDeleteQueuedPromptError> {
-      return runtime.deleteQueuedPrompt(input.conversationId, input.id);
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<void, AcpDeleteQueuedPromptError>> {
+      return runtime.deleteQueuedPrompt(
+        input.conversationId,
+        input.id,
+        input.activation,
+        input.activationId
+      );
     },
     changeQueuePromptOrder(input: {
       conversationId: string;
       ids: string[];
-    }): Result<void, AcpChangeQueuePromptOrderError> {
-      return runtime.changeQueuePromptOrder(input.conversationId, input.ids);
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<void, AcpChangeQueuePromptOrderError>> {
+      return runtime.changeQueuePromptOrder(
+        input.conversationId,
+        input.ids,
+        input.activation,
+        input.activationId
+      );
     },
     cancelTurn(input: { conversationId: string }): Promise<Result<void, AcpCancelTurnError>> {
       return runtime.cancelTurn(input.conversationId);
-    },
-    setPromptDraft(input: {
-      conversationId: string;
-      draft: PromptDraftUpdate;
-    }): Result<void, AcpSetPromptDraftError> {
-      return runtime.setPromptDraft(input.conversationId, input.draft);
     },
     setModelOption(input: {
       conversationId: string;
       dimension: 'model' | 'effort';
       value: string;
+      activation: StartSessionInput;
+      activationId?: string;
     }): Promise<Result<void, AcpSetModelOptionError>> {
-      return runtime.setModelOption(input.conversationId, input.dimension, input.value);
+      return runtime.setModelOption(
+        input.conversationId,
+        input.dimension,
+        input.value,
+        input.activation,
+        input.activationId
+      );
     },
     setModeOption(input: {
       conversationId: string;
       value: string;
+      activation: StartSessionInput;
+      activationId?: string;
     }): Promise<Result<void, AcpSetModeOptionError>> {
-      return runtime.setModeOption(input.conversationId, input.value);
+      return runtime.setModeOption(
+        input.conversationId,
+        input.value,
+        input.activation,
+        input.activationId
+      );
     },
     resolvePermission(input: {
       conversationId: string;
       requestId: string;
       optionId: string;
-    }): Result<void, AcpResolvePermissionError> {
-      return runtime.resolvePermission(input.conversationId, input.requestId, input.optionId);
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<void, AcpResolvePermissionError>> {
+      return runtime.resolvePermission(
+        input.conversationId,
+        input.requestId,
+        input.optionId,
+        input.activation,
+        input.activationId
+      );
     },
     exportAcpTranscript(input: {
       conversationId: string;
-    }): Result<{ transcript: string }, AcpExportTranscriptError> {
-      const result = runtime.exportParsedTranscript(input.conversationId);
-      return result.success ? ok({ transcript: result.data }) : result;
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<{ transcript: string }, AcpExportTranscriptError>> {
+      return runtime
+        .exportParsedTranscript(input.conversationId, input.activation, input.activationId)
+        .then((result) => (result.success ? ok({ transcript: result.data }) : result));
     },
     exportRawAcpLog(input: {
       conversationId: string;
-    }): Result<{ log: string }, AcpExportRawLogError> {
-      const result = runtime.exportRawAcpLog(input.conversationId);
-      return result.success ? ok({ log: result.data }) : result;
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<{ log: string }, AcpExportRawLogError>> {
+      return runtime
+        .exportRawAcpLog(input.conversationId, input.activation, input.activationId)
+        .then((result) => (result.success ? ok({ log: result.data }) : result));
     },
     async uploadAttachment(
       input: {
@@ -154,8 +207,16 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       conversationId: string;
       before?: number;
       limit: number;
-    }): Result<HistoryPage, AcpGetHistoryError> {
-      return runtime.getHistory(input.conversationId, input.before, input.limit);
+      activation: StartSessionInput;
+      activationId?: string;
+    }): Promise<Result<HistoryPage, AcpGetHistoryError>> {
+      return runtime.getHistory(
+        input.conversationId,
+        input.before,
+        input.limit,
+        input.activation,
+        input.activationId
+      );
     },
   };
 }

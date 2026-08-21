@@ -1,7 +1,7 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { isOk, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { createManualClock } from '@emdash/shared/testing';
+import { createManualClock, deferred } from '@emdash/shared/testing';
 import { observe, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -24,6 +24,11 @@ async function startHarness(conversationId = 'conv-1') {
   const result = await rt.startSession(makeStartInput({ conversationId }));
   expect(isOk(result)).toBe(true);
   return { h, rt, client: h.client(), sessionId: 'session-1', conversationId };
+}
+
+function liveValue<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('expected live projection value');
+  return value;
 }
 
 describe('AcpRuntime session manager', () => {
@@ -59,6 +64,30 @@ describe('AcpRuntime session manager', () => {
     });
   });
 
+  it('coalesces concurrent starts into one activation and one provider session', async () => {
+    const pendingSession = deferred<{ sessionId: string }>();
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    h.agent.newSession.mockImplementationOnce(async () => pendingSession.promise);
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-concurrent' });
+
+    const first = rt.startSession(input);
+    const second = rt.startSession(input);
+    await vi.waitFor(() => expect(h.agent.newSession).toHaveBeenCalledTimes(1));
+    expect(h.children).toHaveLength(1);
+
+    pendingSession.resolve({ sessionId: 'session-shared' });
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect(firstResult).toEqual(secondResult);
+    expect(firstResult).toMatchObject({
+      success: true,
+      data: { sessionId: 'session-shared', activationId: expect.any(String) },
+    });
+    await rt.stopSession('conv-concurrent');
+    expectNoSessionResidue('conv-concurrent', leakContainers(rt));
+  });
+
   it('deactivates idle sessions and releases the pooled ACP process after its TTL', async () => {
     const clock = createManualClock(0);
     const h = makeAcpHarness({
@@ -70,13 +99,203 @@ describe('AcpRuntime session manager', () => {
       },
     });
     const rt = new AcpRuntime(h.deps);
-    await rt.startSession(makeStartInput({ conversationId: 'conv-idle' }));
+    const started = await rt.startSession(makeStartInput({ conversationId: 'conv-idle' }));
+    if (!started.success) throw new Error('expected ACP activation');
+    const live = rt.sessionLiveModels('conv-idle');
+    if (!live) throw new Error('expected stable live projection');
+    const scope = createScope({ label: 'test:idle-projection' });
+    const lifecycles: string[] = [];
+    observe(live.states.state, (snapshot) => lifecycles.push(liveValue(snapshot.value).lifecycle), {
+      scope,
+    });
 
     await clock.advanceBy(1_200);
+    await rt.manager.sweepNow();
 
     expect(peek(rt.sessionsLiveHost().get(undefined)!.states.list)).toEqual({});
+    expect(rt.sessionLiveModels('conv-idle')).toBe(live);
+    expect(peek(live.states.activationId)).toBeNull();
+    expect(liveValue(peek(live.states.state)).lifecycle).toBe('closed');
+    expect(lifecycles).toContain('closed');
+    const inactivePrompt = await rt.sendPrompt('conv-idle', { text: 'after eviction' });
+    expect(inactivePrompt).toMatchObject({
+      success: false,
+      error: { type: 'activation_missing' },
+    });
+
     await clock.advanceBy(500);
     expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
+    await scope.dispose();
+  });
+
+  it('rewrites the same projection when a conversation is rematerialized', async () => {
+    const clock = createManualClock(0);
+    const h = makeAcpHarness({
+      clock,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: 1_000 },
+        sweepIntervalMs: 10_000,
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-rematerialize' });
+    const first = await rt.startSession(input);
+    if (!first.success) throw new Error('expected first activation');
+    const live = rt.sessionLiveModels(input.conversationId);
+    if (!live) throw new Error('expected stable live projection');
+
+    await clock.advanceBy(1_200);
+    await rt.manager.sweepNow();
+    expect(peek(live.states.activationId)).toBeNull();
+
+    h.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
+    const second = await rt.startSession(input);
+    if (!second.success) throw new Error('expected replacement activation');
+
+    expect(rt.sessionLiveModels(input.conversationId)).toBe(live);
+    expect(second.data.activationId).not.toBe(first.data.activationId);
+    expect(peek(live.states.activationId)).toBe(second.data.activationId);
+    expect(liveValue(peek(live.states.state)).lifecycle).toBe('ready');
+  });
+
+  it('holds activation teardown until a leased provider operation completes', async () => {
+    const promptDeferred = deferred<{ stopReason: 'end_turn' }>();
+    const h = makeAcpHarness();
+    h.agent.prompt.mockImplementationOnce(async () => promptDeferred.promise);
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-leased-prompt' }));
+    const live = rt.sessionLiveModels('conv-leased-prompt');
+    if (!live) throw new Error('expected stable live projection');
+
+    const prompt = rt.sendPrompt('conv-leased-prompt', { text: 'hold activation' });
+    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
+    const stop = rt.stopSession('conv-leased-prompt');
+    let stopSettled = false;
+    void stop.then(() => {
+      stopSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(stopSettled).toBe(false);
+    expect(h.agent.closeSession).not.toHaveBeenCalled();
+    expect(peek(live.states.activationId)).not.toBeNull();
+
+    promptDeferred.resolve({ stopReason: 'end_turn' });
+    await prompt;
+    await stop;
+    expect(h.agent.closeSession).toHaveBeenCalledTimes(1);
+    expect(peek(live.states.activationId)).toBeNull();
+    expect(liveValue(peek(live.states.state)).lifecycle).toBe('closed');
+  });
+
+  it('waits for full eviction before starting a replacement activation', async () => {
+    const promptDeferred = deferred<{ stopReason: 'end_turn' }>();
+    const h = makeAcpHarness();
+    h.agent.prompt.mockImplementationOnce(async () => promptDeferred.promise);
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-stop-start' });
+    const first = await rt.startSession(input);
+    if (!first.success) throw new Error('expected first activation');
+
+    const prompt = rt.sendPrompt(input.conversationId, { text: 'hold activation' });
+    await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledTimes(1));
+    const stop = rt.stopSession(input.conversationId);
+    h.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
+    const restart = rt.startSession(input);
+    let restartSettled = false;
+    void restart.then(() => {
+      restartSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(restartSettled).toBe(false);
+    expect(h.agent.newSession).toHaveBeenCalledTimes(1);
+
+    promptDeferred.resolve({ stopReason: 'end_turn' });
+    await prompt;
+    await stop;
+    const second = await restart;
+    if (!second.success) throw new Error('expected replacement activation');
+    expect(second.data.sessionId).toBe('session-2');
+    expect(second.data.activationId).not.toBe(first.data.activationId);
+  });
+
+  it('ignores a late close callback from an older process generation', async () => {
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-generation' });
+    const first = await rt.startSession(input);
+    if (!first.success) throw new Error('expected first activation');
+    await rt.stopSession(input.conversationId);
+
+    h.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
+    const second = await rt.startSession(input);
+    if (!second.success) throw new Error('expected replacement activation');
+    rt.manager.onProcessClosed('claude:/tmp/workspace', 1, 42);
+
+    expect(rt.getSessionState(input.conversationId).lifecycle).toBe('ready');
+    expect(peek(rt.sessionLiveModels(input.conversationId)!.states.activationId)).toBe(
+      second.data.activationId
+    );
+  });
+
+  it('rejects commands fenced to a replaced activation', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-stale-command' });
+    const first = await rt.startSession(input);
+    if (!first.success) throw new Error('expected first activation');
+    await rt.stopSession(input.conversationId);
+    h.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
+    const second = await rt.startSession(input);
+    if (!second.success) throw new Error('expected replacement activation');
+    h.agent.prompt.mockClear();
+
+    const result = await rt.sendPrompt(
+      input.conversationId,
+      { text: 'do not replay' },
+      undefined,
+      input,
+      first.data.activationId
+    );
+
+    expect(result).toMatchObject({ success: false, error: { type: 'stale_activation' } });
+    expect(h.agent.prompt).not.toHaveBeenCalled();
+    expect(peek(rt.sessionLiveModels(input.conversationId)!.states.activationId)).toBe(
+      second.data.activationId
+    );
+  });
+
+  it('rejects fenced operations before materializing an evicted activation', async () => {
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-evicted-fence' });
+    const started = await rt.startSession(input);
+    if (!started.success) throw new Error('expected activation');
+    await rt.stopSession(input.conversationId);
+    h.agent.newSession.mockClear();
+    const processCount = h.children.length;
+
+    const prompt = await rt.sendPrompt(
+      input.conversationId,
+      { text: 'must not restart' },
+      undefined,
+      input,
+      started.data.activationId
+    );
+    const model = await rt.setModelOption(
+      input.conversationId,
+      'model',
+      'replacement-model',
+      input,
+      started.data.activationId
+    );
+
+    expect(prompt).toMatchObject({ success: false, error: { type: 'activation_missing' } });
+    expect(model).toMatchObject({ success: false, error: { type: 'activation_missing' } });
+    expect(h.agent.newSession).not.toHaveBeenCalled();
+    expect(h.children).toHaveLength(processCount);
+    expect([...managerInternals(rt).activations.keys()]).toEqual([]);
   });
 
   it('reconciles legacy session intents and strips desktop identifiers', async () => {
@@ -303,6 +522,7 @@ describe('AcpRuntime session manager', () => {
     await rt.startSession(makeStartInput({ conversationId: 'conv-idle-intent' }));
 
     await clock.advanceBy(1_200);
+    await rt.manager.sweepNow();
 
     await vi.waitFor(() => {
       expect(intents.snapshot()[0]).toMatchObject({
@@ -342,6 +562,7 @@ describe('AcpRuntime session manager', () => {
     observe(live.states.activeTurn, (snapshot) => updates.push(snapshot.value), { scope });
 
     const prompt = rt.sendPrompt('conv-live', { text: 'hello' });
+    await vi.waitFor(() => expect(resolvePrompt).toBeTypeOf('function'));
     updates.length = 0;
     await client.sessionUpdate({
       sessionId,
@@ -368,6 +589,40 @@ describe('AcpRuntime session manager', () => {
     await scope.dispose();
     resolvePrompt({ stopReason: 'end_turn' });
     await prompt;
+  });
+
+  it('does not republish the sessions list when only transcript content changes', async () => {
+    const clock = createManualClock(100);
+    const h = makeAcpHarness({ clock });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-summary-churn' }));
+    const client = h.client();
+    const list = rt.sessionsListLiveModel().states.list;
+
+    await client.sessionUpdate({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        sessionId: 'session-1',
+        messageId: 'msg-1',
+        content: { type: 'text', text: 'one' },
+      } as SessionUpdate,
+    });
+    const afterFirstChunk = peek(list);
+    const firstSummary = afterFirstChunk['conv-summary-churn'];
+
+    await client.sessionUpdate({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        sessionId: 'session-1',
+        messageId: 'msg-1',
+        content: { type: 'text', text: 'two' },
+      } as SessionUpdate,
+    });
+
+    expect(peek(list)).toBe(afterFirstChunk);
+    expect(peek(list)['conv-summary-churn']).toBe(firstSummary);
   });
 
   it('publishes usage updates through live models', async () => {
@@ -435,7 +690,7 @@ describe('AcpRuntime session manager', () => {
       ],
     });
 
-    const history = rt.getHistory('conv-attachment');
+    const history = await rt.getHistory('conv-attachment');
     expect(isOk(history)).toBe(true);
     if (!isOk(history)) return;
     expect(history.data.turns[0].items[0]).toMatchObject({
@@ -467,7 +722,7 @@ describe('AcpRuntime session manager', () => {
       ],
     });
 
-    const history = rt.getHistory('conv-hidden-context');
+    const history = await rt.getHistory('conv-hidden-context');
     expect(isOk(history)).toBe(true);
     if (!isOk(history)) return;
     expect(history.data.turns[0].items[0]).toMatchObject({
@@ -619,11 +874,14 @@ describe('AcpRuntime session manager', () => {
 
   it('removes sessions when the process closes', async () => {
     const { h, rt } = await startHarness('conv-close');
+    const live = rt.sessionLiveModels('conv-close');
+    if (!live) throw new Error('expected live models');
 
     h.lastChild.emitExit(42);
 
     await vi.waitFor(() => expect(rt.getSessionState('conv-close').lifecycle).toBe('closed'));
-    expect(rt.sessionLiveModels('conv-close')).toBeNull();
+    expect(rt.sessionLiveModels('conv-close')).toBe(live);
+    expect(peek(live.states.activationId)).toBeNull();
     expect(peek(rt.sessionsListLiveModel().states.list)).toEqual({});
   });
 
@@ -644,8 +902,8 @@ describe('AcpRuntime session manager', () => {
       expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
       expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
     });
-    expect(rt.sessionLiveModels('conv-a')).toBeNull();
-    expect(rt.sessionLiveModels('conv-b')).toBeNull();
+    expect(peek(rt.sessionLiveModels('conv-a')!.states.activationId)).toBeNull();
+    expect(peek(rt.sessionLiveModels('conv-b')!.states.activationId)).toBeNull();
     expect(peek(rt.sessionsListLiveModel().states.list)).toEqual({});
   });
 });
@@ -757,7 +1015,9 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       expect(reports.ended).toEqual(['conv-died']);
     });
     // The cell onClosed eviction and the process-close eviction coalesce.
-    await vi.waitFor(() => expect(rt.sessionLiveModels('conv-died')).toBeNull());
+    await vi.waitFor(() =>
+      expect(peek(rt.sessionLiveModels('conv-died')!.states.activationId)).toBeNull()
+    );
     expect(reports.ended).toEqual(['conv-died']);
     expectNoSessionResidue('conv-died', leakContainers(rt));
   });
@@ -771,7 +1031,9 @@ describe('AcpRuntime conversation lifecycle reports', () => {
 
     h.lastChild.emitExit(42);
 
-    await vi.waitFor(() => expect(rt.sessionLiveModels('conv-crash')).toBeNull());
+    await vi.waitFor(() =>
+      expect(peek(rt.sessionLiveModels('conv-crash')!.states.activationId)).toBeNull()
+    );
     expect(intents.snapshot()[0]).toMatchObject({
       conversationId: 'conv-crash',
       status: 'active',
@@ -811,16 +1073,24 @@ describe('AcpRuntime conversation lifecycle reports', () => {
 });
 
 type ManagerInternals = {
-  cells: Map<string, unknown>;
+  activations: { has(key: string): boolean; keys(): IterableIterator<string> };
+  materializing: Map<string, unknown>;
+  evictions: Map<string, Promise<void>>;
   routes: Map<string, Map<string, string>>;
   loadingConversations: Map<string, Set<string>>;
 };
 
+function managerInternals(rt: AcpRuntime): ManagerInternals {
+  return rt.manager as unknown as ManagerInternals;
+}
+
 /** Reflects over the manager's per-key maps so the shared leak check can see them. */
 function leakContainers(rt: AcpRuntime): LeakCheckContainer[] {
-  const internals = rt.manager as unknown as ManagerInternals;
+  const internals = managerInternals(rt);
   return [
-    mapContainer('cells', internals.cells),
+    { name: 'activations', has: (key) => internals.activations.has(key) },
+    mapContainer('materializing', internals.materializing),
+    mapContainer('evictions', internals.evictions),
     {
       name: 'routes',
       has: (key) =>
@@ -830,7 +1100,6 @@ function leakContainers(rt: AcpRuntime): LeakCheckContainer[] {
       name: 'loadingConversations',
       has: (key) => [...internals.loadingConversations.values()].some((set) => set.has(key)),
     },
-    { name: 'liveModels', has: (key) => rt.sessionLiveModels(key) !== null },
     {
       name: 'sessionsList',
       has: (key) => key in peek(rt.sessionsListLiveModel().states.list),

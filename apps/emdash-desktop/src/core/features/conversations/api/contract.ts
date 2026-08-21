@@ -3,7 +3,19 @@ import {
   runtimeResolveErrorSchema,
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
-import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
+import {
+  acpApiContract,
+  changeQueuePromptOrderInputSchema,
+  deleteQueuedPromptInputSchema,
+  editQueuedPromptInputSchema,
+  exportAcpTranscriptInputSchema,
+  historyPageDesktopInputSchema,
+  resolvePermissionInputSchema,
+  sendPromptInputSchema,
+  sessionSummarySchema,
+  setModeOptionInputSchema,
+  setModelOptionInputSchema,
+} from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
 import type { Result } from '@emdash/shared';
 import {
@@ -91,20 +103,17 @@ const conversationsAcpContract = defineContract({
   start: runtimeFallibleProcedure(conversationKey, acpApiContract.start.output),
   resume: runtimeFallibleProcedure(conversationKey, acpApiContract.resume.output),
   kill: runtimeFallibleProcedure(acpApiContract.kill.input, acpApiContract.kill.output),
-  sendPrompt: runtimeFallibleProcedure(
-    acpApiContract.sendPrompt.input,
-    acpApiContract.sendPrompt.output
-  ),
+  sendPrompt: runtimeFallibleProcedure(sendPromptInputSchema, acpApiContract.sendPrompt.output),
   editQueuedPrompt: runtimeFallibleProcedure(
-    acpApiContract.editQueuedPrompt.input,
+    editQueuedPromptInputSchema,
     acpApiContract.editQueuedPrompt.output
   ),
   deleteQueuedPrompt: runtimeFallibleProcedure(
-    acpApiContract.deleteQueuedPrompt.input,
+    deleteQueuedPromptInputSchema,
     acpApiContract.deleteQueuedPrompt.output
   ),
   changeQueuePromptOrder: runtimeFallibleProcedure(
-    acpApiContract.changeQueuePromptOrder.input,
+    changeQueuePromptOrderInputSchema,
     acpApiContract.changeQueuePromptOrder.output
   ),
   cancelTurn: runtimeFallibleProcedure(
@@ -112,27 +121,23 @@ const conversationsAcpContract = defineContract({
     acpApiContract.cancelTurn.output
   ),
   setModelOption: runtimeFallibleProcedure(
-    acpApiContract.setModelOption.input,
+    setModelOptionInputSchema,
     acpApiContract.setModelOption.output
   ),
   setModeOption: runtimeFallibleProcedure(
-    acpApiContract.setModeOption.input,
+    setModeOptionInputSchema,
     acpApiContract.setModeOption.output
   ),
   resolvePermission: runtimeFallibleProcedure(
-    acpApiContract.resolvePermission.input,
+    resolvePermissionInputSchema,
     acpApiContract.resolvePermission.output
   ),
-  setPromptDraft: runtimeFallibleProcedure(
-    acpApiContract.setPromptDraft.input,
-    acpApiContract.setPromptDraft.output
-  ),
   exportAcpTranscript: runtimeFallibleProcedure(
-    acpApiContract.exportAcpTranscript.input,
+    exportAcpTranscriptInputSchema,
     acpApiContract.exportAcpTranscript.output
   ),
   exportRawAcpLog: runtimeFallibleProcedure(
-    acpApiContract.exportRawAcpLog.input,
+    exportAcpTranscriptInputSchema,
     acpApiContract.exportRawAcpLog.output
   ),
   uploadAttachment: uploadFile({
@@ -148,7 +153,7 @@ const conversationsAcpContract = defineContract({
   }),
   deleteAttachment: runtimeFallibleProcedure(attachmentKey, acpApiContract.deleteAttachment.output),
   getHistory: runtimeFallibleProcedure(
-    acpApiContract.getHistory.input,
+    historyPageDesktopInputSchema,
     acpApiContract.getHistory.output
   ),
   sessions: desktopAcpSessions,
