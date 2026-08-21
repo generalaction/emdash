@@ -7,6 +7,7 @@ import {
 } from '@emdash/shared/concurrency';
 import type Database from 'better-sqlite3';
 import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/exclusion-policy/api';
+import type { EnvSource } from '#primitives/exec/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type {
   ContentSearchError,
@@ -39,7 +40,7 @@ export type FileSearchRuntimeOptions = Readonly<{
   handle: StoreHandle<FileSearchDb, Database.Database>;
   watcher: IWatchService;
   ripgrepPath?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: EnvSource;
   maxConcurrentScans?: number;
   maxConcurrentContentSearches?: number;
   onError?: (context: string, error: unknown) => void;
@@ -73,7 +74,7 @@ export class FileSearchRuntime {
       );
       this.contentSearcher = new RipgrepContentSearcher({
         executable: options.ripgrepPath,
-        env: options.env,
+        env: options.env ?? (async () => process.env),
         exclusions: defaultContentExclusions,
       });
       this.roots = new FileSearchRootRegistry({

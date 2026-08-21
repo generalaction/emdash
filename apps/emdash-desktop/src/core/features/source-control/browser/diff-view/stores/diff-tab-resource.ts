@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
+import type { GitChangeStatus, GitFilePath, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
 import { getFileKind } from '@core/features/editor/api/browser/renderers/fileKind';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
@@ -16,7 +16,7 @@ export type DiffRendererData =
   | { kind: 'binary' };
 
 export interface DiffPayload {
-  path: string;
+  readonly path: GitFilePath;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
@@ -40,7 +40,7 @@ export class DiffTabResource implements TabResource {
   /** Provided so lifecycle stores can close/transition by tabId. */
   readonly tabId: string;
 
-  path: string;
+  readonly path: GitFilePath;
   viewMode: DiffViewMode = 'diff';
   renderer: DiffRendererData;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
@@ -73,7 +73,6 @@ export class DiffTabResource implements TabResource {
     this.status = payload.status;
 
     makeObservable(this, {
-      path: observable,
       viewMode: observable,
       renderer: observable,
       diffGroup: observable,

@@ -189,6 +189,7 @@ export type CreateTaskError =
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'provision-failed'; message: string }
   | { type: 'provision-timeout'; timeoutMs: number; step?: string }
+  | { type: 'workspace-unavailable'; workspaceId: string; message: string }
   /** Creation admission refusal (ADR 0006): the target carries a pending deletion tombstone. */
   | { type: 'workspace-tombstone-pending'; workspaceId: string; message: string };
 

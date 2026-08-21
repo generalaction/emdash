@@ -16,6 +16,7 @@ describe('fileSearchWorkerSpec', () => {
     expect(component.id).toBe('file-search');
     expect(options.name).toBe('file-search');
     expect(options.env).toBe(env);
+    expect(component.requirements).toHaveProperty('userEnv');
     expect(component.configSchema.parse(options.config)).toEqual({
       databasePath: '/data/file-search.db',
       ripgrepPath: '/opt/bin/rg',

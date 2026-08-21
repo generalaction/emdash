@@ -21,6 +21,7 @@ import {
   createNoopSessionIntentStore,
 } from '#services/session-intents/node';
 import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
+import { userShellEnvContract } from '#services/shell-env/api';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   intentsFilePath: z.string().min(1).optional(),
@@ -34,7 +35,6 @@ export const tuiAgentsComponentConfigSchema = z.object({
 
 export type CreateTuiAgentsComponentOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
-  env?: NodeJS.ProcessEnv;
   logger?: Logger;
 };
 
@@ -45,10 +45,11 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
       conversations: requireContract(conversationReportsContract),
+      userEnv: requireContract(userShellEnvContract),
     },
     configSchema: tuiAgentsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
-      const env = options.env ?? process.env;
+      const env = () => dependencies.userEnv.get();
       const runtimeLogger = options.logger ?? logger;
       const homeDir = os.homedir();
       const exec = new NodeExecutionContext({ env });

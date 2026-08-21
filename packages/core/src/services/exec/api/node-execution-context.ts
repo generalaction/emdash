@@ -1,6 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
+import type { EnvSource } from '#primitives/exec/api';
 import type {
   ExecContextOptions,
   ExecStreamingResult,
@@ -12,7 +13,7 @@ const execFileAsync = promisify(execFile);
 
 export type NodeExecutionContextOptions = {
   root?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: NodeJS.ProcessEnv | EnvSource;
   refreshShellEnv?: () => Promise<void>;
 };
 
@@ -29,25 +30,31 @@ export class NodeExecutionContext implements IExecutionContext {
     this.refreshShellEnvDelegate = options.refreshShellEnv;
   }
 
-  private readonly env: NodeJS.ProcessEnv | undefined;
+  private readonly env: NodeJS.ProcessEnv | EnvSource | undefined;
 
-  exec(command: string, args: string[] = [], opts: ExecContextOptions = {}): Promise<ExecResult> {
+  async exec(
+    command: string,
+    args: string[] = [],
+    opts: ExecContextOptions = {}
+  ): Promise<ExecResult> {
+    const env = await this.resolveEnv();
     recordSpawn(classifySpawnPurpose(command, args), command);
-    return execFileAsync(command, args, {
+    return (await execFileAsync(command, args, {
       cwd: this.root || undefined,
-      env: this.env,
+      env,
       timeout: opts.timeout,
       maxBuffer: opts.maxBuffer,
       signal: this.signal(opts.signal),
-    }) as Promise<ExecResult>;
+    })) as ExecResult;
   }
 
-  execStreaming(
+  async execStreaming(
     command: string,
     args: string[],
     onChunk: (chunk: string) => boolean,
     opts: { signal?: AbortSignal } = {}
   ): Promise<ExecStreamingResult> {
+    const env = await this.resolveEnv();
     return new Promise((resolve, reject) => {
       const signal = this.signal(opts.signal);
       if (signal.aborted) {
@@ -58,7 +65,7 @@ export class NodeExecutionContext implements IExecutionContext {
       recordSpawn(classifySpawnPurpose(command, args), command);
       const child = spawn(command, args, {
         cwd: this.root || undefined,
-        env: this.env,
+        env,
       });
       let settled = false;
 
@@ -106,5 +113,9 @@ export class NodeExecutionContext implements IExecutionContext {
     return callerSignal
       ? AbortSignal.any([this.lifetime.signal, callerSignal])
       : this.lifetime.signal;
+  }
+
+  private async resolveEnv(): Promise<NodeJS.ProcessEnv | undefined> {
+    return typeof this.env === 'function' ? await this.env() : this.env;
   }
 }

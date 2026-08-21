@@ -24,6 +24,7 @@ import {
   createNoopSessionIntentStore,
 } from '#services/session-intents/node';
 import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
+import { userShellEnvContract } from '#services/shell-env/api';
 
 export const acpComponentConfigSchema = z.object({
   attachmentsDir: z.string().min(1),
@@ -39,7 +40,6 @@ export const acpComponentConfigSchema = z.object({
 
 export type CreateAcpComponentOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
-  env?: NodeJS.ProcessEnv;
   logger?: Logger;
 };
 
@@ -50,10 +50,11 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
       conversations: requireContract(conversationReportsContract),
+      userEnv: requireContract(userShellEnvContract),
     },
     configSchema: acpComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
-      const env = options.env ?? process.env;
+      const env = () => dependencies.userEnv.get();
       const runtimeLogger = options.logger ?? logger;
       const childHost = new ChildAcpProcessHost();
       const attachmentStore = new LocalAttachmentStore(config.attachmentsDir);

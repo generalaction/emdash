@@ -1,25 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deleteSplitPaneLayoutEntries, sanitizeDiffSelection } from './task-composition-state';
+import { portablePath } from '@core/primitives/desktop-runtime/api';
+import {
+  deleteSplitPaneLayoutEntries,
+  resolvePaneLayoutFilePaths,
+  sanitizeDiffSelection,
+} from './task-composition-state';
 
 describe('task composition diff selection hydration', () => {
-  it('normalizes a persisted workspace-relative path', () => {
+  it('keeps a valid working-tree selection', () => {
     expect(
       sanitizeDiffSelection(
         {
           version: '1',
           activeFile: {
-            path: 'src/index.ts',
+            path: portablePath('src/index.ts'),
             type: 'disk',
             group: 'disk',
             originalRef: { kind: 'commit', sha: 'HEAD' },
           },
         },
-        {
-          workspacePath: '/tmp/workspace',
-          validPaths: new Set(['src/index.ts']),
-        }
+        new Set(['src/index.ts'])
       ).activeFile?.path
-    ).toBe('/tmp/workspace/src/index.ts');
+    ).toBe('src/index.ts');
   });
 
   it('drops a stale persisted working-tree selection', () => {
@@ -28,18 +30,86 @@ describe('task composition diff selection hydration', () => {
         {
           version: '1',
           activeFile: {
-            path: '/tmp/workspace/deleted.ts',
+            path: portablePath('deleted.ts'),
             type: 'disk',
             group: 'disk',
             originalRef: { kind: 'commit', sha: 'HEAD' },
           },
         },
-        {
-          workspacePath: '/tmp/workspace',
-          validPaths: new Set(),
-        }
+        new Set()
       ).activeFile
     ).toBeUndefined();
+  });
+
+  it('keeps commit and PR selections without working-tree validation', () => {
+    for (const group of ['git', 'pr'] as const) {
+      const result = sanitizeDiffSelection(
+        {
+          version: '1',
+          activeFile: {
+            path: portablePath('src/index.ts'),
+            type: 'git',
+            group,
+            originalRef: { kind: 'commit', sha: 'HEAD' },
+          },
+        },
+        new Set()
+      );
+      expect(result.activeFile?.path).toBe('src/index.ts');
+    }
+  });
+});
+
+describe('task pane layout path hydration', () => {
+  it('keeps file tabs absolute and diff tabs checkout-relative', () => {
+    const result = resolvePaneLayoutFilePaths(
+      {
+        version: '2',
+        groups: [
+          {
+            groupId: 'default',
+            tabManager: {
+              tabs: [
+                {
+                  kind: 'file',
+                  tabId: 'file-1',
+                  path: 'src/file.ts',
+                  isPreview: false,
+                },
+                {
+                  kind: 'diff',
+                  tabId: 'diff-1',
+                  path: portablePath('src/change.ts'),
+                  diffGroup: 'disk',
+                  originalRef: { kind: 'commit', sha: 'HEAD' },
+                  isPreview: false,
+                },
+              ],
+              activeTabId: 'diff-1',
+            },
+          },
+        ],
+        activeGroupId: 'default',
+      },
+      '/tmp/workspace'
+    );
+
+    expect(result.groups[0]?.tabManager.tabs).toEqual([
+      {
+        kind: 'file',
+        tabId: 'file-1',
+        path: '/tmp/workspace/src/file.ts',
+        isPreview: false,
+      },
+      {
+        kind: 'diff',
+        tabId: 'diff-1',
+        path: 'src/change.ts',
+        diffGroup: 'disk',
+        originalRef: { kind: 'commit', sha: 'HEAD' },
+        isPreview: false,
+      },
+    ]);
   });
 });
 

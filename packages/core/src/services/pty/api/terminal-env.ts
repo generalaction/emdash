@@ -5,20 +5,18 @@ import {
 } from '#primitives/git-credentials/api';
 import type { ResolvedPtyShellProfile } from './local-spawn';
 
-export function buildTerminalEnv(
-  options: {
-    shellProfile?: ResolvedPtyShellProfile;
-    baseEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
-    overrides?: Record<string, string | undefined>;
-    /**
-     * Per-session git credential behavior (spec: github-git-settings §4).
-     * Applied last so scrubbing ("none") wins over base env and overrides;
-     * absent means native/system behavior.
-     */
-    gitCredentials?: GitCredentialsSessionSpec;
-  } = {}
-): Record<string, string> {
-  const source = options.baseEnv ?? process.env;
+export function buildTerminalEnv(options: {
+  shellProfile?: ResolvedPtyShellProfile;
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>;
+  overrides?: Record<string, string | undefined>;
+  /**
+   * Per-session git credential behavior (spec: github-git-settings §4).
+   * Applied last so scrubbing ("none") wins over base env and overrides;
+   * absent means native/system behavior.
+   */
+  gitCredentials?: GitCredentialsSessionSpec;
+}): Record<string, string> {
+  const source = options.baseEnv;
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(source)) {
     if (val !== undefined) env[key] = val;

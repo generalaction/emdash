@@ -1,11 +1,4 @@
 export {
-  assertImplHasAllCommands,
-  assertViewScopeImplsComplete,
-  getViewScopeImpl,
-  registerViewScopeImpl,
-  unregisterViewScopeImpl,
-} from './impl-registry';
-export {
   focusScope,
   scopes,
   ViewScopes,

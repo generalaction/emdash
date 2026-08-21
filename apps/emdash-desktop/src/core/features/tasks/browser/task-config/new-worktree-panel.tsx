@@ -20,8 +20,8 @@ export function NewWorktreePanel({
 
   function handleReuseExisting() {
     workspaceConfig.setPresetId('use-existing');
-    if (branchConflict) {
-      workspaceConfig.setSelectedWorkspaceId(branchConflict.id);
+    if (branchConflict?.workspaceId) {
+      workspaceConfig.setSelectedWorkspaceId(branchConflict.workspaceId);
     }
   }
 

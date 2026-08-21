@@ -25,6 +25,9 @@ import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runt
 import { createWorkspaceRegistryController } from './controller';
 
 const execFileAsync = promisify(execFile);
+const TEST_USER_ENV = Object.fromEntries(
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+);
 
 // Contract-seam tests for the activation lifecycle (ADR 0005): activate returns at the
 // session-gating point (prepare); setup and run continue in the background and are
@@ -76,6 +79,7 @@ describe('workspace registry activation lifecycle', () => {
     killedPaths = [];
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
+      userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = createRegistryRuntime();

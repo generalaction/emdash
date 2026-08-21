@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { EnvSource } from '#primitives/exec/api';
 
 export type ExecOptions = {
   cwd?: string;
@@ -37,7 +38,7 @@ export class ExecError extends Error {
 export type BoundExec = {
   readonly file: string;
   readonly cwd: string;
-  readonly env?: NodeJS.ProcessEnv;
+  readonly env?: NodeJS.ProcessEnv | EnvSource;
   exec(args: string[], options?: ExecOptions): Promise<ExecResult>;
   execStreaming(
     args: string[],
@@ -45,6 +46,9 @@ export type BoundExec = {
     options?: ExecOptions
   ): Promise<void>;
   execBuffer(args: string[], options?: ExecOptions): Promise<ExecBufferResult>;
-  spawn(args: string[], options?: ExecSpawnOptions): ChildProcessWithoutNullStreams;
+  spawn(
+    args: string[],
+    options?: ExecSpawnOptions
+  ): ChildProcessWithoutNullStreams | Promise<ChildProcessWithoutNullStreams>;
   withCwd(cwd: string): BoundExec;
 };

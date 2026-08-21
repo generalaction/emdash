@@ -1,15 +1,10 @@
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
-import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { CreateTaskParams, DeleteTaskOptions } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
-import type { AppDb } from '@core/services/app-db/node/db';
 import { generateTaskName } from './name-generation/generateTaskName';
-import { getProjectWorkspaces } from './operations/getProjectWorkspaces';
 
 export function createTaskOperations(dependencies: {
-  db: AppDb;
   service: TaskService;
-  taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
 }) {
   const { service: taskService } = dependencies;
@@ -28,12 +23,6 @@ export function createTaskOperations(dependencies: {
     },
     async deleteTasks(projectId: string, taskIds: string[], options?: DeleteTaskOptions) {
       return taskService.deleteTasks(projectId, taskIds, options);
-    },
-    async getProjectWorkspaces(projectId: string) {
-      return getProjectWorkspaces(
-        { db: dependencies.db, taskSessions: dependencies.taskSessions },
-        projectId
-      );
     },
     async teardownTask(projectId: string, taskId: string) {
       return taskService.teardown(projectId, taskId, 'terminate');

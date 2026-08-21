@@ -7,11 +7,12 @@ import type {
 import { Button, Field, Input, MicroLabel, Select, Sheet } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { SyncToAgentsSection } from './SyncToAgentsSection';
@@ -48,6 +49,11 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
     }),
   } satisfies ViewScopeImpl<typeof modalScope>;
   const { attachRef, instance } = useViewScope(modalScope(), implementation);
+
+  useLayoutEffect(() => {
+    if (!open || !instance) return;
+    return scopes.activateCapture(instance);
+  }, [instance, open]);
 
   return (
     <Sheet.Root open={open} onOpenChange={onOpenChange}>

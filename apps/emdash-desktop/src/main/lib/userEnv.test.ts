@@ -9,8 +9,12 @@ vi.mock('node:child_process', () => ({
   spawnSync: spawnSyncMock,
 }));
 
-const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } =
-  await import('./userEnv');
+const {
+  ensureUserBinDirsInPath,
+  ensureWindowsNpmGlobalBinInPath,
+  getUserShellEnv,
+  refreshUserEnv,
+} = await import('./userEnv');
 
 const originalPath = process.env.PATH;
 
@@ -65,7 +69,38 @@ describe('ensureWindowsNpmGlobalBinInPath', () => {
   });
 });
 
-describe('resolveUserEnv (AppImage env scrub)', () => {
+describe('refreshUserEnv (runtime env boundary)', () => {
+  it('keeps Electron controls in the app process but excludes them from the user snapshot', async () => {
+    const previousElectronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.ELECTRON_RUN_AS_NODE = '1';
+    process.env.NODE_ENV = 'production';
+    spawnSyncMock.mockReset();
+    mockShellCapture('PATH=/usr/local/bin:/usr/bin\nUSER_VALUE=kept\n');
+
+    try {
+      await refreshUserEnv();
+
+      const probeOptions = spawnSyncMock.mock.calls[0]?.[2] as
+        | { env?: NodeJS.ProcessEnv }
+        | undefined;
+      expect(probeOptions?.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+      expect(probeOptions?.env?.NODE_ENV).toBeUndefined();
+      expect(process.env.ELECTRON_RUN_AS_NODE).toBe('1');
+      expect(process.env.NODE_ENV).toBe('production');
+      expect(getUserShellEnv()).toMatchObject({ USER_VALUE: 'kept' });
+      expect(getUserShellEnv().ELECTRON_RUN_AS_NODE).toBeUndefined();
+      expect(getUserShellEnv().NODE_ENV).toBeUndefined();
+    } finally {
+      if (previousElectronRunAsNode === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+      else process.env.ELECTRON_RUN_AS_NODE = previousElectronRunAsNode;
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
+});
+
+describe('refreshUserEnv (AppImage env scrub)', () => {
   const SCRUBBED_KEYS = [
     'APPIMAGE',
     'APPDIR',
@@ -107,7 +142,7 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
     process.env.LD_LIBRARY_PATH = '/tmp/.mount_emdashTest/usr/lib:/usr/lib';
     process.env.XDG_DATA_DIRS = '/tmp/.mount_emdashTest/usr/share:/usr/local/share:/usr/share';
 
-    await resolveUserEnv();
+    await refreshUserEnv();
 
     expect(spawnSyncMock).toHaveBeenCalledTimes(1);
     const opts = spawnSyncMock.mock.calls[0]?.[2] as

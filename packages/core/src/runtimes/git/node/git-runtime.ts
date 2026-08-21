@@ -1,4 +1,5 @@
 import { KeyedMutex } from '@emdash/shared/concurrency';
+import type { EnvSource } from '#primitives/exec/api';
 import { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
 import { GitCheckoutRuntime } from '#runtimes/git/node/checkout/checkout-runtime';
 import { createGitExec } from '#runtimes/git/node/exec/git-exec';
@@ -11,7 +12,7 @@ import { createNativeWatchService } from '#services/fs-watch/node';
 export type GitRuntimeOptions = Readonly<{
   watcher?: IWatchService;
   executable?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: EnvSource;
   exec?: BoundExec;
   idleTtlMs?: number;
   aliasTtlMs?: number;
@@ -36,7 +37,11 @@ export class GitRuntime {
     this.watcher = options.watcher ?? createNativeWatchService({ onError });
     const exec =
       options.exec ??
-      createGitExec({ cwd: process.cwd(), executable: options.executable, env: options.env });
+      createGitExec({
+        cwd: process.cwd(),
+        executable: options.executable,
+        env: options.env ?? (async () => process.env),
+      });
     this.provisioning = new GitRepositoryProvisioner(exec);
     this.allocations = new GitAllocationGraph({
       exec,

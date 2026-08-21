@@ -92,14 +92,15 @@ const ModalDialog = observer(function ModalDialog({
   } satisfies ViewScopeImpl<typeof modalScope>;
   const { attachRef, instance } = useViewScope(modalScope(), implementation);
 
-  // Activate the scope explicitly: the focus-based activation races the
+  // Activate the capture explicitly: the focus-based activation races the
   // data-view-scope attribute (Base UI moves initial focus before the second
   // render stamps it), leaving Escape dead until a click inside the popup.
-  // Gated on isTop so a newly stacked modal wins and the modal beneath
-  // re-activates when it becomes top again.
+  // Every mounted entry stays in the capture order so closing the top modal
+  // reveals the one beneath without replacing the underlying logical scope.
   useLayoutEffect(() => {
-    if (instance && isTop) scopes.activate(instance);
-  }, [instance, isTop]);
+    if (!instance) return;
+    return scopes.activateCapture(instance);
+  }, [instance]);
 
   const completeModal = useCallback(
     (result: unknown) => modalStore.completeEntry(entry.key, result),

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import type { EnvSource } from '#primitives/exec/api';
 import { createBoundExec, ExecError } from '#services/exec/api';
 
 /** What the host found at a canonical directory path (kind is host-detected, ADR 0005). */
@@ -25,27 +26,21 @@ export async function canonicalizeWorkspacePath(inputPath: string): Promise<stri
   }
 }
 
-const NON_INTERACTIVE_ENV = {
-  ...process.env,
-  LC_ALL: 'C',
-  LANG: 'C',
-  LANGUAGE: 'C',
-  GIT_TERMINAL_PROMPT: '0',
-  GIT_ASKPASS: '',
-};
-
 /**
  * Detects what a directory is: the toplevel of a repository, the toplevel of a linked
  * worktree (with its admin name and owning repository path), or a plain directory —
  * including directories inside a repository that are not its toplevel.
  */
-export async function inspectWorkspacePath(canonicalPath: string): Promise<PathInspection> {
+export async function inspectWorkspacePath(
+  canonicalPath: string,
+  env: EnvSource = async () => process.env
+): Promise<PathInspection> {
   let stdout: string;
   try {
     ({ stdout } = await createBoundExec({
       file: 'git',
       cwd: canonicalPath,
-      env: NON_INTERACTIVE_ENV,
+      env: async () => nonInteractiveEnv(await env()),
     }).exec(['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'], {
       timeoutMs: 10_000,
     }));
@@ -79,6 +74,17 @@ export async function inspectWorkspacePath(canonicalPath: string): Promise<PathI
   // working directory is the parent of the common .git dir.
   const repositoryPath = await realpathSafe(path.dirname(commonDir));
   return { kind: 'worktree', repositoryPath, gitAdminName: path.basename(gitDir) };
+}
+
+function nonInteractiveEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    LC_ALL: 'C',
+    LANG: 'C',
+    LANGUAGE: 'C',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: '',
+  };
 }
 
 async function realpathSafe(target: string): Promise<string> {

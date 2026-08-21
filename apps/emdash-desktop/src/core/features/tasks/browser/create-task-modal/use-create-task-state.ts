@@ -21,7 +21,8 @@ export function useCreateTaskState(
   currentBranch: string | null,
   repositoryWorkspaceId: string | null | undefined,
   initialPR?: PullRequest,
-  initialLinkedType: LinkedType = null
+  initialLinkedType: LinkedType = null,
+  initialWorkspaceId?: string
 ) {
   const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
 
@@ -119,6 +120,13 @@ export function useCreateTaskState(
     linkedIssue: linkedType === 'issue' ? linkedIssue : null,
     createBranchAndWorktreeDefault: createBranchAndWorktree,
     resetKey: projectId,
+    initial: initialWorkspaceId
+      ? {
+          mode: 'existing',
+          presetId: 'use-existing',
+          selectedWorkspaceId: initialWorkspaceId,
+        }
+      : undefined,
   });
 
   // Switching linked type clears the selection for the previous type.

@@ -68,10 +68,6 @@ export class KeybindingService {
     return this.entries.find((entry) => entry.command.id === commandId)?.chord ?? null;
   }
 
-  get overrides(): ChordOverrides {
-    return this.overridesValue.get();
-  }
-
   settingsEntries(): readonly SettingsKeybindingGroup[] {
     const groups = new Map<string, SettingsKeybindingEntry[]>();
     for (const command of this.definitions) {

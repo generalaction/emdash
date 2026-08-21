@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/runtimes/git/api';
+import type { GitChange, GitFilePath } from '@emdash/core/runtimes/git/api';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -20,7 +20,7 @@ export interface VirtualizedChangesTreeProps {
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
-  activePath?: string;
+  activePath?: GitFilePath;
   className?: string;
 }
 

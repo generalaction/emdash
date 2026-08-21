@@ -44,7 +44,7 @@ describe('defineViewScope', () => {
     expect(viewScopeDefFor(ref)).toBe(scope);
     expect(Object.isFrozen(ref)).toBe(true);
     expect(Object.isFrozen(ref.params)).toBe(true);
-    expect(scope.commandIds.has('task.archive')).toBe(true);
+    expect(scope.commands).toEqual([archiveCommand]);
   });
 
   it('uses stable sorted JSON for the default instance key', () => {

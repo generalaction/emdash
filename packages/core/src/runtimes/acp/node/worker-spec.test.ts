@@ -18,6 +18,7 @@ describe('acpWorkerSpec', () => {
     expect(component.id).toBe('acp');
     expect(options.name).toBe('acp');
     expect(options.env).toBe(env);
+    expect(component.requirements).toHaveProperty('userEnv');
     expect(options.supervision).toBeUndefined();
     expect(component.configSchema.parse(options.config)).toEqual({
       attachmentsDir: '/data/attachments',

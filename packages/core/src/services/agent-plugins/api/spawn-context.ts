@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
+import type { EnvSource } from '#primitives/exec/api';
 
 export type SpawnContext = {
   cli: string;
@@ -17,7 +18,7 @@ export interface SpawnContextResolver {
 
 export type CreateSpawnContextResolverOptions = {
   resolveCli: (providerId: string) => Promise<string>;
-  env: Record<string, string | undefined>;
+  env: EnvSource;
   homeDir: string;
   includeShellVar?: boolean;
   hasProvider?: (providerId: string) => boolean;
@@ -32,7 +33,7 @@ export function createSpawnContextResolver(
     }
 
     try {
-      return ok({ cli: await options.resolveCli(providerId), agentEnv: buildAgentEnv() });
+      return ok({ cli: await options.resolveCli(providerId), agentEnv: await buildAgentEnv() });
     } catch (error: unknown) {
       return err({
         type: 'cli-not-found',
@@ -46,8 +47,8 @@ export function createSpawnContextResolver(
 
   return { resolve, invalidate };
 
-  function buildAgentEnv(): Record<string, string> {
-    return buildAllowlistedAgentEnv(options.env, {
+  async function buildAgentEnv(): Promise<Record<string, string>> {
+    return buildAllowlistedAgentEnv(await options.env(), {
       homeDir: options.homeDir,
       includeShellVar: options.includeShellVar,
     });

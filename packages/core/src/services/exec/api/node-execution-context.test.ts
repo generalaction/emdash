@@ -34,4 +34,16 @@ describe('NodeExecutionContext', () => {
 
     expect(result).toEqual({ exitCode: 0 });
   });
+
+  it('resolves the current environment for every command spawn', async () => {
+    let env = { EMDASH_ENV_REVISION: 'before-refresh' };
+    const context = new NodeExecutionContext({ env: async () => env });
+
+    const before = await context.exec(process.execPath, ['-p', 'process.env.EMDASH_ENV_REVISION']);
+    env = { EMDASH_ENV_REVISION: 'after-refresh' };
+    const after = await context.exec(process.execPath, ['-p', 'process.env.EMDASH_ENV_REVISION']);
+
+    expect(before.stdout.trim()).toBe('before-refresh');
+    expect(after.stdout.trim()).toBe('after-refresh');
+  });
 });

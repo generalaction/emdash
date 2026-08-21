@@ -25,6 +25,7 @@ import type { ProjectAttachmentManager } from '@core/features/projects/api/node/
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { resolveProjectWorkspaceTarget } from '@core/features/workspaces/api/node/project-workspace-target';
 import {
   createWorkspaceRegistry,
   type WorkspaceRegistry,
@@ -144,8 +145,18 @@ export async function prepareCreateTask(
 
   let conversationWorkspacePath: string | null = null;
   if (wsTarget.kind === 'repository-instance') {
-    workspaceId = wsTarget.workspaceId;
-    conversationWorkspacePath = createWorkspaceRegistry(db).getLive(workspaceId)?.path ?? null;
+    const target = await resolveProjectWorkspaceTarget(
+      db,
+      {
+        id: project.project.id,
+        repositoryWorkspaceId: project.project.repositoryWorkspaceId,
+        host: project.host,
+      },
+      wsTarget.workspaceId
+    );
+    if (!target.success) return err(target.error);
+    workspaceId = target.data.id;
+    conversationWorkspacePath = target.data.path;
   } else {
     // 'new-worktree' — derive location from the project.
     workspaceId = crypto.randomUUID();

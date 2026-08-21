@@ -1,5 +1,5 @@
 import { closeAppDb } from '@main/db/instance';
-import { resolveUserEnv } from '@main/lib/userEnv';
+import { startUserEnvCapture } from '@main/lib/userEnv';
 import { appScope } from '../core/app-scope';
 import type { AppConfig } from '../core/config';
 import { step, stepOptional } from '../core/phase';
@@ -23,12 +23,9 @@ import { bootServices } from './phases/services';
 export async function finishBoot(config: AppConfig): Promise<void> {
   let database: DatabaseBundle | undefined;
   try {
-    // The login-shell env capture must complete before any worker spawns:
-    // workers inherit process.env at spawn, and spawning earlier would leak an
-    // incomplete environment into every PTY for the whole session (PTY
-    // security ordering — see agents/risky-areas/pty.md). startDesktopWorkers
-    // asserts this ordering.
-    await step('resolve-user-env', () => resolveUserEnv());
+    // Capture runs alongside boot. Spawn-capable workers resolve through the
+    // parent-owned service, whose first request awaits this in-flight capture.
+    startUserEnvCapture();
     database = await step('database', () => bootDatabase(config));
     const databaseBundle = database;
     const infrastructure = await step('infrastructure', () => bootInfrastructure(databaseBundle));

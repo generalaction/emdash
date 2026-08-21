@@ -1,9 +1,10 @@
-import { defineWireComponent } from '@emdash/wire/worker';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { terminalsContract } from '#runtimes/terminals/api';
 import { NodeExecutionContext } from '#services/exec/api';
 import { createNodeTerminalShellResolver, NodePtySpawner } from '#services/pty/node';
 import { idlePolicyConfigSchema } from '#services/session-lifecycle/api';
+import { userShellEnvContract } from '#services/shell-env/api';
 import { createTerminalsController } from './api/controller';
 import { TerminalsRuntime } from './runtime/runtime';
 
@@ -19,16 +20,18 @@ export const terminalsComponentConfigSchema = z.object({
 export const terminalsComponent = defineWireComponent({
   id: 'terminals',
   contract: terminalsContract,
-  requirements: {},
+  requirements: {
+    userEnv: requireContract(userShellEnvContract),
+  },
   configSchema: terminalsComponentConfigSchema,
-  create: ({ config, instance, logger, scope }) => {
-    const exec = new NodeExecutionContext({ env: process.env });
+  create: ({ config, dependencies, instance, logger, scope }) => {
     const runtime = new TerminalsRuntime({
       spawner: new NodePtySpawner(),
-      exec,
+      userEnv: () => dependencies.userEnv.get(),
+      createExecutionContext: (env) => new NodeExecutionContext({ env }),
       scope,
       lifecycle: config.lifecycle,
-      shellResolver: createNodeTerminalShellResolver(),
+      createShellResolver: (env) => createNodeTerminalShellResolver({ env }),
       logger,
     });
     scope.add(() => runtime.dispose());

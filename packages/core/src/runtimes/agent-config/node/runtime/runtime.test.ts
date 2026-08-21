@@ -389,14 +389,14 @@ function makeRuntime(
       }),
     },
     fs,
-    env: {
+    env: async () => ({
       PATH: '/bin',
       HOME: '/home/ada',
       USER: 'ada',
       SHELL: '/bin/zsh',
       ANTHROPIC_API_KEY: 'secret',
       UNSAFE_ENV: 'nope',
-    },
+    }),
     homeDir: '/home/ada',
   });
 

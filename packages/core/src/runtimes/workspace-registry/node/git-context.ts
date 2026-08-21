@@ -1,3 +1,4 @@
+import type { EnvSource } from '#primitives/exec/api';
 import { createBoundExec, type BoundExec, type ExecOptions } from '#services/exec/api';
 import {
   GitSchedule,
@@ -6,26 +7,15 @@ import {
   type GitWorkTier,
 } from './git-schedule';
 
-const GIT_ENV = {
-  ...process.env,
-  LC_ALL: 'C',
-  LANG: 'C',
-  LANGUAGE: 'C',
-  GIT_TERMINAL_PROMPT: '0',
-  GIT_ASKPASS: '',
-};
-
-/**
- * Probes never take git's optional locks (`GIT_OPTIONAL_LOCKS=0`): a `status` probe
- * must not contend with a real mutator over the index lock (spec: git hygiene).
- */
-const PROBE_GIT_ENV = { ...GIT_ENV, GIT_OPTIONAL_LOCKS: '0' };
-
 export type RegistryGitExecOptions = {
   /** Budget priority class; defaults to 'probe' (the safe floor for read paths). */
   tier?: GitWorkTier;
   /** Repository key for idle gating; only meaningful for tiers above 'probe'. */
   repository?: string;
+};
+
+export type CreateRegistryGitContextOptions = GitScheduleOptions & {
+  env?: EnvSource;
 };
 
 /**
@@ -42,23 +32,27 @@ export type RegistryGitContext = {
 };
 
 /** Builds a real context; `GitScheduleOptions` is the composition-test lever. */
-export function createRegistryGitContext(options: GitScheduleOptions = {}): RegistryGitContext {
+export function createRegistryGitContext(
+  options: CreateRegistryGitContextOptions = {}
+): RegistryGitContext {
   const schedule = new GitSchedule(options);
+  const env = options.env ?? (async () => process.env);
   return {
     schedule,
     locks: new WorktreeWriteLocks(),
-    exec: (cwd, execOptions) => createRegistryGitExec(schedule, cwd, execOptions),
+    exec: (cwd, execOptions) => createRegistryGitExec(schedule, env, cwd, execOptions),
   };
 }
 
 /**
  * Every registry git subprocess flows through the context's budget (spec: git
  * concurrency model) — buffered exec calls acquire a slot for the subprocess's
- * lifetime at the caller's tier. `spawn` stays direct (its synchronous contract
- * cannot await a slot); spawn-based callers gate through `schedule.run` themselves.
+ * lifetime at the caller's tier. Spawn-based callers gate through `schedule.run`
+ * themselves because they retain the child process after creation.
  */
 function createRegistryGitExec(
   schedule: GitSchedule,
+  env: EnvSource,
   cwd: string,
   options: RegistryGitExecOptions = {}
 ): BoundExec {
@@ -67,7 +61,7 @@ function createRegistryGitExec(
   const inner = createBoundExec({
     file: 'git',
     cwd,
-    env: tier === 'probe' ? PROBE_GIT_ENV : GIT_ENV,
+    env: async () => registryGitEnv(await env(), tier === 'probe'),
   });
   return {
     get file() {
@@ -86,6 +80,18 @@ function createRegistryGitExec(
     execBuffer: (args, execOptions) =>
       schedule.run(work, () => inner.execBuffer(args, execOptions)),
     spawn: (args, spawnOptions) => inner.spawn(args, spawnOptions),
-    withCwd: (nextCwd: string) => createRegistryGitExec(schedule, nextCwd, options),
+    withCwd: (nextCwd: string) => createRegistryGitExec(schedule, env, nextCwd, options),
+  };
+}
+
+function registryGitEnv(base: NodeJS.ProcessEnv, probe: boolean): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    LC_ALL: 'C',
+    LANG: 'C',
+    LANGUAGE: 'C',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_ASKPASS: '',
+    ...(probe ? { GIT_OPTIONAL_LOCKS: '0' } : {}),
   };
 }

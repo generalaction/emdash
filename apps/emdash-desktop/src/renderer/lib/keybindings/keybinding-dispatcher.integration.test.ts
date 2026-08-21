@@ -10,6 +10,7 @@ import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import {
   closeModalCommand,
   commandPaletteCommand,
+  newTaskCommand,
   settingsCommand,
 } from '@core/features/workbench/contributions/commands';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
@@ -92,7 +93,7 @@ describe('KeybindingDispatcher catalog integration', () => {
       parent: settings,
       impl: implementationFor(modalScope, execute),
     });
-    runtime.activate(modal);
+    runtime.activateCapture(modal);
     const dispatcher = new KeybindingDispatcher(
       new KeybindingService(COMMAND_CATALOG.defs, platform),
       runtime,
@@ -120,6 +121,26 @@ describe('KeybindingDispatcher catalog integration', () => {
 
     expect(dispatcher.dispatch(eventFor('t', 'KeyT')).kind).toBe('winner');
     expect(execute).toHaveBeenCalledWith(newConversationCommand.id);
+    runtime.dispose();
+  });
+
+  it('keeps window shortcuts active after a parentless overlay closes', () => {
+    const execute = vi.fn();
+    const runtime = createRuntime(execute);
+    const modal = runtime.instantiate(modalScope(), {
+      impl: implementationFor(modalScope, execute),
+    });
+    const dispatcher = new KeybindingDispatcher(
+      new KeybindingService(COMMAND_CATALOG.defs, platform),
+      runtime,
+      platform
+    );
+
+    const popOverlay = runtime.activateCapture(modal);
+    popOverlay();
+
+    expect(dispatcher.dispatch(eventFor('n', 'KeyN')).kind).toBe('winner');
+    expect(execute).toHaveBeenCalledWith(newTaskCommand.id);
     runtime.dispose();
   });
 

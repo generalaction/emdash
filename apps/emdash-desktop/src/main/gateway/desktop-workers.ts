@@ -51,6 +51,7 @@ import {
   createHostDependenciesComponent,
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
+import { createUserShellEnvController } from '@emdash/core/services/shell-env/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
@@ -83,7 +84,7 @@ import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { isUserEnvResolved, refreshUserEnv } from '@main/lib/userEnv';
+import { refreshUserEnv, userShellEnvManager } from '@main/lib/userEnv';
 import { desktopWorkerPath } from './worker-paths';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
@@ -164,19 +165,12 @@ export type StartDesktopWorkersDeps = {
  * failure rejects that worker's queued and future calls (ticket 01's
  * queueing). Worker readiness continues to settle in the background.
  *
- * Security ordering: workers inherit `process.env` at spawn, so the
- * login-shell env capture must have completed before this function runs (see
- * agents/risky-areas/pty.md). This is asserted, not assumed.
+ * Spawn-capable workers resolve the current login-shell environment through a
+ * parent-owned dependency (see agents/risky-areas/pty.md).
  */
 export async function startDesktopWorkers(
   deps: StartDesktopWorkersDeps
 ): Promise<DesktopWorkersHandle> {
-  if (!isUserEnvResolved()) {
-    throw new Error(
-      'Desktop workers must not be created before the login-shell environment capture ' +
-        'completes: workers inherit process.env at spawn (PTY security ordering).'
-    );
-  }
   const workerScope = deps.scope.child('wire-workers');
   const vitalsSpawner = createVitalsCollectingSpawner(childProcessSpawner(), {
     onReport: (workerName, vitals) => {
@@ -207,6 +201,7 @@ function startDesktopWorkersWithHost(
   host: ReturnType<typeof createWireWorkerHost>
 ): Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'> {
   const workersStartedAt = Date.now();
+  const userShellEnv = createUserShellEnvController(() => userShellEnvManager.current());
   // Logs readiness timing and observes rejection so a background readiness
   // failure never surfaces as an unhandled rejection: the failure reaches
   // callers through the queued clients' per-call rejections.
@@ -259,6 +254,7 @@ function startDesktopWorkersWithHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          userEnv: userShellEnv,
         },
         attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
         intentsFilePath: sessionIntentFilePaths().acp,
@@ -274,6 +270,7 @@ function startDesktopWorkersWithHost(
       env: process.env,
       dependencies: {
         hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
       },
     })
   );
@@ -309,6 +306,7 @@ function startDesktopWorkersWithHost(
     ...terminalsWorkerSpec({
       executable: desktopWorkerPath('terminals'),
       env: process.env,
+      userEnv: userShellEnv,
       lifecycle: {
         terminal: { kind: 'always' },
       },
@@ -332,6 +330,7 @@ function startDesktopWorkersWithHost(
     ...scriptsWorkerSpec({
       executable: desktopWorkerPath('scripts'),
       env: process.env,
+      userEnv: userShellEnv,
     })
   );
   const scriptsReady = timedReady('scripts', scriptsWorker.ready());
@@ -368,7 +367,7 @@ function startDesktopWorkersWithHost(
         ...fileSearchWorkerSpec({
           executable: desktopWorkerPath('file-search'),
           env: process.env,
-          dependencies: { watcher },
+          dependencies: { watcher, userEnv: userShellEnv },
           databasePath: resolveFileSearchDatabasePath(),
         })
       );
@@ -385,6 +384,7 @@ function startDesktopWorkersWithHost(
           dependencies: {
             watcher,
             hostDependencies: hostDependencies.client.resolver,
+            userEnv: userShellEnv,
           },
           gitExecutable: getGitExecutable(),
         })
@@ -404,6 +404,7 @@ function startDesktopWorkersWithHost(
           dependencies: {
             hostDependencies: hostDependencies.client.resolver,
             conversations,
+            userEnv: userShellEnv,
           },
           intentsFilePath: sessionIntentFilePaths().tuiAgents,
         })
@@ -432,6 +433,7 @@ function startDesktopWorkersWithHost(
             tuiAgents: tuiAgents.client,
             scripts,
             hostSettings,
+            userEnv: userShellEnv,
           },
           databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
         })

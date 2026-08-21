@@ -1,4 +1,5 @@
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
+import { gitFilePathSchema } from '@emdash/core/runtimes/git/api';
 import { z } from 'zod';
 import { defineMemento } from '@core/primitives/mementos/api';
 import { taskSubject } from './subject';
@@ -165,7 +166,7 @@ const gitObjectRefSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const taskActiveFileSchema = z.object({
-  path: z.string(),
+  path: gitFilePathSchema,
   type: z.enum(['disk', 'git']),
   group: z.enum(['disk', 'staged', 'git', 'pr']),
   originalRef: gitObjectRefSchema,
@@ -259,7 +260,7 @@ export const tabDescriptorSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('diff'),
     tabId: z.string(),
-    path: z.string(),
+    path: gitFilePathSchema,
     diffGroup: z.enum(['disk', 'staged', 'git', 'pr']),
     originalRef: gitObjectRefSchema,
     modifiedRef: gitObjectRefSchema.optional(),

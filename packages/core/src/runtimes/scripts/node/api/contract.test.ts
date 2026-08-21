@@ -19,6 +19,12 @@ describe('scripts runtime contract', () => {
     spawner = new FakePtySpawner();
     runtime = new ScriptsRuntime({
       spawner,
+      userEnv: async () => ({
+        HOME: '/home/test',
+        PATH: '/usr/bin',
+        SHELL: '/bin/sh',
+        USER_VALUE: 'kept',
+      }),
       portProbe: async () => true,
     });
     wire = createTestWire(scriptsContract, createScriptsController(runtime));
@@ -85,8 +91,9 @@ describe('scripts runtime contract', () => {
       EMDASH_TASK_NAME: 'feature-x',
       EMDASH_ROOT_PATH: '/repos/app',
     });
-    // CI is never injected: it is whatever the worker's own environment carries.
-    expect(spec.env?.CI).toBe(process.env.CI);
+    expect(spec.env?.USER_VALUE).toBe('kept');
+    expect(spec.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    expect(spec.env?.NODE_ENV).toBeUndefined();
 
     spawner.processes[0]!.emitData('installing...\n');
     spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
@@ -102,6 +109,47 @@ describe('scripts runtime contract', () => {
     // The tail and the run record survive the exit in the live model.
     const runs = await runsFor(WORKSPACE);
     expect(runs.setup).toMatchObject({ status: 'succeeded', outputTail: 'installing...\n' });
+  });
+
+  it('loads the current user env for each newly started script', async () => {
+    let userEnv = { PATH: '/tools/old', USER_VALUE: 'before-refresh' };
+    const refreshedSpawner = new FakePtySpawner();
+    const refreshedRuntime = new ScriptsRuntime({
+      spawner: refreshedSpawner,
+      userEnv: async () => userEnv,
+    });
+
+    try {
+      await refreshedRuntime.start({
+        workspacePath: WORKSPACE,
+        script: 'setup',
+        provenance: 'manual',
+        facts: FACTS,
+        command: 'tool-before-refresh',
+        shellSetup: '',
+      });
+
+      userEnv = { PATH: '/tools/new', USER_VALUE: 'after-refresh' };
+      await refreshedRuntime.start({
+        workspacePath: WORKSPACE,
+        script: 'prepare',
+        provenance: 'manual',
+        facts: FACTS,
+        command: 'tool-after-refresh',
+        shellSetup: '',
+      });
+
+      expect(refreshedSpawner.specs[0]!.env).toMatchObject({
+        PATH: '/tools/old',
+        USER_VALUE: 'before-refresh',
+      });
+      expect(refreshedSpawner.specs[1]!.env).toMatchObject({
+        PATH: '/tools/new',
+        USER_VALUE: 'after-refresh',
+      });
+    } finally {
+      refreshedRuntime.dispose();
+    }
   });
 
   it('rejects a second start of a running script; different scripts run concurrently', async () => {
