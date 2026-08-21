@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/runtimes/git/api';
+import type { GitChange, GitFilePath } from '@emdash/core/runtimes/git/api';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -12,7 +12,7 @@ export interface VirtualizedChangesListProps {
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
-  activePath?: string;
+  activePath?: GitFilePath;
   className?: string;
 }
 

@@ -21,6 +21,7 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { HEAD_REF } from '@core/primitives/git/api';
@@ -164,6 +165,7 @@ const DiffContentPreview = observer(function DiffContentPreview({
 }: DiffContentPreviewProps) {
   const workspace = useWorkspace();
   const workspacePath = workspace.path;
+  const containingFilePath = resolveWorkspacePath(workspacePath, tab.path);
   const { pane } = usePaneContext();
 
   // The handle appears asynchronously on the observable entry; buffer edits
@@ -178,7 +180,7 @@ const DiffContentPreview = observer(function DiffContentPreview({
   const openWorkspaceLink = (href: string): boolean => {
     const target = resolveWorkspaceResourcePath({
       workspacePath,
-      containingFilePath: tab.path,
+      containingFilePath,
       resourcePath: href,
     });
     if (!target) return false;
@@ -207,13 +209,13 @@ const DiffContentPreview = observer(function DiffContentPreview({
   const content = handle.getText();
 
   if (previewKind === 'html') {
-    return <HtmlContentRenderer filePath={tab.path} rawContent={content} />;
+    return <HtmlContentRenderer filePath={containingFilePath} rawContent={content} />;
   }
 
   const resolveImage = async (src: string): Promise<string | null> => {
     const imagePath = resolveWorkspaceResourcePath({
       workspacePath,
-      containingFilePath: tab.path,
+      containingFilePath,
       resourcePath: src,
     });
     if (!imagePath) return null;

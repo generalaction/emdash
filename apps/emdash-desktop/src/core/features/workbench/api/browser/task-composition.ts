@@ -27,7 +27,6 @@ import {
   taskPaneLayoutMemento,
   taskPanelLayoutsMemento,
   taskTerminalSelectionMemento,
-  type TabDescriptor,
   type TaskDiffPreferencesState,
   type TaskDiffSelectionState,
   type TaskPaneLayoutState,
@@ -43,11 +42,11 @@ import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/t
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import {
   deleteSplitPaneLayoutEntries,
+  resolvePaneLayoutFilePaths,
   sanitizeDiffSelection,
 } from '@core/features/workbench/browser/task-composition-state';
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import { log } from '@core/primitives/logging/browser/logger';
 import {
@@ -139,7 +138,7 @@ export class TaskComposition {
       }),
       {
         deps: getWorkspacePath,
-        sanitize: resolvePaneLayoutPaths,
+        sanitize: resolvePaneLayoutFilePaths,
       }
     );
     const taskCtx: TaskTabContext = {
@@ -388,13 +387,10 @@ export class TaskComposition {
     const diffSelectionHandle = sanitizedMemento(this._diffSelectionHandle, {
       deps: () =>
         gitCheckout.hasData
-          ? {
-              workspacePath: workspace.path,
-              validPaths: new Set([
-                ...gitCheckout.unstagedFileChanges.map((file) => file.path),
-                ...gitCheckout.stagedFileChanges.map((file) => file.path),
-              ]),
-            }
+          ? new Set([
+              ...gitCheckout.unstagedFileChanges.map((file) => file.path),
+              ...gitCheckout.stagedFileChanges.map((file) => file.path),
+            ])
           : undefined,
       sanitize: sanitizeDiffSelection,
     });
@@ -588,38 +584,6 @@ function sanitizeTerminalSelection(
       ? undefined
       : value.activeItem;
   return { ...value, tabOrder, activeTabId, activeItem };
-}
-
-/**
- * Resolves persisted workspace-relative file/diff tab paths against the
- * mounted workspace path (skipped until the workspace is acquired).
- */
-function resolvePaneLayoutPaths(
-  value: TaskPaneLayoutState,
-  workspacePath: string
-): TaskPaneLayoutState {
-  return {
-    ...value,
-    groups: value.groups.map((group) => ({
-      ...group,
-      tabManager: {
-        ...group.tabManager,
-        tabs: group.tabManager.tabs.map((tab) => resolveTabDescriptorPath(tab, workspacePath)),
-      },
-    })),
-  };
-}
-
-function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
-  // Absolute paths (including files outside the workspace) pass through
-  // resolveWorkspacePath unchanged; only workspace-relative ones resolve.
-  if (tab.kind === 'file') {
-    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
-  }
-  if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {
-    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
-  }
-  return tab;
 }
 
 function sanitizePaneLayoutConversations(

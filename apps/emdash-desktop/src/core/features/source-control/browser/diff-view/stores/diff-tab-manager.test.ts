@@ -1,5 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { DiffTabManager } from './diff-tab-manager';
 
 // ---------------------------------------------------------------------------
@@ -15,7 +16,7 @@ function makeFakeResource(
   }> = {}
 ) {
   const resource = {
-    path: opts.path ?? 'src/foo.ts',
+    path: portablePath(opts.path ?? 'src/foo.ts'),
     diffGroup: opts.diffGroup ?? 'disk',
     prNumber: opts.prNumber,
     tabId: opts.tabId ?? 'tab-1',
@@ -110,6 +111,24 @@ describe('DiffTabManager: staleness reconcile', () => {
     });
 
     expect(resource.closeSelf).toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('keeps an open disk resource when another changed file appears', () => {
+    const resource = makeFakeResource({ path: 'src/open.ts', diffGroup: 'disk' });
+    manager.acquire(resource as never);
+
+    const session = makeFakeSession(['src/open.ts'], []);
+    manager.bindSession(session as never);
+
+    runInAction(() => {
+      (session.gitCheckout.unstagedFileChanges as ReturnType<typeof observable.array>).replace([
+        { path: 'src/open.ts', status: 'M' },
+        { path: 'src/new.ts', status: 'M' },
+      ]);
+    });
+
+    expect(resource.closeSelf).not.toHaveBeenCalled();
     manager.dispose();
   });
 

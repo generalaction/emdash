@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { taskPaneLayoutMemento, taskPaneLayoutSchema } from './mementos';
+import { taskDiffSelectionSchema, taskPaneLayoutMemento, taskPaneLayoutSchema } from './mementos';
 
 describe('task pane layout memento', () => {
   it('uses a safe one-pane default', () => {
@@ -32,5 +32,48 @@ describe('task pane layout memento', () => {
         activeGroupId: 'a',
       });
     }
+  });
+
+  it('rejects absolute diff-tab paths', () => {
+    const result = taskPaneLayoutSchema.safeParse({
+      version: '2',
+      groups: [
+        {
+          groupId: 'a',
+          tabManager: {
+            tabs: [
+              {
+                kind: 'diff',
+                tabId: 'diff-1',
+                path: '/repo/src/index.ts',
+                diffGroup: 'disk',
+                originalRef: { kind: 'commit', sha: 'HEAD' },
+                isPreview: false,
+              },
+            ],
+            activeTabId: 'diff-1',
+          },
+        },
+      ],
+      activeGroupId: 'a',
+    });
+
+    expect(result.status).toBe('invalid');
+  });
+});
+
+describe('task diff selection memento', () => {
+  it('rejects absolute active diff paths', () => {
+    const result = taskDiffSelectionSchema.safeParse({
+      version: '1',
+      activeFile: {
+        path: '/repo/src/index.ts',
+        type: 'disk',
+        group: 'disk',
+        originalRef: { kind: 'commit', sha: 'HEAD' },
+      },
+    });
+
+    expect(result.status).toBe('invalid');
   });
 });
