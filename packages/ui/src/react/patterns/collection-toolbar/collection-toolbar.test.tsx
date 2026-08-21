@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { createRef, useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { CollectionToolbar } from '.';
 import { Button } from '../../primitives/button';
@@ -11,13 +11,18 @@ function ControlledToolbar() {
   const [searchValue, setSearchValue] = useState('agent');
 
   return (
-    <CollectionToolbar
-      searchValue={searchValue}
-      onSearchValueChange={setSearchValue}
-      searchPlaceholder="Search agents…"
-      metadata={<span>2 agents</span>}
-      actions={<Button variant="primary">Add agent</Button>}
-    />
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={searchValue}
+        onValueChange={setSearchValue}
+        placeholder="Search agents…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
+        <span>2 agents</span>
+        <Button variant="primary">Add agent</Button>
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 }
 
@@ -33,14 +38,47 @@ describe('CollectionToolbar', () => {
     expect(search.value).toBe('');
   });
 
-  it('renders metadata and actions in dedicated slots', () => {
+  it('renders composed content in explicit layout slots', () => {
     const { container } = render(<ControlledToolbar />);
 
     expect(
-      container.querySelector('[data-slot="collection-toolbar-metadata"]')?.textContent
+      container.querySelector('[data-slot="collection-toolbar-group"]')?.textContent
     ).toContain('2 agents');
     expect(
-      container.querySelector('[data-slot="collection-toolbar-actions"]')?.textContent
+      container.querySelector('[data-slot="collection-toolbar-group"]')?.textContent
     ).toContain('Add agent');
+    expect(container.querySelector('[data-slot="collection-toolbar-spacer"]')).not.toBeNull();
+  });
+
+  it('forwards root and search refs to their respective elements', () => {
+    const rootRef = createRef<HTMLDivElement>();
+    const searchRef = createRef<HTMLInputElement>();
+    const { container } = render(
+      <CollectionToolbar.Root ref={rootRef}>
+        <CollectionToolbar.Search
+          ref={searchRef}
+          value=""
+          onValueChange={() => {}}
+          placeholder="Search agents…"
+        />
+      </CollectionToolbar.Root>
+    );
+
+    expect(rootRef.current).toBe(container.querySelector('[data-slot="collection-toolbar"]'));
+    expect(searchRef.current).toBe(container.querySelector('input[type="search"]'));
+  });
+
+  it('renders a toolbar-sized vertical separator', () => {
+    const { container } = render(
+      <CollectionToolbar.Root>
+        <CollectionToolbar.Separator />
+      </CollectionToolbar.Root>
+    );
+
+    expect(
+      container.querySelector(
+        '[data-slot="collection-toolbar-separator"] [data-orientation="vertical"]'
+      )
+    ).not.toBeNull();
   });
 });

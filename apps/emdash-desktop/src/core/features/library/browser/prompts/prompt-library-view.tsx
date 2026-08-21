@@ -199,18 +199,21 @@ const PromptsToolbar = observer(function PromptsToolbar({
   const search = view.useSearch();
   const searchRef = useSearchFocusHotkeys();
   return (
-    <CollectionToolbar
-      ref={searchRef}
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search prompts…"
-      actions={
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        ref={searchRef}
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search prompts…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
         <Button variant="primary" onClick={onNewPrompt} disabled={disabled} aria-label="New Prompt">
           <Plus className="size-4" />
           <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
         </Button>
-      }
-    />
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 });
 

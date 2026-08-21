@@ -70,7 +70,8 @@ locked spec lives with the unify-list-views effort.
 - **Density** is a two-value axis: `default` (60px estimate) or `compact` (36px).
   Taller measured content overrides via `estimateSize`; per-surface pixel tweaking is
   not a thing.
-- **Toolbar and footer are slots**: put a `CollectionToolbar` (unchanged API) in
+- **Toolbar and footer are slots**: compose `CollectionToolbar.Root` with
+  `CollectionToolbar.Search`, `Spacer`, `Group`, and `Separator` as needed, then put it in
   `toolbar`; floating bulk bars and banners built on `ListPopoverCard` go in `footer`.
 - **Sorting UI** is the shared `SortSelect` bound to `view.useSort()` — sort keys and
   labels live in the sort spec, never re-declared in the UI.

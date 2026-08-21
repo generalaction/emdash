@@ -4,48 +4,58 @@ import { tokenVars } from '@theme/tokens.css';
 export const root = style({
   '@layer': {
     recipes: {
-      display: 'grid',
+      display: 'flex',
       width: '100%',
       minWidth: 0,
-      gridTemplateColumns: 'minmax(0, 1fr) auto',
-      alignItems: 'center',
-      gap: tokenVars.space2,
-    },
-  },
-});
-
-export const trailing = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      minWidth: 0,
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      gap: tokenVars.space2,
-    },
-  },
-});
-
-export const metadata = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      minWidth: 0,
-      alignItems: 'center',
-      justifyContent: 'flex-end',
       flexWrap: 'wrap',
+      alignItems: 'center',
       gap: tokenVars.space2,
     },
   },
 });
 
-export const actions = style({
+export const search = style({
+  '@layer': {
+    recipes: {
+      width: '100%',
+      minWidth: 0,
+      maxWidth: '24rem',
+      flex: '1 1 14rem',
+    },
+  },
+});
+
+export const group = style({
   '@layer': {
     recipes: {
       display: 'flex',
-      flexShrink: 0,
+      minWidth: 0,
+      maxWidth: '100%',
+      flex: '0 1 auto',
+      flexWrap: 'wrap',
       alignItems: 'center',
+      justifyContent: 'flex-end',
       gap: tokenVars.space2,
+    },
+  },
+});
+
+export const spacer = style({
+  '@layer': {
+    recipes: {
+      minWidth: 0,
+      flex: '1 1 0',
+    },
+  },
+});
+
+export const separator = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      height: '1.25rem',
+      alignSelf: 'center',
+      alignItems: 'stretch',
     },
   },
 });

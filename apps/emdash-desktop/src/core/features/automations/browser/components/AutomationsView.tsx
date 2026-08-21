@@ -184,17 +184,20 @@ const AutomationsToolbar = observer(function AutomationsToolbar({
   const search = view.useSearch();
   const searchRef = useSearchFocusHotkeys();
   return (
-    <CollectionToolbar
-      ref={searchRef}
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search automations…"
-      actions={
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        ref={searchRef}
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search automations…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
         <Button variant="primary" className="shrink-0 whitespace-nowrap" onClick={onNewAutomation}>
           <Plus className="h-3.5 w-3.5" />
           New Automation
         </Button>
-      }
-    />
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 });

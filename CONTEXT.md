@@ -67,6 +67,47 @@ One immutable, Host-accepted opportunity to execute a Prompt. It has its own ide
 order, lifecycle, and provider outcome; multiple Attempts for one Prompt never collapse.
 _Avoid_: Prompt, retrying or editing an Attempt in place
 
+**Provider dispatch reservation**:
+A short-lived, generation-fenced lease proving that a provider Session can adopt one Prompt
+attempt without performing provider I/O. It lets setup/readiness failure leave the Attempt safely
+queued before the Provider dispatch boundary.
+_Avoid_: Provider dispatch, provider acceptance
+
+**Provider dispatch**:
+The durable boundary where the Conversation owner commits one Prompt attempt's dispatch identity,
+active fence, and queued-payload deletion before provider I/O. Uncertainty at or after this boundary
+forbids automatic redelivery.
+_Avoid_: Prompt acceptance, Adapter request-started, provider acceptance
+
+**Provider terminal proof**:
+Generation- and dispatch-correlated Adapter evidence that an active Prompt attempt completed,
+cancelled, or failed. Stream silence, quiescence, process loss, and inferred transcript similarity
+are not terminal proof.
+_Avoid_: Provider update, cancellation request, Session quiescence
+
+**Outcome unknown**:
+The durable Prompt-attempt state after Provider dispatch when no terminal provider outcome can be
+proved. It blocks later provider dispatch until exact reconciliation or explicit Abandonment and is
+not failure or retryability.
+_Avoid_: Command delivery unknown, Failed
+
+**Delayed Prompt attempt**:
+An active Prompt attempt with no correlated provider activity for the presentation threshold. It
+remains active and clears when activity resumes; elapsed time alone never changes provider outcome.
+_Avoid_: Provider timeout, Outcome unknown
+
+**Prompt cancellation**:
+The explicit Host-owned intent to stop an active Prompt attempt. Dispatching a provider cancel
+request does not confirm the outcome; only terminal provider evidence records Cancelled, while a
+racing completion or failure remains authoritative.
+_Avoid_: Transport abort, treating a cancel request as a terminal outcome
+
+**Session quiescence**:
+The provider Adapter's dispatch-readiness fact: no active Prompt, unresolved turn-owned
+interaction, or declared blocking background activity remains. It does not settle a Prompt and is
+never inferred from a short silence timer.
+_Avoid_: Prompt completion, transcript quiescence
+
 **Prompt acceptance order**:
 The immutable total chronology in which the Host accepted Prompt attempts from every Desktop
 writer. It never changes when the pending queue is edited or reordered.
@@ -76,6 +117,18 @@ _Avoid_: Prompt queue order
 The revisioned, mutable dispatch order of accepted Prompt attempts that have not crossed provider
 dispatch. It is shared by every Desktop writer and distinct from acceptance chronology.
 _Avoid_: Per-Desktop queues, Prompt acceptance order
+
+**Queued Prompt payload**:
+The Host-durable content snapshot that lets an accepted, undispatched Prompt attempt survive owner
+restart. It exists only before Provider dispatch; dispatch atomically removes its lifecycle
+reference before provider I/O.
+_Avoid_: Transcript storage, offline Prompt queue, retaining Prompt content after dispatch
+
+**Payload unavailable**:
+The blocking pre-dispatch state where an accepted Prompt attempt's required queued content or
+attachment snapshot cannot be read or validated. No provider outcome exists; the user must
+withdraw or supersede it rather than Emdash skipping or failing it automatically.
+_Avoid_: Outcome unknown (Provider dispatch never occurred), Failed
 
 **Prompt supersession**:
 The atomic pre-dispatch replacement of one accepted queued Prompt attempt with a newly identified
@@ -95,6 +148,23 @@ The metadata-only, Conversation-lifetime record of one ACP Conversation command'
 result. It binds the command id to its writer, command kind, envelope hash, evaluated or committed
 revision, and outcome without retaining Prompt content.
 _Avoid_: Provider receipt, transient Wire response
+
+**Owner generation**:
+The opaque fence for one startup of the Host Conversation owner. Every snapshot and command carries
+it; owner restart replaces it so pre-restart Desktop commands cannot mutate recovered state.
+_Avoid_: Session generation, Provider connection generation
+
+**Command delivery unknown**:
+The Desktop-side state after a command's transport deadline or posted-call disconnect hid its
+authoritative result. It resolves by reading the Host command receipt and Conversation state; it
+does not mean the command failed or that a Prompt's provider outcome is unknown.
+_Avoid_: Prompt outcome unknown, command rejection
+
+**Transport abort**:
+Ending one caller's Wire request because its signal, deadline, or connection ended. It may stop an
+ACP Conversation command before its durable transaction begins, but never cancels committed Host
+work or an active provider turn.
+_Avoid_: Prompt cancellation
 
 **Plugins**:
 One word, three homes — say which one you mean: the capability framework (`@emdash/shared/plugins`), the concrete agent providers (`@emdash/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
