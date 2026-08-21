@@ -18,6 +18,36 @@ for worktree create/delete and per-workspace for activate/deactivate/delete (wai
 errors). *(ADR 0006 fixed the implementation: a `KeyedMutex` with fixed repo-before-workspace
 acquisition order — the kernel claim machinery retires entirely.)*
 
+## Canonical registration and production cutover
+
+`createWorkspace` registers an existing path and returns the Host's canonical record. The desktop
+may propose an id, but a path already owned by another id is a successful canonical resolution, not
+an error: every caller persists the returned record. Replaying the same id and path is idempotent;
+reusing an id for another path remains an immutable-identity error. `createWorktree` stays strict
+because it creates an artifact rather than registering one that already exists.
+
+The desktop Registry Claims only Host-acknowledged records. Claim inserts or refreshes the canonical
+id on the same Host, accepts the Host's canonical path spelling, may explicitly retrack an untracked
+id, and refuses a pending deletion Tombstone or another live id at the path. Claim never changes a
+row's Host attachment. Project relink is a separate explicit Retrack: the destination Host must
+return the same UUID for every linked path before one desktop transaction changes the attachment.
+Normal snapshot Observe matches by id only. It preflights path ownership before any writes and stops
+the Host attachment on an identity collision instead of path-relinking or repeatedly hitting
+SQLite's unique index.
+
+The shipped desktop-owned Workspace shape requires one production cutover before Observe attaches.
+That backfill classifies legacy rows, preserves dependency closure, registers existing paths
+parent-first, accepts Host-returned canonical ids, and atomically translates Project, Task,
+child-parent, and config bindings. The first released Host registry starts empty, so the ordinary
+single-desktop cutover preserves every legacy id; translation exists for a Host that already learned
+the path during that cutover, including another desktop or scanner adoption. A legacy row whose path
+is absent or already missing stays
+desktop-side; normal Observe missing/untrack rules apply after cutover. The cutover never manufactures
+a Host record without an artifact to inspect. A versioned per-Host completion marker is written only
+at a stable fixed point; failures gate snapshot and reconcile attachment. This backfill is the only
+path-based UUID translation seam, and its translation helper lives beside the backfill rather than
+in the general Registry API.
+
 ## Why plain RPCs
 
 The outbox existed to survive two gaps: desktop-to-host disconnection at enqueue time, and
@@ -50,6 +80,11 @@ a durable "active" flag).
 - Deletes are idempotent (absent id succeeds) and never refuse for dirty/unpushed state;
   informed confirmation is the client's job, powered by mirror observations — no preflight RPC.
 - `deleteWorkspace` never touches disk; `deleteWorktree` is the only artifact-destroying verb.
+- Project creation and Pick are Host-first: Host registration precedes one local transaction that
+  Claims the canonical Workspace and inserts the Project binding.
+- Automation adoption resolves the workspace through the Host and Claims the returned canonical
+  record; it never creates a desktop-only Workspace identity when snapshot sync has not arrived.
+- Activation and config reads never create an unknown Workspace as a compatibility fallback.
 - Desktop-side scan tiers, the workspace snapshot pull sync, and the workspace outbox
   definitions retire; freshness (fs-events primary, activity-gated escalation, polling floor,
   explicit refresh verb) is a host concern.

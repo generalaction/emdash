@@ -68,7 +68,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '2.0.0';
 ```
 
 ### What each component means
