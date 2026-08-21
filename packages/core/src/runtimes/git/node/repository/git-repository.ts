@@ -7,11 +7,10 @@ import {
   type GitRefsState,
   type GitRemotesState,
   type GitWorktreesState,
-  type PushError,
 } from '#runtimes/git/api';
 import type { RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import { toHostAbsolutePath } from '#runtimes/git/node/allocation/paths';
-import { commandFailed, pushFailed } from '#runtimes/git/node/exec/errors';
+import { commandFailed } from '#runtimes/git/node/exec/errors';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
   execGitWithProgress,
@@ -95,24 +94,6 @@ export class GitRepository {
     }
   }
 
-  async publishBranch(
-    branchName: string,
-    remote = 'origin',
-    context: GitOperationContext = {}
-  ): Promise<Result<{ output: string }, PushError>> {
-    try {
-      const { stdout, stderr } = await execGitWithProgress(
-        this.exec,
-        ['push', '--progress', '--set-upstream', remote, '--', branchName],
-        context
-      );
-      return ok({ output: (stdout || stderr).trim() });
-    } catch (error) {
-      if (context.signal?.aborted) throw error;
-      return pushFailed(error);
-    }
-  }
-
   /**
    * The branch the remote's HEAD points at: the local symbolic ref when
    * present, else a network `remote show` lookup. Honestly absent (`null`)
@@ -121,16 +102,10 @@ export class GitRepository {
    */
   async getDefaultBranch(remote: string): Promise<string | null> {
     try {
-      const { stdout } = await this.exec.exec([
-        'symbolic-ref',
-        `refs/remotes/${remote}/HEAD`,
-        '--short',
-      ]);
+      const { stdout } = await this.exec.exec(['symbolic-ref', `refs/remotes/${remote}/HEAD`]);
       const ref = stdout.trim();
-      if (ref) {
-        const slash = ref.indexOf('/');
-        return slash === -1 ? ref : ref.slice(slash + 1);
-      }
+      const prefix = `refs/remotes/${remote}/`;
+      if (ref.startsWith(prefix)) return ref.slice(prefix.length);
     } catch (error) {
       if (!repositoryFailures.isMissingSymbolicRef(error)) throw error;
     }

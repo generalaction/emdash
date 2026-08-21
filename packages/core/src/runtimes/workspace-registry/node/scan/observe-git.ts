@@ -5,6 +5,7 @@ import type { WorkspaceGitObservations } from '../../api/schemas';
 import type { RegistryGitContext } from '../git-context';
 
 const EXEC_TIMEOUT_MS = 30_000;
+const LOCAL_BRANCH_PREFIX = 'refs/heads/';
 /** Oversized output degrades the one workspace, never the scan (spec: T04). */
 const STATUS_MAX_BUFFER = 4 * 1024 * 1024;
 const UNTRACKED_FILE_MAX_BYTES = 5 * 1024 * 1024;
@@ -193,21 +194,13 @@ export async function observeWorkspaceGitRefs(
 
 async function readBranch(exec: BoundExec): Promise<string | null> {
   try {
-    const result = await exec.exec(['rev-parse', '--abbrev-ref', 'HEAD'], {
+    const result = await exec.exec(['symbolic-ref', 'HEAD'], {
       timeoutMs: EXEC_TIMEOUT_MS,
     });
-    const branch = result.stdout.trim();
-    return branch === 'HEAD' || branch === '' ? null : branch;
+    const ref = result.stdout.trim();
+    return ref.startsWith(LOCAL_BRANCH_PREFIX) ? ref.slice(LOCAL_BRANCH_PREFIX.length) : null;
   } catch {
-    // Unborn HEAD still has a symbolic name.
-    try {
-      const result = await exec.exec(['symbolic-ref', '--short', 'HEAD'], {
-        timeoutMs: EXEC_TIMEOUT_MS,
-      });
-      return result.stdout.trim() || null;
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -405,9 +398,6 @@ function countLines(content: Buffer): number {
 
 async function readDivergence(exec: BoundExec): Promise<{ ahead: number; behind: number } | null> {
   try {
-    await exec.exec(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], {
-      timeoutMs: EXEC_TIMEOUT_MS,
-    });
     const result = await exec.exec(['rev-list', '--left-right', '--count', 'HEAD...@{u}'], {
       timeoutMs: EXEC_TIMEOUT_MS,
     });

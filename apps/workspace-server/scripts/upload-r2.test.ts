@@ -52,11 +52,11 @@ describe('workspace-server R2 upload helpers', () => {
   });
 
   it('places every object under the workspace-server prefix', () => {
-    expect(channelPointerObjectKey('stable', 1)).toBe(
-      'workspace-server/channels/stable/protocol-1.json'
+    expect(channelPointerObjectKey('stable', 2)).toBe(
+      'workspace-server/channels/stable/protocol-2.json'
     );
-    expect(channelPointerObjectKey('canary', 1)).toBe(
-      'workspace-server/channels/canary/protocol-1.json'
+    expect(channelPointerObjectKey('canary', 2)).toBe(
+      'workspace-server/channels/canary/protocol-2.json'
     );
     expect(versionedArtifactObjectKey('1.2.3', 'server.tar.gz')).toBe(
       'workspace-server/1.2.3/server.tar.gz'
@@ -65,8 +65,8 @@ describe('workspace-server R2 upload helpers', () => {
   });
 
   it('builds public channel pointer URLs from a bucket root', () => {
-    expect(channelPointerUrl('https://releases.example.test', 'stable', 1)).toBe(
-      'https://releases.example.test/workspace-server/channels/stable/protocol-1.json'
+    expect(channelPointerUrl('https://releases.example.test', 'stable', 2)).toBe(
+      'https://releases.example.test/workspace-server/channels/stable/protocol-2.json'
     );
     expect(channelPointerUrl('http://localhost:9000/emdash-releases/', 'canary', 2)).toBe(
       'http://localhost:9000/emdash-releases/workspace-server/channels/canary/protocol-2.json'
@@ -114,15 +114,15 @@ describe('workspace-server R2 upload helpers', () => {
   });
 
   it('publishes one mutable selector per channel and protocol major', () => {
-    expect(mutableReleaseObjectKeys(['stable'], 1)).toEqual([channelPointerObjectKey('stable', 1)]);
-    expect(mutableReleaseObjectKeys(['canary', 'stable'], 1)).toEqual([
-      channelPointerObjectKey('canary', 1),
-      channelPointerObjectKey('stable', 1),
+    expect(mutableReleaseObjectKeys(['stable'], 2)).toEqual([channelPointerObjectKey('stable', 2)]);
+    expect(mutableReleaseObjectKeys(['canary', 'stable'], 2)).toEqual([
+      channelPointerObjectKey('canary', 2),
+      channelPointerObjectKey('stable', 2),
     ]);
   });
 
   it('only permits pointers to versions published in the current run', () => {
-    const pointer = { artifactVersion: '1.2.3', protocolVersion: '1.0.0' };
+    const pointer = { artifactVersion: '1.2.3', protocolVersion: '2.0.0' };
     expect(() => assertPointerVersionPublishedInRun(pointer, new Set(['1.2.3']))).not.toThrow();
     expect(() => assertPointerVersionPublishedInRun(pointer, new Set(['1.2.2']))).toThrow(
       /version was not published in this run/

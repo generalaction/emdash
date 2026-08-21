@@ -17,6 +17,7 @@ import {
   type GitTransferProgress,
   type NormalizedDiffTarget,
   type PullJobInput,
+  type PublishJobInput,
   type PushJobInput,
 } from '#runtimes/git/api';
 import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
@@ -120,6 +121,16 @@ export class GitCheckoutRuntime {
   push(input: PushJobInput, context: LiveJobContext<GitTransferProgress>) {
     return this.run(input, (checkout) =>
       checkout.push(input.options, {
+        signal: context.signal,
+        onProgress: context.progress,
+        env: credentialOperationEnv(input.credentials),
+      })
+    );
+  }
+
+  publish(input: PublishJobInput, context: LiveJobContext<GitTransferProgress>) {
+    return this.run(input, (checkout) =>
+      checkout.publish(input.remote, {
         signal: context.signal,
         onProgress: context.progress,
         env: credentialOperationEnv(input.credentials),

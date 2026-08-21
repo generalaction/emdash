@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import type {
   GitBranchRef,
   GitRemotesState,
+  LocalBranchRef,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
@@ -157,7 +158,7 @@ export class ProjectProvider implements Disposable {
     return this.gitRepository.getRemoteState();
   }
 
-  async findTaskWorktree(taskBranch: string): Promise<string | null> {
+  async findTaskWorktree(taskBranch: LocalBranchRef): Promise<string | null> {
     const worktrees = await this.git.repository.listWorktrees(this.repository);
     if (!worktrees.success) {
       throw new Error(worktrees.error.message ?? `Failed to list worktrees for ${this.repoPath}`);
@@ -167,7 +168,7 @@ export class ProjectProvider implements Disposable {
         !candidate.isMain &&
         !candidate.prunable &&
         candidate.head.kind === 'branch' &&
-        candidate.head.name === taskBranch
+        candidate.head.ref === taskBranch
     );
     return worktree ? nativePathFromHost(worktree.worktreePath) : null;
   }

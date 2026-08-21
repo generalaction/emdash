@@ -55,7 +55,13 @@ export function classifyGitWatchEvents(
     if (commonRel !== null) {
       classifyCommonGitPath(commonRel, repo);
       if (commonGitPathAffectsWorktreeHead(commonRel)) {
-        addAllWorktreeEffects({ status: true, head: true });
+        addAllWorktreeEffects({
+          status:
+            commonRel.startsWith('refs/heads/') ||
+            commonRel === 'HEAD' ||
+            commonRel === 'packed-refs',
+          head: true,
+        });
       }
     }
 
@@ -96,7 +102,13 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
 }
 
 function commonGitPathAffectsWorktreeHead(rel: string): boolean {
-  return rel.startsWith('refs/heads/') || rel === 'HEAD';
+  return (
+    rel.startsWith('refs/heads/') ||
+    rel.startsWith('refs/remotes/') ||
+    rel === 'HEAD' ||
+    rel === 'config' ||
+    rel === 'packed-refs'
+  );
 }
 
 function relativeInside(root: string, child: string): string | null {

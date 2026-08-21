@@ -77,15 +77,6 @@ export function createSourceControlWireController(
           (git) => git.repository.fetch
         )
       ),
-      publishBranch: job<typeof sourceControlContract.repository.publishBranch>((input, context) =>
-        runRepositoryJob(
-          options,
-          gitContract.repository.publishBranch,
-          input,
-          context,
-          (git) => git.repository.publishBranch
-        )
-      ),
       fetchPrForReview: job<typeof sourceControlContract.repository.fetchPrForReview>(
         (input, context) =>
           runRepositoryJob(
@@ -137,6 +128,15 @@ export function createSourceControlWireController(
           input,
           context,
           (git) => git.checkout.push
+        )
+      ),
+      publish: job<typeof sourceControlContract.checkout.publish>((input, context) =>
+        runCheckoutJob(
+          options,
+          gitContract.checkout.publish,
+          input,
+          context,
+          (git) => git.checkout.publish
         )
       ),
       pull: job<typeof sourceControlContract.checkout.pull>((input, context) =>

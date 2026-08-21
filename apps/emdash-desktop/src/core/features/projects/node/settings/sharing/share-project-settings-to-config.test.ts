@@ -346,7 +346,7 @@ describe('shareProjectSettingsToConfig', () => {
         configPath: '/external/worktrees/task-one/.emdash.json',
       },
     ]);
-    expect(findTaskWorktree).toHaveBeenCalledWith('emdash/task-one');
+    expect(findTaskWorktree).toHaveBeenCalledWith('refs/heads/emdash/task-one');
   });
 
   it('excludes task targets that use the project root working directory', async () => {

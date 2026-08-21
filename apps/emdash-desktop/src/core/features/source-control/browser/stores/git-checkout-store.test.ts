@@ -1,4 +1,9 @@
-import type { CheckoutHeadState, CheckoutStatusState } from '@emdash/core/runtimes/git/api';
+import type {
+  CheckoutHeadState,
+  CheckoutStatusState,
+  CheckoutUpstream,
+} from '@emdash/core/runtimes/git/api';
+import { localBranchRefSchema, remoteBranchRefSchema } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
@@ -11,6 +16,7 @@ import { GitCheckoutStore } from './git-checkout-store';
 const mocks = vi.hoisted(() => ({
   getChangedFiles: vi.fn(),
   getGitRepositoryStore: vi.fn(),
+  pushRun: vi.fn(),
   readFileText: vi.fn(),
 }));
 
@@ -54,9 +60,11 @@ describe('GitCheckoutStore', () => {
     releaseUnstage = deferred<void>();
     mocks.getChangedFiles.mockResolvedValue(ok({ files: [] }));
     mocks.getGitRepositoryStore.mockReturnValue({
-      isBranchOnRemote: () => true,
-      getBranchDivergence: () => ({ ahead: 2, behind: 1 }),
       pushRemote: { name: 'origin', url: 'https://example.com/repo.git' },
+    });
+    mocks.pushRun.mockImplementation(async () => {
+      headState.set(head('main'));
+      return ok({ output: '' });
     });
     wire = createSourceControlWire();
   });
@@ -77,12 +85,85 @@ describe('GitCheckoutStore', () => {
     expect(store.branchName).toBe('main');
     expect(store.aheadCount).toBe(2);
     expect(store.behindCount).toBe(1);
+    expect(store.isPublished).toBe(true);
     expect(mocks.getChangedFiles).toHaveBeenCalledTimes(2);
 
     statusState.set(status('src/index.ts'));
     await waitFor(() => store.fileChanges.some((change) => change.path === 'src/index.ts'));
 
     expect(mocks.getChangedFiles).toHaveBeenCalledTimes(4);
+    store.dispose();
+  });
+
+  it('uses checkout upstream state instead of repository branch inventory', async () => {
+    headState.set(head('main', { kind: 'none' }));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    expect(store.isPublished).toBe(false);
+    expect(store.aheadCount).toBe(0);
+    expect(store.behindCount).toBe(0);
+    expect(mocks.getGitRepositoryStore).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('does not treat a local upstream as a published branch', async () => {
+    headState.set(
+      head('main', {
+        kind: 'local',
+        mergeRef: localBranchRefSchema.parse('refs/heads/other'),
+        tracking: {
+          kind: 'resolved',
+          ref: localBranchRefSchema.parse('refs/heads/other'),
+          oid: '1234567890123456789012345678901234567890',
+          ahead: 3,
+          behind: 2,
+        },
+      })
+    );
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    expect(store.isPublished).toBe(false);
+    expect(store.aheadCount).toBe(3);
+    expect(store.behindCount).toBe(2);
+    store.dispose();
+  });
+
+  it('publishes through the checkout and refreshes head before settling', async () => {
+    headState.set(head('main', { kind: 'none' }));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+    const snapshotSpy = vi.spyOn(headState.__stateNode, 'currentSnapshot');
+    snapshotSpy.mockClear();
+
+    await expect(store.publishCurrentBranch()).resolves.toMatchObject({ success: true });
+    await waitFor(() => store.isPublished);
+
+    expect(mocks.pushRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        remote: 'origin',
+      }),
+      expect.anything()
+    );
+    expect(snapshotSpy).toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('refuses publish when the repository has no push remote', async () => {
+    mocks.getGitRepositoryStore.mockReturnValue({ pushRemote: null });
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => store.branchName === 'main');
+
+    await expect(store.publishCurrentBranch()).resolves.toEqual(
+      err({ type: 'no_remote', message: 'This repository has no git remotes.' })
+    );
+    expect(mocks.pushRun).not.toHaveBeenCalled();
     store.dispose();
   });
 
@@ -179,7 +260,7 @@ describe('GitCheckoutStore', () => {
 
 function createSourceControlWire() {
   const repositoryProvider = expose(sourceControlContract.repository.model, {
-    refs: cell({ branches: [], tags: [] }),
+    refs: cell({ branches: [], tags: [], remoteHeads: [] }),
     remotes: cell({ remotes: [] }),
   });
   const checkoutProvider = expose(
@@ -238,7 +319,6 @@ function createSourceControlWire() {
       listWorktrees: vi.fn(),
       getDefaultBranch: vi.fn(),
       fetch: { run: vi.fn() },
-      publishBranch: { run: vi.fn() },
       fetchPrForReview: { run: vi.fn() },
     },
     checkout: {
@@ -251,16 +331,32 @@ function createSourceControlWire() {
       getCommitFiles: vi.fn(),
       blame: vi.fn(),
       push: { run: vi.fn() },
+      publish: { run: mocks.pushRun },
       pull: { run: vi.fn() },
     },
   } as never);
 }
 
-function head(name: string): CheckoutHeadState {
+function head(
+  name: string,
+  upstream: CheckoutUpstream = {
+    kind: 'remote',
+    remote: 'origin',
+    mergeRef: localBranchRefSchema.parse(`refs/heads/${name}`),
+    tracking: {
+      kind: 'resolved',
+      ref: remoteBranchRefSchema.parse(`refs/remotes/origin/${name}`),
+      oid: '1234567890123456789012345678901234567890',
+      ahead: 2,
+      behind: 1,
+    },
+  }
+): CheckoutHeadState {
   return {
     kind: 'branch',
-    name,
+    ref: localBranchRefSchema.parse(`refs/heads/${name}`),
     oid: '1234567890123456789012345678901234567890',
+    upstream,
   };
 }
 

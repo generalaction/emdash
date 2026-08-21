@@ -67,6 +67,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [error, setError] = useState<string | null>(null);
   const [accountOverride, setAccountOverride] = useState<GitHubAccountSummary | null>(null);
   const repo = getGitRepositoryStore(projectId);
+  const checkout = workspaceRegistry.get(workspaceId)?.get(gitCheckoutStoreToken);
   // Identity strip inputs (spec §9): the resolver's effective account plus the
   // per-action override. Create-PR is fail-closed (spec §5/§7): while the
   // inputs load or when no account resolves, the primary action stays blocked.
@@ -84,10 +85,8 @@ export const CreatePrModal = observer(function CreatePrModal({
     setAccountOverride(account);
     void persistProjectGitHubAccount(projectId, account.accountId);
   };
-  const defaultBranch = repo?.defaultBranch;
-  const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
-  const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
-  const needsPush = !isOnRemote || aheadCount > 0;
+  const defaultBranch = repo?.defaultBranchRef;
+  const needsPush = !checkout?.isPublished || checkout.aheadCount > 0;
   const baseRemoteResolution = repo?.effectiveGitSettings.baseRemote ?? null;
   const projectRemoteName = repo?.baseRemote?.name ?? null;
   const fallbackRepository = useMemo(() => parseRepositoryRef(repositoryUrl), [repositoryUrl]);
@@ -111,7 +110,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const selectedBase =
     selectedBaseOverride ??
     resolveInitialBaseBranch(
-      repo?.remoteBranches ?? [],
+      repo?.branchRefs.filter((branch) => branch.type === 'remote') ?? [],
       undefined,
       defaultBranch,
       targetRemote?.remote.name ?? projectRemoteName

@@ -1,4 +1,10 @@
-import type { GitBranch, GitRemote, GitRemoteHead } from '@emdash/core/runtimes/git/api';
+import {
+  branchNameOnRemote,
+  shortName,
+  type GitBranch,
+  type GitRemote,
+  type GitRemoteHead,
+} from '@emdash/core/runtimes/git/api';
 import type { RepoFacts, RepoRemoteFacts } from '@core/primitives/project-settings/api';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 
@@ -19,15 +25,20 @@ export function buildRendererRepoFacts(args: {
   const remoteFacts: RepoRemoteFacts[] = remotes.map((remote) => ({
     name: remote.name,
     host: parseRepositoryRef(remote.url)?.host ?? null,
-    headBranch: remoteHeads.find((head) => head.remote === remote.name)?.branch ?? null,
-    branches: branches
-      .filter((branch) => branch.type === 'remote' && branch.remote.name === remote.name)
-      .map((branch) => branch.branch),
+    headBranch: (() => {
+      const head = remoteHeads.find((candidate) => candidate.remote === remote.name);
+      return head ? branchNameOnRemote(head.ref, remote) : null;
+    })(),
+    branches: branches.flatMap((branch) =>
+      branch.type === 'remote' && branch.remote.name === remote.name
+        ? [branchNameOnRemote(branch.ref, branch.remote)]
+        : []
+    ),
   }));
   return {
     remotes: remoteFacts,
-    localBranches: branches
-      .filter((branch) => branch.type === 'local')
-      .map((branch) => branch.branch),
+    localBranches: branches.flatMap((branch) =>
+      branch.type === 'local' ? [shortName(branch.ref)] : []
+    ),
   };
 }

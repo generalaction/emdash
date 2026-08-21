@@ -1,4 +1,8 @@
-import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/runtimes/git/api';
+import {
+  shortName,
+  type CheckoutHeadState,
+  type GitBranchRef,
+} from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import {
   asAvailableProject,
@@ -20,7 +24,7 @@ export type ProjectGitContext = {
 
 function branchNameFromHead(head: CheckoutHeadState | undefined): string | null {
   if (!head || head.kind === 'detached') return null;
-  return head.name;
+  return shortName(head.ref);
 }
 
 export function useProjectGitContext(projectId: string | undefined): ProjectGitContext {
@@ -59,7 +63,7 @@ export function useProjectGitContext(projectId: string | undefined): ProjectGitC
 
   const head = headQuery.data;
   return {
-    defaultBranch: repo?.defaultBranch,
+    defaultBranch: repo?.defaultBranchRef,
     currentBranch: branchNameFromHead(head),
     isUnborn: head?.kind === 'unborn',
     hasRepository: pathInspectionQuery.data?.error

@@ -1,4 +1,13 @@
-import type { GitBranch, GitRefsState, GitRemote, GitRemoteHead, GitTag } from '#runtimes/git/api';
+import {
+  localBranchRefSchema,
+  remoteBranchRefSchema,
+  tagRefSchema,
+  type GitBranch,
+  type GitRefsState,
+  type GitRemote,
+  type GitRemoteHead,
+  type GitTag,
+} from '#runtimes/git/api';
 import type { BoundExec } from '#services/exec/api';
 
 const FIELD_SEPARATOR = '\u0000';
@@ -19,48 +28,46 @@ async function computeBranches(
   remotes: GitRemote[]
 ): Promise<{ branches: GitBranch[]; remoteHeads: GitRemoteHead[] }> {
   const remoteByName = new Map(remotes.map((remote) => [remote.name, remote]));
+  const remoteNames = [...remoteByName.keys()].sort((a, b) => b.length - a.length);
   const { stdout } = await exec.exec([
     'branch',
     '-a',
-    '--format=%(refname)|%(refname:short)|%(upstream:short)|%(upstream:track)|%(objectname)|%(symref)',
+    '--format=%(refname)%00%(upstream:remotename)%00%(upstream:track)%00%(objectname)%00%(symref)',
   ]);
   const branches: GitBranch[] = [];
   const remoteHeads: GitRemoteHead[] = [];
 
   for (const line of stdout.trim().split('\n').filter(Boolean)) {
-    const [fullRef, shortRef, upstreamRef, upstreamTrack, oid, symref] = line.split('|');
-    if (!fullRef || !shortRef || !oid) continue;
+    const [fullRef, upstreamRemote, upstreamTrack, oid, symref] = line.split(FIELD_SEPARATOR);
+    if (!fullRef || !oid) continue;
     if (fullRef.startsWith('refs/remotes/')) {
-      const remoteBranch = fullRef.slice('refs/remotes/'.length);
-      if (remoteBranch.endsWith('/HEAD')) {
+      const remoteName = remoteNames.find((name) => fullRef.startsWith(`refs/remotes/${name}/`));
+      if (!remoteName) continue;
+      const remote = remoteByName.get(remoteName);
+      if (!remote) continue;
+      const branchName = fullRef.slice(`refs/remotes/${remoteName}/`.length);
+      if (branchName === 'HEAD') {
         // The remote HEAD symbolic ref: `%(symref)` carries its target
         // (`refs/remotes/<remote>/<branch>`) — a free local read.
-        const remoteName = remoteBranch.slice(0, -'/HEAD'.length);
         const targetPrefix = `refs/remotes/${remoteName}/`;
         if (symref?.startsWith(targetPrefix)) {
-          remoteHeads.push({ remote: remoteName, branch: symref.slice(targetPrefix.length) });
+          remoteHeads.push({ remote: remoteName, ref: remoteBranchRefSchema.parse(symref) });
         }
         continue;
       }
-      const slash = remoteBranch.indexOf('/');
-      if (slash === -1) continue;
-      const remoteName = remoteBranch.slice(0, slash);
-      const branch = remoteBranch.slice(slash + 1);
       branches.push({
         type: 'remote',
-        branch,
-        remote: remoteByName.get(remoteName) ?? { name: remoteName, url: '' },
+        ref: remoteBranchRefSchema.parse(fullRef),
+        remote,
         oid,
       });
       continue;
     }
 
     if (!fullRef.startsWith('refs/heads/')) continue;
-    const branch: GitBranch = { type: 'local', branch: shortRef, oid };
-    if (upstreamRef) {
-      const slash = upstreamRef.indexOf('/');
-      const remoteName = slash === -1 ? upstreamRef : upstreamRef.slice(0, slash);
-      branch.remote = remoteByName.get(remoteName) ?? { name: remoteName, url: '' };
+    const branch: GitBranch = { type: 'local', ref: localBranchRefSchema.parse(fullRef), oid };
+    if (upstreamRemote && upstreamRemote !== '.') {
+      branch.remote = remoteByName.get(upstreamRemote) ?? { name: upstreamRemote, url: '' };
     }
     const divergence = parseDivergence(upstreamTrack ?? '');
     if (divergence) branch.divergence = divergence;
@@ -74,14 +81,14 @@ async function computeTags(exec: BoundExec): Promise<GitTag[]> {
   const { stdout } = await exec.exec([
     'for-each-ref',
     'refs/tags',
-    '--format=%(refname:short)%00%(objectname)%00%(*objectname)%00%(contents:subject)',
+    '--format=%(refname)%00%(objectname)%00%(*objectname)%00%(contents:subject)',
   ]);
   const tags: GitTag[] = [];
 
   for (const line of stdout.split('\n').filter(Boolean)) {
-    const [name, oid, peeledOid, subject] = line.split(FIELD_SEPARATOR);
-    if (!name || !oid) continue;
-    const tag: GitTag = { name, oid: peeledOid || oid };
+    const [fullName, oid, peeledOid, subject] = line.split(FIELD_SEPARATOR);
+    if (!fullName?.startsWith('refs/tags/') || !oid) continue;
+    const tag: GitTag = { ref: tagRefSchema.parse(fullName), oid: peeledOid || oid };
     if (subject) tag.message = subject;
     tags.push(tag);
   }

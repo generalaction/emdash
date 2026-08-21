@@ -4,7 +4,7 @@ import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
  * Repository subdomain schemas: the input shapes for repository-scoped jobs
- * (fetch / publish / fetch-PR). The worktree descriptor (`checkoutInfoSchema`)
+ * (fetch / fetch-PR). The worktree descriptor (`checkoutInfoSchema`)
  * is cross-cutting and lives in `../api/schemas`.
  */
 
@@ -32,13 +32,6 @@ export const fetchJobInputSchema = repositorySelectorSchema.extend({
   credentials: gitOperationCredentialsSchema.optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
-
-export const publishBranchJobInputSchema = repositorySelectorSchema.extend({
-  branchName: z.string(),
-  remote: z.string().optional(),
-  credentials: gitOperationCredentialsSchema.optional(),
-});
-export type PublishBranchJobInput = z.infer<typeof publishBranchJobInputSchema>;
 
 export const fetchPrForReviewJobInputSchema = repositorySelectorSchema.extend({
   options: fetchPrForReviewOptionsSchema,

@@ -3,7 +3,7 @@ import type {
   GitRemotesState,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
-import { gitContract } from '@emdash/core/runtimes/git/api';
+import { branchNameOnRemote, gitContract, shortName } from '@emdash/core/runtimes/git/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { observe, remote, type Snapshot } from '@emdash/wire/state';
@@ -116,20 +116,25 @@ export function createRepoFactsCache(
 
 export function buildRepoFacts(remotesState: GitRemotesState, refsState: GitRefsState): RepoFacts {
   const branches = refsState.branches;
-  const remoteHeads = refsState.remoteHeads ?? [];
+  const remoteHeads = refsState.remoteHeads;
   const remotes: RepoRemoteFacts[] = remotesState.remotes.map((remote) => ({
     name: remote.name,
     host: parseRepositoryRef(remote.url)?.host ?? null,
-    headBranch: remoteHeads.find((head) => head.remote === remote.name)?.branch ?? null,
-    branches: branches
-      .filter((branch) => branch.type === 'remote' && branch.remote.name === remote.name)
-      .map((branch) => branch.branch),
+    headBranch: (() => {
+      const head = remoteHeads.find((candidate) => candidate.remote === remote.name);
+      return head ? branchNameOnRemote(head.ref, remote) : null;
+    })(),
+    branches: branches.flatMap((branch) =>
+      branch.type === 'remote' && branch.remote.name === remote.name
+        ? [branchNameOnRemote(branch.ref, branch.remote)]
+        : []
+    ),
   }));
 
   return {
     remotes,
-    localBranches: branches
-      .filter((branch) => branch.type === 'local')
-      .map((branch) => branch.branch),
+    localBranches: branches.flatMap((branch) =>
+      branch.type === 'local' ? [shortName(branch.ref)] : []
+    ),
   };
 }

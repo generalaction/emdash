@@ -31,7 +31,7 @@ function attachedProjects(project: unknown) {
 
 describe('createSourceControlWireController', () => {
   it('resolves repository ids and clients for attached state', async () => {
-    const source = liveSource({ kind: 'ready', branches: [], tags: [] });
+    const source = liveSource({ kind: 'ready', branches: [], tags: [], remoteHeads: [] });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
     const client = vi.fn();
     const resolveProject = vi.fn(async () => projectIdentity);

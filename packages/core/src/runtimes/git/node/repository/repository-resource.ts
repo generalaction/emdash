@@ -123,19 +123,6 @@ export class RepositoryResource {
     return result;
   }
 
-  async publishBranch(
-    branchName: string,
-    remote: string | undefined,
-    context: GitOperationContext
-  ) {
-    const result = await this.execute(
-      () => this.commands.publishBranch(branchName, remote, context),
-      true
-    );
-    if (result.success) this.invalidate('refs');
-    return result;
-  }
-
   async fetchPrForReview(
     options: Parameters<GitRepository['fetchPrForReview']>[0],
     context: GitOperationContext

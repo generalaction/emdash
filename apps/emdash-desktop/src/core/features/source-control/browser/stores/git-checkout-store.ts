@@ -1,5 +1,6 @@
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import {
+  shortName,
   type CheckoutHeadState,
   type CheckoutStatusState,
   type GitChange,
@@ -98,7 +99,7 @@ export class GitCheckoutStore {
       hasData: computed,
       isLoading: computed,
       error: computed,
-      isBranchPublished: computed,
+      isPublished: computed,
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
@@ -225,7 +226,7 @@ export class GitCheckoutStore {
 
   get branchName(): string | null {
     const head = this.head;
-    return !head || head.kind === 'detached' ? null : head.name;
+    return !head || head.kind === 'detached' ? null : shortName(head.ref);
   }
 
   get headOid(): string | null {
@@ -240,22 +241,33 @@ export class GitCheckoutStore {
   get headDisplay(): string | null {
     const head = this.head;
     if (!head) return null;
-    return head.kind === 'detached' ? head.shortHash : head.name;
+    return head.kind === 'detached' ? head.shortHash : shortName(head.ref);
   }
 
-  get isBranchPublished(): boolean {
-    const repository = getGitRepositoryStore(this.projectId);
-    return this.branchName ? (repository?.isBranchOnRemote(this.branchName) ?? false) : false;
+  get isPublished(): boolean {
+    const head = this.head;
+    if (!head || head.kind === 'detached') return false;
+    return head.upstream.kind === 'remote';
   }
 
   get aheadCount(): number {
-    const repository = getGitRepositoryStore(this.projectId);
-    return this.branchName ? (repository?.getBranchDivergence(this.branchName)?.ahead ?? 0) : 0;
+    const head = this.head;
+    return head &&
+      head.kind !== 'detached' &&
+      head.upstream.kind !== 'none' &&
+      head.upstream.tracking.kind === 'resolved'
+      ? head.upstream.tracking.ahead
+      : 0;
   }
 
   get behindCount(): number {
-    const repository = getGitRepositoryStore(this.projectId);
-    return this.branchName ? (repository?.getBranchDivergence(this.branchName)?.behind ?? 0) : 0;
+    const head = this.head;
+    return head &&
+      head.kind !== 'detached' &&
+      head.upstream.kind !== 'none' &&
+      head.upstream.tracking.kind === 'resolved'
+      ? head.upstream.tracking.behind
+      : 0;
   }
 
   async stageFiles(paths: string[]) {
@@ -303,6 +315,25 @@ export class GitCheckoutStore {
       ...checkoutSelector(this.workspaceId),
       options: remote ? { remote } : undefined,
     });
+  }
+
+  async publishCurrentBranch() {
+    const pushRemote = getGitRepositoryStore(this.projectId)?.pushRemote;
+    if (pushRemote === null || pushRemote === undefined) {
+      return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
+    }
+    const model = await this.requireModel();
+    const client = await getSourceControlClient();
+    const result = await runDesktopLiveJob(
+      sourceControlContract.checkout.publish,
+      client.checkout.publish,
+      {
+        ...checkoutSelector(this.workspaceId),
+        remote: pushRemote.name,
+      }
+    );
+    if (result.success) await model.states.head.refresh();
+    return result;
   }
 
   async pull() {

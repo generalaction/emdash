@@ -27,6 +27,18 @@ _Avoid_: Project (that is a desktop grouping), repo root
 **Worktree**:
 A git worktree of a Repository on a host.
 
+**Git ref**:
+The canonical full name of a Git reference (`refs/heads/...`, `refs/remotes/...`, or
+`refs/tags/...`). Observed refs store this identity; short names are derived only at display or
+selector boundaries and never establish identity or equality.
+_Avoid_: Using `refname:short` or a display label as canonical identity
+
+**Checkout upstream**:
+The configured relationship from the current local branch to another ref. It is explicitly local
+(`branch.<name>.remote = .`) or remote; only the remote form means the branch is published. Tracking
+may be resolved (OID and divergence are known) or unresolved while the upstream remains configured.
+_Avoid_: Inferring publication from repository ref inventory, treating every upstream as published, collapsing unresolved tracking to no upstream
+
 **Workspace**:
 A working directory on a host that emdash tracks — a repository, a worktree, or a plain directory. The place sessions and agents run in.
 

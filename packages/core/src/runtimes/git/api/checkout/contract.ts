@@ -33,6 +33,7 @@ import {
   gitLogResultSchema,
   normalizedDiffTargetSchema,
   pullJobInputSchema,
+  publishJobInputSchema,
   pushJobInputSchema,
 } from './schemas';
 
@@ -119,6 +120,12 @@ export const gitCheckoutContract = defineContract({
 
   push: liveJob({
     input: pushJobInputSchema,
+    progress: transferProgressSchema,
+    result: z.object({ output: z.string() }),
+    error: pushErrorSchema,
+  }),
+  publish: liveJob({
+    input: publishJobInputSchema,
     progress: transferProgressSchema,
     result: z.object({ output: z.string() }),
     error: pushErrorSchema,
