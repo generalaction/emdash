@@ -199,7 +199,7 @@ export function finalizeTurn(turn: TranscriptTurn): TranscriptTurn {
     items: items.map((item) => {
       if (item.kind === 'message' && 'streaming' in item) return { ...item, streaming: false };
       if ('status' in item && item.status === 'running') return { ...item, status: 'done' };
-      if (item.kind === 'plan') return { ...item, streaming: false };
+      if (item.kind === 'plan') return { ...item, active: false, streaming: false };
       return item;
     }) as TranscriptTurn['items'],
   };

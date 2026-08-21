@@ -150,6 +150,33 @@ export const SinglePending: Story = {
   ),
 };
 
+/** Cancelled plan — the previously running task is shown as inactive. */
+export const Cancelled: Story = {
+  render: () => (
+    <ScriptedChat
+      height={220}
+      script={[
+        {
+          kind: 'call',
+          fn: (api) => {
+            api.activeTurn.set(
+              applyTurnEvent(null, {
+                type: 'plan_update',
+                id: 'plan-cancelled',
+                entries: ENTRIES_IN_PROGRESS.slice(2),
+                streaming: true,
+              }),
+              'generating'
+            );
+          },
+        },
+        { kind: 'wait', ms: 1_500 },
+        { kind: 'call', fn: (api) => api.activeTurn.commit('cancelled') },
+      ]}
+    />
+  ),
+};
+
 export const Streaming: Story = {
   render: () => (
     <ScriptedChat
