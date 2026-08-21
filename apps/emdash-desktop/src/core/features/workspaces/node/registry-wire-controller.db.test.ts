@@ -100,7 +100,7 @@ describe('createWorkspaceRegistryWireController', () => {
   }
 
   function seedRow(id: string, overrides: Partial<WorkspaceInsert> = {}): void {
-    createWorkspaceRegistry(fixture.db).register({
+    createWorkspaceRegistry(fixture.db).recordCreationIntent({
       id,
       type: 'local',
       kind: 'worktree',
@@ -176,7 +176,7 @@ describe('createWorkspaceRegistryWireController', () => {
   });
 
   describe('verb pass-throughs', () => {
-    it('mints ids for the create verbs and upserts the mirror row on success', async () => {
+    it('mints ids for the create verbs and Claims the mirror row on success', async () => {
       const wire = controller(() => 'minted-id');
       const result = (await wire.call('createWorktree', {
         host: LOCAL_HOST_REF,
@@ -203,6 +203,68 @@ describe('createWorkspaceRegistryWireController', () => {
         origin: 'registered',
         location: 'local',
       });
+    });
+
+    it('claims the Host canonical id when the proposed id already has a path owner', async () => {
+      hostVerbs.createWorkspace.mockResolvedValueOnce(
+        ok(hostRecord({ id: 'canonical-id', kind: 'repository', path: '/work/repo' }))
+      );
+
+      const result = await controller(() => 'proposed-id').call('createWorkspace', {
+        host: LOCAL_HOST_REF,
+        path: '/work/repo',
+        config: someConfig,
+      });
+
+      expect(result).toMatchObject({ success: true, data: { id: 'canonical-id' } });
+      const registry = createWorkspaceRegistry(fixture.db);
+      expect(registry.getLive('proposed-id')).toBeUndefined();
+      expect(registry.getLive('canonical-id')).toMatchObject({
+        path: '/work/repo',
+        config: someConfig,
+      });
+    });
+
+    it('explicitly retracks an untracked canonical id on create success', async () => {
+      seedRow('canonical-id', { kind: 'repository', path: '/work/repo' });
+      const registry = createWorkspaceRegistry(fixture.db);
+      registry.untrack(['canonical-id'], '2026-01-02T00:00:00.000Z');
+      hostVerbs.createWorkspace.mockResolvedValueOnce(
+        ok(hostRecord({ id: 'canonical-id', kind: 'repository', path: '/work/repo' }))
+      );
+
+      await expect(
+        controller(() => 'proposed-id').call('createWorkspace', {
+          host: LOCAL_HOST_REF,
+          path: '/work/repo',
+        })
+      ).resolves.toMatchObject({ success: true, data: { id: 'canonical-id' } });
+      expect(registry.getLive('canonical-id')).toMatchObject({
+        path: '/work/repo',
+        untrackedAt: null,
+      });
+    });
+
+    it('returns a typed Claim conflict instead of reviving a Tombstone', async () => {
+      seedRow('canonical-id', { kind: 'repository', path: '/work/repo' });
+      const registry = createWorkspaceRegistry(fixture.db);
+      registry.tombstone('canonical-id', {
+        version: '1',
+        targetRecordId: 'canonical-id',
+        tombstonedAt: 1,
+        options: { deleteBranch: false, deleteConversations: false },
+      });
+      hostVerbs.createWorkspace.mockResolvedValueOnce(
+        ok(hostRecord({ id: 'canonical-id', kind: 'repository', path: '/work/repo' }))
+      );
+
+      await expect(
+        controller(() => 'proposed-id').call('createWorkspace', {
+          host: LOCAL_HOST_REF,
+          path: '/work/repo',
+        })
+      ).resolves.toEqual(err({ type: 'workspace-tombstoned', workspaceId: 'canonical-id' }));
+      expect(registry.getLive('canonical-id')?.deletionTombstone).not.toBeNull();
     });
 
     it('passes through host verb inputs and typed host errors unchanged', async () => {

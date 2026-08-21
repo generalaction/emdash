@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
-import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
+import type {
+  CreateWorkspaceError,
+  CreateWorktreeError,
+  WorkspaceNotFoundError,
+  WorkspaceRecord,
+} from '@emdash/core/runtimes/workspace-registry/api';
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
@@ -9,7 +14,9 @@ import {
   createWorkspaceRegistry,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
+  type WorkspaceClaimError,
 } from '@core/features/workspaces/api/node/registry';
+import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
 import {
   workspaceRegistryWireContract,
   type ListWorkspacesInput,
@@ -19,7 +26,6 @@ import {
   decodeWorkspaceHost,
   retryWorkspaceRemoval,
 } from '@core/features/workspaces/node/operations/removal-affordances';
-import { mirrorObservationFromRecord } from '@core/features/workspaces/node/sync/apply-workspace-registry-snapshot';
 import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
@@ -39,7 +45,7 @@ export type CreateWorkspaceRegistryWireControllerOptions = {
  * The consolidated renderer workspace API (ADR 0005): reads serve from the mirror,
  * verbs pass through 1:1 to the host registry runtime resolved by host ref. A verb
  * against an unreachable host returns the broker's typed resolve error with no side
- * effects — nothing is queued, ever. Create success upserts the mirror row immediately
+ * effects — nothing is queued, ever. Create success Claims the mirror row immediately
  * (with the client-owned config annotation) so links can attach before sync catches up.
  */
 export function createWorkspaceRegistryWireController(
@@ -59,26 +65,38 @@ export function createWorkspaceRegistryWireController(
     listWorkspaces: (input) => listWorkspaces(options.db, input),
 
     createWorkspace: ({ host, path, config }) =>
-      withRegistry(host, async (registry) => {
-        const result = await registry.createWorkspace({ workspaceId: mintId(), path });
-        if (result.success) upsertMirrorRow(options.db, host, result.data, config);
-        return result;
-      }),
+      withRegistry<WorkspaceRecord, CreateWorkspaceError | WorkspaceClaimError>(
+        host,
+        async (registry) => {
+          const result = await registry.createWorkspace({ workspaceId: mintId(), path });
+          if (result.success) {
+            const claimed = claimMirrorRow(options.db, host, result.data, config);
+            if (!claimed.success) return claimed;
+          }
+          return result;
+        }
+      ),
 
     createWorktree: ({ host, config, ...spec }) =>
-      withRegistry(host, async (registry) => {
-        const result = await registry.createWorktree({
-          workspaceId: mintId(),
-          repositoryId: spec.repositoryId,
-          branch: spec.branch,
-          baseRef: spec.baseRef,
-          path: spec.path,
-          preservePatterns: spec.preservePatterns ?? [],
-          ...(spec.publish !== undefined && { publish: spec.publish }),
-        });
-        if (result.success) upsertMirrorRow(options.db, host, result.data, config);
-        return result;
-      }),
+      withRegistry<WorkspaceRecord, CreateWorktreeError | WorkspaceClaimError>(
+        host,
+        async (registry) => {
+          const result = await registry.createWorktree({
+            workspaceId: mintId(),
+            repositoryId: spec.repositoryId,
+            branch: spec.branch,
+            baseRef: spec.baseRef,
+            path: spec.path,
+            preservePatterns: spec.preservePatterns ?? [],
+            ...(spec.publish !== undefined && { publish: spec.publish }),
+          });
+          if (result.success) {
+            const claimed = claimMirrorRow(options.db, host, result.data, config);
+            if (!claimed.success) return claimed;
+          }
+          return result;
+        }
+      ),
 
     activateWorkspace: ({ host, workspaceId }) =>
       withRegistry(host, (registry) => registry.activateWorkspace({ workspaceId })),
@@ -103,11 +121,17 @@ export function createWorkspaceRegistryWireController(
       withRegistry(host, (registry) => registry.updateWorktree({ workspaceId, remote, sourceRef })),
 
     retryStep: ({ host, workspaceId, step }) =>
-      withRegistry(host, async (registry) => {
-        const result = await registry.retryStep({ workspaceId, step });
-        if (result.success) upsertMirrorRow(options.db, host, result.data, undefined);
-        return result;
-      }),
+      withRegistry<WorkspaceRecord, WorkspaceNotFoundError | WorkspaceClaimError>(
+        host,
+        async (registry) => {
+          const result = await registry.retryStep({ workspaceId, step });
+          if (result.success) {
+            const claimed = claimMirrorRow(options.db, host, result.data, undefined);
+            if (!claimed.success) return claimed;
+          }
+          return result;
+        }
+      ),
 
     untrackWorkspace: async ({ workspaceId }) => {
       createWorkspaceRegistry(options.db).untrack([workspaceId], new Date().toISOString());
@@ -198,33 +222,22 @@ function toMirrorRow(row: WorkspaceRow): WorkspaceMirrorRow {
 }
 
 /**
- * Create success writes the mirror row immediately: register (with the client-owned
- * config annotation) when unknown, refresh + annotate when the id already exists —
- * idempotent with the sync path, which converges the same row from `records`.
+ * Create success Claims the canonical mirror row immediately, including explicit
+ * retracking and Tombstone refusal. Snapshot Observe later refreshes the same Host facts.
  */
-function upsertMirrorRow(
+function claimMirrorRow(
   db: AppDb,
   host: HostRef,
   record: WorkspaceRecord,
   config: WorkspaceConfig | undefined
-): void {
+) {
   const registry = createWorkspaceRegistry(db);
-  const hostIdentity = isLocalHostRef(host)
-    ? { location: 'local' as const, sshConnectionId: null }
-    : { location: 'remote' as const, sshConnectionId: host.id };
-  const observation = mirrorObservationFromRecord(record, hostIdentity, Date.now());
-  const existing = registry.getLive(record.id);
-  if (existing === undefined) {
-    registry.register({
-      id: record.id,
-      type: hostIdentity.location === 'remote' ? 'project-ssh' : 'local',
-      ...observation,
-      config: config ?? null,
-      createdAt: new Date(record.createdAt).toISOString(),
-    });
-  } else {
-    registry.refresh(record.id, observation);
-    if (config !== undefined) registry.annotate(record.id, { config });
-  }
-  appDbPokes.workspaces.poke({});
+  const { location, sshConnectionId } = workspaceHostStorage(host);
+  const claimed = registry.claim({
+    host: { location, sshConnectionId },
+    record,
+    ...(config !== undefined ? { config } : {}),
+  });
+  if (claimed.success) appDbPokes.workspaces.poke({});
+  return claimed.success ? { success: true as const, data: undefined } : claimed;
 }
