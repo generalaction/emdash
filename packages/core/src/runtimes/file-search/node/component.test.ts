@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { fileSearchComponent, fileSearchComponentConfigSchema } from './component';
 
 describe('fileSearchComponentConfigSchema', () => {
-  it('defines a file-search worker component that depends on the watcher contract', () => {
+  it('defines a file-search worker component with its runtime dependencies', () => {
     expect(fileSearchComponent.id).toBe('file-search');
-    expect(Object.keys(fileSearchComponent.requirements)).toEqual(['watcher']);
+    expect(Object.keys(fileSearchComponent.requirements)).toEqual(['watcher', 'userEnv']);
   });
 
   it('requires a database path and accepts optional search-engine configuration', () => {
