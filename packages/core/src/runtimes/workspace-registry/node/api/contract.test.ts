@@ -584,14 +584,14 @@ describe('workspace registry contract', () => {
     });
   });
 
-  it('createWorkspace hands the existing record to a second registrant of the same path', async () => {
+  it('createWorkspace returns the canonical record to a second registrant of the same path', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-a', path: repoPath });
 
     const second = await wire.client.createWorkspace({ workspaceId: 'ws-b', path: repoPath });
     expect(second).toMatchObject({
-      success: false,
-      error: { type: 'already-registered', record: { id: 'ws-a', path: repoPath } },
+      success: true,
+      data: { id: 'ws-a', path: repoPath },
     });
   });
 

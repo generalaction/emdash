@@ -97,8 +97,8 @@ export const workspaceRegistryContract = defineContract({
    * Register an existing path. Kind is host-detected; registering a worktree of an
    * unregistered repository auto-registers the parent (adopted). Replay: same id + same
    * path is a no-op success; a different path under the same id is an
-   * immutable-field-mismatch; the same path under a different id returns
-   * already-registered carrying the existing record.
+   * immutable-field-mismatch; the same path under a different id returns the
+   * canonical existing record as success.
    */
   createWorkspace: fallible({
     input: createWorkspaceInputSchema,

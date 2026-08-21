@@ -90,17 +90,10 @@ describe('resolveTaskEnv', () => {
     expect(resolveTmux).toHaveBeenCalledOnce();
   });
 
-  it('registers a missing workspace before retrying project config resolution', async () => {
-    const getProjectConfig = vi
-      .fn()
-      .mockResolvedValueOnce(err({ type: 'workspace-not-found', workspaceId: 'workspace-1' }))
-      .mockResolvedValueOnce(
-        ok({
-          resolved: {
-            shellSetup: { value: 'source .workspace-env', from: 'team' as const },
-          },
-        })
-      );
+  it('treats an unknown Host identity as an invariant failure without registering it', async () => {
+    const getProjectConfig = vi.fn(async () =>
+      err({ type: 'workspace-not-found' as const, workspaceId: 'workspace-1' })
+    );
     const createWorkspace = vi.fn(async () => ok({} as never));
     const settings = {
       resolveTmux: vi.fn(async () => ({
@@ -132,48 +125,6 @@ describe('resolveTaskEnv', () => {
       }
     );
 
-    expect(result.success).toBe(true);
-    expect(createWorkspace).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      path: '/repo/worktree',
-    });
-    expect(getProjectConfig).toHaveBeenCalledTimes(2);
-  });
-
-  it('returns a failed config retry instead of throwing', async () => {
-    const getProjectConfig = vi.fn(async () =>
-      err({ type: 'workspace-not-found' as const, workspaceId: 'workspace-1' })
-    );
-    const createWorkspace = vi.fn(async () => ok({} as never));
-
-    const result = await resolveTaskEnv(
-      { id: 'task-1', name: 'Task one' },
-      {
-        id: 'workspace-1',
-        path: '/repo/worktree',
-        workspaceRegistry: { getProjectConfig, createWorkspace },
-      } as never,
-      '/repo',
-      {
-        resolveTmux: vi.fn(async () => ({
-          value: false,
-          provenance: { kind: 'inferred' as const, from: 'app default' },
-        })),
-        getStoredGitSettings: vi.fn(async () => ({})),
-        getPlacementContext: vi.fn(async () => ({
-          hostWorktreeRoot: null,
-          builtInWorktreeRoot: '/tmp/worktrees',
-          homeDirectory: '/tmp',
-          hostTmux: null,
-          appDefaultTmux: false,
-        })),
-      } as never,
-      {
-        get: vi.fn(async () => ({ remotes: [], localBranches: [] })),
-        dispose: vi.fn(),
-      }
-    );
-
     expect(result).toEqual({
       success: false,
       error: {
@@ -183,6 +134,7 @@ describe('resolveTaskEnv', () => {
         message: 'Could not resolve project config for workspace workspace-1 (workspace-not-found)',
       },
     });
-    expect(getProjectConfig).toHaveBeenCalledTimes(2);
+    expect(createWorkspace).not.toHaveBeenCalled();
+    expect(getProjectConfig).toHaveBeenCalledOnce();
   });
 });
