@@ -1,13 +1,11 @@
 import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useState } from 'react';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
-const DISCORD_WEBHOOK_URL =
-  'https://discord.com/api/webhooks/1522337356185862194/pwsawgdkELfRDfT8y0dY463cfoAspkyRBVw6zjsS-oof2TJEqKm1igH6u1WFjL0PE0in';
-
-const DISCORD_MAX_FILES = 10;
-const DISCORD_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
+const FEEDBACK_MAX_FILES = 10;
+const FEEDBACK_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
 interface GithubUser {
   login?: string;
@@ -141,16 +139,16 @@ export function useFeedbackSubmit({
 
       const files = diagnosticLog ? [...attachments, diagnosticLog] : attachments;
 
-      if (files.length > DISCORD_MAX_FILES) {
+      if (files.length > FEEDBACK_MAX_FILES) {
         setErrorMessage(
-          `Too many attachments (max ${DISCORD_MAX_FILES}). Remove some and try again.`
+          `Too many attachments (max ${FEEDBACK_MAX_FILES}). Remove some and try again.`
         );
         setSubmitting(false);
         return;
       }
 
       const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-      if (totalBytes > DISCORD_MAX_PAYLOAD_BYTES) {
+      if (totalBytes > FEEDBACK_MAX_PAYLOAD_BYTES) {
         setErrorMessage('Attachments exceed the 8 MB total limit. Remove some and try again.');
         setSubmitting(false);
         return;
@@ -166,24 +164,22 @@ export function useFeedbackSubmit({
       });
 
       try {
-        let response: Response;
-        if (files.length > 0) {
-          const formData = new FormData();
-          formData.append('content', content);
-          files.forEach((file, index) => {
-            formData.append(`file${index}`, file);
-          });
-          response = await fetch(DISCORD_WEBHOOK_URL, { method: 'POST', body: formData });
-        } else {
-          response = await fetch(DISCORD_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
-          });
-        }
+        const payloadFiles = await Promise.all(
+          files.map(async (file) => ({
+            filename: file.name,
+            mimeType: file.type,
+            bytes: new Uint8Array(await file.arrayBuffer()),
+          }))
+        );
 
-        if (!response.ok) {
-          throw new Error(`Discord webhook returned ${response.status}`);
+        const result = await (
+          await getHostClient()
+        ).submitFeedback({
+          content,
+          files: payloadFiles,
+        });
+        if (!result.success) {
+          throw new Error(result.error ?? 'Feedback submission failed');
         }
 
         onSuccess();

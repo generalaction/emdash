@@ -12,6 +12,7 @@ import {
   persistClipboardImagePath,
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
+import { submitFeedbackToRelay, type FeedbackAttachment } from '@main/core/app/submit-feedback';
 import { getDiagnosticLogAttachment } from '@main/host/file-logger';
 import { setApplicationMenuKeybindings } from '@main/host/menu';
 import { log } from '@main/lib/logger';
@@ -197,4 +198,15 @@ export const appOperations = {
   getPlatform: () => process.platform,
   getPlatformDisplayName,
   getDiagnosticLogAttachment,
+  submitFeedback: async (args: { content: string; files: FeedbackAttachment[] }) => {
+    try {
+      await submitFeedbackToRelay(args);
+      return { success: true };
+    } catch (error) {
+      log.error('app:submitFeedback failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
 };

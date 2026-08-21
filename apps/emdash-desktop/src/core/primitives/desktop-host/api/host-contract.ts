@@ -177,5 +177,18 @@ export const desktopHostContract = defineContract({
       content: z.string(),
     }),
   }),
+  submitFeedback: procedure({
+    input: z.object({
+      content: z.string(),
+      files: z.array(
+        z.object({
+          filename: z.string(),
+          mimeType: z.string(),
+          bytes: z.custom<Uint8Array>(),
+        })
+      ),
+    }),
+    output: z.custom<ActionResult>(),
+  }),
   events: eventStream({ key: z.void(), event: z.custom<DesktopHostEvent>() }),
 });

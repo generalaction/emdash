@@ -103,6 +103,7 @@ export function createDesktopWireOptions(
       getPlatform: () => appOperations.getPlatform(),
       getPlatformDisplayName: () => appOperations.getPlatformDisplayName(),
       getDiagnosticLogAttachment: () => appOperations.getDiagnosticLogAttachment(),
+      submitFeedback: (input) => appOperations.submitFeedback(input),
     },
     hostIsReachable: services.hostIsReachable,
     issueProviders: services.issueProviders,
