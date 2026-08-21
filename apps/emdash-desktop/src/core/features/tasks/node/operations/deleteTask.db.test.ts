@@ -50,6 +50,15 @@ describe('deleteTask', () => {
         location: 'local',
         path: '/repo/.worktrees/example',
         parentId: 'repo-root',
+        config: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'example',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
       });
     }
     await fixture.db.insert(tasks).values({
@@ -245,6 +254,40 @@ describe('deleteTask', () => {
 
     expect(result.success).toBe(true);
     expect(registry.deleteWorktree).not.toHaveBeenCalled();
+    expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeDefined();
+  });
+
+  it('never destroys a scanner-adopted worktree even when deletion defaults on', async () => {
+    await seedTask();
+    await fixture.db
+      .update(workspaces)
+      .set({ config: null, origin: 'adopted' })
+      .where(eq(workspaces.id, 'workspace-1'));
+    const { registry, runtimes } = makeRuntimes();
+    const { dependencies } = makeDependencies(runtimes);
+
+    const result = await deleteTask(dependencies, { taskId: 'task-1' });
+
+    expect(result.success).toBe(true);
+    expect(registry.deleteWorktree).not.toHaveBeenCalled();
+    expect(registry.deleteWorkspace).not.toHaveBeenCalled();
+    expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeDefined();
+  });
+
+  it('never interprets task deletion as directory artifact deletion', async () => {
+    await seedTask();
+    await fixture.db
+      .update(workspaces)
+      .set({ kind: 'directory', config: null })
+      .where(eq(workspaces.id, 'workspace-1'));
+    const { registry, runtimes } = makeRuntimes();
+    const { dependencies } = makeDependencies(runtimes);
+
+    const result = await deleteTask(dependencies, { taskId: 'task-1' });
+
+    expect(result.success).toBe(true);
+    expect(registry.deleteWorktree).not.toHaveBeenCalled();
+    expect(registry.deleteWorkspace).not.toHaveBeenCalled();
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeDefined();
   });
 

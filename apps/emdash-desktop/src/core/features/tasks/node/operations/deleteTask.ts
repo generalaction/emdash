@@ -140,10 +140,19 @@ export async function deleteTask(
   // tombstones converge now when the host is up; otherwise the reconnect sweep owns them.
   if (tombstonedConversations > 0) reconcileSweepTriggers.poke(host);
 
+  // Artifact destruction is a capability derived from durable provenance, never from
+  // the caller's boolean alone. Directory/repository workspaces and scanner-adopted
+  // worktrees detach with the task; Emdash did not create an artifact it may destroy.
+  const canDeleteOwnedWorktree = workspace?.kind === 'worktree' && workspace.config !== null;
   // The host-artifact half, after the desktop rows committed: the verb call is
   // fail-fast and best-effort here — a failure leaves the workspace row live for a
   // later explicit removal from the workspaces surface.
-  if (task.workspaceId && !workspaceShared && input.deleteWorktree !== false) {
+  if (
+    task.workspaceId &&
+    !workspaceShared &&
+    canDeleteOwnedWorktree &&
+    input.deleteWorktree !== false
+  ) {
     await deleteWorkspaceThroughRegistry(db, dependencies.runtimes, task.workspaceId, {
       deleteBranch: input.deleteBranch ?? false,
     });
