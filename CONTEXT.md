@@ -298,7 +298,7 @@ _Avoid_: Intent (nothing on the desktop expresses ongoing intent about host stat
 The Host registry recording a Workspace that exists on disk but was not registered through a verb. Automatic and unconfirmed for worktrees of a registered Repository, performed by the host's own scan; adopted records follow the disk (deleted when the artifact vanishes). Repositories and plain directories are only ever tracked by explicit action.
 
 **Register**:
-Creating a Host registry record for a path through a create verb, under a desktop-minted id. Registered records survive a vanished path as Missing. Provenance stays a desktop annotation on the mirror row; the host record keeps only the minimal immutable creation fields replay is enforced against.
+Creating or resolving a Host registry record for a path through a create verb. The desktop proposes an id, but the Host returns the canonical record for the path and the desktop persists only that id. Registered records survive a vanished path as Missing. Provenance stays a desktop annotation on the mirror row; the Host record keeps only the minimal immutable creation fields replay is enforced against.
 
 **Purge**:
 Hard-deleting already-untracked Registry rows as retention cleanup. Never valid on tracked rows — untracking is the only way a tracked row leaves the Registry.
@@ -316,7 +316,7 @@ _Avoid_: Falling back to local, empty connection ids
 ### Operations
 
 **Workspace verb**:
-One of the six plain RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with a keyed mutex (per-repo exclusive for worktree create/delete, per-workspace for activate/deactivate/delete; waits, not errors); killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent and identity-keyed (a different record id at the path no-ops); deleteWorktree is the only artifact-destroying verb.
+One of the six lifecycle RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with a keyed mutex (per-repo exclusive for worktree create/delete, per-workspace for activate/deactivate/delete; waits, not errors); killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent and identity-keyed (a different record id at the path no-ops); deleteWorktree is the only artifact-destroying verb.
 _Avoid_: Host operation, enqueue/queue language, claims, preflight RPCs (informed confirmation reads the mirror)
 
 **Desktop operation**:
@@ -339,12 +339,16 @@ The desktop policy that picks the intended path for a new Workspace — computed
 _Avoid_: Probing, path reservation (nothing holds a path on the host)
 
 **Claim**:
-Registration atomically taking ownership of an already-mirrored live row in one statement: origin becomes registered, the caller's annotations are written, observations refresh. A Claim is never optimistic — a mirror row exists only for a host-acknowledged record, so pre-ack "creating" state is ephemeral memory, never a row. Colliding with an untracked row refuses — a Claim never revives a Tombstone.
+The desktop Registry atomically attaching annotations and bindings to a Host-acknowledged canonical Workspace record. An unknown id is inserted, a live id on the same Host is refreshed from Host structure (including canonical path spelling), and an explicitly claimed untracked id is retracked; a pending deletion Tombstone refuses. Claim never changes a row's Host attachment. Another live id at the same Host path is an identity invariant violation outside the one-time production cutover. A Claim is never optimistic for existing-path registration; task worktree creation has a separately named creation-intent row because `createWorktree` is strict about its caller-supplied id.
 _Avoid_: Upsert (the mechanism, not the meaning), creation reviving tombstones, mirror-first creation (the Registry mirrors acked records; it never front-runs the Host registry)
 
+**Retrack**:
+The explicit desktop operation that moves an existing Workspace mirror to another Host attachment after that destination Host confirms the same canonical UUID. Used by Project relink; never inferred by Claim, Observe, or a path collision. A destination path owned by another UUID is a conflict rather than an implicit Project merge.
+_Avoid_: Changing `sshConnectionId` as an annotation, path-based identity repair, treating a new Host's same path as automatically the same Project
+
 **Observe**:
-A snapshot delivery's sole write verb: insert-as-adopted for an unknown id, or refresh observation columns only — never annotations, never origin, never an untracked row. The never-resurrect guard is structural, not a separate check.
-_Avoid_: Adopt-or-refresh branching (Observe is one statement), deliveries resurrecting untracked rows
+Applying a Host registry snapshot to the desktop Registry by canonical Workspace id. Observe refreshes Host facts, adopts unknown Host ids, and applies missing/untrack rules; it never relinks by path, rewrites desktop annotations, or resurrects an untracked row. A same-path/different-id collision is reported before writes and stops that Host attachment. Only the production backfill may translate a legacy desktop id to a different Host id.
+_Avoid_: Path-based repair during normal sync, deliveries resurrecting untracked rows
 
 **Activation**:
 The moment a Workspace accepts Sessions. Session start waits for the prepare script to finish, but activation is never blocked by a script failure — failures surface as Workspace notices. Setup runs after activation, concurrent with live sessions; run scripts wait on setup success. Activation is ephemeral host-runtime state living in the Runtime overlay: after a daemon restart every workspace is inactive, and only lastActivatedAt persists as an Observation. Deactivation (kill all sessions + time-boxed, non-fatal teardown) is owned by deactivateWorkspace alone.
