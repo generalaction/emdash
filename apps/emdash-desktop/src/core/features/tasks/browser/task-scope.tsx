@@ -4,7 +4,7 @@ import { browserControlsRegistry } from '@core/features/browser/api/browser/brow
 import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
 import {
   runGitFetch,
-  runGitPublishBranch,
+  runGitPublishCurrentBranch,
   runGitPull,
   runGitPush,
 } from '@core/features/source-control/api/browser/git-action-handlers';
@@ -264,29 +264,23 @@ const taskScopeImplementation = {
     availability: () =>
       taskAvailability(
         params,
-        () => Boolean(getTaskGitCheckoutStore(params.projectId, params.taskId)),
-        'No Git checkout'
+        () => getTaskGitCheckoutStore(params.projectId, params.taskId)?.headKind === 'branch',
+        'No branch is checked out'
       ),
     presentation: () => {
       const git = getTaskGitCheckoutStore(params.projectId, params.taskId);
-      return git?.isBranchPublished
+      return git?.isPublished
         ? { title: 'Git Push', description: 'Push commits to remote' }
         : { title: 'Git Publish Branch', description: 'Publish this branch to remote' };
     },
     execute: () => {
       const git = getTaskGitCheckoutStore(params.projectId, params.taskId);
       if (!git) return;
-      if (git.isBranchPublished) {
+      if (git.isPublished) {
         void runGitPush(git);
         return;
       }
-      const repository = getGitRepositoryStore(params.projectId);
-      if (!repository) return;
-      void runGitPublishBranch({
-        repository,
-        branchName: git.branchName,
-        workspaceId: getTaskStore(params.projectId, params.taskId)?.workspaceId ?? undefined,
-      });
+      void runGitPublishCurrentBranch(git);
     },
   }),
   'task.pin': (params) => ({

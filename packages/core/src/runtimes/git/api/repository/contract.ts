@@ -11,18 +11,13 @@ import {
   fetchErrorSchema,
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
-  pushErrorSchema,
 } from '#runtimes/git/api/errors';
 import { gitRefsStateSchema } from '#runtimes/git/api/repository/states/refs';
 import { gitRemotesStateSchema } from '#runtimes/git/api/repository/states/remotes';
 import { gitWorktreesStateSchema } from '#runtimes/git/api/repository/states/worktrees';
 import { transferProgressSchema } from '#runtimes/git/api/schemas';
 import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
-import {
-  fetchJobInputSchema,
-  fetchPrForReviewJobInputSchema,
-  publishBranchJobInputSchema,
-} from './schemas';
+import { fetchJobInputSchema, fetchPrForReviewJobInputSchema } from './schemas';
 
 export const gitRepositoryContract = defineContract({
   model: liveModel({
@@ -58,12 +53,6 @@ export const gitRepositoryContract = defineContract({
     progress: transferProgressSchema,
     result: z.void(),
     error: fetchErrorSchema,
-  }),
-  publishBranch: liveJob({
-    input: publishBranchJobInputSchema,
-    progress: transferProgressSchema,
-    result: z.object({ output: z.string() }),
-    error: pushErrorSchema,
   }),
   fetchPrForReview: liveJob({
     input: fetchPrForReviewJobInputSchema,

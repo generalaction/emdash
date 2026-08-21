@@ -4,6 +4,7 @@ import { blobSourceFromBytes, type BlobSource } from '@emdash/wire/rpc';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   gitErr,
+  localBranchRefSchema,
   type BlameResult,
   type CheckoutHeadState,
   type CheckoutStatusState,
@@ -170,18 +171,28 @@ export class GitCheckout {
     try {
       const args = ['push', '--progress'];
       if (options.force) args.push('--force-with-lease');
-      if (options.setUpstream) {
-        // Callers resolve the remote (blessed resolver; spec: github-git-settings
-        // §2) — this layer never invents one.
-        if (options.remote === undefined) {
-          throw new Error('git push --set-upstream requires an explicit remote');
-        }
-        args.push('--set-upstream', options.remote, 'HEAD');
-      } else if (options.remote) {
-        args.push(options.remote);
-      }
+      if (options.remote) args.push(options.remote);
       const { stdout, stderr } = await execGitWithProgress(this.exec, args, context);
       return ok({ output: (stdout || stderr).trim() });
+    } catch (error) {
+      if (context.signal?.aborted) throw error;
+      return pushFailed(error);
+    }
+  }
+
+  async publish(
+    remote: string,
+    context: GitOperationContext = {}
+  ): Promise<Result<{ output: string }, PushError>> {
+    try {
+      const { stdout } = await this.exec.exec(['symbolic-ref', 'HEAD']);
+      const branchRef = localBranchRefSchema.parse(stdout.trim());
+      const { stdout: pushStdout, stderr } = await execGitWithProgress(
+        this.exec,
+        ['push', '--progress', '--set-upstream', remote, `${branchRef}:${branchRef}`],
+        context
+      );
+      return ok({ output: (pushStdout || stderr).trim() });
     } catch (error) {
       if (context.signal?.aborted) throw error;
       return pushFailed(error);

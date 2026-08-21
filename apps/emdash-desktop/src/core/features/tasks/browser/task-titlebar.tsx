@@ -115,7 +115,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const gitCheckout = workspace.get(gitCheckoutStoreToken);
 
   const {
-    hasUpstream,
+    isPublished,
     aheadCount,
     behindCount,
     fetch,
@@ -189,7 +189,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <span>{gitCheckout.branchName}</span>
                 </span>
                 <div className="flex w-full items-center gap-1">
-                  {hasUpstream ? (
+                  {isPublished ? (
                     <>
                       <Tooltip.Root>
                         <Tooltip.Trigger className="flex-1">
@@ -271,7 +271,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                         <Button
                           className="w-full"
                           variant="secondary"
-                          disabled={isPublishing}
+                          disabled={isPublishing || gitCheckout.headKind !== 'branch'}
                           size="xs"
                           onClick={() => publish()}
                         >
@@ -280,7 +280,11 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        {isPublishing ? 'Publishing...' : 'Publish branch'}
+                        {isPublishing
+                          ? 'Publishing...'
+                          : gitCheckout.headKind === 'unborn'
+                            ? 'Create an initial commit first'
+                            : 'Publish branch'}
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

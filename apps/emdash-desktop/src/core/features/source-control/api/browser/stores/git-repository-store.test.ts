@@ -4,6 +4,7 @@ import type {
   GitRefsState,
   GitRemotesState,
 } from '@emdash/core/runtimes/git/api';
+import { localBranchRefSchema, remoteBranchRefSchema } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
@@ -23,7 +24,6 @@ import { GitRepositoryStore } from './git-repository-store';
 const mocks = vi.hoisted(() => ({
   getDefaultBranch: vi.fn(),
   fetchRun: vi.fn(),
-  publishRun: vi.fn(),
   resolveProvider: vi.fn(),
 }));
 
@@ -47,6 +47,19 @@ const origin = { name: 'origin', url: 'https://github.com/example/repo.git' };
 
 function refs(overrides: Partial<GitRefsState> = {}): GitRefsState {
   return { branches: [], tags: [], remoteHeads: [], ...overrides };
+}
+
+function localBranch(name: string, oid: string) {
+  return { type: 'local' as const, ref: localBranchRefSchema.parse(`refs/heads/${name}`), oid };
+}
+
+function remoteBranch(remote: typeof origin, name: string, oid: string) {
+  return {
+    type: 'remote' as const,
+    ref: remoteBranchRefSchema.parse(`refs/remotes/${remote.name}/${name}`),
+    remote,
+    oid,
+  };
 }
 
 function settingsStore(storedGitSettings: StoredProjectGitSettings | null): ProjectSettingsStore {
@@ -131,31 +144,30 @@ describe('GitRepositoryStore', () => {
         provenance: { kind: 'unresolvable' },
       });
       expect(store.canonicalRepositoryUrl).toBeNull();
-      expect(store.isBranchOnRemote('main')).toBe(false);
       store.dispose();
     });
 
-    it('refuses fetch and publish with an honest no_remote error instead of a raw git failure', async () => {
+    it('refuses fetch with an honest no_remote error instead of a raw git failure', async () => {
       const store = await startStore();
 
       const fetchResult = await store.fetchRemote();
       expect(fetchResult.success).toBe(false);
       if (!fetchResult.success) expect(fetchResult.error.type).toBe('no_remote');
 
-      const publishResult = await store.publishBranch('main');
-      expect(publishResult.success).toBe(false);
-      if (!publishResult.success) expect(publishResult.error.type).toBe('no_remote');
-
       expect(mocks.fetchRun).not.toHaveBeenCalled();
-      expect(mocks.publishRun).not.toHaveBeenCalled();
       store.dispose();
     });
 
     it('still resolves a default branch from well-known local branches', async () => {
-      refsState.set(refs({ branches: [{ type: 'local', branch: 'main', oid: 'a' }] }));
+      refsState.set(refs({ branches: [localBranch('main', 'a')] }));
       const store = await startStore();
 
-      expect(store.defaultBranch).toEqual({ type: 'local', branch: 'main', oid: 'a' });
+      expect(store.defaultBranch).toEqual({
+        type: 'local',
+        ref: 'refs/heads/main',
+        oid: 'a',
+      });
+      expect(store.defaultBranchRef).toEqual({ type: 'local', branch: 'main' });
       expect(store.effectiveGitSettings.defaultBranch.provenance).toEqual({
         kind: 'inferred',
         from: 'well-known local branch',
@@ -180,21 +192,21 @@ describe('GitRepositoryStore', () => {
     remotesState.set({ remotes: [origin] });
     refsState.set(
       refs({
-        branches: [
-          { type: 'remote', branch: 'develop', remote: origin, oid: 'b' },
-          { type: 'remote', branch: 'main', remote: origin, oid: 'c' },
+        branches: [remoteBranch(origin, 'develop', 'b'), remoteBranch(origin, 'main', 'c')],
+        remoteHeads: [
+          { remote: 'origin', ref: remoteBranchRefSchema.parse('refs/remotes/origin/develop') },
         ],
-        remoteHeads: [{ remote: 'origin', branch: 'develop' }],
       })
     );
     const store = await startStore();
 
     expect(store.defaultBranch).toEqual({
       type: 'remote',
-      branch: 'develop',
+      ref: 'refs/remotes/origin/develop',
       remote: origin,
       oid: 'b',
     });
+    expect(store.defaultBranchRef).toEqual({ type: 'remote', branch: 'develop', remote: origin });
     expect(store.effectiveGitSettings.defaultBranch.provenance).toEqual({
       kind: 'inferred',
       from: 'remote HEAD',
@@ -207,10 +219,7 @@ describe('GitRepositoryStore', () => {
     remotesState.set({ remotes: [origin] });
     refsState.set(
       refs({
-        branches: [
-          { type: 'remote', branch: 'develop', remote: origin, oid: 'b' },
-          { type: 'remote', branch: 'main', remote: origin, oid: 'c' },
-        ],
+        branches: [remoteBranch(origin, 'develop', 'b'), remoteBranch(origin, 'main', 'c')],
       })
     );
     const store = await startStore();
@@ -221,7 +230,7 @@ describe('GitRepositoryStore', () => {
     expect(mocks.getDefaultBranch.mock.calls.at(0)?.[0]).toMatchObject({ remote: 'origin' });
     expect(store.defaultBranch).toEqual({
       type: 'remote',
-      branch: 'develop',
+      ref: 'refs/remotes/origin/develop',
       remote: origin,
       oid: 'b',
     });
@@ -229,7 +238,7 @@ describe('GitRepositoryStore', () => {
   });
 
   it('retains Git and provider observations through degradation and retry', async () => {
-    refsState.set(refs({ branches: [{ type: 'local', branch: 'main', oid: 'a' }] }));
+    refsState.set(refs({ branches: [localBranch('main', 'a')] }));
     remotesState.set({ remotes: [origin] });
     mocks.resolveProvider.mockResolvedValue(
       ok({
@@ -250,7 +259,7 @@ describe('GitRepositoryStore', () => {
     await store.providerRepositoryInfo.load();
     expect(store.refsObservation).toMatchObject({
       kind: 'fresh',
-      value: { branches: [{ branch: 'main' }] },
+      value: { branches: [{ ref: 'refs/heads/main' }] },
     });
     expect(store.providerRepositoryObservation).toMatchObject({
       kind: 'fresh',
@@ -264,7 +273,7 @@ describe('GitRepositoryStore', () => {
     });
     expect(store.refsObservation).toMatchObject({
       kind: 'stale',
-      value: { branches: [{ branch: 'main' }] },
+      value: { branches: [{ ref: 'refs/heads/main' }] },
     });
     expect(store.remotesObservation).toMatchObject({
       kind: 'stale',
@@ -278,7 +287,7 @@ describe('GitRepositoryStore', () => {
     await store.retry();
     expect(store.refsObservation).toMatchObject({
       kind: 'stale',
-      value: { branches: [{ branch: 'main' }] },
+      value: { branches: [{ ref: 'refs/heads/main' }] },
     });
     expect(store.remotesObservation).toMatchObject({
       kind: 'stale',
@@ -289,7 +298,7 @@ describe('GitRepositoryStore', () => {
     await waitFor(() => store.refsObservation.kind === 'fresh');
     expect(store.refsObservation).toMatchObject({
       kind: 'fresh',
-      value: { branches: [{ branch: 'main' }] },
+      value: { branches: [{ ref: 'refs/heads/main' }] },
     });
     store.dispose();
   });
@@ -309,8 +318,9 @@ function createSourceControlWire() {
     }),
     head: cell<CheckoutHeadState>({
       kind: 'branch',
-      name: 'main',
+      ref: localBranchRefSchema.parse('refs/heads/main'),
       oid: '1234567890123456789012345678901234567890',
+      upstream: { kind: 'none' },
     }),
   });
 
@@ -320,7 +330,6 @@ function createSourceControlWire() {
       listWorktrees: vi.fn(),
       getDefaultBranch: mocks.getDefaultBranch,
       fetch: { run: mocks.fetchRun },
-      publishBranch: { run: mocks.publishRun },
       fetchPrForReview: { run: vi.fn() },
     },
     checkout: {
@@ -333,6 +342,7 @@ function createSourceControlWire() {
       getCommitFiles: vi.fn(),
       blame: vi.fn(),
       push: { run: vi.fn() },
+      publish: { run: vi.fn() },
       pull: { run: vi.fn() },
     },
   } as never);

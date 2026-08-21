@@ -103,7 +103,7 @@ describe('createGitController', () => {
       const repository = repositorySelector(repo);
       const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
-        expect.objectContaining({ type: 'local', branch: 'main' }),
+        expect.objectContaining({ type: 'local', ref: 'refs/heads/main' }),
       ]);
 
       const checkout = checkoutSelector(repo);
@@ -135,7 +135,7 @@ describe('createGitController', () => {
       const repository = repositorySelector(repo);
       const refs = await git.repository.model.state(repository, 'refs').snapshot();
       expect(refs.data.branches).toEqual([
-        expect.objectContaining({ type: 'local', branch: 'main' }),
+        expect.objectContaining({ type: 'local', ref: 'refs/heads/main' }),
       ]);
 
       const checkout = checkoutSelector(repo);
@@ -288,7 +288,7 @@ describe('createGitController', () => {
       await waitFor(() => headUpdates.length > 0, 'expected checkout head reconciliation');
       await waitFor(() => refUpdates.length > 0, 'expected repository refs reconciliation');
       const after = await git.checkout.model.state(checkout, 'head').snapshot();
-      expect(after.data).toMatchObject({ kind: 'branch', name: 'main' });
+      expect(after.data).toMatchObject({ kind: 'branch', ref: 'refs/heads/main' });
       expect(after.data).not.toEqual(before.data);
 
       await detachRefs();
@@ -416,7 +416,7 @@ describe('createGitController', () => {
       await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: directory });
 
       await expect(state.snapshot()).resolves.toMatchObject({
-        data: { kind: 'unborn', name: expect.any(String) },
+        data: { kind: 'unborn', ref: expect.stringMatching(/^refs\/heads\//) },
       });
     } finally {
       dispose();
@@ -448,16 +448,24 @@ describe('createGitController', () => {
     }
   });
 
-  it('runs checkout push as a job and exposes the terminal result', async () => {
+  it('publishes the canonical current branch and settles refreshed upstream state', async () => {
     const { repo, remote } = await makeRepoWithRemote();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const jobs = createLiveJobReplicaCache(gitContract.checkout.push, git.checkout.push);
+    const jobs = createLiveJobReplicaCache(gitContract.checkout.publish, git.checkout.publish);
 
     try {
+      await execFileAsync('git', ['tag', 'main'], { cwd: repo });
+      const before = await git.checkout.model.state(checkoutSelector(repo), 'head').snapshot();
+      expect(before.data).toMatchObject({
+        kind: 'branch',
+        ref: 'refs/heads/main',
+        upstream: { kind: 'none' },
+      });
+
       const lease = await jobs.start({
         ...checkoutSelector(repo),
-        options: { remote: 'origin', setUpstream: true },
+        remote: 'origin',
       });
       const handle = await lease.ready();
 
@@ -465,6 +473,20 @@ describe('createGitController', () => {
       await expect(
         execFileAsync('git', ['--git-dir', remote, 'rev-parse', 'refs/heads/main'])
       ).resolves.toMatchObject({ stdout: expect.stringMatching(/[a-f0-9]{40}/) });
+      await expect(
+        git.checkout.model.state(checkoutSelector(repo), 'head').snapshot()
+      ).resolves.toMatchObject({
+        data: {
+          kind: 'branch',
+          ref: 'refs/heads/main',
+          upstream: {
+            kind: 'remote',
+            remote: 'origin',
+            mergeRef: 'refs/heads/main',
+            tracking: { kind: 'resolved', ahead: 0, behind: 0 },
+          },
+        },
+      });
 
       await lease.release();
     } finally {

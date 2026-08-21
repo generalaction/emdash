@@ -1,4 +1,9 @@
-import type { GitBranch, GitRemote } from '@emdash/core/runtimes/git/api';
+import {
+  localBranchRefSchema,
+  remoteBranchRefSchema,
+  type GitBranch,
+  type GitRemote,
+} from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
 import { buildRendererRepoFacts } from './renderer-repo-facts';
 
@@ -6,11 +11,26 @@ const origin: GitRemote = { name: 'origin', url: 'git@github.com:example/repo.gi
 const fork: GitRemote = { name: 'fork', url: 'https://ghe.example.com/me/repo.git' };
 
 const branches: GitBranch[] = [
-  { type: 'local', branch: 'main', oid: 'a' },
-  { type: 'local', branch: 'feature/x', oid: 'b' },
-  { type: 'remote', branch: 'main', remote: origin, oid: 'c' },
-  { type: 'remote', branch: 'develop', remote: origin, oid: 'd' },
-  { type: 'remote', branch: 'main', remote: fork, oid: 'e' },
+  { type: 'local', ref: localBranchRefSchema.parse('refs/heads/main'), oid: 'a' },
+  { type: 'local', ref: localBranchRefSchema.parse('refs/heads/feature/x'), oid: 'b' },
+  {
+    type: 'remote',
+    ref: remoteBranchRefSchema.parse('refs/remotes/origin/main'),
+    remote: origin,
+    oid: 'c',
+  },
+  {
+    type: 'remote',
+    ref: remoteBranchRefSchema.parse('refs/remotes/origin/develop'),
+    remote: origin,
+    oid: 'd',
+  },
+  {
+    type: 'remote',
+    ref: remoteBranchRefSchema.parse('refs/remotes/fork/main'),
+    remote: fork,
+    oid: 'e',
+  },
 ];
 
 describe('buildRendererRepoFacts', () => {
@@ -19,8 +39,8 @@ describe('buildRendererRepoFacts', () => {
       remotes: [origin, fork],
       branches,
       remoteHeads: [
-        { remote: 'origin', branch: 'develop' },
-        { remote: 'fork', branch: 'main' },
+        { remote: 'origin', ref: remoteBranchRefSchema.parse('refs/remotes/origin/develop') },
+        { remote: 'fork', ref: remoteBranchRefSchema.parse('refs/remotes/fork/main') },
       ],
     });
 

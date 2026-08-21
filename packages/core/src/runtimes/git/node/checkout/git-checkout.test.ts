@@ -53,13 +53,96 @@ function okStatus(model: CheckoutStatusState): Extract<CheckoutStatusState, { ki
 }
 
 describe('GitCheckout', () => {
+  it('keeps the canonical branch name when a tag has the same name', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await execFileAsync('git', ['tag', 'main'], { cwd: repo });
+
+      await expect(checkout.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        ref: 'refs/heads/main',
+        upstream: { kind: 'none' },
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('distinguishes remote upstream identity from tracking resolution', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    const remote = await mkdtemp(path.join(tmpdir(), 'emdash-git-checkout-remote-'));
+    try {
+      await execFileAsync('git', ['init', '--bare'], { cwd: remote });
+      await execFileAsync('git', ['remote', 'add', 'origin', remote], { cwd: repo });
+
+      await expect(checkout.publish('origin')).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(checkout.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        ref: 'refs/heads/main',
+        upstream: {
+          kind: 'remote',
+          remote: 'origin',
+          mergeRef: 'refs/heads/main',
+          tracking: {
+            kind: 'resolved',
+            ref: 'refs/remotes/origin/main',
+            ahead: 0,
+            behind: 0,
+          },
+        },
+      });
+
+      await execFileAsync('git', ['update-ref', '-d', 'refs/remotes/origin/main'], { cwd: repo });
+      await execFileAsync('git', ['config', 'branch.main.merge', 'refs/pull/7/head'], {
+        cwd: repo,
+      });
+      await expect(checkout.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        upstream: {
+          kind: 'remote',
+          remote: 'origin',
+          mergeRef: 'refs/pull/7/head',
+          tracking: { kind: 'unresolved' },
+        },
+      });
+    } finally {
+      await cleanup();
+      await rm(remote, { recursive: true, force: true });
+    }
+  });
+
+  it('represents a local branch as a resolved upstream', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await execFileAsync('git', ['branch', 'other'], { cwd: repo });
+      await execFileAsync('git', ['config', 'branch.main.remote', '.'], { cwd: repo });
+      await execFileAsync('git', ['config', 'branch.main.merge', 'refs/heads/other'], {
+        cwd: repo,
+      });
+
+      await expect(checkout.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        ref: 'refs/heads/main',
+        upstream: {
+          kind: 'local',
+          mergeRef: 'refs/heads/other',
+          tracking: { kind: 'resolved', ref: 'refs/heads/other' },
+        },
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('reads status and head and tracks the staging lifecycle', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
       const initialStatus = okStatus(await checkout.getStatus());
       expect(initialStatus.entries).toEqual({});
       expect(initialStatus.operation).toBe('none');
-      expect(await checkout.getHead()).toMatchObject({ kind: 'branch', name: 'main' });
+      expect(await checkout.getHead()).toMatchObject({ kind: 'branch', ref: 'refs/heads/main' });
 
       const trackedPath = gitPath('tracked.txt');
       await writeFile(path.join(repo, trackedPath), 'after\n', 'utf8');
@@ -86,7 +169,7 @@ describe('GitCheckout', () => {
       expect(afterCommit.entries).toEqual({});
       expect(await checkout.getHead()).toMatchObject({
         kind: 'branch',
-        name: 'main',
+        ref: 'refs/heads/main',
         oid: commitResult.data.hash,
       });
       expect(commitResult.data.hash).not.toBe(previousOid);

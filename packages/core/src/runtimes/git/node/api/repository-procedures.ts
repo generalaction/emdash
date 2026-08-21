@@ -9,7 +9,6 @@ export function createRepositoryProcedures(runtime: GitRepositoryRuntime) {
     listWorktrees: (input) => runtime.listWorktrees(input),
     getDefaultBranch: (input) => runtime.getDefaultBranch(input),
     fetch: { run: (input, context) => runtime.fetch(input, context) },
-    publishBranch: { run: (input, context) => runtime.publishBranch(input, context) },
     fetchPrForReview: { run: (input, context) => runtime.fetchPrForReview(input, context) },
   } satisfies Omit<RepositoryImplementation, 'model'>;
 }

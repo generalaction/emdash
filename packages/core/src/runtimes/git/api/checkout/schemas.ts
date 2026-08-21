@@ -185,7 +185,6 @@ export type CommitOptions = z.infer<typeof commitOptionsSchema>;
 export const pushOptionsSchema = z.object({
   remote: z.string().optional(),
   force: z.boolean().optional(),
-  setUpstream: z.boolean().optional(),
 });
 export type PushOptions = z.infer<typeof pushOptionsSchema>;
 
@@ -196,6 +195,12 @@ export const pushJobInputSchema = checkoutSelectorSchema.extend({
   credentials: gitOperationCredentialsSchema.optional(),
 });
 export type PushJobInput = z.infer<typeof pushJobInputSchema>;
+
+export const publishJobInputSchema = checkoutSelectorSchema.extend({
+  remote: z.string().min(1),
+  credentials: gitOperationCredentialsSchema.optional(),
+});
+export type PublishJobInput = z.infer<typeof publishJobInputSchema>;
 
 export const pullJobInputSchema = checkoutSelectorSchema.extend({
   credentials: gitOperationCredentialsSchema.optional(),

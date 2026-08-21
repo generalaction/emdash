@@ -73,6 +73,7 @@ export type {
   MergeBaseRange,
   NormalizedDiffTarget,
   PullJobInput,
+  PublishJobInput,
   PushJobInput,
   PushOptions,
 } from '#runtimes/git/api/checkout/schemas';
@@ -94,11 +95,14 @@ export type {
   FetchJobInput,
   FetchPrForReviewJobInput,
   FetchPrForReviewOptions,
-  PublishBranchJobInput,
 } from '#runtimes/git/api/repository/schemas';
 export {
   checkoutHeadStateSchema,
+  checkoutTrackingSchema,
+  checkoutUpstreamSchema,
   type CheckoutHeadState,
+  type CheckoutTracking,
+  type CheckoutUpstream,
 } from '#runtimes/git/api/checkout/states/head';
 export {
   checkoutOperationSchema,
@@ -113,16 +117,24 @@ export {
   type GitStatusCode,
 } from '#runtimes/git/api/checkout/states/status';
 export {
+  branchNameOnRemote,
   gitBranchRefSchema,
   gitBranchSchema,
+  gitFullRefSchema,
   gitLocalBranchRefSchema,
   gitRefsStateSchema,
   gitRemoteBranchRefSchema,
   gitRemoteHeadSchema,
   gitRemoteSchema,
   gitTagSchema,
+  localBranchRefSchema,
+  remoteBranchRefSchema,
+  shortName,
+  tagRefSchema,
+  toBranchRef,
   type GitBranch,
   type GitBranchRef,
+  type GitFullRef,
   type GitLocalBranchRef,
   type GitRefsState,
   type GitRemote,
@@ -130,7 +142,10 @@ export {
   type GitRemoteHead,
   type GitTag,
   type LocalBranch,
+  type LocalBranchRef,
   type RemoteBranch,
+  type RemoteBranchRef,
+  type TagRef,
 } from '#runtimes/git/api/repository/states/refs';
 export {
   gitRemotesStateSchema,

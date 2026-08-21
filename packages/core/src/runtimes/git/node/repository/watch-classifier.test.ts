@@ -3,18 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { classifyGitWatchEvents } from './watch-classifier';
 
 describe('classifyGitWatchEvents', () => {
-  it('treats config changes as refs and remotes staleness', () => {
+  it('treats config changes as repository and checkout tracking staleness', () => {
     const gitCommonDir = path.join(path.sep, 'repo', '.git');
+    const worktree = path.join(path.sep, 'repo');
 
     const classification = classifyGitWatchEvents(
       [{ kind: 'update', path: path.join(gitCommonDir, 'config') }],
-      { gitCommonDir, worktrees: [] }
+      { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
     );
 
     expect(classification.repo).toEqual({
       refs: true,
       remotes: true,
     });
+    expect(classification.worktrees.get('main')).toEqual({ status: false, head: true });
   });
 
   it('ignores object database writes for repo facts', () => {
@@ -47,7 +49,7 @@ describe('classifyGitWatchEvents', () => {
     expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
   });
 
-  it('does not treat packed refs as worktree head or status staleness', () => {
+  it('treats packed refs as worktree head and status staleness', () => {
     const gitCommonDir = path.join(path.sep, 'repo', '.git');
     const worktree = path.join(path.sep, 'repo');
 
@@ -60,7 +62,20 @@ describe('classifyGitWatchEvents', () => {
       refs: true,
       remotes: false,
     });
-    expect(classification.worktrees.size).toBe(0);
+    expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
+  });
+
+  it('treats remote tracking ref changes as checkout tracking staleness', () => {
+    const gitCommonDir = path.join(path.sep, 'repo', '.git');
+    const worktree = path.join(path.sep, 'repo');
+
+    const classification = classifyGitWatchEvents(
+      [{ kind: 'update', path: path.join(gitCommonDir, 'refs', 'remotes', 'origin', 'main') }],
+      { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
+    );
+
+    expect(classification.repo.refs).toBe(true);
+    expect(classification.worktrees.get('main')).toEqual({ status: false, head: true });
   });
 
   it('does not treat reflog writes as worktree head or status staleness', () => {

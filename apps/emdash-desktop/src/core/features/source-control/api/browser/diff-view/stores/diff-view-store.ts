@@ -171,7 +171,7 @@ export class DiffViewStore {
 
   get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
-    return this.gitCheckout.isBranchPublished ? 'commit-push' : 'commit';
+    return this.gitCheckout.isPublished ? 'commit-push' : 'commit';
   }
 
   setCommitAction(action: CommitAction | null): void {
