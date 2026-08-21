@@ -63,6 +63,21 @@ export type ProjectWorkspaceRow = {
   errors: { path: string; message: string }[];
 };
 
+/** Explains why a registry workspace cannot be reused by a new task. */
+export function projectWorkspaceOpenInTaskDisabledReason(
+  row: Pick<
+    ProjectWorkspaceRow,
+    'workspaceId' | 'pathState' | 'pathIssue' | 'observedStatus' | 'pendingRemoval'
+  >
+): string | undefined {
+  if (!row.workspaceId) return 'This workspace is not registered.';
+  if (row.pendingRemoval) return 'This workspace is being removed.';
+  if (row.pathState === 'missing' || row.pathIssue || row.observedStatus === 'missing') {
+    return 'This workspace path is no longer available.';
+  }
+  return undefined;
+}
+
 /**
  * Needs-attention derives purely from tombstone presence plus the tombstone's active
  * (current-epoch) terminal stop (ADR 0006): auto-retry has stopped durably and the

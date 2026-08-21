@@ -46,10 +46,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   strategy: initialStrategy = 'from-branch',
   initialPR,
+  initialWorkspaceId,
 }: {
   projectId?: string;
   strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
   initialPR?: PullRequest;
+  initialWorkspaceId?: string;
 }) {
   const { complete } = useModalController('taskModal');
   const selectedProjectId = useDefaultProjectId(projectId);
@@ -88,7 +90,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     currentBranch,
     repositoryWorkspaceId,
     resolvedInitialPR,
-    defaultLinkedType
+    defaultLinkedType,
+    initialWorkspaceId
   );
 
   const { autoApproveByDefault, includeIssueContextByDefault } = useTaskSettings();
@@ -154,7 +157,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 {
                   value: 'workspace',
                   label: 'Workspace Settings',
-                  content: <WorkspaceSettingsSection defaultOpen={false} />,
+                  content: <WorkspaceSettingsSection defaultOpen={!!initialWorkspaceId} />,
                 },
               ]}
             />

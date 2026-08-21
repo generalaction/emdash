@@ -1,22 +1,20 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { Combobox, Tooltip } from '@emdash/ui/react/primitives';
-import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
-import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
+import type { ProjectWorkspaceOption } from '@core/features/tasks/api/browser/create-task-modal/project-workspace-options';
 import { cn } from '@core/primitives/styling/browser/cn';
-import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 
-function workspaceLabel(ws: ProjectWorkspace): string {
+function workspaceLabel(ws: ProjectWorkspaceOption): string {
   if (ws.kind === 'repository') return 'Repository root';
   if (ws.path) {
     const lastSegment = ws.path.split('/').at(-1);
-    return lastSegment || (ws.branchName ?? ws.id);
+    return lastSegment || (ws.branchName ?? ws.workspaceId ?? ws.path);
   }
-  return ws.branchName ?? ws.id;
+  return ws.branchName ?? ws.workspaceId ?? ws.path;
 }
 
-function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
+function WorkspaceItemContent({ ws }: { ws: ProjectWorkspaceOption }) {
   const isRoot = ws.kind === 'repository';
   const label = workspaceLabel(ws);
   const hasDiff = ws.linesAdded != null || ws.linesDeleted != null;
@@ -53,42 +51,34 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
         )}
       </span>
       <span className="truncate text-left text-xs leading-snug text-foreground-muted">
-        {ws.path}
+        {ws.disabledReason ?? ws.path}
       </span>
     </span>
   );
 }
 interface ExistingWorkspacePickerProps {
-  projectId: string | undefined;
+  workspaces: ProjectWorkspaceOption[];
+  isLoading: boolean;
   selectedWorkspaceId: string | null;
   onSelect: (workspaceId: string) => void;
 }
 
 export function ExistingWorkspacePicker({
-  projectId,
+  workspaces,
+  isLoading,
   selectedWorkspaceId,
   onSelect,
 }: ExistingWorkspacePickerProps) {
-  const { data: workspaces = [], isLoading } = useQuery({
-    queryKey: ['projectWorkspaces', projectId],
-    queryFn: async () =>
-      (await getTasksWireClient()).getProjectWorkspaces({ projectId: projectId! }),
-    enabled: !!projectId,
-    refetchOnWindowFocus: false,
-  });
-
   const [query, setQuery] = useState('');
 
-  const withPath = workspaces.filter((ws) => ws.path != null);
-
-  const selected = withPath.find((ws) => ws.id === selectedWorkspaceId) ?? null;
+  const selected = workspaces.find((ws) => ws.workspaceId === selectedWorkspaceId) ?? null;
 
   const filtered = query
-    ? withPath.filter((ws) => {
+    ? workspaces.filter((ws) => {
         const q = query.toLowerCase();
-        return workspaceLabel(ws).toLowerCase().includes(q) || ws.path?.toLowerCase().includes(q);
+        return workspaceLabel(ws).toLowerCase().includes(q) || ws.path.toLowerCase().includes(q);
       })
-    : withPath;
+    : workspaces;
 
   if (isLoading) {
     return (
@@ -98,7 +88,7 @@ export function ExistingWorkspacePicker({
     );
   }
 
-  if (withPath.length === 0) {
+  if (workspaces.length === 0) {
     return (
       <p className="text-xs text-foreground-muted">
         No existing workspaces found for this project.
@@ -109,13 +99,13 @@ export function ExistingWorkspacePicker({
   return (
     <Combobox.Root
       value={selected}
-      onValueChange={(ws: ProjectWorkspace | null) => {
-        if (ws) onSelect(ws.id);
+      onValueChange={(ws: ProjectWorkspaceOption | null) => {
+        if (ws?.workspaceId && !ws.disabledReason) onSelect(ws.workspaceId);
       }}
       onOpenChange={(open) => {
         if (!open) setQuery('');
       }}
-      isItemEqualToValue={(a: ProjectWorkspace, b: ProjectWorkspace) => a.id === b.id}
+      isItemEqualToValue={(a: ProjectWorkspaceOption, b: ProjectWorkspaceOption) => a.key === b.key}
     >
       <Combobox.Trigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2">
         {selected ? (
@@ -135,8 +125,9 @@ export function ExistingWorkspacePicker({
         <Combobox.List className="max-h-52 overflow-y-auto p-1!">
           {filtered.map((ws) => (
             <Combobox.Item
-              key={ws.id}
+              key={ws.key}
               value={ws}
+              disabled={!!ws.disabledReason}
               showCheck={false}
               className="items-start py-2 pr-3"
             >
@@ -150,14 +141,4 @@ export function ExistingWorkspacePicker({
       </Combobox.Content>
     </Combobox.Root>
   );
-}
-
-export function useProjectWorkspaces(projectId: string | undefined) {
-  return useQuery({
-    queryKey: ['projectWorkspaces', projectId],
-    queryFn: async () =>
-      (await getTasksWireClient()).getProjectWorkspaces({ projectId: projectId! }),
-    enabled: !!projectId,
-    refetchOnWindowFocus: false,
-  });
 }

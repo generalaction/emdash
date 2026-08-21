@@ -1,7 +1,6 @@
 import { Collapsible, Tabs } from '@emdash/ui/react/primitives';
 import { ChevronRight } from 'lucide-react';
 import { CheckoutPrPanel } from '@core/features/tasks/browser/task-config/checkout-pr-panel';
-import { useProjectWorkspaces } from '@core/features/tasks/browser/task-config/existing-workspace-picker';
 import { NewWorktreePanel } from '@core/features/tasks/browser/task-config/new-worktree-panel';
 import type { WorkspacePanelProps } from '@core/features/tasks/browser/task-config/new-worktree-panel';
 import { PrNewBranchPanel } from '@core/features/tasks/browser/task-config/pr-new-branch-panel';
@@ -31,7 +30,6 @@ interface WorkspaceSettingsSectionProps {
 
 export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
   const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR } = useTaskState();
-  const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;
   const { createBranchAndWorktree, setCreateBranchAndWorktree } = branchSelection;
@@ -50,7 +48,9 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         value={presetId}
         onValueChange={workspaceConfig.setPresetId}
         hasPR={hasPR}
-        hasExistingWorkspaces={existingWorkspaces.length > 0}
+        hasExistingWorkspaces={workspaceConfig.workspaceOptions.some(
+          (workspace) => !!workspace.workspaceId && !workspace.disabledReason
+        )}
         worktreesDisabledReason={worktreesDisabledReason}
       />
       <Collapsible.Root

@@ -10,7 +10,7 @@ import {
 } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, RelativeTime, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
-import { BrushCleaningIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
+import { BrushCleaningIcon, EllipsisIcon, FolderOpenIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useId, useMemo, type ReactNode } from 'react';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
@@ -23,6 +23,7 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
+import { projectWorkspaceOpenInTaskDisabledReason } from '@core/primitives/workspaces/api';
 import { getWorkspacesWireClient } from '../../api/browser/client';
 import {
   deleteProjectWorkspaces,
@@ -77,6 +78,7 @@ type WorkspaceDetailListItem = {
 };
 
 type WorkspaceRowActionHandlers = {
+  onOpenInTask: (item: WorkspaceDetailListItem) => void;
   onCleanArtifacts: (item: WorkspaceDetailListItem) => void;
   onDelete: (item: WorkspaceDetailListItem) => void;
 };
@@ -190,6 +192,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   onDeletedAll?: () => void;
 }) {
   const openConfirm = useOpenModal('confirmActionModal');
+  const openTask = useOpenModal('taskModal');
   const queryClient = useQueryClient();
   const liveActionsEnabled = host?.liveAction.kind === 'enabled';
   const hostActionDisabledReason = liveActionsEnabled
@@ -269,6 +272,15 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     });
   }, [projectId, queryClient]);
 
+  const handleOpenInTask = useCallback(
+    (item: WorkspaceDetailListItem) => {
+      const workspaceId = item.row.workspaceId;
+      if (!workspaceId) return;
+      void openTask({ projectId: item.row.projectId, initialWorkspaceId: workspaceId });
+    },
+    [openTask]
+  );
+
   const handleCleanArtifacts = useCallback(
     async (item: WorkspaceDetailListItem) => {
       const { row } = item;
@@ -346,12 +358,13 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     () =>
       buildDetailColumns(
         {
+          onOpenInTask: handleOpenInTask,
           onCleanArtifacts: (item) => void handleCleanArtifacts(item),
           onDelete: (item) => void handleDeleteRow(item),
         },
         hostActionDisabledReason
       ),
-    [handleCleanArtifacts, handleDeleteRow, hostActionDisabledReason]
+    [handleCleanArtifacts, handleDeleteRow, handleOpenInTask, hostActionDisabledReason]
   );
 
   if (workspaceQuery.isLoading && liveActionsEnabled) {
@@ -475,7 +488,7 @@ function RowActionsMenu({
 }) {
   const disabledReasonId = useId();
   const { canCleanArtifacts, canDelete } = item.row;
-  if (!canCleanArtifacts && !canDelete) return null;
+  const openInTaskDisabledReason = projectWorkspaceOpenInTaskDisabledReason(item.row);
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
@@ -490,6 +503,16 @@ function RowActionsMenu({
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
+        <DropdownMenu.Item
+          disabled={!!openInTaskDisabledReason || !!hostActionDisabledReason}
+          aria-describedby={hostActionDisabledReason ? disabledReasonId : undefined}
+          title={openInTaskDisabledReason}
+          onClick={() => handlers.onOpenInTask(item)}
+        >
+          <FolderOpenIcon aria-hidden />
+          Open in Task
+        </DropdownMenu.Item>
+        <DropdownMenu.Separator />
         <DropdownMenu.Item
           disabled={!canCleanArtifacts || !!hostActionDisabledReason}
           aria-describedby={hostActionDisabledReason ? disabledReasonId : undefined}

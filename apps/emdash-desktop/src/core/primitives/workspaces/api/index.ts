@@ -4,7 +4,6 @@ export * from './compile-worktree-git-plan';
 export * from './pr-source-refs';
 export * from './describe-worktree-git-plan';
 export * from './lifecycle-step-titles';
-export * from './project-workspace';
 export * from './project-workspaces';
 export * from './workspace-config';
 export * from './workspace-deletion-tombstone';
