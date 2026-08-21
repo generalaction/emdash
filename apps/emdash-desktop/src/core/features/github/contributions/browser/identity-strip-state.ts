@@ -3,12 +3,12 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { Provenance, Resolved } from '@core/primitives/project-settings/api';
 
 /**
- * React-free view state for the identity strip (spec: github-git-settings §9,
- * prototype Variant A). The strip shows who an account-relevant modal action
- * (create PR, add remote, create repository) will act as: a per-action
- * override when the user picked one in the popover, otherwise the blessed
- * resolver's effective account. Accountless outcomes map through the §7
- * reporting matrix so every surface renders the same rows.
+ * React-free view state for the identity strip (spec: github-git-settings §9).
+ * The strip shows who an account-relevant modal action (create PR, add remote,
+ * create repository) will act as: a per-action override when the user picked
+ * one in the popover, otherwise the blessed resolver's effective account.
+ * Accountless outcomes map through the §7 reporting matrix so every surface
+ * renders the same rows.
  */
 export type IdentityStripView =
   | {

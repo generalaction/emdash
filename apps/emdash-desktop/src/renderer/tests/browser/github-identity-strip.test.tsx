@@ -33,11 +33,31 @@ function resolved(
   return { value, provenance };
 }
 
-describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
+describe('GitHubIdentityStrip', () => {
   let host: HTMLDivElement;
   let root: Root;
+  let style: HTMLStyleElement;
 
   beforeEach(() => {
+    style = document.createElement('style');
+    style.textContent = `
+      @layer utilities {
+        .flex { display: flex; }
+        .flex-1 { flex: 1 1 0%; }
+        .min-w-0 { min-width: 0; }
+        .shrink-0 { flex-shrink: 0; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .h-4 { height: 1rem; }
+        .w-4 { width: 1rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .text-sm { font-size: 0.875rem; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      }
+    `;
+    document.head.append(style);
+
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -46,6 +66,7 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     host.remove();
+    style.remove();
   });
 
   function strip(): HTMLElement {
@@ -69,11 +90,10 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     return popup;
   }
 
-  it('ambiently shows the action, account, host, and inference hint', async () => {
+  it('ambiently shows the account, host, and default status', async () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating PR"
           resolved={resolved(dkonopka, { kind: 'inferred', from: 'default account' })}
           accounts={[dkonopka, workBot]}
           override={null}
@@ -85,11 +105,40 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
       );
     });
 
-    expect(strip().textContent).toContain('Creating PR as');
     expect(strip().textContent).toContain('@dkonopka');
     expect(strip().textContent).toContain('github.com');
-    expect(strip().textContent).toContain('(default)');
+    expect(strip().textContent?.match(/default/gi)).toHaveLength(1);
     expect(buttonByText(strip(), 'Change')).toBeDefined();
+  });
+
+  it('prioritizes the account identity over redundant action and provenance copy', async () => {
+    host.style.width = '440px';
+    await act(async () => {
+      root.render(
+        <GitHubIdentityStrip
+          resolved={resolved(account('row-3', 'jschwxrz', true), {
+            kind: 'inferred',
+            from: 'default account',
+          })}
+          accounts={[account('row-3', 'jschwxrz', true)]}
+          override={null}
+          persistence="action-only"
+          accountRequired
+          onSelect={vi.fn()}
+          onConnect={vi.fn()}
+        />
+      );
+    });
+
+    const login = [...strip().querySelectorAll('span')].find(
+      (element) => element.textContent === '@jschwxrz'
+    );
+
+    expect(strip().textContent).not.toContain('Creating repository as');
+    expect(strip().textContent?.match(/default/gi)).toHaveLength(1);
+    expect(login?.getAttribute('title')).toBe('@jschwxrz');
+    expect(login!.scrollWidth).toBeLessThanOrEqual(login!.clientWidth);
+    expect(strip().scrollWidth).toBeLessThanOrEqual(strip().clientWidth);
   });
 
   it('selects an account for this action from the popover, without remembering by default', async () => {
@@ -97,7 +146,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating repository"
           resolved={resolved(dkonopka, { kind: 'inferred', from: 'default account' })}
           accounts={[dkonopka, workBot]}
           override={null}
@@ -121,7 +169,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating repository"
           resolved={resolved(dkonopka, { kind: 'inferred', from: 'default account' })}
           accounts={[dkonopka, workBot]}
           override={null}
@@ -147,7 +194,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating PR"
           resolved={resolved(dkonopka, { kind: 'inferred', from: 'default account' })}
           accounts={[dkonopka, workBot]}
           override={null}
@@ -171,7 +217,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Adding remote"
           resolved={resolved(dkonopka, { kind: 'inferred', from: 'default account' })}
           accounts={[dkonopka, workBot]}
           override={workBot}
@@ -192,7 +237,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating PR"
           resolved={resolved(null, { kind: 'unresolvable' })}
           accounts={[dkonopka, workBot]}
           override={null}
@@ -205,7 +249,7 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     });
 
     expect(strip().textContent).toContain('The selected GitHub account is no longer connected.');
-    expect(strip().textContent).toContain('Creating PR is blocked until you pick an account.');
+    expect(strip().textContent).toContain('Choose a GitHub account to continue.');
 
     const popup = await openPopover('Pick account');
     await act(async () => buttonByText(popup, '@dkonopka').click());
@@ -217,7 +261,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating PR"
           resolved={resolved(null, { kind: 'inferred', from: 'no host-matching account' })}
           accounts={[]}
           override={null}
@@ -239,7 +282,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Adding remote"
           resolved={resolved(null, { kind: 'inferred', from: 'no host-matching account' })}
           accounts={[]}
           override={null}
@@ -259,7 +301,6 @@ describe('GitHubIdentityStrip (Variant A, spec §9)', () => {
     await act(async () => {
       root.render(
         <GitHubIdentityStrip
-          action="Creating PR"
           resolved={resolved(null, { kind: 'set' })}
           accounts={[dkonopka]}
           override={null}
