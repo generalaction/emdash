@@ -323,7 +323,7 @@ describe('RipgrepContentSearcher', () => {
     await writeFile(path.join(rootPath, '.hidden.ts'), 'VALUE\n');
 
     const result = await createSearcher({
-      env: { ...process.env, RIPGREP_CONFIG_PATH: configPath },
+      env: async () => ({ ...process.env, RIPGREP_CONFIG_PATH: configPath }),
     }).search(
       { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1_000 },
       { signal: new AbortController().signal, onProgress: () => {} }

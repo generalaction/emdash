@@ -33,7 +33,7 @@ export async function captureShellEnv(
 
   if (process.platform === 'win32') {
     return ok({
-      env: stringEnv(baseEnv),
+      env: withoutCaptureGuard(stringEnv(baseEnv)),
       source: 'windows',
       capturedAt: now(),
     });
@@ -71,10 +71,17 @@ export async function captureShellEnv(
   }
 
   return ok({
-    env: parseEnvOutput(result.stdout),
+    env: withoutCaptureGuard(parseEnvOutput(result.stdout)),
     source: 'login-shell',
     capturedAt: now(),
   });
+}
+
+function withoutCaptureGuard(env: Record<string, string>): Record<string, string> {
+  for (const key of Object.keys(SHELL_ENV_CAPTURE_GUARD)) {
+    delete env[key];
+  }
+  return env;
 }
 
 export function resolveLoginShell(env: NodeJS.ProcessEnv = process.env): string {

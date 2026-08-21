@@ -13,6 +13,7 @@ describe('workspaceRegistryWorkerSpec', () => {
     expect(component.id).toBe('workspace-registry');
     expect(options.name).toBe('workspace-registry');
     expect(options.env).toBe(env);
+    expect(component.requirements).toHaveProperty('userEnv');
     expect(options.supervision).toBeUndefined();
     expect(options.shutdownGraceMs).toBe(3_000);
     expect(component.configSchema.parse(options.config)).toEqual({

@@ -34,7 +34,7 @@ describe('BoundExec', () => {
 
   it('opens a piped child with the bound cwd and environment', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-spawn-'));
-    const child = createBoundExec({
+    const child = await createBoundExec({
       file: process.execPath,
       cwd,
       env: { ...process.env, EMDASH_EXEC_TEST: 'configured' },

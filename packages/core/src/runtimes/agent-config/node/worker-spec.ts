@@ -30,7 +30,6 @@ export function agentConfigWorkerSpec(
   return [
     createAgentConfigComponent({
       pluginRegistry: input.pluginRegistry,
-      env: input.env,
       logger: input.logger,
     }),
     {

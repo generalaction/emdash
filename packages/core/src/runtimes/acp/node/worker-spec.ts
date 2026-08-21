@@ -41,7 +41,6 @@ export function acpWorkerSpec(
   return [
     createAcpComponent({
       pluginRegistry: input.pluginRegistry,
-      env: input.env,
       logger: input.logger,
     }),
     {

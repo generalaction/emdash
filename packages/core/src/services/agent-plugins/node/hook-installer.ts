@@ -87,7 +87,7 @@ export class AgentHookInstaller {
     const descriptor = plugin?.capabilities.hooks;
     if (!plugin || !descriptor || descriptor.kind === 'none') return null;
 
-    const configContext = this.options.agentHost.configRootContext();
+    const configContext = await this.options.agentHost.configRootContext();
     if (descriptor.kind === 'config' && plugin.behavior.hooks) {
       const behavior = plugin.behavior.hooks;
       const roots =

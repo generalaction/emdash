@@ -46,7 +46,9 @@ describe('captureShellEnv', () => {
       error: undefined,
       status: 0,
       stderr: '',
-      stdout: 'PATH=/usr/local/bin:/usr/bin\nFOO=bar\n',
+      stdout:
+        'PATH=/usr/local/bin:/usr/bin\nFOO=bar\nDISABLE_AUTO_UPDATE=true\n' +
+        'ZSH_TMUX_AUTOSTART=false\nZSH_TMUX_AUTOSTARTED=true\n',
     });
 
     const result = await captureShellEnv({

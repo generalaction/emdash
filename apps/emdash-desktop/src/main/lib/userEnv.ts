@@ -39,7 +39,7 @@ export { SHELL_ENV_CAPTURE_GUARD };
 
 const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
 
-const userShellEnv = createShellEnvManager({
+export const userShellEnvManager = createShellEnvManager({
   target: process.env,
   baseEnvForProbe: buildExternalToolEnv,
   policy: {
@@ -59,38 +59,30 @@ export function ensureWindowsNpmGlobalBinInPath(
   return ensureCoreWindowsNpmGlobalBinInPath(env);
 }
 
-let userEnvResolved = false;
-
-/**
- * Whether the boot-time login-shell environment capture has completed. Worker
- * spawning asserts this: workers inherit `process.env` at spawn, and spawning
- * before the capture would leak an incomplete environment into every PTY and
- * child process for the whole session (a security ordering guarantee, not a
- * performance choice — see agents/risky-areas/pty.md).
- */
-export function isUserEnvResolved(): boolean {
-  return userEnvResolved;
+/** Returns a synchronous copy for compatibility consumers that cannot spawn. */
+export function getUserShellEnv(): Record<string, string> {
+  return userShellEnvManager.getUserShellEnv();
 }
 
 /**
- * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
- * missing shell, restricted environment) the function logs a warning and
- * returns — the app continues with whatever `process.env` already contains.
+ * Starts `$SHELL -ilc 'env'` with a 5 s timeout and returns immediately. On
+ * any error (timeout, missing shell, restricted environment) the manager logs
+ * a warning and retains a sanitized usable environment.
  *
- * After this call returns, all subsequent consumers that inherit `process.env`
- * (execFile, PTY env builders, dependency prober, etc.) automatically see the
- * full PATH, SSH_AUTH_SOCK, and other variables the user's shell init sets.
+ * Spawn-capable runtimes request the separately owned snapshot through the
+ * parent controller; the manager makes their first request await this capture.
  */
-export async function resolveUserEnv(): Promise<void> {
-  await refreshUserEnv();
-  userEnvResolved = true;
+export function startUserEnvCapture(): void {
+  void refreshUserEnv().catch((error: unknown) => {
+    log.warn('[shell-env] Unexpected initial capture failure', { error });
+  });
 }
 
 export async function refreshUserEnv(): Promise<void> {
   if (process.platform === 'win32') {
-    // Windows PATH is managed differently; no login-shell capture needed.
+    // Windows PATH is managed differently; refresh still snapshots the cleaned
+    // environment after adding npm's global bin directory.
     ensureWindowsNpmGlobalBinInPath();
-    return;
   }
 
   // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
@@ -98,7 +90,7 @@ export async function refreshUserEnv(): Promise<void> {
   // the probe shell. Otherwise login-shell hooks that resolve a binary by
   // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
   // and fork-bomb the app on Linux. See #1679.
-  await userShellEnv.refresh();
+  await userShellEnvManager.refresh();
 }
 
 /**

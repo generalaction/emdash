@@ -157,7 +157,7 @@ async function filterIgnored(
   const ignored = await git.schedule.run(
     { tier: 'background', repository: repositoryPath },
     async () => {
-      const child = git.exec(repositoryPath).spawn(['check-ignore', '--stdin', '-z']);
+      const child = await git.exec(repositoryPath).spawn(['check-ignore', '--stdin', '-z']);
       const stdoutChunks: Buffer[] = [];
       child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
       child.stderr.resume();

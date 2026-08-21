@@ -3,7 +3,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate } from '@emdash/shared/requests';
 import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
-import type { IExecutionContext } from '#primitives/exec/api';
+import type { EnvSource, IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver, Platform } from '#primitives/host-dependencies/api';
 import type { PluginFs } from '#primitives/plugin-fs/api';
 import type {
@@ -56,7 +56,7 @@ export type AgentHostDeps = {
   exec: IExecutionContext;
   dependencies: HostDependencyResolver;
   fs: PluginFs;
-  env: Record<string, string | undefined>;
+  env: EnvSource;
   homeDir: string;
   platform?: Platform;
 };
@@ -116,9 +116,9 @@ export class AgentPluginHost {
     return this.deps.homeDir;
   }
 
-  configRootContext(): ConfigRootContext {
+  async configRootContext(): Promise<ConfigRootContext> {
     return {
-      env: buildAllowlistedAgentEnv(this.deps.env, {
+      env: buildAllowlistedAgentEnv(await this.deps.env(), {
         homeDir: this.deps.homeDir,
         includeShellVar: true,
       }),

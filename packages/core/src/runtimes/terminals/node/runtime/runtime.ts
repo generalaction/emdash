@@ -48,6 +48,7 @@ import type {
   SessionSnapshotJudgment,
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
+import type { UserShellEnv } from '#services/shell-env/api';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -68,12 +69,15 @@ type PreviewOutputSource = {
 
 export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
+  userEnv: () => Promise<UserShellEnv>;
   exec?: IExecutionContext;
+  createExecutionContext?: (env: UserShellEnv) => IExecutionContext;
   scope?: Scope;
   clock?: Clock;
   portProbe?: TerminalPortProbe;
   lifecycle?: TerminalsRuntimeLifecycleOptions;
   shellResolver?: TerminalShellResolver;
+  createShellResolver?: (env: UserShellEnv) => TerminalShellResolver;
   logger?: Logger;
 };
 
@@ -97,11 +101,14 @@ export class TerminalsRuntime {
   );
 
   private readonly registry: PtyRegistry;
+  private readonly loadUserEnv: () => Promise<UserShellEnv>;
   private readonly exec: IExecutionContext | undefined;
+  private readonly createExecutionContext: ((env: UserShellEnv) => IExecutionContext) | undefined;
   private readonly scope: Scope;
   private readonly clock: Clock;
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly shellResolver: TerminalShellResolver | undefined;
+  private readonly createShellResolver: ((env: UserShellEnv) => TerminalShellResolver) | undefined;
   private readonly logger: Logger;
   private readonly lifecycle: SessionLifecycle;
   private readonly logs = new Map<string, LiveLogSource>();
@@ -114,11 +121,14 @@ export class TerminalsRuntime {
     this.registry = new PtyRegistry(options.spawner, {
       onSessionChanged: (key, session) => this.syncSession(key, session),
     });
+    this.loadUserEnv = options.userEnv;
     this.exec = options.exec;
+    this.createExecutionContext = options.createExecutionContext;
     this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
     this.clock = options.clock ?? systemClock;
     this.portProbe = options.portProbe;
     this.shellResolver = options.shellResolver;
+    this.createShellResolver = options.createShellResolver;
     this.logger = options.logger ?? noopLogger;
     this.lifecycle = createSessionLifecycle({
       name: 'TerminalsRuntime',
@@ -202,14 +212,15 @@ export class TerminalsRuntime {
   async getShellAvailability(): Promise<
     Result<TerminalShellAvailability[], ShellAvailabilityFailedError>
   > {
-    if (!this.shellResolver) {
-      return err({
-        type: 'shell-availability-failed',
-        message: 'No shell resolver is configured for this terminals runtime',
-      });
-    }
     try {
-      return ok(await this.shellResolver.getAvailability());
+      const shellResolver = await this.shellResolverFor();
+      if (!shellResolver) {
+        return err({
+          type: 'shell-availability-failed',
+          message: 'No shell resolver is configured for this terminals runtime',
+        });
+      }
+      return ok(await shellResolver.getAvailability());
     } catch (error) {
       return err({
         type: 'shell-availability-failed',
@@ -271,10 +282,10 @@ export class TerminalsRuntime {
   async killTmuxSessions(
     input: KillTmuxSessionsInput
   ): Promise<Result<void, TerminalRuntimeError>> {
-    if (process.platform === 'win32' || !this.exec) return ok(undefined);
-    for (const name of input.sessionNames) {
-      await killTmuxSession(this.exec, name);
-    }
+    if (process.platform === 'win32') return ok(undefined);
+    await this.withExecutionContext(async (exec) => {
+      for (const name of input.sessionNames) await killTmuxSession(exec, name);
+    });
     return ok(undefined);
   }
 
@@ -309,8 +320,10 @@ export class TerminalsRuntime {
     this.startCounts.set(sessionKey, startCount);
     this.sessionKeys.set(sessionKey, key);
 
-    const shellProfile = await this.resolveShellProfile(key, spec.shellIntent);
+    const userEnv = await this.loadUserEnv();
+    const shellProfile = await this.resolveShellProfile(key, spec.shellIntent, userEnv);
     const env = buildTerminalEnv({
+      baseEnv: userEnv,
       shellProfile,
       overrides: spec.env,
       gitCredentials: spec.gitCredentials,
@@ -354,10 +367,12 @@ export class TerminalsRuntime {
 
   private async resolveShellProfile(
     key: TerminalKey,
-    intent: TerminalShellId | undefined
+    intent: TerminalShellId | undefined,
+    userEnv: UserShellEnv
   ): Promise<ResolvedShellProfile | undefined> {
-    if (!intent || !this.shellResolver) return undefined;
-    return await this.shellResolver.resolveWithSystemFallback({
+    const shellResolver = await this.shellResolverFor(userEnv);
+    if (!intent || !shellResolver) return undefined;
+    return await shellResolver.resolveWithSystemFallback({
       intent,
       onFallback: (event) =>
         this.logger.warn('terminals: falling back to system shell', {
@@ -370,8 +385,36 @@ export class TerminalsRuntime {
 
   private async killTmuxForSession(sessionKey: string): Promise<void> {
     const config = this.interactiveConfigs.get(sessionKey);
-    if (!config?.spec.tmux || process.platform === 'win32' || !this.exec) return;
-    await killTmuxSession(this.exec, makeTmuxSessionName(sessionKey));
+    if (!config?.spec.tmux || process.platform === 'win32') return;
+    await this.withExecutionContext((exec) =>
+      killTmuxSession(exec, makeTmuxSessionName(sessionKey))
+    );
+  }
+
+  private async shellResolverFor(
+    userEnv?: UserShellEnv
+  ): Promise<TerminalShellResolver | undefined> {
+    if (this.createShellResolver) {
+      return this.createShellResolver(userEnv ?? (await this.loadUserEnv()));
+    }
+    return this.shellResolver;
+  }
+
+  private async withExecutionContext(
+    operation: (exec: IExecutionContext) => Promise<void>
+  ): Promise<void> {
+    if (this.exec) {
+      await operation(this.exec);
+      return;
+    }
+    if (!this.createExecutionContext) return;
+
+    const exec = this.createExecutionContext(await this.loadUserEnv());
+    try {
+      await operation(exec);
+    } finally {
+      exec.dispose();
+    }
   }
 
   private logFor(key: TerminalKey): LiveLogSource {

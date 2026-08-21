@@ -14,12 +14,12 @@ import {
   hostDependencyResolverContract,
 } from '#services/host-dependencies/node';
 import { NodePtySpawner } from '#services/pty/node';
+import { userShellEnvContract } from '#services/shell-env/api';
 
 export const agentConfigComponentConfigSchema = z.object({});
 
 export type CreateAgentConfigComponentOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
-  env?: NodeJS.ProcessEnv;
   logger?: Logger;
 };
 
@@ -29,10 +29,11 @@ export function createAgentConfigComponent(options: CreateAgentConfigComponentOp
     contract: agentConfigContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
+      userEnv: requireContract(userShellEnvContract),
     },
     configSchema: agentConfigComponentConfigSchema,
     create: ({ dependencies, instance, logger, scope }) => {
-      const env = options.env ?? process.env;
+      const env = () => dependencies.userEnv.get();
       const runtimeLogger = options.logger ?? logger;
       const homeDir = os.homedir();
       const spawner = new NodePtySpawner();

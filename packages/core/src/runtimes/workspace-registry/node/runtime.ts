@@ -17,6 +17,7 @@ import {
   type Family,
   type Query,
 } from '@emdash/wire/state';
+import type { EnvSource } from '#primitives/exec/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
@@ -108,6 +109,7 @@ import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './upd
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
+  env?: EnvSource;
   clock?: Clock;
   logger?: Logger;
   /** Test seam for hosts without git; production always inspects the real filesystem. */
@@ -214,10 +216,11 @@ export class WorkspaceRegistryRuntime {
   readonly scanner: RegistryScanner;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
+    const env = options.env ?? (async () => process.env);
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
-    this.inspector = options.inspector ?? inspectWorkspacePath;
-    this.gitContext = options.gitContext ?? createRegistryGitContext();
+    this.inspector = options.inspector ?? ((path) => inspectWorkspacePath(path, env));
+    this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);

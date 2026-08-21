@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { fsWatchContract } from '#services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
 import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
+import { userShellEnvContract } from '#services/shell-env/api';
 import { workspaceRegistryContract } from '../api';
 import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';
@@ -41,6 +42,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     // registry observes its run state to write durable script lifecycle steps.
     scripts: requireContract(hostRuntimesDefinitions.scripts),
     hostSettings: requireContract(hostRuntimesDefinitions.hostSettings),
+    userEnv: requireContract(userShellEnvContract),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
@@ -59,6 +61,7 @@ export const workspaceRegistryComponent = defineWireComponent({
       killSessions,
       countSessions: createSessionCounter(sessionClients),
       scripts: dependencies.scripts,
+      env: () => dependencies.userEnv.get(),
       getHostSettings: async () => {
         const result = await dependencies.hostSettings.get();
         return result.success ? result.data.settings : {};

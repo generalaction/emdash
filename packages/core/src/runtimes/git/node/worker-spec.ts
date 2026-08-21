@@ -19,9 +19,9 @@ export type GitWorkerSpecInput = {
 };
 
 /**
- * Spawn spec for the git runtime worker. The worker process and the git
- * subprocesses it spawns both run under `gitRuntimeEnv`: non-interactive
- * credentials and a stable C locale.
+ * Spawn spec for the git runtime worker. Its own process receives the
+ * non-interactive environment; each git subprocess resolves a fresh user
+ * environment through the component dependency.
  */
 export function gitWorkerSpec(
   input: GitWorkerSpecInput
@@ -36,7 +36,6 @@ export function gitWorkerSpec(
       dependencies: input.dependencies,
       config: {
         ...(input.gitExecutable ? { executable: input.gitExecutable } : {}),
-        env,
       },
     },
   ];

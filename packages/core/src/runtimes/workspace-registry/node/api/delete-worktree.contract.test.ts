@@ -23,6 +23,10 @@ import {
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { createWorkspaceRegistryController } from './controller';
 
+const TEST_USER_ENV = Object.fromEntries(
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+);
+
 // Contract-seam tests for deleteWorktree (ADR 0005): one call that deactivates
 // (sessions + teardown), force-removes the artifact, optionally deletes the branch, and
 // unregisters — with no host-side dirty/unpushed refusals, and idempotent on absent ids.
@@ -69,6 +73,7 @@ describe('workspace registry deleteWorktree', () => {
     killedPaths = [];
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
+      userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({

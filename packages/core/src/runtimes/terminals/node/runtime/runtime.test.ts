@@ -68,11 +68,89 @@ class FakeShellResolver implements TerminalShellResolver {
 }
 
 describe('TerminalsRuntime', () => {
+  it('builds PTY env from the injected user env, not the worker process env', async () => {
+    const previousElectronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.ELECTRON_RUN_AS_NODE = '1';
+    process.env.NODE_ENV = 'production';
+
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-env-boundary' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      userEnv: async () => ({
+        HOME: '/home/test',
+        PATH: '/usr/bin',
+        SHELL: '/bin/sh',
+        USER_VALUE: 'kept',
+      }),
+    });
+
+    try {
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-1' },
+        spec: { cwd: '/repo', env: { EMDASH_TASK_ID: 'task-1' } },
+      });
+
+      expect(spawner.specs[0]!.env).toMatchObject({
+        USER_VALUE: 'kept',
+        EMDASH_TASK_ID: 'task-1',
+      });
+      expect(spawner.specs[0]!.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+      expect(spawner.specs[0]!.env?.NODE_ENV).toBeUndefined();
+    } finally {
+      runtime.dispose();
+      await scope.dispose();
+      if (previousElectronRunAsNode === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+      else process.env.ELECTRON_RUN_AS_NODE = previousElectronRunAsNode;
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
+
+  it('loads the current user env for each newly started terminal', async () => {
+    let userEnv = { PATH: '/tools/old', USER_VALUE: 'before-refresh' };
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-env-refresh' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      userEnv: async () => userEnv,
+    });
+
+    try {
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-before-refresh' },
+        spec: { cwd: '/repo', env: {} },
+      });
+
+      userEnv = { PATH: '/tools/new', USER_VALUE: 'after-refresh' };
+      await runtime.start({
+        key: { workspace: testWorkspace(), id: 'terminal-after-refresh' },
+        spec: { cwd: '/repo', env: {} },
+      });
+
+      expect(spawner.specs[0]!.env).toMatchObject({
+        PATH: '/tools/old',
+        USER_VALUE: 'before-refresh',
+      });
+      expect(spawner.specs[1]!.env).toMatchObject({
+        PATH: '/tools/new',
+        USER_VALUE: 'after-refresh',
+      });
+    } finally {
+      runtime.dispose();
+      await scope.dispose();
+    }
+  });
+
   it('publishes detected dev servers and prunes them when the session exits', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
     const runtime = new TerminalsRuntime({
       spawner,
+      userEnv: async () => testUserEnv(),
       scope,
       clock: createManualClock(1000),
       portProbe: async () => true,
@@ -106,7 +184,7 @@ describe('TerminalsRuntime', () => {
   it('retains exited terminals with scrollback instead of evicting them', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
     const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
@@ -125,7 +203,7 @@ describe('TerminalsRuntime', () => {
   it('kill evicts the session: list entry removed and no per-key map holds the key', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
     const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
@@ -144,7 +222,7 @@ describe('TerminalsRuntime', () => {
   it('kill also evicts a retained exited terminal', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
     const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
@@ -163,7 +241,7 @@ describe('TerminalsRuntime', () => {
   it('kill on an unknown terminal returns not-found', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
 
     const result = await runtime.kill({ workspace: testWorkspace(), id: 'missing' });
 
@@ -174,7 +252,7 @@ describe('TerminalsRuntime', () => {
   it('restarting an exited terminal evicts the old entry, then creates a fresh one', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
     const workspace = testWorkspace();
     const key = { workspace, id: 'terminal-1' };
     const sessionKey = `${workspaceKey(workspace)}:terminal-1`;
@@ -198,7 +276,7 @@ describe('TerminalsRuntime', () => {
   it('workspace deactivation (kill per session) evicts every terminal under the workspace', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
     const workspace = testWorkspace();
     const keys = [
       { workspace, id: 'terminal-1' },
@@ -226,6 +304,7 @@ describe('TerminalsRuntime', () => {
     const scope = createScope({ label: 'test-terminals' });
     const runtime = new TerminalsRuntime({
       spawner,
+      userEnv: async () => testUserEnv(),
       scope,
       clock,
       lifecycle: {
@@ -253,7 +332,12 @@ describe('TerminalsRuntime', () => {
     const exec = fakeExec();
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      scope,
+    });
 
     const result = await runtime.killTmuxSessions({
       sessionNames: ['emdash-session1', 'emdash-session2'],
@@ -271,7 +355,12 @@ describe('TerminalsRuntime', () => {
     exec.exec.mockRejectedValue(new Error('no session'));
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      scope,
+    });
 
     const result = await runtime.killTmuxSessions({
       sessionNames: ['emdash-missing'],
@@ -284,7 +373,7 @@ describe('TerminalsRuntime', () => {
   it('killTmuxSessions returns ok without calling exec when no exec is injected', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
 
     const result = await runtime.killTmuxSessions({
       sessionNames: ['emdash-session1'],
@@ -300,7 +389,12 @@ describe('TerminalsRuntime', () => {
     const shellResolver = new FakeShellResolver({
       profile: posixShellProfile({ executable: '/opt/homebrew/bin/zsh' }),
     });
-    const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      scope,
+      shellResolver,
+    });
     const workspace = testWorkspace();
 
     await runtime.start({
@@ -318,7 +412,12 @@ describe('TerminalsRuntime', () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
     const shellResolver = new FakeShellResolver();
-    const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      scope,
+      shellResolver,
+    });
     const workspace = testWorkspace();
 
     await runtime.start({
@@ -340,6 +439,7 @@ describe('TerminalsRuntime', () => {
     });
     const runtime = new TerminalsRuntime({
       spawner,
+      userEnv: async () => testUserEnv(),
       scope,
       shellResolver,
       logger: { ...noopLogger, warn },
@@ -367,6 +467,7 @@ describe('TerminalsRuntime', () => {
     ];
     const runtime = new TerminalsRuntime({
       spawner,
+      userEnv: async () => testUserEnv(),
       scope,
       shellResolver: new FakeShellResolver({ availability }),
     });
@@ -381,7 +482,7 @@ describe('TerminalsRuntime', () => {
   it('fails shell availability when no resolver is configured', async () => {
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
-    const runtime = new TerminalsRuntime({ spawner, scope });
+    const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
 
     await expect(runtime.getShellAvailability()).resolves.toMatchObject({
       success: false,
@@ -399,6 +500,12 @@ function parseAbsoluteWorkspace(path: string) {
   const parsed = parseAbsolute(path, { profile: { style: 'posix' } });
   if (!parsed.success) throw new Error(parsed.error.message);
   return parsed.data;
+}
+
+function testUserEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  );
 }
 
 function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {

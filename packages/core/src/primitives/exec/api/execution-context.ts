@@ -12,6 +12,9 @@ export type ExecStreamingResult = {
   exitCode: number | null;
 };
 
+/** Resolves the environment to use for one subprocess spawn. */
+export type EnvSource = () => Promise<Record<string, string | undefined>>;
+
 /**
  * An execution context represents a host + optional working directory where
  * commands run. Implementations abstract the transport (local spawn vs SSH exec)

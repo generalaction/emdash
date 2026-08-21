@@ -175,7 +175,7 @@ function createInstaller(
       exists: async () => false,
       list: async () => [],
     },
-    env: { HOME: homeDir, PATH: '/bin', ...env },
+    env: async () => ({ HOME: homeDir, PATH: '/bin', ...env }),
     homeDir,
     platform: 'linux',
   });

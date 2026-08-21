@@ -1,6 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
-import type { IExecutionContext } from '#primitives/exec/api';
+import type { EnvSource, IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import type { IAcpBehavior } from '#services/agent-plugins/api/plugins/capabilities/acp';
 import type { IAgentAuthBehavior } from '#services/agent-plugins/api/plugins/capabilities/auth';
@@ -230,9 +230,24 @@ describe('AgentPluginHost', () => {
     await expect(host.readMcpServers('test')).resolves.toEqual({ success: true, data: servers });
     expect(readServers).toHaveBeenCalledWith(expect.any(Object));
   });
+
+  it('loads the current user environment for each agent spawn context', async () => {
+    let env = { HOME: '/home/test', PATH: '/tools/old' };
+    const host = createHost([plugin()], async () => env);
+
+    const before = await host.resolveSpawnContext('test');
+    env = { HOME: '/home/test', PATH: '/tools/new' };
+    const after = await host.resolveSpawnContext('test');
+
+    expect(before).toMatchObject({ success: true, data: { agentEnv: { PATH: '/tools/old' } } });
+    expect(after).toMatchObject({ success: true, data: { agentEnv: { PATH: '/tools/new' } } });
+  });
 });
 
-function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
+function createHost(
+  plugins: CLIAgentPluginProvider[],
+  env: EnvSource = async () => ({ HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' })
+): AgentPluginHost {
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   for (const item of plugins) registry.register(item);
   return new AgentPluginHost({
@@ -241,7 +256,7 @@ function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
     exec: fakeExec(),
     dependencies: fakeDependencies(),
     fs: memoryFs(),
-    env: { HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' },
+    env,
     homeDir: '/home/test',
   });
 }

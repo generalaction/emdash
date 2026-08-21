@@ -15,6 +15,7 @@ describe('agentConfigWorkerSpec', () => {
     expect(component.id).toBe('agent-config');
     expect(options.name).toBe('agent-config');
     expect(options.env).toBe(env);
+    expect(component.requirements).toHaveProperty('userEnv');
     expect(options.supervision).toBeUndefined();
     expect(options.shutdownGraceMs).toBeUndefined();
     expect(component.configSchema.parse(options.config)).toEqual({});

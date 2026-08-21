@@ -6,6 +6,7 @@ import { createFileSearchController } from '#runtimes/file-search/node/api/contr
 import { FileSearchRuntime } from '#runtimes/file-search/node/file-search-runtime';
 import { fsWatchContract } from '#services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
+import { userShellEnvContract } from '#services/shell-env/api';
 import { fileSearchStore } from './storage/store';
 
 export const fileSearchComponentConfigSchema = z.object({
@@ -27,6 +28,7 @@ export const fileSearchComponent = defineWireComponent({
   contract: fileSearchContract,
   requirements: {
     watcher: requireContract(fsWatchContract),
+    userEnv: requireContract(userShellEnvContract),
   },
   configSchema: fileSearchComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
@@ -41,6 +43,7 @@ export const fileSearchComponent = defineWireComponent({
     const runtime = new FileSearchRuntime({
       handle,
       watcher,
+      env: () => dependencies.userEnv.get(),
       ripgrepPath: config.ripgrepPath,
       maxConcurrentScans: config.maxConcurrentScans,
       maxConcurrentContentSearches: config.maxConcurrentContentSearches,
