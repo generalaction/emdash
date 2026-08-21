@@ -714,7 +714,8 @@ export async function bootServices(
   hostAttachments.register({
     label: 'workspace-registry-sync',
     async attach(host) {
-      await workspaceRegistryBackfill.backfillHost(host);
+      const backfill = await workspaceRegistryBackfill.backfillHost(host);
+      if (backfill.status !== 'complete') return;
       await workspaceRegistrySync.attachHost(host);
       reconcileSweep.attachHost(host);
     },
