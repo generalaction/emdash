@@ -22,6 +22,7 @@ export const NavButtons = observer(function NavButtons() {
             variant="ghost"
             size="sm"
             className="size-7 p-0"
+            aria-label="Go back"
             disabled={!canGoBack}
             onClick={() => getNavigationHistory().back(applyHistoryEntry)}
           >
@@ -39,6 +40,7 @@ export const NavButtons = observer(function NavButtons() {
             variant="ghost"
             size="sm"
             className="size-7 p-0"
+            aria-label="Go forward"
             disabled={!canGoForward}
             onClick={() => getNavigationHistory().forward(applyHistoryEntry)}
           >

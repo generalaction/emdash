@@ -32,6 +32,10 @@ vi.mock('@core/features/projects/contributions/browser/use-confirm-delete-projec
   useConfirmDeleteProject: () => vi.fn(),
 }));
 
+vi.mock('@core/features/workbench/contributions/browser/BorderlessTitlebar', () => ({
+  BorderlessTitlebar: () => <header data-borderless-titlebar />,
+}));
+
 vi.mock('@core/primitives/navigation/browser/navigation-hooks', () => ({
   useCurrentViewParams: () => ({ params: { projectId: 'project-1' } }),
   useNavigate: () => ({ navigate: vi.fn() }),
@@ -133,6 +137,7 @@ describe('ProjectMainPanel layout', () => {
 
     const scroller = host.querySelector('[data-project-page-scroll]');
     expect(scroller?.classList.contains('overflow-y-auto')).toBe(true);
+    expect(host.querySelector('[data-borderless-titlebar]')).not.toBeNull();
     expect(
       [...host.querySelectorAll('[data-layout-part]')].map((element) =>
         element.getAttribute('data-layout-part')

@@ -1,11 +1,8 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
-import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
-import { NavButtons } from '@core/features/workbench/browser/nav-buttons';
+import { SidebarRecoveryControls } from '@core/features/workbench/browser/sidebar-recovery-controls';
 import { WindowControls } from '@core/features/workbench/browser/window-controls';
 import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
-import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 const platform = detectPlatformContext().os;
@@ -26,30 +23,9 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
       )}
     >
       <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1">
-        {!isLeftOpen && <div className="[-webkit-app-region:no-drag]"></div>}
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
-            {!isLeftOpen && (
-              <div className="ml-2 flex items-center gap-0.5 [-webkit-app-region:no-drag]">
-                <Tooltip.Root>
-                  <Tooltip.Trigger>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="size-7 p-0"
-                      onClick={() => toggleLeftSidebar()}
-                    >
-                      <PanelLeft className="h-4 w-4" />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    Toggle left sidebar
-                    <BoundShortcut command="workbench.toggleLeftSidebar" variant="keycaps" />
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <NavButtons />
-              </div>
-            )}
+            {!isLeftOpen && <SidebarRecoveryControls onShowSidebar={toggleLeftSidebar} />}
             {leftSlot}
           </div>
           <div className="flex items-center justify-end gap-1 [-webkit-app-region:no-drag]">

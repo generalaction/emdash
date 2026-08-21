@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, type ReactNode } from 'react';
 import { SettingsPage } from '@core/features/settings/browser/components/SettingsPage';
 import { settingsScope } from '@core/features/settings/contributions/scopes';
 import { settingsViewDef, type SettingsPageTab } from '@core/features/settings/contributions/views';
-import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
+import { BorderlessTitlebar } from '@core/features/workbench/contributions/browser/BorderlessTitlebar';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
@@ -81,22 +81,11 @@ export function SettingsViewWrapper({
   );
 }
 
-export function SettingsTitlebar() {
-  return (
-    <Titlebar
-      leftSlot={
-        <div className="flex items-center px-2">
-          <span className="text-sm text-foreground-muted">Settings</span>
-        </div>
-      }
-    />
-  );
-}
-
 export function SettingsMainPanel() {
   const { tab, detail, onTabChange, openDetail, closeDetail, setDetailPath } = useSettingsTab();
   return (
     <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-background">
+      <BorderlessTitlebar />
       <SettingsPage
         tab={tab}
         detail={detail}
