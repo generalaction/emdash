@@ -3,7 +3,6 @@ import { observer } from 'mobx-react-lite';
 import { getDiffTabManagerStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
-import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import type {
   TabEntry,
   TabHandle,
@@ -43,15 +42,10 @@ function diffResourceKey(s: DiffPayload): string {
 
 function activeFileToDiffPayload(
   activeFile: ActiveFile,
-  status: GitChangeStatus | undefined,
-  workspacePath: string | undefined
+  status: GitChangeStatus | undefined
 ): DiffPayload {
-  const path =
-    activeFile.group === 'pr'
-      ? activeFile.path
-      : resolveWorkspacePath(workspacePath, activeFile.path);
   return {
-    path,
+    path: activeFile.path,
     diffGroup: activeFile.group,
     originalRef: activeFile.originalRef,
     modifiedRef: activeFile.modifiedRef,
@@ -76,12 +70,8 @@ export const diffTabProvider: TabProvider<'diff', DiffPayload, DiffTabResource, 
     mount: 'single',
     resourceKey: diffResourceKey,
 
-    onBeforeOpen(args: DiffOpenArgs, ctx: TabViewContext): DiffPayload | null {
-      return activeFileToDiffPayload(
-        args.activeFile,
-        args.status,
-        (ctx as TaskTabContext).workspacePath
-      );
+    onBeforeOpen(args: DiffOpenArgs, _ctx: TabViewContext): DiffPayload | null {
+      return activeFileToDiffPayload(args.activeFile, args.status);
     },
 
     initialize(

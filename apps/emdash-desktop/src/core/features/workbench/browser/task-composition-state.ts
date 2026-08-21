@@ -1,28 +1,52 @@
 import {
   splitPanePanelId,
+  type TabDescriptor,
   type TaskDiffSelectionState,
+  type TaskPaneLayoutState,
 } from '@core/features/tasks/contributions/mementos';
-import {
-  relativeToWorkspace,
-  resolveWorkspacePath,
-} from '@core/features/workspaces/api/browser/workspace-path';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import type { MementoLayoutStorage } from '@core/primitives/mementos/browser';
 
 export function sanitizeDiffSelection(
   value: TaskDiffSelectionState,
-  dependencies: { workspacePath: string; validPaths: ReadonlySet<string> }
+  validPaths: ReadonlySet<string>
 ): TaskDiffSelectionState {
   const activeFile = value.activeFile;
-  if (!activeFile || activeFile.group === 'pr') return value;
-  const relativePath = relativeToWorkspace(dependencies.workspacePath, activeFile.path);
-  const path = resolveWorkspacePath(dependencies.workspacePath, activeFile.path);
+  if (!activeFile || activeFile.group === 'git' || activeFile.group === 'pr') return value;
   if (
     (activeFile.group === 'disk' || activeFile.group === 'staged') &&
-    !dependencies.validPaths.has(relativePath)
+    !validPaths.has(activeFile.path)
   ) {
     return { ...value, activeFile: undefined };
   }
-  return { ...value, activeFile: { ...activeFile, path } };
+  return value;
+}
+
+/**
+ * Resolves persisted file-tab paths to absolute runtime identity. Diff-tab
+ * paths are already validated checkout-relative GitFilePaths and pass through.
+ */
+export function resolvePaneLayoutFilePaths(
+  value: TaskPaneLayoutState,
+  workspacePath: string
+): TaskPaneLayoutState {
+  return {
+    ...value,
+    groups: value.groups.map((group) => ({
+      ...group,
+      tabManager: {
+        ...group.tabManager,
+        tabs: group.tabManager.tabs.map((tab) => resolveTabDescriptorPath(tab, workspacePath)),
+      },
+    })),
+  };
+}
+
+function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
+  if (tab.kind === 'file') {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  return tab;
 }
 
 /**

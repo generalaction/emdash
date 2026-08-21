@@ -106,4 +106,12 @@ describe('ChangesListItem', () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it('renders the active diff highlight', () => {
+    act(() => {
+      root.render(React.createElement(ChangesListItem, { change, isActive: true }));
+    });
+
+    expect(container.querySelector('button')?.classList.contains('bg-background-2')).toBe(true);
+  });
 });
