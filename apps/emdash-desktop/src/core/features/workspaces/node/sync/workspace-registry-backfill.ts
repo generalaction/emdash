@@ -20,7 +20,7 @@ import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-brok
 import {
   translateWorkspaceIdentity,
   type WorkspaceIdentityTranslationError,
-} from '../identity/translate-workspace-identity';
+} from '../../api/node/translate-workspace-identity';
 import { loadWorkspaceAnnotations, type WorkspaceAnnotationIndex } from './workspace-annotations';
 
 const BACKFILL_VERSION = 2 as const;
