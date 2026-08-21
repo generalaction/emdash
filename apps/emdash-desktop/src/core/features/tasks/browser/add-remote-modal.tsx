@@ -284,7 +284,6 @@ export const AddRemoteModal = observer(function AddRemoteModal({
 
         {resolvedAccount && accounts ? (
           <GitHubIdentityStrip
-            action={tab === 'create' ? 'Creating repository' : 'Adding remote'}
             resolved={resolvedAccount}
             accounts={accounts}
             override={accountOverride}

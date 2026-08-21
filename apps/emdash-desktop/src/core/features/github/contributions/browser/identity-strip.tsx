@@ -9,16 +9,15 @@ import { cn } from '@core/primitives/styling/browser/cn';
 import { identityStripView } from './identity-strip-state';
 
 /**
- * The Variant A identity strip (spec: github-git-settings §9): a slim ambient
- * row in account-relevant modals showing "<action> as @login (host)" with
- * provenance, a popover to change the account for this action, and the
- * fail-closed states inline. The modal owns the override and the blocking of
- * its primary action (via `identityStripBlocksAction`); persistence semantics
- * are declared through `persistence`.
+ * The identity strip (spec: github-git-settings §9): a slim ambient row in
+ * account-relevant modals showing the acting GitHub account with provenance, a
+ * popover to change the account for this action, and the fail-closed states
+ * inline. The surrounding modal already names the action. The modal owns the
+ * override and the blocking of its primary action (via
+ * `identityStripBlocksAction`); persistence semantics are declared through
+ * `persistence`.
  */
 export type GitHubIdentityStripProps = {
-  /** Verb phrase for the surrounding action, e.g. "Creating PR". */
-  action: string;
   /** The resolver's effective account (synthetic for project-less modals). */
   resolved: Resolved<GitHubAccountSummary | null>;
   accounts: GitHubAccountSummary[];
@@ -69,7 +68,6 @@ function provenanceExplanation(
 }
 
 export function GitHubIdentityStrip({
-  action,
   resolved,
   accounts,
   override,
@@ -113,7 +111,7 @@ export function GitHubIdentityStrip({
           <span className="font-medium text-foreground-error">{view.message}</span>
           <span className="text-xs text-foreground-muted">
             {accountRequired
-              ? `${action} is blocked until you pick an account.`
+              ? 'Choose a GitHub account to continue.'
               : 'Pick an account, or continue with system git credentials.'}
           </span>
         </div>
@@ -152,17 +150,12 @@ export function GitHubIdentityStrip({
               )}
               title={provenanceExplanation(resolved, override)}
             />
-            <span className="shrink-0 text-foreground-muted">{action} as</span>
+            <span className="shrink-0 text-foreground-muted">Creating as</span>
             {account ? (
               <GitHubAccountSelectLabel account={account} />
             ) : (
               <span className="text-foreground-muted">—</span>
             )}
-            {view.kind === 'account' &&
-            !view.isActionOverride &&
-            view.provenance.kind === 'inferred' ? (
-              <span className="shrink-0 text-xs text-foreground-passive">(default)</span>
-            ) : null}
             {view.kind === 'no-match' ? (
               <span className="min-w-0 truncate text-xs text-foreground-passive">
                 No connected account matches this repository.
