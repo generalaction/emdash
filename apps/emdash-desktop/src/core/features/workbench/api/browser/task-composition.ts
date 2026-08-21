@@ -6,6 +6,7 @@ import type { FileTabResource } from '@core/features/editor/api/browser/task-edi
 import { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
+import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import {
   diffTabManagerStoreToken,
   gitCheckoutStoreToken,
@@ -381,7 +382,7 @@ export class TaskComposition {
       workspaceId,
       this._gitRepository,
       gitCheckout,
-      this._taskStore
+      getTaskPrAssociationStore(this._taskStore)
     );
 
     const diffSelectionHandle = sanitizedMemento(this._diffSelectionHandle, {

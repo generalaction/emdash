@@ -67,9 +67,9 @@ export async function openFileInTaskEditor(
 
 /**
  * Opens a file in the pane immediately to the right of the currently focused
- * pane. If no right pane exists it is created by splitting. Intended for
- * diff-header clicks so the file appears beside the chat without replacing the
- * active editor tab.
+ * pane. If no right pane exists it is created by splitting. Intended for chat
+ * file affordances so the file appears beside the transcript without replacing
+ * it.
  */
 export async function openFileInAdjacentPane(
   projectId: string,
@@ -80,17 +80,18 @@ export async function openFileInAdjacentPane(
 }
 
 /**
- * Chat/terminal-slice sugar over the seam (spec §10): file links resolve at
- * this edge and open through {@link openFile}; the explicit "open external"
- * affordance hands off to the OS via {@link openWithOS}.
+ * Terminal sugar over the seam (spec §10). Callers choose the pane target;
+ * the explicit "open external" affordance hands off to the OS via
+ * {@link openWithOS}.
  */
 export function makeFileLinkHandlers(
   projectId: string,
-  taskId: string
+  taskId: string,
+  options: { target?: 'active' | 'right' } = {}
 ): { onOpenFile: (filePath: string) => void; onOpenExternal: (filePath: string) => void } {
   return {
     onOpenFile: (filePath) => {
-      void openFileInTaskEditor(projectId, taskId, filePath);
+      void openFileInTaskEditor(projectId, taskId, filePath, options);
     },
     onOpenExternal: (filePath) => {
       void openWithOS(filePath);

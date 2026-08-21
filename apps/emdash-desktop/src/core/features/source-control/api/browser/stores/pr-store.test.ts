@@ -2,11 +2,11 @@ import { createManualClock } from '@emdash/shared/testing';
 import { observable } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
-import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import type { PullRequest } from '@core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 import type { GitRepositoryStore } from './git-repository-store';
 import { PrStore } from './pr-store';
+import { TaskPrAssociationStore } from './task-pr-association-store';
 
 const pullRequest = {
   url: 'https://github.com/example/repo/pull/1',
@@ -30,17 +30,14 @@ describe('PrStore Host observations', () => {
           : { ...observation, kind: 'stale' as const };
       },
     } as GitRepositoryStore;
-    const task = observable({
-      state: 'provisioned' as const,
-      data: { prs: [pullRequest] },
-    }) as unknown as TaskStore;
+    const association = new TaskPrAssociationStore(createManualClock(1_786_000_000_000));
+    association.setAssociation([pullRequest], { kind: 'unknown' });
     const store = new PrStore(
       'project-1',
       'workspace-1',
       repository,
       {} as GitCheckoutStore,
-      task,
-      createManualClock(1_786_000_000_000)
+      association
     );
 
     expect(store.pullRequestsObservation).toMatchObject({
@@ -55,21 +52,16 @@ describe('PrStore Host observations', () => {
       value: [pullRequest],
     });
 
-    task.state = 'unregistered';
     expect(store.pullRequests).toEqual([pullRequest]);
     expect(store.pullRequestsObservation.kind).toBe('stale');
     store.dispose();
 
-    const neverObservedTask = observable({
-      state: 'unregistered' as const,
-      data: {},
-    }) as unknown as TaskStore;
     const neverObserved = new PrStore(
       'project-1',
       'workspace-2',
       repository,
       {} as GitCheckoutStore,
-      neverObservedTask
+      new TaskPrAssociationStore()
     );
     expect(neverObserved.pullRequestsObservation).toEqual({ kind: 'unavailable' });
     neverObserved.dispose();

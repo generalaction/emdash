@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMDASH_MARKER,
   EMDASH_HOOK_VERSION_MARKER,
+  filterUserHooks,
   makeNotificationHookCommand,
   makeStdinHookCommand,
   makeWindowsPowerShellHookCommand,
@@ -56,20 +57,27 @@ describe('hook command helpers', () => {
     const command = makeNotificationHookCommand('idle_prompt', { platform: 'win32' });
 
     expect(command).toMatch(
-      /^cmd\.exe \/d \/c echo EMDASH_HOOK_CONFIG_VERSION=1>NUL&&echo EMDASH_HOOK_PORT>NUL&&powershell\.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/]+=*$/
+      /^cmd\.exe \/d \/c set EMDASH_HOOK_MARKER=EMDASH_HOOK_CONFIG_VERSION=1 EMDASH_HOOK_PORT&&powershell\.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/]+=*$/
     );
     expect(command).toContain(EMDASH_MARKER);
     expect(command).not.toContain('/c "');
     expect(command).not.toContain('& powershell.exe');
   });
 
-  it('keeps the Emdash marker visible to hook config cleanup without PowerShell args', () => {
+  it('emits no redirects (an outer shell parsing >NUL creates a stray NUL file)', () => {
+    const command = makeWindowsPowerShellHookCommand('Write-Output "ok"');
+
+    expect(command).not.toContain('>');
+  });
+
+  it('keeps the Emdash markers visible to hook config cleanup without PowerShell args', () => {
     const command = makeWindowsPowerShellHookCommand('Write-Output "ok"');
 
     expect(
       command.startsWith(
-        `cmd.exe /d /c echo ${EMDASH_HOOK_VERSION_MARKER}>NUL&&echo ${EMDASH_MARKER}>NUL&&powershell.exe `
+        `cmd.exe /d /c set EMDASH_HOOK_MARKER=${EMDASH_HOOK_VERSION_MARKER} ${EMDASH_MARKER}&&powershell.exe `
       )
     ).toBe(true);
+    expect(filterUserHooks([{ command }])).toHaveLength(0);
   });
 });

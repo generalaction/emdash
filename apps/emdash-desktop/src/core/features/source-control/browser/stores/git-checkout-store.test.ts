@@ -1,9 +1,10 @@
 import type { CheckoutHeadState, CheckoutStatusState } from '@emdash/core/runtimes/git/api';
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
+import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { sourceControlContract } from '../../api';
 import { GitCheckoutStore } from './git-checkout-store';
 
@@ -16,6 +17,11 @@ const mocks = vi.hoisted(() => ({
 let statusState: ReturnType<typeof cell<CheckoutStatusState>>;
 let headState: ReturnType<typeof cell<CheckoutHeadState>>;
 let wire: ReturnType<typeof createSourceControlWire> | undefined;
+let stageStarted: Deferred<void>;
+let releaseStage: Deferred<void>;
+let failStage: boolean;
+let unstageStarted: Deferred<void>;
+let releaseUnstage: Deferred<void>;
 
 vi.mock('@core/features/source-control/api/browser/client', async (importOriginal) => {
   const actual = await importOriginal<typeof SourceControlClientModule>();
@@ -41,6 +47,11 @@ describe('GitCheckoutStore', () => {
   beforeEach(() => {
     statusState = cell(status());
     headState = cell(head('main'));
+    stageStarted = deferred<void>();
+    releaseStage = deferred<void>();
+    failStage = false;
+    unstageStarted = deferred<void>();
+    releaseUnstage = deferred<void>();
     mocks.getChangedFiles.mockResolvedValue(ok({ files: [] }));
     mocks.getGitRepositoryStore.mockReturnValue({
       isBranchOnRemote: () => true,
@@ -87,6 +98,83 @@ describe('GitCheckoutStore', () => {
     expect(store.headDisplay).toBe('feature');
     store.dispose();
   });
+
+  it('projects staged membership before the mutation settles', async () => {
+    statusState.set(status('src/index.ts'));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => hasPath(store.unstagedFileChanges, 'src/index.ts'));
+
+    const staging = store.stageFiles(['src/index.ts']);
+    await stageStarted.promise;
+    try {
+      expect(hasPath(store.unstagedFileChanges, 'src/index.ts')).toBe(false);
+      expect(hasPath(store.stagedFileChanges, 'src/index.ts')).toBe(true);
+    } finally {
+      releaseStage.resolve();
+      await staging;
+      store.dispose();
+    }
+  });
+
+  it('keeps staged membership while diff metadata catches up', async () => {
+    statusState.set(status('src/index.ts'));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => hasPath(store.unstagedFileChanges, 'src/index.ts'));
+    const changedFiles = deferred<ReturnType<typeof emptyChangesResult>>();
+    mocks.getChangedFiles.mockReturnValue(changedFiles.promise);
+
+    const staging = store.stageFiles(['src/index.ts']);
+    await stageStarted.promise;
+    releaseStage.resolve();
+    await staging;
+
+    expect(hasPath(store.unstagedFileChanges, 'src/index.ts')).toBe(false);
+    expect(hasPath(store.stagedFileChanges, 'src/index.ts')).toBe(true);
+
+    changedFiles.resolve(emptyChangesResult());
+    await waitFor(() => hasPath(store.stagedFileChanges, 'src/index.ts'));
+    expect(hasPath(store.unstagedFileChanges, 'src/index.ts')).toBe(false);
+    store.dispose();
+  });
+
+  it('rolls optimistic staged membership back when the mutation fails', async () => {
+    failStage = true;
+    statusState.set(status('src/index.ts'));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => hasPath(store.unstagedFileChanges, 'src/index.ts'));
+
+    const staging = store.stageFiles(['src/index.ts']);
+    await stageStarted.promise;
+    expect(hasPath(store.unstagedFileChanges, 'src/index.ts')).toBe(false);
+    expect(hasPath(store.stagedFileChanges, 'src/index.ts')).toBe(true);
+
+    releaseStage.resolve();
+    await expect(staging).resolves.toEqual(err({ type: 'git_error', message: 'stage failed' }));
+    await waitFor(() => hasPath(store.unstagedFileChanges, 'src/index.ts'));
+    expect(hasPath(store.stagedFileChanges, 'src/index.ts')).toBe(false);
+    store.dispose();
+  });
+
+  it('projects unstaged membership before the mutation settles', async () => {
+    statusState.set(stagedStatus('src/index.ts'));
+    const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+    store.start();
+    await waitFor(() => hasPath(store.stagedFileChanges, 'src/index.ts'));
+
+    const unstaging = store.unstageFiles(['src/index.ts']);
+    await unstageStarted.promise;
+    try {
+      expect(hasPath(store.stagedFileChanges, 'src/index.ts')).toBe(false);
+      expect(hasPath(store.unstagedFileChanges, 'src/index.ts')).toBe(true);
+    } finally {
+      releaseUnstage.resolve();
+      await unstaging;
+      store.dispose();
+    }
+  });
 });
 
 function createSourceControlWire() {
@@ -94,10 +182,55 @@ function createSourceControlWire() {
     refs: cell({ branches: [], tags: [] }),
     remotes: cell({ remotes: [] }),
   });
-  const checkoutProvider = expose(sourceControlContract.checkout.model, {
-    status: statusState,
-    head: headState,
-  });
+  const checkoutProvider = expose(
+    sourceControlContract.checkout.model,
+    {
+      status: statusState,
+      head: headState,
+    },
+    {
+      mutations: {
+        async stage(context) {
+          stageStarted.resolve();
+          await releaseStage.promise;
+          if (failStage) return err({ type: 'git_error', message: 'stage failed' });
+          const path = context.input.paths[0];
+          if (!path) return ok<void>();
+          const revision = statusState.set(stagedStatus(path), {
+            mutationIds: [context.mutationId],
+          });
+          await context.observed('status', revision);
+          return ok<void>();
+        },
+        async unstage(context) {
+          unstageStarted.resolve();
+          await releaseUnstage.promise;
+          const path = context.input.paths[0];
+          if (!path) return ok<void>();
+          const revision = statusState.set(status(path), {
+            mutationIds: [context.mutationId],
+          });
+          await context.observed('status', revision);
+          return ok<void>();
+        },
+        async stageAll() {
+          return ok<void>();
+        },
+        async unstageAll() {
+          return ok<void>();
+        },
+        async revert() {
+          return ok<void>();
+        },
+        async revertAll() {
+          return ok<void>();
+        },
+        async commit() {
+          return ok({ hash: 'abc123' });
+        },
+      },
+    }
+  );
 
   return createTestWire(sourceControlContract, {
     repository: {
@@ -153,6 +286,44 @@ function status(changedPath?: string): CheckoutStatusState {
     },
     operation: 'none',
   };
+}
+
+function stagedStatus(changedPath: string): CheckoutStatusState {
+  const path = portablePath(changedPath);
+  return {
+    kind: 'ok',
+    entries: {
+      [path]: {
+        path,
+        index: 'modified',
+        worktree: 'unmodified',
+        isConflicted: false,
+      },
+    },
+    summary: { staged: 1, unstaged: 0, conflicted: 0, untracked: 0 },
+    operation: 'none',
+  };
+}
+
+function emptyChangesResult() {
+  return ok({ files: [] });
+}
+
+function hasPath(changes: readonly { path: string }[], path: string): boolean {
+  return changes.some((change) => change.path === path);
+}
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

@@ -271,7 +271,6 @@ export const CreatePrModal = observer(function CreatePrModal({
         </Field.Group>
         {resolvedAccount && accounts ? (
           <GitHubIdentityStrip
-            action="Creating PR"
             resolved={resolvedAccount}
             accounts={accounts}
             override={accountOverride}

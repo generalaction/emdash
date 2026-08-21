@@ -174,7 +174,6 @@ export function CreateNewPanel({
         </Field.Root>
       </Field.Group>
       <GitHubIdentityStrip
-        action="Creating repository"
         resolved={resolvedAccount}
         accounts={accounts}
         override={overrideAccount}

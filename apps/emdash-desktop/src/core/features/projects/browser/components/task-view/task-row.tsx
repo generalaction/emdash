@@ -7,7 +7,10 @@ import {
   taskConversationStats,
 } from '@core/features/conversations/api/browser/conversation-selectors';
 import { projectAvailabilityUiContribution as projectAvailabilityUi } from '@core/features/projects/contributions/browser/project-availability-ui';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import {
+  getTaskGitCheckoutStore,
+  getTaskPrAssociationStore,
+} from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import {
   getTaskManagerStore,
   taskHostActionAvailability,
@@ -71,7 +74,7 @@ export const TaskRow = observer(function TaskRow({
         projectAvailabilityUi.defaultLiveActionDisabledReason)
       : undefined;
   const agentAttention = taskAgentStatus(task);
-  const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
+  const currentPr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
   const branchName =
     getTaskGitCheckoutStore(task.data.projectId, task.data.id)?.branchName ?? undefined;
 

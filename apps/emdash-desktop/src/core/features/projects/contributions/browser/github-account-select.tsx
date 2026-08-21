@@ -61,7 +61,9 @@ export function GitHubAccountSelectLabel({ account }: { account: GitHubAccountSu
       ) : (
         <Github className="text-muted-foreground h-4 w-4 shrink-0" />
       )}
-      <span className="min-w-0 truncate">@{account.login}</span>
+      <span className="min-w-0 truncate" title={`@${account.login}`}>
+        @{account.login}
+      </span>
       <span className="text-muted-foreground shrink-0 text-xs">{account.host}</span>
       {account.isDefault ? <GitHubDefaultAccountBadge /> : null}
     </div>

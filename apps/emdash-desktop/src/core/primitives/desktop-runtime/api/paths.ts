@@ -67,7 +67,13 @@ export function relativeRuntimePath(root: HostAbsolutePath, input: string): Port
 
 export function absoluteRuntimePath(root: HostAbsolutePath, input: string): HostAbsolutePath {
   if (input.startsWith('/') || isWindowsAbsolute(input)) return hostPathFromNative(input);
-  return resolveRelativePath(root, portablePath(input.replaceAll('\\', '/')));
+  const separator = root.root.kind === 'posix' ? '/' : '\\';
+  const base = nativePathFromHost(root);
+  const relative = root.root.kind === 'posix' ? input.replaceAll('\\', '/') : input;
+  const combined = base.endsWith(separator)
+    ? `${base}${relative}`
+    : `${base}${separator}${relative}`;
+  return hostPathFromNative(combined);
 }
 
 function isWindowsAbsolute(input: string): boolean {

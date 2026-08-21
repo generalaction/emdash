@@ -59,7 +59,7 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         disabled={!hasSettings}
         className="group flex flex-col gap-1.5"
       >
-        <div className="flex h-9 items-center justify-between">
+        <div className="grid h-9 grid-cols-[minmax(0,1fr)_auto] items-center">
           <Collapsible.Trigger
             hideChevron
             className={cn(
@@ -74,7 +74,6 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
           </Collapsible.Trigger>
           {presetId === 'new-worktree' && (
             <Tabs.Root
-              className="ml-auto"
               value={createBranchAndWorktree ? 'create' : 'checkout'}
               onValueChange={(v) => setCreateBranchAndWorktree(v === 'create')}
             >

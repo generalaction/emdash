@@ -1,8 +1,7 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { makeAutoObservable, reaction, runInAction } from 'mobx';
+import { makeAutoObservable, reaction } from 'mobx';
 import {
   asAvailableProject,
   getProjectStore,
@@ -13,13 +12,11 @@ import {
   getSourceControlClient,
 } from '@core/features/source-control/api/browser/client';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
-import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import type { TaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-pr-association-store';
 import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { commitRef, mergeBaseRange } from '@core/primitives/git/api';
 import { projectHostRef } from '@core/primitives/projects/api';
-import { isRegistered } from '@core/primitives/task-state/browser/task-state';
-import type { Task } from '@core/primitives/tasks/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { compilePrUpdateInstruction } from '@core/primitives/workspaces/api';
 import {
@@ -41,43 +38,29 @@ export class PrStore {
     string,
     { resource: Resource<GitChange[]>; baseRefOid: string; headRefOid: string }
   >();
-  private _pullRequests: PullRequest[] | null = null;
-  private _pullRequestsObservedAt = 0;
-  private readonly _pullRequestsDisposer: () => void;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly gitRepositoryStore: GitRepositoryStore,
     private readonly gitCheckoutStore: GitCheckoutStore,
-    private readonly taskStore: TaskStore,
-    private readonly clock: Clock = systemClock
+    private readonly associationStore: TaskPrAssociationStore
   ) {
     makeAutoObservable(this);
-    this._pullRequestsDisposer = reaction(
-      () => (isRegistered(this.taskStore) ? [...((this.taskStore.data as Task).prs ?? [])] : null),
-      (pullRequests) => {
-        if (pullRequests === null) return;
-        runInAction(() => {
-          this._pullRequests = pullRequests;
-          this._pullRequestsObservedAt = this.clock.now();
-        });
-      },
-      { fireImmediately: true }
-    );
   }
 
-  get pullRequests(): PullRequest[] {
-    return this._pullRequests ?? [];
+  get pullRequests(): readonly PullRequest[] {
+    return this.associationStore.pullRequests;
   }
 
-  get pullRequestsObservation(): ProjectHostObservation<PullRequest[]> {
+  get pullRequestsObservation(): ProjectHostObservation<readonly PullRequest[]> {
+    const association = this.associationStore.state;
     return this.gitRepositoryStore.observeHost(
-      this._pullRequests
+      association.kind !== 'unknown'
         ? {
             kind: 'observed',
-            value: this._pullRequests,
-            observedAt: this._pullRequestsObservedAt,
+            value: this.associationStore.pullRequests,
+            observedAt: association.observedAt,
           }
         : { kind: 'never-observed' }
     );
@@ -92,7 +75,7 @@ export class PrStore {
    * Staleness), derived by the task-PR sync coordinator; unknown until derived.
    */
   get checkoutDrift(): PrCheckoutDrift {
-    return this.taskStore.prCheckoutDrift ?? { kind: 'unknown' };
+    return this.associationStore.checkoutDrift;
   }
 
   /**
@@ -252,7 +235,6 @@ export class PrStore {
   }
 
   dispose(): void {
-    this._pullRequestsDisposer();
     for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 
@@ -316,14 +298,8 @@ export class PrStore {
       repositoryUrl: pullRequest.repositoryUrl,
       number,
     });
-    if (!result.success || !isRegistered(this.taskStore)) return;
-    runInAction(() => {
-      if (!isRegistered(this.taskStore)) return;
-      const task = this.taskStore.data as Task;
-      const index = task.prs.findIndex((candidate) => candidate.url === result.data.pr.url);
-      if (index >= 0) task.prs.splice(index, 1, result.data.pr);
-      else task.prs.push(result.data.pr);
-    });
+    if (!result.success) return;
+    this.associationStore.updateAssociatedPr(result.data.pr);
   }
 }
 
