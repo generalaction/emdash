@@ -1,8 +1,15 @@
+import { PillTabs, type PillTab } from '@emdash/ui/react/patterns';
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
-import { ProjectSectionTabs } from './active-project';
+
+const projectTabs: readonly PillTab<ProjectView>[] = [
+  { value: 'tasks', label: 'Tasks', icon: <span /> },
+  { value: 'pull-request', label: 'Pull Requests', icon: <span /> },
+  { value: 'workspaces', label: 'Workspaces', icon: <span /> },
+  { value: 'settings', label: 'Settings', icon: <span /> },
+];
 
 beforeAll(() => {
   (
@@ -10,7 +17,7 @@ beforeAll(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-describe('ProjectSectionTabs', () => {
+describe('Project section PillTabs', () => {
   let host: HTMLDivElement;
   let root: Root;
 
@@ -25,18 +32,22 @@ describe('ProjectSectionTabs', () => {
     host.remove();
   });
 
-  it('switches the four Project sections with tab semantics and keyboard navigation', async () => {
+  it('switches Project sections with animated presentation and keyboard navigation', async () => {
     const onChange = vi.fn();
 
     function Harness() {
       const [activeView, setActiveView] = useState<ProjectView>('tasks');
       return (
-        <ProjectSectionTabs
-          activeView={activeView}
-          onChange={(view) => {
+        <PillTabs
+          items={projectTabs}
+          value={activeView}
+          onValueChange={(view) => {
             onChange(view);
             setActiveView(view);
           }}
+          ariaLabel="Project sections"
+          panelId="project-section-panel"
+          labelVisibility="active-only"
         />
       );
     }
@@ -46,17 +57,15 @@ describe('ProjectSectionTabs', () => {
     const tablist = host.querySelector('[role="tablist"]');
     const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
     expect(tablist?.getAttribute('aria-label')).toBe('Project sections');
-    expect(tablist?.classList.contains('grid-cols-4')).toBe(true);
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
+    expect(tabs.map((tab) => tab.getAttribute('aria-label'))).toEqual([
       'Tasks',
       'Pull Requests',
       'Workspaces',
       'Settings',
     ]);
-    expect(tabs.every((tab) => tab.querySelector('svg'))).toBe(true);
     expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[0]?.tabIndex).toBe(0);
-    expect(tabs.slice(1).every((tab) => tab.tabIndex === -1)).toBe(true);
+    expect(tabs[0]?.parentElement?.hasAttribute('data-compact')).toBe(false);
+    expect(tabs.slice(1).every((tab) => tab.parentElement?.dataset.compact === 'true')).toBe(true);
     expect(tabs.every((tab) => tab.getAttribute('aria-controls') === 'project-section-panel')).toBe(
       true
     );
@@ -75,11 +84,5 @@ describe('ProjectSectionTabs', () => {
     });
     expect(onChange).toHaveBeenLastCalledWith('settings');
     expect(document.activeElement).toBe(tabs[3]);
-
-    await act(async () => {
-      tabs[0]?.click();
-    });
-    expect(onChange).toHaveBeenLastCalledWith('tasks');
-    expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
   });
 });

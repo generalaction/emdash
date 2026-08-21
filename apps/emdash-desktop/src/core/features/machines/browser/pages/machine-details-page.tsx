@@ -1,11 +1,16 @@
 import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
-import { EntityHeader, SettingsCard } from '@emdash/ui/react/patterns';
+import {
+  EntityHeader,
+  getPillTabId,
+  PillTabs,
+  SettingsCard,
+  type PillTab,
+} from '@emdash/ui/react/patterns';
 import {
   Button,
   DropdownMenu,
   Heading,
   Input,
-  SelectableCard,
   SeparatedList,
   toast,
 } from '@emdash/ui/react/primitives';
@@ -20,7 +25,6 @@ import {
   User,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { getMachinesClient } from '@core/features/machines/api/browser/client';
@@ -57,35 +61,20 @@ type MachineDetailsSection =
   | 'mcp'
   | 'skills';
 
-function MachineDetailsCard({
-  children,
-  icon,
-  title,
-  selected,
-  onClick,
-}: {
-  children?: React.ReactNode;
-  icon: React.ReactNode;
-  title: string | React.ReactNode;
-  selected?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <SelectableCard
-      padding="2"
-      borderRadius="md"
-      className="flex-1"
-      selected={selected}
-      onClick={onClick}
-    >
-      <span className="flex w-full items-center justify-center gap-2">
-        {icon}
-        <span className="text-sm">{title}</span>
-      </span>
-      {children}
-    </SelectableCard>
-  );
-}
+const MACHINE_DETAILS_PANEL_ID = 'machine-details-panel';
+
+const machineDetailsTabs: readonly PillTab<MachineDetailsSection>[] = [
+  { value: 'system', label: 'System', icon: <Activity className="size-3.5" /> },
+  { value: 'workspaces', label: 'Workspaces', icon: <Folder className="size-3.5" /> },
+  {
+    value: 'conversations',
+    label: 'Conversations',
+    icon: <MessageSquare className="size-3.5" />,
+  },
+  { value: 'agents', label: 'Agents', icon: <User className="size-3.5" /> },
+  { value: 'mcp', label: 'MCP', icon: <McpIcon size={14} /> },
+  { value: 'skills', label: 'Skills', icon: <Brain className="size-3.5" /> },
+];
 
 /**
  * Machines tab child detail: path is `[connectionId, projectId]`. Lives here
@@ -294,142 +283,122 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         }
       />
 
-      <div className="grid grid-cols-6 gap-2">
-        <MachineDetailsCard
-          icon={<Activity size={14} />}
-          title="System"
-          selected={section === 'system'}
-          onClick={() => setSection('system')}
-        />
-        <MachineDetailsCard
-          icon={<Folder size={14} />}
-          title="Workspaces"
-          selected={section === 'workspaces'}
-          onClick={() => setSection('workspaces')}
-        />
-        <MachineDetailsCard
-          icon={<MessageSquare size={14} />}
-          title="Conversations"
-          selected={section === 'conversations'}
-          onClick={() => setSection('conversations')}
-        />
-        <MachineDetailsCard
-          icon={<User size={14} />}
-          title="Agents"
-          selected={section === 'agents'}
-          onClick={() => setSection('agents')}
-        />
-        <MachineDetailsCard
-          icon={<McpIcon size={14} />}
-          title="MCP"
-          selected={section === 'mcp'}
-          onClick={() => setSection('mcp')}
-        />
-        <MachineDetailsCard
-          icon={<Brain size={14} />}
-          title="Skills"
-          selected={section === 'skills'}
-          onClick={() => setSection('skills')}
-        />
-      </div>
+      <PillTabs
+        items={machineDetailsTabs}
+        value={section}
+        onValueChange={setSection}
+        ariaLabel="Machine details sections"
+        panelId={MACHINE_DETAILS_PANEL_ID}
+        labelVisibility="active-only"
+      />
 
-      {section === 'system' && (
-        <>
-          <SettingsCard>
-            <SeparatedList gap="1rem" direction="column">
-              <MachineConnectionRow
-                machine={machine}
-                state={state}
-                availability={availability}
-                onEdit={editConnectionSettings}
-                onConnect={connectMachine}
-                onRetry={retryMachine}
-                onDisconnect={disconnectMachine}
-              />
-              <div
-                aria-disabled={!connected}
-                className={cn(!connected && 'pointer-events-none opacity-33')}
-              >
-                <WorkspaceRuntimeRow
-                  connected={connected}
-                  loading={workspaceServer.loading}
-                  state={workspaceServer.state}
-                  actions={workspaceServer}
+      <section
+        role="tabpanel"
+        id={MACHINE_DETAILS_PANEL_ID}
+        aria-labelledby={getPillTabId(MACHINE_DETAILS_PANEL_ID, section)}
+        className="flex flex-col gap-6"
+      >
+        {section === 'system' && (
+          <>
+            <SettingsCard>
+              <SeparatedList gap="1rem" direction="column">
+                <MachineConnectionRow
+                  machine={machine}
+                  state={state}
+                  availability={availability}
+                  onEdit={editConnectionSettings}
+                  onConnect={connectMachine}
+                  onRetry={retryMachine}
+                  onDisconnect={disconnectMachine}
                 />
-              </div>
-              <div
-                aria-disabled={!connected}
-                className={cn(!connected && 'pointer-events-none opacity-33')}
-              >
-                <ResourceUtilizationRow metrics={metrics} />
-              </div>
-            </SeparatedList>
-          </SettingsCard>
+                <div
+                  aria-disabled={!connected}
+                  className={cn(!connected && 'pointer-events-none opacity-33')}
+                >
+                  <WorkspaceRuntimeRow
+                    connected={connected}
+                    loading={workspaceServer.loading}
+                    state={workspaceServer.state}
+                    actions={workspaceServer}
+                  />
+                </div>
+                <div
+                  aria-disabled={!connected}
+                  className={cn(!connected && 'pointer-events-none opacity-33')}
+                >
+                  <ResourceUtilizationRow metrics={metrics} />
+                </div>
+              </SeparatedList>
+            </SettingsCard>
 
-          {serverUsable ? (
-            <>
-              <HostSettingsCard machineId={machine.id} />
-              <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
-            </>
+            {serverUsable ? (
+              <>
+                <HostSettingsCard machineId={machine.id} />
+                <MachineSystemDependenciesCard
+                  machineId={machine.id}
+                  machinesStore={machinesStore}
+                />
+              </>
+            ) : (
+              <SettingsCard>
+                <div className="p-4 text-sm text-foreground-muted">
+                  Host settings and system dependency detection are available when the workspace
+                  server is healthy.
+                </div>
+              </SettingsCard>
+            )}
+          </>
+        )}
+
+        {section === 'workspaces' && (
+          <WorkspacesListView
+            scope={{ kind: 'machine', machineId: machine.id }}
+            openDetail={openDetail}
+            enabled={serverUsable}
+          />
+        )}
+
+        {/* Reads this device's registry cache, so it stays available while the host is offline. */}
+        {section === 'conversations' && (
+          <MachineConversationsList
+            scope={{ kind: 'remote', connectionId: machine.id }}
+            hostReachable={connected}
+          />
+        )}
+
+        {section === 'agents' &&
+          (serverUsable ? (
+            <AgentsPanel connectionId={machine.id} onManageMcp={() => setSection('mcp')} />
           ) : (
             <SettingsCard>
               <div className="p-4 text-sm text-foreground-muted">
-                Host settings and system dependency detection are available when the workspace
-                server is healthy.
+                Agent detection is available when the workspace server is healthy.
               </div>
             </SettingsCard>
-          )}
-        </>
-      )}
+          ))}
 
-      {section === 'workspaces' && (
-        <WorkspacesListView
-          scope={{ kind: 'machine', machineId: machine.id }}
-          openDetail={openDetail}
-          enabled={serverUsable}
-        />
-      )}
+        {section === 'mcp' &&
+          (serverUsable ? (
+            <McpPanel host={hostRefFromConnectionId(machine.id)} />
+          ) : (
+            <SettingsCard>
+              <div className="p-4 text-sm text-foreground-muted">
+                MCP servers are available when the workspace server is healthy.
+              </div>
+            </SettingsCard>
+          ))}
 
-      {/* Reads this device's registry cache, so it stays available while the host is offline. */}
-      {section === 'conversations' && (
-        <MachineConversationsList
-          scope={{ kind: 'remote', connectionId: machine.id }}
-          hostReachable={connected}
-        />
-      )}
-
-      {section === 'agents' &&
-        (serverUsable ? (
-          <AgentsPanel connectionId={machine.id} onManageMcp={() => setSection('mcp')} />
-        ) : (
-          <SettingsCard>
-            <div className="p-4 text-sm text-foreground-muted">
-              Agent detection is available when the workspace server is healthy.
-            </div>
-          </SettingsCard>
-        ))}
-
-      {section === 'mcp' &&
-        (serverUsable ? (
-          <McpPanel host={hostRefFromConnectionId(machine.id)} />
-        ) : (
-          <SettingsCard>
-            <div className="p-4 text-sm text-foreground-muted">
-              MCP servers are available when the workspace server is healthy.
-            </div>
-          </SettingsCard>
-        ))}
-
-      {section === 'skills' &&
-        (serverUsable ? (
-          <SkillsPanel host={hostRefFromConnectionId(machine.id)} />
-        ) : (
-          <SettingsCard>
-            <div className="p-4 text-sm text-foreground-muted">
-              Skills are available when the workspace server is healthy.
-            </div>
-          </SettingsCard>
-        ))}
+        {section === 'skills' &&
+          (serverUsable ? (
+            <SkillsPanel host={hostRefFromConnectionId(machine.id)} />
+          ) : (
+            <SettingsCard>
+              <div className="p-4 text-sm text-foreground-muted">
+                Skills are available when the workspace server is healthy.
+              </div>
+            </SettingsCard>
+          ))}
+      </section>
     </div>
   );
 });

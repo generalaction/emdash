@@ -63,6 +63,15 @@ export type {
   CreateTaskWorkspaceResolution,
   CreateTaskWorkspaceState,
 } from './create-task-modal/create-task-modal.types';
+
+export {
+  getPillTabId,
+  PillTabs,
+  type PillTab,
+  type PillTabsLabelVisibility,
+  type PillTabsProps,
+} from './pill-tabs';
+
 export {
   CollectionView,
   CollectionViewCell,
