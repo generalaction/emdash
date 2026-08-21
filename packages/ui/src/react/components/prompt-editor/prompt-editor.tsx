@@ -282,6 +282,9 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
         orderedList: false,
         listItem: false,
         horizontalRule: false,
+        // Links remain visible, but clicking inside an editable prompt must place the cursor
+        // instead of opening an external URL.
+        link: { openOnClick: false },
       }),
       mentionExtension,
       slashExtension,
