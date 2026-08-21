@@ -22,7 +22,7 @@ export type WorkspaceIdentityTranslationError =
 
 /**
  * Applies an explicitly authorized old-id -> Host-canonical-id transition. Its only
- * callers are the one-time production backfill and repository initialization after
+ * callers are the one-time production backfill and Project repository initialization after
  * createWorkspace resolves the Project path to a different canonical record.
  *
  * The old mirror row must still match the caller's expected Host and path. All desktop
