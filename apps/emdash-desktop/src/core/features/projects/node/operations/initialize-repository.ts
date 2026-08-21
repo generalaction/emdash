@@ -4,6 +4,7 @@ import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
+import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { InitializeRepositoryResult } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -42,6 +43,32 @@ export async function initializeRepository(
   );
   if (!repositoryResult.success) return repositoryResult;
 
+  if (existingProject.repositoryWorkspaceId) {
+    const registered = await runtime.data.workspaceRegistry.createWorkspace({
+      workspaceId: existingProject.repositoryWorkspaceId,
+      path: repositoryResult.data.rootPath,
+    });
+    if (!registered.success) {
+      return err({
+        type: 'open-repository-failed',
+        path: repositoryResult.data.rootPath,
+        message: `Could not refresh the Host workspace (${registered.error.type})`,
+      });
+    }
+    const storage = workspaceHostStorage(host);
+    const claimed = createWorkspaceRegistry(dependencies.db).claim({
+      host: { location: storage.location, sshConnectionId: storage.sshConnectionId },
+      record: registered.data,
+    });
+    if (!claimed.success) {
+      return err({
+        type: 'open-repository-failed',
+        path: repositoryResult.data.rootPath,
+        message: `Could not claim the Host workspace (${claimed.error.type})`,
+      });
+    }
+  }
+
   await dependencies.db
     .update(projects)
     .set({
@@ -49,14 +76,6 @@ export async function initializeRepository(
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)));
-
-  // The repository workspace row owns the project path; git init may have
-  // resolved it to the actual repository root.
-  if (existingProject.repositoryWorkspaceId) {
-    createWorkspaceRegistry(dependencies.db).annotate(existingProject.repositoryWorkspaceId, {
-      path: repositoryResult.data.rootPath,
-    });
-  }
 
   const project = await getProjectById(dependencies.db, projectId);
   if (!project) {
