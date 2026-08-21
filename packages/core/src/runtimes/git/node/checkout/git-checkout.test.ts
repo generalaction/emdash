@@ -197,7 +197,19 @@ describe('GitCheckout', () => {
       const log = await checkout.getLog();
       expect(log.commits).toHaveLength(2);
       expect(log.totalCount).toBe(2);
-      expect(log.commits[0]).toMatchObject({ subject: 'second commit', isPushed: false });
+      const [headCommit] = log.commits;
+      expect(headCommit).toMatchObject({
+        subject: 'second commit',
+        isPushed: false,
+        author: 'Test User',
+        authorEmail: 'test@example.com',
+        committer: 'Test User',
+        committerEmail: 'test@example.com',
+      });
+      // Dates cross the wire as epoch milliseconds; a raw `%at`/`%ct` seconds
+      // value would be three orders of magnitude smaller.
+      expect(headCommit?.date).toBeGreaterThan(1e12);
+      expect(headCommit?.committerDate).toBeGreaterThan(1e12);
 
       const commit = await checkout.getCommit(commitResult.data.hash);
       expect(commit).toMatchObject({ hash: commitResult.data.hash, subject: 'second commit' });

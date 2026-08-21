@@ -100,7 +100,7 @@ describe('workspace-server release contracts', () => {
   );
 
   it('extracts a protocol major and rejects invalid protocol versions', () => {
-    expect(PROTOCOL_VERSION).toBe('1.0.0');
+    expect(PROTOCOL_VERSION).toBe('1.1.0');
     expect(protocolMajor()).toBe(1);
     expect(protocolMajor('2.3.4')).toBe(2);
     expect(() => protocolMajor('not-a-version')).toThrow(
