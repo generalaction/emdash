@@ -135,21 +135,38 @@ async function adoptRunOnce(
 
   const workspacePath = nativePathFromHost(runtimeRun.data.workspace.path);
   const workspaceStorage = workspaceHostStorage(workspaceHost);
-  const workspaceKind =
-    runtimeRun.data.configSnapshot.workspace.kind === 'worktree' ? 'worktree' : 'repository';
-  const parentId = workspaceKind === 'worktree' ? project.repositoryWorkspaceId : null;
   const workspaceMutexKey = `${hostRefKey(workspaceHost)}:${workspacePath}`;
   return workspaceMutex.runExclusive(workspaceMutexKey, async () => {
     const concurrentAdoption = await findAdoptedTask(dependencies.db, runId);
     if (concurrentAdoption) return ok(concurrentAdoption);
 
     const registry = createWorkspaceRegistry(dependencies.db);
-    const workspaceRow = registry.findLiveByPath(
-      workspaceStorage.location,
-      workspaceStorage.sshConnectionId,
-      workspacePath
-    );
-    const workspaceId = workspaceRow?.id ?? randomUUID();
+    const resolvedWorkspace = await client.workspaceRegistry.createWorkspace({
+      workspaceId: runId,
+      path: workspacePath,
+    });
+    if (!resolvedWorkspace.success) {
+      return err({
+        type: 'adoption-unavailable',
+        message: `Could not resolve the Host workspace (${resolvedWorkspace.error.type}).`,
+      });
+    }
+    const workspaceId = resolvedWorkspace.data.id;
+    const storedWorkspaceConfig = storedWorkspaceConfigForRun(runtimeRun.data, workspaceId);
+    const claimed = registry.claim({
+      host: {
+        location: workspaceStorage.location,
+        sshConnectionId: workspaceStorage.sshConnectionId,
+      },
+      record: resolvedWorkspace.data,
+      config: storedWorkspaceConfig,
+    });
+    if (!claimed.success) {
+      return err({
+        type: 'adoption-unavailable',
+        message: `Could not claim the Host workspace (${claimed.error.type}).`,
+      });
+    }
     const taskId = randomUUID();
     const conversationInsert = conversationForRun(runtimeRun.data, projectId, taskId);
     const taskParams = taskParamsForRun(
@@ -173,36 +190,6 @@ async function adoptRunOnce(
       if (concurrentTask) {
         taskRow = concurrentTask;
         return;
-      }
-
-      const storedWorkspaceConfig = storedWorkspaceConfigForRun(runtimeRun.data, workspaceId);
-      if (workspaceRow) {
-        registry.annotate(
-          workspaceId,
-          {
-            type: workspaceStorage.type,
-            location: workspaceStorage.location,
-            sshConnectionId: workspaceStorage.sshConnectionId,
-            parentId,
-            path: workspacePath,
-            config: storedWorkspaceConfig,
-          },
-          tx
-        );
-      } else {
-        registry.register(
-          {
-            id: workspaceId,
-            type: workspaceStorage.type,
-            kind: workspaceKind,
-            location: workspaceStorage.location,
-            sshConnectionId: workspaceStorage.sshConnectionId,
-            parentId,
-            path: workspacePath,
-            config: storedWorkspaceConfig,
-          },
-          tx
-        );
       }
 
       [taskRow] = tx
