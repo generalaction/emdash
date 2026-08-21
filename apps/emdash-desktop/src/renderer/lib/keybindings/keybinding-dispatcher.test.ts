@@ -164,25 +164,17 @@ describe('KeybindingDispatcher', () => {
     runtime.dispose();
   });
 
-  it('passes through unclaimed events and emits dispatch outcomes', () => {
+  it('passes through unclaimed events', () => {
     const runtime = new ViewScopes(undefined);
     const dispatcher = new KeybindingDispatcher(
       new KeybindingService([outerCommand], { os: 'linux' }),
       runtime
     );
-    const onDispatch = vi.fn();
-    dispatcher.onDidDispatch.subscribe(onDispatch);
     const event = eventFor('p', 'KeyP');
 
     expect(dispatcher.dispatch(event).kind).toBe('none');
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(event.stopPropagation).not.toHaveBeenCalled();
-    expect(onDispatch).toHaveBeenCalledWith({
-      source: 'dom',
-      candidates: [],
-      outcome: 'none',
-      commandId: undefined,
-    });
     runtime.dispose();
   });
 

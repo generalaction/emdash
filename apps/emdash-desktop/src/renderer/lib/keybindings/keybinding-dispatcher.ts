@@ -1,4 +1,4 @@
-import { createEmitter, type Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@emdash/shared';
 import { matchKeybindingPress } from 'tinykeys';
 import {
   detectPlatformContext,
@@ -16,14 +16,7 @@ import {
 } from '@core/primitives/keybindings/browser/keybinding-service';
 import { scopes, type KeybindingHit, type ViewScopes } from '@core/primitives/view-scopes/browser';
 
-export interface KeybindingDispatchEvent {
-  readonly source: 'dom' | 'synthetic';
-  readonly candidates: readonly string[];
-  readonly outcome: KeybindingHit['kind'];
-  readonly commandId: string | undefined;
-}
-
-export type SyntheticKeybindingEvent = Pick<ChordKeyboardEventLike, 'repeat' | 'isComposing'>;
+type SyntheticKeybindingEvent = Pick<ChordKeyboardEventLike, 'repeat' | 'isComposing'>;
 
 const DEFAULT_SYNTHETIC_EVENT: SyntheticKeybindingEvent = Object.freeze({
   repeat: false,
@@ -31,7 +24,6 @@ const DEFAULT_SYNTHETIC_EVENT: SyntheticKeybindingEvent = Object.freeze({
 });
 
 export class KeybindingDispatcher {
-  readonly onDidDispatch = createEmitter<KeybindingDispatchEvent>();
   private readonly service: KeybindingService;
   private readonly runtime: ViewScopes;
   private readonly context: PlatformContext;
@@ -69,7 +61,7 @@ export class KeybindingDispatcher {
       browserFocused: false,
     };
     const candidates = this.gate(matched, event, focus);
-    const hit = this.resolve(candidates, 'dom');
+    const hit = this.resolve(candidates);
 
     if (hit.kind === 'winner') {
       event.preventDefault();
@@ -80,12 +72,8 @@ export class KeybindingDispatcher {
     return hit;
   }
 
-  dispatchSynthetic(
-    candidates: ReadonlySet<string>,
-    focus: KeybindingFocusContext,
-    event: SyntheticKeybindingEvent = DEFAULT_SYNTHETIC_EVENT
-  ): KeybindingHit {
-    return this.resolve(this.gate(candidates, event, focus), 'synthetic');
+  dispatchSynthetic(candidates: ReadonlySet<string>, focus: KeybindingFocusContext): KeybindingHit {
+    return this.resolve(this.gate(candidates, DEFAULT_SYNTHETIC_EVENT, focus));
   }
 
   private gate(
@@ -105,24 +93,11 @@ export class KeybindingDispatcher {
     return accepted;
   }
 
-  private resolve(candidates: ReadonlySet<string>, source: 'dom' | 'synthetic'): KeybindingHit {
+  private resolve(candidates: ReadonlySet<string>): KeybindingHit {
     const hit = this.runtime.resolveKeybinding(candidates);
     if (hit.kind === 'winner') {
       void hit.command.execute(undefined, 'keybinding');
     }
-    this.onDidDispatch.emit(
-      Object.freeze({
-        source,
-        candidates: Object.freeze([...candidates]),
-        outcome: hit.kind,
-        commandId:
-          hit.kind === 'winner'
-            ? hit.command.def.id
-            : hit.kind === 'consumed'
-              ? hit.commandId
-              : undefined,
-      })
-    );
     return hit;
   }
 }
