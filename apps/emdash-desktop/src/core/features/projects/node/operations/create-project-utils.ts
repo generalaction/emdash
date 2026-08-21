@@ -1,4 +1,4 @@
-import type { RepositorySelector } from '@emdash/core/runtimes/git/api';
+import { toBranchRef, type RepositorySelector } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
@@ -27,7 +27,7 @@ export async function resolveProjectBaseRef(
     return resolveBaseRefFromRemoteDefault({
       detectedBaseRef,
       gitDefaultBranch: defaultBranch.data.branch ?? undefined,
-      branches: refs.data.branches,
+      branches: refs.data.branches.map(toBranchRef),
     });
   } catch (error) {
     log.debug('Failed to resolve project base ref, using detected base ref', {

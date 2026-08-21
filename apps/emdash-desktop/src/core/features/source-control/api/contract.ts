@@ -91,12 +91,6 @@ const sourceControlRepositoryContract = defineContract({
     result: repository.fetch.result,
     error: attachmentErrorUnion(repository.fetch.error),
   }),
-  publishBranch: liveJob({
-    input: repository.publishBranch.input.omit({ repository: true }).extend(projectKeySchema.shape),
-    progress: repository.publishBranch.progress,
-    result: repository.publishBranch.result,
-    error: attachmentErrorUnion(repository.publishBranch.error),
-  }),
   fetchPrForReview: liveJob({
     input: repository.fetchPrForReview.input
       .omit({ repository: true })
@@ -150,6 +144,12 @@ const sourceControlCheckoutContract = defineContract({
     progress: checkout.push.progress,
     result: checkout.push.result,
     error: runtimeResolveErrorUnion(checkout.push.error),
+  }),
+  publish: liveJob({
+    input: checkout.publish.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    progress: checkout.publish.progress,
+    result: checkout.publish.result,
+    error: runtimeResolveErrorUnion(checkout.publish.error),
   }),
   pull: liveJob({
     input: checkout.pull.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),

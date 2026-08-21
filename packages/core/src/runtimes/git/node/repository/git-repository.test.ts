@@ -49,11 +49,30 @@ async function makeRepository() {
 }
 
 describe('GitRepository', () => {
+  it('keeps canonical branch and tag names when they collide', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      await git(repo, ['tag', 'main']);
+
+      await expect(repository.getRefs()).resolves.toMatchObject({
+        branches: [
+          expect.objectContaining({
+            type: 'local',
+            ref: 'refs/heads/main',
+          }),
+        ],
+        tags: [expect.objectContaining({ ref: 'refs/tags/main' })],
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('computes refs and remotes from git', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
       await expect(repository.getRefs()).resolves.toMatchObject({
-        branches: [expect.objectContaining({ type: 'local', branch: 'main' })],
+        branches: [expect.objectContaining({ type: 'local', ref: 'refs/heads/main' })],
         tags: [],
       });
       await expect(repository.getRemotes()).resolves.toEqual({ remotes: [] });
@@ -84,7 +103,7 @@ describe('GitRepository', () => {
         expect.objectContaining({
           worktreePath: hostPath(repo),
           isMain: true,
-          head: expect.objectContaining({ kind: 'branch', name: 'main' }),
+          head: expect.objectContaining({ kind: 'branch', ref: 'refs/heads/main' }),
         }),
       ]);
       expect(worktrees[0]?.head).not.toHaveProperty('oid');
@@ -102,11 +121,33 @@ describe('GitRepository', () => {
       await git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
 
       const refs = await repository.getRefs();
-      expect(refs.remoteHeads).toEqual([{ remote: 'origin', branch: 'main' }]);
+      expect(refs.remoteHeads).toEqual([{ remote: 'origin', ref: 'refs/remotes/origin/main' }]);
       // The HEAD symbolic ref itself never surfaces as a branch.
       expect(
-        refs.branches.filter((branch) => branch.type === 'remote').map((branch) => branch.branch)
-      ).toEqual(['main']);
+        refs.branches.filter((branch) => branch.type === 'remote').map((branch) => branch.ref)
+      ).toEqual(['refs/remotes/origin/main']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('matches the longest configured remote name when remotes contain slashes', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      const oid = (await git(repo, ['rev-parse', 'HEAD'])).trim();
+      await git(repo, ['remote', 'add', 'team/origin', 'https://example.com/repo.git']);
+      await git(repo, ['update-ref', 'refs/remotes/team/origin/feature/x', oid]);
+
+      await expect(repository.getRefs()).resolves.toMatchObject({
+        branches: [
+          expect.objectContaining({ type: 'local', ref: 'refs/heads/main' }),
+          expect.objectContaining({
+            type: 'remote',
+            ref: 'refs/remotes/team/origin/feature/x',
+            remote: expect.objectContaining({ name: 'team/origin' }),
+          }),
+        ],
+      });
     } finally {
       await cleanup();
     }

@@ -164,6 +164,14 @@ describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', (
     expect(observed?.prBreadcrumb).toBeNull();
   });
 
+  it('reports the canonical branch name when a tag has the same name', async () => {
+    await git('tag', 'main');
+
+    const observed = await observeWorkspaceGit(gitContext, repo);
+
+    expect(observed?.branch).toBe('main');
+  });
+
   it('reports the breadcrumb independently of upstream tracking', async () => {
     await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/9');
 

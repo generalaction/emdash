@@ -1,3 +1,4 @@
+import { localBranchRefSchema } from '@emdash/core/runtimes/git/api';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import {
@@ -71,7 +72,9 @@ async function resolveTaskTarget(
     config: task.workspaceConfig,
   });
   if (!targetPath && provisionedBranch) {
-    targetPath = await project.findTaskWorktree(provisionedBranch);
+    targetPath = await project.findTaskWorktree(
+      localBranchRefSchema.parse(`refs/heads/${provisionedBranch}`)
+    );
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;

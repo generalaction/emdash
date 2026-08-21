@@ -12,7 +12,6 @@ import {
   type GitRefsState,
   type GitRemotesState,
   type GitTransferProgress,
-  type PublishBranchJobInput,
   type RepositorySelector,
 } from '#runtimes/git/api';
 import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
@@ -77,16 +76,6 @@ export class GitRepositoryRuntime {
           force: input.force,
         }
       )
-    );
-  }
-
-  publishBranch(input: PublishBranchJobInput, context: LiveJobContext<GitTransferProgress>) {
-    return this.run(input, (repository) =>
-      repository.publishBranch(input.branchName, input.remote, {
-        signal: context.signal,
-        onProgress: context.progress,
-        env: credentialOperationEnv(input.credentials),
-      })
     );
   }
 

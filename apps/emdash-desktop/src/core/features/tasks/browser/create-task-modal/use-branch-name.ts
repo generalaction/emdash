@@ -70,7 +70,7 @@ export function useBranchName(opts: {
   const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
   const branchAlreadyExists =
     branchName.trim().length > 0 &&
-    (repo?.localBranches.some((b) => b.branch === branchName) ?? false);
+    (repo?.localBranches.some((branch) => branch.ref === `refs/heads/${branchName}`) ?? false);
 
   return { branchName, setBranchName, isUserModified, branchAlreadyExists };
 }

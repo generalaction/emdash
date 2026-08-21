@@ -33,7 +33,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const openAddRemoteModal = useOpenModal('addRemoteModal');
 
   const {
-    hasUpstream,
+    isPublished,
     aheadCount,
     behindCount,
     fetch,
@@ -48,12 +48,11 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const shouldOfferAddRemote = (repositoryStore?.remotes.length ?? 0) === 0;
 
   const handlePublishClick = () => {
-    if (hostActionDisabled || !headDisplay || isDetached || !workspaceId) return;
+    if (hostActionDisabled || !headDisplay || headKind !== 'branch' || !workspaceId) return;
     if (shouldOfferAddRemote) {
       void openAddRemoteModal({
         projectId,
         projectName,
-        branchName: headDisplay,
         workspaceId,
       });
       return;
@@ -75,7 +74,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
             </Tooltip.Content>
           </Tooltip.Root>
           <div className="flex items-center gap-1">
-            {hasUpstream && !isDetached ? (
+            {isPublished && !isDetached ? (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger
@@ -162,7 +161,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
                       <Button
                         variant="secondary"
                         size="xs"
-                        disabled={isPublishing || !headDisplay}
+                        disabled={isPublishing || !headDisplay || headKind !== 'branch'}
                         aria-disabled={hostActionDisabled}
                         aria-description={hostActionReason ?? undefined}
                         onClick={handlePublishClick}

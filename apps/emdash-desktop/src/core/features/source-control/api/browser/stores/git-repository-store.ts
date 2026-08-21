@@ -1,5 +1,9 @@
 import {
+  localBranchRefSchema,
+  remoteBranchRefSchema,
+  toBranchRef,
   type FetchPrForReviewOptions,
+  type GitBranchRef,
   type GitRefsState,
   type GitRemote,
   type GitRemotesState,
@@ -87,6 +91,7 @@ export class GitRepositoryStore {
       refsState: observable.ref,
       remotesData: observable.ref,
       branches: computed,
+      branchRefs: computed,
       refsObservation: computed,
       remotesObservation: computed,
       providerRepositoryObservation: computed,
@@ -100,6 +105,7 @@ export class GitRepositoryStore {
       baseRemote: computed,
       pushRemote: computed,
       defaultBranch: computed,
+      defaultBranchRef: computed,
       remotes: computed,
       loading: computed,
       canonicalRepositoryUrl: computed,
@@ -229,6 +235,10 @@ export class GitRepositoryStore {
     return this.refs?.branches ?? [];
   }
 
+  get branchRefs(): GitBranchRef[] {
+    return this.branches.map(toBranchRef);
+  }
+
   get refsObservation(): ProjectHostObservation<GitRefsState> {
     return this.host.observe(
       this.refsState
@@ -345,23 +355,18 @@ export class GitRepositoryStore {
     const resolved = this.effectiveGitSettings.defaultBranch.value;
     if (resolved === null) return undefined;
     if (resolved.remote === null) {
-      return this.localBranches.find((branch) => branch.branch === resolved.branch);
+      const ref = localBranchRefSchema.parse(`refs/heads/${resolved.branch}`);
+      return this.localBranches.find((branch) => branch.ref === ref);
     }
+    const ref = remoteBranchRefSchema.parse(`refs/remotes/${resolved.remote}/${resolved.branch}`);
     return this.remoteBranches.find(
-      (branch) => branch.branch === resolved.branch && branch.remote.name === resolved.remote
+      (branch) => branch.ref === ref && branch.remote.name === resolved.remote
     );
   }
 
-  isBranchOnRemote(branchName: string): boolean {
-    const pushRemote = this.pushRemote;
-    if (pushRemote === null) return false;
-    return this.remoteBranches.some(
-      (branch) => branch.branch === branchName && branch.remote.name === pushRemote.name
-    );
-  }
-
-  getBranchDivergence(branchName: string): { ahead: number; behind: number } | null {
-    return this.localBranches.find((branch) => branch.branch === branchName)?.divergence ?? null;
+  get defaultBranchRef(): GitBranchRef | undefined {
+    const branch = this.defaultBranch;
+    return branch ? toBranchRef(branch) : undefined;
   }
 
   async fetchRemote() {
@@ -381,23 +386,6 @@ export class GitRepositoryStore {
     const invocation = await model.mutations.addRemote({ name, url });
     if (invocation.result.success) await invocation.settled;
     return invocation.result;
-  }
-
-  async publishBranch(branchName: string, _workspaceId?: string) {
-    const pushRemote = this.pushRemote;
-    if (pushRemote === null) {
-      return err({ type: 'no_remote' as const, message: 'This repository has no git remotes.' });
-    }
-    const client = await getSourceControlClient();
-    return runDesktopLiveJob(
-      sourceControlContract.repository.publishBranch,
-      client.repository.publishBranch,
-      {
-        ...repositorySelector(this.projectId),
-        branchName,
-        remote: pushRemote.name,
-      }
-    );
   }
 
   async fetchPrForReview(options: FetchPrForReviewOptions) {

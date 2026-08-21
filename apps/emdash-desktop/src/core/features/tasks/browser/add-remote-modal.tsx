@@ -17,7 +17,10 @@ import { GitHubIdentityStrip } from '@core/features/github/contributions/browser
 import { persistProjectGitHubAccount } from '@core/features/github/contributions/browser/identity-strip-persist';
 import { useEffectiveSettings } from '@core/features/projects/api/browser/effective-settings/use-effective-settings';
 import { BrokenSettingNotice } from '@core/features/projects/contributions/browser/settings-provenance';
-import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import {
+  getGitCheckoutStore,
+  getGitRepositoryStore,
+} from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
@@ -27,7 +30,6 @@ import { defineModal } from '@core/primitives/modals/react';
 export type AddRemoteModalArgs = {
   projectId: string;
   projectName: string;
-  branchName: string;
   workspaceId: string;
 };
 
@@ -43,7 +45,6 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   projectId,
   projectName,
   workspaceId,
-  branchName,
 }: AddRemoteModalArgs) {
   const { complete } = useModalController('addRemoteModal');
   const openGithubConnectModal = useOpenModal('githubConnectModal');
@@ -82,6 +83,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     handleOwnerChange,
   } = useGitHubRepositoryOwnerSelect(githubAccountId);
   const repositoryStore = getGitRepositoryStore(projectId);
+  const checkoutStore = getGitCheckoutStore(workspaceId);
   const pushRemoteResolution = repositoryStore?.effectiveGitSettings.pushRemote ?? null;
   // The effective push remote when one resolves; otherwise this modal is
   // creating the repository's first remote, and DEFAULT_REMOTE_NAME is the
@@ -153,7 +155,8 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         return;
       }
 
-      const publishResult = await repositoryStore.publishBranch(branchName, workspaceId);
+      if (!checkoutStore) throw new Error('Git checkout is unavailable');
+      const publishResult = await checkoutStore.publishCurrentBranch();
       if (!publishResult.success) {
         if (publishResult.error.type === 'rejected') {
           repositoryStore?.refreshLocal();

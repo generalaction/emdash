@@ -205,7 +205,19 @@ export class CheckoutResource {
 
   async push(options: Parameters<GitCheckout['push']>[0], context: GitOperationContext) {
     const result = await this.execute(() => this.commands.push(options, context));
-    if (result.success) this.repository.invalidate('refs');
+    if (result.success) {
+      await this.refresh('head');
+      this.repository.invalidate('refs');
+    }
+    return result;
+  }
+
+  async publish(remote: string, context: GitOperationContext) {
+    const result = await this.execute(() => this.commands.publish(remote, context));
+    if (result.success) {
+      await this.refresh('head');
+      this.repository.invalidate('refs');
+    }
     return result;
   }
 

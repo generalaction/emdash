@@ -1,5 +1,9 @@
 import type { HostAbsolutePath } from '#primitives/path/api';
-import type { WorktreeHeadSummary, WorktreeSummary } from '#runtimes/git/api';
+import {
+  localBranchRefSchema,
+  type WorktreeHeadSummary,
+  type WorktreeSummary,
+} from '#runtimes/git/api';
 
 const UNBORN_OID = /^0+$/;
 
@@ -38,9 +42,8 @@ export function parseWorktreeList(
     }
     if (line.startsWith('worktree ')) current.path = line.slice('worktree '.length);
     else if (line.startsWith('HEAD ')) current.oid = line.slice('HEAD '.length);
-    else if (line.startsWith('branch ')) {
-      current.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
-    } else if (line === 'detached') current.detached = true;
+    else if (line.startsWith('branch ')) current.branch = line.slice('branch '.length);
+    else if (line === 'detached') current.detached = true;
     else if (line === 'locked' || line.startsWith('locked ')) current.locked = true;
     else if (line === 'prunable' || line.startsWith('prunable ')) {
       current.prunable = true;
@@ -59,9 +62,10 @@ export function toWorktreeHead(entry: {
   detached?: boolean;
 }): WorktreeHeadSummary {
   const oid = entry.oid ?? '';
-  if (entry.branch && (!oid || UNBORN_OID.test(oid))) {
-    return { kind: 'unborn', name: entry.branch };
+  const ref = entry.branch ? localBranchRefSchema.parse(entry.branch) : null;
+  if (ref && (!oid || UNBORN_OID.test(oid))) {
+    return { kind: 'unborn', ref };
   }
-  if (entry.branch) return { kind: 'branch', name: entry.branch };
+  if (ref) return { kind: 'branch', ref };
   return { kind: 'detached' };
 }

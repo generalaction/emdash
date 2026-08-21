@@ -31,21 +31,8 @@ export async function runGitPush(git: GitCheckoutStore) {
   return result;
 }
 
-export async function runGitPublishBranch({
-  repository,
-  branchName,
-  workspaceId,
-}: {
-  repository: GitRepositoryStore;
-  branchName: string | null | undefined;
-  workspaceId?: string;
-}) {
-  if (!branchName) {
-    toast.error('Failed to publish branch: No branch checked out');
-    return undefined;
-  }
-
-  const result = await repository.publishBranch(branchName, workspaceId);
+export async function runGitPublishCurrentBranch(git: GitCheckoutStore) {
+  const result = await git.publishCurrentBranch();
   if (!result.success) {
     toast.error(`Failed to publish branch: ${formatPushErrorDetail(result.error)}`);
   }

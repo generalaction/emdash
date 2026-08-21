@@ -46,7 +46,7 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
     repo?.baseRemote?.name ??
     undefined;
 
-  const branches: GitBranchRef[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
+  const branches: GitBranchRef[] = repo?.branchRefs ?? [];
   const canSelectRemote = showRemoteSelectorFooter && remoteName === undefined;
 
   return (
