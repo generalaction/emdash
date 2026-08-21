@@ -27,6 +27,16 @@ export type ListWorkspacesInput = z.infer<typeof listWorkspacesInputSchema>;
 
 export const workspaceRegistryDomain = 'workspaceRegistry' as const;
 
+export const workspaceClaimErrorSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('workspace-identity-conflict'),
+    path: z.string(),
+    incomingId: z.string(),
+    conflictingId: z.string(),
+  }),
+  z.object({ type: z.literal('workspace-tombstoned'), workspaceId: z.string() }),
+]);
+
 /**
  * The consolidated renderer workspace API (ADR 0005): list from the mirror, call any
  * lifecycle verb against any reachable host, untrack rows for hosts the desktop can no
@@ -51,7 +61,11 @@ export const workspaceRegistryWireContract = defineContract({
       config: z.custom<WorkspaceConfig>().optional(),
     }),
     data: workspaceRecordSchema,
-    error: z.union([createWorkspaceErrorSchema, runtimeResolveErrorSchema]),
+    error: z.union([
+      createWorkspaceErrorSchema,
+      workspaceClaimErrorSchema,
+      runtimeResolveErrorSchema,
+    ]),
   }),
 
   /**
@@ -69,7 +83,11 @@ export const workspaceRegistryWireContract = defineContract({
       config: z.custom<WorkspaceConfig>().optional(),
     }),
     data: workspaceRecordSchema,
-    error: z.union([createWorktreeErrorSchema, runtimeResolveErrorSchema]),
+    error: z.union([
+      createWorktreeErrorSchema,
+      workspaceClaimErrorSchema,
+      runtimeResolveErrorSchema,
+    ]),
   }),
 
   activateWorkspace: fallible({
@@ -122,7 +140,11 @@ export const workspaceRegistryWireContract = defineContract({
   retryStep: fallible({
     input: workspaceKeyInput.extend({ step: retryableLifecycleStepSchema }),
     data: workspaceRecordSchema,
-    error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+    error: z.union([
+      workspaceNotFoundErrorSchema,
+      workspaceClaimErrorSchema,
+      runtimeResolveErrorSchema,
+    ]),
   }),
 
   /**
