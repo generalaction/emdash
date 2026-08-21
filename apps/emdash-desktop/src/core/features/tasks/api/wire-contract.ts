@@ -23,7 +23,6 @@ import {
   type TaskStatsData,
 } from '@core/primitives/tasks/api';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
-import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 
 export const deleteTaskInputSchema = z.object({
   taskId: z.string(),
@@ -62,10 +61,6 @@ export const tasksWireContract = defineContract({
       options: z.custom<DeleteTaskOptions>().optional(),
     }),
     output: z.void(),
-  }),
-  getProjectWorkspaces: procedure({
-    input: z.object({ projectId: z.string() }),
-    output: z.custom<ProjectWorkspace[]>(),
   }),
   teardownTask: procedure({
     input: z.object({ projectId: z.string(), taskId: z.string() }),

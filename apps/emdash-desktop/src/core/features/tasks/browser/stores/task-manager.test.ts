@@ -177,7 +177,6 @@ function createTaskWire() {
     deleteTask: vi.fn(),
     deleteTasks: (input: { projectId: string; taskIds: string[]; options?: unknown }) =>
       mocks.deleteTasks(input),
-    getProjectWorkspaces: vi.fn(async () => []),
     teardownTask: mocks.teardownTask,
     generateTaskName: vi.fn(async () => 'Task'),
     taskList: taskListProvider,

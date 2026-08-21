@@ -5,8 +5,6 @@ import { expose, family, query } from '@emdash/wire/state';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
-import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import type { WorkspaceRemovalBroker } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
@@ -29,10 +27,8 @@ export type TasksWireController = {
 
 export function createTasksWireController(options: {
   db: AppDb;
-  runtimes: WorkspaceRemovalBroker;
   service: TaskService;
   taskList: TaskListOperations;
-  taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
 }): TasksWireController {
   const taskOperations = createTaskOperations(options);
@@ -159,7 +155,6 @@ export function createTasksWireController(options: {
         taskOperations.deleteTask(projectId, taskId, options),
       deleteTasks: ({ projectId, taskIds, options }) =>
         taskOperations.deleteTasks(projectId, taskIds, options),
-      getProjectWorkspaces: ({ projectId }) => taskOperations.getProjectWorkspaces(projectId),
       teardownTask: ({ projectId, taskId }) => taskOperations.teardownTask(projectId, taskId),
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       taskList: taskListProvider,

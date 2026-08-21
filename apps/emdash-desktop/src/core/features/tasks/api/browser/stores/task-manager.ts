@@ -98,6 +98,7 @@ function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: b
     )
     .with({ type: 'provision-failed' }, (e) => e.message)
     .with({ type: 'provision-timeout' }, (e) => `Provisioning timed out after ${e.timeoutMs}ms.`)
+    .with({ type: 'workspace-unavailable' }, (e) => e.message)
     .with({ type: 'workspace-tombstone-pending' }, (e) => e.message)
     .exhaustive();
 }

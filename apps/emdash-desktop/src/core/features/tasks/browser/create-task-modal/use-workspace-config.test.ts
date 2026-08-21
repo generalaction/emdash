@@ -43,8 +43,9 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   }),
 }));
 
-vi.mock('@core/features/tasks/browser/task-config/existing-workspace-picker', () => ({
-  useProjectWorkspaces: () => ({ data: [] }),
+const workspaceOptionsMock = vi.hoisted(() => ({ current: [] as Record<string, unknown>[] }));
+vi.mock('@core/features/tasks/api/browser/create-task-modal/use-project-workspace-options', () => ({
+  useProjectWorkspaceOptions: () => ({ data: workspaceOptionsMock.current, isLoading: false }),
 }));
 
 const branchNameMock = vi.hoisted(() => ({ current: 'generated-task-branch' }));
@@ -130,6 +131,7 @@ describe('useWorkspaceConfig branch selection', () => {
   beforeEach(() => {
     latestState = undefined;
     branchNameMock.current = 'generated-task-branch';
+    workspaceOptionsMock.current = [];
     projectConfigMock.preservePatterns = ['.env'];
     repositoryStoreMock.current = {
       baseRemote: { name: 'origin', url: 'https://github.com/acme/repo.git' },
@@ -253,6 +255,38 @@ describe('useWorkspaceConfig branch selection', () => {
       workspace: { kind: 'repository-instance', workspaceId: 'repo-workspace-1' },
     });
     expect(latestState?.setupSteps).toEqual([]);
+  });
+
+  it('starts in use-existing mode with a preselected workspace', async () => {
+    workspaceOptionsMock.current = [
+      {
+        key: 'project-1\0workspace-existing-1',
+        workspaceId: 'workspace-existing-1',
+        kind: 'worktree',
+        path: '/repo/workspace-existing-1',
+        branchName: 'existing-branch',
+        linesAdded: null,
+        linesDeleted: null,
+        taskName: null,
+        isLive: false,
+        linkedTaskCount: 0,
+      },
+    ];
+    await renderProbe({
+      mode: 'existing',
+      presetId: 'use-existing',
+      selectedWorkspaceId: 'workspace-existing-1',
+    });
+
+    expect(latestState?.mode).toBe('existing');
+    expect(latestState?.presetId).toBe('use-existing');
+    expect(latestState?.selectedWorkspaceId).toBe('workspace-existing-1');
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig).toEqual({
+      version: '2',
+      git: { kind: 'none' },
+      workspace: { kind: 'repository-instance', workspaceId: 'workspace-existing-1' },
+    });
   });
 
   it('previews the compiled plan for a new pushed branch', async () => {

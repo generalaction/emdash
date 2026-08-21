@@ -12,10 +12,14 @@ const mocks = vi.hoisted(() => ({
   hostIsReachable: vi.fn(),
   resolveWorktreeRoot: vi.fn(),
   findWorkspaceTombstoneConflict: vi.fn(),
+  resolveProjectWorkspaceTarget: vi.fn(),
   registryRows: [] as unknown[],
 }));
 vi.mock('@core/features/workspaces/api/node/registry/workspace-tombstones', () => ({
   findWorkspaceTombstoneConflict: mocks.findWorkspaceTombstoneConflict,
+}));
+vi.mock('@core/features/workspaces/api/node/project-workspace-target', () => ({
+  resolveProjectWorkspaceTarget: mocks.resolveProjectWorkspaceTarget,
 }));
 const hostIsReachable = mocks.hostIsReachable;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
@@ -196,6 +200,10 @@ describe('createTask', () => {
           };
     });
     mocks.findWorkspaceTombstoneConflict.mockReturnValue(undefined);
+    mocks.resolveProjectWorkspaceTarget.mockResolvedValue({
+      success: true,
+      data: { id: 'ws-repo-1', path: '/repo' },
+    });
     mocks.hostIsReachable.mockReturnValue(true);
     mocks.resolveWorktreeRoot.mockResolvedValue({ success: true, data: '/worktrees' });
     mocks.registryRows.length = 0;
@@ -419,6 +427,38 @@ describe('createTask', () => {
   });
 
   describe('repository-instance workspace target', () => {
+    it('refuses a workspace that is unavailable to the project', async () => {
+      mocks.resolveProjectWorkspaceTarget.mockResolvedValue({
+        success: false,
+        error: {
+          type: 'workspace-unavailable',
+          workspaceId: 'ws-other',
+          message: 'The selected workspace does not belong to this project.',
+        },
+      });
+
+      const result = await createTask(db, projects, hostIsReachable, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-other' },
+        },
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'workspace-unavailable',
+          workspaceId: 'ws-other',
+          message: 'The selected workspace does not belong to this project.',
+        },
+      });
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
+
     it('reuses the existing workspace ID from config', async () => {
       const { captured } = setupTransactionMock();
       await createTask(db, projects, hostIsReachable, {

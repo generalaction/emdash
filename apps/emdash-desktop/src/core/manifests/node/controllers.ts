@@ -418,7 +418,7 @@ export const desktopNodeControllers = {
       createHostsWireController(hosts, hostAvailability, ssh.ssh),
   },
   tasks: {
-    create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) => {
+    create: ({ db, scope, taskService, taskSessions, telemetry }) => {
       const taskList = new TaskListService({
         taskService,
         taskSessions,
@@ -428,10 +428,8 @@ export const desktopNodeControllers = {
         desktopDomainContracts.tasks,
         createTasksWireController({
           db,
-          runtimes,
           service: taskService,
           taskList,
-          taskSessions,
           telemetry,
         }),
         scope
