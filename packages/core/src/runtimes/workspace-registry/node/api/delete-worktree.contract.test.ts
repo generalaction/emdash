@@ -73,7 +73,7 @@ describe('workspace registry deleteWorktree', () => {
     killedPaths = [];
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
-      userEnv: TEST_USER_ENV,
+      userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({

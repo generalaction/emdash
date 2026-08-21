@@ -88,7 +88,7 @@ describe('workspace registry config live model', () => {
     clock = new ManualClock(10_000);
     scriptsRuntime = new ScriptsRuntime({
       spawner: new ChildProcessPtySpawner(),
-      userEnv: TEST_USER_ENV,
+      userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });

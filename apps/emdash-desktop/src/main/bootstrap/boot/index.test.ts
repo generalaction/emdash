@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   logInfo: vi.fn(),
   logWarn: vi.fn(),
-  resolveUserEnv: vi.fn(),
+  startUserEnvCapture: vi.fn(),
   runtimes: vi.fn(),
   services: vi.fn(),
 }));
@@ -37,7 +37,7 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 vi.mock('@main/lib/userEnv', () => ({
-  resolveUserEnv: mocks.resolveUserEnv,
+  startUserEnvCapture: mocks.startUserEnvCapture,
 }));
 vi.mock('@main/db/instance', () => ({
   closeAppDb: mocks.closeAppDb,
@@ -84,16 +84,17 @@ describe('finishBoot', () => {
     });
   });
 
-  it('captures the user env before the backend chain', async () => {
+  it('starts user env capture before the backend chain without adding a boot step', async () => {
     await expect(finishBoot({} as never)).resolves.toBeUndefined();
 
     const order = (mock: { mock: { invocationCallOrder: number[] } }) =>
       mock.mock.invocationCallOrder[0]!;
-    expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.database));
+    expect(order(mocks.startUserEnvCapture)).toBeLessThan(order(mocks.database));
     expect(order(mocks.database)).toBeLessThan(order(mocks.runtimes));
-    // PTY security ordering: capture must complete before the runtimes phase
-    // snapshots the user env into worker startup config.
-    expect(order(mocks.resolveUserEnv)).toBeLessThan(order(mocks.runtimes));
+    expect(mocks.logInfo).not.toHaveBeenCalledWith(
+      expect.stringContaining('resolve-user-env'),
+      expect.anything()
+    );
   });
 
   it('rethrows a critical step failure and stops boot', async () => {

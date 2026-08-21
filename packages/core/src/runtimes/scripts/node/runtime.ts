@@ -10,6 +10,7 @@ import {
   type TerminalPortProbe,
 } from '#services/preview-detection/node';
 import { buildTerminalEnv, PtyRegistry, type PtySpawner } from '#services/pty/api';
+import type { UserShellEnv } from '#services/shell-env/api';
 import { scriptsContract } from '../api/contract';
 import type { ScriptRunNotFoundError, StartScriptRunError } from '../api/errors';
 import type {
@@ -33,7 +34,7 @@ const OUTPUT_TAIL_CAP = 16 * 1024;
 
 export type ScriptsRuntimeOptions = {
   spawner: PtySpawner;
-  userEnv: Readonly<Record<string, string>>;
+  userEnv: () => Promise<UserShellEnv>;
   /** Test seam for the dev-server URL detector's port liveness probe. */
   portProbe?: TerminalPortProbe;
   now?: () => number;
@@ -86,7 +87,7 @@ export class ScriptsRuntime {
   );
 
   private readonly registry: PtyRegistry;
-  private readonly userEnv: Record<string, string>;
+  private readonly loadUserEnv: () => Promise<UserShellEnv>;
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly now: () => number;
   private readonly logger: Logger;
@@ -97,7 +98,7 @@ export class ScriptsRuntime {
 
   constructor(options: ScriptsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner);
-    this.userEnv = { ...options.userEnv };
+    this.loadUserEnv = options.userEnv;
     this.portProbe = options.portProbe;
     this.now = options.now ?? Date.now;
     this.logger = options.logger ?? noopLogger;
@@ -112,12 +113,6 @@ export class ScriptsRuntime {
       });
     }
 
-    // User-shell env + the host-derived EMDASH_* vars; deliberately no CI=1
-    // injection (spec: env parity — a documented breaking change).
-    const env = buildTerminalEnv({
-      baseEnv: this.userEnv,
-      overrides: buildScriptEnv(input.workspacePath, input.facts),
-    });
     const log = this.logFor(input);
     log.reseed();
 
@@ -130,6 +125,12 @@ export class ScriptsRuntime {
 
     let session;
     try {
+      // User-shell env + the host-derived EMDASH_* vars; deliberately no CI=1
+      // injection (spec: env parity — a documented breaking change).
+      const env = buildTerminalEnv({
+        baseEnv: await this.loadUserEnv(),
+        overrides: buildScriptEnv(input.workspacePath, input.facts),
+      });
       session = await this.registry.create(
         runKey,
         spawnSpec({

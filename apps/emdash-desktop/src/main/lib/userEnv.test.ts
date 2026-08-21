@@ -13,7 +13,7 @@ const {
   ensureUserBinDirsInPath,
   ensureWindowsNpmGlobalBinInPath,
   getUserShellEnv,
-  resolveUserEnv,
+  refreshUserEnv,
 } = await import('./userEnv');
 
 const originalPath = process.env.PATH;
@@ -69,7 +69,7 @@ describe('ensureWindowsNpmGlobalBinInPath', () => {
   });
 });
 
-describe('resolveUserEnv (runtime env boundary)', () => {
+describe('refreshUserEnv (runtime env boundary)', () => {
   it('keeps Electron controls in the app process but excludes them from the user snapshot', async () => {
     const previousElectronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
     const previousNodeEnv = process.env.NODE_ENV;
@@ -79,7 +79,7 @@ describe('resolveUserEnv (runtime env boundary)', () => {
     mockShellCapture('PATH=/usr/local/bin:/usr/bin\nUSER_VALUE=kept\n');
 
     try {
-      await resolveUserEnv();
+      await refreshUserEnv();
 
       const probeOptions = spawnSyncMock.mock.calls[0]?.[2] as
         | { env?: NodeJS.ProcessEnv }
@@ -100,7 +100,7 @@ describe('resolveUserEnv (runtime env boundary)', () => {
   });
 });
 
-describe('resolveUserEnv (AppImage env scrub)', () => {
+describe('refreshUserEnv (AppImage env scrub)', () => {
   const SCRUBBED_KEYS = [
     'APPIMAGE',
     'APPDIR',
@@ -142,7 +142,7 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
     process.env.LD_LIBRARY_PATH = '/tmp/.mount_emdashTest/usr/lib:/usr/lib';
     process.env.XDG_DATA_DIRS = '/tmp/.mount_emdashTest/usr/share:/usr/local/share:/usr/share';
 
-    await resolveUserEnv();
+    await refreshUserEnv();
 
     expect(spawnSyncMock).toHaveBeenCalledTimes(1);
     const opts = spawnSyncMock.mock.calls[0]?.[2] as

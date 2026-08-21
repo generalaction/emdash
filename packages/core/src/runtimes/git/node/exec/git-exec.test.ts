@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BoundExec } from '#services/exec/api';
-import { bindGitDir, gitEnv } from './git-exec';
+import { bindGitDir, createGitExec, gitEnv } from './git-exec';
 
 describe('gitEnv', () => {
   it('pins git output locale for stable parsing and error classification', () => {
@@ -17,6 +17,22 @@ describe('gitEnv', () => {
     expect(gitEnv({ GIT_SSH_COMMAND: 'ssh -F custom-config' }).GIT_SSH_COMMAND).toBe(
       'ssh -F custom-config'
     );
+  });
+
+  it('loads the current environment for every git subprocess', async () => {
+    let env = { EMDASH_ENV_REVISION: 'before-refresh' };
+    const exec = createGitExec({
+      cwd: process.cwd(),
+      executable: process.execPath,
+      env: async () => env,
+    });
+
+    const before = await exec.exec(['-p', 'process.env.EMDASH_ENV_REVISION']);
+    env = { EMDASH_ENV_REVISION: 'after-refresh' };
+    const after = await exec.exec(['-p', 'process.env.EMDASH_ENV_REVISION']);
+
+    expect(before.stdout.trim()).toBe('before-refresh');
+    expect(after.stdout.trim()).toBe('after-refresh');
   });
 });
 

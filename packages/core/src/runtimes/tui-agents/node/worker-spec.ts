@@ -33,7 +33,6 @@ export function tuiAgentsWorkerSpec(
   return [
     createTuiAgentsComponent({
       pluginRegistry: input.pluginRegistry,
-      env: input.env,
       logger: input.logger,
     }),
     {

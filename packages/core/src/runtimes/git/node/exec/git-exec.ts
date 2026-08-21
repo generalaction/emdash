@@ -1,3 +1,4 @@
+import type { EnvSource } from '#primitives/exec/api';
 import {
   createBoundExec,
   type BoundExec,
@@ -6,11 +7,12 @@ import {
   type ExecResult,
   type ExecSpawnOptions,
 } from '#services/exec/api';
+import { gitRuntimeEnv } from '../non-interactive-env';
 
 export type CreateGitExecOptions = {
   cwd: string;
   executable?: string;
-  env?: NodeJS.ProcessEnv;
+  env: NodeJS.ProcessEnv | EnvSource;
 };
 
 /**
@@ -18,11 +20,8 @@ export type CreateGitExecOptions = {
  * SSH_AUTH_SOCK, credential helpers), so it is composed in deliberately — exec itself
  * never merges `process.env`.
  */
-export function gitEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env = {
-    ...process.env,
-    ...extra,
-  };
+export function gitEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env = gitRuntimeEnv(base);
   return {
     ...env,
     LC_ALL: 'C',
@@ -37,10 +36,12 @@ export function gitEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 export function createGitExec(options: CreateGitExecOptions): BoundExec {
+  const source = options.env;
+  const env = typeof source === 'function' ? async () => gitEnv(await source()) : gitEnv(source);
   return createBoundExec({
     file: options.executable ?? 'git',
     cwd: options.cwd,
-    env: gitEnv(options.env),
+    env,
   });
 }
 

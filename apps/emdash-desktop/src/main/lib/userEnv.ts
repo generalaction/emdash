@@ -39,7 +39,7 @@ export { SHELL_ENV_CAPTURE_GUARD };
 
 const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
 
-const userShellEnvManager = createShellEnvManager({
+export const userShellEnvManager = createShellEnvManager({
   target: process.env,
   baseEnvForProbe: buildExternalToolEnv,
   policy: {
@@ -59,34 +59,23 @@ export function ensureWindowsNpmGlobalBinInPath(
   return ensureCoreWindowsNpmGlobalBinInPath(env);
 }
 
-let userEnvResolved = false;
-
-/**
- * Whether the boot-time login-shell environment capture has completed. Worker
- * spawning asserts this because the terminal and scripts workers receive the
- * captured user-shell snapshot in their immutable startup config.
- */
-export function isUserEnvResolved(): boolean {
-  return userEnvResolved;
-}
-
-/** Returns a copy of the captured user-shell environment for PTYs and scripts. */
+/** Returns a synchronous copy for compatibility consumers that cannot spawn. */
 export function getUserShellEnv(): Record<string, string> {
   return userShellEnvManager.getUserShellEnv();
 }
 
 /**
- * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
- * missing shell, restricted environment) the function logs a warning and
- * returns — the app continues with whatever `process.env` already contains.
+ * Starts `$SHELL -ilc 'env'` with a 5 s timeout and returns immediately. On
+ * any error (timeout, missing shell, restricted environment) the manager logs
+ * a warning and retains a sanitized usable environment.
  *
- * After this call returns, compatibility consumers of `process.env` see the
- * resolved shell values, while PTYs and scripts consume the separately owned
- * snapshot returned by `getUserShellEnv()`.
+ * Spawn-capable runtimes request the separately owned snapshot through the
+ * parent controller; the manager makes their first request await this capture.
  */
-export async function resolveUserEnv(): Promise<void> {
-  await refreshUserEnv();
-  userEnvResolved = true;
+export function startUserEnvCapture(): void {
+  void refreshUserEnv().catch((error: unknown) => {
+    log.warn('[shell-env] Unexpected initial capture failure', { error });
+  });
 }
 
 export async function refreshUserEnv(): Promise<void> {

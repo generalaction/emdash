@@ -35,6 +35,10 @@ import {
   createHostDependenciesComponent,
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
+import {
+  createUserShellEnvController,
+  type ShellEnvManager,
+} from '@emdash/core/services/shell-env/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
@@ -69,9 +73,7 @@ export type WorkspaceServerRuntimeHost = {
 export type CreateWorkspaceServerRuntimeHostOptions = {
   scope: Scope;
   socketPath?: string;
-  env?: NodeJS.ProcessEnv;
-  userShellEnv: Record<string, string>;
-  refreshShellEnv?: () => Promise<void>;
+  shellEnv: ShellEnvManager;
   logger?: Logger;
 };
 
@@ -80,7 +82,8 @@ const DETACHED_TERMINAL_GRACE_MS = 5 * 60_000;
 export async function createWorkspaceServerRuntimeHost(
   options: CreateWorkspaceServerRuntimeHostOptions
 ): Promise<WorkspaceServerRuntimeHost> {
-  const env = options.env ?? process.env;
+  const env = options.shellEnv.env;
+  const userShellEnv = createUserShellEnvController(() => options.shellEnv.current());
   const paths = workspaceServerRuntimePaths(options.socketPath);
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
@@ -93,7 +96,7 @@ export async function createWorkspaceServerRuntimeHost(
   });
   const hostDependencies = createHostDependenciesComponent({
     store: createJsonFileKeyValueStore({ path: paths.hostDependenciesStore }),
-    exec: new NodeExecutionContext({ env, refreshShellEnv: options.refreshShellEnv }),
+    exec: new NodeExecutionContext({ env, refreshShellEnv: () => options.shellEnv.refresh() }),
     logger: options.logger,
   }).create({
     scope: options.scope.child('host-dependencies'),
@@ -121,7 +124,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...terminalsWorkerSpec({
       executable: workspaceWorkerPath('terminals'),
       env,
-      userEnv: options.userShellEnv,
+      userEnv: userShellEnv,
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
@@ -144,7 +147,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...scriptsWorkerSpec({
       executable: workspaceWorkerPath('scripts'),
       env,
-      userEnv: options.userShellEnv,
+      userEnv: userShellEnv,
     })
   );
   const acpPromise = conversationsPromise.then((conversations) =>
@@ -156,6 +159,7 @@ export async function createWorkspaceServerRuntimeHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          userEnv: userShellEnv,
         },
         attachmentsDir: paths.attachmentsDirectory,
         intentsFilePath: paths.acpIntentsFile,
@@ -169,6 +173,7 @@ export async function createWorkspaceServerRuntimeHost(
       env,
       dependencies: {
         hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
       },
     })
   );
@@ -181,6 +186,7 @@ export async function createWorkspaceServerRuntimeHost(
         dependencies: {
           hostDependencies: hostDependencies.client.resolver,
           conversations,
+          userEnv: userShellEnv,
         },
         intentsFilePath: paths.tuiAgentsIntentsFile,
       })
@@ -228,7 +234,7 @@ export async function createWorkspaceServerRuntimeHost(
     ...fileSearchWorkerSpec({
       executable: workspaceWorkerPath('file-search'),
       env,
-      dependencies: { watcher },
+      dependencies: { watcher, userEnv: userShellEnv },
       databasePath: paths.fileSearchDatabase,
       ripgrepPath: env['EMDASH_WS_RIPGREP_PATH'],
     })
@@ -240,6 +246,7 @@ export async function createWorkspaceServerRuntimeHost(
       dependencies: {
         watcher,
         hostDependencies: hostDependencies.client.resolver,
+        userEnv: userShellEnv,
       },
     })
   );
@@ -247,7 +254,15 @@ export async function createWorkspaceServerRuntimeHost(
     ...workspaceRegistryWorkerSpec({
       executable: workspaceWorkerPath('workspace-registry'),
       env,
-      dependencies: { watcher, acp, terminals, tuiAgents, scripts, hostSettings },
+      dependencies: {
+        watcher,
+        acp,
+        terminals,
+        tuiAgents,
+        scripts,
+        hostSettings,
+        userEnv: userShellEnv,
+      },
       databasePath: paths.workspaceRegistryDatabase,
     })
   );

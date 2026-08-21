@@ -84,6 +84,9 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
       { signal: expect.any(AbortSignal) }
     );
     expect(exec.refreshShellEnv).toHaveBeenCalledOnce();
+    expect(vi.mocked(exec.execStreaming).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(exec.refreshShellEnv!).mock.invocationCallOrder[0]!
+    );
     expect(progress).toHaveBeenCalledWith({ phase: 'resolving' });
     expect(progress).toHaveBeenCalledWith({ phase: 'running' });
     expect(progress).toHaveBeenCalledWith({ phase: 'refreshing' });

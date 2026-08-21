@@ -126,7 +126,7 @@ describe('runtime domain forwarding', () => {
     };
     const terminalsRuntime = new TerminalsRuntime({
       spawner,
-      userEnv: {},
+      userEnv: async () => ({}),
       shellResolver,
     });
     const terminals = createTestWire(

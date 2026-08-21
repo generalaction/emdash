@@ -307,7 +307,7 @@ export function testPluginHost(
     exec: fakeExec(),
     dependencies: fakeDependencies(providerId),
     fs: fakePluginFs(),
-    env: { PATH: '/bin', HOME: '/home/test' },
+    env: async () => ({ PATH: '/bin', HOME: '/home/test' }),
     homeDir: '/home/test',
   });
 }

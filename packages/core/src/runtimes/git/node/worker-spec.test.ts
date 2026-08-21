@@ -18,7 +18,7 @@ describe('gitRuntimeEnv', () => {
 });
 
 describe('gitWorkerSpec', () => {
-  it('gives the worker and its git subprocesses the same composed env', () => {
+  it('keeps the user snapshot out of worker config', () => {
     const [component, options] = gitWorkerSpec({
       executable: '/w/git.mjs',
       env,
@@ -28,10 +28,9 @@ describe('gitWorkerSpec', () => {
     expect(component.id).toBe('git');
     expect(options.name).toBe('git');
     expect(options.env).toEqual(gitRuntimeEnv(env));
-    expect(options.config.env).toBe(options.env);
+    expect(component.requirements).toHaveProperty('userEnv');
     expect(component.configSchema.parse(options.config)).toEqual({
       executable: '/usr/local/bin/git',
-      env: gitRuntimeEnv(env),
     });
   });
 

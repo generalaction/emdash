@@ -52,13 +52,13 @@ async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Dis
   });
   try {
     const shellEnv = createShellEnvManager({ target: process.env, logger });
-    await shellEnv.refresh();
+    void shellEnv.refresh().catch((error: unknown) => {
+      logger.warn('[shell-env] Unexpected initial capture failure', { error });
+    });
     const runtimeHost = await createWorkspaceServerRuntimeHost({
       scope,
       socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
-      env: shellEnv.env,
-      userShellEnv: shellEnv.getUserShellEnv(),
-      refreshShellEnv: () => shellEnv.refresh(),
+      shellEnv,
       logger,
     });
     const controller = createWorkspaceWireController({

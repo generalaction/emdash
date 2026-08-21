@@ -1,4 +1,7 @@
-import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
+import type {
+  ProvidedWireComponentRequirements,
+  WireComponentWorkerCreateOptions,
+} from '@emdash/wire/worker';
 import type { z } from 'zod';
 import { scriptsComponent, type scriptsComponentConfigSchema } from './component';
 
@@ -10,7 +13,7 @@ type ScriptsWorkerOptions = WireComponentWorkerCreateOptions<
 export type ScriptsWorkerSpecInput = {
   executable: string;
   env: NodeJS.ProcessEnv;
-  userEnv: Record<string, string>;
+  userEnv: ProvidedWireComponentRequirements<(typeof scriptsComponent)['requirements']>['userEnv'];
 };
 
 /** Spawn spec for the scripts worker. */
@@ -23,8 +26,8 @@ export function scriptsWorkerSpec(
       name: 'scripts',
       executable: input.executable,
       env: input.env,
-      dependencies: {},
-      config: { userEnv: input.userEnv },
+      dependencies: { userEnv: input.userEnv },
+      config: {},
     },
   ];
 }

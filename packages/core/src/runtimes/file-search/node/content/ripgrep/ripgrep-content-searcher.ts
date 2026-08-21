@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { abortReason } from '@emdash/shared/scheduling';
+import type { EnvSource } from '#primitives/exec/api';
 import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
@@ -26,7 +27,7 @@ const DEFAULT_MAX_JSON_RECORD_BYTES = 32 * 1024 * 1024;
 
 type RipgrepContentSearcherOptions = Readonly<{
   executable?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: EnvSource;
   exclusions: FileSearchExclusions;
   maxRecordBytes?: number;
 }>;
@@ -39,13 +40,13 @@ type RipgrepRunState =
 
 export class RipgrepContentSearcher implements FileContentSearcher {
   private readonly executable: string;
-  private readonly env: NodeJS.ProcessEnv | undefined;
+  private readonly env: EnvSource;
   private readonly exclusions: FileSearchExclusions;
   private readonly maxRecordBytes: number;
 
   constructor(options: RipgrepContentSearcherOptions) {
     this.executable = options.executable ?? 'rg';
-    this.env = options.env;
+    this.env = options.env ?? (async () => process.env);
     this.exclusions = options.exclusions;
     this.maxRecordBytes = positiveSafeInteger(
       options.maxRecordBytes ?? DEFAULT_MAX_JSON_RECORD_BYTES,
@@ -53,7 +54,7 @@ export class RipgrepContentSearcher implements FileContentSearcher {
     );
   }
 
-  search(
+  async search(
     input: ResolvedContentSearchInput,
     context: ContentSearchContext
   ): Promise<Result<ContentSearchResult, ContentSearchExecutionError>> {
