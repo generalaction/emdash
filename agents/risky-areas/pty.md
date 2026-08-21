@@ -21,8 +21,9 @@
 ## Rules
 
 - construct every PTY environment through `packages/core/src/services/pty/api/terminal-env.ts`
-- keep the host/worker `process.env` separate from the captured user-shell environment; pass the
-  latter explicitly into terminal and script runtimes, never as an ambient fallback
+- keep the host/worker `process.env` separate from the captured user-shell environment; only the
+  host process captures it, spawning runtimes receive a parent-owned source and resolve that source
+  exactly once per spawn, never as an ambient fallback or immutable worker config
 - do not weaken quoting or spawn behavior casually
 - validate both direct spawn and shell-wrapped spawn cases when changing PTY startup logic
 - confirm renderer event flow if hook/plugin payload or agent status behavior changes
