@@ -132,16 +132,13 @@ async function registerWorkspace(
 ): Promise<Result<string, AutomationPortError>> {
   const result = await client.createWorkspace({ workspaceId: randomUUID(), path }, { signal });
   if (result.success) return ok(result.data.id);
-  if (result.error.type === 'already-registered') return ok(result.error.record.id);
   return err({
     code: result.error.type,
     message: describeCreateWorkspaceError(result.error),
   });
 }
 
-function describeCreateWorkspaceError(
-  error: Exclude<CreateWorkspaceError, { type: 'already-registered' }>
-): string {
+function describeCreateWorkspaceError(error: CreateWorkspaceError): string {
   switch (error.type) {
     case 'path-not-found':
       return `Workspace path not found: ${error.path}`;

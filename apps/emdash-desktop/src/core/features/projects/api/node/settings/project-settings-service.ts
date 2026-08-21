@@ -6,7 +6,6 @@ import type { LiveSource } from '@emdash/wire/rpc';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import { projectEvents } from '@core/features/projects/node';
-import { getProjectConfigEnsuringRegistration } from '@core/features/workspaces/api/node/registry-verbs';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
@@ -310,11 +309,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   ): Promise<Result<ProjectConfigState, ProjectSettingsError>> {
     const workspaceId = project.project.repositoryWorkspaceId;
     if (!workspaceId) return err({ type: 'error' });
-    const result = await getProjectConfigEnsuringRegistration(
-      project.workspaceRegistry,
-      workspaceId,
-      project.repoPath
-    );
+    const result = await project.workspaceRegistry.getProjectConfig({ workspaceId });
     if (!result.success) {
       log.warn('Failed to resolve host project config', {
         projectId: project.projectId,

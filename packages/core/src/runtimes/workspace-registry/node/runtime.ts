@@ -1002,8 +1002,8 @@ export class WorkspaceRegistryRuntime {
 
     const byPath = this.store.getByPath(canonical);
     if (byPath) {
-      // A second desktop adopts the existing record instead of fighting over the path.
-      return err({ type: 'already-registered', record: this.toWire(byPath) });
+      // The Host owns path identity: a second desktop consumes the canonical record.
+      return ok(this.toWire(byPath));
     }
 
     const inspection = await this.inspector(canonical);

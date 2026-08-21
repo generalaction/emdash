@@ -12,7 +12,6 @@ import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env
 import type { Task } from '@core/primitives/tasks/api';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
-import { getProjectConfigEnsuringRegistration } from './registry-verbs';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 
@@ -63,7 +62,7 @@ export async function resolveTaskEnv(
   const [effective, tmux, projectConfig] = await Promise.all([
     resolveProjectEffectiveSettings({ settings, repoFacts }),
     settings.resolveTmux(),
-    getProjectConfigEnsuringRegistration(workspace.workspaceRegistry, workspace.id, workspace.path),
+    workspace.workspaceRegistry.getProjectConfig({ workspaceId: workspace.id }),
   ]);
   const defaultBranch = effective.defaultBranch.value?.branch ?? null;
   if (!projectConfig.success) {
