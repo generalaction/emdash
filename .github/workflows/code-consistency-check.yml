@@ -6,8 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  format-check:
+  checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: format-check
+            target: format:check
+          - name: lint
+            target: lint
+          - name: typecheck
+            target: typecheck
+          - name: test
+            target: test
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -32,8 +45,8 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        # This job only needs JS/TS tooling for format + type checks.
-        # Skip lifecycle scripts to avoid flaky node-gyp/native module builds in CI.
+        # The checks only need JS/TS tooling from the workspace install. Skip
+        # lifecycle scripts to avoid flaky node-gyp/native module builds in CI.
         run: |
           for attempt in 1 2 3; do
             pnpm install --frozen-lockfile --ignore-scripts && break
@@ -46,6 +59,7 @@ jobs:
           done
 
       - name: Install native test dependencies
+        if: matrix.target == 'test'
         # The install above keeps --ignore-scripts, so lifecycle scripts that
         # provision native modules never run. Two are needed for tests:
         # - the anchored native side project (system-Node better-sqlite3 copy)
@@ -56,5 +70,5 @@ jobs:
           pnpm --filter @emdash/core rebuild node-pty
           pnpm --filter @emdash/core exec node -e "require('node-pty')"
 
-      - name: Run affected checks
-        run: pnpm nx affected -t format:check typecheck lint test
+      - name: Run affected ${{ matrix.name }}
+        run: pnpm nx affected -t ${{ matrix.target }}
