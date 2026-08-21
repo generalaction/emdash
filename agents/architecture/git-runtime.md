@@ -46,6 +46,13 @@ The pooled values are deep resource objects:
 2. `CheckoutResource` represents one canonical worktree. It owns checkout live states, the
    worktree watcher, file-diff staleness, explicit checkout operations, and their reconciliation.
 
+The checkout head state is authoritative for the current branch's canonical full ref, configured
+upstream, tracking ref, and divergence. Upstream state distinguishes local tracking from remote
+tracking; only a remote upstream means the branch is published. Repository refs are inventory for
+branch selection and repository policy; they are not joined with checkout state to infer whether
+the current branch is published. Current-branch publication resolves the checked-out full ref on
+the host and travels through the dedicated checkout publication job.
+
 Repository identity is the canonical common Git directory. Checkout identity combines the
 canonical checkout root and private Git directory. Linked worktrees share one repository resource
 while retaining distinct checkout resources.
@@ -85,6 +92,8 @@ Reconciliation is local to the operation that changes external Git state:
   repository refs as appropriate;
 - repository ref operations invalidate active linked checkouts;
 - jobs reconcile immediately after success or partial failure according to their own semantics;
+- successful current-branch publication refreshes checkout head before the job settles, and the
+  invoking renderer performs an additional head refresh as its observation barrier;
 - filesystem watchers call the same direct resource invalidation methods.
 
 There is no operation classifier or global effect plan. Small shared methods such as
