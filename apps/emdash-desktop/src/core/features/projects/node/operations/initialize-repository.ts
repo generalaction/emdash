@@ -5,6 +5,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { translateWorkspaceIdentity } from '@core/features/workspaces/node/identity/translate-workspace-identity';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { InitializeRepositoryResult } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -56,15 +57,24 @@ export async function initializeRepository(
       });
     }
     const storage = workspaceHostStorage(host);
-    const claimed = createWorkspaceRegistry(dependencies.db).claim({
+    const claim = {
       host: { location: storage.location, sshConnectionId: storage.sshConnectionId },
       record: registered.data,
-    });
+    } as const;
+    const claimed =
+      registered.data.id === existingProject.repositoryWorkspaceId
+        ? createWorkspaceRegistry(dependencies.db).claim(claim)
+        : translateWorkspaceIdentity(
+            dependencies.db,
+            existingProject.repositoryWorkspaceId,
+            claim,
+            existingProject.path
+          );
     if (!claimed.success) {
       return err({
         type: 'open-repository-failed',
         path: repositoryResult.data.rootPath,
-        message: `Could not claim the Host workspace (${claimed.error.type})`,
+        message: `Could not bind the canonical Host workspace (${claimed.error.type})`,
       });
     }
   }
