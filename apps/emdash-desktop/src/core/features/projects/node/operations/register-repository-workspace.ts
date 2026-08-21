@@ -1,98 +1,75 @@
-import { randomUUID } from 'node:crypto';
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import { and, eq, isNull } from 'drizzle-orm';
-import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import {
+  createWorkspaceRegistry,
+  type WorkspaceClaimError,
+} from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects } from '@core/services/app-db/node/schema';
+import { projects, type ProjectRow } from '@core/services/app-db/node/schema';
+
+export type RegisterRepositoryWorkspaceError =
+  | WorkspaceClaimError
+  | { type: 'project-already-linked'; projectId: string; workspaceId: string };
+
+export type RegisterRepositoryWorkspaceInput = {
+  project: { id: string; name: string; baseRef: string | null };
+  host: HostRef;
+  record: WorkspaceRecord;
+};
 
 /**
- * Registers the project's repository workspace row and sets
- * `projects.repositoryWorkspaceId` if it is not already set. The repository
- * row owns the project's path and host identity.
- *
- * This is idempotent and race-safe — the INSERT and UPDATE are wrapped in a
- * transaction. If a live workspace row already exists at the project's host +
- * path (an orphan from a previous partial failure, or an adopted row), it is
- * linked instead of inserting a duplicate.
- *
- * Called only from `createProjectOnHost`: project creation is the sole
- * registration site. Pre-existing rows without a repository workspace are
- * backfilled by the release migration train.
+ * Commits one Project and its Host-acknowledged Repository identity atomically. The
+ * Host call intentionally happens before this module: a failed desktop transaction
+ * leaves only an unassociated Host record, which snapshot Observe can safely mirror.
  */
 export function registerRepositoryWorkspace(
   db: AppDb,
-  project: { id: string; path: string; host: HostRef }
-): string {
-  const [row] = db
-    .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
-    .from(projects)
-    .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
-    .limit(1)
-    .all();
-
-  if (row?.repositoryWorkspaceId) {
-    return row.repositoryWorkspaceId;
-  }
-
-  const workspaceId = randomUUID();
-  const storage = workspaceHostStorage(project.host);
+  input: RegisterRepositoryWorkspaceInput
+): Result<ProjectRow, RegisterRepositoryWorkspaceError> {
   const registry = createWorkspaceRegistry(db);
+  const { location, sshConnectionId } = workspaceHostStorage(input.host);
 
-  const resolvedId = db.transaction((tx) => {
-    // Re-check inside the transaction to avoid races.
-    const [current] = tx
-      .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
+  return db.transaction((tx) => {
+    const linked = tx
+      .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
+      .where(and(eq(projects.repositoryWorkspaceId, input.record.id), isNull(projects.deletedAt)))
       .limit(1)
-      .all();
-
-    if (current?.repositoryWorkspaceId) return current.repositoryWorkspaceId;
-
-    const existingWs = registry.findLiveByPath(
-      storage.location,
-      storage.sshConnectionId,
-      project.path,
-      tx
-    );
-
-    const resolvedId = existingWs?.id ?? workspaceId;
-
-    if (!existingWs) {
-      registry.register(
-        {
-          id: workspaceId,
-          kind: 'repository',
-          location: storage.location,
-          sshConnectionId: storage.sshConnectionId,
-          type: storage.type,
-          path: project.path,
-        },
-        tx
-      );
-    } else if (existingWs.kind !== 'repository' && existingWs.kind !== 'worktree') {
-      // Directory rows at the project path get promoted; worktree rows keep
-      // their kind — flipping one would suppress its branch identity and
-      // block worktree removal for the task that owns it.
-      registry.annotate(existingWs.id, { kind: 'repository' }, tx);
+      .get();
+    if (linked) {
+      return err({
+        type: 'project-already-linked',
+        projectId: linked.id,
+        workspaceId: input.record.id,
+      });
     }
 
-    tx.update(projects)
-      .set({ repositoryWorkspaceId: resolvedId })
-      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
-      .run();
+    const claimed = registry.claim(
+      {
+        host: { location, sshConnectionId },
+        record: input.record,
+      },
+      tx
+    );
+    if (!claimed.success) return claimed;
 
-    log.info('registerRepositoryWorkspace: created repository workspace', {
-      projectId: project.id,
-      workspaceId: resolvedId,
-      reusedExisting: !!existingWs,
+    const row = tx
+      .insert(projects)
+      .values({
+        ...input.project,
+        repositoryWorkspaceId: input.record.id,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .returning()
+      .get();
+    log.info('registerRepositoryWorkspace: claimed canonical repository workspace', {
+      projectId: row.id,
+      workspaceId: input.record.id,
     });
-
-    return resolvedId;
+    return ok(row);
   });
-  appDbPokes.projects.poke({ projectId: project.id });
-  return resolvedId;
 }
