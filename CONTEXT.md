@@ -347,7 +347,7 @@ The explicit desktop operation that moves an existing Workspace mirror to anothe
 _Avoid_: Changing `sshConnectionId` as an annotation, path-based identity repair, treating a new Host's same path as automatically the same Project
 
 **Observe**:
-Applying a Host registry snapshot to the desktop Registry by canonical Workspace id. Observe refreshes Host facts, adopts unknown Host ids, and applies missing/untrack rules; it never relinks by path, rewrites desktop annotations, or resurrects an untracked row. A same-path/different-id collision is reported before writes and stops that Host attachment. Only the production backfill may translate a legacy desktop id to a different Host id.
+Applying a Host registry snapshot to the desktop Registry by canonical Workspace id. Observe refreshes Host facts, adopts unknown Host ids, and applies missing/untrack rules; it never relinks by path, rewrites desktop annotations, or resurrects an untracked row. A same-path/different-id collision is reported before writes and stops that Host attachment. Cross-id translation is limited to explicit workflows that already own the previous identity: the production backfill and repository initialization after the Host resolves a Project path to another canonical id.
 _Avoid_: Path-based repair during normal sync, deliveries resurrecting untracked rows
 
 **Activation**:

@@ -44,9 +44,11 @@ the path during that cutover, including another desktop or scanner adoption. A l
 is absent or already missing stays
 desktop-side; normal Observe missing/untrack rules apply after cutover. The cutover never manufactures
 a Host record without an artifact to inspect. A versioned per-Host completion marker is written only
-at a stable fixed point; failures gate snapshot and reconcile attachment. This backfill is the only
-path-based UUID translation seam, and its translation helper lives beside the backfill rather than
-in the general Registry API.
+at a stable fixed point; failures gate snapshot and reconcile attachment. One internal path-based
+UUID translation seam serves exactly two explicit workflows: the production backfill and repository
+initialization when the Host resolves the Project path to another canonical record. It moves every
+desktop binding transactionally and remains outside the general Registry API; Claim and Observe
+never call it.
 
 ## Why plain RPCs
 

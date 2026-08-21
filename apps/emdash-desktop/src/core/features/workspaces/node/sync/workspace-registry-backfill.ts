@@ -18,9 +18,9 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
-  rebindLegacyWorkspaceForBackfill,
-  type LegacyWorkspaceRebindError,
-} from './rebind-legacy-workspace-for-backfill';
+  translateWorkspaceIdentity,
+  type WorkspaceIdentityTranslationError,
+} from '../identity/translate-workspace-identity';
 import { loadWorkspaceAnnotations, type WorkspaceAnnotationIndex } from './workspace-annotations';
 
 const BACKFILL_VERSION = 2 as const;
@@ -149,7 +149,7 @@ export class WorkspaceRegistryBackfillService {
       const claimed =
         created.data.id === row.id
           ? registry.claim(claim)
-          : rebindLegacyWorkspaceForBackfill(this.options.db, row.id, claim, row.path);
+          : translateWorkspaceIdentity(this.options.db, row.id, claim, row.path);
       if (!claimed.success) return translationFailure(row.id, claimed.error);
     }
 
@@ -272,7 +272,7 @@ function planFingerprint(plan: BackfillPlan): string {
 
 function translationFailure(
   workspaceId: string,
-  error: LegacyWorkspaceRebindError
+  error: WorkspaceIdentityTranslationError
 ): WorkspaceRegistryBackfillResult {
   return terminal(
     `Desktop could not translate legacy Workspace '${workspaceId}': ${JSON.stringify(error)}`
