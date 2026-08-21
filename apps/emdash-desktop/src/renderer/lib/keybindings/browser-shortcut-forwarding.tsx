@@ -11,16 +11,12 @@ export function BrowserShortcutForwarding() {
       const nextUnsubscribe = await client.host.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.type !== 'browser-app-shortcut') return;
-          keybindingDispatcher.dispatchSynthetic(
-            new Set([event.commandId]),
-            {
-              textInputFocused: true,
-              editorFocused: false,
-              terminalFocused: false,
-              browserFocused: true,
-            },
-            { repeat: false, isComposing: false }
-          );
+          keybindingDispatcher.dispatchSynthetic(new Set([event.commandId]), {
+            textInputFocused: true,
+            editorFocused: false,
+            terminalFocused: false,
+            browserFocused: true,
+          });
         },
         onGap: () => {},
       });

@@ -1,5 +1,5 @@
 import { JSDOM } from 'jsdom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from '@core/primitives/commands/api';
 import {
@@ -8,7 +8,6 @@ import {
   hidden,
   type ViewScopeImpl,
 } from '@core/primitives/view-scopes/api';
-import { registerViewScopeImpl, unregisterViewScopeImpl } from './impl-registry';
 import { focusScope as focusScopeInstance, ViewScopes } from './scopes';
 
 const archiveCommand = defineCommand({
@@ -55,10 +54,6 @@ const focusScope = defineViewScope({
   activation: 'focus',
 });
 
-afterEach(() => {
-  unregisterViewScopeImpl(taskScope);
-});
-
 describe('ViewScopes', () => {
   it('resolves and executes the innermost enabled command', () => {
     const outerExecute = vi.fn();
@@ -77,7 +72,8 @@ describe('ViewScopes', () => {
     });
     scopes.activate(inner);
 
-    const hit = scopes.execute(archiveCommand, undefined, 'keybinding');
+    const hit = scopes.resolveKeybinding(new Set([archiveCommand.id]));
+    if (hit.kind === 'winner') void hit.command.execute(undefined, 'keybinding');
 
     expect(hit.kind).toBe('winner');
     expect(innerExecute).toHaveBeenCalledWith(undefined, 'keybinding');
@@ -105,7 +101,7 @@ describe('ViewScopes', () => {
     });
     scopes.activate(inner);
 
-    expect(scopes.execute(archiveCommand, undefined)).toEqual({
+    expect(scopes.resolveKeybinding(new Set([archiveCommand.id]))).toEqual({
       kind: 'consumed',
       commandId: 'task.archive',
     });
@@ -130,7 +126,10 @@ describe('ViewScopes', () => {
     });
     scopes.activate(inner);
 
-    expect(scopes.execute(archiveCommand, undefined).kind).toBe('winner');
+    const hit = scopes.resolveKeybinding(new Set([archiveCommand.id]));
+    if (hit.kind === 'winner') void hit.command.execute(undefined);
+
+    expect(hit.kind).toBe('winner');
     expect(outerExecute).toHaveBeenCalledOnce();
     scopes.dispose();
   });
@@ -142,7 +141,7 @@ describe('ViewScopes', () => {
       impl: { 'task.archive': () => ({ execute: outerExecute }) },
     });
     const modal = scopes.instantiate(capturingScope(), { parent: outer, impl: {} });
-    scopes.activate(modal);
+    scopes.activateCapture(modal);
 
     expect(scopes.resolveKeybinding(new Set(['task.archive']))).toEqual({ kind: 'none' });
     expect(outerExecute).not.toHaveBeenCalled();
@@ -220,7 +219,6 @@ describe('ViewScopes', () => {
     expect(outer.isDisposed).toBe(true);
     expect(inner.isDisposed).toBe(true);
     expect(scopes.activePath).toEqual([]);
-    expect(scopes.get(taskScope({ taskId: 'task-1' }))).toBeUndefined();
     scopes.dispose();
   });
 
@@ -274,8 +272,46 @@ describe('ViewScopes', () => {
 
     expect(scopes.activePath.map((handle) => handle.ref.scopeId)).toEqual(['terminal', 'window']);
     expect(input?.getAttribute('data-view-scope')).toBe(terminal.id);
-    expect(scopes.activeInstance).toBe(terminal);
+    expect(scopes.activePath[0]).toBe(terminal);
     expect(scopes.isWithinActivePath(outer)).toBe(true);
+    scopes.dispose();
+  });
+
+  it('rejects focus scopes in the logical activation channel', () => {
+    const scopes = new ViewScopes(undefined);
+    const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+
+    expect(() => scopes.activate(terminal)).toThrow(
+      'View scope terminal does not use logical activation'
+    );
+    scopes.dispose();
+  });
+
+  it('clears ambient focus when focus moves to a logical scope root', () => {
+    const dom = new JSDOM(
+      '<div id="window" tabindex="-1"><div id="terminal" tabindex="-1"></div></div>'
+    );
+    const scopes = new ViewScopes(dom.window.document);
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
+      parent: outer,
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const windowElement = dom.window.document.querySelector<HTMLElement>('#window');
+    const terminalElement = dom.window.document.querySelector<HTMLElement>('#terminal');
+    outer.attachRef(windowElement);
+    terminal.attachRef(terminalElement);
+    scopes.activate(outer);
+    terminalElement?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    expect(scopes.activePath).toEqual([terminal, outer]);
+
+    windowElement?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+
+    expect(scopes.activePath).toEqual([outer]);
     scopes.dispose();
   });
 
@@ -300,28 +336,104 @@ describe('ViewScopes', () => {
       .querySelector<HTMLElement>('#sidebar')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
 
-    expect(scopes.activeInstance).toBe(terminal);
+    expect(scopes.activePath[0]).toBe(terminal);
     expect(scopes.activePath).toEqual([terminal, outer]);
     scopes.dispose();
   });
 
   it('falls back to a live ancestor when an active focus scope detaches', () => {
-    const dom = new JSDOM('<div id="modal" tabindex="-1"></div>');
+    const dom = new JSDOM('<div id="terminal" tabindex="-1"></div>');
     const scopes = new ViewScopes(dom.window.document);
     const outer = scopes.instantiate(windowScope(), {
       impl: { 'task.archive': () => ({ execute: vi.fn() }) },
     });
-    const modal = scopes.instantiate(capturingScope(), { parent: outer, impl: {} });
+    const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
+      parent: outer,
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
     scopes.activate(outer);
-    const modalElement = dom.window.document.querySelector<HTMLElement>('#modal');
-    modal.attachRef(modalElement);
-    modalElement?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
-    expect(scopes.activeInstance).toBe(modal);
+    const terminalElement = dom.window.document.querySelector<HTMLElement>('#terminal');
+    terminal.attachRef(terminalElement);
+    terminalElement?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    expect(scopes.activePath[0]).toBe(terminal);
 
-    modal.attachRef(null);
+    terminal.attachRef(null);
 
-    expect(scopes.activeInstance).toBe(outer);
+    expect(scopes.activePath[0]).toBe(outer);
     expect(scopes.activePath).toEqual([outer]);
+    scopes.dispose();
+  });
+
+  it('restores the underlying focus path after a parentless overlay closes', () => {
+    const dom = new JSDOM(
+      '<div id="terminal" tabindex="-1"></div><div id="modal" tabindex="-1"></div>'
+    );
+    const scopes = new ViewScopes(dom.window.document);
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const terminal = scopes.instantiate(focusScope({ terminalId: 'terminal-1' }), {
+      parent: outer,
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    terminal.attachRef(dom.window.document.querySelector<HTMLElement>('#terminal'));
+    modal.attachRef(dom.window.document.querySelector<HTMLElement>('#modal'));
+    scopes.activate(outer);
+    dom.window.document
+      .querySelector<HTMLElement>('#terminal')
+      ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+
+    const popOverlay = scopes.activateCapture(modal);
+    dom.window.document
+      .querySelector<HTMLElement>('#modal')
+      ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    expect(scopes.activePath).toEqual([modal]);
+
+    popOverlay();
+
+    expect(scopes.activePath).toEqual([terminal, outer]);
+
+    // A closing dialog may still receive focus before its exit animation
+    // unmounts. It is no longer an overlay and must not replace the terminal.
+    dom.window.document
+      .querySelector<HTMLElement>('#modal')
+      ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    expect(scopes.activePath).toEqual([terminal, outer]);
+    scopes.dispose();
+  });
+
+  it('reveals the latest logical scope when navigation changes beneath an overlay', () => {
+    const scopes = new ViewScopes(undefined);
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const firstTask = scopes.instantiate(taskScope({ taskId: 'task-1' }), {
+      parent: outer,
+      impl: {
+        'task.archive': () => ({ execute: vi.fn() }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const nextTask = scopes.instantiate(taskScope({ taskId: 'task-2' }), {
+      parent: outer,
+      impl: {
+        'task.archive': () => ({ execute: vi.fn() }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(firstTask);
+    const popOverlay = scopes.activateCapture(modal);
+
+    scopes.activate(nextTask);
+    expect(scopes.activePath).toEqual([modal]);
+
+    popOverlay();
+
+    expect(scopes.activePath).toEqual([nextTask, outer]);
     scopes.dispose();
   });
 
@@ -350,7 +462,7 @@ describe('ViewScopes', () => {
 
     scopes.activate(nextView);
 
-    expect(scopes.activeInstance).toBe(nextView);
+    expect(scopes.activePath[0]).toBe(nextView);
     expect(scopes.activePath).toEqual([nextView, outer]);
     scopes.dispose();
   });
@@ -394,16 +506,17 @@ describe('ViewScopes', () => {
     dom.window.document
       .querySelector<HTMLElement>('#terminal')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    scopes.activateCapture(modal);
     dom.window.document
       .querySelector<HTMLElement>('#modal')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
 
     expect(scopes.getActiveCommand(archiveCommand)).toBeUndefined();
     expect(
-      scopes.getActiveCommand(archiveCommand, { fromCaptureOrigin: true })?.availability.kind
+      scopes.getActiveCommand(archiveCommand, { belowActiveCapture: true })?.availability.kind
     ).toBe('enabled');
     scopes
-      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
       ?.execute(undefined, 'palette');
     expect(execute).toHaveBeenCalledOnce();
     scopes.dispose();
@@ -420,23 +533,23 @@ describe('ViewScopes', () => {
     modal.attachRef(dom.window.document.querySelector<HTMLElement>('#modal'));
     scopes.activate(outer);
 
-    // ModalRenderer explicitly activates a fresh modal before Base UI's focus pass.
-    scopes.activate(modal);
+    // ModalRenderer pushes a fresh overlay before Base UI's focus pass.
+    scopes.activateCapture(modal);
     dom.window.document
       .querySelector<HTMLElement>('#modal')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
 
     expect(
-      scopes.getActiveCommand(archiveCommand, { fromCaptureOrigin: true })?.availability.kind
+      scopes.getActiveCommand(archiveCommand, { belowActiveCapture: true })?.availability.kind
     ).toBe('enabled');
     scopes
-      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
       ?.execute(undefined, 'palette');
     expect(execute).toHaveBeenCalledOnce();
     scopes.dispose();
   });
 
-  it('retains a capturing scope origin when a stacked scope temporarily replaces it', () => {
+  it('resolves through the next capture after the top capture closes', () => {
     const scopes = new ViewScopes(undefined);
     const execute = vi.fn();
     const outer = scopes.instantiate(windowScope(), {
@@ -445,22 +558,152 @@ describe('ViewScopes', () => {
     const bottomModal = scopes.instantiate(capturingScope(), { impl: {} });
     const topModal = scopes.instantiate(capturingScope(), { impl: {} });
     scopes.activate(outer);
-    scopes.activate(bottomModal);
-    scopes.activate(topModal);
+    scopes.activateCapture(bottomModal);
+    scopes.activateCapture(topModal);
 
-    expect(scopes.getActiveCommand(archiveCommand, { fromCaptureOrigin: true })).toBeUndefined();
+    expect(scopes.getActiveCommand(archiveCommand, { belowActiveCapture: true })).toBeUndefined();
 
     topModal.dispose();
-    scopes.activate(bottomModal);
     scopes
-      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
       ?.execute(undefined, 'palette');
 
     expect(execute).toHaveBeenCalledOnce();
     scopes.dispose();
   });
 
-  it('does not resolve palette commands against a disposed capture origin', () => {
+  it('derives the layer below a capture after the lower capture closes first', () => {
+    const scopes = new ViewScopes(undefined);
+    const execute = vi.fn();
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute }) },
+    });
+    const bottomModal = scopes.instantiate(capturingScope(), { impl: {} });
+    const topModal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(outer);
+    const removeBottom = scopes.activateCapture(bottomModal);
+    const removeTop = scopes.activateCapture(topModal);
+
+    removeBottom();
+
+    expect(scopes.activePath).toEqual([topModal]);
+    scopes
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
+      ?.execute(undefined, 'palette');
+    expect(execute).toHaveBeenCalledOnce();
+
+    removeTop();
+    expect(scopes.activePath).toEqual([outer]);
+    scopes.dispose();
+  });
+
+  it('reactivates a capture idempotently and ignores its stale disposer', () => {
+    const scopes = new ViewScopes(undefined);
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const firstModal = scopes.instantiate(capturingScope(), { impl: {} });
+    const nextModal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(outer);
+    const removeFirstActivation = scopes.activateCapture(firstModal);
+    scopes.activateCapture(nextModal);
+
+    const removeCurrentActivation = scopes.activateCapture(firstModal);
+
+    expect(scopes.activePath).toEqual([firstModal]);
+    removeFirstActivation();
+    expect(scopes.activePath).toEqual([firstModal]);
+
+    removeCurrentActivation();
+    expect(scopes.activePath).toEqual([nextModal]);
+    scopes.dispose();
+  });
+
+  it('removes a capture when its root detaches without disposal', () => {
+    const dom = new JSDOM('<div id="modal" tabindex="-1"></div>');
+    const scopes = new ViewScopes(dom.window.document);
+    const outer = scopes.instantiate(windowScope(), {
+      impl: { 'task.archive': () => ({ execute: vi.fn() }) },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    modal.attachRef(dom.window.document.querySelector<HTMLElement>('#modal'));
+    scopes.activate(outer);
+    scopes.activateCapture(modal);
+    expect(scopes.activePath).toEqual([modal]);
+
+    modal.attachRef(null);
+
+    expect(modal.isDisposed).toBe(false);
+    expect(scopes.activePath).toEqual([outer]);
+    scopes.dispose();
+  });
+
+  it('uses the current ambient path each time the same capture opens', () => {
+    const scopes = new ViewScopes(undefined);
+    const firstExecute = vi.fn();
+    const nextExecute = vi.fn();
+    const firstTask = scopes.instantiate(taskScope({ taskId: 'task-1' }), {
+      impl: {
+        'task.archive': () => ({ execute: firstExecute }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const nextTask = scopes.instantiate(taskScope({ taskId: 'task-2' }), {
+      impl: {
+        'task.archive': () => ({ execute: nextExecute }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(firstTask);
+    scopes.activateCapture(modal)();
+    scopes.activate(nextTask);
+
+    scopes.activateCapture(modal);
+    scopes
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
+      ?.execute(undefined, 'palette');
+
+    expect(firstExecute).not.toHaveBeenCalled();
+    expect(nextExecute).toHaveBeenCalledOnce();
+    scopes.dispose();
+  });
+
+  it('uses logical navigation that occurs beneath an active capture', () => {
+    const scopes = new ViewScopes(undefined);
+    const firstExecute = vi.fn();
+    const nextExecute = vi.fn();
+    const firstTask = scopes.instantiate(taskScope({ taskId: 'task-1' }), {
+      impl: {
+        'task.archive': () => ({ execute: firstExecute }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const nextTask = scopes.instantiate(taskScope({ taskId: 'task-2' }), {
+      impl: {
+        'task.archive': () => ({ execute: nextExecute }),
+        'task.pin': () => ({ execute: vi.fn() }),
+        'task.createBranch': () => ({ execute: vi.fn() }),
+      },
+    });
+    const modal = scopes.instantiate(capturingScope(), { impl: {} });
+    scopes.activate(firstTask);
+    scopes.activateCapture(modal);
+
+    scopes.activate(nextTask);
+    scopes
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
+      ?.execute(undefined, 'palette');
+
+    expect(firstExecute).not.toHaveBeenCalled();
+    expect(nextExecute).toHaveBeenCalledOnce();
+    scopes.dispose();
+  });
+
+  it('does not resolve palette commands against a disposed ambient focus scope', () => {
     const dom = new JSDOM(
       '<div id="terminal" tabindex="-1"></div><div id="modal" tabindex="-1"></div>'
     );
@@ -477,34 +720,22 @@ describe('ViewScopes', () => {
     const modal = scopes.instantiate(capturingScope(), { parent: outer, impl: {} });
     terminal.attachRef(dom.window.document.querySelector<HTMLElement>('#terminal'));
     modal.attachRef(dom.window.document.querySelector<HTMLElement>('#modal'));
+    scopes.activate(outer);
     dom.window.document
       .querySelector<HTMLElement>('#terminal')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+    scopes.activateCapture(modal);
     dom.window.document
       .querySelector<HTMLElement>('#modal')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
 
     terminal.dispose();
     scopes
-      .getActiveCommand(archiveCommand, { fromCaptureOrigin: true })
+      .getActiveCommand(archiveCommand, { belowActiveCapture: true })
       ?.execute(undefined, 'palette');
 
     expect(staleExecute).not.toHaveBeenCalled();
     expect(outerExecute).toHaveBeenCalledOnce();
-    scopes.dispose();
-  });
-
-  it('returns detached handles only for registered logical scopes', () => {
-    const implementation: ViewScopeImpl<typeof taskScope> = {
-      'task.archive': () => ({ execute: vi.fn() }),
-      'task.pin': () => ({ execute: vi.fn() }),
-      'task.createBranch': () => ({ execute: vi.fn() }),
-    };
-    registerViewScopeImpl(taskScope, implementation);
-    const scopes = new ViewScopes(undefined);
-
-    expect(scopes.get(taskScope({ taskId: 'task-1' }))).toBeDefined();
-    expect(scopes.get(focusScope({ terminalId: 'terminal-1' }))).toBeUndefined();
     scopes.dispose();
   });
 
@@ -528,10 +759,11 @@ describe('ViewScopes', () => {
       'task.pin': () => ({ execute: vi.fn() }),
       'task.createBranch': () => ({ execute }),
     };
-    registerViewScopeImpl(taskScope, implementation);
     const scopes = new ViewScopes(undefined);
-    const handle = scopes.get(taskScope({ taskId: 'task-1' }));
-    const command = handle?.getCommand(createBranchCommand);
+    const instance = scopes.instantiate(taskScope({ taskId: 'task-1' }), {
+      impl: implementation,
+    });
+    const command = instance.getCommand(createBranchCommand);
 
     expect(() => command?.execute({ branchName: 'feature', baseRef: 1 } as never)).toThrow();
     void command?.execute({ branchName: 'feature', baseRef: 'main' });

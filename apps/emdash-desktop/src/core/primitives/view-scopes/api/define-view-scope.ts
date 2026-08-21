@@ -68,14 +68,12 @@ export interface ViewScopeHandle {
   readonly ref: ViewScopeRef;
   readonly def: ViewScopeDefinition;
   getCommand<TCommand extends CommandDef>(command: TCommand): BoundCommand<TCommand> | undefined;
-  commands(): readonly BoundCommand[];
 }
 
 export interface ViewScopeDefinition {
   readonly id: string;
   readonly params: z.ZodType<JsonObject>;
   readonly commands: readonly CommandDef[];
-  readonly commandIds: ReadonlySet<string>;
   readonly activation: ViewScopeActivation;
   readonly traits: ReadonlySet<ViewScopeTrait>;
 }
@@ -89,7 +87,6 @@ export interface ViewScopeDef<
   readonly id: TId;
   readonly params: TParamsSchema;
   readonly commands: TCommands;
-  readonly commandIds: ReadonlySet<string>;
   readonly activation: ViewScopeActivation;
   readonly traits: ReadonlySet<ViewScopeTrait>;
   key(params: z.output<TParamsSchema>): string;
@@ -162,7 +159,6 @@ export function defineViewScope<
   }
 
   const commands = Object.freeze([...options.commands]) as unknown as TCommands;
-  const frozenCommandIds = Object.freeze(commandIds);
   const key = options.key ?? ((params: z.output<TParamsSchema>) => stableJson(params));
 
   const createRef = (
@@ -186,7 +182,6 @@ export function defineViewScope<
       id: options.id,
       params: options.params,
       commands,
-      commandIds: frozenCommandIds,
       activation: options.activation,
       traits: Object.freeze(new Set(options.traits ?? [])),
       key,

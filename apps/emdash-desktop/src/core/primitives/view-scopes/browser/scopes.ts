@@ -12,7 +12,7 @@ import {
   type ViewScopeImpl,
   type ViewScopeRef,
 } from '@core/primitives/view-scopes/api';
-import { assertImplHasAllCommands, getViewScopeImpl } from './impl-registry';
+import { assertImplHasAllCommands } from './implementation-validation';
 
 export type KeybindingHit =
   | { readonly kind: 'none' }
@@ -22,6 +22,12 @@ export type KeybindingHit =
 const noHit: KeybindingHit = Object.freeze({ kind: 'none' });
 
 type BindingFactory = (params: JsonObject) => CommandBinding;
+
+interface CaptureActivation {
+  readonly generation: number;
+  readonly instance: ViewScopeInstance;
+  readonly focusActive: ViewScopeInstance | undefined;
+}
 
 function getBindingFactory(implementation: unknown, commandId: string): BindingFactory | undefined {
   if (implementation === null || typeof implementation !== 'object') return undefined;
@@ -67,20 +73,11 @@ class ScopeHandle implements ViewScopeHandle {
     this.boundCommands.set(command.id, bound);
     return bound;
   }
-
-  commands(): readonly BoundCommand[] {
-    const commands: BoundCommand[] = [];
-    for (const command of this.def.commands) {
-      const bound = this.getCommand(command);
-      if (bound) commands.push(bound);
-    }
-    return Object.freeze(commands);
-  }
 }
 
 export interface InstantiateViewScopeOptions<TDef extends ViewScopeDefinition> {
   readonly parent?: ViewScopeInstance;
-  readonly impl?: ViewScopeImpl<TDef>;
+  readonly impl: ViewScopeImpl<TDef>;
 }
 
 export class ViewScopeInstance extends ScopeHandle {
@@ -154,16 +151,11 @@ export class ViewScopeInstance extends ScopeHandle {
 
 export class ViewScopes {
   private nextId = 1;
+  private nextCaptureGeneration = 1;
   private readonly instancesById = new Map<string, ViewScopeInstance>();
-  private readonly instancesByKey = new Map<string, ViewScopeInstance[]>();
   private readonly logicalActive: IObservableValue<ViewScopeInstance | undefined>;
   private readonly focusActive: IObservableValue<ViewScopeInstance | undefined>;
-  // Each capturing scope owns the path it replaced so stacked modals cannot
-  // overwrite one another's command-palette discovery context.
-  private readonly captureOriginPaths = new WeakMap<
-    ViewScopeInstance,
-    readonly ViewScopeInstance[]
-  >();
+  private readonly captureLayers: IObservableValue<readonly CaptureActivation[]>;
   private readonly activePathValue: IComputedValue<readonly ViewScopeHandle[]>;
   private readonly document: Document | undefined;
 
@@ -171,16 +163,13 @@ export class ViewScopes {
     this.document = document;
     this.logicalActive = observable.box(undefined, { deep: false });
     this.focusActive = observable.box(undefined, { deep: false });
-    this.activePathValue = computed(() => this.computeActivePath());
+    this.captureLayers = observable.box(Object.freeze([]), { deep: false });
+    this.activePathValue = computed(() => this.computeInstancePath(this.activeScopeInstance()));
     this.document?.addEventListener('focusin', this.handleFocusIn);
   }
 
   get activePath(): readonly ViewScopeHandle[] {
     return this.activePathValue.get();
-  }
-
-  get activeInstance(): ViewScopeInstance | undefined {
-    return this.activeScopeInstance();
   }
 
   isWithinActivePath(instance: ViewScopeInstance): boolean {
@@ -189,14 +178,10 @@ export class ViewScopes {
 
   instantiate<TDef extends ViewScopeDefinition = ViewScopeDefinition>(
     ref: ViewScopeRef,
-    options: InstantiateViewScopeOptions<TDef> = {}
+    options: InstantiateViewScopeOptions<TDef>
   ): ViewScopeInstance {
     const definition = viewScopeDefFor(ref);
-    const implementation = options.impl ?? getViewScopeImpl(definition);
-    if (!implementation) {
-      throw new Error(`Missing view scope implementation: ${definition.id}`);
-    }
-    if (import.meta.env.DEV && options.impl) {
+    if (import.meta.env.DEV) {
       assertImplHasAllCommands(definition, options.impl);
     }
     if (options.parent?.isDisposed) {
@@ -207,14 +192,11 @@ export class ViewScopes {
       this,
       `view-scope-${this.nextId++}`,
       ref,
-      implementation,
+      options.impl,
       options.parent
     );
     options.parent?.children.add(instance);
     this.instancesById.set(instance.id, instance);
-    const instances = this.instancesByKey.get(ref.key) ?? [];
-    instances.push(instance);
-    this.instancesByKey.set(ref.key, instances);
     return instance;
   }
 
@@ -222,7 +204,9 @@ export class ViewScopes {
     if (instance?.isDisposed) {
       throw new Error('Cannot activate a disposed view scope');
     }
-    if (instance) this.captureOrigin(instance);
+    if (instance && instance.def.activation !== 'logical') {
+      throw new Error(`View scope ${instance.def.id} does not use logical activation`);
+    }
     const focused = this.focusActive.get();
     if (instance && focused && !this.isDescendantOf(focused, instance)) {
       this.focusActive.set(undefined);
@@ -230,33 +214,40 @@ export class ViewScopes {
     this.logicalActive.set(instance);
   }
 
-  get(ref: ViewScopeRef): ViewScopeHandle | undefined {
-    const instances = this.instancesByKey.get(ref.key);
-    if (instances) {
-      for (let index = instances.length - 1; index >= 0; index -= 1) {
-        const instance = instances[index];
-        if (instance && !instance.isDisposed && instance.def === viewScopeDefFor(ref)) {
-          return instance;
-        }
-      }
+  /**
+   * Activates a capture without replacing the logical or focused scope beneath it.
+   * Reactivation is idempotent and moves the capture to the top. The returned disposer is
+   * generation-bound, so stale owners cannot remove a newer activation.
+   */
+  activateCapture(instance: ViewScopeInstance): () => void {
+    if (instance.isDisposed) {
+      throw new Error('Cannot activate a disposed view scope as a capture');
     }
+    if (!instance.def.traits.has('capturing')) {
+      throw new Error(`View scope ${instance.def.id} is not capturing`);
+    }
+    const stack = this.captureLayers.get();
+    const existing = stack.find((activation) => activation.instance === instance);
+    const activation = Object.freeze({
+      generation: this.nextCaptureGeneration++,
+      instance,
+      focusActive: existing?.focusActive,
+    });
+    this.captureLayers.set(
+      Object.freeze([...stack.filter((candidate) => candidate.instance !== instance), activation])
+    );
 
-    const definition = viewScopeDefFor(ref);
-    if (definition.activation !== 'logical') return undefined;
-    const implementation = getViewScopeImpl(definition);
-    return implementation ? new ScopeHandle(ref, implementation) : undefined;
+    return () => this.removeCaptureActivation(activation);
   }
 
   getActiveCommand<TCommand extends CommandDef>(
     command: TCommand,
-    options: { readonly fromCaptureOrigin?: boolean } = {}
+    options: { readonly belowActiveCapture?: boolean } = {}
   ): BoundCommand<TCommand> | undefined {
-    const activeInstance = this.activeScopeInstance();
+    const activeCapture = this.topCaptureActivation();
     const path =
-      options.fromCaptureOrigin && activeInstance?.def.traits.has('capturing')
-        ? (this.captureOriginPaths.get(activeInstance) ?? []).filter(
-            (instance) => !instance.isDisposed
-          )
+      options.belowActiveCapture && activeCapture
+        ? this.computePathBelowCapture(activeCapture)
         : this.activePath;
     for (const handle of path) {
       const bound = handle.getCommand(command);
@@ -264,22 +255,6 @@ export class ViewScopes {
       if (handle.def.traits.has('capturing')) return undefined;
     }
     return undefined;
-  }
-
-  /**
-   * Dispatches through the active scope path. Disabled commands are consumed
-   * and missing commands are ignored; the returned hit describes the outcome.
-   */
-  execute<TCommand extends CommandDef>(
-    command: TCommand,
-    input: CommandInput<TCommand>,
-    source: CommandSource = 'programmatic'
-  ): KeybindingHit {
-    const hit = this.resolveCommand(command);
-    if (hit.kind === 'winner') {
-      void hit.command.execute(input, source);
-    }
-    return hit;
   }
 
   resolveKeybinding(candidates: ReadonlySet<string>): KeybindingHit {
@@ -303,37 +278,29 @@ export class ViewScopes {
     }
     this.logicalActive.set(undefined);
     this.focusActive.set(undefined);
+    this.captureLayers.set(Object.freeze([]));
   }
 
   /** @internal Called by ViewScopeInstance.dispose(). */
   remove(instance: ViewScopeInstance): void {
+    this.removeCaptureInstance(instance);
     instance.parent?.children.delete(instance);
     this.instancesById.delete(instance.id);
-    const instances = this.instancesByKey.get(instance.ref.key);
-    if (instances) {
-      const remaining = instances.filter((candidate) => candidate !== instance);
-      if (remaining.length > 0) this.instancesByKey.set(instance.ref.key, remaining);
-      else this.instancesByKey.delete(instance.ref.key);
-    }
     if (this.logicalActive.get() === instance) {
-      this.logicalActive.set(this.nearestLiveAncestor(instance.parent));
+      this.logicalActive.set(this.nearestLiveAncestor(instance.parent, 'logical'));
     }
     if (this.focusActive.get() === instance) {
-      this.focusActive.set(this.nearestLiveAncestor(instance.parent));
+      this.focusActive.set(this.nearestLiveAncestor(instance.parent, 'focus'));
     }
   }
 
   /** @internal Called when an instance's attached DOM root is removed. */
   handleElementDetached(instance: ViewScopeInstance): void {
+    this.clearCaptureFocus(instance);
+    this.removeCaptureInstance(instance);
     if (this.focusActive.get() === instance) {
-      this.focusActive.set(this.nearestLiveAncestor(instance.parent));
+      this.focusActive.set(this.nearestLiveAncestor(instance.parent, 'focus'));
     }
-  }
-
-  private resolveCommand<TCommand extends CommandDef>(command: TCommand): KeybindingHit {
-    return this.walkActivePath((handle) =>
-      handle.def.commands.filter((candidate) => candidate === command)
-    );
   }
 
   private walkActivePath(
@@ -353,13 +320,23 @@ export class ViewScopes {
     return noHit;
   }
 
-  private computeActivePath(): readonly ViewScopeHandle[] {
-    return this.computeActiveInstancePath();
+  private computePathBelowCapture(capture: CaptureActivation): readonly ViewScopeInstance[] {
+    const stack = this.captureLayers.get();
+    const index = stack.findIndex((candidate) => candidate.generation === capture.generation);
+    for (let candidateIndex = index - 1; candidateIndex >= 0; candidateIndex -= 1) {
+      const candidate = stack[candidateIndex];
+      if (candidate && !candidate.instance.isDisposed) {
+        return this.computeInstancePath(this.captureScopeInstance(candidate));
+      }
+    }
+    return this.computeInstancePath(this.ambientScopeInstance());
   }
 
-  private computeActiveInstancePath(): readonly ViewScopeInstance[] {
+  private computeInstancePath(
+    instance: ViewScopeInstance | undefined
+  ): readonly ViewScopeInstance[] {
     const path: ViewScopeInstance[] = [];
-    let current = this.activeScopeInstance();
+    let current = instance;
     while (current) {
       path.push(current);
       current = current.parent;
@@ -368,10 +345,16 @@ export class ViewScopes {
   }
 
   private nearestLiveAncestor(
-    instance: ViewScopeInstance | undefined
+    instance: ViewScopeInstance | undefined,
+    activation?: ViewScopeDefinition['activation']
   ): ViewScopeInstance | undefined {
     let current = instance;
-    while (current?.isDisposed) current = current.parent;
+    while (
+      current &&
+      (current.isDisposed || (activation && current.def.activation !== activation))
+    ) {
+      current = current.parent;
+    }
     return current;
   }
 
@@ -384,16 +367,71 @@ export class ViewScopes {
     return false;
   }
 
-  private captureOrigin(instance: ViewScopeInstance): void {
-    if (!instance.def.traits.has('capturing')) return;
-    if (this.captureOriginPaths.has(instance) || this.activePath[0] === instance) return;
-    this.captureOriginPaths.set(instance, this.computeActiveInstancePath());
+  private isWithinCapturingScope(instance: ViewScopeInstance): boolean {
+    let current: ViewScopeInstance | undefined = instance;
+    while (current) {
+      if (current.def.traits.has('capturing')) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+
+  private removeCaptureInstance(instance: ViewScopeInstance): void {
+    const activations = this.captureLayers
+      .get()
+      .filter((activation) => activation.instance === instance);
+    for (const activation of activations) this.removeCaptureActivation(activation);
+  }
+
+  private removeCaptureActivation(activation: CaptureActivation): void {
+    const current = this.captureLayers.get();
+    if (!current.some((candidate) => candidate.generation === activation.generation)) return;
+
+    const remaining = current.filter((candidate) => candidate.generation !== activation.generation);
+    this.captureLayers.set(Object.freeze(remaining));
+  }
+
+  private clearCaptureFocus(instance: ViewScopeInstance): void {
+    const stack = this.captureLayers.get();
+    const index = stack.findIndex((activation) => activation.focusActive === instance);
+    if (index < 0) return;
+
+    const activation = stack[index];
+    if (!activation) return;
+    const ancestor = this.nearestLiveAncestor(instance.parent, 'focus');
+    const focusActive =
+      ancestor && this.isDescendantOf(ancestor, activation.instance) ? ancestor : undefined;
+    this.replaceCaptureActivation(index, { ...activation, focusActive });
+  }
+
+  private replaceCaptureActivation(index: number, activation: CaptureActivation): void {
+    const stack = [...this.captureLayers.get()];
+    stack[index] = Object.freeze(activation);
+    this.captureLayers.set(Object.freeze(stack));
   }
 
   private activeScopeInstance(): ViewScopeInstance | undefined {
-    let current = this.focusActive.get() ?? this.logicalActive.get();
-    while (current?.isDisposed) current = current.parent;
-    return current;
+    const capture = this.topCaptureActivation();
+    return capture ? this.captureScopeInstance(capture) : this.ambientScopeInstance();
+  }
+
+  private ambientScopeInstance(): ViewScopeInstance | undefined {
+    const current = this.nearestLiveAncestor(this.focusActive.get(), 'focus');
+    return current ?? this.nearestLiveAncestor(this.logicalActive.get(), 'logical');
+  }
+
+  private captureScopeInstance(capture: CaptureActivation): ViewScopeInstance {
+    const focused = this.nearestLiveAncestor(capture.focusActive, 'focus');
+    return focused && this.isDescendantOf(focused, capture.instance) ? focused : capture.instance;
+  }
+
+  private topCaptureActivation(): CaptureActivation | undefined {
+    const stack = this.captureLayers.get();
+    for (let index = stack.length - 1; index >= 0; index -= 1) {
+      const activation = stack[index];
+      if (activation && !activation.instance.isDisposed) return activation;
+    }
+    return undefined;
   }
 
   private readonly handleFocusIn = (event: FocusEvent): void => {
@@ -406,7 +444,24 @@ export class ViewScopes {
     const id = element?.getAttribute('data-view-scope');
     const instance = id ? this.instancesById.get(id) : undefined;
     if (!instance) return;
-    this.captureOrigin(instance);
+
+    const stack = this.captureLayers.get();
+    for (let index = stack.length - 1; index >= 0; index -= 1) {
+      const activation = stack[index];
+      if (activation && this.isDescendantOf(instance, activation.instance)) {
+        const focusActive = this.nearestLiveAncestor(instance, 'focus');
+        this.replaceCaptureActivation(index, { ...activation, focusActive });
+        return;
+      }
+    }
+    // Capturing scopes only participate through activateCapture(). An outgoing
+    // dialog can still emit focus events during its close animation; those
+    // must not replace the focus scope underneath it.
+    if (this.isWithinCapturingScope(instance)) return;
+    if (instance.def.activation === 'logical') {
+      this.focusActive.set(undefined);
+      return;
+    }
     this.focusActive.set(instance);
   };
 }

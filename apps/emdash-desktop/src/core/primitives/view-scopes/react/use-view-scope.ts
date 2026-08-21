@@ -18,11 +18,11 @@ import type {
 } from '@core/primitives/view-scopes/api';
 import { enabled, viewScopeDefFor } from '@core/primitives/view-scopes/api';
 import {
-  assertImplHasAllCommands,
   scopes,
   type ViewScopeInstance,
   type ViewScopes,
 } from '@core/primitives/view-scopes/browser';
+import { assertImplHasAllCommands } from '@core/primitives/view-scopes/browser/implementation-validation';
 
 const ViewScopeInstanceContext = createContext<ViewScopeInstance | undefined>(undefined);
 

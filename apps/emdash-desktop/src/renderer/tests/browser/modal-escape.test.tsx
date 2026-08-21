@@ -2,9 +2,14 @@ import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { toggleThemeCommand } from '@core/features/workbench/contributions/commands';
+import {
+  newProjectCommand,
+  newTaskCommand,
+  toggleThemeCommand,
+} from '@core/features/workbench/contributions/commands';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
 import { ThemeProvider } from '@core/primitives/theme/browser/theme-provider';
@@ -12,6 +17,8 @@ import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from '@renderer/lib/keybindings/keybinding-dispatcher';
 import { ModalRenderer } from '@renderer/lib/modal/modal-renderer';
+
+const PLATFORM = detectPlatformContext();
 
 beforeAll(() => {
   (
@@ -29,6 +36,29 @@ function dispatchEscape() {
       cancelable: true,
     })
   );
+}
+
+function dispatchNewShortcut(shiftKey: boolean) {
+  const target = document.activeElement ?? document.body;
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'N',
+      code: 'KeyN',
+      ctrlKey: PLATFORM.os !== 'mac',
+      metaKey: PLATFORM.os === 'mac',
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+}
+
+function dispatchNewTask() {
+  dispatchNewShortcut(false);
+}
+
+function dispatchNewProject() {
+  dispatchNewShortcut(true);
 }
 
 function openConfirmModal(title: string) {
@@ -56,9 +86,9 @@ describe('Modal Escape routing', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     const dispatcher = new KeybindingDispatcher(
-      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
+      new KeybindingService(COMMAND_CATALOG.defs, PLATFORM),
       scopes,
-      { os: 'linux' }
+      PLATFORM
     );
     detachKeybindings = dispatcher.attach(window);
     await act(async () => {
@@ -112,10 +142,50 @@ describe('Modal Escape routing', () => {
       });
       await flushOpen();
 
-      const bound = scopes.getActiveCommand(toggleThemeCommand, { fromCaptureOrigin: true });
+      const bound = scopes.getActiveCommand(toggleThemeCommand, { belowActiveCapture: true });
       expect(bound?.availability.kind).toBe('enabled');
       bound?.execute(undefined, 'palette');
       expect(executeTheme).toHaveBeenCalledOnce();
+    } finally {
+      windowInstance.dispose();
+    }
+  });
+
+  it('restores window shortcuts after the last modal closes', async () => {
+    const executeNewTask = vi.fn();
+    const executeNewProject = vi.fn();
+    const implementation = Object.fromEntries(
+      windowScope.commands.map((command) => [
+        command.id,
+        () => ({
+          execute:
+            command === newTaskCommand
+              ? executeNewTask
+              : command === newProjectCommand
+                ? executeNewProject
+                : vi.fn(),
+        }),
+      ])
+    ) as unknown as ViewScopeImpl<typeof windowScope>;
+    const windowInstance = scopes.instantiate(windowScope(), { impl: implementation });
+    scopes.activate(windowInstance);
+
+    try {
+      await act(async () => {
+        void openConfirmModal('Restore window');
+      });
+      await flushOpen();
+
+      await act(async () => {
+        dispatchEscape();
+        await vi.waitFor(() => expect(modalStore.stack).toHaveLength(0));
+      });
+
+      expect(scopes.activePath).toEqual([windowInstance]);
+      dispatchNewTask();
+      dispatchNewProject();
+      expect(executeNewTask).toHaveBeenCalledOnce();
+      expect(executeNewProject).toHaveBeenCalledOnce();
     } finally {
       windowInstance.dispose();
     }
@@ -193,5 +263,83 @@ describe('Modal Escape routing', () => {
     });
 
     expect(modalStore.isOpen).toBe(false);
+  });
+
+  it('keeps the top capture active when the bottom modal unmounts first', async () => {
+    const executeNewTask = vi.fn();
+    const implementation = Object.fromEntries(
+      windowScope.commands.map((command) => [
+        command.id,
+        () => ({ execute: command === newTaskCommand ? executeNewTask : vi.fn() }),
+      ])
+    ) as unknown as ViewScopeImpl<typeof windowScope>;
+    const windowInstance = scopes.instantiate(windowScope(), { impl: implementation });
+    scopes.activate(windowInstance);
+
+    try {
+      await act(async () => {
+        void openConfirmModal('Bottom navigation modal');
+      });
+      await flushOpen();
+      await act(async () => {
+        void openConfirmModal('Top navigation modal');
+      });
+      await flushOpen();
+      const [bottomKey, topKey] = modalStore.stack.map((entry) => entry.key);
+      if (bottomKey === undefined || topKey === undefined) {
+        throw new Error('Expected two modal entries');
+      }
+
+      await act(async () => {
+        modalStore.removeEntry(bottomKey);
+      });
+
+      expect(modalStore.stack.map((entry) => entry.key)).toEqual([topKey]);
+      dispatchNewTask();
+      expect(executeNewTask).not.toHaveBeenCalled();
+
+      await act(async () => {
+        modalStore.removeEntry(topKey);
+      });
+      expect(scopes.activePath).toEqual([windowInstance]);
+      dispatchNewTask();
+      expect(executeNewTask).toHaveBeenCalledOnce();
+    } finally {
+      windowInstance.dispose();
+    }
+  });
+
+  it('restores shortcuts after dismissAll completes navigation teardown', async () => {
+    const executeNewTask = vi.fn();
+    const implementation = Object.fromEntries(
+      windowScope.commands.map((command) => [
+        command.id,
+        () => ({ execute: command === newTaskCommand ? executeNewTask : vi.fn() }),
+      ])
+    ) as unknown as ViewScopeImpl<typeof windowScope>;
+    const windowInstance = scopes.instantiate(windowScope(), { impl: implementation });
+    scopes.activate(windowInstance);
+
+    try {
+      await act(async () => {
+        void openConfirmModal('Bottom navigation modal');
+      });
+      await flushOpen();
+      await act(async () => {
+        void openConfirmModal('Top navigation modal');
+      });
+      await flushOpen();
+
+      await act(async () => {
+        modalStore.dismissAll('navigation');
+        await vi.waitFor(() => expect(modalStore.stack).toHaveLength(0));
+      });
+
+      expect(scopes.activePath).toEqual([windowInstance]);
+      dispatchNewTask();
+      expect(executeNewTask).toHaveBeenCalledOnce();
+    } finally {
+      windowInstance.dispose();
+    }
   });
 });
