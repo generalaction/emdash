@@ -132,17 +132,20 @@ const WorkspacesToolbar = observer(function WorkspacesToolbar({
 }) {
   const search = view.useSearch();
   return (
-    <CollectionToolbar
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search workspaces…"
-      actions={
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search workspaces…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
         <Button type="button" variant="primary" onClick={onAddProject}>
           <PlusIcon />
           Add Project
         </Button>
-      }
-    />
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 });
 

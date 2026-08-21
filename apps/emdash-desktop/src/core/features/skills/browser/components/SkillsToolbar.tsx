@@ -21,30 +21,31 @@ export function SkillsToolbar({
 }: SkillsToolbarProps) {
   const searchRef = useSearchFocusHotkeys();
   return (
-    <CollectionToolbar
-      ref={searchRef}
-      searchValue={searchQuery}
-      onSearchValueChange={onSearchQueryChange}
-      searchPlaceholder="Search skills…"
-      actions={
-        <>
-          <Button
-            variant="secondary"
-            icon
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            aria-label="Refresh catalog"
-          >
-            <RefreshCw
-              className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </Button>
-          <Button variant="primary" onClick={onCreateSkill}>
-            <Plus className="size-4" />
-            New Skill
-          </Button>
-        </>
-      }
-    />
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        ref={searchRef}
+        value={searchQuery}
+        onValueChange={onSearchQueryChange}
+        placeholder="Search skills…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
+        <Button
+          variant="secondary"
+          icon
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh catalog"
+        >
+          <RefreshCw
+            className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+          />
+        </Button>
+        <Button variant="primary" onClick={onCreateSkill}>
+          <Plus className="size-4" />
+          New Skill
+        </Button>
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 }

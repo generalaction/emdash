@@ -1,4 +1,11 @@
-export { CollectionToolbar, type CollectionToolbarProps } from './collection-toolbar';
+export {
+  CollectionToolbar,
+  type CollectionToolbarGroupProps,
+  type CollectionToolbarRootProps,
+  type CollectionToolbarSearchProps,
+  type CollectionToolbarSeparatorProps,
+  type CollectionToolbarSpacerProps,
+} from './collection-toolbar';
 
 export { EntityHeader, type EntityHeaderProps } from './entity-header';
 

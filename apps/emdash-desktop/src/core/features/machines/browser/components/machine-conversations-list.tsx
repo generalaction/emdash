@@ -246,25 +246,26 @@ const ConversationsToolbar = observer(function ConversationsToolbar({
 }) {
   const search = view.useSearch();
   return (
-    <CollectionToolbar
-      ref={searchRef}
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search conversations, tasks, workspaces…"
-      metadata={
-        <>
-          <span className="text-xs text-foreground-passive tabular-nums">
-            {total} {total === 1 ? 'conversation' : 'conversations'}
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        ref={searchRef}
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search conversations, tasks, workspaces…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
+        <span className="text-xs text-foreground-passive tabular-nums">
+          {total} {total === 1 ? 'conversation' : 'conversations'}
+        </span>
+        {!hostReachable && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+            <WifiOffIcon className="size-3" />
+            Offline — showing cached records
           </span>
-          {!hostReachable && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
-              <WifiOffIcon className="size-3" />
-              Offline — showing cached records
-            </span>
-          )}
-        </>
-      }
-    />
+        )}
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 });
 

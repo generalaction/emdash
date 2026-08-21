@@ -21,30 +21,31 @@ export function McpToolbar({
 }: McpToolbarProps) {
   const searchRef = useSearchFocusHotkeys();
   return (
-    <CollectionToolbar
-      ref={searchRef}
-      searchValue={search}
-      onSearchValueChange={onSearchChange}
-      searchPlaceholder="Search servers…"
-      actions={
-        <>
-          <Button
-            variant="secondary"
-            icon
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            aria-label="Refresh providers"
-          >
-            <RefreshCw
-              className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </Button>
-          <Button variant="primary" onClick={onAddCustom}>
-            <Plus className="size-4" />
-            Custom MCP
-          </Button>
-        </>
-      }
-    />
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        ref={searchRef}
+        value={search}
+        onValueChange={onSearchChange}
+        placeholder="Search servers…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
+        <Button
+          variant="secondary"
+          icon
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh providers"
+        >
+          <RefreshCw
+            className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+          />
+        </Button>
+        <Button variant="primary" onClick={onAddCustom}>
+          <Plus className="size-4" />
+          Custom MCP
+        </Button>
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 }
