@@ -37,13 +37,6 @@ export type WorkspaceObservation = Readonly<{
   observedAt?: number | null;
 }>;
 
-type WorkspaceAnnotation = Partial<
-  Pick<
-    WorkspaceInsert,
-    'type' | 'kind' | 'location' | 'sshConnectionId' | 'parentId' | 'path' | 'config'
-  >
->;
-
 export type WorkspaceClaimInput = Readonly<{
   host: WorkspaceHostIdentity;
   record: WorkspaceRecord;
@@ -111,10 +104,6 @@ export class WorkspaceRegistry {
       )
       .limit(1)
       .get();
-  }
-
-  register(values: WorkspaceInsert, tx?: DrizzleTx): WorkspaceRow {
-    return this.insert(values, tx);
   }
 
   /**
@@ -270,14 +259,6 @@ export class WorkspaceRegistry {
       .run().changes;
   }
 
-  annotate(id: string, annotation: WorkspaceAnnotation, tx?: DrizzleTx): number {
-    return this.source(tx)
-      .update(workspaces)
-      .set({ ...annotation, updatedAt: this.now() })
-      .where(eq(workspaces.id, id))
-      .run().changes;
-  }
-
   /**
    * Marks one live row with a durable deletion tombstone (ADR 0006). Atomic and
    * first-writer-wins: the guard on a null `deletionTombstone` makes zero rows updated
@@ -353,19 +334,6 @@ export class WorkspaceRegistry {
       })
       .where(and(inArray(workspaces.id, [...ids]), liveWorkspaces()))
       .run().changes;
-  }
-
-  revertUntrack(ids: readonly string[], tx?: DrizzleTx): number {
-    if (ids.length === 0) return 0;
-    return this.source(tx)
-      .update(workspaces)
-      .set({ untrackedAt: null, updatedAt: this.now() })
-      .where(inArray(workspaces.id, [...ids]))
-      .run().changes;
-  }
-
-  resurrect(id: string, tx?: DrizzleTx): number {
-    return this.revertUntrack([id], tx);
   }
 
   purge(ids: readonly string[], tx?: DrizzleTx): number {

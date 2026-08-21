@@ -344,7 +344,7 @@ export function commitCreateTask(
     .all();
 
   if (newWorkspaceValues) {
-    registry.register(newWorkspaceValues, tx);
+    registry.recordCreationIntent(newWorkspaceValues, tx);
   }
 
   let convRow: ConversationRow | undefined;
