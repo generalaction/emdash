@@ -2,7 +2,10 @@ import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/a
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
-import { applyWorkspaceRegistrySnapshot } from './apply-workspace-registry-snapshot';
+import {
+  applyWorkspaceRegistrySnapshot,
+  WorkspaceIdentityConflictError,
+} from './apply-workspace-registry-snapshot';
 
 const LOCAL_HOST = { location: 'local', sshConnectionId: null } as const;
 
@@ -149,7 +152,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
 
   it('treats a stored v1 observedGit payload as not yet observed and rewrites it as v2', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id: 'wt-1',
       type: 'local',
       kind: 'worktree',
@@ -190,7 +193,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
 
   it('overwrites observations wholesale — overlay included — but never touches annotations', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id: 'wt-1',
       type: 'local',
       kind: 'worktree',
@@ -244,7 +247,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
 
   it('carries removal attempts and script outcomes into the mirror observation columns', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id: 'wt-1',
       type: 'local',
       kind: 'worktree',
@@ -309,7 +312,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
 
   it('sweeps unmatched rows: annotated go visible-missing, pure mirror rows untrack', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id: 'wt-linked',
       type: 'local',
       kind: 'worktree',
@@ -349,7 +352,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
 
   it('purges a tombstoned row once the delivery confirms the record gone — annotation included', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id: 'wt-doomed',
       type: 'local',
       kind: 'worktree',
@@ -431,5 +434,100 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       purgedTombstones: 0,
     });
     expect(registry.getLive('wt-remote')).toMatchObject({ observedStatus: 'present' });
+  });
+
+  it('rejects an id/path collision before adopting, refreshing, or sweeping anything', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.recordCreationIntent({
+      id: 'desktop-id',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: '/repo',
+      observedStatus: 'present',
+    });
+    registry.adopt({
+      id: 'would-be-swept',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/work/old',
+      observedStatus: 'present',
+    });
+
+    const application = applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {
+        'host-id': hostRecord({
+          id: 'host-id',
+          kind: 'repository',
+          path: '/repo',
+          parentId: null,
+        }),
+      },
+    });
+
+    await expect(application).rejects.toMatchObject({
+      name: 'WorkspaceIdentityConflictError',
+      path: '/repo',
+      incomingId: 'host-id',
+      conflictingId: 'desktop-id',
+    });
+    expect(registry.getLive('host-id')).toBeUndefined();
+    expect(registry.getLive('desktop-id')).toMatchObject({
+      path: '/repo',
+      observedStatus: 'present',
+    });
+    expect(registry.getLive('would-be-swept')).toMatchObject({
+      path: '/work/old',
+      observedStatus: 'present',
+    });
+  });
+
+  it('rejects duplicate Host path ownership even when neither id exists locally', async () => {
+    await expect(
+      applyWorkspaceRegistrySnapshot({
+        db: fixture.db,
+        host: LOCAL_HOST,
+        records: {
+          first: hostRecord({ id: 'first', path: '/same' }),
+          second: hostRecord({ id: 'second', path: '/same' }),
+        },
+      })
+    ).rejects.toBeInstanceOf(WorkspaceIdentityConflictError);
+    expect(createWorkspaceRegistry(fixture.db).getLive('first')).toBeUndefined();
+    expect(createWorkspaceRegistry(fixture.db).getLive('second')).toBeUndefined();
+  });
+
+  it('applies a valid path swap without depending on snapshot record order', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.adopt({
+      id: 'first',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/first',
+    });
+    registry.adopt({
+      id: 'second',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/second',
+    });
+
+    await expect(
+      applyWorkspaceRegistrySnapshot({
+        db: fixture.db,
+        host: LOCAL_HOST,
+        records: {
+          first: hostRecord({ id: 'first', path: '/second' }),
+          second: hostRecord({ id: 'second', path: '/first' }),
+        },
+      })
+    ).resolves.toMatchObject({ refreshed: 2 });
+    expect(registry.getLive('first')).toMatchObject({ path: '/second' });
+    expect(registry.getLive('second')).toMatchObject({ path: '/first' });
   });
 });
