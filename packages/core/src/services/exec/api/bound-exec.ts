@@ -1,6 +1,7 @@
 import { spawn as spawnProcess } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
+import type { EnvSource } from '#primitives/exec/api';
 import {
   ExecError,
   type BoundExec,
@@ -16,7 +17,7 @@ const TIMEOUT_KILL_GRACE_MS = 1_000;
 export type CreateBoundExecOptions = {
   file: string;
   cwd: string;
-  env?: NodeJS.ProcessEnv;
+  env?: NodeJS.ProcessEnv | EnvSource;
 };
 
 export function createBoundExec(options: CreateBoundExecOptions): BoundExec {
@@ -32,7 +33,7 @@ class ProcessBoundExec implements BoundExec {
   constructor(
     readonly file: string,
     readonly cwd: string,
-    readonly env?: NodeJS.ProcessEnv
+    readonly env?: NodeJS.ProcessEnv | EnvSource
   ) {}
 
   async exec(args: string[], options: ExecOptions = {}): Promise<ExecResult> {
@@ -55,11 +56,15 @@ class ProcessBoundExec implements BoundExec {
     return { stdout: Buffer.concat(chunks), stderr };
   }
 
-  spawn(args: string[], options: ExecSpawnOptions = {}): ChildProcessWithoutNullStreams {
+  async spawn(
+    args: string[],
+    options: ExecSpawnOptions = {}
+  ): Promise<ChildProcessWithoutNullStreams> {
+    const env = await resolveEnv(this.env);
     recordSpawn(classifySpawnPurpose(this.file, args), this.file);
     return spawnProcess(this.file, args, {
       cwd: options.cwd ?? this.cwd,
-      env: composeEnv(this.env, options.env),
+      env: composeEnv(env, options.env),
       signal: options.signal,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -69,11 +74,16 @@ class ProcessBoundExec implements BoundExec {
     return new ProcessBoundExec(this.file, cwd, this.env);
   }
 
-  private run(args: string[], options: ExecOptions, sink: StdoutSink): Promise<{ stderr: string }> {
+  private async run(
+    args: string[],
+    options: ExecOptions,
+    sink: StdoutSink
+  ): Promise<{ stderr: string }> {
+    const env = await resolveEnv(this.env);
     return new Promise((resolve, reject) => {
       const spawnOptions: SpawnOptionsWithoutStdio = {
         cwd: options.cwd ?? this.cwd,
-        env: composeEnv(this.env, options.env),
+        env: composeEnv(env, options.env),
         detached: process.platform !== 'win32',
       };
       recordSpawn(classifySpawnPurpose(this.file, args), this.file);
@@ -196,6 +206,12 @@ class ProcessBoundExec implements BoundExec {
       });
     });
   }
+}
+
+async function resolveEnv(
+  env: NodeJS.ProcessEnv | EnvSource | undefined
+): Promise<NodeJS.ProcessEnv | undefined> {
+  return typeof env === 'function' ? await env() : env;
 }
 
 function composeEnv(

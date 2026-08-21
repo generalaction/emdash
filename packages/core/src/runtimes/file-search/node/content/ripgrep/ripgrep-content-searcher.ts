@@ -69,18 +69,18 @@ export class RipgrepContentSearcher implements FileContentSearcher {
   }
 }
 
-function runRipgrep(
+async function runRipgrep(
   executable: BoundExec,
   input: ResolvedContentSearchInput,
   context: ContentSearchContext,
   exclusions: FileSearchExclusions,
   maxRecordBytes: number
 ): Promise<Result<ContentSearchResult, ContentSearchExecutionError>> {
+  const args = createRipgrepContentSearchArgs(input, exclusions);
+  const child = await executable.spawn(args, { signal: context.signal });
   return new Promise((resolve, reject) => {
     const accumulator = new ContentSearchAccumulator(context);
     const limit = input.limit;
-    const args = createRipgrepContentSearchArgs(input, exclusions);
-    const child = executable.spawn(args, { signal: context.signal });
     const framer = new RipgrepJsonFramer({ maxRecordBytes });
     let stderr = '';
     let state: RipgrepRunState = { kind: 'running' };

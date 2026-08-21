@@ -48,7 +48,7 @@ describe('bindGitDir', () => {
     await exec.exec(['status']);
     await exec.execStreaming(['fetch'], () => {});
     await exec.execBuffer(['cat-file', 'blob', 'HEAD:file']);
-    exec.spawn(['cat-file', '--batch']);
+    await exec.spawn(['cat-file', '--batch']);
     const moved = exec.withCwd('/other');
     await moved.exec(['branch']);
 
