@@ -85,7 +85,7 @@ describe('workspace registry updateWorktree', () => {
       workspaceId: 'ws-repo',
       path: repoPath,
     });
-    if (!registered.success && registered.error.type !== 'already-registered') {
+    if (!registered.success) {
       throw new Error(`createWorkspace failed: ${JSON.stringify(registered.error)}`);
     }
     const result = await wire.client.createWorktree({

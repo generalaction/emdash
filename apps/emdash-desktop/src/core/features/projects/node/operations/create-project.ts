@@ -3,7 +3,6 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
-import { eq, sql } from 'drizzle-orm';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { CreateProjectResult } from '@core/primitives/projects/api';
@@ -14,7 +13,6 @@ import type {
 } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects } from '@core/services/app-db/node/schema';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { ensureProjectRepository } from './create-project-utils';
 import { projectFromRow } from './getProjects';
@@ -104,41 +102,43 @@ async function createProjectOnHost(
         baseRef: null,
       };
 
-  const [row] = await dependencies.db
-    .insert(projects)
-    .values({
-      id: params.id ?? randomUUID(),
-      name: params.name,
-      baseRef: gitInfo.baseRef,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    })
-    .returning();
-
-  // The repository workspace row owns the project's path and host identity,
-  // so registration is part of creation — a project without one is unusable.
-  // On failure (e.g. the path's repository row is already linked to another
-  // project), remove the just-inserted project row instead of orphaning it.
-  let repositoryWorkspaceId: string;
-  try {
-    repositoryWorkspaceId = registerRepositoryWorkspace(dependencies.db, {
-      id: row.id,
-      path: gitInfo.rootPath,
-      host,
-    });
-  } catch (error) {
-    await dependencies.db.delete(projects).where(eq(projects.id, row.id));
+  const proposedWorkspaceId = randomUUID();
+  const registered = await runtime.data.workspaceRegistry.createWorkspace({
+    workspaceId: proposedWorkspaceId,
+    path: gitInfo.rootPath,
+  });
+  if (!registered.success) {
     return err({
       type: 'invalid-directory',
       path: gitInfo.rootPath,
-      message:
-        error instanceof Error && error.message.includes('idx_projects_repository_workspace_id')
-          ? 'A project already exists at this path'
-          : `Could not register the project repository: ${error instanceof Error ? error.message : String(error)}`,
+      message: describeWorkspaceRegistrationError(registered.error),
     });
   }
 
+  const stored = registerRepositoryWorkspace(dependencies.db, {
+    project: {
+      id: params.id ?? randomUUID(),
+      name: params.name,
+      baseRef: gitInfo.baseRef,
+    },
+    host,
+    record: registered.data,
+  });
+  if (!stored.success) {
+    return err({
+      type: 'invalid-directory',
+      path: registered.data.path,
+      message:
+        stored.error.type === 'project-already-linked'
+          ? 'A project already exists at this path'
+          : `Could not claim the project repository (${stored.error.type})`,
+    });
+  }
+  const row = stored.data;
+  const repositoryWorkspaceId = registered.data.id;
+
   const project = projectFromRow(row, {
-    path: gitInfo.rootPath,
+    path: registered.data.path,
     location: host.type === 'remote' ? 'remote' : 'local',
     sshConnectionId: host.type === 'remote' ? host.id : null,
   });
@@ -155,4 +155,20 @@ async function createProjectOnHost(
   appDbPokes.projects.poke({ projectId: project.id });
 
   return ok(project);
+}
+
+function describeWorkspaceRegistrationError(error: {
+  type: string;
+  path?: string;
+  message?: string;
+}): string {
+  switch (error.type) {
+    case 'path-not-found':
+      return `Repository path not found: ${error.path ?? 'unknown path'}`;
+    case 'inspect-failed':
+    case 'immutable-field-mismatch':
+      return error.message ?? `Could not register the project repository (${error.type})`;
+    default:
+      return `Could not register the project repository (${error.type})`;
+  }
 }

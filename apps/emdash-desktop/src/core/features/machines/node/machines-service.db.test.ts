@@ -166,7 +166,7 @@ describe('MachinesService', () => {
   it('purges the host workspace mirror rows, pending deletion tombstones included', async () => {
     await insertSshConnection(fixture.db);
     const registry = createWorkspaceRegistry(fixture.db);
-    const tombstoned = registry.register({
+    const tombstoned = registry.recordCreationIntent({
       id: 'workspace-tombstoned',
       type: 'project-ssh',
       kind: 'worktree',
@@ -179,7 +179,7 @@ describe('MachinesService', () => {
       options: { deleteBranch: true, deleteConversations: false },
       createdAt: 1,
     });
-    registry.register({
+    registry.recordCreationIntent({
       id: 'workspace-untracked',
       type: 'project-ssh',
       kind: 'worktree',
@@ -189,7 +189,7 @@ describe('MachinesService', () => {
     });
     registry.untrack(['workspace-untracked'], '2026-01-01T00:00:00.000Z');
     // A local row is another host's mirror — forget must not touch it.
-    registry.register({
+    registry.recordCreationIntent({
       id: 'workspace-local',
       type: 'local',
       kind: 'worktree',

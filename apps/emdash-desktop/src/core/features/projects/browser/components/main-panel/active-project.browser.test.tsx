@@ -74,7 +74,7 @@ describe('ActiveProject section state', () => {
     const panel = host.querySelector<HTMLElement>('[role="tabpanel"]');
     expect(settings?.textContent).toBe('Settings');
     expect(panel?.textContent).toBe('Settings panel');
-    expect(panel?.getAttribute('aria-labelledby')).toBe('project-section-tab-settings');
+    expect(panel?.getAttribute('aria-labelledby')).toBe('project-section-panel-tab-settings');
     expect(panel?.classList.contains('h-[calc(100vh-16rem)]')).toBe(false);
 
     const tasks = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(

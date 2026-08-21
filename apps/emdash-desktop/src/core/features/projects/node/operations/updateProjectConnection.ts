@@ -1,3 +1,6 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
+import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import {
@@ -16,6 +19,7 @@ import { projects, tasks } from '@core/services/app-db/node/schema';
  */
 export async function updateProjectConnection(
   db: AppDb,
+  runtimes: Pick<RuntimeBroker, 'client'>,
   attachments: Pick<ProjectAttachmentManager, 'invalidate'>,
   projectId: string,
   connectionId: string
@@ -44,7 +48,7 @@ export async function updateProjectConnection(
     if (taskRow.workspaceId) candidateIds.add(taskRow.workspaceId);
   }
   const remoteRows = await db
-    .select({ id: workspaces.id })
+    .select()
     .from(workspaces)
     .where(
       and(
@@ -53,10 +57,52 @@ export async function updateProjectConnection(
         liveWorkspaces()
       )
     );
+  const foreignRow = remoteRows.find(
+    (remoteRow) => remoteRow.sshConnectionId !== repository.sshConnectionId
+  );
+  if (foreignRow) {
+    throw new Error(`Workspace ${foreignRow.id} does not belong to the Project's current Host`);
+  }
 
+  const destinationHost = hostRef('remote', connectionId);
+  const destination = await runtimes.client(destinationHost);
+  if (!destination.success) throw new Error(destination.error.message);
+
+  const canonical = new Map<string, WorkspaceRecord>();
+  for (const remoteRow of sortParentFirst(remoteRows)) {
+    if (remoteRow.path === null) {
+      throw new Error(`Workspace ${remoteRow.id} has no path`);
+    }
+    const resolved = await destination.data.workspaceRegistry.createWorkspace({
+      workspaceId: remoteRow.id,
+      path: remoteRow.path,
+    });
+    if (!resolved.success) {
+      throw new Error(
+        `Could not register Workspace ${remoteRow.id} on the destination Host (${resolved.error.type})`
+      );
+    }
+    if (resolved.data.id !== remoteRow.id) {
+      throw new Error(
+        `Destination Host path '${resolved.data.path}' belongs to Workspace '${resolved.data.id}', not '${remoteRow.id}'`
+      );
+    }
+    canonical.set(remoteRow.id, resolved.data);
+  }
+
+  const previousHost = {
+    location: 'remote' as const,
+    sshConnectionId: repository.sshConnectionId,
+  };
+  const nextHost = { location: 'remote' as const, sshConnectionId: connectionId };
   db.transaction((tx) => {
     for (const remoteRow of remoteRows) {
-      registry.annotate(remoteRow.id, { sshConnectionId: connectionId }, tx);
+      const record = canonical.get(remoteRow.id);
+      if (!record) throw new Error(`Host did not return Workspace ${remoteRow.id}`);
+      const retracked = registry.retrack({ host: nextHost, record }, previousHost, tx);
+      if (!retracked.success) {
+        throw new Error(`Could not retrack Workspace ${remoteRow.id} (${retracked.error.type})`);
+      }
     }
     tx.update(projects)
       .set({ updatedAt: new Date().toISOString() })
@@ -66,4 +112,22 @@ export async function updateProjectConnection(
   appDbPokes.projects.poke({ projectId });
   appDbPokes.workspaces.poke({ projectId });
   await attachments.invalidate(projectId, 'relink');
+}
+
+function sortParentFirst<T extends { id: string; parentId: string | null }>(rows: T[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const depth = (row: T): number => {
+    const seen = new Set([row.id]);
+    let parentId = row.parentId;
+    let result = 0;
+    while (parentId !== null && byId.has(parentId) && !seen.has(parentId)) {
+      seen.add(parentId);
+      result += 1;
+      parentId = byId.get(parentId)?.parentId ?? null;
+    }
+    return result;
+  };
+  return [...rows].sort(
+    (left, right) => depth(left) - depth(right) || left.id.localeCompare(right.id)
+  );
 }

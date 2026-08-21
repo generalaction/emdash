@@ -87,7 +87,7 @@ describe('workspace deletion sweep (integration)', () => {
     } = {}
   ): void {
     const registry = createWorkspaceRegistry(fixture.db);
-    registry.register({
+    registry.recordCreationIntent({
       id,
       type: 'local',
       kind: options.kind ?? 'worktree',

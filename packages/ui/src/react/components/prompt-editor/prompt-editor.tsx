@@ -14,11 +14,13 @@
  */
 
 import { cx } from '@styles/utilities/cx';
+import type { JSONContent } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type React from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -107,7 +109,8 @@ function emptySuggestion<T>(): SuggestionState<T> {
  */
 function makeSuggestionRender<T>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
-  popupRef: React.RefObject<ComboboxPopupHandle | null>
+  popupRef: React.RefObject<ComboboxPopupHandle | null>,
+  onOpenChange?: (open: boolean) => void
 ): () => {
   onStart?: (props: SuggestionProps) => void;
   onUpdate?: (props: SuggestionProps) => void;
@@ -116,6 +119,7 @@ function makeSuggestionRender<T>(
 } {
   return () => ({
     onStart(props: SuggestionProps) {
+      onOpenChange?.(true);
       setSuggestion({
         items: props.items as T[],
         rect: props.clientRect?.() ?? null,
@@ -130,6 +134,7 @@ function makeSuggestionRender<T>(
       });
     },
     onExit() {
+      onOpenChange?.(false);
       setSuggestion(emptySuggestion());
     },
     onKeyDown({ event }: SuggestionKeyDownProps) {
@@ -138,46 +143,98 @@ function makeSuggestionRender<T>(
   });
 }
 
-function plainTextDoc(text: string) {
-  const lines = text.length > 0 ? text.split(/\r?\n/) : [''];
+function mentionNode(item: MentionItem): JSONContent {
   return {
-    type: 'doc',
-    content: lines.map((line) => ({
-      type: 'paragraph',
-      ...(line.length > 0 ? { content: [{ type: 'text', text: line }] } : {}),
-    })),
+    type: 'mention',
+    attrs: {
+      id: item.id,
+      label: item.label,
+      name: item.name ?? null,
+      kind: item.kind,
+      pending: item.pending ?? false,
+      serializedText: item.serializedText ?? null,
+    },
   };
 }
 
-function mentionInsertContent(item: MentionItem) {
-  return [
-    {
-      type: 'mention',
-      attrs: {
-        id: item.id,
-        label: item.label,
-        name: item.name ?? null,
-        kind: item.kind,
-        pending: item.pending ?? false,
-      },
-    },
-    { type: 'text', text: ' ' },
-  ];
+function inlinePlainTextContent(text: string, mentions: readonly MentionItem[]): JSONContent[] {
+  if (text.length === 0) return [];
+  const candidates = mentions
+    .map((item) => ({ item, token: item.serializedText ?? `@${item.label}` }))
+    .sort((left, right) => right.token.length - left.token.length);
+  const content: JSONContent[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    let next: { item: MentionItem; token: string; index: number } | null = null;
+    for (const candidate of candidates) {
+      const index = text.indexOf(candidate.token, cursor);
+      if (index < 0) continue;
+      if (
+        !next ||
+        index < next.index ||
+        (index === next.index && candidate.token.length > next.token.length)
+      ) {
+        next = { ...candidate, index };
+      }
+    }
+    if (!next) {
+      content.push({ type: 'text', text: text.slice(cursor) });
+      break;
+    }
+    if (next.index > cursor) {
+      content.push({ type: 'text', text: text.slice(cursor, next.index) });
+    }
+    content.push(mentionNode(next.item));
+    cursor = next.index + next.token.length;
+  }
+
+  return content;
+}
+
+function plainTextDoc(text: string, mentions: readonly MentionItem[] = []): JSONContent {
+  const lines = text.length > 0 ? text.split(/\r?\n/) : [''];
+  return {
+    type: 'doc',
+    content: lines.map((line) => {
+      const content = inlinePlainTextContent(line, mentions);
+      return {
+        type: 'paragraph',
+        ...(content.length > 0 ? { content } : {}),
+      };
+    }),
+  };
+}
+
+function serializedOffsetAtPosition(doc: ProseMirrorNode, position: number): number {
+  const clamped = Math.max(0, Math.min(position, doc.content.size));
+  return serializeDoc(doc.cut(0, clamped)).length;
+}
+
+function mentionInsertContent(item: MentionItem): JSONContent[] {
+  return [mentionNode(item), { type: 'text', text: ' ' }];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
   {
+    value,
     placeholder = 'Message…',
     disabled = false,
     onChange,
+    submitShortcut = 'enter',
+    clearOnSubmit = true,
+    allowEmptySubmit = false,
     onSubmit,
     onMentionInsert,
+    mentions,
     mentionProvider,
     renderMentionIcon,
     queryMentions,
     queryCommands,
+    commandPopupOpen,
+    onCommandPopupOpenChange,
     onCommand,
     className,
     popupClassName,
@@ -185,8 +242,16 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   ref
 ) {
   // Stable refs so callbacks inside TipTap extensions always see current values.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
+  const submitShortcutRef = useRef(submitShortcut);
+  submitShortcutRef.current = submitShortcut;
+  const clearOnSubmitRef = useRef(clearOnSubmit);
+  clearOnSubmitRef.current = clearOnSubmit;
+  const allowEmptySubmitRef = useRef(allowEmptySubmit);
+  allowEmptySubmitRef.current = allowEmptySubmit;
   const onMentionInsertRef = useRef(onMentionInsert);
   onMentionInsertRef.current = onMentionInsert;
   const onCommandRef = useRef(onCommand);
@@ -199,6 +264,8 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   queryMentionsRef.current = queryMentions;
   const queryCommandsRef = useRef(queryCommands);
   queryCommandsRef.current = queryCommands;
+  const onCommandPopupOpenChangeRef = useRef(onCommandPopupOpenChange);
+  onCommandPopupOpenChangeRef.current = onCommandPopupOpenChange;
 
   // Separate suggestion state for @ and / so they don't conflict.
   const [isEmpty, setIsEmpty] = useState(true);
@@ -217,9 +284,9 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     const ed = editorRef.current;
     if (!ed) return;
     const text = serializeDoc(ed.state.doc);
-    if (!text.trim()) return;
+    if (!text.trim() && !allowEmptySubmitRef.current) return;
     if (!onSubmitRef.current) return;
-    ed.commands.clearContent(true);
+    if (clearOnSubmitRef.current) ed.commands.clearContent(true);
     onSubmitRef.current(text);
   }, []);
 
@@ -262,14 +329,31 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     {
       items: async ({ query }: { query: string }) =>
         (await queryCommandsRef.current?.(query)) ?? [],
-      render: makeSuggestionRender<CommandItem>(setCommandSuggestion, commandPopupRef),
+      render: makeSuggestionRender<CommandItem>(setCommandSuggestion, commandPopupRef, (open) =>
+        onCommandPopupOpenChangeRef.current?.(open)
+      ),
     },
     (item: CommandItem) => {
       onCommandRef.current?.(item);
     }
   );
 
-  const submitKeymap = buildSubmitKeymap(handleSubmitFromKeymap);
+  const submitKeymap = buildSubmitKeymap({
+    getShortcut: () => submitShortcutRef.current,
+    onSubmit: handleSubmitFromKeymap,
+  });
+
+  const mentionSignature = JSON.stringify(
+    mentions?.map(({ id, kind, label, name, pending, serializedText }) => ({
+      id,
+      kind,
+      label,
+      name,
+      pending,
+      serializedText,
+    })) ?? []
+  );
+  const mentionSignatureRef = useRef(mentionSignature);
 
   const editor = useEditor({
     extensions: [
@@ -303,17 +387,38 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     onUpdate({ editor: e }) {
       setIsEmpty(e.isEmpty);
       const text = serializeDoc(e.state.doc);
-      onChange?.(text);
+      onChangeRef.current?.(text);
     },
+    content: value === undefined ? undefined : plainTextDoc(value, mentions),
     editable: !disabled,
   });
 
   // Keep stable ref to editor.
   editorRef.current = editor;
 
+  useEffect(() => {
+    if (!editor || value === undefined) return;
+    const mentionsChanged = mentionSignatureRef.current !== mentionSignature;
+    mentionSignatureRef.current = mentionSignature;
+    if (serializeDoc(editor.state.doc) === value && !mentionsChanged) return;
+
+    const { from, to } = editor.state.selection;
+    const hadFocus = editor.view.hasFocus();
+    editor.commands.setContent(plainTextDoc(value, mentions), { emitUpdate: false });
+
+    const maxSelectionPosition = Math.max(1, editor.state.doc.content.size - 1);
+    const clampSelectionPosition = (position: number) =>
+      Math.max(1, Math.min(position, maxSelectionPosition));
+    editor.commands.setTextSelection({
+      from: clampSelectionPosition(from),
+      to: clampSelectionPosition(to),
+    });
+    if (hadFocus) editor.view.focus();
+  });
+
   useImperativeHandle(ref, () => ({
     focus() {
-      editor?.commands.focus();
+      editor?.view.focus();
     },
     clear() {
       editor?.commands.clearContent(true);
@@ -321,6 +426,19 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     getText() {
       if (!editor) return '';
       return serializeDoc(editor.state.doc);
+    },
+    getSelection() {
+      if (!editor) return { from: 0, to: 0 };
+      const { from, to } = editor.state.selection;
+      return {
+        from: serializedOffsetAtPosition(editor.state.doc, from),
+        to: serializedOffsetAtPosition(editor.state.doc, to),
+      };
+    },
+    getPositionAtCoordinates(coordinates) {
+      if (!editor) return null;
+      const result = editor.view.posAtCoords(coordinates);
+      return result ? serializedOffsetAtPosition(editor.state.doc, result.pos) : null;
     },
     setText(text) {
       editor?.commands.setContent(plainTextDoc(text), { emitUpdate: true });
@@ -386,7 +504,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     <>
       <div className={cx(styles.editorWrapper, className)}>
         <EditorContent editor={editor} className={styles.editorContent} aria-disabled={disabled} />
-        {isEmpty && (
+        {(value === undefined ? isEmpty : value.length === 0) && (
           <span aria-hidden className={styles.editorPlaceholder}>
             {placeholder}
           </span>
@@ -407,6 +525,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
           document.body
         )}
       {commandActive &&
+        commandPopupOpen !== false &&
         createPortal(
           <ComboboxPopup
             ref={commandPopupRef}

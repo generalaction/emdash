@@ -183,7 +183,7 @@ function WorkspaceServerAction({
           void actions.restart();
         }}
         variant="secondary"
-        size="sm"
+        size="xs"
         disabled={transitioning}
       />
     );

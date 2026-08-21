@@ -57,6 +57,6 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     countProjectsUsingGithubAccount: (accountId: string) =>
       countProjectsUsingGithubAccount(db, accountId),
     updateProjectConnection: (projectId: string, connectionId: string) =>
-      updateProjectConnection(db, projects, projectId, connectionId),
+      updateProjectConnection(db, dependencies.runtimes, projects, projectId, connectionId),
   };
 }

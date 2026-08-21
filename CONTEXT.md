@@ -46,9 +46,67 @@ A working directory on a host that emdash tracks — a repository, a worktree, o
 A running process (terminal or agent process) attached to a Workspace on a host. Host-owned; dies with its workspace.
 _Avoid_: Conversation (that is the durable record a session carries forward)
 
+**Session materialization**:
+The Host-authoritative fact that an explicit command or recovery intent tried to make a
+Conversation's Session live by starting fresh or resuming its last-observed provider pointer. Its
+metadata-only outcome says whether continuity was fresh, restored, definitively unavailable, or
+ambiguous; it does not imply any Prompt outcome.
+_Avoid_: Session (the running process produced by a successful materialization), Prompt attempt
+
+**Session generation**:
+The monotonically increasing fence for one Conversation's live Session incarnation. Replacement
+or rematerialization advances it so late work from an older incarnation cannot change current
+Conversation state.
+_Avoid_: Provider connection generation (one provider connection may carry multiple Sessions)
+
+**Provider connection generation**:
+The fence for one lifetime of a pooled provider connection, shared by every Session it carries.
+Provider evidence is current only when both its Session generation and provider connection
+generation match.
+_Avoid_: Session generation
+
 **Conversation**:
 A durable record of an agent exchange, attached to a Workspace. One Conversation outlives its Sessions — the successive live processes that carry it; resuming starts a new Session of the same Conversation. Identified by its own id for its whole life; any provider session handle it holds is a last-observed pointer, not its identity.
 _Avoid_: Session (a conversation is not a process), using the provider's session id as the conversation's identity
+
+**Prompt**:
+An immutable logical user request within a Conversation. A deliberate resend creates another Prompt
+attempt for the same Prompt; editing accepted queued content supersedes it with a new Prompt.
+_Avoid_: Prompt attempt (one accepted opportunity to execute the request), local draft
+
+**Prompt attempt**:
+One immutable, Host-accepted opportunity to execute a Prompt. It has its own identity, acceptance
+order, lifecycle, and provider outcome; multiple Attempts for one Prompt never collapse.
+_Avoid_: Prompt, retrying or editing an Attempt in place
+
+**Prompt acceptance order**:
+The immutable total chronology in which the Host accepted Prompt attempts from every Desktop
+writer. It never changes when the pending queue is edited or reordered.
+_Avoid_: Prompt queue order
+
+**Prompt queue order**:
+The revisioned, mutable dispatch order of accepted Prompt attempts that have not crossed provider
+dispatch. It is shared by every Desktop writer and distinct from acceptance chronology.
+_Avoid_: Per-Desktop queues, Prompt acceptance order
+
+**Prompt supersession**:
+The atomic pre-dispatch replacement of one accepted queued Prompt attempt with a newly identified
+Prompt and Attempt in the same queue slot. The old Attempt remains an immutable
+`superseded-before-dispatch` fact.
+_Avoid_: Editing accepted content in place, cancellation
+
+**ACP Conversation command**:
+An immutable, Desktop-minted request for the Host Conversation owner to make one ACP lifecycle
+transition. Its command id names delivery of that exact request: an identical duplicate returns the
+same durable result, while changed content under that id is a conflict.
+_Avoid_: Provider command (an internal effect after the Host transition), treating a retry as new
+user intent
+
+**Command receipt**:
+The metadata-only, Conversation-lifetime record of one ACP Conversation command's authoritative
+result. It binds the command id to its writer, command kind, envelope hash, evaluated or committed
+revision, and outcome without retaining Prompt content.
+_Avoid_: Provider receipt, transient Wire response
 
 **Plugins**:
 One word, three homes — say which one you mean: the capability framework (`@emdash/shared/plugins`), the concrete agent providers (`@emdash/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
@@ -80,6 +138,22 @@ _Avoid_: Treating SSH connection state as Project availability
 
 **Task**:
 A desktop-owned unit of agent work, linked to the Workspace it runs in.
+
+**Task name**:
+The human-readable, single-line label for a Task. It accepts Unicode text, spaces, punctuation, and
+capitalization up to 256 user-perceived characters; it is not a Git identifier.
+_Avoid_: Slug, branch name, normalizing display text to satisfy Git
+
+**Task branch name**:
+The Git-safe branch ref used when a Task creates or uses a branch. It may be derived from the Task
+name but remains a separate, independently editable value.
+_Avoid_: Task name, treating branch normalization as display-name validation
+
+**Desktop writer**:
+The opaque, stable identity of one Desktop profile when it issues Host Conversation commands,
+shared by that profile's windows. It supplies attribution, not authorization; the authenticated
+Host connection remains the security boundary.
+_Avoid_: Wire connection id (transient), user identity, treating writer identity as an ACL
 
 **Command palette**:
 The desktop's unified search surface for actions, tasks, projects, conversations, and files. Empty-query suggested actions are a curated idle list, not the catalog.
@@ -154,7 +228,7 @@ _Avoid_: Intent (nothing on the desktop expresses ongoing intent about host stat
 The Host registry recording a Workspace that exists on disk but was not registered through a verb. Automatic and unconfirmed for worktrees of a registered Repository, performed by the host's own scan; adopted records follow the disk (deleted when the artifact vanishes). Repositories and plain directories are only ever tracked by explicit action.
 
 **Register**:
-Creating a Host registry record for a path through a create verb, under a desktop-minted id. Registered records survive a vanished path as Missing. Provenance stays a desktop annotation on the mirror row; the host record keeps only the minimal immutable creation fields replay is enforced against.
+Creating or resolving a Host registry record for a path through a create verb. The desktop proposes an id, but the Host returns the canonical record for the path and the desktop persists only that id. Registered records survive a vanished path as Missing. Provenance stays a desktop annotation on the mirror row; the Host record keeps only the minimal immutable creation fields replay is enforced against.
 
 **Purge**:
 Hard-deleting already-untracked Registry rows as retention cleanup. Never valid on tracked rows — untracking is the only way a tracked row leaves the Registry.
@@ -172,7 +246,7 @@ _Avoid_: Falling back to local, empty connection ids
 ### Operations
 
 **Workspace verb**:
-One of the six plain RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with a keyed mutex (per-repo exclusive for worktree create/delete, per-workspace for activate/deactivate/delete; waits, not errors); killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent and identity-keyed (a different record id at the path no-ops); deleteWorktree is the only artifact-destroying verb.
+One of the six lifecycle RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with a keyed mutex (per-repo exclusive for worktree create/delete, per-workspace for activate/deactivate/delete; waits, not errors); killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent and identity-keyed (a different record id at the path no-ops); deleteWorktree is the only artifact-destroying verb.
 _Avoid_: Host operation, enqueue/queue language, claims, preflight RPCs (informed confirmation reads the mirror)
 
 **Desktop operation**:
@@ -195,12 +269,16 @@ The desktop policy that picks the intended path for a new Workspace — computed
 _Avoid_: Probing, path reservation (nothing holds a path on the host)
 
 **Claim**:
-Registration atomically taking ownership of an already-mirrored live row in one statement: origin becomes registered, the caller's annotations are written, observations refresh. A Claim is never optimistic — a mirror row exists only for a host-acknowledged record, so pre-ack "creating" state is ephemeral memory, never a row. Colliding with an untracked row refuses — a Claim never revives a Tombstone.
+The desktop Registry atomically attaching annotations and bindings to a Host-acknowledged canonical Workspace record. An unknown id is inserted, a live id on the same Host is refreshed from Host structure (including canonical path spelling), and an explicitly claimed untracked id is retracked; a pending deletion Tombstone refuses. Claim never changes a row's Host attachment. Another live id at the same Host path is an identity invariant violation outside the one-time production cutover. A Claim is never optimistic for existing-path registration; task worktree creation has a separately named creation-intent row because `createWorktree` is strict about its caller-supplied id.
 _Avoid_: Upsert (the mechanism, not the meaning), creation reviving tombstones, mirror-first creation (the Registry mirrors acked records; it never front-runs the Host registry)
 
+**Retrack**:
+The explicit desktop operation that moves an existing Workspace mirror to another Host attachment after that destination Host confirms the same canonical UUID. Used by Project relink; never inferred by Claim, Observe, or a path collision. A destination path owned by another UUID is a conflict rather than an implicit Project merge.
+_Avoid_: Changing `sshConnectionId` as an annotation, path-based identity repair, treating a new Host's same path as automatically the same Project
+
 **Observe**:
-A snapshot delivery's sole write verb: insert-as-adopted for an unknown id, or refresh observation columns only — never annotations, never origin, never an untracked row. The never-resurrect guard is structural, not a separate check.
-_Avoid_: Adopt-or-refresh branching (Observe is one statement), deliveries resurrecting untracked rows
+Applying a Host registry snapshot to the desktop Registry by canonical Workspace id. Observe refreshes Host facts, adopts unknown Host ids, and applies missing/untrack rules; it never relinks by path, rewrites desktop annotations, or resurrects an untracked row. A same-path/different-id collision is reported before writes and stops that Host attachment. Cross-id translation is limited to explicit workflows that already own the previous identity: the production backfill and repository initialization after the Host resolves a Project path to another canonical id.
+_Avoid_: Path-based repair during normal sync, deliveries resurrecting untracked rows
 
 **Activation**:
 The moment a Workspace accepts Sessions. Session start waits for the prepare script to finish, but activation is never blocked by a script failure — failures surface as Workspace notices. Setup runs after activation, concurrent with live sessions; run scripts wait on setup success. Activation is ephemeral host-runtime state living in the Runtime overlay: after a daemon restart every workspace is inactive, and only lastActivatedAt persists as an Observation. Deactivation (kill all sessions + time-boxed, non-fatal teardown) is owned by deactivateWorkspace alone.
@@ -284,6 +362,96 @@ Roles in `packages/core`, sharpened during the exec-and-layering effort.
 Host-specific code under `packages/core/src/runtimes/` — a wire component worker that runs on the host plane, both locally and in the workspace-server, serving desktops through the host runtimes contract. Being a subprocess over wire is not sufficient: a worker that serves other workers rather than desktops (fs-watch) is a service, not a runtime.
 _Avoid_: Calling every wire component worker a runtime
 
+### Styling vocabulary
+
+**Theme**:
+The complete visual configuration for a rendered scope, composed from one Color scheme, one Density profile, and one Typography profile.
+_Avoid_: Color theme, the token vocabulary, ThemeProvider
+
+**Color scheme**:
+The independently selectable Theme profile that assigns color, surface, and shadow values.
+_Avoid_: Theme
+
+**Density profile**:
+The independently selectable Theme profile that assigns spatial density values.
+_Avoid_: Theme
+
+**Typography profile**:
+The independently selectable Theme profile that assigns font and type-scale values.
+_Avoid_: Theme
+
+**Profile Definition**:
+The source input that declares one Color scheme, Density profile, or Typography profile before build-time resolution.
+_Avoid_: Theme Definition, Token Source
+
+**Theme Compiler**:
+The build-time Module that validates and resolves Profile Definitions into Token Values and host-loadable artifacts.
+_Avoid_: Theme Generator, Token Generator
+
+**Token**:
+A stable, typed, author-facing value slot whose resolved value may vary by Theme or its owning visual context. CSS custom properties are implementation details, not Tokens.
+_Avoid_: Any CSS custom property
+
+**Primitive Token**:
+A role-free Token representing a reusable design value such as a palette step, spacing step, radius size, or type-scale size.
+_Avoid_: Scale Token, Foundation Token, React primitive
+
+**Palette Token**:
+A Primitive Token exposing one step or contrast value from a named neutral, accent, or hue palette. Color scheme Profile Definitions assign its Token Value.
+_Avoid_: Raw color value, Semantic Token
+
+**Semantic Token**:
+A Token named for visual intent or use, such as muted foreground, elevated surface, or destructive border, independent of a specific UI component.
+_Avoid_: Component-specific Token, any Token alias
+
+**Contextual Token**:
+A Semantic Token whose value is rebound by the nearest owning visual context, such as the current Surface background, foreground, hover, or border.
+_Avoid_: Surface Reference, recipe-local variable
+
+**Token Reference**:
+The typed author-facing expression used in styles to refer to a Token. Its CSS custom-property representation is an implementation detail.
+_Avoid_: Token, Token Value, raw CSS variable
+
+**Token Value**:
+The resolved CSS value assigned to a Token under a Theme and any owning visual context.
+_Avoid_: Token, Token Reference
+
+**Surface**:
+A rendered region that establishes inherited visual context—background, foreground, border, and interaction-state roles—for itself and its descendants.
+_Avoid_: Surface Token family, surface class, surface recipe
+
+**Surface Level**:
+A Surface's position in the ordered elevation relationship.
+_Avoid_: Surface Role, Surface Tone
+
+**Surface Role**:
+A Surface's semantic purpose independent of its elevation.
+_Avoid_: Surface Level, Surface Tone
+
+**Surface Tone**:
+A Surface's neutral or status intent, applied within its Level and Role.
+_Avoid_: Surface Level, Surface Role, status room
+
+**Style Recipe**:
+A reusable style Module whose small typed variant interface returns the class name for a complete visual variant.
+_Avoid_: Styling primitive, any shared style fragment, any Vanilla Extract `style()` result
+
+**Style Utility**:
+A constrained author-facing interface for local atomic layout or intentional Token-backed overrides. It does not encode a reusable visual pattern or component state.
+_Avoid_: Styling primitive, any shared style helper, Style Recipe
+
+**Component Styling Interface**:
+The styling-relevant part of a React Module's public Interface: its intentional visual variants, state hooks, and slots.
+_Avoid_: Appearance API, internal classes or selectors
+
+**Global Rule**:
+A CSS rule reached through a document, stable, or foreign selector rather than a generated class returned by a typed styling interface.
+_Avoid_: Any Vanilla Extract `globalStyle()` call
+
+**Host Styling Adapter**:
+The host-owned Module at the styling seam with `@emdash/ui`, responsible for satisfying the shared styling interface and mapping host-only visual roles when necessary.
+_Avoid_: Host Token Bridge, Theme Bridge
+
 ### Shared vocabulary
 
 Roles in `packages/shared`, settled by the shared-architecture naming pass.
@@ -305,8 +473,36 @@ The one retry/backoff word. The `retrySchedule(options)` constructor lives besid
 _Avoid_: Backoff/BackoffSchedule (dissolved), per-package retry vocabularies
 
 **Secret**:
-The wrapper for secret-adjacent values (`secret`, `isSecret`, `reveal`, `REDACTED`), exported from the prelude. Values stay wrapped through internal plumbing and logging (the logger replaces them with `[REDACTED]`); `reveal` only at true boundaries — the process env of a spawn, an HTTP header, OS keychain writes.
-_Avoid_: Revealing early and passing plaintext through layers, logging revealed values
+The wrapper for actual secret material: tokens, passwords, private keys, passphrases, bearer capabilities, and decrypted backend values. It stays wrapped through internal and Wire plumbing; `Secret.expose()` is the one plaintext disclosure spelling and is lint-allowlisted only at true sinks.
+_Avoid_: Revealing early, `reveal()` aliases, using Secret for public ciphertext/signatures, logging exposed values
+
+**Sensitive**:
+The wrapper for non-secret security artifacts that generic egress must redact, such as public enrollment keys, signatures, ciphertext, signed manifests, raw audit payloads, and encrypted locators. It is an egress classification, not a Secret authorization boundary.
+_Avoid_: Using Sensitive to bypass Secret disclosure controls, treating all redacted artifacts as secret material
+
+**Secret Wire envelope**:
+The strict versioned structural carrier declared by `wireSecret` or `wireSensitive` to preserve a protected wrapper across a process boundary. It marks sensitivity for schema validation and redaction but does not encrypt; Host grant confidentiality uses a separate HPKE envelope.
+_Avoid_: Host grant envelope, logging placeholder, generic recursive Secret discovery
+
+**Emdash Git credential helper**:
+The packaged, stateless Host-local adapter implementing Git's credential-helper protocol. It asks the Host Secret Runtime through a scoped Git credential channel and writes a granted credential only to Git's response stream; it never chooses an account or stores a credential.
+_Avoid_: ASKPASS broker, provider-native helper, Secret resolver, global credential store
+
+**First-party Git credential mode**:
+The per-Project choice for Git operations owned by Emdash itself: `effective-account` uses the selected managed account, while `system` delegates to the Host's native Git authentication. It is separate from Session policy so agent containment does not disable background source control.
+_Avoid_: Agent Git credentials, GitHub API account, silent native fallback after a selected identity breaks
+
+**Session Git credential mode**:
+The per-Project policy for terminal, TUI, and ACP Git: `effective-account`, `system`, or `none`. It governs credential helpers and ASKPASS; `none` is not a sandbox for netrc, integrated HTTP authentication, native SSH, or other same-user ambient mechanisms.
+_Avoid_: First-party Git credential mode, no-network mode, OS-user credential sandbox
+
+**Git credential target policy**:
+The HTTPS boundary attached to one Git credential channel capability. A first-party operation target is one exact repository; a Session target is one canonical authority (host and effective port) and permits repository paths on that authority.
+_Avoid_: Git remote URL string matching, helper-selected binding, Host-wide Secret grant
+
+**Git credential channel capability**:
+The ephemeral bearer right minted by the Host Secret Runtime for one Git operation or Session. It binds an exact Workspace, consumer, Secret binding, HTTPS target, purpose, Runtime boot, expiry, and optional use budget; it confers no grant enumeration or caller-selected binding.
+_Avoid_: Secret binding, provider token, reusable Host credential, desktop nonce
 
 **Package conventions**:
 Ownership-drop: a primitive that takes ownership of a value fires `onDrop` exactly once for every taken-then-discarded value, and rejecting a value never fires it (the caller kept ownership). Never-silent: optional failure hooks default to logger-backed reporting rather than swallowing.

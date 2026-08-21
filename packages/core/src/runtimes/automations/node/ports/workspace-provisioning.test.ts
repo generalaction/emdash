@@ -190,11 +190,7 @@ describe('createWorkspacePortFromDependency', () => {
 
   it('adopts a repository record that is already registered under another id', async () => {
     const wire = registryWire({
-      createWorkspace: (input) =>
-        err({
-          type: 'already-registered' as const,
-          record: stubRecord('repo-existing', input.path, 'repository'),
-        }),
+      createWorkspace: (input) => ok(stubRecord('repo-existing', input.path, 'repository')),
     });
     const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
@@ -471,8 +467,8 @@ function registryWire(
     createWorkspace: CreateWorkspaceInput[];
     createWorktree: CreateWorktreeInput[];
   } = { createWorkspace: [], createWorktree: [] };
-  // Mirrors the registry's registration semantics: the first id owns the path; a later
-  // registration of the same path under a different id gets already-registered back.
+  // Mirrors canonical registration: the first id owns the path and every later
+  // registration receives that same record as ordinary success.
   const byPath = new Map<string, WorkspaceRecord>();
 
   const wire = createTestWire(workspaceRegistryContract, {
@@ -486,9 +482,6 @@ function registryWire(
       calls.createWorkspace.push(input);
       if (options.createWorkspace) return options.createWorkspace(input);
       const existing = byPath.get(input.path);
-      if (existing && existing.id !== input.workspaceId) {
-        return err({ type: 'already-registered' as const, record: existing });
-      }
       const record = existing ?? stubRecord(input.workspaceId, input.path, 'repository');
       byPath.set(input.path, record);
       return ok(record);

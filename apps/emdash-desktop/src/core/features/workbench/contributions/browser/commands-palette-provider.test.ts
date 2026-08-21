@@ -220,6 +220,7 @@ describe('commands palette provider', () => {
     const capture = viewScopes.instantiate(capturingScope(), { parent: origin, impl: {} });
     capture.attachRef(dom.window.document.querySelector<HTMLElement>('#palette'));
     viewScopes.activate(origin);
+    viewScopes.activateCapture(capture);
     dom.window.document
       .querySelector<HTMLElement>('#palette')
       ?.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));

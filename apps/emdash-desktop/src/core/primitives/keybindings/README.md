@@ -27,11 +27,10 @@ validation. Chords using `Alt` with a printable key must use a code token,
 because macOS Option combinations change `event.key`. Sequences are not
 supported yet.
 
-Tinykeys provides `parseKeybinding` and, in the future dispatcher,
-`matchKeybindingPress`. The primitive adds strict validation because tinykeys
-otherwise accepts typos that never match. Canonical new chords must not be
-passed to the legacy TanStack `useHotkey` binder; the old and new runtimes stay
-separate until command migration.
+Tinykeys provides `parseKeybinding` and `matchKeybindingPress`. The primitive
+adds strict validation because tinykeys otherwise accepts typos that never
+match. App commands resolve through the window dispatcher and active view-scope
+path. `useChordKeydown` is reserved for component-local keyboard behavior.
 
 ## Bindings and settings
 
@@ -57,9 +56,9 @@ at the read boundary. Invalid stored values fall back to the default instead
 of throwing. Fixed bindings have no settings key and therefore cannot be
 overridden.
 
-The future recorder stores code tokens for printable keys and named keys
-as-is. Recording the effective default clears the override rather than
-persisting a no-op customization.
+The recorder stores code tokens for printable keys and named keys as-is.
+Recording the effective default clears the override rather than persisting a
+no-op customization.
 
 ## Conflicts
 
@@ -70,7 +69,8 @@ persisting a no-op customization.
 - `shadowing`: collision across groups.
 
 Char/code comparisons need a layout. Catalog checks use `CODE_TO_US_CHAR` for
-deterministic CI behavior. The recorder will pass the current layout map.
+deterministic CI behavior. The recorder uses the current layout map when one is
+available.
 
 ## Layout and dispatch boundaries
 
@@ -78,18 +78,18 @@ Layout never changes binding resolution. `KeyboardLayoutService` uses
 `navigator.keyboard.getLayoutMap()` only to display code tokens in terms of
 the current keyboard layout and to supply runtime conflict translation.
 
-The future dispatcher has one window listener. It pre-parses bindings with
-tinykeys, collects every command whose press matches, and asks the scope tree
-to resolve exactly once. Collect-then-resolve prevents a char and code binding
-for the same keystroke from firing twice. Per-binding repeat and text-input
-gating happens before resolution, and `preventDefault()` happens only after a
-command resolves successfully.
+The dispatcher has one window listener. It pre-parses bindings with tinykeys,
+collects every command whose press matches, and asks the scope tree to resolve
+exactly once. Collect-then-resolve prevents a char and code binding for the same
+keystroke from firing twice. Per-binding repeat and text-input gating happens
+before resolution, and `preventDefault()` happens only after a command resolves
+successfully.
 
 ## Downstream command integration
 
 Command definitions should import `Keybinding`, `keybinding`, and `code` from
 `@core/primitives/keybindings/api`. Positional defaults for navigate back,
 navigate forward, and split pane use `BracketLeft`, `BracketRight`, and
-`Backslash` code tokens; existing mnemonic bindings remain char strings.
-Legacy parity checks translate `$mod` to `Mod` and code tokens through
-`CODE_TO_US_CHAR`.
+`Backslash` code tokens; mnemonic bindings remain char strings. Native menu
+accelerators and browser shortcut claims derive from the same resolved chords
+used by the dispatcher.
