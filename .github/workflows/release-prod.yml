@@ -170,6 +170,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     needs: [prepare-release]
     runs-on: macos-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
     permissions:
       contents: write
     environment: release
