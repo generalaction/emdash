@@ -96,9 +96,7 @@ describe('createSessionPortFromDependencies', () => {
     const activateWorkspace = vi.fn(async () => ok({ id: 'existing-workspace' }));
     const port = createSessionPortFromDependencies({
       workspaceRegistry: {
-        createWorkspace: vi.fn(async () =>
-          err({ type: 'already-registered', record: { id: 'existing-workspace' } })
-        ),
+        createWorkspace: vi.fn(async () => ok({ id: 'existing-workspace' })),
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
       acp: { start } as ContractClient<AcpSessionStartContract>,

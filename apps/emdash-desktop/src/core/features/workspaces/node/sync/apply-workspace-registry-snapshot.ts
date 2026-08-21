@@ -1,24 +1,18 @@
-import type {
-  WorkspaceRecord,
-  WorkspaceRecords,
-} from '@emdash/core/runtimes/workspace-registry/api';
+import type { WorkspaceRecords } from '@emdash/core/runtimes/workspace-registry/api';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
   isAnnotatedWorkspace,
   liveWorkspaces,
+  workspaceObservationFromRecord,
   workspaceRegistryTable as workspaces,
+  type WorkspaceHostIdentity,
   type WorkspaceRegistry,
 } from '@core/features/workspaces/api/node/registry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
 import { loadWorkspaceAnnotations } from './workspace-annotations';
-
-export type WorkspaceHostIdentity = Readonly<{
-  location: 'local' | 'remote';
-  sshConnectionId: string | null;
-}>;
 
 export interface ApplyWorkspaceRegistrySnapshotInput {
   db: AppDb;
@@ -35,6 +29,31 @@ export interface ApplyWorkspaceRegistrySnapshotResult {
   untracked: number;
   /** Tombstoned rows whose host record this delivery confirmed gone (ADR 0006). */
   purgedTombstones: number;
+}
+
+export class WorkspaceIdentityConflictError extends Error {
+  readonly name = 'WorkspaceIdentityConflictError';
+
+  constructor(
+    readonly host: WorkspaceHostIdentity,
+    readonly path: string,
+    readonly incomingId: string,
+    readonly conflictingId: string
+  ) {
+    super(
+      `Workspace identity conflict at '${path}': Host delivered '${incomingId}', desktop has '${conflictingId}'`
+    );
+  }
+
+  fingerprint(): string {
+    return [
+      this.host.location,
+      this.host.sshConnectionId ?? 'local',
+      this.path,
+      this.incomingId,
+      this.conflictingId,
+    ].join('\u0000');
+  }
 }
 
 /**
@@ -69,6 +88,8 @@ function applyWorkspaceRegistrySnapshotTx(
     tx,
     hostRows.map((row) => row.id)
   );
+  assertNoIdentityConflicts(input.host, hostRows, input.records);
+  releaseMovedPaths(tx, hostRows, input.records);
   const counts: ApplyWorkspaceRegistrySnapshotResult = {
     adopted: 0,
     refreshed: 0,
@@ -94,7 +115,7 @@ function applyWorkspaceRegistrySnapshotTx(
         {
           id: record.id,
           type: input.host.location === 'remote' ? 'project-ssh' : 'local',
-          ...mirrorObservationFromRecord(record, input.host, observedAt),
+          ...workspaceObservationFromRecord(record, input.host, observedAt),
           createdAt: new Date(record.createdAt).toISOString(),
         },
         tx
@@ -102,7 +123,7 @@ function applyWorkspaceRegistrySnapshotTx(
       counts.adopted += 1;
       continue;
     }
-    registry.refresh(record.id, mirrorObservationFromRecord(record, input.host, observedAt), tx);
+    registry.refresh(record.id, workspaceObservationFromRecord(record, input.host, observedAt), tx);
     counts.refreshed += 1;
   }
 
@@ -136,6 +157,28 @@ function applyWorkspaceRegistrySnapshotTx(
   return counts;
 }
 
+/**
+ * A full snapshot may contain a valid path swap, or move a known record away before
+ * an unknown record takes its old path. Release all moved paths as one first phase so
+ * SQLite's live-path unique index cannot make the outcome depend on record order.
+ * The surrounding transaction restores every path if a later write fails.
+ */
+function releaseMovedPaths(
+  tx: DrizzleTx,
+  rows: readonly WorkspaceRow[],
+  records: WorkspaceRecords
+): void {
+  const incomingPathById = new Map(
+    Object.values(records).map((record) => [record.id, record.path])
+  );
+  const movedIds = rows.flatMap((row) => {
+    const incomingPath = incomingPathById.get(row.id);
+    return incomingPath !== undefined && incomingPath !== row.path ? [row.id] : [];
+  });
+  if (movedIds.length === 0) return;
+  tx.update(workspaces).set({ path: null }).where(inArray(workspaces.id, movedIds)).run();
+}
+
 function loadLiveHostRows(tx: DrizzleTx, host: WorkspaceHostIdentity): WorkspaceRow[] {
   const hostIdentity =
     host.sshConnectionId === null
@@ -158,37 +201,29 @@ function loadTombstonedIds(tx: DrizzleTx, recordIds: string[]): Set<string> {
   return new Set(rows.map((row) => row.id));
 }
 
-/**
- * Maps one host record into the mirror's observation fields. Shared with the wire
- * controller, which registers/annotates the mirror row immediately on create success.
- */
-export function mirrorObservationFromRecord(
-  record: WorkspaceRecord,
+function assertNoIdentityConflicts(
   host: WorkspaceHostIdentity,
-  observedAt: number
-) {
-  return {
-    kind: record.kind,
-    path: record.path,
-    parentId: record.parentId,
-    origin: record.origin,
-    observedStatus: record.observedStatus,
-    observedGit: record.git === null ? null : { version: '2' as const, ...record.git },
-    lastCreateOutcome:
-      record.lastCreateOutcome === null
-        ? null
-        : { version: '1' as const, ...record.lastCreateOutcome },
-    lastRemovalAttempt:
-      record.lastRemovalAttempt === null
-        ? null
-        : { version: '1' as const, ...record.lastRemovalAttempt },
-    // Retired: script runs ride the overlay's lifecycle steps now.
-    scriptOutcomes: null,
-    // Wholesale-refreshed: a daemon restart delivers runtime null, clearing the column.
-    runtimeOverlay: record.runtime === null ? null : { version: '1' as const, ...record.runtime },
-    lastActivatedAt: record.lastActivatedAt,
-    observedAt,
-    location: host.location,
-    sshConnectionId: host.sshConnectionId,
-  };
+  rows: readonly WorkspaceRow[],
+  records: WorkspaceRecords
+): void {
+  const ownerByPath = new Map<string, string>();
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  for (const row of rows) {
+    if (row.path !== null) ownerByPath.set(row.path, row.id);
+  }
+  // A known id may legitimately move. Release its old observed path in the
+  // preflight model before checking the full incoming assignment.
+  for (const record of Object.values(records)) {
+    const previous = rowById.get(record.id);
+    if (previous?.path && ownerByPath.get(previous.path) === record.id) {
+      ownerByPath.delete(previous.path);
+    }
+  }
+  for (const record of Object.values(records)) {
+    const conflictingId = ownerByPath.get(record.path);
+    if (conflictingId !== undefined && conflictingId !== record.id) {
+      throw new WorkspaceIdentityConflictError(host, record.path, record.id, conflictingId);
+    }
+    ownerByPath.set(record.path, record.id);
+  }
 }

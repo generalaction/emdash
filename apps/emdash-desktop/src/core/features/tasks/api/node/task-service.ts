@@ -309,42 +309,25 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     });
   }
 
-  /**
-   * Activates the workspace on the host registry (prepare gates the return; setup and
-   * run stream through the records live model). A record the registry has never seen —
-   * repository instances and pre-registry rows — is registered first, then activated.
-   */
+  /** Activates one already-registered Workspace; unknown identity is an invariant failure. */
   private async activateOnRegistry(
-    registry: Pick<
-      HostRuntimesClient['workspaceRegistry'],
-      'activateWorkspace' | 'createWorkspace'
-    >,
+    registry: Pick<HostRuntimesClient['workspaceRegistry'], 'activateWorkspace'>,
     workspaceId: string,
-    workspacePath: string,
-    retried = false
+    _workspacePath: string
   ): Promise<Result<void, ProvisionWorkspaceError>> {
     const activated = await registry.activateWorkspace({ workspaceId });
     if (activated.success) return ok(undefined);
     if (activated.error.type === 'workspace-missing') {
       return err({ type: 'missing-workspace' });
     }
-    if (activated.error.type === 'workspace-not-found' && !retried) {
-      const registered = await registry.createWorkspace({ workspaceId, path: workspacePath });
-      if (registered.success || registered.error.type === 'already-registered') {
-        return this.activateOnRegistry(registry, workspaceId, workspacePath, true);
-      }
-      return err({
-        type: 'setup-failed',
-        stepKind: 'activation-gate',
-        stepErrorType: registered.error.type,
-        message: `Could not register the workspace on the host (${registered.error.type})`,
-      });
-    }
     return err({
       type: 'setup-failed',
       stepKind: 'activate-workspace',
       stepErrorType: activated.error.type,
-      message: 'Workspace activation failed on the host',
+      message:
+        activated.error.type === 'workspace-not-found'
+          ? `Workspace identity ${workspaceId} is unknown to the Host registry`
+          : 'Workspace activation failed on the host',
     });
   }
 

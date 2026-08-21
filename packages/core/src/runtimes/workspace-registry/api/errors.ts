@@ -4,7 +4,6 @@ import {
   scriptNotConfiguredErrorSchema,
   startScriptRunErrorSchema,
 } from '#runtimes/scripts/api/errors';
-import { workspaceRecordSchema } from './schemas';
 
 export const workspaceNotFoundErrorSchema = z.object({
   type: z.literal('workspace-not-found'),
@@ -22,8 +21,6 @@ export type RunScriptError = z.infer<typeof runScriptErrorSchema>;
 
 export const createWorkspaceErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('path-not-found'), path: z.string() }),
-  /** Carries the existing record so a second desktop adopts it instead of fighting. */
-  z.object({ type: z.literal('already-registered'), record: workspaceRecordSchema }),
   z.object({
     type: z.literal('immutable-field-mismatch'),
     workspaceId: z.string(),

@@ -234,17 +234,17 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
     });
   });
 
-  it('registers a missing repository record and retries settings-page assembly', async () => {
+  it('does not recreate an unknown Host identity while assembling settings', async () => {
     const { service, getProjectConfig, createWorkspace } = fixture();
-    getProjectConfig
-      .mockResolvedValueOnce(err({ type: 'workspace-not-found', workspaceId: 'repo-1' }) as never)
-      .mockResolvedValueOnce(ok(configState()));
+    getProjectConfig.mockResolvedValue(
+      err({ type: 'workspace-not-found', workspaceId: 'repo-1' }) as never
+    );
 
     const result = await service.getProjectSettingsPage('project-1');
 
-    expect(result.success).toBe(true);
-    expect(createWorkspace).toHaveBeenCalledWith({ workspaceId: 'repo-1', path: '/repo' });
-    expect(getProjectConfig).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ success: false, error: { type: 'error' } });
+    expect(createWorkspace).not.toHaveBeenCalled();
+    expect(getProjectConfig).toHaveBeenCalledOnce();
   });
 
   it('returns unresolved registry failures from page, share, and migration operations', async () => {

@@ -69,7 +69,7 @@ export const DeleteTaskModal = observer(function DeleteTaskModal({
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
-  const effectiveDeleteWorktree = deleteWorktree && !hostUnreachable;
+  const effectiveDeleteWorktree = showWorktreeCheckbox && deleteWorktree && !hostUnreachable;
   const effectiveDeleteBranch = deleteBranchOverride ?? deleteBranchByDefault;
   const shouldDeleteBranch = effectiveDeleteWorktree && effectiveDeleteBranch;
 

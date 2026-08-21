@@ -6,10 +6,11 @@ import {
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
+import type { WorkspaceHostIdentity } from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   applyWorkspaceRegistrySnapshot,
-  type WorkspaceHostIdentity,
+  WorkspaceIdentityConflictError,
 } from './apply-workspace-registry-snapshot';
 
 export interface WorkspaceRegistrySyncServiceOptions {
@@ -31,6 +32,7 @@ export interface WorkspaceRegistrySyncServiceOptions {
  */
 export class WorkspaceRegistrySyncService {
   private readonly attachments = new Map<string, Scope>();
+  private readonly reportedIdentityConflicts = new Set<string>();
   private disposed = false;
 
   constructor(private readonly options: WorkspaceRegistrySyncServiceOptions) {
@@ -55,10 +57,11 @@ export class WorkspaceRegistrySyncService {
     const list = records(undefined).states.list;
     const hostIdentity = hostIdentityFor(host);
     let chain = Promise.resolve();
+    let identityFailed = false;
     observe(
       list,
       (snapshot) => {
-        if (snapshot.status === 'loading') return;
+        if (snapshot.status === 'loading' || identityFailed) return;
         const parsed = workspaceRecordsSchema.parse(snapshot.value ?? {});
         chain = chain
           .then(async () => {
@@ -69,6 +72,17 @@ export class WorkspaceRegistrySyncService {
             });
           })
           .catch((error) => {
+            if (error instanceof WorkspaceIdentityConflictError) {
+              identityFailed = true;
+              const fingerprint = error.fingerprint();
+              if (!this.reportedIdentityConflicts.has(fingerprint)) {
+                this.reportedIdentityConflicts.add(fingerprint);
+                this.options.onError?.('workspace registry identity invariant', error);
+              }
+              if (this.attachments.get(key) === scope) this.attachments.delete(key);
+              void scope.dispose();
+              return;
+            }
             this.options.onError?.('workspace registry snapshot sync', error);
           });
       },

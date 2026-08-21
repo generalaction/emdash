@@ -27,7 +27,7 @@ describe('workspace deletion tombstones', () => {
   });
 
   function seedWorktree(id: string, path: string): WorkspaceRow {
-    return createWorkspaceRegistry(fixture.db).register({
+    return createWorkspaceRegistry(fixture.db).recordCreationIntent({
       id,
       type: 'local',
       kind: 'worktree',
