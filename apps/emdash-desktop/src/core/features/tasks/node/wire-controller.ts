@@ -226,8 +226,8 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
             : null,
           lifecycle: row.runtimeOverlay?.lifecycle ?? null,
           // Raw PR-association and drift facts; a null observedGit (old host /
-          // v1 payload) projects null, degrading association to branch matching
-          // only and checkout drift to unknown.
+          // v1 payload) projects null, degrading association to push-remote head
+          // matching and checkout drift to unknown.
           observedPr: row.observedGit
             ? {
                 branch: row.observedGit.branch,

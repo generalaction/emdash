@@ -144,6 +144,7 @@ describe('GitRepositoryStore', () => {
         provenance: { kind: 'unresolvable' },
       });
       expect(store.canonicalRepositoryUrl).toBeNull();
+      expect(store.canonicalPushRepositoryUrl).toBeNull();
       store.dispose();
     });
 
@@ -185,6 +186,7 @@ describe('GitRepositoryStore', () => {
       value: 'origin',
       provenance: { kind: 'broken-setting', staleValue: 'fork' },
     });
+    expect(store.canonicalPushRepositoryUrl).toBe('https://github.com/example/repo');
     store.dispose();
   });
 
