@@ -178,26 +178,28 @@ const TasksToolbar = observer(function TasksToolbar() {
   const filter = tasksView.useFilter();
   const sort = tasksView.useSort();
   return (
-    <CollectionToolbar
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search tasks…"
-      actions={
-        <>
-          <ToggleGroup.Root
-            value={[filter.model.tab]}
-            onValueChange={(values: unknown[]) => {
-              const next = values[0] as 'active' | 'archived' | undefined;
-              if (next) filter.set({ tab: next });
-            }}
-          >
-            <ToggleGroup.Item value="active">Active</ToggleGroup.Item>
-            <ToggleGroup.Item value="archived">Archived</ToggleGroup.Item>
-          </ToggleGroup.Root>
-          <SortSelect sort={sort} />
-        </>
-      }
-    />
+    <CollectionToolbar.Root>
+      <ToggleGroup.Root
+        value={[filter.model.tab]}
+        aria-label="Task status"
+        onValueChange={(values: unknown[]) => {
+          const next = values[0] as 'active' | 'archived' | undefined;
+          if (next) filter.set({ tab: next });
+        }}
+      >
+        <ToggleGroup.Item value="active">Active</ToggleGroup.Item>
+        <ToggleGroup.Item value="archived">Archived</ToggleGroup.Item>
+      </ToggleGroup.Root>
+      <CollectionToolbar.Separator />
+      <SortSelect sort={sort} />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Search
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search tasks…"
+      />
+      <Button variant="primary">Create Task</Button>
+    </CollectionToolbar.Root>
   );
 });
 
@@ -458,11 +460,13 @@ const AGENT_COLUMNS: CollectionViewColumn<AgentFixture>[] = [
 const AgentsToolbar = observer(function AgentsToolbar() {
   const search = agentsView.useSearch();
   return (
-    <CollectionToolbar
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search agents…"
-    />
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search agents…"
+      />
+    </CollectionToolbar.Root>
   );
 });
 
@@ -806,11 +810,13 @@ const QueryBackedToolbar = observer(function QueryBackedToolbar({
 }) {
   const search = view.useSearch();
   return (
-    <CollectionToolbar
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search tasks… (visible in every phase)"
-    />
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search tasks… (visible in every phase)"
+      />
+    </CollectionToolbar.Root>
   );
 });
 

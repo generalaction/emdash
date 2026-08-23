@@ -17,11 +17,14 @@ export function AgentsToolbar({
   isRefreshing,
 }: AgentsToolbarProps) {
   return (
-    <CollectionToolbar
-      searchValue={searchQuery}
-      onSearchValueChange={onSearchQueryChange}
-      searchPlaceholder="Search agents…"
-      actions={
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={searchQuery}
+        onValueChange={onSearchQueryChange}
+        placeholder="Search agents…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
         <Button
           variant="secondary"
           icon
@@ -31,7 +34,7 @@ export function AgentsToolbar({
         >
           <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
         </Button>
-      }
-    />
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 }

@@ -62,17 +62,20 @@ const MachinesToolbar = observer(function MachinesToolbar({
 }) {
   const search = view.useSearch();
   return (
-    <CollectionToolbar
-      searchValue={search.query}
-      onSearchValueChange={search.setQuery}
-      searchPlaceholder="Search machines…"
-      actions={
+    <CollectionToolbar.Root>
+      <CollectionToolbar.Search
+        value={search.query}
+        onValueChange={search.setQuery}
+        placeholder="Search machines…"
+      />
+      <CollectionToolbar.Spacer />
+      <CollectionToolbar.Group>
         <Button type="button" variant="primary" onClick={onAdd}>
           <PlusIcon />
           Add machine
         </Button>
-      }
-    />
+      </CollectionToolbar.Group>
+    </CollectionToolbar.Root>
   );
 });
 

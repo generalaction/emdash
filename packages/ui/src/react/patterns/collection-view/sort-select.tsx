@@ -20,7 +20,11 @@ export interface SortSelectProps<K extends string> {
  * ```tsx
  * const Toolbar = observer(function Toolbar() {
  *   const sort = tasksView.useSort();
- *   return <CollectionToolbar actions={<SortSelect sort={sort} />} ... />;
+ *   return (
+ *     <CollectionToolbar.Root>
+ *       <SortSelect sort={sort} />
+ *     </CollectionToolbar.Root>
+ *   );
  * });
  * ```
  */

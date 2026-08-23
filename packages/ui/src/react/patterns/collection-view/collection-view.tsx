@@ -51,7 +51,7 @@ export interface CollectionViewProps<T> {
   renderRow?: (item: T, index: number) => React.ReactNode;
 
   // ── Chrome slots ────────────────────────────────────────────────────────
-  /** Sticky toolbar slot — a CollectionToolbar (unchanged API) or custom row. */
+  /** Sticky toolbar slot — a composed `CollectionToolbar` or custom row. */
   toolbar?: React.ReactNode;
   /**
    * Floating overlay slot rendered inside the positioned root — bulk bars and
