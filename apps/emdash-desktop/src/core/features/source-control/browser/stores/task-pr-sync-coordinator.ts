@@ -59,8 +59,8 @@ export class TaskPrSyncCoordinator {
       () => this.reloadAll()
     );
     this.disposeRepositoryReaction = reaction(
-      () => repository.pullRequestRepositoryUrl,
-      (repositoryUrl) => {
+      () => [repository.pullRequestRepositoryUrl, repository.canonicalPushRepositoryUrl] as const,
+      ([repositoryUrl]) => {
         void this.watchSync(repositoryUrl);
         this.reloadAll();
       },
@@ -86,8 +86,8 @@ export class TaskPrSyncCoordinator {
   /**
    * Re-derives the task's PR association from observed facts, validated against the
    * PR cache on this read (pr-workspace-model spec, Association): breadcrumb, then
-   * gh-convention recognition, then head-branch matching. Cache lookup failures keep
-   * the current association; the next observation or sync re-derives.
+   * gh-convention recognition, then exact repository/ref head matching. Cache lookup
+   * failures keep the current association; the next observation or sync re-derives.
    *
    * The checkout-drift state (spec, Staleness) is derived on the same read: the
    * observed head OID joined with the associated PR's cached head OID, stamped with
@@ -96,6 +96,7 @@ export class TaskPrSyncCoordinator {
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
     const repositoryUrl = this.repository.pullRequestRepositoryUrl;
+    const fallbackHeadRepositoryUrl = this.repository.canonicalPushRepositoryUrl;
     // Missing repository context prevents a refresh; it does not prove that the
     // task's last-known PR stopped existing.
     if (!repositoryUrl) return;
@@ -111,6 +112,7 @@ export class TaskPrSyncCoordinator {
       prs = await derivePrAssociation({
         observed: inputs.observed,
         checkoutBranch: inputs.checkoutBranch,
+        fallbackHeadRepositoryUrl,
         lookups: cacheLookups(client, repositoryUrl),
       });
     } catch {
@@ -118,6 +120,7 @@ export class TaskPrSyncCoordinator {
     }
     // Drop stale results: another reload owns the write when the inputs moved.
     if (this.repository.pullRequestRepositoryUrl !== repositoryUrl) return;
+    if (this.repository.canonicalPushRepositoryUrl !== fallbackHeadRepositoryUrl) return;
     if (!isDeepEqual(associationInputs(store), inputs)) return;
     // Drift is derived against the PR the panel renders (selectCurrentPr).
     const drift = derivePrCheckoutDrift({
@@ -202,8 +205,12 @@ function cacheLookups(client: PullRequestsRuntimeClient, repositoryUrl: string) 
       if (!result.success) throw new Error(`PR cache lookup failed: ${result.error.type}`);
       return result.data.pr;
     },
-    async byBranch(branch: string) {
-      const result = await client.getPullRequestsForBranch({ repositoryUrl, branch });
+    async byHead(head: { repositoryUrl: string; refName: string }) {
+      const result = await client.getPullRequestsForHead({
+        repositoryUrl,
+        headRepositoryUrl: head.repositoryUrl,
+        headRefName: head.refName,
+      });
       if (!result.success) throw new Error(`PR cache lookup failed: ${result.error.type}`);
       return result.data.prs;
     },

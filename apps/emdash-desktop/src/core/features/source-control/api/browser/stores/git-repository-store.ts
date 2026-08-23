@@ -109,6 +109,7 @@ export class GitRepositoryStore {
       remotes: computed,
       loading: computed,
       canonicalRepositoryUrl: computed,
+      canonicalPushRepositoryUrl: computed,
       providerRepository: computed,
       pullRequestRepositoryUrl: computed,
       issueRepositoryUrl: computed,
@@ -328,6 +329,12 @@ export class GitRepositoryStore {
     const baseRemote = this.baseRemote;
     if (baseRemote === null) return null;
     return parseRepositoryRef(baseRemote.url)?.repositoryUrl ?? null;
+  }
+
+  get canonicalPushRepositoryUrl(): string | null {
+    const pushRemote = this.pushRemote;
+    if (pushRemote === null) return null;
+    return parseRepositoryRef(pushRemote.url)?.repositoryUrl ?? null;
   }
 
   get providerRepository(): ProviderRepository | null {

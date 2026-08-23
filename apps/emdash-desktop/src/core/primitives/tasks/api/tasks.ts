@@ -122,7 +122,7 @@ export type WorkspaceLifecycleStepInfo = {
 /**
  * Raw observed git facts (mirror observedGit v2) that PR association and
  * checkout-drift derive from desktop-side. Null means not-yet-observed — old
- * hosts and v1 payloads — which degrades association to branch matching only
+ * hosts and v1 payloads — which degrades association to push-remote head matching
  * and drift to unknown.
  */
 export type WorkspaceObservedPrFacts = {
