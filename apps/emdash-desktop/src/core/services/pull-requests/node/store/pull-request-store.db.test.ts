@@ -148,6 +148,27 @@ describe('PullRequestStore', () => {
     ).toBe(0);
   });
 
+  it('matches checkout pull requests by exact base, head repository, and head ref', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const baseRepositoryUrl = 'https://github.com/emdash/emdash';
+    const forkRepositoryUrl = 'https://github.com/contributor/emdash';
+    store.registerRepository(baseRepositoryUrl);
+    const forkPr = store.savePullRequest(
+      pullRequestFixture({
+        repositoryUrl: baseRepositoryUrl,
+        headRepositoryUrl: forkRepositoryUrl,
+        headRefName: 'main',
+      })
+    );
+
+    expect(store.getPullRequestsForHead(baseRepositoryUrl, baseRepositoryUrl, 'main')).toEqual([]);
+    expect(store.getPullRequestsForHead(baseRepositoryUrl, forkRepositoryUrl, 'main')).toEqual([
+      forkPr,
+    ]);
+  });
+
   it('prunes orphan users when old pull requests are archived', async () => {
     const handle = await pullRequestSqliteStore.openTemp();
     cleanups.push(() => handle.close());

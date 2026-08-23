@@ -265,6 +265,7 @@ export class PullRequestStore {
     };
   }
 
+  /** Broad discovery across PRs where the repository is either base or head. */
   getPullRequestsForBranch(repositoryUrl: string, branch: string): PullRequest[] {
     const rows = this.handle.connection.all<PullRequestDbRow>(
       `${pullRequestSelectSql}
@@ -276,6 +277,26 @@ export class PullRequestStore {
         )
       ORDER BY pull_request_created_at DESC`,
       [branch, repositoryUrl, repositoryUrl, repositoryUrl]
+    );
+    return this.assembleRows(rows);
+  }
+
+  getPullRequestsForHead(
+    repositoryUrl: string,
+    headRepositoryUrl: string,
+    headRefName: string
+  ): PullRequest[] {
+    const rows = this.handle.connection.all<PullRequestDbRow>(
+      `${pullRequestSelectSql}
+      WHERE repository_url = ?
+        AND head_repository_url = ?
+        AND head_ref_name = ?
+        AND EXISTS (
+          SELECT 1 FROM registered_repositories
+          WHERE repository_url = ?
+        )
+      ORDER BY pull_request_created_at DESC`,
+      [repositoryUrl, headRepositoryUrl, headRefName, repositoryUrl]
     );
     return this.assembleRows(rows);
   }

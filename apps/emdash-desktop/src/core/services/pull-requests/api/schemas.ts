@@ -151,6 +151,11 @@ export const branchPullRequestsInputSchema = repositoryInputSchema.extend({
   branch: z.string(),
 });
 
+export const headPullRequestsInputSchema = repositoryInputSchema.extend({
+  headRepositoryUrl: z.string(),
+  headRefName: z.string(),
+});
+
 export const pullRequestNumberInputSchema = repositoryInputSchema.extend({
   number: z.number().int().positive(),
 });
