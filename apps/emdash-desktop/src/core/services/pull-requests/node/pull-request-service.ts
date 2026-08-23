@@ -150,6 +150,33 @@ export class PullRequestService {
     }
   }
 
+  getPullRequestsForHead(
+    repositoryUrl: string,
+    headRepositoryUrl: string,
+    headRefName: string
+  ): Result<{ prs: PullRequest[] }, PullRequestError> {
+    const normalizedRepository = normalizeRepositoryUrl(repositoryUrl);
+    if (!normalizedRepository) return err({ type: 'invalid_repository', input: repositoryUrl });
+    const normalizedHeadRepository = normalizeRepositoryUrl(headRepositoryUrl);
+    if (!normalizedHeadRepository) {
+      return err({ type: 'invalid_repository', input: headRepositoryUrl });
+    }
+    try {
+      return ok({
+        prs: this.options.store.getPullRequestsForHead(
+          normalizedRepository,
+          normalizedHeadRepository,
+          headRefName
+        ),
+      });
+    } catch (error) {
+      return err({
+        type: 'task_pull_requests_failed',
+        message: error instanceof Error ? error.message : 'Unable to load pull requests',
+      });
+    }
+  }
+
   /**
    * Breadcrumb validation read: the synced PR with that canonical URL belonging to
    * this repository, or null — an unknown URL is an ordinary miss, never an error,

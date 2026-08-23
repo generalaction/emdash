@@ -54,7 +54,11 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
 function cacheOf(prs: PullRequest[]): PrCacheLookups {
   return {
     byUrl: vi.fn(async (url: string) => prs.find((pr) => pr.url === url) ?? null),
-    byBranch: vi.fn(async (branch: string) => prs.filter((pr) => pr.headRefName === branch)),
+    byHead: vi.fn(async (head) =>
+      prs.filter(
+        (pr) => pr.headRepositoryUrl === head.repositoryUrl && pr.headRefName === head.refName
+      )
+    ),
   };
 }
 
@@ -69,14 +73,15 @@ describe('derivePrAssociation', () => {
         prBreadcrumb: `${repositoryUrl}/pull/42`,
       }),
       checkoutBranch: 'my-task-branch',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([pr]);
-    expect(lookups.byBranch).not.toHaveBeenCalled();
+    expect(lookups.byHead).not.toHaveBeenCalled();
   });
 
-  it('never lets branch matching override a validated breadcrumb', async () => {
+  it('never lets head matching override a validated breadcrumb', async () => {
     const breadcrumbPr = pullRequestFixture({
       url: `${repositoryUrl}/pull/42`,
       headRefName: 'their-branch',
@@ -93,14 +98,15 @@ describe('derivePrAssociation', () => {
         prBreadcrumb: breadcrumbPr.url,
       }),
       checkoutBranch: 'shared-branch',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([breadcrumbPr]);
-    expect(lookups.byBranch).not.toHaveBeenCalled();
+    expect(lookups.byHead).not.toHaveBeenCalled();
   });
 
-  it('silently ignores a breadcrumb the cache cannot validate and falls back to branch matching', async () => {
+  it('silently ignores a breadcrumb the cache cannot validate and falls back to head matching', async () => {
     const pr = pullRequestFixture({ headRefName: 'feature' });
     const lookups = cacheOf([pr]);
 
@@ -110,6 +116,7 @@ describe('derivePrAssociation', () => {
         prBreadcrumb: `${repositoryUrl}/pull/9999`,
       }),
       checkoutBranch: 'feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
@@ -129,11 +136,12 @@ describe('derivePrAssociation', () => {
         },
       }),
       checkoutBranch: 'contrib',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([pr]);
-    expect(lookups.byBranch).not.toHaveBeenCalled();
+    expect(lookups.byHead).not.toHaveBeenCalled();
   });
 
   it('does not treat ordinary branch upstreams as PR conventions', async () => {
@@ -149,11 +157,63 @@ describe('derivePrAssociation', () => {
         },
       }),
       checkoutBranch: 'feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([pr]);
     expect(lookups.byUrl).not.toHaveBeenCalled();
+  });
+
+  it('does not associate the same branch name from another head repository', async () => {
+    const forkPr = pullRequestFixture({
+      headRepositoryUrl: 'https://github.com/contributor/emdash',
+      headRefName: 'main',
+    });
+    const lookups = cacheOf([forkPr]);
+
+    const prs = await derivePrAssociation({
+      observed: observedFixture({
+        branch: 'main',
+        upstream: {
+          mergeRef: 'refs/heads/main',
+          remoteUrl: repositoryUrl,
+        },
+      }),
+      checkoutBranch: 'main',
+      fallbackHeadRepositoryUrl: repositoryUrl,
+      lookups,
+    });
+
+    expect(prs).toEqual([]);
+  });
+
+  it('matches a fork PR through its exact upstream repository and remote branch', async () => {
+    const forkRepositoryUrl = 'https://github.com/contributor/emdash';
+    const forkPr = pullRequestFixture({
+      headRepositoryUrl: forkRepositoryUrl,
+      headRefName: 'published-feature',
+    });
+    const lookups = cacheOf([forkPr]);
+
+    const prs = await derivePrAssociation({
+      observed: observedFixture({
+        branch: 'local-feature',
+        upstream: {
+          mergeRef: 'refs/heads/published-feature',
+          remoteUrl: 'git@github.com:contributor/emdash.git',
+        },
+      }),
+      checkoutBranch: 'local-feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
+      lookups,
+    });
+
+    expect(prs).toEqual([forkPr]);
+    expect(lookups.byHead).toHaveBeenCalledWith({
+      repositoryUrl: forkRepositoryUrl,
+      refName: 'published-feature',
+    });
   });
 
   it('falls all the way through when neither breadcrumb nor convention validates', async () => {
@@ -169,13 +229,17 @@ describe('derivePrAssociation', () => {
         },
       }),
       checkoutBranch: 'feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([]);
     expect(lookups.byUrl).toHaveBeenCalledWith(`${repositoryUrl}/pull/1`);
     expect(lookups.byUrl).toHaveBeenCalledWith(`${repositoryUrl}/pull/2`);
-    expect(lookups.byBranch).toHaveBeenCalledWith('feature');
+    expect(lookups.byHead).toHaveBeenCalledWith({
+      repositoryUrl,
+      refName: 'feature',
+    });
   });
 
   it('does not re-validate a recognized URL identical to the failed breadcrumb', async () => {
@@ -191,19 +255,21 @@ describe('derivePrAssociation', () => {
         },
       }),
       checkoutBranch: 'feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(lookups.byUrl).toHaveBeenCalledTimes(1);
   });
 
-  it('degrades to branch matching only on old hosts with no observation', async () => {
+  it('degrades to push-remote head matching on old hosts with no observation', async () => {
     const pr = pullRequestFixture({ headRefName: 'feature' });
     const lookups = cacheOf([pr]);
 
     const prs = await derivePrAssociation({
       observed: null,
       checkoutBranch: 'feature',
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
@@ -218,6 +284,7 @@ describe('derivePrAssociation', () => {
     const prs = await derivePrAssociation({
       observed: observedFixture({ branch: 'observed-branch' }),
       checkoutBranch: null,
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
@@ -230,10 +297,11 @@ describe('derivePrAssociation', () => {
     const prs = await derivePrAssociation({
       observed: null,
       checkoutBranch: null,
+      fallbackHeadRepositoryUrl: repositoryUrl,
       lookups,
     });
 
     expect(prs).toEqual([]);
-    expect(lookups.byBranch).not.toHaveBeenCalled();
+    expect(lookups.byHead).not.toHaveBeenCalled();
   });
 });

@@ -13,7 +13,7 @@ const ghPrMergeRefPattern = /^refs\/pull\/(\d+)\/head$/;
  * with the base remote's URL constructs the canonical PR URL — the PR cache's key.
  * Provider knowledge stays desktop-side; the host only reports the raw config
  * values. Returns null for anything that is not the convention (callers fall back
- * to branch matching); GitLab's `refs/merge-requests/N/head` is a later addition.
+ * to exact head matching); GitLab's `refs/merge-requests/N/head` is a later addition.
  */
 export function recognizePullRequestUrl(
   upstream: { mergeRef: string; remoteUrl: string | null } | null

@@ -8,6 +8,12 @@ export function createPullRequestsWireController(service: PullRequestService): C
     getFilterOptions: (input) => service.getFilterOptions(input.repositoryUrls),
     getPullRequestsForBranch: (input) =>
       service.getPullRequestsForBranch(input.repositoryUrl, input.branch),
+    getPullRequestsForHead: (input) =>
+      service.getPullRequestsForHead(
+        input.repositoryUrl,
+        input.headRepositoryUrl,
+        input.headRefName
+      ),
     getPullRequestByUrl: (input) => service.getPullRequestByUrl(input.repositoryUrl, input.url),
     registerRepository: (input) => service.registerRepository(input.repositoryUrl),
     unregisterRepository: (input, meta) =>
