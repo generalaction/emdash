@@ -4,6 +4,7 @@ import { pullRequestErrorSchema } from './errors';
 import {
   branchPullRequestsInputSchema,
   createPullRequestInputSchema,
+  headPullRequestsInputSchema,
   listPullRequestsInputSchema,
   listPullRequestsResultSchema,
   mergePullRequestInputSchema,
@@ -33,8 +34,15 @@ export const pullRequestsContract = defineContract({
     data: pullRequestFilterOptionsSchema,
     error: pullRequestErrorSchema,
   }),
+  /** Broad cache-refresh discovery; checkout association must use the exact-head read below. */
   getPullRequestsForBranch: fallible({
     input: branchPullRequestsInputSchema,
+    data: z.object({ prs: z.array(pullRequestSchema) }),
+    error: pullRequestErrorSchema,
+  }),
+  /** Exact head identity lookup used for checkout-to-PR association. */
+  getPullRequestsForHead: fallible({
+    input: headPullRequestsInputSchema,
     data: z.object({ prs: z.array(pullRequestSchema) }),
     error: pullRequestErrorSchema,
   }),
