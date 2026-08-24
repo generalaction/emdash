@@ -95,6 +95,7 @@ export class AcpChatStore {
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeHostReaction: () => void;
   private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
+  private _submissionSequence = 0;
   private _disposed = false;
 
   constructor(
@@ -379,10 +380,12 @@ export class AcpChatStore {
   ): void {
     if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
+    const submissionSequence = ++this._submissionSequence;
+    let optimisticId: string | undefined;
     this.draftText = '';
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
-      const optimisticId = `optimistic:user:${Date.now()}`;
+      optimisticId = `optimistic:user:${Date.now()}`;
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -394,7 +397,19 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this._submitPrompt(text, promptAttachments, hiddenContext);
+    void this._submitPrompt(text, promptAttachments, hiddenContext).then((accepted) => {
+      if (accepted) return;
+      runInAction(() => {
+        if (this._disposed || submissionSequence !== this._submissionSequence) return;
+        if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
+          this.chatState.session.setPendingPrompt(null);
+          this._syncMessageCount();
+        }
+        if (this.draftText !== '' || this.draftAttachments.length > 0) return;
+        this.draftText = text;
+        this.draftAttachments = attachments;
+      });
+    });
   }
 
   setDraftText(text: string): void {
@@ -595,12 +610,12 @@ export class AcpChatStore {
     text: string,
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
-  ): Promise<void> {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+  ): Promise<boolean> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return false;
     const session = this.session;
     if (!session) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));
-      return;
+      return false;
     }
 
     let resolvedHiddenContext: string | undefined;
@@ -619,9 +634,14 @@ export class AcpChatStore {
         ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       });
-      if (!result.success) this._toastError('Failed to send message', result.error);
+      if (!result.success) {
+        this._toastError('Failed to send message', result.error);
+        return false;
+      }
+      return true;
     } catch (error) {
       this._toastError('Failed to send message', error);
+      return false;
     }
   }
 

@@ -54,7 +54,12 @@ vi.mock('@core/primitives/mementos/browser', () => ({
   }),
 }));
 
-const setPendingPrompt = vi.fn();
+const chatSessionTestState = {
+  pendingPrompt: null as { id: string; text: string } | null,
+};
+const setPendingPrompt = vi.fn((prompt: { id: string; text: string } | null) => {
+  chatSessionTestState.pendingPrompt = prompt;
+});
 
 describe('AcpChatStore prompt submission', () => {
   beforeAll(() => {
@@ -63,7 +68,7 @@ describe('AcpChatStore prompt submission', () => {
       createChatState: () =>
         ({
           session: {
-            state: { pendingPrompt: null },
+            state: chatSessionTestState,
             setPendingPrompt,
           },
           transcript: {
@@ -81,6 +86,7 @@ describe('AcpChatStore prompt submission', () => {
 
   beforeEach(() => {
     setPendingPrompt.mockClear();
+    chatSessionTestState.pendingPrompt = null;
     mementoTestState.value = { version: '1', text: '', attachments: [] };
     mementoTestState.producer = null;
     mementoTestState.ready = Promise.resolve();
@@ -115,10 +121,96 @@ describe('AcpChatStore prompt submission', () => {
   it('still sends the prompt when optional issue context fails to resolve', async () => {
     const sendPrompt = vi.fn(async () => ({ success: true, data: { queued: false } }));
     const store = createStore(idleState(), sendPrompt);
+    store.setDraftText('hello');
 
     store.submitPrompt('hello', [], Promise.reject(new Error('context unavailable')));
 
     await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledWith({ text: 'hello' }));
+    expect(store.draftText).toBe('');
+  });
+
+  it('restores the persisted draft when the live session is unavailable', async () => {
+    const store = createStore(idleState(), vi.fn());
+    const attachment = promptAttachment('attachment-no-session', 'data:image/png;base64,AQ==');
+    store.session = null;
+    store.setDraftText('retry me');
+    store.addDraftAttachments([attachment]);
+
+    store.submitPrompt(store.draftText, store.draftAttachments);
+
+    await vi.waitFor(() => expect(store.draftText).toBe('retry me'));
+    expect(store.draftAttachments).toEqual([attachment]);
+    expect(setPendingPrompt).toHaveBeenLastCalledWith(null);
+    expect(mementoTestState.producer?.()).toEqual({
+      version: '1',
+      text: 'retry me',
+      attachments: [
+        {
+          id: 'attachment-no-session',
+          mimeType: 'image/png',
+          name: 'attachment-no-session.png',
+        },
+      ],
+    });
+  });
+
+  it('restores the persisted draft when prompt delivery is rejected', async () => {
+    const sendPrompt = vi.fn(async () => ({
+      success: false as const,
+      error: { type: 'invalid_state' as const, message: 'session unavailable' },
+    }));
+    const store = createStore(idleState(), sendPrompt);
+    const attachment = promptAttachment('attachment-rejected', 'data:image/png;base64,AQ==');
+    store.setDraftText('retry me');
+    store.addDraftAttachments([attachment]);
+
+    store.submitPrompt(store.draftText, store.draftAttachments);
+
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
+    await vi.waitFor(() => expect(store.draftText).toBe('retry me'));
+    expect(store.draftAttachments).toEqual([attachment]);
+  });
+
+  it('restores the persisted draft when prompt delivery throws', async () => {
+    const sendPrompt = vi.fn(async () => {
+      throw new Error('connection lost');
+    });
+    const store = createStore(idleState(), sendPrompt);
+    store.setDraftText('retry me');
+
+    store.submitPrompt(store.draftText);
+
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
+    await vi.waitFor(() => expect(store.draftText).toBe('retry me'));
+  });
+
+  it('does not overwrite newer composer input when an earlier delivery is rejected', async () => {
+    let rejectDelivery!: (result: {
+      success: false;
+      error: { type: 'invalid_state'; message: string };
+    }) => void;
+    const sendPrompt = vi.fn(
+      () =>
+        new Promise<{
+          success: false;
+          error: { type: 'invalid_state'; message: string };
+        }>((resolve) => {
+          rejectDelivery = resolve;
+        })
+    );
+    const store = createStore(idleState(), sendPrompt);
+    store.setDraftText('first draft');
+
+    store.submitPrompt(store.draftText);
+    store.setDraftText('newer draft');
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
+    rejectDelivery({
+      success: false,
+      error: { type: 'invalid_state', message: 'session unavailable' },
+    });
+
+    await vi.waitFor(() => expect(setPendingPrompt).toHaveBeenLastCalledWith(null));
+    expect(store.draftText).toBe('newer draft');
   });
 
   it('does not cancel a queued prompt that was started from an idle queue', async () => {
