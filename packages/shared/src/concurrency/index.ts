@@ -13,6 +13,7 @@ export { KeyedMutex } from './keyed-mutex';
 export {
   createLifecycleRegistry,
   type LifecycleRegistry,
+  type LifecycleRegistryLeaseDrainTimeout,
   type LifecycleRegistryObserver,
   type LifecycleRegistryObserverError,
   type LifecycleRegistryOptions,

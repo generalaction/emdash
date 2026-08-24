@@ -131,6 +131,63 @@ describe('LifecycleRegistry', () => {
     expect(registry.has('task-1')).toBe(false);
   });
 
+  it('interrupts an activation before waiting for its leases to drain', async () => {
+    const resource = { id: 'task-1', generation: 1 };
+    const order: string[] = [];
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
+      keyOf: (input) => input.id,
+      start: async () => ok(resource),
+      interrupt: async () => {
+        order.push('interrupt');
+      },
+      stop: async () => {
+        order.push('stop');
+        return ok();
+      },
+    });
+    const acquired = await registry.acquire({ id: 'task-1' });
+    if (!acquired.success) throw new Error('expected activation lease');
+
+    const stopped = registry.stop('task-1');
+    await vi.waitFor(() => expect(order).toEqual(['interrupt']));
+
+    await acquired.data.release();
+    await expect(stopped).resolves.toEqual(ok());
+    expect(order).toEqual(['interrupt', 'stop']);
+  });
+
+  it('continues teardown and reports leaked leases after the drain timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const resource = { id: 'task-1', generation: 1 };
+      const onLeaseDrainTimeout = vi.fn();
+      const stop = vi.fn(async () => ok<void>());
+      const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
+        keyOf: (input) => input.id,
+        start: async () => ok(resource),
+        stop,
+        drainTimeoutMs: 50,
+        onLeaseDrainTimeout,
+      });
+      const acquired = await registry.acquire({ id: 'task-1' });
+      if (!acquired.success) throw new Error('expected activation lease');
+
+      const stopped = registry.stop('task-1');
+      await vi.advanceTimersByTimeAsync(50);
+
+      await expect(stopped).resolves.toEqual(ok());
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(onLeaseDrainTimeout).toHaveBeenCalledWith({
+        key: 'task-1',
+        leaseCount: 1,
+        timeoutMs: 50,
+      });
+      await acquired.data.release();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('starts a new generation when use arrives behind an in-flight stop', async () => {
     const stopDeferred = deferred<Result<void, TestError>>();
     let generation = 1;

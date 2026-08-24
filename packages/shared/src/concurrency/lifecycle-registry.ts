@@ -29,6 +29,12 @@ export type LifecycleRegistryObserverError<Value, StartError, StopError> = {
   change: LifecycleRegistryStateChange<Value, StartError, StopError>;
 };
 
+export type LifecycleRegistryLeaseDrainTimeout = {
+  key: string;
+  leaseCount: number;
+  timeoutMs: number;
+};
+
 export type LifecycleRegistryOptions<StartInput, Value, StartError, StopContext, StopError> = {
   label?: string;
   scope?: Scope;
@@ -38,6 +44,12 @@ export type LifecycleRegistryOptions<StartInput, Value, StartError, StopContext,
     scope: Scope,
     signal: AbortSignal
   ): MaybePromise<Result<Value, StartError>>;
+  interrupt?(
+    key: string,
+    value: Value,
+    context: StopContext | undefined,
+    signal: AbortSignal
+  ): MaybePromise<void>;
   stop(
     key: string,
     value: Value,
@@ -47,6 +59,8 @@ export type LifecycleRegistryOptions<StartInput, Value, StartError, StopContext,
   ): MaybePromise<Result<void, StopError>>;
   onStateChanged?: LifecycleRegistryObserver<Value, StartError, StopError>;
   onObserverError?: (error: LifecycleRegistryObserverError<Value, StartError, StopError>) => void;
+  drainTimeoutMs?: number;
+  onLeaseDrainTimeout?: (event: LifecycleRegistryLeaseDrainTimeout) => void;
 };
 
 type RegistryEntry<Value, StartError, StopError> = {
@@ -111,6 +125,12 @@ class LifecycleRegistryImpl<
     >
   ) {
     const label = _options.label ?? 'lifecycle-registry';
+    if (
+      _options.drainTimeoutMs !== undefined &&
+      (!Number.isFinite(_options.drainTimeoutMs) || _options.drainTimeoutMs < 0)
+    ) {
+      throw new RangeError('LifecycleRegistry drainTimeoutMs must be a non-negative finite number');
+    }
     this._scope = _options.scope ? _options.scope.child(label) : createScope({ label });
     if (_options.onStateChanged) this._observers.add(_options.onStateChanged);
   }
@@ -243,6 +263,14 @@ class LifecycleRegistryImpl<
       if (!scope) return ok<void>();
 
       this.transition(entry, { kind: 'stopping', value });
+      if (this._options.interrupt) {
+        const interruptedValue = value;
+        await scope
+          .run('interrupt', (signal) =>
+            this._options.interrupt!(key, interruptedValue, context, signal)
+          )
+          .value();
+      }
       await this.waitForLeases(entry);
       value = valueFromState(entry.state);
       if (value === undefined) {
@@ -390,7 +418,31 @@ class LifecycleRegistryImpl<
 
   private waitForLeases(entry: RegistryEntry<Value, StartError, StopError>): Promise<void> {
     if (entry.leaseCount === 0) return Promise.resolve();
-    return new Promise<void>((resolve) => entry.leaseWaiters.add(resolve));
+    const timeoutMs = this._options.drainTimeoutMs;
+    if (timeoutMs === undefined) {
+      return new Promise<void>((resolve) => entry.leaseWaiters.add(resolve));
+    }
+
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        entry.leaseWaiters.delete(finish);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        this._options.onLeaseDrainTimeout?.({
+          key: entry.key,
+          leaseCount: entry.leaseCount,
+          timeoutMs,
+        });
+        finish();
+      }, timeoutMs);
+      entry.leaseWaiters.add(finish);
+    });
   }
 
   private async removeEntry(
