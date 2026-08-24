@@ -1,4 +1,6 @@
-import type { Serializable } from '@emdash/shared';
+import type { Lease, Result, Serializable } from '@emdash/shared';
+import { ok } from '@emdash/shared';
+import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
 import { initialSessionConfigState } from '#runtimes/acp/api';
 import {
   closedSessionState,
@@ -6,7 +8,12 @@ import {
   type ActivationSnapshot,
   type SessionLiveModels,
 } from '#runtimes/acp/node/state/live-models';
-import type { ConfigDimension, ConfigOverrides, SessionRecord } from './conversation-types';
+import type {
+  ActivationStartError,
+  ConfigDimension,
+  ConfigOverrides,
+  SessionRecord,
+} from './conversation-types';
 import type { SessionsListProjector } from './sessions-list-projector';
 import type { AcpStartInput } from './types';
 
@@ -26,6 +33,12 @@ export interface ConversationHandleDeps {
   saveIntent(): void;
   buildSnapshot(record: SessionRecord): ActivationSnapshot;
   onMaterializingRecord(record: SessionRecord | null): void;
+  materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
+  interruptRecord(record: SessionRecord): void;
+  onActivated(record: SessionRecord): void;
+  activationDrainTimeoutMs: number;
+  onLeaseDrainTimeout(event: { leaseCount: number; timeoutMs: number }): void;
+  onActivationObserverError(error: unknown): void;
 }
 
 export class ConversationHandle {
@@ -35,6 +48,14 @@ export class ConversationHandle {
   private recordValue: SessionRecord | null = null;
   private materializationAbort: AbortController | null = null;
   private projectionReleased = false;
+  private evictionPromiseValue: Promise<void> | null = null;
+  private readonly activation: LifecycleCell<
+    void,
+    SessionRecord,
+    ActivationStartError,
+    void,
+    never
+  >;
 
   constructor(
     readonly deps: ConversationHandleDeps,
@@ -44,6 +65,16 @@ export class ConversationHandle {
     public everMaterialized: boolean
   ) {
     this.conversationId = descriptor.conversationId;
+    this.activation = createLifecycleCell({
+      label: `acp-conversation:${this.conversationId}`,
+      start: (_input, scope) => this.deps.materialize(scope),
+      interrupt: (record) => this.deps.interruptRecord(record),
+      stop: async () => ok(),
+      drainTimeoutMs: deps.activationDrainTimeoutMs,
+      onLeaseDrainTimeout: (event) => deps.onLeaseDrainTimeout(event),
+      onStateChanged: (change) => this.onActivationStateChanged(change.current),
+      onObserverError: ({ error }) => deps.onActivationObserverError(error),
+    });
   }
 
   get state(): ConversationHandleState {
@@ -93,6 +124,49 @@ export class ConversationHandle {
     return this.isOwned() && this.stateValue !== 'killed';
   }
 
+  ensure(): Promise<Result<SessionRecord, ActivationStartError>> {
+    return this.activation.start();
+  }
+
+  acquire(): Promise<Result<Lease<SessionRecord>, ActivationStartError>> {
+    return this.activation.acquire();
+  }
+
+  use<T, UseError>(
+    operation: (record: SessionRecord) => Result<T, UseError> | Promise<Result<T, UseError>>
+  ): Promise<Result<T, ActivationStartError | UseError>> {
+    return this.activation.use(undefined, operation);
+  }
+
+  stopActivation(): Promise<Result<void, never>> {
+    return this.activation.stop();
+  }
+
+  forceRemove(reason?: unknown): Promise<void> {
+    return this.activation.forceRemove(reason);
+  }
+
+  hasActivation(): boolean {
+    return this.activation.has();
+  }
+
+  runEviction(operation: () => Promise<void>): Promise<void> {
+    if (this.evictionPromiseValue) return this.evictionPromiseValue;
+    const pending = operation().finally(() => {
+      if (this.evictionPromiseValue === pending) this.evictionPromiseValue = null;
+    });
+    this.evictionPromiseValue = pending;
+    return pending;
+  }
+
+  waitForEviction(): Promise<void> {
+    return this.evictionPromiseValue ?? Promise.resolve();
+  }
+
+  pendingEviction(): Promise<void> | null {
+    return this.evictionPromiseValue;
+  }
+
   attachProvisional(record: SessionRecord): void {
     if (!this.isEpochCurrent(record.epoch)) return;
     this.recordValue = record;
@@ -134,7 +208,7 @@ export class ConversationHandle {
     this.deps.projection.source.set({ kind: 'closed' });
   }
 
-  kill(reason = new Error('ACP conversation killed')): void {
+  kill(reason: unknown = new Error('ACP conversation killed')): void {
     if (this.stateValue === 'killed') return;
     this.epochValue += 1;
     this.stateValue = 'killed';
@@ -245,17 +319,45 @@ export class ConversationHandle {
     };
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.stateValue !== 'killed') {
       this.epochValue += 1;
       this.materializationAbort?.abort(new Error('ACP conversation directory disposed'));
       this.materializationAbort = null;
+    }
+    await this.activation.dispose();
+    if (this.stateValue !== 'killed') {
       this.stateValue = 'closed';
       this.recordValue = null;
       this.deps.onMaterializingRecord(null);
       this.deps.projection.source.set({ kind: 'closed' });
     }
     this.releaseProjection();
+  }
+
+  private onActivationStateChanged(
+    state: ReturnType<ConversationHandle['activation']['state']>
+  ): void {
+    switch (state.kind) {
+      case 'ready':
+        this.activate(state.value);
+        if (this.stateValue === 'active') this.deps.onActivated(state.value);
+        return;
+      case 'stopping':
+        this.beginStopping();
+        return;
+      case 'idle':
+      case 'start-failed':
+        if (this.everMaterialized) this.suspend();
+        else this.close();
+        return;
+      case 'disposed':
+        this.close();
+        return;
+      case 'starting':
+      case 'stop-failed':
+        return;
+    }
   }
 
   private updateDescriptor(patch: Partial<AcpStartInput>, persistEvenUnchanged = false): void {

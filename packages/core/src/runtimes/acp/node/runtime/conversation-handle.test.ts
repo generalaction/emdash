@@ -1,14 +1,18 @@
 import { systemClock } from '@emdash/shared/scheduling';
 import { cell, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
-import { initialSessionConfigState } from '#runtimes/acp/api';
+import { acpErr, initialSessionConfigState } from '#runtimes/acp/api';
 import { makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import {
   closedSessionState,
   type SessionLiveModels,
   type SessionsListModel,
 } from '#runtimes/acp/node/state/live-models';
-import { ConversationHandle, type ConversationHandleState } from './conversation-handle';
+import {
+  ConversationHandle,
+  type ConversationHandleDeps,
+  type ConversationHandleState,
+} from './conversation-handle';
 import type { SessionRecord } from './conversation-types';
 import { SessionsListProjector } from './sessions-list-projector';
 
@@ -72,9 +76,42 @@ describe('ConversationHandle', () => {
       sessionId: 'session-2',
     });
   });
+
+  it('aborts in-flight materialization before disposal waits for activation drain', async () => {
+    let enteredMaterialization: () => void = () => {};
+    const materializing = new Promise<void>((resolve) => {
+      enteredMaterialization = resolve;
+    });
+    const setup = makeHandle({
+      materialize: async () => {
+        const attempt = setup.handle.beginMaterialization();
+        if (!attempt) return acpErr.conversationNotFound(setup.handle.conversationId);
+        enteredMaterialization();
+        return await new Promise((resolve) => {
+          attempt.signal.addEventListener(
+            'abort',
+            () => resolve(acpErr.conversationNotFound(setup.handle.conversationId)),
+            { once: true }
+          );
+        });
+      },
+    });
+
+    const activation = setup.handle.ensure();
+    await materializing;
+
+    await expect(setup.handle.dispose()).resolves.toBeUndefined();
+    await expect(activation).rejects.toThrow('LifecycleRegistry disposed');
+    expect(setup.handle.state).toBe('closed');
+  });
 });
 
-function makeHandle(options: { everMaterialized?: boolean } = {}) {
+function makeHandle(
+  options: {
+    everMaterialized?: boolean;
+    materialize?: ConversationHandleDeps['materialize'];
+  } = {}
+) {
   const source = cell({ kind: 'closed' } as const);
   const projection = { source, states: {} } as unknown as SessionLiveModels;
   const listModel: SessionsListModel = { states: { list: cell({}) } };
@@ -105,6 +142,16 @@ function makeHandle(options: { everMaterialized?: boolean } = {}) {
         mcpServers: [],
       }),
       onMaterializingRecord: () => {},
+      materialize:
+        options.materialize ??
+        (async () => {
+          throw new Error('not used by this unit harness');
+        }),
+      interruptRecord: () => {},
+      onActivated: () => {},
+      activationDrainTimeoutMs: 100,
+      onLeaseDrainTimeout: () => {},
+      onActivationObserverError: () => {},
     },
     makeStartInput({ conversationId: 'conv-handle' }),
     {},

@@ -1,10 +1,11 @@
-import type { SessionMcpServer } from '#runtimes/acp/api';
+import type { AcpStartError, ConversationNotFoundError, SessionMcpServer } from '#runtimes/acp/api';
 import type { SessionCell } from '#runtimes/acp/node/session/cell';
 import type { ConversationHandle } from './conversation-handle';
 import type { AcpStartInput } from './types';
 
 export type ConfigDimension = 'model' | 'effort';
 export type ConfigOverrides = Partial<Record<ConfigDimension, string>>;
+export type ActivationStartError = AcpStartError | ConversationNotFoundError;
 
 export interface ConnectionLeaseState {
   release: boolean;

@@ -11,6 +11,15 @@ export { createDurableQueue, type DurableQueue, type DurableQueueOptions } from 
 export { createKeyedLanes, type CreateKeyedLanesOptions, type KeyedLanes } from './keyed-lanes';
 export { KeyedMutex } from './keyed-mutex';
 export {
+  createLifecycleCell,
+  type LifecycleCell,
+  type LifecycleCellObserver,
+  type LifecycleCellObserverError,
+  type LifecycleCellOptions,
+  type LifecycleCellState,
+  type LifecycleCellStateChange,
+} from './lifecycle-cell';
+export {
   createLifecycleRegistry,
   type LifecycleRegistry,
   type LifecycleRegistryLeaseDrainTimeout,

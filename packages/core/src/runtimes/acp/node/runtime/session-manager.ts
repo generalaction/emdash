@@ -8,12 +8,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { err, ok } from '@emdash/shared';
-import {
-  createLifecycleRegistry,
-  type LifecycleRegistry,
-  type LifecycleRegistryStateChange,
-  type Scope,
-} from '@emdash/shared/concurrency';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { z } from 'zod';
@@ -29,7 +24,6 @@ import type {
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpStartError,
-  ConversationNotFoundError,
   NormalizedEvent,
   SessionState,
   TerminalState,
@@ -64,7 +58,12 @@ import type {
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { ConversationHandle } from './conversation-handle';
-import type { ConfigDimension, ConfigOverrides, SessionRecord } from './conversation-types';
+import type {
+  ActivationStartError,
+  ConfigDimension,
+  ConfigOverrides,
+  SessionRecord,
+} from './conversation-types';
 import { SessionMaterializer } from './session-materializer';
 import { connectionRouteOwnerId, SessionRouter } from './session-router';
 import { SessionsListProjector } from './sessions-list-projector';
@@ -80,15 +79,6 @@ const retainedConfigOverridesSchema = z.object({
 const retainedIntentSchema = acpStartInputSchema.extend({
   configOverrides: retainedConfigOverridesSchema.optional(),
 });
-
-type ActivationStartError = AcpStartError | ConversationNotFoundError;
-type ActivationRegistry = LifecycleRegistry<
-  ConversationHandle,
-  SessionRecord,
-  ActivationStartError,
-  void,
-  never
->;
 
 export type AcpWakeFailure = {
   kind: 'wake-failed';
@@ -116,10 +106,7 @@ export class SessionManager {
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
   readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
   readonly router: SessionRouter;
-  private readonly activations: ActivationRegistry;
   private readonly retained = new Map<string, ConversationHandle>();
-  private readonly materializing = new Map<string, SessionRecord>();
-  private readonly evictions = new Map<string, Promise<void>>();
   private readonly routes: Map<string, Map<string, string>>;
   private readonly loadingConversations: Map<string, Set<string>>;
   private readonly clock: Clock;
@@ -177,42 +164,13 @@ export class SessionManager {
       removeLoading: (processOwner, conversationId) =>
         this.router.removeLoading(processOwner, conversationId),
     });
-    this.activations = createLifecycleRegistry<
-      ConversationHandle,
-      SessionRecord,
-      ActivationStartError,
-      void,
-      never
-    >({
-      label: 'acp-session-activations',
-      keyOf: (entry) => entry.conversationId,
-      start: (entry, scope) => this.startActivation(entry, scope),
-      interrupt: (_key, record) => this.interruptRecord(record),
-      stop: async () => ok(),
-      drainTimeoutMs:
-        deps.lifecycle?.activationDrainTimeoutMs ?? DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS,
-      onLeaseDrainTimeout: ({ key, leaseCount, timeoutMs }) => {
-        this.deps.logger.warn('SessionManager: activation lease drain timed out', {
-          conversationId: key,
-          leakedLeases: leaseCount,
-          timeoutMs,
-        });
-      },
-      onStateChanged: (change) => this.onActivationStateChanged(change),
-      onObserverError: ({ key, error }) => {
-        this.deps.logger.warn('SessionManager: activation state observer failed', {
-          conversationId: key,
-          error: String(error),
-        });
-      },
-    });
     this.lifecycle = createSessionLifecycle({
       name: 'SessionManager',
       logger: deps.logger,
       clock: this.clock,
       idlePolicy: deps.lifecycle?.session,
       sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
-      entries: () => this.activations.keys(),
+      entries: () => this.runningConversationIds(),
       snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
       syncListEntry: (conversationId, activity) =>
         this.syncSessionActivity(conversationId, activity),
@@ -223,7 +181,7 @@ export class SessionManager {
         {
           name: 'activation',
           run: async (key) => {
-            await this.activations.stop(key);
+            await this.retained.get(key)?.stopActivation();
           },
         },
       ],
@@ -243,19 +201,20 @@ export class SessionManager {
   }
 
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
-    await this.evictions.get(input.conversationId);
+    await this.retained.get(input.conversationId)?.waitForEviction();
     const existing = this.retained.get(input.conversationId);
     const entry = existing ?? this.createHandle(input, { suspended: false });
     this.lifecycle.recordInput(input.conversationId);
 
-    const started = await this.activations.start(entry);
+    const started = await entry.ensure();
     if (!started.success) {
       if (started.error.type === 'conversation_not_found') {
         return acpErr.invalidState('ACP conversation was deleted while starting');
       }
       if (!entry.everMaterialized && entry.state !== 'killed') {
-        this.removeHandle(entry);
-        await this.activations.forceRemove(entry.conversationId, started.error);
+        entry.kill(started.error);
+        await entry.forceRemove(started.error);
+        this.retained.delete(entry.conversationId);
         await this.evict(entry.conversationId, { intent: 'keep' });
       } else if (entry.state !== 'killed') {
         entry.suspend();
@@ -300,10 +259,10 @@ export class SessionManager {
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
     const entry = this.retained.get(input.conversationId);
     if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
-    await this.evictions.get(input.conversationId);
+    await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
 
-    const acquired = await this.activations.acquire(entry);
+    const acquired = await entry.acquire();
     if (!acquired.success) return this.mapWakeError(acquired.error);
     const lease = acquired.data;
     try {
@@ -369,14 +328,17 @@ export class SessionManager {
       const materializingRecord =
         entry.state === 'materializing' ? entry.currentRecord() : undefined;
       entry.kill();
-      this.retained.delete(conversationId);
       if (materializingRecord) this.interruptRecord(materializingRecord);
+      await entry.waitForEviction();
+      await entry.runEviction(() =>
+        this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' })
+      );
+      await entry.forceRemove('conversation killed');
+      this.retained.delete(conversationId);
+      return ok();
     }
 
-    const inFlight = this.evictions.get(conversationId);
-    if (inFlight) await inFlight;
-    await this.evict(conversationId, { cause: 'user', intent: 'remove' });
-    await this.activations.forceRemove(conversationId, 'conversation killed');
+    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
     return ok();
   }
 
@@ -397,11 +359,11 @@ export class SessionManager {
   ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
-    await this.evictions.get(conversationId);
+    await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    const started = await this.activations.start(entry);
+    const started = await entry.ensure();
     if (!started.success) return this.mapWakeError(started.error);
-    const result = await this.activations.use(entry, (record) => record.cell.setMode(modeId));
+    const result = await entry.use((record) => record.cell.setMode(modeId));
     if (!result.success) {
       if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
       return result as Result<void, AcpSetModeOptionError>;
@@ -418,13 +380,11 @@ export class SessionManager {
   ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
-    await this.evictions.get(conversationId);
+    await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
-    const started = await this.activations.start(entry);
+    const started = await entry.ensure();
     if (!started.success) return this.mapWakeError(started.error);
-    const result = await this.activations.use(entry, (record) =>
-      record.cell.setConfigOption(dimension, value)
-    );
+    const result = await entry.use((record) => record.cell.setConfigOption(dimension, value));
     if (!result.success) {
       if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
       return result as Result<void, AcpSetModelOptionError>;
@@ -435,7 +395,7 @@ export class SessionManager {
   }
 
   isRunning(conversationId: string): boolean {
-    return this.activations.has(conversationId);
+    return this.retained.get(conversationId)?.hasActivation() ?? false;
   }
 
   getChatHistory(conversationId: string): AcpChatHistory {
@@ -540,7 +500,11 @@ export class SessionManager {
   }
 
   onProcessClosed(processKey: string, processGeneration: number, exitCode: number | null): void {
-    const records = new Set([...this.activations.values(), ...this.materializing.values()]);
+    const records = new Set(
+      [...this.retained.values()]
+        .map((entry) => entry.currentRecord())
+        .filter((record): record is SessionRecord => record !== undefined)
+    );
     for (const record of records) {
       if (
         record.processKey !== processKey ||
@@ -561,10 +525,7 @@ export class SessionManager {
 
   async dispose(): Promise<void> {
     this.lifecycle.dispose();
-    await this.activations.dispose();
-    for (const entry of this.retained.values()) {
-      entry.dispose();
-    }
+    await Promise.all([...this.retained.values()].map((entry) => entry.dispose()));
     this.retained.clear();
     await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
   }
@@ -603,13 +564,10 @@ export class SessionManager {
   }
 
   private evict(conversationId: string, options: EvictOptions): Promise<void> {
-    const existing = this.evictions.get(conversationId);
-    if (existing) return existing;
-    const pending = this.lifecycle.evict(conversationId, options).finally(() => {
-      if (this.evictions.get(conversationId) === pending) this.evictions.delete(conversationId);
-    });
-    this.evictions.set(conversationId, pending);
-    return pending;
+    const entry = this.retained.get(conversationId);
+    return entry
+      ? entry.runEviction(() => this.lifecycle.evict(conversationId, options))
+      : this.lifecycle.evict(conversationId, options);
   }
 
   private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
@@ -646,12 +604,30 @@ export class SessionManager {
         isOwned: () => this.retained.get(input.conversationId) === entry,
         saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
         buildSnapshot: (record) => this.buildSnapshot(record),
-        onMaterializingRecord: (record) => {
-          if (record) {
-            this.materializing.set(input.conversationId, record);
-          } else if (this.materializing.get(input.conversationId)?.conversation === entry) {
-            this.materializing.delete(input.conversationId);
-          }
+        onMaterializingRecord: () => {},
+        materialize: (scope) => this.startActivation(entry, scope),
+        interruptRecord: (record) => this.interruptRecord(record),
+        onActivated: (record) => {
+          this.lifecycle.started(input.conversationId, {
+            conversationId: input.conversationId,
+            providerSessionId: record.cell.acpSessionId,
+            resumeOutcome: record.resumeOutcome,
+          });
+        },
+        activationDrainTimeoutMs:
+          this.deps.lifecycle?.activationDrainTimeoutMs ?? DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS,
+        onLeaseDrainTimeout: ({ leaseCount, timeoutMs }) => {
+          this.deps.logger.warn('SessionManager: activation lease drain timed out', {
+            conversationId: input.conversationId,
+            leakedLeases: leaseCount,
+            timeoutMs,
+          });
+        },
+        onActivationObserverError: (error) => {
+          this.deps.logger.warn('SessionManager: activation state observer failed', {
+            conversationId: input.conversationId,
+            error: String(error),
+          });
         },
       },
       input,
@@ -662,12 +638,6 @@ export class SessionManager {
     this.retained.set(input.conversationId, entry);
     if (options.suspended) entry.initializeSuspended();
     return entry;
-  }
-
-  private removeHandle(entry: ConversationHandle): void {
-    if (!entry.isCurrent()) return;
-    entry.kill(new Error('ACP conversation removed'));
-    this.retained.delete(entry.conversationId);
   }
 
   private restoreRetainedIntent(intent: SessionIntent): ConversationHandle | null {
@@ -699,6 +669,35 @@ export class SessionManager {
     return this.retained.get(conversationId)?.currentRecord();
   }
 
+  private *runningConversationIds(): IterableIterator<string> {
+    for (const [conversationId, entry] of this.retained) {
+      if (entry.hasActivation()) yield conversationId;
+    }
+  }
+
+  /** Compatibility views for the existing leak assertions; lifecycle ownership lives in handles. */
+  private get activations(): { has(key: string): boolean } {
+    return { has: (key) => this.retained.get(key)?.hasActivation() ?? false };
+  }
+
+  private get materializing(): Map<string, SessionRecord> {
+    const records = new Map<string, SessionRecord>();
+    for (const [conversationId, entry] of this.retained) {
+      const record = entry.state === 'materializing' ? entry.currentRecord() : undefined;
+      if (record) records.set(conversationId, record);
+    }
+    return records;
+  }
+
+  private get evictions(): Map<string, Promise<void>> {
+    const pending = new Map<string, Promise<void>>();
+    for (const [conversationId, entry] of this.retained) {
+      const eviction = entry.pendingEviction();
+      if (eviction) pending.set(conversationId, eviction);
+    }
+    return pending;
+  }
+
   private interruptRecord(record: SessionRecord): void {
     void record.cell.cancel().catch((error) => {
       this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
@@ -726,42 +725,6 @@ export class SessionManager {
 
   private discardReplacedRecord(record: SessionRecord): void {
     void this.teardownRecord(record);
-  }
-
-  private onActivationStateChanged(
-    change: LifecycleRegistryStateChange<SessionRecord, ActivationStartError, never>
-  ): void {
-    switch (change.current.kind) {
-      case 'ready': {
-        const record = change.current.value;
-        record.conversation.activate(record);
-        if (record.conversation.state !== 'active') return;
-        this.lifecycle.started(change.key, {
-          conversationId: change.key,
-          providerSessionId: record.cell.acpSessionId,
-          resumeOutcome: record.resumeOutcome,
-        });
-        return;
-      }
-      case 'stopping': {
-        this.retained.get(change.key)?.beginStopping();
-        return;
-      }
-      case 'idle':
-      case 'start-failed': {
-        const entry = this.retained.get(change.key);
-        if (entry?.everMaterialized) entry.suspend();
-        else entry?.close();
-        return;
-      }
-      case 'disposed': {
-        this.retained.get(change.key)?.close();
-        return;
-      }
-      case 'starting':
-      case 'stop-failed':
-        return;
-    }
   }
 
   private mapWakeError<E>(error: ActivationStartError): Result<never, E | AcpWakeFailure> {
