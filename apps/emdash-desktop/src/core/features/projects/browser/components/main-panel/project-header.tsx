@@ -39,6 +39,7 @@ export const ProjectHeader = observer(function ProjectHeader({ projectId }: { pr
 
   return (
     <EntityHeader
+      className="mx-auto max-w-4xl"
       icon={
         <StatusIcon
           aria-hidden

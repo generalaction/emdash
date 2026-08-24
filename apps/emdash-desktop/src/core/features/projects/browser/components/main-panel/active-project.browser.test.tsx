@@ -71,7 +71,9 @@ describe('ActiveProject section state', () => {
     await act(async () => root.render(<ActiveProject />));
 
     const settings = host.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
+    const tablist = host.querySelector<HTMLElement>('[role="tablist"]');
     const panel = host.querySelector<HTMLElement>('[role="tabpanel"]');
+    expect(tablist?.classList.contains('max-w-4xl')).toBe(true);
     expect(settings?.textContent).toBe('Settings');
     expect(panel?.textContent).toBe('Settings panel');
     expect(panel?.getAttribute('aria-labelledby')).toBe('project-section-panel-tab-settings');
