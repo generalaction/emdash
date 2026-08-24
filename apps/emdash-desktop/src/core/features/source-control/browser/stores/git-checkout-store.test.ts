@@ -85,6 +85,11 @@ describe('GitCheckoutStore', () => {
     expect(store.branchName).toBe('main');
     expect(store.aheadCount).toBe(2);
     expect(store.behindCount).toBe(1);
+    expect(store.headTrackingSnapshot).toEqual({
+      headOid: '1234567890123456789012345678901234567890',
+      ahead: 2,
+      behind: 1,
+    });
     expect(store.isPublished).toBe(true);
     expect(mocks.getChangedFiles).toHaveBeenCalledTimes(2);
 
@@ -104,6 +109,11 @@ describe('GitCheckoutStore', () => {
     expect(store.isPublished).toBe(false);
     expect(store.aheadCount).toBe(0);
     expect(store.behindCount).toBe(0);
+    expect(store.headTrackingSnapshot).toEqual({
+      headOid: '1234567890123456789012345678901234567890',
+      ahead: null,
+      behind: null,
+    });
     expect(mocks.getGitRepositoryStore).not.toHaveBeenCalled();
     store.dispose();
   });

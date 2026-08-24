@@ -10,6 +10,17 @@ function observedFacts(overrides: Partial<PrDriftObservedFacts> = {}): PrDriftOb
 }
 
 describe('derivePrCheckoutDrift', () => {
+  it('prefers the live checkout facts when the registry mirror is stale', () => {
+    const drift = derivePrCheckoutDrift({
+      checkout: observedFacts({ headOid: MOVED_HEAD }),
+      observed: observedFacts({ headOid: HEAD }),
+      pr: { headRefOid: MOVED_HEAD },
+      syncedAt: 1_700_000_000_000,
+    });
+
+    expect(drift).toEqual({ kind: 'in-sync', syncedAt: 1_700_000_000_000 });
+  });
+
   it('reads in-sync when the observed head equals the cached PR head, carrying syncedAt', () => {
     const drift = derivePrCheckoutDrift({
       observed: observedFacts(),

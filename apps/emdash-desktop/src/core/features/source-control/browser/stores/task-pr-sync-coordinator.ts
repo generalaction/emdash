@@ -15,7 +15,7 @@ import {
   type PullRequestsRuntimeClient,
 } from '@core/services/pull-requests/api/client';
 import { derivePrAssociation } from './derive-pr-association';
-import { derivePrCheckoutDrift } from './derive-pr-checkout-drift';
+import { derivePrCheckoutDrift, type PrDriftObservedFacts } from './derive-pr-checkout-drift';
 
 export class TaskPrSyncCoordinator {
   private readonly scope = createScope({ label: 'task-pr-sync-coordinator' });
@@ -33,20 +33,23 @@ export class TaskPrSyncCoordinator {
     private readonly repository: GitRepositoryStore
   ) {
     // Association and drift inputs: the checkout store's live head plus the mirror's
-    // observed facts (breadcrumb, upstream, branch, head OID, ahead/behind counts) —
+    // association facts (breadcrumb, upstream, branch) and fallback git facts —
     // observation changes must re-derive even when the local checkout never moved
     // (e.g. the host scan delivers a breadcrumb or sees the follow move the head).
     this.disposeGitHeadReaction = reaction(
       () =>
         [...tasks.tasks.values()].filter(isRegistered).map((store) => {
           const git = getTaskGitCheckoutStore(store);
+          const checkout = git?.headTrackingSnapshot;
           const observed = store.workspaceObservedPr;
           return [
             store.workspaceId,
             (store.data as Task).workspaceId ?? '',
             store.workspaceObservedStatus ?? '',
             git?.branchName ?? '',
-            git?.headOid ?? '',
+            checkout?.headOid ?? '',
+            checkout?.ahead ?? '',
+            checkout?.behind ?? '',
             observed?.branch ?? '',
             observed?.prBreadcrumb ?? '',
             observed?.upstream?.mergeRef ?? '',
@@ -90,8 +93,9 @@ export class TaskPrSyncCoordinator {
    * failures keep the current association; the next observation or sync re-derives.
    *
    * The checkout-drift state (spec, Staleness) is derived on the same read: the
-   * observed head OID joined with the associated PR's cached head OID, stamped with
-   * the cache's last-sync time.
+   * live checkout head joined with the associated PR's cached head OID (falling
+   * back to the registry mirror until the live model emits), stamped with the
+   * cache's last-sync time.
    */
   private async reloadTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
@@ -124,6 +128,7 @@ export class TaskPrSyncCoordinator {
     if (!isDeepEqual(associationInputs(store), inputs)) return;
     // Drift is derived against the PR the panel renders (selectCurrentPr).
     const drift = derivePrCheckoutDrift({
+      checkout: inputs.checkout,
       observed: inputs.observed,
       pr: selectCurrentPr(prs) ?? null,
       syncedAt: this.lastSyncedAt,
@@ -186,14 +191,17 @@ function isRegistered(store: TaskStore): boolean {
 }
 
 type AssociationInputs = {
+  checkout: PrDriftObservedFacts | null;
   observed: WorkspaceObservedPrFacts | null;
   checkoutBranch: string | null;
 };
 
 function associationInputs(store: TaskStore): AssociationInputs {
+  const git = getTaskGitCheckoutStore(store);
   return {
+    checkout: toJS(git?.headTrackingSnapshot ?? null),
     observed: toJS(store.workspaceObservedPr),
-    checkoutBranch: getTaskGitCheckoutStore(store)?.branchName ?? null,
+    checkoutBranch: git?.branchName ?? null,
   };
 }
 
