@@ -34,9 +34,7 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
-import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { SidebarProjectItem } from './project-item';
-import { taskProjectRevealTarget } from './sidebar-navigation';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
@@ -70,18 +68,6 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
-
-  // Explicit task navigation may reveal its parent for this renderer session. Startup and
-  // history restoration preserve the durable expansion preference instead.
-  useEffect(() => {
-    return getNavigation().onDidNavigate.subscribe((event) => {
-      const target = taskProjectRevealTarget(event);
-      if (!target) return;
-      const activeTask = getTaskStore(target.projectId, target.taskId);
-      if (activeTask?.data.isPinned) return;
-      getSidebarStore().revealProject(target.projectId);
-    });
-  }, []);
 
   // Scroll the active project/task into view only when the navigation target itself
   // changes, plus the active task's project expansion state. Re-running on every

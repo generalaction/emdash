@@ -13,7 +13,7 @@ function flatten(entries: HistoryEntry[]): HistoryEntry[] {
 
 /**
  * Tracks chronological view refs and participant locations. Traversals push,
- * refinements annotate, and restorations suppress recording.
+ * refinements annotate, and applying history entries suppresses recording.
  */
 export class NavigationHistoryStore {
   entries: HistoryEntry[] = [];

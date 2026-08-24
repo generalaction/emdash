@@ -24,12 +24,14 @@ import { getNavigationHost, type NavigationHost } from './navigation-host';
 
 const MAX_REDIRECTS = 10;
 
-export type NavigationEventKind = 'traversal' | 'refinement' | 'restoration';
+export type NavigationEventKind = 'traversal' | 'refinement';
+export type NavigationEventSource = 'direct' | 'history' | 'startup' | 'view';
 
 export interface NavigationEvent {
   readonly from: ViewRef | undefined;
   readonly to: ViewRef;
   readonly kind: NavigationEventKind;
+  readonly source: NavigationEventSource;
 }
 
 type LegacyNavigationHandle = MementoHandle<WorkbenchNavigationState>;
@@ -127,7 +129,7 @@ export class NavigationStore implements NavigationParticipantHost {
           this._history.prune((entry) => entry === current);
           this.navigate(resolved);
         } else {
-          this.commit(resolved, 'restoration');
+          this.commit(resolved, 'traversal', 'startup');
           this.deliverLocation(resolved, current.location);
         }
       }
@@ -154,7 +156,7 @@ export class NavigationStore implements NavigationParticipantHost {
     );
     const kind: NavigationEventKind = previousEntry?.key === entry.key ? 'refinement' : 'traversal';
     this._history.record(entry);
-    this.commit(resolved, kind);
+    this.commit(resolved, kind, this._rehydrating ? 'startup' : 'direct');
   }
 
   lastRefFor(definition: { readonly id: string }): ViewRef | undefined {
@@ -203,7 +205,7 @@ export class NavigationStore implements NavigationParticipantHost {
     if (resolved.key !== ref.key) return false;
 
     if (!this.deliverLocation(resolved, entry.location)) return false;
-    this.commit(resolved, 'restoration');
+    this.commit(resolved, 'traversal', 'history');
     return true;
   }
 
@@ -244,13 +246,13 @@ export class NavigationStore implements NavigationParticipantHost {
 
     if (current.location === undefined) {
       this._history.annotate(entry);
-      this.onDidNavigate.emit({ from: ref, to: ref, kind: 'refinement' });
+      this.onDidNavigate.emit({ from: ref, to: ref, kind: 'refinement', source: 'view' });
       return;
     }
 
     const kind: NavigationEventKind = current.key === entry.key ? 'refinement' : 'traversal';
     this._history.record(entry);
-    this.onDidNavigate.emit({ from: ref, to: ref, kind });
+    this.onDidNavigate.emit({ from: ref, to: ref, kind, source: 'view' });
   }
 
   /** Detaches the history subscription. Called when the app scope is disposed (tests/HMR). */
@@ -281,7 +283,7 @@ export class NavigationStore implements NavigationParticipantHost {
     return this._host.homeRef();
   }
 
-  private commit(ref: ViewRef, kind: NavigationEventKind): void {
+  private commit(ref: ViewRef, kind: NavigationEventKind, source: NavigationEventSource): void {
     const from = this._currentRef;
     const viewChanged = from.viewId !== ref.viewId;
     if (viewChanged) {
@@ -296,7 +298,7 @@ export class NavigationStore implements NavigationParticipantHost {
 
     this._currentRef = ref;
     this._lastRefByViewId.set(ref.viewId, ref);
-    this.onDidNavigate.emit({ from, to: ref, kind });
+    this.onDidNavigate.emit({ from, to: ref, kind, source });
     if (kind !== 'refinement') modalStore.dismissAll('navigation');
   }
 
