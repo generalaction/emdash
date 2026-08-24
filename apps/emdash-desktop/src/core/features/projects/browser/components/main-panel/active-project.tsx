@@ -51,7 +51,6 @@ export const ActiveProject = observer(function ActiveProject() {
         onValueChange={(nextView) => view.setProjectView(nextView)}
         ariaLabel="Project sections"
         panelId={PROJECT_SECTION_PANEL_ID}
-        labelVisibility="active-only"
       />
       <section
         role="tabpanel"
