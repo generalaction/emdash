@@ -2,7 +2,8 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import type { AcpConnectionEntry, AcpConnectionSource } from '#runtimes/acp/node/connection/source';
-import type { RetainedConversation, SessionRecord } from './conversation-types';
+import type { ConversationHandle } from './conversation-handle';
+import type { ConfigOverrides, SessionRecord } from './conversation-types';
 import { SessionMaterializer, type SessionMaterializerCallbacks } from './session-materializer';
 
 describe('SessionMaterializer', () => {
@@ -18,6 +19,7 @@ describe('SessionMaterializer', () => {
     const result = await setup.materializer.materialize(
       setup.entry,
       setup.entry.descriptor,
+      1,
       setup.scope,
       setup.controller.signal
     );
@@ -47,6 +49,7 @@ describe('SessionMaterializer', () => {
     const result = await setup.materializer.materialize(
       setup.entry,
       setup.entry.descriptor,
+      1,
       setup.scope,
       setup.controller.signal
     );
@@ -74,6 +77,7 @@ describe('SessionMaterializer', () => {
     const pending = setup.materializer.materialize(
       setup.entry,
       setup.entry.descriptor,
+      1,
       setup.scope,
       setup.controller.signal
     );
@@ -91,7 +95,7 @@ describe('SessionMaterializer', () => {
 
 function materializerHarness(
   harness: ReturnType<typeof makeAcpHarness>,
-  configOverrides: RetainedConversation['configOverrides'] = {},
+  configOverrides: ConfigOverrides = {},
   inputOverrides: Parameters<typeof makeStartInput>[0] = {}
 ) {
   const input = makeStartInput({
@@ -99,16 +103,11 @@ function materializerHarness(
     sessionId: 'retained-session',
     ...inputOverrides,
   });
-  const entry: RetainedConversation = {
+  const entry = {
     conversationId: input.conversationId,
     descriptor: input,
     configOverrides,
-    initialQueueConsumed: true,
-    everMaterialized: true,
-    deleted: false,
-    projection: {} as RetainedConversation['projection'],
-    releaseProjection: () => {},
-  };
+  } as ConversationHandle;
   const connection: AcpConnectionEntry = {
     key: 'claude:/tmp/workspace',
     generation: 1,

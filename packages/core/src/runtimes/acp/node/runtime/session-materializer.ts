@@ -18,11 +18,8 @@ import {
 } from '#runtimes/acp/node/connection/source';
 import { SessionCell } from '#runtimes/acp/node/session/cell';
 import type { SessionCellCallbacks } from '#runtimes/acp/node/session/cell-deps';
-import type {
-  ConnectionLeaseState,
-  RetainedConversation,
-  SessionRecord,
-} from './conversation-types';
+import type { ConversationHandle } from './conversation-handle';
+import type { ConnectionLeaseState, SessionRecord } from './conversation-types';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -34,7 +31,7 @@ export type MaterializedSession = {
 };
 
 export interface SessionMaterializerCallbacks {
-  isCurrent(entry: RetainedConversation): boolean;
+  isCurrent(entry: ConversationHandle, epoch: number): boolean;
   onRecordCreated(record: SessionRecord, scope: Scope): void;
   onRecordChanged(record: SessionRecord): void;
   onRecordClosed(record: SessionRecord): void;
@@ -54,8 +51,9 @@ export class SessionMaterializer {
   ) {}
 
   async materialize(
-    entry: RetainedConversation,
+    entry: ConversationHandle,
     input: AcpStartInput,
+    epoch: number,
     scope: Scope,
     signal: AbortSignal
   ): Promise<Result<MaterializedSession, MaterializationStartError>> {
@@ -79,7 +77,7 @@ export class SessionMaterializer {
     scope.add(async () => {
       if (connectionLeaseState.release) await acquired.release();
     });
-    if (!this.callbacks.isCurrent(entry)) {
+    if (!this.callbacks.isCurrent(entry, epoch)) {
       return acpErr.conversationNotFound(entry.conversationId);
     }
 
@@ -97,6 +95,7 @@ export class SessionMaterializer {
           connection,
           connectionLeaseState,
           input.sessionId,
+          epoch,
           scope
         );
         const processOwner = connectionOwnerId(connection);
@@ -112,7 +111,7 @@ export class SessionMaterializer {
             ),
             signal
           );
-          if (!this.callbacks.isCurrent(entry) || record.disposed) {
+          if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           record.cell.applySessionLoaded({
@@ -127,7 +126,7 @@ export class SessionMaterializer {
           loaded = true;
           resumeOutcome = 'loaded';
         } catch (error) {
-          if (!this.callbacks.isCurrent(entry)) {
+          if (!this.callbacks.isCurrent(entry, epoch)) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           if (isAuthRequiredError(error)) throw error;
@@ -152,13 +151,13 @@ export class SessionMaterializer {
             signal
           );
         } catch (error) {
-          if (!this.callbacks.isCurrent(entry)) {
+          if (!this.callbacks.isCurrent(entry, epoch)) {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           if (isAuthRequiredError(error)) throw error;
           return acpErr.newSessionFailed(toSerializedError(error));
         }
-        if (!this.callbacks.isCurrent(entry)) {
+        if (!this.callbacks.isCurrent(entry, epoch)) {
           return acpErr.conversationNotFound(entry.conversationId);
         }
         record = this.createRecord(
@@ -167,6 +166,7 @@ export class SessionMaterializer {
           connection,
           connectionLeaseState,
           response.sessionId,
+          epoch,
           scope
         );
         record.cell.applySessionMeta({
@@ -195,11 +195,12 @@ export class SessionMaterializer {
   }
 
   private createRecord(
-    retained: RetainedConversation,
+    conversation: ConversationHandle,
     input: AcpStartInput,
     connection: AcpConnectionEntry,
     connectionLeaseState: ConnectionLeaseState,
     acpSessionId: string,
+    epoch: number,
     scope: Scope
   ): SessionRecord {
     const recordRef: { current?: SessionRecord } = {};
@@ -227,7 +228,8 @@ export class SessionMaterializer {
       callbacks,
     });
     const record: SessionRecord = {
-      retained,
+      conversation,
+      epoch,
       input,
       resumeOutcome: null,
       processKey: connection.key,
@@ -256,7 +258,7 @@ export class SessionMaterializer {
 
   private async applyConfigOverrides(
     record: SessionRecord,
-    entry: RetainedConversation
+    entry: ConversationHandle
   ): Promise<void> {
     for (const dimension of ['model', 'effort'] as const) {
       const value = entry.configOverrides[dimension];
