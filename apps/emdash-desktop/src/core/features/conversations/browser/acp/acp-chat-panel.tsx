@@ -155,7 +155,7 @@ function readFileAsDataUrl(file: File): Promise<string | undefined> {
 async function uploadImageFile(
   store: AcpChatStore,
   file: File
-): Promise<ComposerAttachment | null> {
+): Promise<AcpPromptAttachment | null> {
   const mimeType = toAttachmentMimeType(file);
   if (!mimeType) {
     log.warn('Dropped image type is not supported for ACP attachments', {
@@ -186,11 +186,18 @@ async function uploadImageFile(
 
   if (!ref) return null;
   return {
-    id: ref.id,
-    name: ref.name,
-    kind: 'image',
+    ref: { type: 'attachment', ...ref },
     previewUrl,
-    mimeType: ref.mimeType,
+  };
+}
+
+function toComposerAttachment(attachment: AcpPromptAttachment): ComposerAttachment {
+  return {
+    id: attachment.ref.id,
+    name: attachment.ref.name ?? 'image',
+    kind: 'image',
+    previewUrl: attachment.previewUrl,
+    mimeType: attachment.ref.mimeType,
   };
 }
 
@@ -237,7 +244,7 @@ const ComposerForStore = observer(function ComposerForStore({
 }) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const attachments = store.draftAttachments.map(toComposerAttachment);
   const { value: promptLibrary } = usePromptLibrary();
   const disabledReason = projectAvailabilityUi.getLiveActionDisabledReason(store.projectId);
 
@@ -251,25 +258,6 @@ const ComposerForStore = observer(function ComposerForStore({
     if (!editor || editor.getText() === store.draftText) return;
     editor.setText(store.draftText);
   }, [store, store.draftText]);
-
-  const buildPromptAttachments = useCallback(
-    (): AcpPromptAttachment[] =>
-      attachments
-        .filter((att) => att.kind === 'image' && toAttachmentMimeTypeValue(att.mimeType ?? ''))
-        .map((att) => {
-          const mimeType = toAttachmentMimeTypeValue(att.mimeType ?? '') ?? 'image/png';
-          return {
-            ref: {
-              type: 'attachment' as const,
-              id: att.id,
-              mimeType,
-              name: att.name,
-            },
-            previewUrl: att.previewUrl,
-          };
-        }),
-    [attachments]
-  );
 
   const buildHiddenIssueContext = useCallback(
     (value: string) =>
@@ -294,14 +282,13 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const handleSubmit = useCallback(
     (value: string) => {
-      const promptAttachments = buildPromptAttachments();
+      const promptAttachments = store.draftAttachments;
       if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
       const hiddenContext = buildHiddenIssueContext(value);
       store.submitPrompt(value, promptAttachments, hiddenContext);
+      editorApiRef.current?.clear();
     },
-    [store, buildPromptAttachments, buildHiddenIssueContext]
+    [store, buildHiddenIssueContext]
   );
 
   const handleStop = useCallback(() => {
@@ -385,9 +372,9 @@ const ComposerForStore = observer(function ComposerForStore({
       }
 
       const next = await Promise.all(supportedFiles.map((file) => uploadImageFile(store, file)));
-      const uploaded = next.filter((att): att is ComposerAttachment => att !== null);
+      const uploaded = next.filter((att): att is AcpPromptAttachment => att !== null);
       if (uploaded.length > 0) {
-        setAttachments((prev) => [...prev, ...uploaded]);
+        store.addDraftAttachments(uploaded);
       }
     },
     [store]
@@ -398,10 +385,9 @@ const ComposerForStore = observer(function ComposerForStore({
       const nextIds = new Set(next.map((attachment) => attachment.id));
       for (const attachment of attachments) {
         if (attachment.kind === 'image' && !nextIds.has(attachment.id)) {
-          void store.deleteAttachment(attachment.id);
+          store.removeDraftAttachment(attachment.id);
         }
       }
-      setAttachments(next);
     },
     [attachments, store]
   );
