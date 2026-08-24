@@ -53,7 +53,6 @@ export interface TaskProvider {
   readonly taskId: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: GitBranchRef | undefined;
-  readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
 }
 

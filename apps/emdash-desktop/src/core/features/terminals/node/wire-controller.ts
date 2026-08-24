@@ -17,7 +17,7 @@ import {
   withAttachedProject,
 } from '@core/features/projects/api/node/attached-project';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
-import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
+import type { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import {
   terminalsContract,
   type TerminalCreateResult,
@@ -35,7 +35,6 @@ import {
   type TerminalsWorkspaceIdentity as WorkspaceIdentity,
   type TerminalsWorkspaceIdentityResolver,
 } from '@core/features/terminals/api/runtime-adapter';
-import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -48,6 +47,7 @@ export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
   projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   runtimes: TerminalsRuntimeBroker;
+  sessionLaunchContexts: Pick<TaskSessionLaunchContextResolver, 'resolve'>;
   settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;
   logger: Logger;
@@ -293,73 +293,28 @@ async function resolveTerminalContext(
   options: CreateTerminalsWireControllerOptions,
   terminal: Terminal
 ): Promise<Result<TerminalContext, TerminalControllerError>> {
-  const [taskRow] = await options.db
-    .select()
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.id, terminal.taskId),
-        eq(tasks.projectId, terminal.projectId),
-        isNull(tasks.deletedAt)
-      )
-    )
-    .limit(1);
-  if (!taskRow) return err(terminalError('missing-task', `Task ${terminal.taskId} not found`));
-  const workspaceId = taskRow.workspaceId;
-  if (!workspaceId) {
-    return err(terminalError('missing-workspace', `Task ${terminal.taskId} has no workspace`));
-  }
+  const launchContext = await options.sessionLaunchContexts.resolve({
+    projectId: terminal.projectId,
+    taskId: terminal.taskId,
+  });
+  if (!launchContext.success) return launchContext;
 
-  return withAttachedProject(options.projects, terminal.projectId, async (project) => {
-    const identity = await options.workspaceIdentity.resolve(workspaceId);
-    if (!identity) {
-      return err(terminalError('missing-workspace', `Workspace ${workspaceId} was not found`));
-    }
-
-    return withWorkspaceRuntime(options, identity.workspaceId, async (client) => {
-      // Effective default branch through the blessed resolver (spec:
-      // github-git-settings §2); null (unresolvable) omits the env var.
-      const [effective, tmux, projectConfig] = await Promise.all([
-        resolveProjectEffectiveSettings({
-          settings: project.settings,
-          repoFacts: project.repoFacts,
-        }),
-        project.settings.resolveTmux(),
-        client.workspaceRegistry.getProjectConfig({ workspaceId: identity.workspaceId }),
-      ]);
-      const defaultBranch = effective.defaultBranch.value?.branch ?? null;
-      if (!projectConfig.success) {
-        return err(
-          terminalError(
-            'missing-workspace',
-            `Workspace ${identity.workspaceId} has no project configuration`
-          )
-        );
-      }
-      const gitCredentials = await options.resolveSessionGitCredentials({
-        projectId: terminal.projectId,
-        host: identity.host,
-      });
-      return ok({
-        identity,
-        workspace: workspaceRef(identity),
-        key: toTerminalKey(
-          identity,
-          makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
-        ),
-        tmuxEnabled: tmux.value,
-        shellSetup: projectConfig.data.resolved.shellSetup?.value,
-        taskEnvVars: getTaskEnvVars({
-          taskId: terminal.taskId,
-          taskName: taskRow.name,
-          taskPath: identity.path,
-          projectPath: project.repoPath,
-          defaultBranch,
-          portSeed: identity.path,
-        }),
-        gitCredentials,
-      });
-    });
+  const identity = launchContext.data.workspace;
+  const gitCredentials = await options.resolveSessionGitCredentials({
+    projectId: terminal.projectId,
+    host: identity.host,
+  });
+  return ok({
+    identity,
+    workspace: workspaceRef(identity),
+    key: toTerminalKey(
+      identity,
+      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
+    ),
+    tmuxEnabled: launchContext.data.tmux,
+    shellSetup: launchContext.data.shellSetup,
+    taskEnvVars: launchContext.data.env,
+    gitCredentials,
   });
 }
 

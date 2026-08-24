@@ -15,6 +15,7 @@ import {
   type SpillLargePromptDeps,
   type SpillLargePromptResult,
 } from '@core/features/conversations/node/spill-large-prompt';
+import type { TaskSessionLaunchContextSource } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -45,9 +46,7 @@ export type TuiConversationProviderOptions = {
   projectId: string;
   taskId: string;
   taskPath: string;
-  tmux?: boolean;
-  shellSetup?: string;
-  taskEnvVars?: Record<string, string>;
+  launchContextSource: TaskSessionLaunchContextSource;
 };
 
 export type TuiConversationProviderDependencies = {
@@ -78,9 +77,7 @@ export class TuiConversationProvider implements ConversationProvider {
   private readonly host: HostRef;
   private readonly files: FilesClientScope;
   private readonly tuiAgents: TuiAgentsRuntimeClient;
-  private readonly tmux: boolean;
-  private readonly shellSetup?: string;
-  private readonly taskEnvVars: Record<string, string>;
+  private readonly launchContextSource: TaskSessionLaunchContextSource;
   private readonly spills = new Map<string, SpillLargePromptResult>();
 
   constructor(
@@ -93,9 +90,7 @@ export class TuiConversationProvider implements ConversationProvider {
     this.host = options.host;
     this.files = options.files;
     this.tuiAgents = options.tuiAgents;
-    this.tmux = options.tmux ?? false;
-    this.shellSetup = options.shellSetup;
-    this.taskEnvVars = options.taskEnvVars ?? {};
+    this.launchContextSource = options.launchContextSource;
   }
 
   async ensureSession({
@@ -147,26 +142,35 @@ export class TuiConversationProvider implements ConversationProvider {
     mode: 'start' | 'resume',
     initialPrompt: string | undefined
   ): Promise<TuiAgentStartInput> {
-    const providerConfig = await this.dependencies.getProviderConfig(conversation.providerId);
-    const trustWorkspace =
-      conversation.autoApprove === true ||
-      (await this.dependencies.getTaskSettings()).autoTrustWorktrees;
     const agentSession = resolveAgentSession(conversation, mode);
     const effectiveInitialPrompt = await this.effectiveInitialPrompt(
       conversation.id,
       !agentSession.isResuming && mode === 'start' ? initialPrompt : undefined
     );
-    const colorEnv = await this.dependencies.getTerminalColorEnv();
+    const [providerConfig, taskSettings, colorEnv, launchContext, gitCredentials] =
+      await Promise.all([
+        this.dependencies.getProviderConfig(conversation.providerId),
+        conversation.autoApprove === true
+          ? Promise.resolve(undefined)
+          : this.dependencies.getTaskSettings(),
+        this.dependencies.getTerminalColorEnv(),
+        this.launchContextSource.resolve(),
+        this.dependencies.resolveSessionGitCredentials({
+          projectId: this.projectId,
+          host: this.host,
+        }),
+      ]);
+    if (!launchContext.success) {
+      throw new Error(`Could not resolve task session launch context: ${launchContext.error.type}`);
+    }
+    const trustWorkspace =
+      conversation.autoApprove === true || taskSettings?.autoTrustWorktrees === true;
     const providerVars = {
       ...(providerConfig?.env ?? {}),
       ...colorEnv,
-      ...this.taskEnvVars,
+      ...launchContext.data.env,
     };
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversation.id);
-    const gitCredentials = await this.dependencies.resolveSessionGitCredentials({
-      projectId: this.projectId,
-      host: this.host,
-    });
 
     return {
       conversationId: conversation.id,
@@ -185,8 +189,8 @@ export class TuiConversationProvider implements ConversationProvider {
       gitCredentials,
       cols: initialSize.cols,
       rows: initialSize.rows,
-      shellSetup: this.shellSetup,
-      tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      shellSetup: launchContext.data.shellSetup,
+      tmuxSessionName: launchContext.data.tmux ? makeTmuxSessionName(sessionId) : undefined,
     };
   }
 

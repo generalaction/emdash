@@ -15,6 +15,7 @@ import type {
   ProvisionResult as SessionProvisionResult,
 } from '@core/features/projects/api/node/project-provider';
 import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provider-assembly';
+import type { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import {
@@ -98,6 +99,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       workspacePlacement: WorkspacePlacementResolver;
       runtimes: RuntimeBroker;
       lifecycleParticipants: readonly WorkspaceLifecycleParticipant[];
+      sessionLaunchContexts: TaskSessionLaunchContextResolver;
       createConversationProvider(options: TaskProviderOpts): ConversationProvider;
       workspaceIdentity: WorkspaceIdentityService;
       creations: WorkspaceCreations;
@@ -275,9 +277,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           workspaceRegistry: access.data.client.workspaceRegistry,
         },
         project.projectId,
-        project.repoPath,
-        project.settings,
-        project.repoFacts,
+        this.dependencies.sessionLaunchContexts,
         this.dependencies.createConversationProvider,
         workspaceRow.config ? (deriveBranchName(workspaceRow.config.git) ?? undefined) : undefined
       );

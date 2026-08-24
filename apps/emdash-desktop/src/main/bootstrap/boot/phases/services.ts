@@ -66,6 +66,7 @@ import { migrateAppWorktreeRootToLocalHostDefault } from '@core/features/project
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
+import { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
@@ -167,6 +168,7 @@ export type ServicesBundle = {
   readonly providerSettings: ReturnType<typeof createProviderOverrideSettings>;
   readonly pullRequestsRegistration: PullRequestsRegistration;
   readonly search: ReturnType<typeof createSearchService>;
+  readonly sessionLaunchContexts: TaskSessionLaunchContextResolver;
   readonly taskService: TaskService;
   readonly taskSessions: TaskSessionManager;
   readonly workspacePlacement: WorkspacePlacementResolver;
@@ -308,6 +310,12 @@ export async function bootServices(
     availability: desktopRuntimes.hostAvailability,
     adapter: projectAttachmentAdapter,
   });
+  const sessionLaunchContexts = new TaskSessionLaunchContextResolver({
+    db,
+    projects: projectManager,
+    runtimes,
+    workspaceIdentity,
+  });
   const previewServerAccess = new PreviewServerAccessService({
     projects: projectManager,
     previewServers: previewServerService,
@@ -331,9 +339,7 @@ export async function bootServices(
         host: options.host,
         files: options.files,
         tuiAgents: options.tuiAgents,
-        tmux: options.tmuxEnabled,
-        shellSetup: options.shellSetup,
-        taskEnvVars: options.taskEnvVars,
+        launchContextSource: options.launchContextSource,
       },
       tuiConversationDependencies
     );
@@ -365,6 +371,7 @@ export async function bootServices(
     workspacePlacement,
     runtimes,
     lifecycleParticipants,
+    sessionLaunchContexts,
     createConversationProvider,
     workspaceIdentity,
     creations: workspaceCreations,
@@ -806,6 +813,7 @@ export async function bootServices(
     providerSettings: providerOverrideSettings,
     pullRequestsRegistration,
     search: searchService,
+    sessionLaunchContexts,
     taskService,
     taskSessions: taskSessionManager,
     workspacePlacement,
