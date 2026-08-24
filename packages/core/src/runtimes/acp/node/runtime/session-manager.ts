@@ -8,11 +8,19 @@ import type {
   SessionNotification,
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
-import type { Lease, Result, Serializable } from '@emdash/shared';
-import { ok, toSerializedError } from '@emdash/shared';
-import { acquireResourceAsResult } from '@emdash/shared/concurrency';
+import type { Result, Serializable } from '@emdash/shared';
+import { err, ok, toSerializedError } from '@emdash/shared';
+import {
+  acquireResourceAsResult,
+  createLifecycleRegistry,
+  type LifecycleRegistry,
+  type LifecycleRegistryStateChange,
+  type Scope,
+} from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { produce } from '@emdash/wire/state';
+import { z } from 'zod';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
@@ -25,89 +33,133 @@ import type {
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpStartError,
-  AcpKillError,
-  AgentState,
+  ConversationNotFoundError,
   InvalidStateError,
   NormalizedEvent,
-  PlanState,
-  SessionConfigState,
   SessionMcpServer,
   SessionState,
   SessionSummary,
-  SessionUsage,
   TerminalState,
   TranscriptTurn,
 } from '#runtimes/acp/api';
-import { acpErr, acpStartInputSchema } from '#runtimes/acp/api';
+import { acpErr, acpStartInputSchema, initialSessionConfigState } from '#runtimes/acp/api';
 import type { InboundRouter } from '#runtimes/acp/node/agent-ports/agent-client';
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
 import {
   isAcpConnectionError,
-  type AcpConnectionEntry,
   type AcpConnectionContext,
+  type AcpConnectionEntry,
   type AcpConnectionKey,
   type AcpConnectionSource,
-  type PooledAcpProcess,
 } from '#runtimes/acp/node/connection/source';
-import { projectSessionState } from '#runtimes/acp/node/machine/machine';
 import { SessionCell, type AcpChatHistory } from '#runtimes/acp/node/session/cell';
 import type { SessionCellCallbacks } from '#runtimes/acp/node/session/cell-deps';
 import {
+  closedSessionState,
   createAcpSessionLiveHost,
   createAcpSessionsLiveHost,
-  createSessionLiveModels,
   createSessionsListModel,
-  publishLiveModelState,
-  produceCell,
+  suspendedSessionState,
+  type ActivationSnapshot,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
   type SessionLiveModels,
   type SessionsListModel,
 } from '#runtimes/acp/node/state/live-models';
+import type { SessionIntent } from '#services/session-intents/api';
 import type {
   ActivityFields,
   ConversationSessionLifecycle,
+  EvictOptions,
   SessionSnapshotJudgment,
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
+const DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS = 5_000;
+
+const retainedConfigOverridesSchema = z.object({
+  model: z.string().optional(),
+  effort: z.string().optional(),
+});
+
+const retainedIntentSchema = acpStartInputSchema.extend({
+  configOverrides: retainedConfigOverridesSchema.optional(),
+});
+
+type ConfigDimension = 'model' | 'effort';
+type ConfigOverrides = Partial<Record<ConfigDimension, string>>;
+
+interface RetainedConversation {
+  conversationId: string;
+  descriptor: AcpStartInput;
+  configOverrides: ConfigOverrides;
+  initialQueueConsumed: boolean;
+  everMaterialized: boolean;
+  deleted: boolean;
+  projection: SessionLiveModels;
+  releaseProjection: () => void;
+  materializationAbort?: AbortController;
+}
+
+interface ConnectionLeaseState {
+  release: boolean;
+}
+
 interface SessionRecord {
+  retained: RetainedConversation;
   input: AcpStartInput;
+  resumeOutcome: 'loaded' | 'replaced-by-new' | null;
   processKey: string;
-  connectionLease: Lease<PooledAcpProcess>;
-  /**
-   * Cleared before evicting a record whose pooled process already died: the pool
-   * entry is invalidated instead, so the evict step must not release the lease.
-   */
-  releaseLeaseOnEvict: boolean;
+  processGeneration: number;
+  connectionLeaseState: ConnectionLeaseState;
   cell: SessionCell;
-  live: SessionLiveModels;
+  mcpServers: SessionMcpServer[];
   machineStateBinding: { dispose(): void };
-  lastSynced: {
-    config?: SessionConfigState;
-    usage?: SessionUsage | null;
-    plan?: PlanState | null;
-    agents?: AgentState[];
-    activeTurn?: TranscriptTurn | null;
-    terminals?: TerminalState[];
-    mcpServers?: SessionMcpServer[];
-  };
+  disposed: boolean;
+}
+
+type ActivationStartError = AcpStartError | ConversationNotFoundError;
+type ActivationRegistry = LifecycleRegistry<
+  RetainedConversation,
+  SessionRecord,
+  ActivationStartError,
+  void,
+  never
+>;
+
+export type AcpWakeFailure = {
+  kind: 'wake-failed';
+  error: AcpStartError;
+};
+
+export function isAcpWakeFailure(error: unknown): error is AcpWakeFailure {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'kind' in error &&
+    error.kind === 'wake-failed' &&
+    'error' in error
+  );
 }
 
 export interface HistoryPage {
   turns: TranscriptTurn[];
   nextCursor: number | null;
+  unavailable?: true;
 }
 
 export class SessionManager implements InboundRouter {
   readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
   readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
-  private readonly cells = new Map<string, SessionRecord>();
+  private readonly activations: ActivationRegistry;
+  private readonly retained = new Map<string, RetainedConversation>();
+  private readonly materializing = new Map<string, SessionRecord>();
+  private readonly evictions = new Map<string, Promise<void>>();
   private readonly routes = new Map<string, Map<string, string>>();
   private readonly loadingConversations = new Map<string, Set<string>>();
   private readonly clock: Clock;
@@ -120,13 +172,42 @@ export class SessionManager implements InboundRouter {
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {
     this.clock = deps.clock ?? systemClock;
-    this.lifecycle = createSessionLifecycle<AcpStartInput, void>({
+    this.activations = createLifecycleRegistry<
+      RetainedConversation,
+      SessionRecord,
+      ActivationStartError,
+      void,
+      never
+    >({
+      label: 'acp-session-activations',
+      keyOf: (entry) => entry.conversationId,
+      start: (entry, scope) => this.startActivation(entry, scope),
+      interrupt: (_key, record) => this.interruptRecord(record),
+      stop: async () => ok(),
+      drainTimeoutMs:
+        deps.lifecycle?.activationDrainTimeoutMs ?? DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS,
+      onLeaseDrainTimeout: ({ key, leaseCount, timeoutMs }) => {
+        this.deps.logger.warn('SessionManager: activation lease drain timed out', {
+          conversationId: key,
+          leakedLeases: leaseCount,
+          timeoutMs,
+        });
+      },
+      onStateChanged: (change) => this.onActivationStateChanged(change),
+      onObserverError: ({ key, error }) => {
+        this.deps.logger.warn('SessionManager: activation state observer failed', {
+          conversationId: key,
+          error: String(error),
+        });
+      },
+    });
+    this.lifecycle = createSessionLifecycle({
       name: 'SessionManager',
       logger: deps.logger,
       clock: this.clock,
       idlePolicy: deps.lifecycle?.session,
       sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
-      entries: () => this.cells.keys(),
+      entries: () => this.activations.keys(),
       snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
       syncListEntry: (conversationId, activity) =>
         this.syncSessionActivity(conversationId, activity),
@@ -134,71 +215,71 @@ export class SessionManager implements InboundRouter {
         await this.stop(conversationId, cause);
       },
       evictSteps: [
-        { name: 'cell', run: (key) => this.cells.get(key)?.cell.dispose() },
         {
-          name: 'machine-state-binding',
-          run: (key) => this.cells.get(key)?.machineStateBinding.dispose(),
-        },
-        {
-          name: 'routes',
-          run: (key) => {
-            const record = this.cells.get(key);
-            if (record) this.unregisterRoutes(record.processKey, key);
+          name: 'activation',
+          run: async (key) => {
+            await this.activations.stop(key);
           },
         },
-        { name: 'live-models', run: (key) => this.cells.get(key)?.live.dispose() },
-        {
-          name: 'connection-lease',
-          run: (key) => {
-            const record = this.cells.get(key);
-            if (record?.releaseLeaseOnEvict) void record.connectionLease.release();
-          },
-        },
-        {
-          name: 'record',
-          run: (key) => {
-            this.cells.delete(key);
-          },
-        },
-        {
-          name: 'conversation-terminals',
-          run: (key) => {
-            this.terminals.disposeConversation(key);
-          },
-        },
-        { name: 'sessions-list-summary', run: (key) => this.deleteSessionSummary(key) },
       ],
       conversation: {
         intents: deps.intents,
         reports: deps.conversationReports,
-        activePayload: (conversationId) => {
-          const record = this.cells.get(conversationId);
-          if (!record) return null;
-          const { initialQueue: _initialQueue, ...persisted } = record.input;
-          const sessionId = record.cell.acpSessionId;
-          return { payload: { ...persisted, sessionId } as unknown as Serializable, sessionId };
-        },
+        activePayload: (conversationId) => this.activeIntentPayload(conversationId),
         reconcile: {
-          parse: (intent) => {
-            const parsed = acpStartInputSchema.safeParse(intent.payload);
-            const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
-            if (!parsed.success || !sessionId) return { suspend: 'reconcile-failed' };
-            return { input: { ...parsed.data, sessionId, initialQueue: undefined } };
+          parse: (intent): { input: RetainedConversation } | { suspend: string } => {
+            const entry = this.restoreRetainedIntent(intent);
+            return entry ? { input: entry } : { suspend: 'reconcile-failed' };
           },
-          resume: (input) => this.start(input),
+          resume: (entry) => this.startRetained(entry),
         },
       },
     });
   }
 
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
-    const existing = this.cells.get(input.conversationId);
-    if (existing) {
-      this.lifecycle.saveIntent(input.conversationId);
-      return ok({ sessionId: existing.cell.acpSessionId });
-    }
+    await this.evictions.get(input.conversationId);
+    const existing = this.retained.get(input.conversationId);
+    const entry = existing ?? this.createRetained(input, { suspended: false });
     this.lifecycle.recordInput(input.conversationId);
 
+    const started = await this.activations.start(entry);
+    if (!started.success) {
+      if (started.error.type === 'conversation_not_found') {
+        return acpErr.invalidState('ACP conversation was deleted while starting');
+      }
+      if (!entry.everMaterialized && this.isRetainedCurrent(entry)) {
+        this.removeRetained(entry);
+        await this.activations.forceRemove(entry.conversationId, started.error);
+        await this.evict(entry.conversationId, { intent: 'keep' });
+      } else if (this.isRetainedCurrent(entry)) {
+        this.publishSuspended(entry);
+      }
+      return err(started.error);
+    }
+
+    if (existing) this.lifecycle.saveIntent(input.conversationId);
+    return ok({ sessionId: started.data.cell.acpSessionId });
+  }
+
+  private startRetained(
+    entry: RetainedConversation
+  ): Promise<Result<{ sessionId: string }, AcpStartError>> {
+    return this.start(entry.descriptor);
+  }
+
+  private async startActivation(
+    entry: RetainedConversation,
+    scope: Scope
+  ): Promise<Result<SessionRecord, ActivationStartError>> {
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(entry.conversationId);
+    const materializationAbort = new AbortController();
+    entry.materializationAbort = materializationAbort;
+    const input = this.materializationInput(entry);
+    entry.projection.source.set({
+      kind: 'active',
+      snapshot: startingSnapshot(),
+    });
     this.upsertSessionSummary(input, null, {
       lifecycle: 'starting',
       isGenerating: false,
@@ -208,12 +289,7 @@ export class SessionManager implements InboundRouter {
     });
 
     const binding = this.deps.agentHost.resolveAcp(input.providerId);
-    if (!binding) {
-      // Start-failure teardown: no record exists yet, but the eviction drops the
-      // activity tracker and summary entry (the old failed-start leak).
-      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
-      return acpErr.providerUnsupported(input.providerId);
-    }
+    if (!binding) return acpErr.providerUnsupported(input.providerId);
 
     const connectionKey: AcpConnectionKey = {
       providerId: input.providerId,
@@ -225,66 +301,75 @@ export class SessionManager implements InboundRouter {
       connectionKey,
       isAcpConnectionError
     );
-    if (!acquire.success) {
-      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
-      return acquire;
-    }
+    if (!acquire.success) return acquire;
 
     const acquired = acquire.data;
+    const connectionLeaseState: ConnectionLeaseState = { release: true };
+    scope.add(async () => {
+      if (connectionLeaseState.release) await acquired.release();
+    });
+    if (!this.isRetainedCurrent(entry)) {
+      return acpErr.conversationNotFound(entry.conversationId);
+    }
+
     const connection = acquired.value;
     const mcpServers = await this.resolveSessionMcpServers(input.providerId, connection);
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     let record: SessionRecord | null = null;
-    // Resume outcome for the lifecycle report (spec §7.4): null when no resume was attempted
-    // (fresh conversation); 'loaded' when the provider replayed the prior session;
-    // 'replaced-by-new' when a prior session existed but could not be restored.
     let resumeOutcome: 'loaded' | 'replaced-by-new' | null = input.sessionId
       ? 'replaced-by-new'
       : null;
 
     try {
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
-        record = this.createRecord(input, connection, acquired, input.sessionId);
-        this.addLoading(connection.key, input.conversationId);
-        this.registerRoute(connection.key, input.sessionId, input.conversationId);
+        record = this.createRecord(
+          entry,
+          input,
+          connection,
+          connectionLeaseState,
+          input.sessionId,
+          scope
+        );
+        this.addLoading(connectionOwnerId(connection), input.conversationId);
+        this.registerRoute(connectionOwnerId(connection), input.sessionId, input.conversationId);
         record.cell.beginReplay();
 
         let loaded = false;
         try {
-          const response = await connection.agent.loadSession(
-            this.buildLoadSessionRequest(input.cwd, input.sessionId, mcpServers)
+          const response = await abortable(
+            connection.agent.loadSession(
+              this.buildLoadSessionRequest(input.cwd, input.sessionId, mcpServers)
+            ),
+            materializationAbort.signal
           );
+          if (!this.isRetainedCurrent(entry) || record.disposed) {
+            return acpErr.conversationNotFound(entry.conversationId);
+          }
           record.cell.applySessionLoaded({
             modes: response.modes,
             configOptions: response.configOptions,
           });
-          if (input.model) {
-            const modelResult = await record.cell.setConfigOption('model', input.model);
-            if (!modelResult.success) {
-              this.deps.logger.warn('SessionManager: failed to apply initial model', {
-                conversationId: input.conversationId,
-                providerId: input.providerId,
-                error: modelResult.error,
-              });
-            }
-          }
-          await this.applyInitialMode(record, input);
-          const queueResult = this.queueInitialPrompts(record);
+          await this.applyConfigOverrides(record, entry);
+          await this.applyInitialMode(record, entry.descriptor);
+          const queueResult = this.queueInitialPrompts(record, entry);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
           resumeOutcome = 'loaded';
-        } catch (e) {
-          if (isAuthRequiredError(e)) throw e;
+        } catch (error) {
+          if (!this.isRetainedCurrent(entry)) {
+            return acpErr.conversationNotFound(entry.conversationId);
+          }
+          if (isAuthRequiredError(error)) throw error;
           this.deps.logger.warn('SessionManager: loadSession failed, starting a new session', {
             conversationId: input.conversationId,
           });
         } finally {
-          this.removeLoading(connection.key, input.conversationId);
+          this.removeLoading(connectionOwnerId(connection), input.conversationId);
         }
 
         if (!loaded) {
-          this.discardReplacedRecord(input.conversationId);
+          this.discardReplacedRecord(record);
           record = null;
         }
       }
@@ -292,75 +377,82 @@ export class SessionManager implements InboundRouter {
       if (!record) {
         let response;
         try {
-          response = await connection.agent.newSession(
-            this.buildNewSessionRequest(input.cwd, mcpServers)
+          response = await abortable(
+            connection.agent.newSession(this.buildNewSessionRequest(input.cwd, mcpServers)),
+            materializationAbort.signal
           );
-        } catch (e) {
-          if (isAuthRequiredError(e)) throw e;
-          // No record exists here (the loadSession fallback already discarded its
-          // record), so the lease is still caller-held and released explicitly.
-          await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
-          await acquired.release();
-          return acpErr.newSessionFailed(toSerializedError(e));
+        } catch (error) {
+          if (!this.isRetainedCurrent(entry)) {
+            return acpErr.conversationNotFound(entry.conversationId);
+          }
+          if (isAuthRequiredError(error)) throw error;
+          return acpErr.newSessionFailed(toSerializedError(error));
         }
-        record = this.createRecord(input, connection, acquired, response.sessionId);
+        if (!this.isRetainedCurrent(entry)) {
+          return acpErr.conversationNotFound(entry.conversationId);
+        }
+        record = this.createRecord(
+          entry,
+          input,
+          connection,
+          connectionLeaseState,
+          response.sessionId,
+          scope
+        );
         record.cell.applySessionMeta({
           modes: response.modes,
           configOptions: response.configOptions,
         });
-        if (input.model) {
-          const modelResult = await record.cell.setConfigOption('model', input.model);
-          if (!modelResult.success) {
-            this.deps.logger.warn('SessionManager: failed to apply initial model', {
-              conversationId: input.conversationId,
-              providerId: input.providerId,
-              error: modelResult.error,
-            });
-          }
-        }
-        await this.applyInitialMode(record, input);
-        const queueResult = this.queueInitialPrompts(record);
+        await this.applyConfigOverrides(record, entry);
+        await this.applyInitialMode(record, entry.descriptor);
+        const queueResult = this.queueInitialPrompts(record, entry);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
       }
 
-      this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
-
-      this.publishSessionMcpServers(record, mcpServerSummary);
+      this.registerRoute(
+        connectionOwnerId(connection),
+        record.cell.acpSessionId,
+        input.conversationId
+      );
+      record.mcpServers = mcpServerSummary;
+      record.resumeOutcome = resumeOutcome;
+      entry.everMaterialized = true;
+      this.updateRetainedSessionId(entry, record.cell.acpSessionId);
       this.syncRecord(record);
-      // `started` reports sessionStarted and persists the active intent.
-      this.lifecycle.started(input.conversationId, {
-        conversationId: input.conversationId,
-        providerSessionId: record.cell.acpSessionId,
-        resumeOutcome,
-      });
-      return ok({ sessionId: record.cell.acpSessionId });
-    } catch (e) {
-      // When a record exists it holds the lease, so the evict step releases it;
-      // otherwise the caller-held lease is released explicitly.
-      const recordHeldLease = this.cells.has(input.conversationId);
-      await this.lifecycle.evict(input.conversationId, { intent: 'keep' });
-      if (!recordHeldLease) await acquired.release();
-      if (isAuthRequiredError(e)) {
-        return acpErr.authRequired(toSerializedError(e));
-      }
-      return acpErr.initializeFailed(toSerializedError(e));
+      return ok(record);
+    } catch (error) {
+      if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
+      return acpErr.initializeFailed(toSerializedError(error));
     }
   }
 
-  async prompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-    const record = this.cells.get(input.conversationId);
-    if (!record) return acpErr.conversationNotFound(input.conversationId);
-    this.lifecycle.recordInput(input.conversationId);
-    if (input.placement === 'queue') {
-      const state = record.cell.sessionState;
-      if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
-        const result = record.cell.queuePrompt(input.prompt);
-        if (!result.success) return result;
-        return ok({ queued: true });
+  async prompt(
+    input: SendPromptInput
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
+    const entry = this.retained.get(input.conversationId);
+    if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
+    await this.evictions.get(input.conversationId);
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(input.conversationId);
+
+    const acquired = await this.activations.acquire(entry);
+    if (!acquired.success) return this.mapWakeError(acquired.error);
+    const lease = acquired.data;
+    try {
+      if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(input.conversationId);
+      this.lifecycle.recordInput(input.conversationId);
+      if (input.placement === 'queue') {
+        const state = lease.value.cell.sessionState;
+        if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
+          const queued = lease.value.cell.queuePrompt(input.prompt);
+          if (!queued.success) return queued;
+          return ok({ queued: true });
+        }
       }
+      return await lease.value.cell.prompt(input.prompt);
+    } finally {
+      await lease.release();
     }
-    return record.cell.prompt(input.prompt);
   }
 
   editQueuedPrompt(
@@ -368,47 +460,57 @@ export class SessionManager implements InboundRouter {
     id: string,
     input: SendPromptInput['prompt']
   ): Result<void, AcpEditQueuedPromptError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.editQueuedPrompt(id, input);
+    const retained = this.retained.get(conversationId);
+    if (!retained) return acpErr.conversationNotFound(conversationId);
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.editQueuedPrompt(id, input) : ok();
   }
 
   removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.removeQueuedPrompt(id);
+    const retained = this.retained.get(conversationId);
+    if (!retained) return acpErr.conversationNotFound(conversationId);
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.removeQueuedPrompt(id) : ok();
   }
 
   reorderQueue(
     conversationId: string,
     ids: readonly string[]
   ): Result<void, AcpChangeQueuePromptOrderError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.reorderQueue(ids);
+    const retained = this.retained.get(conversationId);
+    if (!retained) return acpErr.conversationNotFound(conversationId);
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.reorderQueue(ids) : ok();
   }
 
   async cancel(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
-    const record = this.cells.get(conversationId);
-    if (!record) return ok();
-    return record.cell.cancel();
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.cancel() : ok();
   }
 
-  async stop(conversationId: string, cause = 'user'): Promise<Result<void, AcpKillError>> {
-    this.cells
-      .get(conversationId)
-      ?.cell.closeSession()
-      .catch(() => {});
-    await this.lifecycle.evict(conversationId, { cause, intent: 'suspend' });
+  async stop(conversationId: string, cause = 'user'): Promise<Result<void, never>> {
+    await this.evict(conversationId, { cause, intent: 'suspend' });
+    const entry = this.retained.get(conversationId);
+    if (entry) this.publishSuspended(entry);
     return ok();
   }
 
-  async kill(conversationId: string): Promise<Result<void, AcpKillError>> {
-    this.cells
-      .get(conversationId)
-      ?.cell.closeSession()
-      .catch(() => {});
-    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
+  async kill(conversationId: string): Promise<Result<void, never>> {
+    const entry = this.retained.get(conversationId);
+    if (entry) {
+      entry.deleted = true;
+      entry.materializationAbort?.abort(new Error('ACP conversation killed'));
+      this.retained.delete(conversationId);
+      entry.projection.source.set({ kind: 'closed' });
+      this.deleteSessionSummary(conversationId);
+      this.interruptMaterializing(conversationId);
+    }
+
+    const inFlight = this.evictions.get(conversationId);
+    if (inFlight) await inFlight;
+    await this.evict(conversationId, { cause: 'user', intent: 'remove' });
+    await this.activations.forceRemove(conversationId, 'conversation killed');
+    entry?.releaseProjection();
     return ok();
   }
 
@@ -417,52 +519,82 @@ export class SessionManager implements InboundRouter {
     requestId: string,
     optionId: string
   ): Result<void, AcpResolvePermissionError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    this.lifecycle.recordInput(conversationId);
-    return record.cell.resolvePermission(requestId, optionId);
+    const retained = this.retained.get(conversationId);
+    if (!retained) return acpErr.conversationNotFound(conversationId);
+    const record = this.readyRecord(conversationId);
+    return record ? record.cell.resolvePermission(requestId, optionId) : ok();
   }
 
   async setMode(
     conversationId: string,
     modeId: string
-  ): Promise<Result<void, AcpSetModeOptionError>> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.setMode(modeId);
+  ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
+    const entry = this.retained.get(conversationId);
+    if (!entry) return acpErr.conversationNotFound(conversationId);
+    await this.evictions.get(conversationId);
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(conversationId);
+    const started = await this.activations.start(entry);
+    if (!started.success) return this.mapWakeError(started.error);
+    const result = await this.activations.use(entry, (record) => record.cell.setMode(modeId));
+    if (!result.success) {
+      if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
+      return result as Result<void, AcpSetModeOptionError>;
+    }
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(conversationId);
+    entry.descriptor = { ...entry.descriptor, modeId };
+    this.lifecycle.saveIntent(conversationId);
+    return ok();
   }
 
   async setConfigOption(
     conversationId: string,
-    dimension: 'model' | 'effort',
+    dimension: ConfigDimension,
     value: string
-  ): Promise<Result<void, AcpSetModelOptionError>> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.setConfigOption(dimension, value);
+  ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
+    const entry = this.retained.get(conversationId);
+    if (!entry) return acpErr.conversationNotFound(conversationId);
+    await this.evictions.get(conversationId);
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(conversationId);
+    const started = await this.activations.start(entry);
+    if (!started.success) return this.mapWakeError(started.error);
+    const result = await this.activations.use(entry, (record) =>
+      record.cell.setConfigOption(dimension, value)
+    );
+    if (!result.success) {
+      if (isUnambiguousStartError(result.error)) return this.mapWakeError(result.error);
+      return result as Result<void, AcpSetModelOptionError>;
+    }
+    if (!this.isRetainedCurrent(entry)) return acpErr.conversationNotFound(conversationId);
+    entry.configOverrides = { ...entry.configOverrides, [dimension]: value };
+    if (dimension === 'model') entry.descriptor = { ...entry.descriptor, model: value };
+    this.lifecycle.saveIntent(conversationId);
+    return ok();
   }
 
   isRunning(conversationId: string): boolean {
-    return this.cells.has(conversationId);
+    return this.activations.has(conversationId);
   }
 
   getChatHistory(conversationId: string): AcpChatHistory {
-    return this.cells.get(conversationId)?.cell.history() ?? { committed: [], active: null };
+    return this.readyRecord(conversationId)?.cell.history() ?? { committed: [], active: null };
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return ok(record.cell.exportParsedTranscript());
+    const record = this.readyRecord(conversationId);
+    return record
+      ? ok(record.cell.exportParsedTranscript())
+      : acpErr.conversationNotFound(conversationId);
   }
 
   exportRawAcpLog(conversationId: string): Result<string, AcpExportRawLogError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return ok(record.cell.exportRawLog());
+    const record = this.readyRecord(conversationId);
+    return record ? ok(record.cell.exportRawLog()) : acpErr.conversationNotFound(conversationId);
   }
 
   getHistory(conversationId: string, before?: number, limit = 50): HistoryPage {
+    if (this.retained.has(conversationId) && !this.readyRecord(conversationId)) {
+      return { turns: [], nextCursor: null, unavailable: true };
+    }
     const turns = this.getChatHistory(conversationId).committed;
     const filtered = before === undefined ? turns : turns.filter((turn) => turn.seq < before);
     const page = [...filtered].sort((a, b) => b.seq - a.seq).slice(0, limit);
@@ -471,21 +603,9 @@ export class SessionManager implements InboundRouter {
   }
 
   getSessionState(conversationId: string): SessionState {
-    const record = this.cells.get(conversationId);
-    if (record) return record.cell.sessionState;
-    return {
-      lifecycle: 'closed',
-      activeTurnId: null,
-      pendingPermissions: [],
-      lastStopReason: null,
-      lastTurnErrored: false,
-      queuedPrompts: [],
-      agentTurnActive: false,
-      backgroundAgentCount: 0,
-      isGenerating: false,
-      canSubmit: false,
-      canCancel: false,
-    };
+    const record = this.readyRecord(conversationId) ?? this.materializing.get(conversationId);
+    if (record && this.canPublishRecord(record)) return record.cell.sessionState;
+    return this.retained.has(conversationId) ? suspendedSessionState : closedSessionState;
   }
 
   getTerminals(conversationId: string): TerminalState[] {
@@ -497,15 +617,12 @@ export class SessionManager implements InboundRouter {
   }
 
   getLiveModels(conversationId: string): SessionLiveModels | null {
-    return this.cells.get(conversationId)?.live ?? null;
+    return this.retained.get(conversationId)?.projection ?? null;
   }
 
   syncTerminals(conversationId: string): void {
-    const record = this.cells.get(conversationId);
-    if (!record) return;
-    const terminals = this.getTerminals(conversationId);
-    publishLiveModelState(record.live.states.terminals, terminals, record.lastSynced.terminals);
-    record.lastSynced.terminals = terminals;
+    const record = this.recordForCallbacks(conversationId);
+    if (record) this.syncRecord(record);
   }
 
   killAllTerminals(): void {
@@ -517,7 +634,10 @@ export class SessionManager implements InboundRouter {
     params: SessionNotification,
     event: NormalizedEvent
   ): void {
-    const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
+    const conversationId = this.resolveConversationForSession(
+      connectionOwnerId(connection),
+      params.sessionId
+    );
     if (!conversationId) {
       this.deps.logger.warn('SessionManager: sessionUpdate for unknown sessionId', {
         sessionId: params.sessionId,
@@ -525,12 +645,13 @@ export class SessionManager implements InboundRouter {
       return;
     }
 
-    const record = this.cells.get(conversationId);
+    const record = this.recordForCallbacks(conversationId);
     if (!record) return;
     this.lifecycle.recordOutput(conversationId);
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
-      this.registerRoute(connection.key, params.sessionId, conversationId);
+      this.registerRoute(connectionOwnerId(connection), params.sessionId, conversationId);
+      this.updateRetainedSessionId(record.retained, params.sessionId);
       this.lifecycle.providerSessionId(conversationId, {
         conversationId,
         providerSessionId: params.sessionId,
@@ -550,8 +671,11 @@ export class SessionManager implements InboundRouter {
     connection: AcpConnectionContext,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse> {
-    const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
-    const record = conversationId ? this.cells.get(conversationId) : undefined;
+    const conversationId = this.resolveConversationForSession(
+      connectionOwnerId(connection),
+      params.sessionId
+    );
+    const record = conversationId ? this.recordForCallbacks(conversationId) : undefined;
     if (!conversationId || !record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
     this.lifecycle.recordOutput(conversationId);
     const response = record.cell.requestPermission(params);
@@ -563,26 +687,29 @@ export class SessionManager implements InboundRouter {
     connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
+    const conversationId = this.resolveConversationForSession(
+      connectionOwnerId(connection),
+      params.sessionId
+    );
     if (!conversationId) {
       throw new Error(`SessionManager: no conversation for ACP sessionId ${params.sessionId}`);
     }
     return this.ports.terminals.createTerminal(conversationId, connection.cwd, params);
   }
 
-  onProcessClosed(processKey: string, exitCode: number | null): void {
-    for (const record of [...this.cells.values()]) {
-      if (record.processKey !== processKey) continue;
-      // The pooled process is gone: invalidation owns the pool entry, so the evict
-      // step must not release the dead lease.
-      record.releaseLeaseOnEvict = false;
+  onProcessClosed(processKey: string, processGeneration: number, exitCode: number | null): void {
+    const records = new Set([...this.activations.values(), ...this.materializing.values()]);
+    for (const record of records) {
+      if (
+        record.processKey !== processKey ||
+        record.processGeneration !== processGeneration ||
+        record.disposed
+      ) {
+        continue;
+      }
+      record.connectionLeaseState.release = false;
       record.cell.processClosed(exitCode);
-      // The active intent is kept so restart reconciliation can restore the
-      // conversation; the cell's onClosed eviction (triggered above) coalesces.
-      void this.lifecycle.evict(record.input.conversationId, {
-        cause: 'process-exited',
-        intent: 'keep',
-      });
+      void this.stop(record.input.conversationId, 'process-exited');
       void this.connections.invalidate({
         providerId: record.input.providerId,
         cwd: record.input.cwd,
@@ -590,24 +717,61 @@ export class SessionManager implements InboundRouter {
     }
   }
 
+  async dispose(): Promise<void> {
+    this.lifecycle.dispose();
+    await this.activations.dispose();
+    for (const entry of this.retained.values()) {
+      entry.projection.source.set({ kind: 'closed' });
+      entry.releaseProjection();
+    }
+    this.retained.clear();
+    await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
+  }
+
+  async reconcile(): Promise<void> {
+    const listed = await this.deps.intents.list();
+    if (listed.success) {
+      for (const intent of listed.data) {
+        if (intent.status !== 'suspended') continue;
+        this.restoreRetainedIntent(intent);
+      }
+    } else {
+      this.deps.logger.warn('SessionManager: failed to restore suspended session intents', {
+        error: listed.error,
+      });
+    }
+    await this.lifecycle.reconcile();
+  }
+
+  /** Deterministic lifecycle sweep seam used by runtime tests. */
+  sweepNow(): Promise<void> {
+    return this.lifecycle.sweepNow();
+  }
+
   private createRecord(
+    retained: RetainedConversation,
     input: AcpStartInput,
     connection: AcpConnectionEntry,
-    connectionLease: Lease<PooledAcpProcess>,
-    acpSessionId: string
+    connectionLeaseState: ConnectionLeaseState,
+    acpSessionId: string,
+    scope: Scope
   ): SessionRecord {
-    const record = {} as SessionRecord;
+    const recordRef: { current?: SessionRecord } = {};
     const callbacks: SessionCellCallbacks = {
-      onSessionStateChanged: () => this.syncRecord(record),
-      onTranscriptChanged: () => this.syncRecord(record),
-      // Machine-driven close (usually process death): full teardown; the active
-      // intent is kept so restart reconciliation can restore the conversation.
-      onClosed: () =>
-        void this.lifecycle.evict(input.conversationId, {
-          cause: 'process-exited',
-          intent: 'keep',
-        }),
-      onSendQueuedPrompt: () => this.syncRecord(record),
+      onSessionStateChanged: () => {
+        if (recordRef.current) this.syncRecord(recordRef.current);
+      },
+      onTranscriptChanged: () => {
+        if (recordRef.current) this.syncRecord(recordRef.current);
+      },
+      onClosed: () => {
+        const record = recordRef.current;
+        if (!record || !this.isCurrentRecord(record)) return;
+        void this.stop(input.conversationId, 'process-exited');
+      },
+      onSendQueuedPrompt: () => {
+        if (recordRef.current) this.syncRecord(recordRef.current);
+      },
     };
     const cell = new SessionCell({
       conversationId: input.conversationId,
@@ -618,69 +782,76 @@ export class SessionManager implements InboundRouter {
       logger: this.deps.logger,
       callbacks,
     });
-    const live = createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState);
-    const syncMachineState = () =>
-      live.states.state.set(projectSessionState(cell.machine.current()));
-    syncMachineState();
-    const unsubscribeMachine = cell.machine.subscribe(syncMachineState);
-    const machineStateBinding = { dispose: unsubscribeMachine };
-    Object.assign(record, {
+    const machineStateBinding = { dispose: () => {} };
+    const record: SessionRecord = {
+      retained,
       input,
+      resumeOutcome: null,
       processKey: connection.key,
-      connectionLease,
-      releaseLeaseOnEvict: true,
+      processGeneration: connection.generation,
+      connectionLeaseState,
       cell,
-      live,
+      mcpServers: [],
       machineStateBinding,
-      lastSynced: {
-        config: cell.config,
-        usage: cell.usage,
-        plan: null,
-        agents: [],
-        activeTurn: null,
-        terminals: [],
-        mcpServers: [],
-      },
-    });
-    this.cells.set(input.conversationId, record);
+      disposed: false,
+    };
+    recordRef.current = record;
+    this.materializing.set(input.conversationId, record);
+    this.syncRecord(record);
+    machineStateBinding.dispose = cell.machine.subscribe(() => this.syncRecord(record));
+    scope.add(() => this.teardownRecord(record));
     return record;
   }
 
-  private queueInitialPrompts(record: SessionRecord): Result<void, InvalidStateError> {
-    for (const prompt of record.input.initialQueue ?? []) {
+  private queueInitialPrompts(
+    record: SessionRecord,
+    entry: RetainedConversation
+  ): Result<void, InvalidStateError> {
+    if (entry.initialQueueConsumed) return ok();
+    for (const prompt of entry.descriptor.initialQueue ?? []) {
       const result = record.cell.queuePrompt(prompt);
       if (!result.success) return result;
     }
+    entry.initialQueueConsumed = true;
     return ok();
   }
 
+  private async applyConfigOverrides(
+    record: SessionRecord,
+    entry: RetainedConversation
+  ): Promise<void> {
+    for (const dimension of ['model', 'effort'] as const) {
+      const value = entry.configOverrides[dimension];
+      if (!value) continue;
+      const result = await record.cell.setConfigOption(dimension, value);
+      if (!result.success) {
+        this.deps.logger.warn('SessionManager: failed to apply retained config option', {
+          conversationId: entry.conversationId,
+          providerId: entry.descriptor.providerId,
+          dimension,
+          error: result.error,
+        });
+      }
+    }
+  }
+
   private syncRecord(record: SessionRecord): void {
-    const state = record.cell.sessionState;
+    if (!this.canPublishRecord(record)) return;
+    record.retained.projection.source.set({ kind: 'active', snapshot: this.buildSnapshot(record) });
+    this.upsertSessionSummary(record.input, record.cell, record.cell.sessionState);
+  }
 
-    const config = record.cell.config;
-    publishLiveModelState(record.live.states.config, config, record.lastSynced.config);
-    record.lastSynced.config = config;
-
-    const usage = record.cell.usage;
-    publishLiveModelState(record.live.states.usage, usage, record.lastSynced.usage);
-    record.lastSynced.usage = usage;
-
-    const plan = record.cell.transcript.plan ?? null;
-    publishLiveModelState(record.live.states.plan, plan, record.lastSynced.plan);
-    record.lastSynced.plan = plan;
-
-    const agents = record.cell.transcript.agents;
-    const agentSnapshot = [...agents];
-    publishLiveModelState(record.live.states.agents, agentSnapshot, record.lastSynced.agents);
-    record.lastSynced.agents = agentSnapshot;
-
-    const activeTurn = record.cell.transcript.activeTurn;
-    publishLiveModelState(record.live.states.activeTurn, activeTurn, record.lastSynced.activeTurn);
-    record.lastSynced.activeTurn = activeTurn;
-
-    this.syncTerminals(record.input.conversationId);
-
-    this.upsertSessionSummary(record.input, record.cell, state);
+  private buildSnapshot(record: SessionRecord): ActivationSnapshot {
+    return {
+      state: record.cell.sessionState,
+      config: record.cell.config,
+      usage: record.cell.usage,
+      plan: record.cell.transcript.plan,
+      agents: record.cell.transcript.agents,
+      activeTurn: record.cell.transcript.activeTurn,
+      terminals: this.getTerminals(record.input.conversationId),
+      mcpServers: record.mcpServers,
+    };
   }
 
   private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
@@ -693,7 +864,6 @@ export class SessionManager implements InboundRouter {
         });
         return [];
       }
-
       return registrationsToAcpMcpServers(result.data, connection.mcpCapabilities);
     } catch (error) {
       this.deps.logger.warn('SessionManager: failed to read MCP servers for session', {
@@ -702,11 +872,6 @@ export class SessionManager implements InboundRouter {
       });
       return [];
     }
-  }
-
-  private publishSessionMcpServers(record: SessionRecord, mcpServers: SessionMcpServer[]): void {
-    publishLiveModelState(record.live.states.mcpServers, mcpServers, record.lastSynced.mcpServers);
-    record.lastSynced.mcpServers = mcpServers;
   }
 
   private upsertSessionSummary(
@@ -720,13 +885,15 @@ export class SessionManager implements InboundRouter {
       queuedPrompts?: SessionState['queuedPrompts'];
       pendingPermissionCount?: number;
       queuedPromptCount?: number;
+      suspended?: true;
     }
   ): void {
-    const summary: SessionSummary = {
+    const summary: Omit<SessionSummary, 'updatedAt'> = {
       conversationId: input.conversationId,
       providerId: input.providerId,
       cwd: input.cwd,
       lifecycle: state.lifecycle,
+      ...(state.suspended ? { suspended: true as const } : {}),
       isGenerating: state.isGenerating,
       lastStopReason: cell?.sessionState.lastStopReason ?? null,
       lastTurnErrored: cell?.sessionState.lastTurnErrored ?? false,
@@ -734,45 +901,72 @@ export class SessionManager implements InboundRouter {
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,
       title: cell?.transcript.title ?? null,
-      updatedAt: this.clock.now(),
     };
     const activity = this.lifecycle.activity(input.conversationId);
-    if (activity.lastInputAt !== null) {
-      summary.lastInputAt = activity.lastInputAt;
-    }
-    if (activity.lastOutputAt !== null) {
-      summary.lastOutputAt = activity.lastOutputAt;
-    }
-    produceCell(this.sessionsList.states.list, (draft) => {
-      draft[input.conversationId] = summary;
+    if (activity.lastInputAt !== null) summary.lastInputAt = activity.lastInputAt;
+    if (activity.lastOutputAt !== null) summary.lastOutputAt = activity.lastOutputAt;
+    this.sessionsList.states.list.update((previous) => {
+      const current = previous[input.conversationId];
+      if (current && sessionSummaryEquals(current, summary)) return previous;
+      return produce(previous, (draft) => {
+        draft[input.conversationId] = { ...summary, updatedAt: this.clock.now() };
+      });
     });
   }
 
-  dispose(): void {
-    this.lifecycle.dispose();
-  }
-
-  reconcile(): Promise<void> {
-    return this.lifecycle.reconcile();
+  private publishSuspended(entry: RetainedConversation): void {
+    if (!this.isRetainedCurrent(entry)) return;
+    entry.projection.source.set({ kind: 'suspended' });
+    this.upsertSessionSummary(entry.descriptor, null, {
+      lifecycle: 'closed',
+      suspended: true,
+      isGenerating: false,
+      pendingPermissionCount: 0,
+      backgroundAgentCount: 0,
+      queuedPromptCount: 0,
+    });
   }
 
   private deleteSessionSummary(conversationId: string): void {
-    produceCell(this.sessionsList.states.list, (draft) => {
-      delete draft[conversationId];
+    this.sessionsList.states.list.update((previous) => {
+      if (!(conversationId in previous)) return previous;
+      return produce(previous, (draft) => {
+        delete draft[conversationId];
+      });
     });
   }
 
+  private evict(conversationId: string, options: EvictOptions): Promise<void> {
+    const existing = this.evictions.get(conversationId);
+    if (existing) return existing;
+    const pending = this.lifecycle.evict(conversationId, options).finally(() => {
+      if (this.evictions.get(conversationId) === pending) this.evictions.delete(conversationId);
+    });
+    this.evictions.set(conversationId, pending);
+    return pending;
+  }
+
   private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
-    produceCell(this.sessionsList.states.list, (draft) => {
-      const current = draft[conversationId];
-      if (!current) return;
-      if (activity.lastInputAt !== null) current.lastInputAt = activity.lastInputAt;
-      if (activity.lastOutputAt !== null) current.lastOutputAt = activity.lastOutputAt;
+    this.sessionsList.states.list.update((previous) => {
+      const current = previous[conversationId];
+      if (!current) return previous;
+      const lastInputAt = activity.lastInputAt ?? current.lastInputAt;
+      const lastOutputAt = activity.lastOutputAt ?? current.lastOutputAt;
+      if (current.lastInputAt === lastInputAt && current.lastOutputAt === lastOutputAt) {
+        return previous;
+      }
+      return produce(previous, (draft) => {
+        const next = draft[conversationId];
+        if (!next) return;
+        if (activity.lastInputAt !== null) next.lastInputAt = activity.lastInputAt;
+        if (activity.lastOutputAt !== null) next.lastOutputAt = activity.lastOutputAt;
+        next.updatedAt = this.clock.now();
+      });
     });
   }
 
   private lifecycleSnapshot(conversationId: string): SessionSnapshotJudgment | null {
-    const record = this.cells.get(conversationId);
+    const record = this.readyRecord(conversationId);
     if (!record) return null;
     const state = record.cell.sessionState;
     return {
@@ -785,65 +979,239 @@ export class SessionManager implements InboundRouter {
     };
   }
 
-  /**
-   * loadSession-fallback teardown: the same connection lease is reused by the
-   * newSession retry, so this must NOT release it, and the session did not end
-   * (no report, no intent write). Deliberately bypasses the chassis evict.
-   */
-  private discardReplacedRecord(conversationId: string): void {
-    const record = this.cells.get(conversationId);
-    if (!record) return;
-    record.cell.dispose();
-    record.machineStateBinding.dispose();
-    this.unregisterRoutes(record.processKey, conversationId);
-    this.cells.delete(conversationId);
-    this.terminals.disposeConversation(conversationId);
-    record.live.dispose();
-    this.deleteSessionSummary(conversationId);
+  private createRetained(
+    input: AcpStartInput,
+    options: { suspended: boolean; configOverrides?: ConfigOverrides; consumed?: boolean } = {
+      suspended: false,
+    }
+  ): RetainedConversation {
+    const projection = this.sessionHost.models(input.conversationId);
+    const releaseProjection = this.sessionHost.models.retain(input.conversationId);
+    const entry: RetainedConversation = {
+      conversationId: input.conversationId,
+      descriptor: input,
+      configOverrides: options.configOverrides ?? (input.model ? { model: input.model } : {}),
+      initialQueueConsumed: options.consumed ?? false,
+      everMaterialized: options.suspended,
+      deleted: false,
+      projection,
+      releaseProjection,
+    };
+    this.retained.set(input.conversationId, entry);
+    if (options.suspended) this.publishSuspended(entry);
+    return entry;
   }
 
-  private resolveConversationForSession(processKey: string, acpSessionId: string): string | null {
-    const route = this.routes.get(processKey)?.get(acpSessionId);
+  private removeRetained(entry: RetainedConversation): void {
+    if (!this.isRetainedCurrent(entry)) return;
+    entry.deleted = true;
+    entry.materializationAbort?.abort(new Error('ACP conversation removed'));
+    this.retained.delete(entry.conversationId);
+    entry.projection.source.set({ kind: 'closed' });
+    this.deleteSessionSummary(entry.conversationId);
+    entry.releaseProjection();
+  }
+
+  private restoreRetainedIntent(intent: SessionIntent): RetainedConversation | null {
+    const parsed = retainedIntentSchema.safeParse(intent.payload);
+    const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
+    if (!parsed.success || !sessionId) return null;
+    const existing = this.retained.get(intent.conversationId);
+    if (existing) return existing;
+    const { configOverrides, ...input } = parsed.data;
+    return this.createRetained(
+      { ...input, conversationId: intent.conversationId, sessionId, initialQueue: undefined },
+      {
+        suspended: true,
+        configOverrides: configOverrides ?? (input.model ? { model: input.model } : {}),
+        consumed: true,
+      }
+    );
+  }
+
+  private activeIntentPayload(
+    conversationId: string
+  ): { payload: Serializable; sessionId?: string | null } | null {
+    const entry = this.retained.get(conversationId);
+    if (!entry || entry.deleted) return null;
+    const { initialQueue: _initialQueue, ...persisted } = entry.descriptor;
+    return {
+      payload: {
+        ...persisted,
+        ...(Object.keys(entry.configOverrides).length > 0
+          ? { configOverrides: entry.configOverrides }
+          : {}),
+      } as unknown as Serializable,
+      sessionId: entry.descriptor.sessionId,
+    };
+  }
+
+  private materializationInput(entry: RetainedConversation): AcpStartInput {
+    return {
+      ...entry.descriptor,
+      initialQueue: entry.initialQueueConsumed ? undefined : entry.descriptor.initialQueue,
+    };
+  }
+
+  private updateRetainedSessionId(entry: RetainedConversation, sessionId: string): void {
+    if (!this.isRetainedCurrent(entry) || entry.descriptor.sessionId === sessionId) return;
+    entry.descriptor = { ...entry.descriptor, sessionId };
+    if (entry.everMaterialized) this.lifecycle.saveIntent(entry.conversationId);
+  }
+
+  private readyRecord(conversationId: string): SessionRecord | undefined {
+    const state = this.activations.state(conversationId);
+    return state.kind === 'ready' ? state.value : undefined;
+  }
+
+  private recordForCallbacks(conversationId: string): SessionRecord | undefined {
+    return this.readyRecord(conversationId) ?? this.materializing.get(conversationId);
+  }
+
+  private isRetainedCurrent(entry: RetainedConversation): boolean {
+    return !entry.deleted && this.retained.get(entry.conversationId) === entry;
+  }
+
+  private isCurrentRecord(record: SessionRecord): boolean {
+    if (record.disposed || !this.isRetainedCurrent(record.retained)) return false;
+    if (this.materializing.get(record.input.conversationId) === record) return true;
+    const state = this.activations.state(record.input.conversationId);
+    return (
+      (state.kind === 'ready' || state.kind === 'stopping' || state.kind === 'stop-failed') &&
+      state.value === record
+    );
+  }
+
+  private canPublishRecord(record: SessionRecord): boolean {
+    if (record.disposed || !this.isRetainedCurrent(record.retained)) return false;
+    if (this.materializing.get(record.input.conversationId) === record) return true;
+    const state = this.activations.state(record.input.conversationId);
+    return state.kind === 'ready' && state.value === record;
+  }
+
+  private interruptRecord(record: SessionRecord): void {
+    void record.cell.cancel().catch((error) => {
+      this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
+        conversationId: record.input.conversationId,
+        error: String(error),
+      });
+    });
+    void record.cell.closeSession().catch((error) => {
+      this.deps.logger.warn('SessionManager: failed to close provider session during teardown', {
+        conversationId: record.input.conversationId,
+        error: String(error),
+      });
+    });
+  }
+
+  private interruptMaterializing(conversationId: string): void {
+    const record = this.materializing.get(conversationId);
+    if (record) this.interruptRecord(record);
+  }
+
+  private async teardownRecord(record: SessionRecord): Promise<void> {
+    if (record.disposed) return;
+    record.disposed = true;
+    record.cell.dispose();
+    record.machineStateBinding.dispose();
+    this.unregisterRoutes(connectionOwnerId(record), record.input.conversationId);
+    if (this.materializing.get(record.input.conversationId) === record) {
+      this.materializing.delete(record.input.conversationId);
+    }
+    this.terminals.disposeConversation(record.input.conversationId);
+  }
+
+  private discardReplacedRecord(record: SessionRecord): void {
+    void this.teardownRecord(record);
+  }
+
+  private onActivationStateChanged(
+    change: LifecycleRegistryStateChange<SessionRecord, ActivationStartError, never>
+  ): void {
+    switch (change.current.kind) {
+      case 'ready': {
+        const record = change.current.value;
+        record.retained.materializationAbort = undefined;
+        if (this.materializing.get(change.key) === record) this.materializing.delete(change.key);
+        if (!this.isRetainedCurrent(record.retained)) return;
+        this.lifecycle.started(change.key, {
+          conversationId: change.key,
+          providerSessionId: record.cell.acpSessionId,
+          resumeOutcome: record.resumeOutcome,
+        });
+        return;
+      }
+      case 'stopping': {
+        const entry = this.retained.get(change.key);
+        if (entry) this.publishSuspended(entry);
+        return;
+      }
+      case 'idle':
+      case 'start-failed': {
+        const entry = this.retained.get(change.key);
+        if (entry) entry.materializationAbort = undefined;
+        if (entry?.everMaterialized) this.publishSuspended(entry);
+        else entry?.projection.source.set({ kind: 'closed' });
+        return;
+      }
+      case 'disposed': {
+        const entry = this.retained.get(change.key);
+        entry?.projection.source.set({ kind: 'closed' });
+        return;
+      }
+      case 'starting':
+      case 'stop-failed':
+        return;
+    }
+  }
+
+  private mapWakeError<E>(error: ActivationStartError): Result<never, E | AcpWakeFailure> {
+    if (error.type === 'conversation_not_found') return err(error) as Result<never, E>;
+    return err({ kind: 'wake-failed', error });
+  }
+
+  private resolveConversationForSession(processOwner: string, acpSessionId: string): string | null {
+    const route = this.routes.get(processOwner)?.get(acpSessionId);
     if (route) return route;
-    const loading = this.loadingConversations.get(processKey);
+    const loading = this.loadingConversations.get(processOwner);
     const pending = loading?.values().next().value;
     if (!pending) return null;
-    this.registerRoute(processKey, acpSessionId, pending);
+    this.registerRoute(processOwner, acpSessionId, pending);
     return pending;
   }
 
-  private registerRoute(processKey: string, acpSessionId: string, conversationId: string): void {
-    let bySession = this.routes.get(processKey);
+  private registerRoute(processOwner: string, acpSessionId: string, conversationId: string): void {
+    let bySession = this.routes.get(processOwner);
     if (!bySession) {
       bySession = new Map();
-      this.routes.set(processKey, bySession);
+      this.routes.set(processOwner, bySession);
     }
     bySession.set(acpSessionId, conversationId);
   }
 
-  private unregisterRoutes(processKey: string, conversationId: string): void {
-    const bySession = this.routes.get(processKey);
+  private unregisterRoutes(processOwner: string, conversationId: string): void {
+    const bySession = this.routes.get(processOwner);
     if (!bySession) return;
     for (const [sessionId, mappedConversationId] of bySession) {
       if (mappedConversationId === conversationId) bySession.delete(sessionId);
     }
-    if (bySession.size === 0) this.routes.delete(processKey);
+    if (bySession.size === 0) this.routes.delete(processOwner);
   }
 
-  private addLoading(processKey: string, conversationId: string): void {
-    let loading = this.loadingConversations.get(processKey);
+  private addLoading(processOwner: string, conversationId: string): void {
+    let loading = this.loadingConversations.get(processOwner);
     if (!loading) {
       loading = new Set();
-      this.loadingConversations.set(processKey, loading);
+      this.loadingConversations.set(processOwner, loading);
     }
     loading.add(conversationId);
   }
 
-  private removeLoading(processKey: string, conversationId: string): void {
-    const loading = this.loadingConversations.get(processKey);
+  private removeLoading(processOwner: string, conversationId: string): void {
+    const loading = this.loadingConversations.get(processOwner);
     if (!loading) return;
     loading.delete(conversationId);
-    if (loading.size === 0) this.loadingConversations.delete(processKey);
+    if (loading.size === 0) this.loadingConversations.delete(processOwner);
   }
 
   private applyRawMeta(cell: SessionCell, update: SessionUpdate): void {
@@ -904,9 +1272,70 @@ export class SessionManager implements InboundRouter {
   }
 }
 
+function startingSnapshot(): ActivationSnapshot {
+  return {
+    state: { ...closedSessionState, lifecycle: 'starting' },
+    config: initialSessionConfigState,
+    usage: null,
+    plan: null,
+    agents: [],
+    activeTurn: null,
+    terminals: [],
+    mcpServers: [],
+  };
+}
+
+function sessionSummaryEquals(
+  current: SessionSummary,
+  candidate: Omit<SessionSummary, 'updatedAt'>
+): boolean {
+  return (
+    current.conversationId === candidate.conversationId &&
+    current.providerId === candidate.providerId &&
+    current.cwd === candidate.cwd &&
+    current.lifecycle === candidate.lifecycle &&
+    current.suspended === candidate.suspended &&
+    current.isGenerating === candidate.isGenerating &&
+    current.lastStopReason === candidate.lastStopReason &&
+    current.lastTurnErrored === candidate.lastTurnErrored &&
+    current.pendingPermissionCount === candidate.pendingPermissionCount &&
+    current.backgroundAgentCount === candidate.backgroundAgentCount &&
+    current.queuedPromptCount === candidate.queuedPromptCount &&
+    current.title === candidate.title &&
+    current.lastInputAt === candidate.lastInputAt &&
+    current.lastOutputAt === candidate.lastOutputAt
+  );
+}
+
+function isUnambiguousStartError(error: unknown): error is ActivationStartError {
+  if (typeof error !== 'object' || error === null || !('type' in error)) return false;
+  return [
+    'provider_unsupported',
+    'auth_required',
+    'spawn_failed',
+    'initialize_failed',
+    'new_session_failed',
+  ].includes(String(error.type));
+}
+
 function isAuthRequiredError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; cause?: unknown };
   if (value.code === -32000) return true;
   return isAuthRequiredError(value.cause);
+}
+
+function connectionOwnerId(connection: AcpConnectionContext | SessionRecord): string {
+  return 'key' in connection
+    ? `${connection.key}:${connection.generation}`
+    : `${connection.processKey}:${connection.processGeneration}`;
+}
+
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
 }

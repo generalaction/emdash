@@ -37,7 +37,7 @@ import {
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
 import type { StoredAttachment } from './attachment-store';
-import { SessionManager, type HistoryPage } from './session-manager';
+import { SessionManager, type AcpWakeFailure, type HistoryPage } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -65,7 +65,7 @@ export class AcpRuntime {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
         return buildAgentClient(context, manager, { fs, terminals: terminalPort });
       },
-      onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
+      onClosed: (key, generation, exitCode) => manager?.onProcessClosed(key, generation, exitCode),
     });
     manager = new SessionManager(deps, this.connections, this.terminals, {
       fs,
@@ -105,7 +105,7 @@ export class AcpRuntime {
     conversationId: string,
     prompt: PromptInput,
     placement?: PromptPlacement
-  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
     return this.manager.prompt({ conversationId, prompt, placement });
   }
 
@@ -143,7 +143,7 @@ export class AcpRuntime {
   setModeOption(
     conversationId: string,
     modeId: string
-  ): Promise<Result<void, AcpSetModeOptionError>> {
+  ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
     return this.manager.setMode(conversationId, modeId);
   }
 
@@ -151,7 +151,7 @@ export class AcpRuntime {
     conversationId: string,
     dimension: 'model' | 'effort',
     value: string
-  ): Promise<Result<void, AcpSetModelOptionError>> {
+  ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
     return this.manager.setConfigOption(conversationId, dimension, value);
   }
 
@@ -257,7 +257,7 @@ export class AcpRuntime {
   }
 
   async dispose(): Promise<void> {
-    this.manager.dispose();
+    await this.manager.dispose();
     this.killAllTerminals();
     await this.connections.dispose();
   }

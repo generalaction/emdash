@@ -42,6 +42,7 @@ export interface AcpRuntimeDeps {
     session?: IdlePolicyConfig;
     sweepIntervalMs?: number;
     connectionIdleTtlMs?: number;
+    activationDrainTimeoutMs?: number;
   };
   logger: Logger;
 }

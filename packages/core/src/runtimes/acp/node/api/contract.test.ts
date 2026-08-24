@@ -6,6 +6,7 @@ import {
   acpApiContract,
   acpAttachmentErrorSchema,
   acpRuntimeErrorSchema,
+  historyPageSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   sessionUsageSchema,
@@ -65,6 +66,66 @@ describe('ACP API contract schemas', () => {
     }
   });
 
+  it('keeps suspended reads inert and maps implicit wake failures into existing errors', async () => {
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt));
+    const input = makeStartInput({ conversationId: 'conv-wire-suspended' });
+
+    try {
+      await wire.client.start(input);
+      await rt.stopSession(input.conversationId);
+      h.agent.loadSession.mockClear();
+      h.agent.newSession.mockClear();
+
+      await expect(
+        wire.client.getHistory({
+          conversationId: input.conversationId,
+          limit: 50,
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: { turns: [], nextCursor: null, unavailable: true },
+      });
+      expect(h.agent.loadSession).not.toHaveBeenCalled();
+      expect(h.agent.newSession).not.toHaveBeenCalled();
+
+      h.agent.loadSession.mockRejectedValue(new Error('replay failed'));
+      h.agent.newSession.mockRejectedValue(new Error('replacement failed'));
+
+      await expect(
+        wire.client.sendPrompt({
+          conversationId: input.conversationId,
+          prompt: { text: 'wake' },
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'prompt_failed', cause: { name: 'AcpStartError' } },
+      });
+      await expect(
+        wire.client.setModeOption({
+          conversationId: input.conversationId,
+          value: 'agent',
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'set_mode_failed', cause: { name: 'AcpStartError' } },
+      });
+      await expect(
+        wire.client.setModelOption({
+          conversationId: input.conversationId,
+          dimension: 'effort',
+          value: 'high',
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'set_config_failed', cause: { name: 'AcpStartError' } },
+      });
+    } finally {
+      wire.dispose();
+    }
+  });
+
   it('accepts attachment upload sidecar input with or without original path', () => {
     expect(() => uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).not.toThrow();
     expect(() =>
@@ -91,6 +152,32 @@ describe('ACP API contract schemas', () => {
       acpAttachmentErrorSchema.parse({
         type: 'attachment_not_found',
         message: "Attachment 'missing' not found",
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts additive suspension and unavailable-history fields', () => {
+    expect(() =>
+      sessionStateSchema.parse({
+        lifecycle: 'closed',
+        suspended: true,
+        activeTurnId: null,
+        pendingPermissions: [],
+        lastStopReason: null,
+        lastTurnErrored: false,
+        queuedPrompts: [],
+        agentTurnActive: false,
+        backgroundAgentCount: 0,
+        isGenerating: false,
+        canSubmit: true,
+        canCancel: false,
+      })
+    ).not.toThrow();
+    expect(() =>
+      historyPageSchema.parse({
+        turns: [],
+        nextCursor: null,
+        unavailable: true,
       })
     ).not.toThrow();
   });
