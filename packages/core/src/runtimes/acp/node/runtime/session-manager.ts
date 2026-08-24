@@ -19,7 +19,6 @@ import {
 } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { produce } from '@emdash/wire/state';
 import { z } from 'zod';
 import type {
   AcpCancelTurnError,
@@ -38,12 +37,10 @@ import type {
   NormalizedEvent,
   SessionMcpServer,
   SessionState,
-  SessionSummary,
   TerminalState,
   TranscriptTurn,
 } from '#runtimes/acp/api';
 import { acpErr, acpStartInputSchema, initialSessionConfigState } from '#runtimes/acp/api';
-import type { InboundRouter } from '#runtimes/acp/node/agent-ports/agent-client';
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
@@ -77,6 +74,8 @@ import type {
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
+import { connectionRouteOwnerId, SessionRouter } from './session-router';
+import { SessionsListProjector } from './sessions-list-projector';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 const DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS = 5_000;
@@ -152,18 +151,20 @@ export interface HistoryPage {
   unavailable?: true;
 }
 
-export class SessionManager implements InboundRouter {
+export class SessionManager {
   readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
   readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
+  readonly router: SessionRouter;
   private readonly activations: ActivationRegistry;
   private readonly retained = new Map<string, RetainedConversation>();
   private readonly materializing = new Map<string, SessionRecord>();
   private readonly evictions = new Map<string, Promise<void>>();
-  private readonly routes = new Map<string, Map<string, string>>();
-  private readonly loadingConversations = new Map<string, Set<string>>();
+  private readonly routes: Map<string, Map<string, string>>;
+  private readonly loadingConversations: Map<string, Set<string>>;
   private readonly clock: Clock;
   private readonly lifecycle: ConversationSessionLifecycle;
+  private readonly listProjector: SessionsListProjector;
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
@@ -172,6 +173,24 @@ export class SessionManager implements InboundRouter {
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {
     this.clock = deps.clock ?? systemClock;
+    this.router = new SessionRouter(
+      {
+        onSessionUpdate: (conversationId, connection, params, event) =>
+          this.handleSessionUpdate(conversationId, connection, params, event),
+        onPermissionRequest: (conversationId, connection, params) =>
+          this.handlePermissionRequest(conversationId, connection, params),
+        onCreateTerminal: (conversationId, connection, params) =>
+          this.handleCreateTerminal(conversationId, connection, params),
+      },
+      deps.logger
+    );
+    this.routes = this.router.routes;
+    this.loadingConversations = this.router.loadingConversations;
+    this.listProjector = new SessionsListProjector(
+      this.sessionsList,
+      this.clock,
+      (conversationId) => this.lifecycle.activity(conversationId)
+    );
     this.activations = createLifecycleRegistry<
       RetainedConversation,
       SessionRecord,
@@ -280,7 +299,7 @@ export class SessionManager implements InboundRouter {
       kind: 'active',
       snapshot: startingSnapshot(),
     });
-    this.upsertSessionSummary(input, null, {
+    this.listProjector.upsert(input, null, {
       lifecycle: 'starting',
       isGenerating: false,
       pendingPermissionCount: 0,
@@ -330,8 +349,12 @@ export class SessionManager implements InboundRouter {
           input.sessionId,
           scope
         );
-        this.addLoading(connectionOwnerId(connection), input.conversationId);
-        this.registerRoute(connectionOwnerId(connection), input.sessionId, input.conversationId);
+        this.router.addLoading(connectionRouteOwnerId(connection), input.conversationId);
+        this.router.register(
+          connectionRouteOwnerId(connection),
+          input.sessionId,
+          input.conversationId
+        );
         record.cell.beginReplay();
 
         let loaded = false;
@@ -365,7 +388,7 @@ export class SessionManager implements InboundRouter {
             conversationId: input.conversationId,
           });
         } finally {
-          this.removeLoading(connectionOwnerId(connection), input.conversationId);
+          this.router.removeLoading(connectionRouteOwnerId(connection), input.conversationId);
         }
 
         if (!loaded) {
@@ -410,8 +433,8 @@ export class SessionManager implements InboundRouter {
         record.cell.applySessionReady();
       }
 
-      this.registerRoute(
-        connectionOwnerId(connection),
+      this.router.register(
+        connectionRouteOwnerId(connection),
         record.cell.acpSessionId,
         input.conversationId
       );
@@ -629,28 +652,18 @@ export class SessionManager implements InboundRouter {
     this.terminals.killAll();
   }
 
-  onSessionUpdate(
+  private handleSessionUpdate(
+    conversationId: string,
     connection: AcpConnectionContext,
     params: SessionNotification,
     event: NormalizedEvent
   ): void {
-    const conversationId = this.resolveConversationForSession(
-      connectionOwnerId(connection),
-      params.sessionId
-    );
-    if (!conversationId) {
-      this.deps.logger.warn('SessionManager: sessionUpdate for unknown sessionId', {
-        sessionId: params.sessionId,
-      });
-      return;
-    }
-
     const record = this.recordForCallbacks(conversationId);
     if (!record) return;
     this.lifecycle.recordOutput(conversationId);
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
-      this.registerRoute(connectionOwnerId(connection), params.sessionId, conversationId);
+      this.router.register(connectionRouteOwnerId(connection), params.sessionId, conversationId);
       this.updateRetainedSessionId(record.retained, params.sessionId);
       this.lifecycle.providerSessionId(conversationId, {
         conversationId,
@@ -667,33 +680,24 @@ export class SessionManager implements InboundRouter {
     this.syncRecord(record);
   }
 
-  onPermissionRequest(
-    connection: AcpConnectionContext,
+  private handlePermissionRequest(
+    conversationId: string,
+    _connection: AcpConnectionContext,
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse> {
-    const conversationId = this.resolveConversationForSession(
-      connectionOwnerId(connection),
-      params.sessionId
-    );
-    const record = conversationId ? this.recordForCallbacks(conversationId) : undefined;
-    if (!conversationId || !record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+    const record = this.recordForCallbacks(conversationId);
+    if (!record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
     this.lifecycle.recordOutput(conversationId);
     const response = record.cell.requestPermission(params);
     this.syncRecord(record);
     return response;
   }
 
-  onCreateTerminal(
+  private handleCreateTerminal(
+    conversationId: string,
     connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    const conversationId = this.resolveConversationForSession(
-      connectionOwnerId(connection),
-      params.sessionId
-    );
-    if (!conversationId) {
-      throw new Error(`SessionManager: no conversation for ACP sessionId ${params.sessionId}`);
-    }
     return this.ports.terminals.createTerminal(conversationId, connection.cwd, params);
   }
 
@@ -838,7 +842,7 @@ export class SessionManager implements InboundRouter {
   private syncRecord(record: SessionRecord): void {
     if (!this.canPublishRecord(record)) return;
     record.retained.projection.source.set({ kind: 'active', snapshot: this.buildSnapshot(record) });
-    this.upsertSessionSummary(record.input, record.cell, record.cell.sessionState);
+    this.listProjector.upsert(record.input, record.cell, record.cell.sessionState);
   }
 
   private buildSnapshot(record: SessionRecord): ActivationSnapshot {
@@ -874,66 +878,14 @@ export class SessionManager implements InboundRouter {
     }
   }
 
-  private upsertSessionSummary(
-    input: AcpStartInput,
-    cell: SessionCell | null,
-    state: {
-      lifecycle: SessionState['lifecycle'];
-      isGenerating: boolean;
-      backgroundAgentCount: number;
-      pendingPermissions?: SessionState['pendingPermissions'];
-      queuedPrompts?: SessionState['queuedPrompts'];
-      pendingPermissionCount?: number;
-      queuedPromptCount?: number;
-      suspended?: true;
-    }
-  ): void {
-    const summary: Omit<SessionSummary, 'updatedAt'> = {
-      conversationId: input.conversationId,
-      providerId: input.providerId,
-      cwd: input.cwd,
-      lifecycle: state.lifecycle,
-      ...(state.suspended ? { suspended: true as const } : {}),
-      isGenerating: state.isGenerating,
-      lastStopReason: cell?.sessionState.lastStopReason ?? null,
-      lastTurnErrored: cell?.sessionState.lastTurnErrored ?? false,
-      pendingPermissionCount: state.pendingPermissionCount ?? state.pendingPermissions?.length ?? 0,
-      backgroundAgentCount: state.backgroundAgentCount,
-      queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,
-      title: cell?.transcript.title ?? null,
-    };
-    const activity = this.lifecycle.activity(input.conversationId);
-    if (activity.lastInputAt !== null) summary.lastInputAt = activity.lastInputAt;
-    if (activity.lastOutputAt !== null) summary.lastOutputAt = activity.lastOutputAt;
-    this.sessionsList.states.list.update((previous) => {
-      const current = previous[input.conversationId];
-      if (current && sessionSummaryEquals(current, summary)) return previous;
-      return produce(previous, (draft) => {
-        draft[input.conversationId] = { ...summary, updatedAt: this.clock.now() };
-      });
-    });
-  }
-
   private publishSuspended(entry: RetainedConversation): void {
     if (!this.isRetainedCurrent(entry)) return;
     entry.projection.source.set({ kind: 'suspended' });
-    this.upsertSessionSummary(entry.descriptor, null, {
-      lifecycle: 'closed',
-      suspended: true,
-      isGenerating: false,
-      pendingPermissionCount: 0,
-      backgroundAgentCount: 0,
-      queuedPromptCount: 0,
-    });
+    this.listProjector.suspend(entry.descriptor);
   }
 
   private deleteSessionSummary(conversationId: string): void {
-    this.sessionsList.states.list.update((previous) => {
-      if (!(conversationId in previous)) return previous;
-      return produce(previous, (draft) => {
-        delete draft[conversationId];
-      });
-    });
+    this.listProjector.remove(conversationId);
   }
 
   private evict(conversationId: string, options: EvictOptions): Promise<void> {
@@ -947,22 +899,7 @@ export class SessionManager implements InboundRouter {
   }
 
   private syncSessionActivity(conversationId: string, activity: ActivityFields): void {
-    this.sessionsList.states.list.update((previous) => {
-      const current = previous[conversationId];
-      if (!current) return previous;
-      const lastInputAt = activity.lastInputAt ?? current.lastInputAt;
-      const lastOutputAt = activity.lastOutputAt ?? current.lastOutputAt;
-      if (current.lastInputAt === lastInputAt && current.lastOutputAt === lastOutputAt) {
-        return previous;
-      }
-      return produce(previous, (draft) => {
-        const next = draft[conversationId];
-        if (!next) return;
-        if (activity.lastInputAt !== null) next.lastInputAt = activity.lastInputAt;
-        if (activity.lastOutputAt !== null) next.lastOutputAt = activity.lastOutputAt;
-        next.updatedAt = this.clock.now();
-      });
-    });
+    this.listProjector.syncActivity(conversationId, activity);
   }
 
   private lifecycleSnapshot(conversationId: string): SessionSnapshotJudgment | null {
@@ -1114,7 +1051,7 @@ export class SessionManager implements InboundRouter {
     record.disposed = true;
     record.cell.dispose();
     record.machineStateBinding.dispose();
-    this.unregisterRoutes(connectionOwnerId(record), record.input.conversationId);
+    this.router.unregister(recordRouteOwnerId(record), record.input.conversationId);
     if (this.materializing.get(record.input.conversationId) === record) {
       this.materializing.delete(record.input.conversationId);
     }
@@ -1168,50 +1105,6 @@ export class SessionManager implements InboundRouter {
   private mapWakeError<E>(error: ActivationStartError): Result<never, E | AcpWakeFailure> {
     if (error.type === 'conversation_not_found') return err(error) as Result<never, E>;
     return err({ kind: 'wake-failed', error });
-  }
-
-  private resolveConversationForSession(processOwner: string, acpSessionId: string): string | null {
-    const route = this.routes.get(processOwner)?.get(acpSessionId);
-    if (route) return route;
-    const loading = this.loadingConversations.get(processOwner);
-    const pending = loading?.values().next().value;
-    if (!pending) return null;
-    this.registerRoute(processOwner, acpSessionId, pending);
-    return pending;
-  }
-
-  private registerRoute(processOwner: string, acpSessionId: string, conversationId: string): void {
-    let bySession = this.routes.get(processOwner);
-    if (!bySession) {
-      bySession = new Map();
-      this.routes.set(processOwner, bySession);
-    }
-    bySession.set(acpSessionId, conversationId);
-  }
-
-  private unregisterRoutes(processOwner: string, conversationId: string): void {
-    const bySession = this.routes.get(processOwner);
-    if (!bySession) return;
-    for (const [sessionId, mappedConversationId] of bySession) {
-      if (mappedConversationId === conversationId) bySession.delete(sessionId);
-    }
-    if (bySession.size === 0) this.routes.delete(processOwner);
-  }
-
-  private addLoading(processOwner: string, conversationId: string): void {
-    let loading = this.loadingConversations.get(processOwner);
-    if (!loading) {
-      loading = new Set();
-      this.loadingConversations.set(processOwner, loading);
-    }
-    loading.add(conversationId);
-  }
-
-  private removeLoading(processOwner: string, conversationId: string): void {
-    const loading = this.loadingConversations.get(processOwner);
-    if (!loading) return;
-    loading.delete(conversationId);
-    if (loading.size === 0) this.loadingConversations.delete(processOwner);
   }
 
   private applyRawMeta(cell: SessionCell, update: SessionUpdate): void {
@@ -1285,28 +1178,6 @@ function startingSnapshot(): ActivationSnapshot {
   };
 }
 
-function sessionSummaryEquals(
-  current: SessionSummary,
-  candidate: Omit<SessionSummary, 'updatedAt'>
-): boolean {
-  return (
-    current.conversationId === candidate.conversationId &&
-    current.providerId === candidate.providerId &&
-    current.cwd === candidate.cwd &&
-    current.lifecycle === candidate.lifecycle &&
-    current.suspended === candidate.suspended &&
-    current.isGenerating === candidate.isGenerating &&
-    current.lastStopReason === candidate.lastStopReason &&
-    current.lastTurnErrored === candidate.lastTurnErrored &&
-    current.pendingPermissionCount === candidate.pendingPermissionCount &&
-    current.backgroundAgentCount === candidate.backgroundAgentCount &&
-    current.queuedPromptCount === candidate.queuedPromptCount &&
-    current.title === candidate.title &&
-    current.lastInputAt === candidate.lastInputAt &&
-    current.lastOutputAt === candidate.lastOutputAt
-  );
-}
-
 function isUnambiguousStartError(error: unknown): error is ActivationStartError {
   if (typeof error !== 'object' || error === null || !('type' in error)) return false;
   return [
@@ -1325,10 +1196,8 @@ function isAuthRequiredError(error: unknown): boolean {
   return isAuthRequiredError(value.cause);
 }
 
-function connectionOwnerId(connection: AcpConnectionContext | SessionRecord): string {
-  return 'key' in connection
-    ? `${connection.key}:${connection.generation}`
-    : `${connection.processKey}:${connection.processGeneration}`;
+function recordRouteOwnerId(record: SessionRecord): string {
+  return `${record.processKey}:${record.processGeneration}`;
 }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {

@@ -63,7 +63,7 @@ export class AcpRuntime {
       idleTtlMs: deps.lifecycle?.connectionIdleTtlMs ?? 120_000,
       buildClient: (_agent, context) => {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
-        return buildAgentClient(context, manager, { fs, terminals: terminalPort });
+        return buildAgentClient(context, manager.router, { fs, terminals: terminalPort });
       },
       onClosed: (key, generation, exitCode) => manager?.onProcessClosed(key, generation, exitCode),
     });
