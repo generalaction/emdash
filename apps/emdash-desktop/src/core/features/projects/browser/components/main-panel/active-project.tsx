@@ -51,14 +51,13 @@ export const ActiveProject = observer(function ActiveProject() {
         onValueChange={(nextView) => view.setProjectView(nextView)}
         ariaLabel="Project sections"
         panelId={PROJECT_SECTION_PANEL_ID}
-        className="mx-auto max-w-4xl"
       />
       <section
         role="tabpanel"
         id={PROJECT_SECTION_PANEL_ID}
         aria-labelledby={getPillTabId(PROJECT_SECTION_PANEL_ID, activeView)}
         className={cn(
-          'mx-auto flex w-full max-w-4xl flex-col px-1',
+          'flex w-full flex-col px-1',
           virtualizedSection ? 'h-[calc(100vh-16rem)] min-h-96' : 'min-h-[calc(100vh-16rem)]'
         )}
       >

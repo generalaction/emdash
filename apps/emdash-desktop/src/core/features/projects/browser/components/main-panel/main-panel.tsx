@@ -90,9 +90,14 @@ export function ProjectPageShell({
       data-project-page-scroll
       className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto"
     >
-      <div className="mx-auto flex min-h-full w-full max-w-265 flex-col gap-6 px-8 py-10">
-        <ProjectHeader projectId={projectId} />
-        {children}
+      <div className="flex min-h-full w-full px-8 py-10">
+        <div
+          data-project-page-content
+          className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6"
+        >
+          <ProjectHeader projectId={projectId} />
+          {children}
+        </div>
       </div>
     </div>
   );

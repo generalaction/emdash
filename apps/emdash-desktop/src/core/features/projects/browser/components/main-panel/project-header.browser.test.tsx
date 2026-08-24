@@ -91,7 +91,6 @@ describe('ProjectHeader', () => {
   it('shows local Project identity and preserves repository, Open In, and remove actions', async () => {
     await act(async () => root.render(<ProjectHeader projectId="project-1" />));
 
-    expect(host.querySelector('header')?.classList.contains('max-w-4xl')).toBe(true);
     expect(host.querySelector('h1')?.textContent).toBe('Emdash');
     const identityIcon = host.querySelector('[data-severity="neutral"]');
     expect(identityIcon?.querySelector('.lucide-folder-open')).not.toBeNull();
