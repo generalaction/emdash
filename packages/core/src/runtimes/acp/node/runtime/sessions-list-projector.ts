@@ -17,7 +17,17 @@ export type SessionSummaryState = {
   suspended?: true;
 };
 
+export type SuspendedIntentListEntry = {
+  conversationId: string;
+  providerId: string;
+  cwd?: string;
+  updatedAt: number;
+};
+
 export class SessionsListProjector {
+  private readonly liveConversationIds = new Set<string>();
+  private readonly suspendedIntentRows = new Map<string, SessionSummary>();
+
   constructor(
     readonly model: SessionsListModel,
     private readonly clock: Clock,
@@ -25,6 +35,7 @@ export class SessionsListProjector {
   ) {}
 
   upsert(input: AcpStartInput, cell: SessionCell | null, state: SessionSummaryState): void {
+    this.liveConversationIds.add(input.conversationId);
     const summary: Omit<SessionSummary, 'updatedAt'> = {
       conversationId: input.conversationId,
       providerId: input.providerId,
@@ -63,6 +74,36 @@ export class SessionsListProjector {
   }
 
   remove(conversationId: string): void {
+    this.liveConversationIds.delete(conversationId);
+    this.model.states.list.update((previous) => {
+      const fallback = this.suspendedIntentRows.get(conversationId);
+      if (fallback && previous[conversationId] === fallback) return previous;
+      if (!fallback && !(conversationId in previous)) return previous;
+      return produce(previous, (draft) => {
+        if (fallback) draft[conversationId] = fallback;
+        else delete draft[conversationId];
+      });
+    });
+  }
+
+  replaceSuspendedIntents(entries: Iterable<SuspendedIntentListEntry>): void {
+    this.suspendedIntentRows.clear();
+    for (const entry of entries) {
+      this.suspendedIntentRows.set(entry.conversationId, suspendedIntentSummary(entry));
+    }
+    this.model.states.list.update((previous) => {
+      const next: Record<string, SessionSummary> = Object.fromEntries(this.suspendedIntentRows);
+      for (const conversationId of this.liveConversationIds) {
+        const live = previous[conversationId];
+        if (live) next[conversationId] = live;
+      }
+      return sessionSummaryRecordsEqual(previous, next) ? previous : next;
+    });
+  }
+
+  removeSuspendedIntent(conversationId: string): void {
+    if (!this.suspendedIntentRows.delete(conversationId)) return;
+    if (this.liveConversationIds.has(conversationId)) return;
     this.model.states.list.update((previous) => {
       if (!(conversationId in previous)) return previous;
       return produce(previous, (draft) => {
@@ -89,6 +130,44 @@ export class SessionsListProjector {
       });
     });
   }
+}
+
+function suspendedIntentSummary(entry: SuspendedIntentListEntry): SessionSummary {
+  return {
+    conversationId: entry.conversationId,
+    providerId: entry.providerId,
+    cwd: entry.cwd,
+    lifecycle: 'closed',
+    suspended: true,
+    isGenerating: false,
+    lastStopReason: null,
+    lastTurnErrored: false,
+    pendingPermissionCount: 0,
+    backgroundAgentCount: 0,
+    queuedPromptCount: 0,
+    title: null,
+    updatedAt: entry.updatedAt,
+  };
+}
+
+function sessionSummaryRecordsEqual(
+  current: Record<string, SessionSummary>,
+  candidate: Record<string, SessionSummary>
+): boolean {
+  const currentIds = Object.keys(current);
+  const candidateIds = Object.keys(candidate);
+  if (currentIds.length !== candidateIds.length) return false;
+  return candidateIds.every((conversationId) => {
+    const currentSummary = current[conversationId];
+    const candidateSummary = candidate[conversationId];
+    return (
+      currentSummary === candidateSummary ||
+      (currentSummary !== undefined &&
+        candidateSummary !== undefined &&
+        currentSummary.updatedAt === candidateSummary.updatedAt &&
+        sessionSummaryEquals(currentSummary, candidateSummary))
+    );
+  });
 }
 
 function sessionSummaryEquals(

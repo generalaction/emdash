@@ -43,6 +43,7 @@ import {
   createAcpSessionLiveHost,
   createAcpSessionsLiveHost,
   createSessionsListModel,
+  suspendedSessionState,
   type ActivationSnapshot,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
@@ -66,7 +67,7 @@ import type {
 } from './conversation-types';
 import { SessionMaterializer } from './session-materializer';
 import { connectionRouteOwnerId, SessionRouter } from './session-router';
-import { SessionsListProjector } from './sessions-list-projector';
+import { SessionsListProjector, type SuspendedIntentListEntry } from './sessions-list-projector';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 const DEFAULT_ACTIVATION_DRAIN_TIMEOUT_MS = 5_000;
@@ -101,12 +102,19 @@ export interface HistoryPage {
   unavailable?: true;
 }
 
+type SuspendedIntentEntry = {
+  descriptor: AcpStartInput;
+  configOverrides: ConfigOverrides;
+  summary: SuspendedIntentListEntry;
+};
+
 export class SessionManager {
   readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
   readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
   readonly router: SessionRouter;
   private readonly retained = new Map<string, ConversationHandle>();
+  private readonly suspendedIntents = new Map<string, SuspendedIntentEntry>();
   private readonly routes: Map<string, Map<string, string>>;
   private readonly loadingConversations: Map<string, Set<string>>;
   private readonly clock: Clock;
@@ -191,7 +199,7 @@ export class SessionManager {
         activePayload: (conversationId) => this.activeIntentPayload(conversationId),
         reconcile: {
           parse: (intent): { input: ConversationHandle } | { suspend: string } => {
-            const entry = this.restoreRetainedIntent(intent);
+            const entry = this.restoreActiveIntent(intent);
             return entry ? { input: entry } : { suspend: 'reconcile-failed' };
           },
           resume: (entry) => this.startRetained(entry),
@@ -202,7 +210,7 @@ export class SessionManager {
 
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     await this.retained.get(input.conversationId)?.waitForEviction();
-    const existing = this.retained.get(input.conversationId);
+    const existing = this.getOrRestoreHandle(input.conversationId);
     const entry = existing ?? this.createHandle(input, { suspended: false });
     this.lifecycle.recordInput(input.conversationId);
 
@@ -257,7 +265,7 @@ export class SessionManager {
   async prompt(
     input: SendPromptInput
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
-    const entry = this.retained.get(input.conversationId);
+    const entry = this.getOrRestoreHandle(input.conversationId);
     if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
     await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
@@ -288,14 +296,18 @@ export class SessionManager {
     input: SendPromptInput['prompt']
   ): Result<void, AcpEditQueuedPromptError> {
     const retained = this.retained.get(conversationId);
-    if (!retained) return acpErr.conversationNotFound(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
     const record = this.readyRecord(conversationId);
     return record ? record.cell.editQueuedPrompt(id, input) : ok();
   }
 
   removeQueuedPrompt(conversationId: string, id: string): Result<void, AcpDeleteQueuedPromptError> {
     const retained = this.retained.get(conversationId);
-    if (!retained) return acpErr.conversationNotFound(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
     const record = this.readyRecord(conversationId);
     return record ? record.cell.removeQueuedPrompt(id) : ok();
   }
@@ -305,7 +317,9 @@ export class SessionManager {
     ids: readonly string[]
   ): Result<void, AcpChangeQueuePromptOrderError> {
     const retained = this.retained.get(conversationId);
-    if (!retained) return acpErr.conversationNotFound(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
     const record = this.readyRecord(conversationId);
     return record ? record.cell.reorderQueue(ids) : ok();
   }
@@ -325,6 +339,7 @@ export class SessionManager {
   async kill(conversationId: string): Promise<Result<void, never>> {
     const entry = this.retained.get(conversationId);
     if (entry) {
+      this.removeSuspendedIntentEntry(conversationId);
       const materializingRecord =
         entry.state === 'materializing' ? entry.currentRecord() : undefined;
       entry.kill();
@@ -338,7 +353,28 @@ export class SessionManager {
       return ok();
     }
 
-    await this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' });
+    const indexed = this.suspendedIntents.delete(conversationId);
+    if (indexed) this.listProjector.removeSuspendedIntent(conversationId);
+    await this.lifecycle.evict(conversationId, {
+      cause: 'user',
+      intent: indexed ? 'keep' : 'remove',
+    });
+    if (indexed) {
+      try {
+        const removed = await this.deps.intents.remove(conversationId);
+        if (!removed.success) {
+          this.deps.logger.warn('SessionManager: failed to remove suspended session intent', {
+            conversationId,
+            error: removed.error,
+          });
+        }
+      } catch (error) {
+        this.deps.logger.warn('SessionManager: failed to remove suspended session intent', {
+          conversationId,
+          error: String(error),
+        });
+      }
+    }
     return ok();
   }
 
@@ -348,7 +384,9 @@ export class SessionManager {
     optionId: string
   ): Result<void, AcpResolvePermissionError> {
     const retained = this.retained.get(conversationId);
-    if (!retained) return acpErr.conversationNotFound(conversationId);
+    if (!retained && !this.suspendedIntents.has(conversationId)) {
+      return acpErr.conversationNotFound(conversationId);
+    }
     const record = this.readyRecord(conversationId);
     return record ? record.cell.resolvePermission(requestId, optionId) : ok();
   }
@@ -357,7 +395,7 @@ export class SessionManager {
     conversationId: string,
     modeId: string
   ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
-    const entry = this.retained.get(conversationId);
+    const entry = this.getOrRestoreHandle(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
     await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
@@ -378,7 +416,7 @@ export class SessionManager {
     dimension: ConfigDimension,
     value: string
   ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
-    const entry = this.retained.get(conversationId);
+    const entry = this.getOrRestoreHandle(conversationId);
     if (!entry) return acpErr.conversationNotFound(conversationId);
     await entry.waitForEviction();
     if (!entry.isCurrent()) return acpErr.conversationNotFound(conversationId);
@@ -415,7 +453,10 @@ export class SessionManager {
   }
 
   getHistory(conversationId: string, before?: number, limit = 50): HistoryPage {
-    if (this.retained.has(conversationId) && !this.readyRecord(conversationId)) {
+    if (
+      (this.retained.has(conversationId) || this.suspendedIntents.has(conversationId)) &&
+      !this.readyRecord(conversationId)
+    ) {
       return { turns: [], nextCursor: null, unavailable: true };
     }
     const turns = this.getChatHistory(conversationId).committed;
@@ -426,7 +467,10 @@ export class SessionManager {
   }
 
   getSessionState(conversationId: string): SessionState {
-    return this.retained.get(conversationId)?.sessionState() ?? closedSessionState;
+    return (
+      this.retained.get(conversationId)?.sessionState() ??
+      (this.suspendedIntents.has(conversationId) ? suspendedSessionState : closedSessionState)
+    );
   }
 
   getTerminals(conversationId: string): TerminalState[] {
@@ -438,7 +482,7 @@ export class SessionManager {
   }
 
   getLiveModels(conversationId: string): SessionLiveModels | null {
-    return this.retained.get(conversationId)?.projection ?? null;
+    return this.getOrRestoreHandle(conversationId)?.projection ?? null;
   }
 
   syncTerminals(conversationId: string): void {
@@ -527,16 +571,27 @@ export class SessionManager {
     this.lifecycle.dispose();
     await Promise.all([...this.retained.values()].map((entry) => entry.dispose()));
     this.retained.clear();
+    this.suspendedIntents.clear();
     await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
   }
 
   async reconcile(): Promise<void> {
     const listed = await this.deps.intents.list();
     if (listed.success) {
+      const suspended = new Map<string, SuspendedIntentEntry>();
       for (const intent of listed.data) {
         if (intent.status !== 'suspended') continue;
-        this.restoreRetainedIntent(intent);
+        if (this.retained.has(intent.conversationId)) continue;
+        const indexed = this.parseIntent(intent);
+        if (indexed) suspended.set(intent.conversationId, indexed);
       }
+      this.suspendedIntents.clear();
+      for (const [conversationId, entry] of suspended) {
+        this.suspendedIntents.set(conversationId, entry);
+      }
+      this.listProjector.replaceSuspendedIntents(
+        [...this.suspendedIntents.values()].map((entry) => entry.summary)
+      );
     } else {
       this.deps.logger.warn('SessionManager: failed to restore suspended session intents', {
         error: listed.error,
@@ -637,24 +692,60 @@ export class SessionManager {
     );
     this.retained.set(input.conversationId, entry);
     if (options.suspended) entry.initializeSuspended();
+    this.removeSuspendedIntentEntry(input.conversationId);
     return entry;
   }
 
-  private restoreRetainedIntent(intent: SessionIntent): ConversationHandle | null {
+  private parseIntent(intent: SessionIntent): SuspendedIntentEntry | null {
     const parsed = retainedIntentSchema.safeParse(intent.payload);
     const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
     if (!parsed.success || !sessionId) return null;
+    const { configOverrides, ...input } = parsed.data;
+    const descriptor = {
+      ...input,
+      conversationId: intent.conversationId,
+      sessionId,
+      initialQueue: undefined,
+    };
+    return {
+      descriptor,
+      configOverrides: configOverrides ?? (input.model ? { model: input.model } : {}),
+      summary: {
+        conversationId: intent.conversationId,
+        providerId: descriptor.providerId,
+        cwd: descriptor.cwd,
+        updatedAt: intent.updatedAt,
+      },
+    };
+  }
+
+  private restoreActiveIntent(intent: SessionIntent): ConversationHandle | null {
     const existing = this.retained.get(intent.conversationId);
     if (existing) return existing;
-    const { configOverrides, ...input } = parsed.data;
-    return this.createHandle(
-      { ...input, conversationId: intent.conversationId, sessionId, initialQueue: undefined },
-      {
-        suspended: true,
-        configOverrides: configOverrides ?? (input.model ? { model: input.model } : {}),
-        consumed: true,
-      }
-    );
+    const indexed = this.parseIntent(intent);
+    if (!indexed) return null;
+    return this.createHandle(indexed.descriptor, {
+      suspended: true,
+      configOverrides: indexed.configOverrides,
+      consumed: true,
+    });
+  }
+
+  private getOrRestoreHandle(conversationId: string): ConversationHandle | null {
+    const existing = this.retained.get(conversationId);
+    if (existing) return existing;
+    const indexed = this.suspendedIntents.get(conversationId);
+    if (!indexed) return null;
+    return this.createHandle(indexed.descriptor, {
+      suspended: true,
+      configOverrides: indexed.configOverrides,
+      consumed: true,
+    });
+  }
+
+  private removeSuspendedIntentEntry(conversationId: string): void {
+    if (!this.suspendedIntents.delete(conversationId)) return;
+    this.listProjector.removeSuspendedIntent(conversationId);
   }
 
   private activeIntentPayload(conversationId: string) {
