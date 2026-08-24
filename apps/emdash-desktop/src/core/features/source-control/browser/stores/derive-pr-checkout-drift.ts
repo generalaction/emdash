@@ -1,6 +1,6 @@
 import type { PrCheckoutDrift } from '@core/services/pull-requests/api';
 
-/** Registry-observed git facts the drift join needs (mirror observedGit v2 subset). */
+/** Git facts the drift join needs, from either live checkout state or the registry mirror. */
 export type PrDriftObservedFacts = {
   /** Full OID of the observed HEAD; null on unborn HEAD or probe failure. */
   headOid: string | null;
@@ -11,8 +11,9 @@ export type PrDriftObservedFacts = {
 
 /**
  * Derives the checkout-drift state for a PR-associated workspace by joining the
- * registry observation with the synced PR cache (pr-workspace-model spec,
- * Staleness). Pure over its inputs — no observers, no polling, no sync triggers.
+ * live checkout model (falling back to its registry observation) with the synced
+ * PR cache (pr-workspace-model spec, Staleness). Pure over its inputs — no
+ * observers, no polling, no sync triggers.
  *
  * Detail flags on `drifted` are best-effort against the observed `@{u}` counts
  * (ancestry is not computable desktop-side):
@@ -26,20 +27,23 @@ export type PrDriftObservedFacts = {
  *   an unfetched PR move) and when the counts never resolved.
  */
 export function derivePrCheckoutDrift(input: {
-  /** Mirror observedGit v2 facts; null (old host / v1 payload) reads unknown. */
+  /** Direct checkout live-model facts; preferred whenever that model has emitted. */
+  checkout?: PrDriftObservedFacts | null;
+  /** Mirror observedGit v2 facts; fallback for an unavailable live checkout model. */
   observed: PrDriftObservedFacts | null;
   /** The associated PR's cache row; null when unassociated or uncached. */
   pr: { headRefOid: string } | null;
   /** The PR cache's last-sync stamp (epoch ms), when known. */
   syncedAt: number | null;
 }): PrCheckoutDrift {
-  const headOid = input.observed?.headOid ?? null;
+  const facts = input.checkout ?? input.observed;
+  const headOid = facts?.headOid ?? null;
   const prHeadOid = input.pr?.headRefOid || null;
   if (headOid === null || prHeadOid === null) return { kind: 'unknown' };
   if (headOid === prHeadOid) return { kind: 'in-sync', syncedAt: input.syncedAt };
 
-  const ahead = input.observed?.ahead ?? null;
-  const behind = input.observed?.behind ?? null;
+  const ahead = facts?.ahead ?? null;
+  const behind = facts?.behind ?? null;
   return {
     kind: 'drifted',
     localAhead: ahead === null ? null : ahead > 0,

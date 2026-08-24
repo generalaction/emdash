@@ -19,7 +19,8 @@ export type UpdateWorktreeExecution = {
   tier?: Extract<GitWorkTier, 'activation' | 'background'>;
   /**
    * True when the workspace must not move (live sessions under the worktree path).
-   * Consulted under the writer lock, immediately before any git work.
+   * Consulted under the writer lock after a checkout-neutral fetch proves a
+   * worktree mutation is needed.
    */
   isActive: () => Promise<boolean> | boolean;
 };
@@ -40,7 +41,7 @@ export type UpdateWorktreeExecutionResult =
  * remote and source ref arrive from the caller; nothing here reads durable records.
  *
  * The per-worktree writer lock is taken synchronously, before the first await, and
- * held across guard checks, fetch, and merge, so probes/scans (which wait on
+ * held across fetch, guard checks, and merge, so probes/scans (which wait on
  * `whenUnlocked`) never observe a torn checkout and the guards cannot go stale
  * against a concurrent mutator.
  *
@@ -61,16 +62,6 @@ export async function executeUpdateWorktree(
     repository: execution.repositoryPath,
   });
   return execution.git.locks.withWriter(execution.worktreePath, async () => {
-    if (await execution.isActive()) {
-      return { status: 'refused', reason: 'active-sessions' };
-    }
-    try {
-      // The observation's notion of dirty: any status entry, untracked included.
-      if (await isDirty(exec)) return { status: 'refused', reason: 'dirty' };
-    } catch (error) {
-      return { status: 'failed', stage: 'inspect', message: toMessage(error) };
-    }
-
     const tempRef = `refs/emdash/update/${crypto.randomUUID()}`;
     try {
       let fetchedOid: string;
@@ -97,6 +88,19 @@ export async function executeUpdateWorktree(
         // after a local push looks like this) — a no-op, never a divergence.
         return { status: 'up-to-date', oid: headOid };
       }
+
+      // These guards protect the working-tree mutation below. A checkout that is
+      // already current is safe even when it is busy or dirty because nothing moves.
+      if (await execution.isActive()) {
+        return { status: 'refused', reason: 'active-sessions' };
+      }
+      try {
+        // The observation's notion of dirty: any status entry, untracked included.
+        if (await isDirty(exec)) return { status: 'refused', reason: 'dirty' };
+      } catch (error) {
+        return { status: 'failed', stage: 'inspect', message: toMessage(error) };
+      }
+
       if (!(await isAncestor(exec, 'HEAD', fetchedOid))) {
         return {
           status: 'diverged',

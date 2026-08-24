@@ -102,6 +102,7 @@ export class GitCheckoutStore {
       isPublished: computed,
       aheadCount: computed,
       behindCount: computed,
+      headTrackingSnapshot: computed,
       branchName: computed,
       headOid: computed,
       headKind: computed,
@@ -268,6 +269,26 @@ export class GitCheckoutStore {
       head.upstream.tracking.kind === 'resolved'
       ? head.upstream.tracking.behind
       : 0;
+  }
+
+  get headTrackingSnapshot(): {
+    headOid: string | null;
+    ahead: number | null;
+    behind: number | null;
+  } | null {
+    const head = this.head;
+    if (!head) return null;
+    const tracking =
+      head.kind !== 'detached' &&
+      head.upstream.kind !== 'none' &&
+      head.upstream.tracking.kind === 'resolved'
+        ? head.upstream.tracking
+        : null;
+    return {
+      headOid: head.kind === 'unborn' ? null : head.oid,
+      ahead: tracking?.ahead ?? null,
+      behind: tracking?.behind ?? null,
+    };
   }
 
   async stageFiles(paths: string[]) {
