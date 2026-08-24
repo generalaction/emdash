@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { computed, makeAutoObservable, observable } from 'mobx';
 import { type ProjectStore } from '@core/features/projects/api/browser/stores/project';
 import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import { asAvailableProject } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -49,45 +49,24 @@ export type SidebarRow =
 export class SidebarStore {
   private _handle: MementoHandle<WorkbenchSidebarState> | undefined;
   private _fallbackState: WorkbenchSidebarState = workbenchSidebarMemento.default;
+  private readonly _revealedProjectIds = observable.set<string>();
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     // `_handle` must stay observable: computeds reading `state` before the
     // memento handle is attached would otherwise capture zero dependencies
     // and freeze at the fallback value forever.
-    makeAutoObservable<SidebarStore, '_fallbackState' | '_handle' | 'projectManager'>(this, {
+    makeAutoObservable<
+      SidebarStore,
+      '_fallbackState' | '_handle' | '_revealedProjectIds' | 'projectManager'
+    >(this, {
       _fallbackState: false,
       _handle: observable.ref,
+      _revealedProjectIds: false,
       projectManager: false,
       expandedProjectIds: computed.struct,
       sidebarRows: computed,
       pinnedSidebarEntries: computed,
     });
-
-    // Auto-expand a project when its task count goes from 0 to >0.
-    const prevTaskCounts = new Map<string, number>();
-    reaction(
-      () => {
-        const counts: [string, number][] = [];
-        for (const [id, project] of this.projectManager.projects) {
-          const context = asAvailableProject(project);
-          if (context) {
-            counts.push([id, context.get(taskManagerStoreToken).tasks.size]);
-          }
-        }
-        return counts;
-      },
-      (counts) => {
-        runInAction(() => {
-          for (const [id, count] of counts) {
-            const prev = prevTaskCounts.get(id) ?? 0;
-            if (prev === 0 && count > 0) {
-              this.ensureProjectExpanded(id);
-            }
-            prevTaskCounts.set(id, count);
-          }
-        });
-      }
-    );
   }
 
   get projectOrder(): string[] {
@@ -99,7 +78,7 @@ export class SidebarStore {
   }
 
   get expandedProjectIds(): ReadonlySet<string> {
-    return new Set(this.state.expandedProjectIds);
+    return new Set([...this.state.expandedProjectIds, ...this._revealedProjectIds]);
   }
 
   get taskSortBy(): SidebarTaskSortBy {
@@ -203,16 +182,21 @@ export class SidebarStore {
   }
 
   toggleProjectExpanded(projectId: string): void {
-    if (this.expandedProjectIds.has(projectId)) {
-      this.updateExpandedProjects((ids) => ids.filter((id) => id !== projectId));
-    } else {
-      this.updateExpandedProjects((ids) => [...ids, projectId]);
+    const isPersisted = this.state.expandedProjectIds.includes(projectId);
+    const isRevealed = this._revealedProjectIds.has(projectId);
+    if (isPersisted || isRevealed) {
+      this._revealedProjectIds.delete(projectId);
+      if (isPersisted) {
+        this.updateExpandedProjects((ids) => ids.filter((id) => id !== projectId));
+      }
+      return;
     }
+    this.updateExpandedProjects((ids) => [...ids, projectId]);
   }
 
-  ensureProjectExpanded(projectId: string): void {
+  revealProject(projectId: string): void {
     if (!this.expandedProjectIds.has(projectId)) {
-      this.updateExpandedProjects((ids) => [...ids, projectId]);
+      this._revealedProjectIds.add(projectId);
     }
   }
 

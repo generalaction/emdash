@@ -20,20 +20,26 @@ describe('wireNavigationTelemetry', () => {
     captureTelemetry.mockClear();
   });
 
-  it('observes traversals and restorations only when the view changes', () => {
+  it('observes navigation only when the view changes', () => {
     const onDidNavigate = createEmitter<NavigationEvent>();
     wireNavigationTelemetry({ onDidNavigate } as NavigationStore);
     const home = homeViewDef();
     const firstProject = projectViewDef({ projectId: 'p1' });
     const secondProject = projectViewDef({ projectId: 'p2' });
 
-    onDidNavigate.emit({ from: home, to: firstProject, kind: 'traversal' });
+    onDidNavigate.emit({ from: home, to: firstProject, kind: 'traversal', source: 'direct' });
     onDidNavigate.emit({
       from: firstProject,
       to: secondProject,
-      kind: 'restoration',
+      kind: 'traversal',
+      source: 'history',
     });
-    onDidNavigate.emit({ from: secondProject, to: home, kind: 'restoration' });
+    onDidNavigate.emit({
+      from: secondProject,
+      to: home,
+      kind: 'traversal',
+      source: 'history',
+    });
 
     expect(captureTelemetry).toHaveBeenNthCalledWith(1, 'project_viewed', {
       from_view: 'home',

@@ -69,23 +69,11 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     overscan: 8,
   });
 
-  // Expand the parent project when navigating to a task (not when `rows` changes —
-  // otherwise collapsing while staying on that task would immediately re-expand).
-  useEffect(() => {
-    if (currentView !== 'task') return;
-    const targetProjectId = taskParams.projectId;
-    const targetTaskId = taskParams.taskId;
-    if (!targetProjectId || !targetTaskId) return;
-    const activeTask = getTaskStore(targetProjectId, targetTaskId);
-    if (activeTask?.data.isPinned) return;
-    getSidebarStore().ensureProjectExpanded(targetProjectId);
-  }, [currentView, taskParams.projectId, taskParams.taskId]);
-
   // Scroll the active project/task into view only when the navigation target itself
   // changes, plus the active task's project expansion state. Re-running on every
   // `rows` change would yank the user back to the active row whenever the
   // sidebar mutates (e.g. deleting an unrelated task), but direct navigation to a
-  // task in a collapsed project needs one rerun after `ensureProjectExpanded`.
+  // task in a collapsed project needs one rerun after `revealProject`.
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   useEffect(() => {

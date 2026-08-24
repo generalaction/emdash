@@ -243,7 +243,7 @@ describe('NavigationStore', () => {
     expect(restoreLocation).not.toHaveBeenCalled();
   });
 
-  it('emits typed traversal and refinement events', () => {
+  it('emits direct traversal and refinement events', () => {
     const store = buildStore();
     const listener = vi.fn();
     store.onDidNavigate.subscribe(listener);
@@ -251,6 +251,48 @@ describe('NavigationStore', () => {
     store.navigate(settingsViewDef({ tab: 'general' }));
     store.navigate(settingsViewDef({ tab: 'browser' }));
 
-    expect(listener.mock.calls.map(([event]) => event.kind)).toEqual(['traversal', 'refinement']);
+    expect(listener.mock.calls.map(([event]) => [event.kind, event.source])).toEqual([
+      ['traversal', 'direct'],
+      ['refinement', 'direct'],
+    ]);
+  });
+
+  it('identifies startup restoration separately from history traversal', () => {
+    const store = buildStore();
+    const listener = vi.fn();
+    store.onDidNavigate.subscribe(listener);
+    store.attachMemento(
+      historyHandle({
+        version: '1',
+        entries: [{ viewId: 'project', params: { projectId: 'p1' } }],
+        index: 0,
+      })
+    );
+
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'traversal', source: 'startup' })
+    );
+
+    store.navigate(taskViewDef({ projectId: 'p1', taskId: 't1' }));
+    history.back((entry) => store.applyEntry(entry));
+
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'traversal', source: 'history' })
+    );
+  });
+
+  it('identifies view-reported location changes', () => {
+    const store = buildStore();
+    const ref = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    const listener = vi.fn();
+    store.onDidNavigate.subscribe(listener);
+    store.navigate(ref);
+    listener.mockClear();
+
+    store.reportLocation(ref, { tabId: 'tab-1' });
+
+    expect(listener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'refinement', source: 'view' })
+    );
   });
 });

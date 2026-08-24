@@ -77,10 +77,14 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
   useEffect(() => {
     return getNavigation().onDidNavigate.subscribe((event) => {
       // The implicit exit-on-navigation cleanup became this explicit command
-      // at the navigation site. Only user navigation ('traversal' to another
-      // view ref) exits zen; the startup 'restoration' commit does not, so
-      // restarting in zen resumes zen with its persisted restore.
-      if (event.kind === 'traversal' && event.from && event.from.key !== event.to.key) {
+      // at the navigation site. Only direct navigation ('traversal' to another
+      // view ref) exits zen; startup and history navigation preserve chrome state.
+      if (
+        event.source === 'direct' &&
+        event.kind === 'traversal' &&
+        event.from &&
+        event.from.key !== event.to.key
+      ) {
         const fromProjectId = projectIdFromRef(event.from);
         if (fromProjectId) {
           const chrome = hydratedWorkspaceChrome(fromProjectId);
