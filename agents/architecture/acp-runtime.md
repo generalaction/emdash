@@ -95,6 +95,10 @@ terminal management, attachment storage, and session cells stay inside the ACP r
 owns a worker manifest that maps the ACP worker id to the emitted child-process entry path for that
 host's build.
 
+Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Runtime
+attachment cleanup must therefore use explicit attachment deletion or whole-conversation deletion;
+absence from transcript history does not prove that stored bytes are orphaned.
+
 Desktop composes the ACP client and renderer exposure in
 `apps/emdash-desktop/src/main/core/wire-workers/desktop-workers.ts`: the raw
 stable worker client is wrapped there for session-ID persistence, then forwarded

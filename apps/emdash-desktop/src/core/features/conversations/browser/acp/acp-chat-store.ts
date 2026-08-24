@@ -25,6 +25,10 @@ import {
 } from '@core/features/conversations/api/browser/chat/advertised-command-provider';
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
+import {
+  getConversationsClient,
+  type ConversationsClient,
+} from '@core/features/conversations/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import {
   ACP_DRAFT_MAX_LENGTH,
@@ -54,7 +58,7 @@ export interface AgentAffordances {
 
 type StoredPromptAttachment = Extract<PromptAttachment, { type: 'attachment' }>;
 
-const draftAttachmentDataUrlCache = new Map<string, Promise<string | null>>();
+const draftAttachmentDataUrlCache = new Map<string, string>();
 
 export type AcpPromptAttachment = {
   ref: StoredPromptAttachment;
@@ -90,6 +94,7 @@ export class AcpChatStore {
   private readonly _draftSpace: SubjectSpace<'conversation'>;
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeHostReaction: () => void;
+  private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
   private _disposed = false;
 
   constructor(
@@ -182,8 +187,7 @@ export class AcpChatStore {
             ref: { type: 'attachment', ...attachment },
           }));
         });
-        const session = this.session;
-        if (session) void this._rehydrateDraftAttachmentPreviews(session);
+        void this._rehydrateDraftAttachmentPreviews();
       },
       (error: unknown) => getMementoClient().reportError(error)
     );
@@ -317,11 +321,17 @@ export class AcpChatStore {
   }): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
-      const result = await this.session?.uploadAttachment(input);
-      if (!result) {
-        this._toastError('Failed to upload attachment', new Error('ACP session is not connected'));
-        return null;
-      }
+      const client = await this._getAcpClient();
+      const result = await client.uploadAttachment(
+        { conversationId: this.conversationId, originalPath: input.originalPath },
+        {
+          name: input.name ?? 'attachment',
+          mimeType: input.mimeType,
+          size: input.size ?? input.data?.byteLength,
+          source:
+            input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+        }
+      );
       if (!result.success) {
         this._toastError('Failed to upload attachment', result.error);
         return null;
@@ -333,10 +343,30 @@ export class AcpChatStore {
     }
   }
 
+  async downloadAttachment(id: string) {
+    const client = await this._getAcpClient();
+    const result = await client.downloadAttachment({
+      conversationId: this.conversationId,
+      attachmentId: id,
+    });
+    if (!result.success) return result;
+    return {
+      success: true as const,
+      data: {
+        ref: result.data.meta,
+        data: await result.data.bytes(),
+      },
+    };
+  }
+
   async deleteAttachment(id: string): Promise<void> {
     try {
-      const result = await this.session?.deleteAttachment(id);
-      if (result && !result.success) this._toastError('Failed to delete attachment', result.error);
+      const client = await this._getAcpClient();
+      const result = await client.deleteAttachment({
+        conversationId: this.conversationId,
+        attachmentId: id,
+      });
+      if (!result.success) this._toastError('Failed to delete attachment', result.error);
     } catch (error) {
       this._toastError('Failed to delete attachment', error);
     }
@@ -378,9 +408,8 @@ export class AcpChatStore {
     const additions = attachments.filter(({ ref }) => !existingIds.has(ref.id));
     if (additions.length === 0) return;
     this.draftAttachments = [...this.draftAttachments, ...additions];
-    const session = this.session;
-    if (session && additions.some((attachment) => !attachment.previewUrl)) {
-      void this._rehydrateDraftAttachmentPreviews(session);
+    if (additions.some((attachment) => !attachment.previewUrl)) {
+      void this._rehydrateDraftAttachmentPreviews();
     }
   }
 
@@ -515,7 +544,7 @@ export class AcpChatStore {
         this.loadError = null;
         this._syncMessageCount();
       });
-      void this._rehydrateDraftAttachmentPreviews(clientSession);
+      void this._rehydrateDraftAttachmentPreviews();
     } catch (error) {
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
@@ -675,27 +704,38 @@ export class AcpChatStore {
     );
   }
 
-  private async _rehydrateDraftAttachmentPreviews(session: AcpLiveSession): Promise<void> {
+  private async _rehydrateDraftAttachmentPreviews(): Promise<void> {
     const pending = this.draftAttachments.filter((attachment) => !attachment.previewUrl);
     await Promise.all(
       pending.map(async (attachment) => {
         const previewUrl = await resolveDraftAttachmentDataUrl(
           this.conversationId,
-          session,
+          this,
           attachment.ref.id
         );
         runInAction(() => {
-          if (this._disposed || this.session !== session) return;
+          if (this._disposed) return;
           const current = this.draftAttachments.find(({ ref }) => ref.id === attachment.ref.id);
           if (!current || current.previewUrl) return;
-          this.draftAttachments = previewUrl
-            ? this.draftAttachments.map((candidate) =>
-                candidate.ref.id === attachment.ref.id ? { ...candidate, previewUrl } : candidate
-              )
-            : this.draftAttachments.filter(({ ref }) => ref.id !== attachment.ref.id);
+          if (previewUrl.kind === 'resolved') {
+            this.draftAttachments = this.draftAttachments.map((candidate) =>
+              candidate.ref.id === attachment.ref.id
+                ? { ...candidate, previewUrl: previewUrl.dataUrl }
+                : candidate
+            );
+          } else if (previewUrl.kind === 'not_found') {
+            this.draftAttachments = this.draftAttachments.filter(
+              ({ ref }) => ref.id !== attachment.ref.id
+            );
+          }
         });
       })
     );
+  }
+
+  private _getAcpClient(): Promise<ConversationsClient['acp']> {
+    this._acpClientPromise ??= getConversationsClient().then((client) => client.acp);
+    return this._acpClientPromise;
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
@@ -738,24 +778,36 @@ function toPendingAttachment(attachment: AcpPromptAttachment): ChatImageAttachme
   };
 }
 
-function resolveDraftAttachmentDataUrl(
+type DraftAttachmentPreviewResult =
+  | { kind: 'resolved'; dataUrl: string }
+  | { kind: 'not_found' }
+  | { kind: 'unavailable' };
+
+async function resolveDraftAttachmentDataUrl(
   conversationId: string,
-  session: AcpLiveSession,
+  store: AcpChatStore,
   attachmentId: string
-): Promise<string | null> {
+): Promise<DraftAttachmentPreviewResult> {
   const cacheKey = `${conversationId}:${attachmentId}`;
   const cached = draftAttachmentDataUrlCache.get(cacheKey);
-  if (cached) return cached;
-  const promise = session
-    .downloadAttachment(attachmentId)
-    .then((result) =>
-      result.success
-        ? `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`
-        : null
-    )
-    .catch(() => null);
-  draftAttachmentDataUrlCache.set(cacheKey, promise);
-  return promise;
+  if (cached) return { kind: 'resolved', dataUrl: cached };
+  try {
+    const result = await store.downloadAttachment(attachmentId);
+    if (!result.success) {
+      return result.error.type === 'attachment_not_found'
+        ? { kind: 'not_found' }
+        : { kind: 'unavailable' };
+    }
+    const dataUrl = `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`;
+    draftAttachmentDataUrlCache.set(cacheKey, dataUrl);
+    return { kind: 'resolved', dataUrl };
+  } catch {
+    return { kind: 'unavailable' };
+  }
+}
+
+async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {

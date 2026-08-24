@@ -6,8 +6,6 @@ import {
   sessionStateSchema,
   terminalStateSchema,
   transcriptTurnSchema,
-  type AttachmentMimeType,
-  type AttachmentRef,
   type AcpRuntimeError,
   type HistoryPage,
   type PromptInput,
@@ -20,7 +18,6 @@ import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
-import { type BlobSource } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
@@ -190,50 +187,6 @@ export class AcpLiveSession {
     return { success: true, data: result.data.log };
   }
 
-  uploadAttachment(input: {
-    data?: Uint8Array;
-    source?: BlobSource;
-    size?: number;
-    mimeType: AttachmentMimeType;
-    name?: string;
-    originalPath?: string;
-  }): Promise<Result<AttachmentRef, unknown>> {
-    return this.client.uploadAttachment(
-      { conversationId: this.conversationId, originalPath: input.originalPath },
-      {
-        name: input.name ?? 'attachment',
-        mimeType: input.mimeType,
-        size: input.size ?? input.data?.byteLength,
-        source:
-          input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
-      }
-    );
-  }
-
-  downloadAttachment(
-    id: string
-  ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
-    return this.client
-      .downloadAttachment({ conversationId: this.conversationId, attachmentId: id })
-      .then(async (result) => {
-        if (!result.success) return result;
-        return {
-          success: true,
-          data: {
-            ref: result.data.meta,
-            data: await result.data.bytes(),
-          },
-        };
-      });
-  }
-
-  deleteAttachment(id: string): Promise<Result<void, unknown>> {
-    return this.client.deleteAttachment({
-      conversationId: this.conversationId,
-      attachmentId: id,
-    });
-  }
-
   sendPrompt(
     prompt: PromptInput,
     placement?: PromptPlacement
@@ -304,10 +257,6 @@ export class AcpLiveSession {
     }
     this.terminalLogs.clear();
   }
-}
-
-async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
-  yield data;
 }
 
 export function remoteValueState<T>(

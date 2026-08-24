@@ -39,7 +39,10 @@ describe('AcpRuntime conversation-scoped attachments', () => {
 
     // The same attachment id is invisible from another conversation.
     const crossConversation = await rt.downloadAttachment('conv-2', uploaded.data.id);
-    expect(crossConversation.success).toBe(false);
+    expect(crossConversation).toMatchObject({
+      success: false,
+      error: { type: 'attachment_not_found' },
+    });
   });
 
   it('deletes all of a conversation attachments on conversation deletion cleanup', async () => {
@@ -92,6 +95,16 @@ describe('AcpRuntime conversation-scoped attachments', () => {
     await expect(rt.deleteConversationAttachments('conv-1')).resolves.toEqual({
       success: true,
       data: undefined,
+    });
+  });
+
+  it('distinguishes an unavailable attachment store from missing attachment bytes', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+
+    await expect(rt.downloadAttachment('conv-1', 'missing')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid_state' },
     });
   });
 });

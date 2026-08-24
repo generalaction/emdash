@@ -61,7 +61,7 @@ import { createTranscriptFileCommands } from './transcript-file-commands';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const attachmentDataUrlCache = new Map<string, Promise<string | null>>();
+const attachmentDataUrlCache = new Map<string, string>();
 const ISSUE_SEARCH_MIN_LENGTH = 2;
 const ISSUE_SEARCH_LIMIT = 20;
 const SLASH_COMMANDS_SECTION = 'Commands';
@@ -201,22 +201,20 @@ function toComposerAttachment(attachment: AcpPromptAttachment): ComposerAttachme
   };
 }
 
-function resolveAttachmentDataUrl(store: AcpChatStore, id: string): Promise<string | null> {
-  if (!store.session) return Promise.resolve(null);
-  const cached = attachmentDataUrlCache.get(id);
+async function resolveAttachmentDataUrl(store: AcpChatStore, id: string): Promise<string | null> {
+  const cacheKey = `${store.conversationId}:${id}`;
+  const cached = attachmentDataUrlCache.get(cacheKey);
   if (cached) return cached;
-  const promise = store.session
-    .downloadAttachment(id)
-    .then((result) => {
-      if (!result.success) return null;
-      return `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`;
-    })
-    .catch((error: unknown) => {
-      log.warn('Failed to resolve ACP attachment', { id, error });
-      return null;
-    });
-  attachmentDataUrlCache.set(id, promise);
-  return promise;
+  try {
+    const result = await store.downloadAttachment(id);
+    if (!result.success) return null;
+    const dataUrl = `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`;
+    attachmentDataUrlCache.set(cacheKey, dataUrl);
+    return dataUrl;
+  } catch (error) {
+    log.warn('Failed to resolve ACP attachment', { id, error });
+    return null;
+  }
 }
 
 function bytesToBase64(bytes: Uint8Array): string {

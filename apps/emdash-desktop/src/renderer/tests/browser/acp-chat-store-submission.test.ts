@@ -19,8 +19,18 @@ const mementoTestState = vi.hoisted(() => ({
   reportError: vi.fn(),
 }));
 
+const conversationClientTestState = vi.hoisted(() => ({
+  uploadAttachment: vi.fn(),
+  downloadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
+
 vi.mock('@core/features/conversations/api/browser/chat/shared-chat-context', () => ({
   getSharedChatContext: () => ({}),
+}));
+
+vi.mock('@core/features/conversations/api/browser/client', () => ({
+  getConversationsClient: async () => ({ acp: conversationClientTestState }),
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({
@@ -75,6 +85,9 @@ describe('AcpChatStore prompt submission', () => {
     mementoTestState.producer = null;
     mementoTestState.ready = Promise.resolve();
     mementoTestState.reportError.mockClear();
+    conversationClientTestState.uploadAttachment.mockReset();
+    conversationClientTestState.downloadAttachment.mockReset();
+    conversationClientTestState.deleteAttachment.mockReset();
   });
 
   it('stages the optimistic prompt before hidden context finishes resolving', async () => {
@@ -147,8 +160,11 @@ describe('AcpChatStore prompt submission', () => {
   });
 
   it('deletes attachment bytes when a draft attachment is removed', async () => {
-    const deleteAttachment = vi.fn(async () => ({ success: true, data: undefined }));
-    const store = createStore(idleState(), vi.fn(), { deleteAttachment });
+    conversationClientTestState.deleteAttachment.mockResolvedValue({
+      success: true,
+      data: undefined,
+    });
+    const store = createStore(idleState(), vi.fn());
     store.addDraftAttachments([
       promptAttachment('attachment-remove', 'data:image/png;base64,AQ=='),
     ]);
@@ -156,7 +172,33 @@ describe('AcpChatStore prompt submission', () => {
     store.removeDraftAttachment('attachment-remove');
 
     expect(store.draftAttachments).toEqual([]);
-    await vi.waitFor(() => expect(deleteAttachment).toHaveBeenCalledWith('attachment-remove'));
+    await vi.waitFor(() =>
+      expect(conversationClientTestState.deleteAttachment).toHaveBeenCalledWith({
+        conversationId: 'conversation-1',
+        attachmentId: 'attachment-remove',
+      })
+    );
+  });
+
+  it('deletes attachment bytes before the live session connects', async () => {
+    conversationClientTestState.deleteAttachment.mockResolvedValue({
+      success: true,
+      data: undefined,
+    });
+    const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
+    store.addDraftAttachments([
+      promptAttachment('attachment-pre-bootstrap', 'data:image/png;base64,AQ=='),
+    ]);
+
+    store.removeDraftAttachment('attachment-pre-bootstrap');
+
+    expect(store.session).toBeNull();
+    await vi.waitFor(() =>
+      expect(conversationClientTestState.deleteAttachment).toHaveBeenCalledWith({
+        conversationId: 'conversation-1',
+        attachmentId: 'attachment-pre-bootstrap',
+      })
+    );
   });
 
   it('persists attachment refs without preview bytes', () => {
@@ -200,38 +242,88 @@ describe('AcpChatStore prompt submission', () => {
     expect(store.draftAttachments).toEqual([]);
   });
 
-  it('prunes restored attachment refs when preview download fails', async () => {
+  it('prunes restored attachment refs when attachment bytes are missing', async () => {
     mementoTestState.value = {
       version: '1',
       text: '',
       attachments: [{ id: 'attachment-missing', mimeType: 'image/png', name: 'missing.png' }],
     };
-    const downloadAttachment = vi.fn(async () => ({
+    conversationClientTestState.downloadAttachment.mockResolvedValue({
       success: false as const,
-      error: { type: 'invalid_state' as const },
-    }));
+      error: { type: 'attachment_not_found' as const },
+    });
 
-    const store = createStore(idleState(), vi.fn(), { downloadAttachment });
+    const store = createStore(idleState(), vi.fn());
 
-    await vi.waitFor(() => expect(downloadAttachment).toHaveBeenCalledWith('attachment-missing'));
+    await vi.waitFor(() =>
+      expect(conversationClientTestState.downloadAttachment).toHaveBeenCalledWith({
+        conversationId: 'conversation-1',
+        attachmentId: 'attachment-missing',
+      })
+    );
     await vi.waitFor(() => expect(store.draftAttachments).toEqual([]));
   });
 
-  it('rehydrates restored attachment previews after the session connects', async () => {
+  it('keeps restored refs after transient failures and retries after remount', async () => {
+    mementoTestState.value = {
+      version: '1',
+      text: '',
+      attachments: [
+        {
+          id: 'attachment-transient',
+          mimeType: 'image/png',
+          name: 'attachment-transient.png',
+        },
+      ],
+    };
+    conversationClientTestState.downloadAttachment
+      .mockResolvedValueOnce({
+        success: false as const,
+        error: { type: 'invalid_state' as const, message: 'worker unavailable' },
+      })
+      .mockResolvedValueOnce({
+        success: true as const,
+        data: {
+          meta: {
+            id: 'attachment-transient',
+            mimeType: 'image/png' as const,
+            name: 'attachment-transient.png',
+          },
+          bytes: async () => new Uint8Array([1]),
+        },
+      });
+    const firstStore = createStore(idleState(), vi.fn());
+
+    await vi.waitFor(() =>
+      expect(conversationClientTestState.downloadAttachment).toHaveBeenCalledTimes(1)
+    );
+    expect(firstStore.draftAttachments).toEqual([promptAttachment('attachment-transient')]);
+    firstStore.dispose();
+
+    const secondStore = createStore(idleState(), vi.fn());
+
+    await vi.waitFor(() =>
+      expect(secondStore.draftAttachments).toEqual([
+        promptAttachment('attachment-transient', 'data:image/png;base64,AQ=='),
+      ])
+    );
+  });
+
+  it('rehydrates restored attachment previews without waiting for the live session', async () => {
     mementoTestState.value = {
       version: '1',
       text: '',
       attachments: [{ id: 'attachment-preview', mimeType: 'image/png', name: 'preview.png' }],
     };
-    const downloadAttachment = vi.fn(async () => ({
+    conversationClientTestState.downloadAttachment.mockResolvedValue({
       success: true as const,
       data: {
-        ref: { id: 'attachment-preview', mimeType: 'image/png' as const, name: 'preview.png' },
-        data: new Uint8Array([1]),
+        meta: { id: 'attachment-preview', mimeType: 'image/png' as const, name: 'preview.png' },
+        bytes: async () => new Uint8Array([1]),
       },
-    }));
+    });
 
-    const store = createStore(idleState(), vi.fn(), { downloadAttachment });
+    const store = createStore(idleState(), vi.fn());
 
     await vi.waitFor(() =>
       expect(store.draftAttachments).toEqual([
@@ -250,6 +342,7 @@ function createStore(
   store.session = {
     sessionState: { current: () => state },
     sendPrompt,
+    dispose: vi.fn(),
     ...sessionOverrides,
   } as never;
   return store;

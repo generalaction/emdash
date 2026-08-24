@@ -4,6 +4,7 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
+  acpAttachmentErrorSchema,
   acpRuntimeErrorSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
@@ -81,6 +82,15 @@ describe('ACP API contract schemas', () => {
       acpRuntimeErrorSchema.parse({
         type: 'auth_required',
         cause: { name: 'RequestError', message: 'Authentication required' },
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts typed attachment-not-found errors', () => {
+    expect(() =>
+      acpAttachmentErrorSchema.parse({
+        type: 'attachment_not_found',
+        message: "Attachment 'missing' not found",
       })
     ).not.toThrow();
   });

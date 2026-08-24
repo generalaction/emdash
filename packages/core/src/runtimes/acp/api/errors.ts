@@ -14,6 +14,9 @@ export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
 /** No conversation with the given id is tracked in the runtime. */
 export type ConversationNotFoundError = BaseError<'conversation_not_found'>;
 
+/** No stored attachment exists for the conversation-scoped attachment id. */
+export type AttachmentNotFoundError = BaseError<'attachment_not_found'>;
+
 /**
  * A command was issued but the current lifecycle state does not allow it,
  * e.g. Prompt while already working.
@@ -83,7 +86,7 @@ export type AcpSetModeOptionError =
   | SetModeFailedError;
 export type AcpExportTranscriptError = ConversationNotFoundError;
 export type AcpExportRawLogError = ConversationNotFoundError;
-export type AcpAttachmentError = InvalidStateError;
+export type AcpAttachmentError = InvalidStateError | AttachmentNotFoundError;
 export type AcpGetHistoryError = never;
 
 export const acpErr = {
@@ -92,6 +95,9 @@ export const acpErr = {
 
   conversationNotFound: (conversationId: string) =>
     fail('conversation_not_found', { message: conversationId }),
+
+  attachmentNotFound: (attachmentId: string) =>
+    fail('attachment_not_found', { message: `Attachment '${attachmentId}' not found` }),
 
   invalidState: (message: string) => fail('invalid_state', { message }),
 
@@ -130,6 +136,7 @@ const failedErrorSchema = <T extends string>(type: T) =>
 
 export const providerUnsupportedErrorSchema = plainTagErrorSchema('provider_unsupported');
 export const conversationNotFoundErrorSchema = plainTagErrorSchema('conversation_not_found');
+export const attachmentNotFoundErrorSchema = plainTagErrorSchema('attachment_not_found');
 export const invalidStateErrorSchema = plainTagErrorSchema('invalid_state');
 export const spawnFailedErrorSchema = failedErrorSchema('spawn_failed');
 export const initializeFailedErrorSchema = failedErrorSchema('initialize_failed');
@@ -179,7 +186,10 @@ export const acpSetModeOptionErrorSchema = z.discriminatedUnion('type', [
 ]);
 export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
 export const acpExportRawLogErrorSchema = conversationNotFoundErrorSchema;
-export const acpAttachmentErrorSchema = invalidStateErrorSchema;
+export const acpAttachmentErrorSchema = z.discriminatedUnion('type', [
+  invalidStateErrorSchema,
+  attachmentNotFoundErrorSchema,
+]);
 export const acpGetHistoryErrorSchema = z.never();
 
 export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [

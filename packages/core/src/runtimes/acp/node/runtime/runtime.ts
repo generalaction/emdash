@@ -211,7 +211,7 @@ export class AcpRuntime {
   ): Promise<Result<StoredAttachment, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
     const stored = await this.deps.attachmentStore.get(conversationId, attachmentId);
-    if (!stored) return acpErr.invalidState(`Attachment '${attachmentId}' not found`);
+    if (!stored) return acpErr.attachmentNotFound(attachmentId);
     return ok(stored);
   }
 
