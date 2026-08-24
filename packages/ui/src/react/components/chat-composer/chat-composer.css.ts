@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
+import { svgContainer } from '@styles/effects/svg-helpers.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
@@ -205,22 +206,25 @@ export const permissionModeTrigger = style({
   paddingRight: '0.1875rem',
 });
 
-export const mcpTrigger = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  borderRadius: tokenVars.radiusMd,
-  paddingLeft: '0.1875rem',
-  paddingRight: '0.1875rem',
-  color: vars.foreground,
-  fontSize: tokenVars.textXs,
-  lineHeight: 1,
-  outline: 'none',
-  selectors: {
-    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+export const mcpTrigger = style([
+  svgContainer,
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    borderRadius: tokenVars.radiusMd,
+    paddingLeft: '0.1875rem',
+    paddingRight: '0.1875rem',
+    color: vars.foreground,
+    fontSize: tokenVars.textXs,
+    lineHeight: 1,
+    outline: 'none',
+    selectors: {
+      '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+      '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+    },
   },
-});
+]);
 
 export const mcpPopoverContent = style({
   width: '16rem',
