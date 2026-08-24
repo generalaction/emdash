@@ -157,6 +157,24 @@ describe('workspace registry updateWorktree', () => {
     );
   });
 
+  it('allows an already-current dirty checkout because no worktree mutation is needed', async () => {
+    const worktree = await createWorktree('dirty-current');
+    const beforeOid = git(worktree.path, 'rev-parse', 'HEAD');
+    await fs.writeFile(path.join(worktree.path, 'scratch.txt'), 'uncommitted');
+
+    const updated = await wire.client.updateWorktree({
+      workspaceId: worktree.id,
+      remote: 'origin',
+      sourceRef: 'refs/heads/main',
+    });
+
+    expect(updated).toEqual({ success: true, data: undefined });
+    expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(beforeOid);
+    await expect(fs.readFile(path.join(worktree.path, 'scratch.txt'), 'utf8')).resolves.toBe(
+      'uncommitted'
+    );
+  });
+
   it('refuses when the workspace has live sessions and moves nothing', async () => {
     const worktree = await createWorktree('busy');
     const beforeOid = git(worktree.path, 'rev-parse', 'HEAD');
@@ -182,6 +200,21 @@ describe('workspace registry updateWorktree', () => {
       sourceRef: 'refs/heads/main',
     });
     expect(retried).toEqual({ success: true, data: undefined });
+  });
+
+  it('allows an already-current checkout with live sessions because nothing would move', async () => {
+    const worktree = await createWorktree('busy-current');
+    const beforeOid = git(worktree.path, 'rev-parse', 'HEAD');
+    sessionCount = 1;
+
+    const updated = await wire.client.updateWorktree({
+      workspaceId: worktree.id,
+      remote: 'origin',
+      sourceRef: 'refs/heads/main',
+    });
+
+    expect(updated).toEqual({ success: true, data: undefined });
+    expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(beforeOid);
   });
 
   it('a diverged branch fails ff-only cleanly ("local commits — resolve manually"); nothing moves', async () => {
