@@ -23,6 +23,15 @@ const controllerDeps = {
   terminalShell: {
     getColorEnv: vi.fn(async () => ({})),
   } as never,
+  sessionLaunchContexts: {
+    resolve: vi.fn(async () =>
+      ok({
+        workspace: identity,
+        tmux: false,
+        env: {},
+      })
+    ),
+  },
   resolveSessionGitCredentials: vi.fn(async () => undefined),
 };
 
@@ -134,61 +143,25 @@ describe('createTerminalsWireController', () => {
       shellId: 'default',
       ssh: 0,
     };
-    const taskRow = {
-      id: 'task-1',
-      projectId: identity.projectId,
-      workspaceId: identity.workspaceId,
-      name: 'Task one',
-    };
-    const select = vi
-      .fn()
-      .mockReturnValueOnce(selecting(terminalRow))
-      .mockReturnValueOnce(selecting(taskRow));
-    const getProjectConfig = vi.fn(async () =>
+    const select = vi.fn().mockReturnValueOnce(selecting(terminalRow));
+    const resolveLaunchContext = vi.fn(async () =>
       ok({
-        resolved: {
-          preservePatterns: { value: [], from: 'built-in' as const },
-          shellSetup: { value: 'source .workspace-env', from: 'team' as const },
-          autoRunSetup: { value: true, from: 'built-in' as const },
-          autoRunRun: { value: false, from: 'built-in' as const },
-        },
+        workspace: identity,
+        tmux: true,
+        shellSetup: 'source .workspace-env',
+        env: { EMDASH_DEFAULT_BRANCH: 'main' },
       })
     );
-    const resolveTmux = vi.fn(async () => ({
-      value: true,
-      provenance: { kind: 'set' as const },
-    }));
     const start = vi.fn(async () => ok(undefined));
     const runtime = {
-      workspaceRegistry: { getProjectConfig },
       terminals: { start },
     };
-    const requireAttached = vi.fn(() =>
-      ok({
-        projectId: identity.projectId,
-        repoPath: '/repo',
-        settings: {
-          resolveTmux,
-          getStoredGitSettings: vi.fn(async () => ({
-            defaultBranch: { remote: null, branch: 'main' },
-          })),
-          getPlacementContext: vi.fn(async () => ({
-            hostWorktreeRoot: null,
-            builtInWorktreeRoot: '/tmp/worktrees',
-            homeDirectory: '/tmp',
-            hostTmux: null,
-            appDefaultTmux: false,
-          })),
-        },
-        repoFacts: {
-          get: vi.fn(async () => ({ remotes: [], localBranches: ['main'] })),
-        },
-      })
-    );
+    const requireAttached = vi.fn(() => ok({} as never));
     const controller = createTerminalsWireController({
       ...controllerDeps,
       db: { select } as never,
       projects: { requireAttached } as never,
+      sessionLaunchContexts: { resolve: resolveLaunchContext },
       runtimes: {
         client: vi.fn(async () => ok(runtime)),
       } as unknown as TerminalsRuntimeBroker,
@@ -198,14 +171,14 @@ describe('createTerminalsWireController', () => {
     await expect(
       controller.call('hydrate', {
         projectId: identity.projectId,
-        taskId: taskRow.id,
+        taskId: terminalRow.taskId,
         terminalId: terminalRow.id,
       })
     ).resolves.toEqual(
       ok({
         key: {
           workspaceId: identity.workspaceId,
-          terminalId: `${identity.projectId}:${taskRow.id}:${terminalRow.id}`,
+          terminalId: `${identity.projectId}:${terminalRow.taskId}:${terminalRow.id}`,
         },
       })
     );
@@ -218,9 +191,11 @@ describe('createTerminalsWireController', () => {
         }),
       })
     );
-    expect(getProjectConfig).toHaveBeenCalledWith({ workspaceId: identity.workspaceId });
+    expect(resolveLaunchContext).toHaveBeenCalledWith({
+      projectId: identity.projectId,
+      taskId: terminalRow.taskId,
+    });
     expect(requireAttached).toHaveBeenCalledWith(identity.projectId);
-    expect(resolveTmux).toHaveBeenCalledOnce();
   });
 
   it('resolves the output source for the workspace host', async () => {

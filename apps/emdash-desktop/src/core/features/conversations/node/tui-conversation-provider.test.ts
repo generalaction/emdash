@@ -109,6 +109,56 @@ describe('TuiConversationProvider', () => {
     expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
+  it('resolves mutable task launch context immediately before each fresh start', async () => {
+    let launchContext = {
+      workspace: {
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        host: { type: 'local', id: 'local' } as const,
+        path: '/workspace',
+      },
+      tmux: false,
+      shellSetup: 'source old-profile',
+      env: { EMDASH_TASK_NAME: 'old-name' },
+    };
+    const resolve = vi.fn(async () => ok(launchContext));
+    const provider = createProvider({ launchContextSource: { resolve } });
+
+    await provider.ensureSession({
+      conversation: conversation({ id: 'conversation-1', providerId: 'claude' }),
+      mode: 'start',
+    });
+
+    launchContext = {
+      ...launchContext,
+      tmux: true,
+      shellSetup: 'source new-profile',
+      env: { EMDASH_TASK_NAME: 'new-name' },
+    };
+    await provider.ensureSession({
+      conversation: conversation({ id: 'conversation-2', providerId: 'claude' }),
+      mode: 'start',
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        providerVars: expect.objectContaining({ EMDASH_TASK_NAME: 'old-name' }),
+        shellSetup: 'source old-profile',
+        tmuxSessionName: undefined,
+      })
+    );
+    expect(start).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        providerVars: expect.objectContaining({ EMDASH_TASK_NAME: 'new-name' }),
+        shellSetup: 'source new-profile',
+        tmuxSessionName: expect.stringMatching(/^emdash-/),
+      })
+    );
+  });
+
   it('backs prompt spill creation, writes, and cleanup with workspace files', async () => {
     const createDirectory = vi.fn().mockResolvedValue(ok(undefined));
     const writeFile = vi.fn().mockResolvedValue(ok(undefined));
@@ -161,6 +211,7 @@ function createProvider(
     host?: TuiConversationProviderOptions['host'];
     autoTrustWorktrees?: boolean;
     getTaskSettings?: () => Promise<{ autoTrustWorktrees: boolean }>;
+    launchContextSource?: TuiConversationProviderOptions['launchContextSource'];
   } = {}
 ): TuiConversationProvider {
   return new TuiConversationProvider(
@@ -174,6 +225,19 @@ function createProvider(
       projectId: 'project-1',
       taskId: 'task-1',
       taskPath: '/workspace',
+      launchContextSource: overrides.launchContextSource ?? {
+        resolve: async () =>
+          ok({
+            workspace: {
+              workspaceId: 'workspace-1',
+              projectId: 'project-1',
+              host: overrides.host ?? { type: 'local', id: 'local' },
+              path: '/workspace',
+            },
+            tmux: false,
+            env: {},
+          }),
+      },
     },
     {
       db: { select: vi.fn() } as never,

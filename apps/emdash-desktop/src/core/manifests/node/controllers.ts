@@ -55,6 +55,7 @@ import { createSearchWireController } from '@core/features/search/node/wire-cont
 import { createSkillsWireController } from '@core/features/skills/node/wire-controller';
 import { createSourceControlWireController } from '@core/features/source-control/node/wire-controller';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import type { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { TaskListService } from '@core/features/tasks/node/task-list-service';
 import { createTasksWireController } from '@core/features/tasks/node/wire-controller';
@@ -147,6 +148,7 @@ export type DesktopControllerContext = {
   };
   readonly scope: Scope;
   readonly search: SearchService;
+  readonly sessionLaunchContexts: TaskSessionLaunchContextResolver;
   readonly runtimes: RuntimeBroker;
   readonly ssh: SshServiceHandle;
   readonly settingsRuntime: SettingsRuntimePort;
@@ -269,6 +271,7 @@ export const desktopNodeControllers = {
       logger,
       projects,
       runtimes,
+      sessionLaunchContexts,
       telemetry,
       terminalShell,
       workspaceIdentity,
@@ -277,6 +280,7 @@ export const desktopNodeControllers = {
         db,
         projects,
         runtimes,
+        sessionLaunchContexts,
         settings: appSettings,
         logger,
         telemetry,

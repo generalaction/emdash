@@ -121,6 +121,7 @@ export function createDesktopWireOptions(
     providerSettings: services.providerSettings,
     reconcileSweep: services.reconcileSweep,
     search: services.search,
+    sessionLaunchContexts: services.sessionLaunchContexts,
     runtimeClients: {
       getMementosRuntimeClient: async () => runtimes.clients.mementos,
       getPullRequestsRuntimeClient: async () => runtimes.clients.pullRequests,

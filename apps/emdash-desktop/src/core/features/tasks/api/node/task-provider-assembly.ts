@@ -3,16 +3,13 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import { ok, type Result } from '@emdash/shared';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import type { TaskProvider } from '@core/features/projects/api/node/project-provider';
-import type { RepoFactsSource } from '@core/features/projects/api/node/settings/effective-settings';
-import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { Workspace } from '@core/features/workspaces/api/node/workspace';
 import {
   buildTaskProviders,
-  resolveTaskEnv,
-  type ResolveTaskEnvError,
   type TaskProviderOpts,
 } from '@core/features/workspaces/api/node/workspace-factory';
 import type { Task } from '@core/primitives/tasks/api';
+import type { TaskSessionLaunchContextResolver } from './task-session-launch-context';
 
 export type BuildTaskResult = {
   taskProvider: TaskProvider;
@@ -23,16 +20,11 @@ export async function buildTaskFromWorkspace(
   task: Task,
   workspace: Workspace,
   projectId: string,
-  projectPath: string,
-  settings: ProjectSettingsProvider,
-  repoFacts: RepoFactsSource,
+  launchContexts: Pick<TaskSessionLaunchContextResolver, 'bind'>,
   createConversationProvider: (options: TaskProviderOpts) => ConversationProvider,
   workspaceBranchName?: string,
   workspaceSourceBranch?: GitBranchRef
-): Promise<Result<BuildTaskResult, RuntimeResolveError | ResolveTaskEnvError>> {
-  const taskEnv = await resolveTaskEnv(task, workspace, projectPath, settings, repoFacts);
-  if (!taskEnv.success) return taskEnv;
-  const { taskEnvVars, tmuxEnabled, shellSetup } = taskEnv.data;
+): Promise<Result<BuildTaskResult, RuntimeResolveError>> {
   const providers = await buildTaskProviders(
     {
       host: workspace.host,
@@ -42,9 +34,11 @@ export async function buildTaskFromWorkspace(
       taskId: task.id,
       workspaceId: workspace.id,
       taskPath: workspace.path,
-      tmuxEnabled,
-      shellSetup,
-      taskEnvVars,
+      launchContextSource: launchContexts.bind({
+        projectId,
+        taskId: task.id,
+        workspaceId: workspace.id,
+      }),
     },
     createConversationProvider
   );
@@ -54,7 +48,6 @@ export async function buildTaskFromWorkspace(
     taskId: task.id,
     taskBranch: workspaceBranchName,
     sourceBranch: workspaceSourceBranch,
-    taskEnvVars,
     conversations: conversationProvider,
   };
   return ok({ taskProvider, conversationProvider });

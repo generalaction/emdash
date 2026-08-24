@@ -20,8 +20,8 @@ committed and shared.
 | `autoRunSetup` | Workspace registry host-local personal config | host-local personal > built-in `true` | `resolveProjectConfig()` | Workspace registry activation gate and lifecycle sequencing |
 | `autoRunRun` | Workspace registry host-local personal config | host-local personal > built-in `false` | `resolveProjectConfig()` | Workspace registry activation gate and lifecycle sequencing |
 | `preservePatterns` | Workspace registry host-local personal config; team `.emdash.json` | host-local personal > that workspace's team file > built-in `[]`; arrays replace | `resolveProjectConfig()` | Worktree create/update copy-artifact steps |
-| `shellSetup` | Team `.emdash.json`; host settings JSON | that workspace's team file > host default > unset | `resolveProjectConfig()` | Workspace lifecycle script launches, task conversations, and terminal hydration |
-| `tmux` | Desktop project-settings DB override; host settings JSON; desktop app setting `project.tmuxByDefault` | stored project override > host default > app default | `resolveTmux()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | Task conversation assembly, terminal hydration, and project-session teardown |
+| `shellSetup` | Team `.emdash.json`; host settings JSON | that workspace's team file > host default > unset | `resolveProjectConfig()` | Workspace lifecycle script launches and task-session launch context resolution |
+| `tmux` | Desktop project-settings DB override; host settings JSON; desktop app setting `project.tmuxByDefault` | stored project override > host default > app default | `resolveTmux()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | Task-session launch context resolution and project-session teardown |
 | `worktreeRoot` | Desktop project-settings DB override; host settings JSON; built-in host path | stored project override > host default > `<host-home>/emdash/worktrees` | `resolveWorktreeRoot()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | `WorkspacePlacementResolver`, task creation, and destination previews |
 | `defaultBranch` | Desktop project-settings DB; live repository facts | valid stored branch > remote HEAD > well-known remote branch > well-known local branch > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | Task and terminal environment, task creation, automation deployment, source-control UI |
 | `baseRemote` | Desktop project-settings DB; live repository facts | valid stored remote > `origin` > sole remote > first remote alphabetically > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` | Git fetch, task creation, automation deployment, source-control UI |
@@ -40,6 +40,9 @@ committed and shared.
   `null` removes an explicit value and restores inheritance.
 - The workspace registry is the sole resolver for lifecycle and file-handling config. The scripts
   runtime receives already-resolved `command` and `shellSetup` values and does not read config.
+- Task and terminal providers retain stable identity and runtime capabilities, not mutable launch
+  settings. `TaskSessionLaunchContextResolver` reads task, project, host, and workspace-registry
+  state immediately before a process starts; task-bound providers receive its zero-argument source.
 - Git/GitHub and placement previews must use the same portable resolvers as execution.
 
 ## Deferred And Deliberate Legacy Behavior
