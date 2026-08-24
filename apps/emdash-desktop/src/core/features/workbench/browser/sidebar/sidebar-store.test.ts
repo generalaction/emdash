@@ -1,3 +1,4 @@
+import { observable, runInAction } from 'mobx';
 import { describe, expect, it, vi } from 'vitest';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import type { WorkbenchSidebarState } from '@core/features/workbench/contributions/mementos';
@@ -92,6 +93,43 @@ function mementoHandle(initial: WorkbenchSidebarState): MementoHandle<WorkbenchS
 }
 
 describe('SidebarStore project ordering', () => {
+  it('keeps a restored collapsed project collapsed during initial task hydration', () => {
+    const tasks = observable.map<string, ReturnType<typeof task>>();
+    const project = observable({
+      id: 'project-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      context: null as null | {
+        kind: 'available';
+        context: { get: () => { tasks: typeof tasks } };
+      },
+    });
+    const manager = {
+      projects: observable.map([['project-1', project]]),
+    } as unknown as SidebarProjectManager;
+    const handle = mementoHandle({
+      version: '1',
+      expandedProjectIds: [],
+      projectOrder: [],
+      taskOrderByProject: {},
+      taskSortBy: 'created-at',
+    });
+    const store = new SidebarStore(manager);
+    store.attachMemento(handle);
+
+    runInAction(() => {
+      project.context = {
+        kind: 'available',
+        context: { get: () => ({ tasks }) },
+      };
+    });
+    runInAction(() => {
+      tasks.set('task-1', task('task-1', '2026-01-01T00:00:00.000Z'));
+    });
+
+    expect([...store.expandedProjectIds]).toEqual([]);
+    expect(handle.value.expandedProjectIds).toEqual([]);
+  });
+
   it('reads and writes through an attached memento', () => {
     const store = new SidebarStore(projectManager([]));
     const handle = mementoHandle({
@@ -108,6 +146,26 @@ describe('SidebarStore project ordering', () => {
 
     store.setTaskSortBy('created-at');
     expect(handle.value.taskSortBy).toBe('created-at');
+  });
+
+  it('reveals a project without changing its persisted expansion preference', () => {
+    const store = new SidebarStore(projectManager([{ id: 'project-1', createdAt: '2026-01-01' }]));
+    const handle = mementoHandle({
+      version: '1',
+      expandedProjectIds: [],
+      projectOrder: [],
+      taskOrderByProject: {},
+      taskSortBy: 'created-at',
+    });
+    store.attachMemento(handle);
+
+    store.revealProject('project-1');
+    expect([...store.expandedProjectIds]).toEqual(['project-1']);
+    expect(handle.value.expandedProjectIds).toEqual([]);
+
+    store.toggleProjectExpanded('project-1');
+    expect([...store.expandedProjectIds]).toEqual([]);
+    expect(handle.value.expandedProjectIds).toEqual([]);
   });
 
   it('sorts projects newest first by default', () => {
@@ -152,8 +210,8 @@ describe('SidebarStore project ordering', () => {
     );
 
     store.setProjectOrder(['project-1', 'project-2']);
-    store.ensureProjectExpanded('project-1');
-    store.ensureProjectExpanded('project-2');
+    store.toggleProjectExpanded('project-1');
+    store.toggleProjectExpanded('project-2');
     store.setTaskOrder('project-1', ['task-1a', 'task-1b']);
 
     expect(store.visibleTaskEntries).toEqual([
@@ -179,7 +237,7 @@ describe('SidebarStore project ordering', () => {
     tasks.get('automation-task')!.data.type = 'automation-run';
 
     const store = new SidebarStore(manager);
-    store.ensureProjectExpanded('project-1');
+    store.toggleProjectExpanded('project-1');
 
     expect(store.pinnedSidebarEntries).toEqual([
       { projectId: 'project-1', taskId: 'regular-task' },
