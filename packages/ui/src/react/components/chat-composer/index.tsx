@@ -1,12 +1,13 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, Plug, ShieldCheck, X } from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { Popover } from '@/react/primitives/popover';
 import { Select } from '@/react/primitives/select';
 import { ComboboxPopover } from '../combobox-popover';
+import { McpIcon } from '../mcp-icon/mcp-icon';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -1023,7 +1024,7 @@ export function ChatComposer({
             {mcpServers.length > 0 && (
               <Popover.Root>
                 <Popover.Trigger className={styles.mcpTrigger} disabled={disabled}>
-                  <Plug style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                  <McpIcon size={12} />
                   MCP {mcpServers.length}
                 </Popover.Trigger>
                 <Popover.Content
