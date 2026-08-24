@@ -51,3 +51,26 @@ describe('AcpLiveSession.sendPrompt', () => {
     );
   });
 });
+
+describe('AcpLiveSession.resume', () => {
+  it('preserves the unavailable history marker', async () => {
+    const resume = vi.fn(async () => ({
+      success: true as const,
+      data: {
+        sessionId: 'session-1',
+        turns: [],
+        nextCursor: null,
+        unavailable: true as const,
+      },
+    }));
+    const session = Object.assign(Object.create(AcpLiveSession.prototype), {
+      conversationId: 'conversation-1',
+      client: { resume },
+    }) as AcpLiveSession;
+
+    await expect(session.resume()).resolves.toEqual({
+      success: true,
+      data: { turns: [], nextCursor: null, unavailable: true },
+    });
+  });
+});

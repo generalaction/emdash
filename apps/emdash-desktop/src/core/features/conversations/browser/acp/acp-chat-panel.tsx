@@ -581,6 +581,7 @@ const ComposerForStore = observer(function ComposerForStore({
         <ChatComposer
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
+          notice={a.isResuming ? { variant: 'info', message: 'Resuming conversation…' } : null}
           onSubmit={handleSubmit}
           onInputChange={(text) => store.setDraftText(text)}
           onSubmitWhileWorking={handleSubmit}

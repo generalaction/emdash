@@ -9,14 +9,15 @@ not mix cross-session routing with per-session state projection.
 - `AcpRuntime` is the composition root. It wires the ACP API contract to shared
   ports, the resource-cached connection source, and the session manager.
 - `SessionManager` owns cross-session lifecycle: session creation, routing ACP
-  `sessionId`s to conversation cells, process cleanup, and the sessions-list live
-  model. Activity tracking, idle sweeping, intent persistence, lifecycle reports,
-  and eviction sequencing are delegated to the shared session-lifecycle chassis
-  (`packages/core/src/services/session-lifecycle/`), which the TUI-agents and
-  terminals runtimes also compose.
-- `SessionCell` owns one conversation: the state machine, transcript reducer,
-  per-session live models, permission broker, prompt queue effects, and turn
-  quiescence.
+  `sessionId`s to active cells, process cleanup, retained wake descriptors,
+  conversation-keyed live projections, and the sessions-list live model. Activity tracking,
+  idle sweeping, intent persistence, lifecycle reports, and eviction sequencing are delegated to
+  the shared session-lifecycle chassis (`packages/core/src/services/session-lifecycle/`), which the
+  TUI-agents and terminals runtimes also compose. Active cells are held in a leased lifecycle
+  registry so teardown can interrupt a turn before bounded lease draining.
+- `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
+  prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
+  or retained rematerialization descriptor.
 - The ACP connection source owns provider processes through `createResourceCache`.
   Cache identity includes provider, workspace, and cwd; the process route id stays
   provider/workspace and can host multiple ACP sessions.
@@ -39,11 +40,11 @@ flowchart TD
     root[AcpRuntime]
     manager[SessionManager]
   end
-  subgraph session [Session Cell]
+  subgraph session [Live Activation]
     machine[SessionMachine]
     reducer[Transcript Reducer]
-    state[Per-session LiveModels]
   end
+  projection[Conversation Projection]
   subgraph connection [Connection]
     source[ConnectionSource]
     ports[AgentPorts]
@@ -53,8 +54,7 @@ flowchart TD
   commands --> root --> manager --> machine
   machine --> source --> agent
   agent --> ports --> reducer
-  reducer --> state --> liveModels
-  manager --> liveModels
+  reducer --> manager --> projection --> liveModels
   reducer --> queries
 ```
 
@@ -70,17 +70,38 @@ cell to interpret.
 Provider updates move in the opposite direction. The connection handler receives
 ACP callbacks, normalizes raw `SessionUpdate`s through the provider's enrich
 hook, and asks the `SessionManager` to route the event to a cell. The cell folds
-the event through the reducer and publishes changed slices through live models.
+the event through the reducer; the manager republishes the resulting activation
+snapshot through the conversation-keyed projection.
 
-Provider `sessionId` persistence is owned by the host that consumes the ACP API.
-The runtime returns the session id from `start` and `resume`; desktop
-persists that returned value at the client boundary instead of using a child-to-host
-callback.
+The manager writes retained provider `sessionId`, mode, model, and configuration overrides through
+to the runtime's session intent after successful changes. The runtime also returns the session id
+from `start` and `resume`; desktop persists that value in its conversation record at the client
+boundary instead of using a child-to-host callback.
 
-`editCurrentPrompt` and `exportAcpTranscript` are intentionally contract-only
-placeholders for now. Workspace-server stubs should keep typechecking against
-the contract, but core does not serve implementations until those workflows are
-designed.
+Parsed transcript and raw ACP log exports are live-activation reads. They never wake a suspended
+conversation because the raw log is activation-local and a post-wake export would describe the
+replay rather than the evicted process.
+
+## Suspension and Rematerialization
+
+The public identity is always `conversationId`; provider process activations are internal. A
+retained conversation keeps its wake descriptor and projection after its live `SessionCell` is
+evicted. The projection explicitly moves between `closed`, `suspended`, and `active` sources.
+Suspended state uses the existing `closed` lifecycle plus the additive `suspended: true` marker,
+keeps prompt submission enabled, and clears activation-local queues, permissions, terminals, and
+active turns.
+
+Only explicit `start`/`resume` and state-changing user commands (`sendPrompt`, `setMode`, and
+`setConfigOption`) materialize a suspended activation. Reads, exports, callbacks, cancellation,
+permission resolution, and queued-prompt edits never wake one. In particular, suspended history
+returns a successful page marked `unavailable: true`; callers keep their existing transcript and
+wait for a later replay-completion refresh.
+
+Materialization is server-side and coalesced by the lifecycle registry. `sendPrompt` leases the
+activation for the full provider turn, while mode and config changes use shorter registry leases.
+Eviction and kill interrupt the cell and provider session before waiting for leases, then continue
+after a bounded drain timeout if a provider does not settle. Process-close callbacks carry a
+connection generation so a stale process cannot suspend sessions on its replacement.
 
 ## Process Hosting
 

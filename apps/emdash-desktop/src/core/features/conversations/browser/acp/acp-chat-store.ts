@@ -51,6 +51,7 @@ import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 export interface AgentAffordances {
   isWorking: boolean;
   isBusy: boolean;
+  isResuming: boolean;
   hasPendingPermission: boolean;
   canSubmit: boolean;
   canCancel: boolean;
@@ -96,6 +97,8 @@ export class AcpChatStore {
   private readonly _disposeHostReaction: () => void;
   private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
   private _submissionSequence = 0;
+  private _historyRefreshRequested = false;
+  private _historyRefreshTask: Promise<void> | null = null;
   private _disposed = false;
 
   constructor(
@@ -282,9 +285,11 @@ export class AcpChatStore {
   get affordances(): AgentAffordances {
     const state = this.session?.sessionState.current();
     const liveActionsEnabled = this.hostAccess?.liveAction.kind !== 'disabled';
+    const isResuming = state?.lifecycle === 'starting' || state?.lifecycle === 'replaying';
     return {
       isWorking: state?.isGenerating ?? false,
-      isBusy: state?.isGenerating ?? false,
+      isBusy: (state?.isGenerating ?? false) || isResuming,
+      isResuming,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
       canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
@@ -553,7 +558,9 @@ export class AcpChatStore {
       runInAction(() => {
         this.session?.dispose();
         this.session = clientSession;
-        this.chatState.transcript.history.seed(history.data.turns);
+        if (!history.data.unavailable) {
+          this.chatState.transcript.history.seed(history.data.turns);
+        }
         this._subscribeLiveSession(clientSession);
         this.historyLoading = false;
         this.loadError = null;
@@ -701,6 +708,7 @@ export class AcpChatStore {
 
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
+    let previousLifecycle = session.sessionState.current().lifecycle;
     const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
@@ -709,17 +717,20 @@ export class AcpChatStore {
         sessionState: asValueSource(session.sessionState),
       },
       {
-        onTurnCommitted: () => void this._refreshHistory(),
+        onTurnCommitted: () => this._requestHistoryRefresh(),
       }
     );
     this._unsubs.push(
       disconnectChatSession,
       this._bindTerminalOutputs(session),
-      session.sessionState.onChange(() =>
+      session.sessionState.onChange((state) => {
+        const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
+        previousLifecycle = state.lifecycle;
         runInAction(() => {
           this._syncMessageCount();
-        })
-      ),
+        });
+        if (replayCompleted) this._requestHistoryRefresh();
+      }),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
     );
   }
@@ -764,14 +775,49 @@ export class AcpChatStore {
     );
   }
 
+  private _requestHistoryRefresh(): void {
+    this._historyRefreshRequested = true;
+    if (this._historyRefreshTask) return;
+
+    const task = Promise.resolve()
+      .then(async () => {
+        while (this._historyRefreshRequested && !this._disposed) {
+          this._historyRefreshRequested = false;
+          await this._refreshHistory();
+        }
+      })
+      .finally(() => {
+        if (this._historyRefreshTask === task) this._historyRefreshTask = null;
+        if (this._historyRefreshRequested && !this._disposed) this._requestHistoryRefresh();
+      });
+    this._historyRefreshTask = task;
+  }
+
   private async _refreshHistory(): Promise<void> {
-    const history = await this.session?.getHistory(undefined, 100);
-    if (!history?.success) return;
-    runInAction(() => {
-      this.chatState.session.setPendingPrompt(null);
-      this.chatState.transcript.history.seed(history.data.turns);
-      this._syncMessageCount();
-    });
+    const session = this.session;
+    if (!session) return;
+
+    try {
+      const history = await session.getHistory(undefined, 100);
+      if (!history.success || history.data.unavailable || this.session !== session) return;
+      // A waking prompt may begin between replay completion and this response. Do not let a
+      // replay-history seed reset the newly active turn; its normal completion refresh will seed
+      // the authoritative history instead.
+      if (this.chatState.transcript.state.activeTurnSnapshot !== null) return;
+      runInAction(() => {
+        const pendingPrompt = this.chatState.session.state.pendingPrompt;
+        this.chatState.transcript.history.seed(history.data.turns);
+        if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
+          this.chatState.session.setPendingPrompt(pendingPrompt);
+        }
+        this._syncMessageCount();
+      });
+    } catch (error) {
+      log.warn('Failed to refresh ACP history', {
+        conversationId: this.conversationId,
+        error,
+      });
+    }
   }
 
   private _syncMessageCount(): void {
