@@ -1,4 +1,11 @@
 import { sql } from 'drizzle-orm';
+import {
+  conversationRegistryTable as conversations,
+  liveConversations,
+} from '@core/features/conversations/api/node/registry';
+import { conversationSubject } from '@core/features/conversations/contributions/subject';
+import { projectSubject } from '@core/features/projects/contributions/subject';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { projects, tasks } from '@core/services/app-db/node/schema';
 import { desktopRuntimes, type DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { startDesktopWorkers, type DesktopWorkersHandle } from '@main/gateway/desktop-workers';
@@ -51,14 +58,26 @@ function runMementosOrphanPruning(
   runInBackground(
     'mementos-orphan-pruning',
     async () => {
-      const [taskRows, projectRows] = await Promise.all([
+      const [conversationRows, taskRows, projectRows] = await Promise.all([
+        database.db.select({ id: conversations.id }).from(conversations).where(liveConversations()),
         database.db.select({ id: tasks.id }).from(tasks),
         database.db.select({ id: projects.id }).from(projects),
       ]);
-      const [taskResult, projectResult] = await Promise.all([
-        mementos.deleteOrphans({ kind: 'task', validKeys: taskRows.map(({ id }) => id) }),
-        mementos.deleteOrphans({ kind: 'project', validKeys: projectRows.map(({ id }) => id) }),
+      const [conversationResult, taskResult, projectResult] = await Promise.all([
+        mementos.deleteOrphans({
+          kind: conversationSubject.kind,
+          validKeys: conversationRows.map(({ id }) => id),
+        }),
+        mementos.deleteOrphans({
+          kind: taskSubject.kind,
+          validKeys: taskRows.map(({ id }) => id),
+        }),
+        mementos.deleteOrphans({
+          kind: projectSubject.kind,
+          validKeys: projectRows.map(({ id }) => id),
+        }),
       ]);
+      if (!conversationResult.success) throw new Error(conversationResult.error.message);
       if (!taskResult.success) throw new Error(taskResult.error.message);
       if (!projectResult.success) throw new Error(projectResult.error.message);
       database.db.run(sql`DELETE FROM kv WHERE key LIKE 'view-state:%'`);

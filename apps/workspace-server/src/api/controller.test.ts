@@ -83,7 +83,6 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
     setModelOption: vi.fn(),
     setModeOption: vi.fn(),
     resolvePermission: vi.fn(),
-    setPromptDraft: vi.fn(),
     exportAcpTranscript: vi.fn(),
     exportRawAcpLog: vi.fn(),
     uploadAttachment: vi.fn(),

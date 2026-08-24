@@ -223,8 +223,6 @@ export function createConversationsWireController(
         run(input.conversationId, (client) =>
           client.acp.resolvePermission(input, callOptions(meta))
         ),
-      setPromptDraft: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.setPromptDraft(input, callOptions(meta))),
       exportAcpTranscript: (input, meta) =>
         run(input.conversationId, (client) =>
           client.acp.exportAcpTranscript(input, callOptions(meta))

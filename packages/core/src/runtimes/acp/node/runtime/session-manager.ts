@@ -24,15 +24,12 @@ import type {
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
-  AcpSetPromptDraftError,
   AcpStartError,
   AcpKillError,
   AgentState,
   InvalidStateError,
   NormalizedEvent,
   PlanState,
-  PromptDraft,
-  PromptDraftUpdate,
   SessionConfigState,
   SessionMcpServer,
   SessionState,
@@ -96,7 +93,6 @@ interface SessionRecord {
     plan?: PlanState | null;
     agents?: AgentState[];
     activeTurn?: TranscriptTurn | null;
-    draft?: PromptDraft | null;
     terminals?: TerminalState[];
     mcpServers?: SessionMcpServer[];
   };
@@ -398,15 +394,6 @@ export class SessionManager implements InboundRouter {
     return record.cell.cancel();
   }
 
-  setPromptDraft(
-    conversationId: string,
-    draft: PromptDraftUpdate
-  ): Result<void, AcpSetPromptDraftError> {
-    const record = this.cells.get(conversationId);
-    if (!record) return acpErr.conversationNotFound(conversationId);
-    return record.cell.setPromptDraft(draft);
-  }
-
   async stop(conversationId: string, cause = 'user'): Promise<Result<void, AcpKillError>> {
     this.cells
       .get(conversationId)
@@ -613,7 +600,6 @@ export class SessionManager implements InboundRouter {
     const callbacks: SessionCellCallbacks = {
       onSessionStateChanged: () => this.syncRecord(record),
       onTranscriptChanged: () => this.syncRecord(record),
-      onDraftChanged: () => this.syncRecord(record),
       // Machine-driven close (usually process death): full teardown; the active
       // intent is kept so restart reconciliation can restore the conversation.
       onClosed: () =>
@@ -652,7 +638,6 @@ export class SessionManager implements InboundRouter {
         plan: null,
         agents: [],
         activeTurn: null,
-        draft: null,
         terminals: [],
         mcpServers: [],
       },
@@ -692,10 +677,6 @@ export class SessionManager implements InboundRouter {
     const activeTurn = record.cell.transcript.activeTurn;
     publishLiveModelState(record.live.states.activeTurn, activeTurn, record.lastSynced.activeTurn);
     record.lastSynced.activeTurn = activeTurn;
-
-    const draft = record.cell.promptDraft;
-    publishLiveModelState(record.live.states.draft, draft, record.lastSynced.draft);
-    record.lastSynced.draft = draft;
 
     this.syncTerminals(record.input.conversationId);
 

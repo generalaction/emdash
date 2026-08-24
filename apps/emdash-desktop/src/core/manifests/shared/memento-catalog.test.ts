@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { acpDraftMemento } from '@core/features/conversations/contributions/mementos';
 import { projectPanelLayoutsMemento } from '@core/features/projects/contributions/mementos';
 import { taskPanelLayoutsMemento } from '@core/features/tasks/contributions/mementos';
 import { mementoCatalog } from './memento-catalog';
 
 describe('mementoCatalog', () => {
+  it('registers the persisted conversation draft memento', () => {
+    expect(acpDraftMemento.subject.kind).toBe('conversation');
+    expect(acpDraftMemento.retention.tier).toBe('persisted');
+    expect(mementoCatalog).toContain(acpDraftMemento);
+  });
+
   it('registers the task- and project-scoped panel-layouts mementos', () => {
     expect(taskPanelLayoutsMemento.id).toBe('tasks.panel-layouts');
     expect(taskPanelLayoutsMemento.subject.kind).toBe('task');

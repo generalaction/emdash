@@ -123,10 +123,6 @@ const conversationsAcpContract = defineContract({
     acpApiContract.resolvePermission.input,
     acpApiContract.resolvePermission.output
   ),
-  setPromptDraft: runtimeFallibleProcedure(
-    acpApiContract.setPromptDraft.input,
-    acpApiContract.setPromptDraft.output
-  ),
   exportAcpTranscript: runtimeFallibleProcedure(
     acpApiContract.exportAcpTranscript.input,
     acpApiContract.exportAcpTranscript.output

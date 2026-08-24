@@ -3,11 +3,11 @@ import type {
   AttachmentMimeType,
   AttachmentRef,
   PromptAttachment,
-  PromptDraft,
   PromptInput,
   QueuedPrompt,
   SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type {
   CommandItem,
   ComposerEffortOption,
@@ -25,11 +25,26 @@ import {
 } from '@core/features/conversations/api/browser/chat/advertised-command-provider';
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
+import {
+  getConversationsClient,
+  type ConversationsClient,
+} from '@core/features/conversations/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import {
+  ACP_DRAFT_MAX_LENGTH,
+  acpDraftMemento,
+  type AcpDraftState,
+} from '@core/features/conversations/contributions/mementos';
+import { conversationSubject } from '@core/features/conversations/contributions/subject';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
+import {
+  getMementoClient,
+  type MementoHandle,
+  type SubjectSpace,
+} from '@core/primitives/mementos/browser';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
@@ -42,6 +57,8 @@ export interface AgentAffordances {
 }
 
 type StoredPromptAttachment = Extract<PromptAttachment, { type: 'attachment' }>;
+
+const draftAttachmentDataUrlCache = new Map<string, string>();
 
 export type AcpPromptAttachment = {
   ref: StoredPromptAttachment;
@@ -68,14 +85,18 @@ export class AcpChatStore {
   loadError: AcpLoadError | null = null;
   messageCount = 0;
   draftText = '';
+  draftAttachments: AcpPromptAttachment[] = [];
 
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
-  private _draftRev = 0;
-  private _pendingDraftRev: number | null = null;
-  private _draftTimer: number | null = null;
+  private readonly _scope: Scope;
+  private readonly _draftSpace: SubjectSpace<'conversation'>;
+  private readonly _draftHandle: MementoHandle<AcpDraftState>;
   private readonly _disposeHostReaction: () => void;
+  private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
+  private _submissionSequence = 0;
+  private _disposed = false;
 
   constructor(
     readonly conversationId: string,
@@ -84,9 +105,12 @@ export class AcpChatStore {
     readonly hostAccess?: ProjectHostAccess
   ) {
     this.chatContext = getSharedChatContext();
+    this._scope = createScope({ label: `acp-chat:${conversationId}` });
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
       uri: conversationId,
     });
+    this._draftSpace = getMementoClient().subject(conversationSubject({ conversationId }));
+    this._draftHandle = this._draftSpace.handle(acpDraftMemento);
     registerConversationCommands(conversationId, () =>
       this.commands.map((command) => command.name)
     );
@@ -97,6 +121,7 @@ export class AcpChatStore {
       loadError: observable,
       messageCount: observable,
       draftText: observable,
+      draftAttachments: observable.shallow,
       model: computed,
       modelOptions: computed,
       permissionMode: computed,
@@ -121,6 +146,8 @@ export class AcpChatStore {
       reorderQueuedPrompts: action,
       sendQueuedPromptNow: action,
       setDraftText: action,
+      addDraftAttachments: action,
+      removeDraftAttachment: action,
       exportTranscript: action,
       retry: action,
     });
@@ -138,6 +165,32 @@ export class AcpChatStore {
           void this._runBootstrap();
         }
       }
+    );
+    this._draftHandle.autoPersist(
+      () => ({
+        version: '1' as const,
+        text: this.draftText.slice(0, ACP_DRAFT_MAX_LENGTH),
+        attachments: this.draftAttachments.map(({ ref }) => ({
+          id: ref.id,
+          mimeType: ref.mimeType,
+          name: ref.name,
+        })),
+      }),
+      this._scope
+    );
+    void this._draftSpace.ready.then(
+      () => {
+        runInAction(() => {
+          if (this._disposed || this.draftText !== '' || this.draftAttachments.length > 0) return;
+          const stored = this._draftHandle.value;
+          this.draftText = stored.text;
+          this.draftAttachments = stored.attachments.map((attachment) => ({
+            ref: { type: 'attachment', ...attachment },
+          }));
+        });
+        void this._rehydrateDraftAttachmentPreviews();
+      },
+      (error: unknown) => getMementoClient().reportError(error)
     );
   }
 
@@ -269,11 +322,17 @@ export class AcpChatStore {
   }): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
-      const result = await this.session?.uploadAttachment(input);
-      if (!result) {
-        this._toastError('Failed to upload attachment', new Error('ACP session is not connected'));
-        return null;
-      }
+      const client = await this._getAcpClient();
+      const result = await client.uploadAttachment(
+        { conversationId: this.conversationId, originalPath: input.originalPath },
+        {
+          name: input.name ?? 'attachment',
+          mimeType: input.mimeType,
+          size: input.size ?? input.data?.byteLength,
+          source:
+            input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+        }
+      );
       if (!result.success) {
         this._toastError('Failed to upload attachment', result.error);
         return null;
@@ -285,10 +344,30 @@ export class AcpChatStore {
     }
   }
 
+  async downloadAttachment(id: string) {
+    const client = await this._getAcpClient();
+    const result = await client.downloadAttachment({
+      conversationId: this.conversationId,
+      attachmentId: id,
+    });
+    if (!result.success) return result;
+    return {
+      success: true as const,
+      data: {
+        ref: result.data.meta,
+        data: await result.data.bytes(),
+      },
+    };
+  }
+
   async deleteAttachment(id: string): Promise<void> {
     try {
-      const result = await this.session?.deleteAttachment(id);
-      if (result && !result.success) this._toastError('Failed to delete attachment', result.error);
+      const client = await this._getAcpClient();
+      const result = await client.deleteAttachment({
+        conversationId: this.conversationId,
+        attachmentId: id,
+      });
+      if (!result.success) this._toastError('Failed to delete attachment', result.error);
     } catch (error) {
       this._toastError('Failed to delete attachment', error);
     }
@@ -301,8 +380,12 @@ export class AcpChatStore {
   ): void {
     if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
+    const submissionSequence = ++this._submissionSequence;
+    let optimisticId: string | undefined;
+    this.draftText = '';
+    this.draftAttachments = [];
     if (!this.affordances.isWorking) {
-      const optimisticId = `optimistic:user:${Date.now()}`;
+      optimisticId = `optimistic:user:${Date.now()}`;
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -314,15 +397,41 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this._submitPrompt(text, promptAttachments, hiddenContext);
+    void this._submitPrompt(text, promptAttachments, hiddenContext).then((accepted) => {
+      if (accepted) return;
+      runInAction(() => {
+        if (this._disposed || submissionSequence !== this._submissionSequence) return;
+        if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
+          this.chatState.session.setPendingPrompt(null);
+          this._syncMessageCount();
+        }
+        if (this.draftText !== '' || this.draftAttachments.length > 0) return;
+        this.draftText = text;
+        this.draftAttachments = attachments;
+      });
+    });
   }
 
   setDraftText(text: string): void {
     if (text === this.draftText) return;
     this.draftText = text;
-    this._draftRev += 1;
-    this._pendingDraftRev = this._draftRev;
-    this._scheduleDraftWrite(text, this._draftRev);
+  }
+
+  addDraftAttachments(attachments: AcpPromptAttachment[]): void {
+    if (attachments.length === 0) return;
+    const existingIds = new Set(this.draftAttachments.map(({ ref }) => ref.id));
+    const additions = attachments.filter(({ ref }) => !existingIds.has(ref.id));
+    if (additions.length === 0) return;
+    this.draftAttachments = [...this.draftAttachments, ...additions];
+    if (additions.some((attachment) => !attachment.previewUrl)) {
+      void this._rehydrateDraftAttachmentPreviews();
+    }
+  }
+
+  removeDraftAttachment(id: string): void {
+    if (!this.draftAttachments.some(({ ref }) => ref.id === id)) return;
+    this.draftAttachments = this.draftAttachments.filter(({ ref }) => ref.id !== id);
+    void this.deleteAttachment(id);
   }
 
   stop(): void {
@@ -410,15 +519,16 @@ export class AcpChatStore {
   }
 
   dispose(): void {
+    this._disposed = true;
     this._disposeHostReaction();
     unregisterConversationCommands(this.conversationId);
-    if (this._draftTimer !== null) {
-      window.clearTimeout(this._draftTimer);
-      this._draftTimer = null;
-    }
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
+    void this._scope
+      .dispose()
+      .then(() => this._draftSpace.release())
+      .catch((error: unknown) => getMementoClient().reportError(error));
   }
 
   private async _runBootstrap(): Promise<void> {
@@ -445,11 +555,11 @@ export class AcpChatStore {
         this.session = clientSession;
         this.chatState.transcript.history.seed(history.data.turns);
         this._subscribeLiveSession(clientSession);
-        this._applyDraftSnapshot(clientSession.draft.current());
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
       });
+      void this._rehydrateDraftAttachmentPreviews();
     } catch (error) {
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
@@ -500,12 +610,12 @@ export class AcpChatStore {
     text: string,
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
-  ): Promise<void> {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return;
+  ): Promise<boolean> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return false;
     const session = this.session;
     if (!session) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));
-      return;
+      return false;
     }
 
     let resolvedHiddenContext: string | undefined;
@@ -524,9 +634,14 @@ export class AcpChatStore {
         ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       });
-      if (!result.success) this._toastError('Failed to send message', result.error);
+      if (!result.success) {
+        this._toastError('Failed to send message', result.error);
+        return false;
+      }
+      return true;
     } catch (error) {
       this._toastError('Failed to send message', error);
+      return false;
     }
   }
 
@@ -605,56 +720,42 @@ export class AcpChatStore {
           this._syncMessageCount();
         })
       ),
-      session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount())),
-      session.draft.onChange((draft) =>
-        runInAction(() => {
-          this._applyDraftSnapshot(draft);
-        })
-      )
+      session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
     );
   }
 
-  private _scheduleDraftWrite(text: string, rev: number): void {
-    if (this._draftTimer !== null) window.clearTimeout(this._draftTimer);
-    this._draftTimer = window.setTimeout(() => {
-      this._draftTimer = null;
-      const draft = { rev, input: text.trim().length > 0 ? { text } : null };
-      void this.session
-        ?.setPromptDraft(draft)
-        .then((result) => {
-          if (!result.success) this._toastError('Failed to sync draft', result.error);
-          if (result.success && draft.input === null && this._pendingDraftRev === rev) {
-            runInAction(() => {
-              this._pendingDraftRev = null;
-            });
+  private async _rehydrateDraftAttachmentPreviews(): Promise<void> {
+    const pending = this.draftAttachments.filter((attachment) => !attachment.previewUrl);
+    await Promise.all(
+      pending.map(async (attachment) => {
+        const previewUrl = await resolveDraftAttachmentDataUrl(
+          this.conversationId,
+          this,
+          attachment.ref.id
+        );
+        runInAction(() => {
+          if (this._disposed) return;
+          const current = this.draftAttachments.find(({ ref }) => ref.id === attachment.ref.id);
+          if (!current || current.previewUrl) return;
+          if (previewUrl.kind === 'resolved') {
+            this.draftAttachments = this.draftAttachments.map((candidate) =>
+              candidate.ref.id === attachment.ref.id
+                ? { ...candidate, previewUrl: previewUrl.dataUrl }
+                : candidate
+            );
+          } else if (previewUrl.kind === 'not_found') {
+            this.draftAttachments = this.draftAttachments.filter(
+              ({ ref }) => ref.id !== attachment.ref.id
+            );
           }
-        })
-        .catch((error: unknown) => this._toastError('Failed to sync draft', error));
-    }, 300);
+        });
+      })
+    );
   }
 
-  private _applyDraftSnapshot(draft: PromptDraft | null | undefined): void {
-    if (draft === undefined) return;
-    if (draft === null) {
-      if (this._pendingDraftRev === null) {
-        this._draftRev += 1;
-        this.draftText = '';
-      }
-      return;
-    }
-
-    if (this._pendingDraftRev !== null) {
-      if (draft.rev >= this._pendingDraftRev) {
-        this._draftRev = Math.max(this._draftRev, draft.rev);
-        this._pendingDraftRev = null;
-      }
-      return;
-    }
-
-    if (draft.rev >= this._draftRev) {
-      this._draftRev = draft.rev;
-      this.draftText = draft.text;
-    }
+  private _getAcpClient(): Promise<ConversationsClient['acp']> {
+    this._acpClientPromise ??= getConversationsClient().then((client) => client.acp);
+    return this._acpClientPromise;
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
@@ -695,6 +796,47 @@ function toPendingAttachment(attachment: AcpPromptAttachment): ChatImageAttachme
     name: attachment.ref.name ?? 'image',
     dataUrl: attachment.previewUrl,
   };
+}
+
+type DraftAttachmentPreviewResult =
+  | { kind: 'resolved'; dataUrl: string }
+  | { kind: 'not_found' }
+  | { kind: 'unavailable' };
+
+async function resolveDraftAttachmentDataUrl(
+  conversationId: string,
+  store: AcpChatStore,
+  attachmentId: string
+): Promise<DraftAttachmentPreviewResult> {
+  const cacheKey = `${conversationId}:${attachmentId}`;
+  const cached = draftAttachmentDataUrlCache.get(cacheKey);
+  if (cached) return { kind: 'resolved', dataUrl: cached };
+  try {
+    const result = await store.downloadAttachment(attachmentId);
+    if (!result.success) {
+      return result.error.type === 'attachment_not_found'
+        ? { kind: 'not_found' }
+        : { kind: 'unavailable' };
+    }
+    const dataUrl = `data:${result.data.ref.mimeType};base64,${bytesToBase64(result.data.data)}`;
+    draftAttachmentDataUrlCache.set(cacheKey, dataUrl);
+    return { kind: 'resolved', dataUrl };
+  } catch {
+    return { kind: 'unavailable' };
+  }
+}
+
+async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function resultError(error: unknown): Error {

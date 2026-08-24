@@ -4,8 +4,8 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
+  acpAttachmentErrorSchema,
   acpRuntimeErrorSchema,
-  promptDraftSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   sessionUsageSchema,
@@ -31,7 +31,6 @@ describe('ACP API contract schemas', () => {
     expect(() => sessionConfigStateSchema.parse(peek(live.states.config))).not.toThrow();
     expect(() => sessionUsageSchema.nullable().parse(peek(live.states.usage))).not.toThrow();
     expect(() => transcriptTurnSchema.nullable().parse(peek(live.states.activeTurn))).not.toThrow();
-    expect(() => promptDraftSchema.nullable().parse(peek(live.states.draft))).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {
@@ -83,6 +82,15 @@ describe('ACP API contract schemas', () => {
       acpRuntimeErrorSchema.parse({
         type: 'auth_required',
         cause: { name: 'RequestError', message: 'Authentication required' },
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts typed attachment-not-found errors', () => {
+    expect(() =>
+      acpAttachmentErrorSchema.parse({
+        type: 'attachment_not_found',
+        message: "Attachment 'missing' not found",
       })
     ).not.toThrow();
   });
