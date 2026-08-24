@@ -1,17 +1,14 @@
 import type {
   CreateTerminalRequest,
   CreateTerminalResponse,
-  LoadSessionRequest,
-  NewSessionRequest,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
 import type { Result, Serializable } from '@emdash/shared';
-import { err, ok, toSerializedError } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import {
-  acquireResourceAsResult,
   createLifecycleRegistry,
   type LifecycleRegistry,
   type LifecycleRegistryStateChange,
@@ -33,9 +30,7 @@ import type {
   AcpSetModelOptionError,
   AcpStartError,
   ConversationNotFoundError,
-  InvalidStateError,
   NormalizedEvent,
-  SessionMcpServer,
   SessionState,
   TerminalState,
   TranscriptTurn,
@@ -44,15 +39,11 @@ import { acpErr, acpStartInputSchema, initialSessionConfigState } from '#runtime
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
-import {
-  isAcpConnectionError,
-  type AcpConnectionContext,
-  type AcpConnectionEntry,
-  type AcpConnectionKey,
-  type AcpConnectionSource,
+import type {
+  AcpConnectionContext,
+  AcpConnectionSource,
 } from '#runtimes/acp/node/connection/source';
-import { SessionCell, type AcpChatHistory } from '#runtimes/acp/node/session/cell';
-import type { SessionCellCallbacks } from '#runtimes/acp/node/session/cell-deps';
+import type { AcpChatHistory, SessionCell } from '#runtimes/acp/node/session/cell';
 import {
   closedSessionState,
   createAcpSessionLiveHost,
@@ -73,7 +64,13 @@ import type {
   SessionSnapshotJudgment,
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
-import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
+import type {
+  ConfigDimension,
+  ConfigOverrides,
+  RetainedConversation,
+  SessionRecord,
+} from './conversation-types';
+import { SessionMaterializer } from './session-materializer';
 import { connectionRouteOwnerId, SessionRouter } from './session-router';
 import { SessionsListProjector } from './sessions-list-projector';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
@@ -88,38 +85,6 @@ const retainedConfigOverridesSchema = z.object({
 const retainedIntentSchema = acpStartInputSchema.extend({
   configOverrides: retainedConfigOverridesSchema.optional(),
 });
-
-type ConfigDimension = 'model' | 'effort';
-type ConfigOverrides = Partial<Record<ConfigDimension, string>>;
-
-interface RetainedConversation {
-  conversationId: string;
-  descriptor: AcpStartInput;
-  configOverrides: ConfigOverrides;
-  initialQueueConsumed: boolean;
-  everMaterialized: boolean;
-  deleted: boolean;
-  projection: SessionLiveModels;
-  releaseProjection: () => void;
-  materializationAbort?: AbortController;
-}
-
-interface ConnectionLeaseState {
-  release: boolean;
-}
-
-interface SessionRecord {
-  retained: RetainedConversation;
-  input: AcpStartInput;
-  resumeOutcome: 'loaded' | 'replaced-by-new' | null;
-  processKey: string;
-  processGeneration: number;
-  connectionLeaseState: ConnectionLeaseState;
-  cell: SessionCell;
-  mcpServers: SessionMcpServer[];
-  machineStateBinding: { dispose(): void };
-  disposed: boolean;
-}
 
 type ActivationStartError = AcpStartError | ConversationNotFoundError;
 type ActivationRegistry = LifecycleRegistry<
@@ -165,6 +130,7 @@ export class SessionManager {
   private readonly clock: Clock;
   private readonly lifecycle: ConversationSessionLifecycle;
   private readonly listProjector: SessionsListProjector;
+  private readonly materializer: SessionMaterializer;
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
@@ -191,6 +157,29 @@ export class SessionManager {
       this.clock,
       (conversationId) => this.lifecycle.activity(conversationId)
     );
+    this.materializer = new SessionMaterializer(deps, connections, {
+      isCurrent: (entry) => this.isRetainedCurrent(entry),
+      onRecordCreated: (record, scope) => {
+        this.materializing.set(record.input.conversationId, record);
+        this.syncRecord(record);
+        record.machineStateBinding.dispose = record.cell.machine.subscribe(() =>
+          this.syncRecord(record)
+        );
+        scope.add(() => this.teardownRecord(record));
+      },
+      onRecordChanged: (record) => this.syncRecord(record),
+      onRecordClosed: (record) => {
+        if (!this.isCurrentRecord(record)) return;
+        void this.stop(record.input.conversationId, 'process-exited');
+      },
+      discardRecord: (record) => this.discardReplacedRecord(record),
+      registerRoute: (processOwner, acpSessionId, conversationId) =>
+        this.router.register(processOwner, acpSessionId, conversationId),
+      addLoading: (processOwner, conversationId) =>
+        this.router.addLoading(processOwner, conversationId),
+      removeLoading: (processOwner, conversationId) =>
+        this.router.removeLoading(processOwner, conversationId),
+    });
     this.activations = createLifecycleRegistry<
       RetainedConversation,
       SessionRecord,
@@ -307,147 +296,20 @@ export class SessionManager {
       queuedPromptCount: 0,
     });
 
-    const binding = this.deps.agentHost.resolveAcp(input.providerId);
-    if (!binding) return acpErr.providerUnsupported(input.providerId);
-
-    const connectionKey: AcpConnectionKey = {
-      providerId: input.providerId,
-      cwd: input.cwd,
-      env: input.env,
-    };
-    const acquire = await acquireResourceAsResult(
-      this.connections,
-      connectionKey,
-      isAcpConnectionError
+    const materialized = await this.materializer.materialize(
+      entry,
+      input,
+      scope,
+      materializationAbort.signal
     );
-    if (!acquire.success) return acquire;
+    if (!materialized.success) return materialized;
 
-    const acquired = acquire.data;
-    const connectionLeaseState: ConnectionLeaseState = { release: true };
-    scope.add(async () => {
-      if (connectionLeaseState.release) await acquired.release();
-    });
-    if (!this.isRetainedCurrent(entry)) {
-      return acpErr.conversationNotFound(entry.conversationId);
-    }
-
-    const connection = acquired.value;
-    const mcpServers = await this.resolveSessionMcpServers(input.providerId, connection);
-    const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
-    let record: SessionRecord | null = null;
-    let resumeOutcome: 'loaded' | 'replaced-by-new' | null = input.sessionId
-      ? 'replaced-by-new'
-      : null;
-
-    try {
-      if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
-        record = this.createRecord(
-          entry,
-          input,
-          connection,
-          connectionLeaseState,
-          input.sessionId,
-          scope
-        );
-        this.router.addLoading(connectionRouteOwnerId(connection), input.conversationId);
-        this.router.register(
-          connectionRouteOwnerId(connection),
-          input.sessionId,
-          input.conversationId
-        );
-        record.cell.beginReplay();
-
-        let loaded = false;
-        try {
-          const response = await abortable(
-            connection.agent.loadSession(
-              this.buildLoadSessionRequest(input.cwd, input.sessionId, mcpServers)
-            ),
-            materializationAbort.signal
-          );
-          if (!this.isRetainedCurrent(entry) || record.disposed) {
-            return acpErr.conversationNotFound(entry.conversationId);
-          }
-          record.cell.applySessionLoaded({
-            modes: response.modes,
-            configOptions: response.configOptions,
-          });
-          await this.applyConfigOverrides(record, entry);
-          await this.applyInitialMode(record, entry.descriptor);
-          const queueResult = this.queueInitialPrompts(record, entry);
-          if (!queueResult.success) return queueResult;
-          record.cell.endReplay();
-          loaded = true;
-          resumeOutcome = 'loaded';
-        } catch (error) {
-          if (!this.isRetainedCurrent(entry)) {
-            return acpErr.conversationNotFound(entry.conversationId);
-          }
-          if (isAuthRequiredError(error)) throw error;
-          this.deps.logger.warn('SessionManager: loadSession failed, starting a new session', {
-            conversationId: input.conversationId,
-          });
-        } finally {
-          this.router.removeLoading(connectionRouteOwnerId(connection), input.conversationId);
-        }
-
-        if (!loaded) {
-          this.discardReplacedRecord(record);
-          record = null;
-        }
-      }
-
-      if (!record) {
-        let response;
-        try {
-          response = await abortable(
-            connection.agent.newSession(this.buildNewSessionRequest(input.cwd, mcpServers)),
-            materializationAbort.signal
-          );
-        } catch (error) {
-          if (!this.isRetainedCurrent(entry)) {
-            return acpErr.conversationNotFound(entry.conversationId);
-          }
-          if (isAuthRequiredError(error)) throw error;
-          return acpErr.newSessionFailed(toSerializedError(error));
-        }
-        if (!this.isRetainedCurrent(entry)) {
-          return acpErr.conversationNotFound(entry.conversationId);
-        }
-        record = this.createRecord(
-          entry,
-          input,
-          connection,
-          connectionLeaseState,
-          response.sessionId,
-          scope
-        );
-        record.cell.applySessionMeta({
-          modes: response.modes,
-          configOptions: response.configOptions,
-        });
-        await this.applyConfigOverrides(record, entry);
-        await this.applyInitialMode(record, entry.descriptor);
-        const queueResult = this.queueInitialPrompts(record, entry);
-        if (!queueResult.success) return queueResult;
-        record.cell.applySessionReady();
-      }
-
-      this.router.register(
-        connectionRouteOwnerId(connection),
-        record.cell.acpSessionId,
-        input.conversationId
-      );
-      record.mcpServers = mcpServerSummary;
-      record.resumeOutcome = resumeOutcome;
-      entry.everMaterialized = true;
-      this.updateRetainedSessionId(entry, record.cell.acpSessionId);
-      this.syncRecord(record);
-      return ok(record);
-    } catch (error) {
-      if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
-      return acpErr.initializeFailed(toSerializedError(error));
-    }
+    const { record } = materialized.data;
+    entry.initialQueueConsumed = materialized.data.initialQueueConsumed;
+    entry.everMaterialized = true;
+    this.updateRetainedSessionId(entry, record.cell.acpSessionId);
+    this.syncRecord(record);
+    return ok(record);
   }
 
   async prompt(
@@ -752,93 +614,6 @@ export class SessionManager {
     return this.lifecycle.sweepNow();
   }
 
-  private createRecord(
-    retained: RetainedConversation,
-    input: AcpStartInput,
-    connection: AcpConnectionEntry,
-    connectionLeaseState: ConnectionLeaseState,
-    acpSessionId: string,
-    scope: Scope
-  ): SessionRecord {
-    const recordRef: { current?: SessionRecord } = {};
-    const callbacks: SessionCellCallbacks = {
-      onSessionStateChanged: () => {
-        if (recordRef.current) this.syncRecord(recordRef.current);
-      },
-      onTranscriptChanged: () => {
-        if (recordRef.current) this.syncRecord(recordRef.current);
-      },
-      onClosed: () => {
-        const record = recordRef.current;
-        if (!record || !this.isCurrentRecord(record)) return;
-        void this.stop(input.conversationId, 'process-exited');
-      },
-      onSendQueuedPrompt: () => {
-        if (recordRef.current) this.syncRecord(recordRef.current);
-      },
-    };
-    const cell = new SessionCell({
-      conversationId: input.conversationId,
-      providerId: input.providerId,
-      acpSessionId,
-      agent: connection.agent,
-      resolveAttachment: this.deps.resolveAttachment,
-      logger: this.deps.logger,
-      callbacks,
-    });
-    const machineStateBinding = { dispose: () => {} };
-    const record: SessionRecord = {
-      retained,
-      input,
-      resumeOutcome: null,
-      processKey: connection.key,
-      processGeneration: connection.generation,
-      connectionLeaseState,
-      cell,
-      mcpServers: [],
-      machineStateBinding,
-      disposed: false,
-    };
-    recordRef.current = record;
-    this.materializing.set(input.conversationId, record);
-    this.syncRecord(record);
-    machineStateBinding.dispose = cell.machine.subscribe(() => this.syncRecord(record));
-    scope.add(() => this.teardownRecord(record));
-    return record;
-  }
-
-  private queueInitialPrompts(
-    record: SessionRecord,
-    entry: RetainedConversation
-  ): Result<void, InvalidStateError> {
-    if (entry.initialQueueConsumed) return ok();
-    for (const prompt of entry.descriptor.initialQueue ?? []) {
-      const result = record.cell.queuePrompt(prompt);
-      if (!result.success) return result;
-    }
-    entry.initialQueueConsumed = true;
-    return ok();
-  }
-
-  private async applyConfigOverrides(
-    record: SessionRecord,
-    entry: RetainedConversation
-  ): Promise<void> {
-    for (const dimension of ['model', 'effort'] as const) {
-      const value = entry.configOverrides[dimension];
-      if (!value) continue;
-      const result = await record.cell.setConfigOption(dimension, value);
-      if (!result.success) {
-        this.deps.logger.warn('SessionManager: failed to apply retained config option', {
-          conversationId: entry.conversationId,
-          providerId: entry.descriptor.providerId,
-          dimension,
-          error: result.error,
-        });
-      }
-    }
-  }
-
   private syncRecord(record: SessionRecord): void {
     if (!this.canPublishRecord(record)) return;
     record.retained.projection.source.set({ kind: 'active', snapshot: this.buildSnapshot(record) });
@@ -856,26 +631,6 @@ export class SessionManager {
       terminals: this.getTerminals(record.input.conversationId),
       mcpServers: record.mcpServers,
     };
-  }
-
-  private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
-    try {
-      const result = await this.deps.agentHost.readMcpServers(providerId);
-      if (!result.success) {
-        this.deps.logger.warn('SessionManager: failed to read MCP servers for session', {
-          providerId,
-          error: 'message' in result.error ? result.error.message : result.error.type,
-        });
-        return [];
-      }
-      return registrationsToAcpMcpServers(result.data, connection.mcpCapabilities);
-    } catch (error) {
-      this.deps.logger.warn('SessionManager: failed to read MCP servers for session', {
-        providerId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return [];
-    }
   }
 
   private publishSuspended(entry: RetainedConversation): void {
@@ -1124,45 +879,6 @@ export class SessionManager {
         break;
     }
   }
-
-  private async applyInitialMode(record: SessionRecord, input: AcpStartInput): Promise<void> {
-    const modeId = input.modeId;
-    if (!modeId) return;
-    const modeOptions = record.cell.config.modeOptions;
-    if (!modeOptions?.available.some((mode) => mode.id === modeId)) {
-      this.deps.logger.debug('SessionManager: persisted mode not advertised, skipping', {
-        conversationId: input.conversationId,
-        providerId: input.providerId,
-        modeId,
-      });
-      return;
-    }
-    if (modeOptions.selected === modeId) return;
-    const result = await record.cell.setMode(modeId);
-    if (!result.success) {
-      this.deps.logger.warn('SessionManager: failed to apply initial mode', {
-        conversationId: input.conversationId,
-        providerId: input.providerId,
-        modeId,
-        error: result.error,
-      });
-    }
-  }
-
-  private buildNewSessionRequest(
-    cwd: string,
-    mcpServers: NewSessionRequest['mcpServers']
-  ): NewSessionRequest {
-    return { cwd, mcpServers };
-  }
-
-  private buildLoadSessionRequest(
-    cwd: string,
-    sessionId: string,
-    mcpServers: LoadSessionRequest['mcpServers']
-  ): LoadSessionRequest {
-    return { cwd, sessionId, mcpServers };
-  }
 }
 
 function startingSnapshot(): ActivationSnapshot {
@@ -1189,22 +905,6 @@ function isUnambiguousStartError(error: unknown): error is ActivationStartError 
   ].includes(String(error.type));
 }
 
-function isAuthRequiredError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const value = error as { code?: unknown; cause?: unknown };
-  if (value.code === -32000) return true;
-  return isAuthRequiredError(value.cause);
-}
-
 function recordRouteOwnerId(record: SessionRecord): string {
   return `${record.processKey}:${record.processGeneration}`;
-}
-
-function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-  });
 }
