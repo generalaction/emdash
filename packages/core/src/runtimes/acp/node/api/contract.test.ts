@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
   acpRuntimeErrorSchema,
-  promptDraftSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   sessionUsageSchema,
@@ -31,7 +30,6 @@ describe('ACP API contract schemas', () => {
     expect(() => sessionConfigStateSchema.parse(peek(live.states.config))).not.toThrow();
     expect(() => sessionUsageSchema.nullable().parse(peek(live.states.usage))).not.toThrow();
     expect(() => transcriptTurnSchema.nullable().parse(peek(live.states.activeTurn))).not.toThrow();
-    expect(() => promptDraftSchema.nullable().parse(peek(live.states.draft))).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {

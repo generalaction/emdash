@@ -1,6 +1,5 @@
 import {
   planStateSchema,
-  promptDraftSchema,
   sessionUsageSchema,
   sessionConfigStateSchema,
   sessionMcpServerSchema,
@@ -11,7 +10,6 @@ import {
   type AttachmentRef,
   type AcpRuntimeError,
   type HistoryPage,
-  type PromptDraftUpdate,
   type PromptInput,
   type PromptPlacement,
   type SessionState,
@@ -88,7 +86,6 @@ export class AcpLiveSession {
   readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
   readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
   readonly activeTurn: RemoteValueState<z.infer<typeof transcriptTurnSchema> | null>;
-  readonly draft: RemoteValueState<z.infer<typeof promptDraftSchema> | null>;
   readonly terminals: RemoteValueState<TerminalState[]>;
   readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
   private readonly scope = createScope({ label: 'acp-live-session' });
@@ -117,7 +114,6 @@ export class AcpLiveSession {
       transcriptTurnSchema.nullable(),
       this.scope
     );
-    this.draft = remoteValueState(member.states.draft, promptDraftSchema.nullable(), this.scope);
     this.terminals = remoteValueState(
       member.states.terminals,
       z.array(terminalStateSchema),
@@ -148,7 +144,6 @@ export class AcpLiveSession {
           session.usage.ready,
           session.plan.ready,
           session.activeTurn.ready,
-          session.draft.ready,
           session.terminals.ready,
           session.mcpServers.ready,
         ]),
@@ -263,10 +258,6 @@ export class AcpLiveSession {
 
   cancelTurn(): Promise<Result<void, unknown>> {
     return this.client.cancelTurn({ conversationId: this.conversationId });
-  }
-
-  setPromptDraft(draft: PromptDraftUpdate): Promise<Result<void, unknown>> {
-    return this.client.setPromptDraft({ conversationId: this.conversationId, draft });
   }
 
   setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {

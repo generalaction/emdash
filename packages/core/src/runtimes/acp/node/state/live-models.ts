@@ -5,7 +5,6 @@ import {
   initialSessionConfigState,
   type AgentState,
   type PlanState,
-  type PromptDraft,
   type SessionConfigState,
   type SessionMcpServer,
   type SessionState,
@@ -23,7 +22,6 @@ export type SessionLiveModels = {
     plan: Cell<PlanState | null>;
     agents: Cell<AgentState[]>;
     activeTurn: Cell<TranscriptTurn | null>;
-    draft: Cell<PromptDraft | null>;
     terminals: Cell<TerminalState[]>;
     mcpServers: Cell<SessionMcpServer[]>;
   };
@@ -53,7 +51,6 @@ export function createAcpSessionLiveHost(): AcpSessionLiveHost {
         plan: (key) => requireSessionModel(models, key.conversationId).states.plan,
         agents: (key) => requireSessionModel(models, key.conversationId).states.agents,
         activeTurn: (key) => requireSessionModel(models, key.conversationId).states.activeTurn,
-        draft: (key) => requireSessionModel(models, key.conversationId).states.draft,
         terminals: (key) => requireSessionModel(models, key.conversationId).states.terminals,
         mcpServers: (key) => requireSessionModel(models, key.conversationId).states.mcpServers,
       },
@@ -90,7 +87,6 @@ export function createSessionLiveModels(
       plan: cell<PlanState | null>(null),
       agents: cell<AgentState[]>([]),
       activeTurn: cell<TranscriptTurn | null>(null),
-      draft: cell<PromptDraft | null>(null),
       terminals: cell<TerminalState[]>([]),
       mcpServers: cell<SessionMcpServer[]>([]),
     },
@@ -118,7 +114,6 @@ export function produceCell<T>(target: Cell<T>, mutator: (draft: T) => void): vo
 export type {
   AgentState,
   PlanState,
-  PromptDraft,
   SessionConfigState,
   SessionMcpServer,
   SessionState,

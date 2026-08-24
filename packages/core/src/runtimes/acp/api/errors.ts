@@ -72,7 +72,6 @@ export type AcpEditQueuedPromptError = AcpQueueMutationError;
 export type AcpDeleteQueuedPromptError = AcpQueueMutationError;
 export type AcpChangeQueuePromptOrderError = AcpQueueMutationError;
 export type AcpResolvePermissionError = AcpQueueMutationError;
-export type AcpSetPromptDraftError = ConversationNotFoundError;
 export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
 export type AcpSetModelOptionError =
   | ConversationNotFoundError
@@ -164,7 +163,6 @@ export const acpEditQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
 export const acpDeleteQueuedPromptErrorSchema = acpQueueMutationErrorSchema;
 export const acpChangeQueuePromptOrderErrorSchema = acpQueueMutationErrorSchema;
 export const acpResolvePermissionErrorSchema = acpQueueMutationErrorSchema;
-export const acpSetPromptDraftErrorSchema = conversationNotFoundErrorSchema;
 export const acpCancelTurnErrorSchema = z.discriminatedUnion('type', [
   invalidStateErrorSchema,
   cancelFailedErrorSchema,

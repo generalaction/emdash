@@ -15,12 +15,10 @@ import type {
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
-  AcpSetPromptDraftError,
   AcpStartError,
   AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
-  PromptDraftUpdate,
   PromptInput,
   PromptPlacement,
   ResumeResult,
@@ -132,13 +130,6 @@ export class AcpRuntime {
 
   cancelTurn(conversationId: string): Promise<Result<void, AcpCancelTurnError>> {
     return this.manager.cancel(conversationId);
-  }
-
-  setPromptDraft(
-    conversationId: string,
-    draft: PromptDraftUpdate
-  ): Result<void, AcpSetPromptDraftError> {
-    return this.manager.setPromptDraft(conversationId, draft);
   }
 
   resolvePermission(

@@ -17,8 +17,6 @@ import type {
   AcpSetModelOptionError,
   InvalidStateError,
   NormalizedEvent,
-  PromptDraft,
-  PromptDraftUpdate,
   PromptInput,
   QueuedPrompt,
   SessionConfigState,
@@ -65,8 +63,6 @@ export class SessionCell {
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
   private readonly effectDriver: MachineEffectDriver<Effect>;
-  private draft: PromptDraft | null = null;
-  private draftRev = 0;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -110,10 +106,6 @@ export class SessionCell {
 
   get sessionState(): SessionState {
     return this.machine.sessionState();
-  }
-
-  get promptDraft(): PromptDraft | null {
-    return this.draft ? structuredClone(this.draft) : null;
   }
 
   get config(): SessionConfigState {
@@ -223,7 +215,6 @@ export class SessionCell {
       createdAt: now,
       updatedAt: now,
     });
-    if (result.success) this.clearDraft();
     return result;
   }
 
@@ -242,24 +233,6 @@ export class SessionCell {
       ['invalid_state']
     );
     if (!result.success) return result;
-    this.clearDraft();
-    return ok();
-  }
-
-  setPromptDraft(update: PromptDraftUpdate): Result<void, never> {
-    if (update.rev <= this.draftRev) return ok();
-    this.draftRev = update.rev;
-
-    if (update.input === null) {
-      if (this.draft !== null) {
-        this.draft = null;
-        this.deps.callbacks?.onDraftChanged?.();
-      }
-      return ok();
-    }
-
-    this.draft = { ...update.input, rev: update.rev, updatedAt: Date.now() };
-    this.deps.callbacks?.onDraftChanged?.();
     return ok();
   }
 
@@ -615,13 +588,6 @@ export class SessionCell {
         status,
       });
     }
-  }
-
-  private clearDraft(): void {
-    this.draftRev += 1;
-    if (this.draft === null) return;
-    this.draft = null;
-    this.deps.callbacks?.onDraftChanged?.();
   }
 
   private scheduleQuiesce(): void {

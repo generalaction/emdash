@@ -15,13 +15,11 @@ import type {
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
-  AcpSetPromptDraftError,
   AcpStartError,
   AcpStartInputWire,
   AttachmentMimeType,
   AttachmentRef,
   HistoryPage,
-  PromptDraftUpdate,
   PromptInput,
   PromptPlacement,
   ResumeResult,
@@ -71,12 +69,6 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     cancelTurn(input: { conversationId: string }): Promise<Result<void, AcpCancelTurnError>> {
       return runtime.cancelTurn(input.conversationId);
-    },
-    setPromptDraft(input: {
-      conversationId: string;
-      draft: PromptDraftUpdate;
-    }): Result<void, AcpSetPromptDraftError> {
-      return runtime.setPromptDraft(input.conversationId, input.draft);
     },
     setModelOption(input: {
       conversationId: string;
