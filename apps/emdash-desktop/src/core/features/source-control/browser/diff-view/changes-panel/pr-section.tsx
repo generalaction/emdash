@@ -64,7 +64,6 @@ function usePullRequestsSectionModel() {
           source: 'branch',
           baseRefOid: defaultBranch.oid,
           headRefOid: headOid,
-          revision: gitCheckout.statusRevision,
         }
       : undefined;
   const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);

@@ -40,7 +40,7 @@ const EMPTY_EXPANDED_HASHES: ReadonlySet<string> = new Set();
 
 function commitRangeIdentity(range: CommitRange | undefined): string {
   if (!range) return 'none';
-  return `${range.source}:${range.baseRefOid}:${range.headRefOid}:${range.revision ?? 0}`;
+  return `${range.source}:${range.baseRefOid}:${range.headRefOid}`;
 }
 
 export const CommitRangeCommitsList = observer(function CommitRangeCommitsList({

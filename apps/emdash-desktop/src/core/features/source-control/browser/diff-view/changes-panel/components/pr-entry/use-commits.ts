@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import {
   checkoutSelector,
   getSourceControlClient,
@@ -14,7 +14,6 @@ export type CommitRange = {
   source: CommitRangeSource;
   baseRefOid: string;
   headRefOid: string;
-  revision?: number;
 };
 
 export function commitRangeForPullRequest(pr: PullRequest): CommitRange {
@@ -30,18 +29,16 @@ export const commitsQueryKey = (
   workspaceId: string,
   source: CommitRangeSource,
   baseRefOid: string,
-  headRefOid: string,
-  revision: number
-) => [projectId, workspaceId, 'commits', source, baseRefOid, headRefOid, revision] as const;
+  headRefOid: string
+) => [projectId, workspaceId, 'commits', source, baseRefOid, headRefOid] as const;
 
 export function useCommits(projectId: string, workspaceId: string, range: CommitRange | undefined) {
   const source = range?.source ?? 'branch';
   const baseRefOid = range?.baseRefOid ?? '';
   const headRefOid = range?.headRefOid ?? '';
-  const revision = range?.revision ?? 0;
 
   return useInfiniteQuery({
-    queryKey: commitsQueryKey(projectId, workspaceId, source, baseRefOid, headRefOid, revision),
+    queryKey: commitsQueryKey(projectId, workspaceId, source, baseRefOid, headRefOid),
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       if (!range) return { commits: [], aheadCount: 0 };
 
@@ -62,6 +59,7 @@ export function useCommits(projectId: string, workspaceId: string, range: Commit
     getNextPageParam: (lastPage, _all, lastPageParam) =>
       lastPage.commits.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
     enabled: !!range,
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
 }
