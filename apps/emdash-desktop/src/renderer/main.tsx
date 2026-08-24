@@ -133,6 +133,9 @@ async function bootstrap() {
   const historyHandle = appSpace.handle(workbenchHistoryMemento);
   const legacyNavigationHandle = appSpace.handle(workbenchNavigationMemento);
   const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
+  const projectsLoaded = getProjectManagerStore()
+    .load()
+    .then(() => bootMark('projects-loaded'));
   // Memento reads queue behind the wire until the backend registers its
   // controllers, so navigation restore is a gate condition rather than a
   // render prerequisite. On the timeout path the restore lands after render;
@@ -141,16 +144,13 @@ async function bootstrap() {
     bootMark('memento-handles-ready');
     getNavigation().attachMemento(historyHandle, legacyNavigationHandle);
     getSidebarStore().attachMemento(sidebarHandle);
-    if (!sidebarHandle.hasStoredValue) getSidebarStore().expandAllProjects();
     wireNavigationTelemetry(getNavigation());
   });
+  const sidebarInitialized = Promise.all([navigationRestored, projectsLoaded]).then(() => {
+    if (!sidebarHandle.hasStoredValue) getSidebarStore().expandAllProjects();
+  });
 
-  // The list snapshot resolves load(); Host attachment may continue in the
-  // background. The gate below awaits only desktop context for the Project
-  // required by the restored view.
-  const projectsLoaded = getProjectManagerStore()
-    .load()
-    .then(() => bootMark('projects-loaded'));
+  // The gate below awaits only desktop context for the Project required by the restored view.
   const activeProjectReady = waitForActiveProjectContext({
     navigationRestored,
     projectsLoaded,
@@ -164,7 +164,7 @@ async function bootstrap() {
   });
 
   const gate = raceSplashGate(
-    [navigationRestored, activeProjectReady, appQueriesSettled()],
+    [sidebarInitialized, activeProjectReady, appQueriesSettled()],
     SPLASH_GATE_TIMEOUT_MS
   );
 
