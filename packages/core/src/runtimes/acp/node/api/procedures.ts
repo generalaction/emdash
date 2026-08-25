@@ -173,6 +173,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
 export type AcpProcedures = ReturnType<typeof createAcpProcedures>;
 
 function wakeFailureCause(failure: AcpWakeFailure): SerializedError {
+  if ('cause' in failure.error && failure.error.cause) return failure.error.cause;
   return {
     name: 'AcpStartError',
     message: failure.error.message ?? failure.error.type,

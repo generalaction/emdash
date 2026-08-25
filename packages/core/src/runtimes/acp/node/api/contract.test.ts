@@ -100,7 +100,10 @@ describe('ACP API contract schemas', () => {
         })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'prompt_failed', cause: { name: 'AcpStartError' } },
+        error: {
+          type: 'prompt_failed',
+          cause: { name: 'Error', message: 'replacement failed' },
+        },
       });
       await expect(
         wire.client.setModeOption({
@@ -109,7 +112,10 @@ describe('ACP API contract schemas', () => {
         })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'set_mode_failed', cause: { name: 'AcpStartError' } },
+        error: {
+          type: 'set_mode_failed',
+          cause: { name: 'Error', message: 'replacement failed' },
+        },
       });
       await expect(
         wire.client.setModelOption({
@@ -119,7 +125,10 @@ describe('ACP API contract schemas', () => {
         })
       ).resolves.toMatchObject({
         success: false,
-        error: { type: 'set_config_failed', cause: { name: 'AcpStartError' } },
+        error: {
+          type: 'set_config_failed',
+          cause: { name: 'Error', message: 'replacement failed' },
+        },
       });
     } finally {
       wire.dispose();

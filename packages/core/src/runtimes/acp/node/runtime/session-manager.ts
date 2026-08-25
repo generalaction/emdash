@@ -766,12 +766,21 @@ export class SessionManager {
   }
 
   private interruptRecord(record: SessionRecord): void {
-    void record.cell.cancel().catch((error) => {
-      this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
-        conversationId: record.input.conversationId,
-        error: String(error),
+    void record.cell
+      .cancel()
+      .then((result) => {
+        if (result.success) return;
+        this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
+          conversationId: record.input.conversationId,
+          error: result.error,
+        });
+      })
+      .catch((error) => {
+        this.deps.logger.warn('SessionManager: failed to cancel session during teardown', {
+          conversationId: record.input.conversationId,
+          error: String(error),
+        });
       });
-    });
     void record.cell.closeSession().catch((error) => {
       this.deps.logger.warn('SessionManager: failed to close provider session during teardown', {
         conversationId: record.input.conversationId,

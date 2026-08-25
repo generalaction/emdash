@@ -100,12 +100,11 @@ export class SessionMaterializer {
           scope
         );
         const processOwner = routeOwnerId(connection.key, connection.generation);
-        this.callbacks.addLoading(processOwner, input.conversationId);
-        this.callbacks.registerRoute(processOwner, input.sessionId, input.conversationId);
-        record.cell.beginReplay();
-
         let loaded = false;
         try {
+          this.callbacks.addLoading(processOwner, input.conversationId);
+          this.callbacks.registerRoute(processOwner, input.sessionId, input.conversationId);
+          record.cell.beginReplay();
           const response = await abortable(
             connection.agent.loadSession(
               this.buildLoadSessionRequest(input.cwd, input.sessionId, mcpServers)
