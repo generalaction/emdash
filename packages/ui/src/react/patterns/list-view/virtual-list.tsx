@@ -159,7 +159,7 @@ function VirtualListInner<T>(
 
   if (isLoading && itemCount === 0) {
     return (
-      <div className={cx(styles.scrollContainer, className)}>
+      <div className={cx(styles.scrollContainer, styles.stateSlot, className)}>
         {loadingSlot ?? (
           <p className={styles.loadingMore} style={{ paddingTop: '1rem' }}>
             Loading…
@@ -170,11 +170,17 @@ function VirtualListInner<T>(
   }
 
   if (errorSlot && itemCount === 0) {
-    return <div className={cx(styles.scrollContainer, className)}>{errorSlot}</div>;
+    return (
+      <div className={cx(styles.scrollContainer, styles.stateSlot, className)}>{errorSlot}</div>
+    );
   }
 
   if (itemCount === 0) {
-    return <div className={cx(styles.scrollContainer, className)}>{emptySlot ?? null}</div>;
+    return (
+      <div className={cx(styles.scrollContainer, styles.stateSlot, className)}>
+        {emptySlot ?? null}
+      </div>
+    );
   }
 
   // ── Virtualized list ─────────────────────────────────────────────────────────

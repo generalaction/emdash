@@ -83,7 +83,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   });
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-background p-8">
+    <div className="flex h-full flex-col items-center justify-center p-8">
       <div className="flex w-full max-w-sm flex-col gap-1">
         {actions.map((action, i) => (
           <TaskActionRow

@@ -224,6 +224,8 @@ export interface ListViewSnapshot<T> {
   error?: unknown;
   visibleItems: T[];
   orderedIds: string[];
+  /** Grouped sections in display order; `undefined` when the spec has no `sections`. */
+  sections?: { key: string; items: T[] }[];
   reload: () => Promise<void>;
 }
 

@@ -3,7 +3,7 @@ import { style, styleVariants } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
-export const root = style({
+export const wrapper = style({
   '@layer': {
     recipes: {
       display: 'flex',
@@ -11,8 +11,74 @@ export const root = style({
       height: '100%',
       minHeight: 0,
       flexDirection: 'column',
+      gap: tokenVars.space3,
+    },
+  },
+});
+
+export const root = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      width: '100%',
+      minHeight: 0,
+      flex: '1 1 0%',
+      flexDirection: 'column',
       overflow: 'hidden',
       borderRadius: tokenVars.radiusLg,
+      border: `1px solid ${vars.surfaceBorder}`,
+      backgroundColor: vars.surface,
+    },
+  },
+});
+
+/**
+ * Grouped layout: natural-height wrapper (the page scrolls, not the card),
+ * one bordered card per section with its title on the page background.
+ */
+export const wrapperGrouped = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      width: '100%',
+      minHeight: 0,
+      flexDirection: 'column',
+      gap: tokenVars.space3,
+    },
+  },
+});
+
+export const groupStack = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      width: '100%',
+      flexDirection: 'column',
+      gap: '1.25rem',
+    },
+  },
+});
+
+export const group = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      width: '100%',
+      flexDirection: 'column',
+      gap: '0.375rem',
+    },
+  },
+});
+
+export const groupCard = style({
+  '@layer': {
+    recipes: {
+      display: 'flex',
+      width: '100%',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRadius: tokenVars.radiusLg,
+      border: `1px solid ${vars.surfaceBorder}`,
       backgroundColor: vars.surface,
     },
   },
@@ -39,7 +105,7 @@ export const rowGrid = style({
       gridTemplateColumns: 'var(--collection-view-template)',
       alignItems: 'center',
       columnGap: tokenVars.space3,
-      paddingInline: '0.75rem',
+      paddingInline: '1rem',
     },
   },
 });
@@ -73,7 +139,7 @@ const freeformBase = style({
       minWidth: 0,
       alignItems: 'center',
       gap: tokenVars.space3,
-      paddingInline: '0.75rem',
+      paddingInline: '1rem',
     },
   },
 });

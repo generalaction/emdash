@@ -42,7 +42,7 @@ export const ActiveProject = observer(function ActiveProject() {
   if (!context || !view) return null;
 
   const activeView = view.activeView;
-  const virtualizedSection = activeView === 'tasks' || activeView === 'pull-request';
+  const fixedHeightSection = activeView !== 'workspaces';
   return (
     <div className="flex min-h-0 w-full flex-col gap-6">
       <PillTabs
@@ -58,13 +58,17 @@ export const ActiveProject = observer(function ActiveProject() {
         aria-labelledby={getPillTabId(PROJECT_SECTION_PANEL_ID, activeView)}
         className={cn(
           'flex w-full flex-col px-1',
-          virtualizedSection ? 'h-[calc(100vh-16rem)] min-h-96' : 'min-h-[calc(100vh-16rem)]'
+          fixedHeightSection ? 'h-[calc(100vh-16rem)] min-h-96' : 'min-h-[calc(100vh-16rem)]'
         )}
       >
         {activeView === 'tasks' && <TaskList />}
         {activeView === 'pull-request' && <PullRequestView />}
         {activeView === 'workspaces' && <ProjectWorkspacesView projectId={projectId} />}
-        {activeView === 'settings' && <SettingsPanel />}
+        {activeView === 'settings' && (
+          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            <SettingsPanel />
+          </div>
+        )}
       </section>
     </div>
   );

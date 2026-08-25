@@ -337,6 +337,7 @@ export function createListView<const S extends ListViewSpec<any>>(
       error: store.error,
       visibleItems: store.visibleItems,
       orderedIds: store.orderedIds,
+      sections: store.sections,
       reload: () => store.reload(),
     };
   }

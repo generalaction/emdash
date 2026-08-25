@@ -76,7 +76,7 @@ export const McpServersList: React.FC<McpServersListProps> = ({
         onSave={(server) => mcp.saveServer(server, drawerSource)}
         onRemove={handleRemoveRequest}
       />
-      <div className="flex flex-col gap-8 py-8">
+      <div className="flex flex-col gap-8 pt-3 pb-8">
         {filteredInstalled.length > 0 && (
           <CardGridSection title="Added">
             {filteredInstalled.map((server) => (

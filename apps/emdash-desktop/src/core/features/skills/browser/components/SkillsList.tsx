@@ -51,7 +51,7 @@ export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }
 
   return (
     <div className="flex flex-col text-foreground">
-      <div className="flex flex-col gap-8 py-8">
+      <div className="flex flex-col gap-8 pt-3 pb-8">
         {skills.installedSkills.length > 0 && (
           <CardGridSection title="Installed">
             {skills.installedSkills.map((skill) => (

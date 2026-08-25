@@ -159,7 +159,7 @@ export function PromptLibraryView() {
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 text-foreground">
+    <div className="flex min-h-0 flex-col gap-8 text-foreground">
       <PageLayout.Header
         sticky
         title="Prompts"

@@ -7,7 +7,7 @@ import {
   Sheet,
   useToast,
 } from '@emdash/ui/react/primitives';
-import { CheckCircle2, ChevronDown } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
@@ -142,20 +142,12 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       <Collapsible.Root
         open={!templatesCollapsed}
         onOpenChange={(open) => setTemplatesCollapsed(!open)}
-        className="group border-t border-border bg-background"
+        className="border-t border-border bg-background"
       >
-        <div className="flex w-full items-center justify-between gap-3 p-4 py-3">
-          <Label>Use a template</Label>
-
-          <Collapsible.Trigger
-            hideChevron
-            render={
-              <Button variant="ghost" size="xs" icon>
-                <ChevronDown className="size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-180" />
-              </Button>
-            }
-          ></Collapsible.Trigger>
-        </div>
+        {/* The whole row is the trigger; the primitive owns the trailing chevron. */}
+        <Collapsible.Trigger className="h-auto rounded-none px-4 py-3">
+          Use a template
+        </Collapsible.Trigger>
         <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
           <AutomationTemplateRail
             templates={emptyStateAutomationTemplates}
