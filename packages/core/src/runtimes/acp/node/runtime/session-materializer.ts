@@ -237,7 +237,11 @@ export class SessionMaterializer {
       connectionLeaseState,
       cell,
       mcpServers: [],
-      machineStateBinding: { dispose: () => {} },
+      machineStateBinding: {
+        dispose: cell.machine.subscribe(() => {
+          if (recordRef.current) this.callbacks.onRecordChanged(recordRef.current);
+        }),
+      },
       disposed: false,
     };
     recordRef.current = record;

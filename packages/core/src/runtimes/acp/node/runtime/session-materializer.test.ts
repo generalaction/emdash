@@ -177,7 +177,6 @@ function materializerHarness(
 }
 
 function ownRecord(record: SessionRecord, scope: Scope): void {
-  record.machineStateBinding.dispose = record.cell.machine.subscribe(() => {});
   scope.add(() => {
     record.machineStateBinding.dispose();
     record.cell.dispose();

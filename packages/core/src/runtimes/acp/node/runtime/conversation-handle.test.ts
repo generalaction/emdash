@@ -1,7 +1,7 @@
 import { systemClock } from '@emdash/shared/scheduling';
 import { cell, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
-import { acpErr, initialSessionConfigState } from '#runtimes/acp/api';
+import { acpErr } from '#runtimes/acp/api';
 import { makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import {
   closedSessionState,
@@ -104,6 +104,25 @@ describe('ConversationHandle', () => {
     await expect(activation).rejects.toThrow('LifecycleRegistry disposed');
     expect(setup.handle.state).toBe('closed');
   });
+
+  it('rejects commands after kill while directory removal is still pending', async () => {
+    const setup = makeHandle();
+    const materialization = setup.handle.beginMaterialization();
+    if (!materialization) throw new Error('expected materialization epoch');
+    const record = makeRecord(setup.handle, materialization.epoch);
+    setup.handle.attachProvisional(record);
+    setup.handle.activate(record);
+    const operation = vi.fn(() => ({ success: true as const, data: undefined }));
+
+    setup.handle.kill();
+
+    await expect(setup.handle.use(operation)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'conversation_not_found' },
+    });
+    expect(operation).not.toHaveBeenCalled();
+    expect(setup.handle.beginMaterialization()).toBeNull();
+  });
 });
 
 function makeHandle(
@@ -123,25 +142,13 @@ function makeHandle(
   }));
   const releaseProjection = vi.fn();
   const saveIntent = vi.fn();
-  let owned = true;
   const handle = new ConversationHandle(
     {
       projection,
       releaseProjection,
       listProjector,
-      isOwned: () => owned,
+      terminals: { listByConversation: () => [] },
       saveIntent,
-      buildSnapshot: () => ({
-        state: { ...closedSessionState, lifecycle: 'ready', canSubmit: true },
-        config: initialSessionConfigState,
-        usage: null,
-        plan: null,
-        agents: [],
-        activeTurn: null,
-        terminals: [],
-        mcpServers: [],
-      }),
-      onMaterializingRecord: () => {},
       materialize:
         options.materialize ??
         (async () => {
@@ -164,9 +171,6 @@ function makeHandle(
     listModel,
     releaseProjection,
     saveIntent,
-    relinquish: () => {
-      owned = false;
-    },
   };
 }
 

@@ -1,7 +1,8 @@
 import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
-import { initialSessionConfigState } from '#runtimes/acp/api';
+import { acpErr, initialSessionConfigState } from '#runtimes/acp/api';
+import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import {
   closedSessionState,
   suspendedSessionState,
@@ -29,10 +30,8 @@ export interface ConversationHandleDeps {
   projection: SessionLiveModels;
   releaseProjection(): void;
   listProjector: SessionsListProjector;
-  isOwned(): boolean;
+  terminals: Pick<AgentTerminalManager, 'listByConversation'>;
   saveIntent(): void;
-  buildSnapshot(record: SessionRecord): ActivationSnapshot;
-  onMaterializingRecord(record: SessionRecord | null): void;
   materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
   interruptRecord(record: SessionRecord): void;
   onActivated(record: SessionRecord): void;
@@ -48,6 +47,7 @@ export class ConversationHandle {
   private recordValue: SessionRecord | null = null;
   private materializationAbort: AbortController | null = null;
   private projectionReleased = false;
+  private disposedValue = false;
   private evictionPromiseValue: Promise<void> | null = null;
   private readonly activation: LifecycleCell<
     void,
@@ -89,6 +89,10 @@ export class ConversationHandle {
     return this.stateValue === 'killed';
   }
 
+  get disposed(): boolean {
+    return this.disposedValue;
+  }
+
   get projection(): SessionLiveModels {
     return this.deps.projection;
   }
@@ -99,7 +103,7 @@ export class ConversationHandle {
   }
 
   beginMaterialization(): { epoch: number; signal: AbortSignal } | null {
-    if (!this.isOwned() || this.stateValue === 'killed') return null;
+    if (!this.isCurrent()) return null;
     this.epochValue += 1;
     this.materializationAbort?.abort(new Error('ACP materialization superseded'));
     this.materializationAbort = new AbortController();
@@ -117,25 +121,39 @@ export class ConversationHandle {
   }
 
   isEpochCurrent(epoch: number): boolean {
-    return this.isOwned() && this.stateValue !== 'killed' && this.epochValue === epoch;
+    return this.isCurrent() && this.epochValue === epoch;
   }
 
   isCurrent(): boolean {
-    return this.isOwned() && this.stateValue !== 'killed';
+    return !this.disposedValue && this.stateValue !== 'killed';
   }
 
   ensure(): Promise<Result<SessionRecord, ActivationStartError>> {
+    if (!this.isCurrent()) {
+      return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
+    }
     return this.activation.start();
   }
 
   acquire(): Promise<Result<Lease<SessionRecord>, ActivationStartError>> {
+    if (!this.isCurrent()) {
+      return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
+    }
     return this.activation.acquire();
   }
 
   use<T, UseError>(
     operation: (record: SessionRecord) => Result<T, UseError> | Promise<Result<T, UseError>>
   ): Promise<Result<T, ActivationStartError | UseError>> {
-    return this.activation.use(undefined, operation);
+    if (!this.isCurrent()) {
+      return Promise.resolve(acpErr.conversationNotFound(this.conversationId));
+    }
+    return this.activation.use<T, ActivationStartError | UseError>(undefined, (record) => {
+      if (!this.isCurrentRecord(record)) {
+        return acpErr.conversationNotFound(this.conversationId);
+      }
+      return operation(record);
+    });
   }
 
   stopActivation(): Promise<Result<void, never>> {
@@ -170,21 +188,18 @@ export class ConversationHandle {
   attachProvisional(record: SessionRecord): void {
     if (!this.isEpochCurrent(record.epoch)) return;
     this.recordValue = record;
-    this.deps.onMaterializingRecord(record);
     this.syncRecord(record);
   }
 
   discardProvisional(record: SessionRecord): void {
     if (this.recordValue !== record) return;
     this.recordValue = null;
-    this.deps.onMaterializingRecord(null);
   }
 
   activate(record: SessionRecord): void {
     if (!this.isEpochCurrent(record.epoch) || this.recordValue !== record) return;
     this.materializationAbort = null;
     this.stateValue = 'active';
-    this.deps.onMaterializingRecord(null);
     this.syncRecord(record);
   }
 
@@ -215,7 +230,6 @@ export class ConversationHandle {
     this.materializationAbort?.abort(reason);
     this.materializationAbort = null;
     this.recordValue = null;
-    this.deps.onMaterializingRecord(null);
     this.deps.projection.source.set({ kind: 'closed' });
     this.deps.listProjector.remove(this.conversationId);
     this.releaseProjection();
@@ -228,7 +242,6 @@ export class ConversationHandle {
   clearRecord(record: SessionRecord): void {
     if (this.recordValue !== record) return;
     this.recordValue = null;
-    this.deps.onMaterializingRecord(null);
   }
 
   currentRecord(): SessionRecord | undefined {
@@ -260,7 +273,7 @@ export class ConversationHandle {
     if (!this.canPublishRecord(record)) return;
     this.deps.projection.source.set({
       kind: 'active',
-      snapshot: this.deps.buildSnapshot(record),
+      snapshot: this.buildSnapshot(record),
     });
     this.deps.listProjector.upsert(record.input, record.cell, record.cell.sessionState);
   }
@@ -302,11 +315,11 @@ export class ConversationHandle {
   }
 
   saveIntent(): void {
-    if (this.isOwned() && this.stateValue !== 'killed') this.deps.saveIntent();
+    if (this.isCurrent()) this.deps.saveIntent();
   }
 
   intentPayload(): { payload: Serializable; sessionId?: string | null } | null {
-    if (!this.isOwned() || this.stateValue === 'killed') return null;
+    if (!this.isCurrent()) return null;
     const { initialQueue: _initialQueue, ...persisted } = this.descriptor;
     return {
       payload: {
@@ -320,6 +333,8 @@ export class ConversationHandle {
   }
 
   async dispose(): Promise<void> {
+    if (this.disposedValue) return;
+    this.disposedValue = true;
     if (this.stateValue !== 'killed') {
       this.epochValue += 1;
       this.materializationAbort?.abort(new Error('ACP conversation directory disposed'));
@@ -329,7 +344,6 @@ export class ConversationHandle {
     if (this.stateValue !== 'killed') {
       this.stateValue = 'closed';
       this.recordValue = null;
-      this.deps.onMaterializingRecord(null);
       this.deps.projection.source.set({ kind: 'closed' });
     }
     this.releaseProjection();
@@ -361,7 +375,7 @@ export class ConversationHandle {
   }
 
   private updateDescriptor(patch: Partial<AcpStartInput>, persistEvenUnchanged = false): void {
-    if (!this.isOwned() || this.stateValue === 'killed') return;
+    if (!this.isCurrent()) return;
     const changed = Object.entries(patch).some(
       ([key, value]) => this.descriptor[key as keyof AcpStartInput] !== value
     );
@@ -383,8 +397,17 @@ export class ConversationHandle {
     this.deps.listProjector.suspend(this.descriptor);
   }
 
-  private isOwned(): boolean {
-    return this.deps.isOwned();
+  private buildSnapshot(record: SessionRecord): ActivationSnapshot {
+    return {
+      state: record.cell.sessionState,
+      config: record.cell.config,
+      usage: record.cell.usage,
+      plan: record.cell.transcript.plan,
+      agents: record.cell.transcript.agents,
+      activeTurn: record.cell.transcript.activeTurn,
+      terminals: this.deps.terminals.listByConversation(this.conversationId),
+      mcpServers: record.mcpServers,
+    };
   }
 
   private releaseProjection(): void {

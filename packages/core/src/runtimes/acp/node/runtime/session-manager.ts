@@ -44,7 +44,6 @@ import {
   createAcpSessionsLiveHost,
   createSessionsListModel,
   suspendedSessionState,
-  type ActivationSnapshot,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
   type SessionLiveModels,
@@ -155,9 +154,6 @@ export class SessionManager {
       isCurrent: (entry, epoch) => entry.isEpochCurrent(epoch),
       onRecordCreated: (record, scope) => {
         record.conversation.attachProvisional(record);
-        record.machineStateBinding.dispose = record.cell.machine.subscribe(() =>
-          record.conversation.syncRecord(record)
-        );
         scope.add(() => this.teardownRecord(record));
       },
       onRecordChanged: (record) => record.conversation.syncRecord(record),
@@ -226,7 +222,7 @@ export class SessionManager {
       if (!entry.everMaterialized && entry.state !== 'killed') {
         entry.kill(started.error);
         await entry.forceRemove(started.error);
-        this.retained.delete(entry.conversationId);
+        this.removeHandle(entry);
         await this.evict(entry.conversationId, { intent: 'keep' });
       } else if (entry.state !== 'killed') {
         entry.suspend();
@@ -353,7 +349,7 @@ export class SessionManager {
         this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' })
       );
       await entry.forceRemove('conversation killed');
-      this.retained.delete(conversationId);
+      this.removeHandle(entry);
       return ok();
     }
 
@@ -573,8 +569,9 @@ export class SessionManager {
 
   async dispose(): Promise<void> {
     this.lifecycle.dispose();
-    await Promise.all([...this.retained.values()].map((entry) => entry.dispose()));
-    this.retained.clear();
+    const entries = [...this.retained.values()];
+    await Promise.all(entries.map((entry) => entry.dispose()));
+    for (const entry of entries) this.removeHandle(entry);
     this.suspendedIntents.clear();
     await Promise.all([this.sessionHost.dispose(), this.sessionsHost.dispose()]);
   }
@@ -624,19 +621,6 @@ export class SessionManager {
     return { retained, indexedSuspended, running, materializing, pendingEvictions };
   }
 
-  private buildSnapshot(record: SessionRecord): ActivationSnapshot {
-    return {
-      state: record.cell.sessionState,
-      config: record.cell.config,
-      usage: record.cell.usage,
-      plan: record.cell.transcript.plan,
-      agents: record.cell.transcript.agents,
-      activeTurn: record.cell.transcript.activeTurn,
-      terminals: this.getTerminals(record.input.conversationId),
-      mcpServers: record.mcpServers,
-    };
-  }
-
   private evict(conversationId: string, options: EvictOptions): Promise<void> {
     const entry = this.retained.get(conversationId);
     return entry
@@ -675,10 +659,8 @@ export class SessionManager {
         projection,
         releaseProjection,
         listProjector: this.listProjector,
-        isOwned: () => this.retained.get(input.conversationId) === entry,
+        terminals: this.terminals,
         saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
-        buildSnapshot: (record) => this.buildSnapshot(record),
-        onMaterializingRecord: () => {},
         materialize: (scope) => this.startActivation(entry, scope),
         interruptRecord: (record) => this.interruptRecord(record),
         onActivated: (record) => {
@@ -782,6 +764,15 @@ export class SessionManager {
   private *runningConversationIds(): IterableIterator<string> {
     for (const [conversationId, entry] of this.retained) {
       if (entry.hasActivation()) yield conversationId;
+    }
+  }
+
+  private removeHandle(entry: ConversationHandle): void {
+    if (!entry.deleted && !entry.disposed) {
+      throw new Error('SessionManager: conversation handle removed before kill or disposal');
+    }
+    if (this.retained.get(entry.conversationId) === entry) {
+      this.retained.delete(entry.conversationId);
     }
   }
 
