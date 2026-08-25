@@ -308,6 +308,38 @@ describe('workspace registry deleteWorktree', () => {
     expect((await listRecords())['wt-torn']).toBeUndefined();
   });
 
+  it('deleting a worktree that was never activated still runs its teardown script once', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'unactivated');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({ scripts: { teardown: 'exit 9' } })
+    );
+    await wire.client.refresh({ workspaceId: 'wt-unactivated' });
+
+    // No activation this run: the delete verbs own the orphan-teardown settle.
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-unactivated',
+      deleteBranch: false,
+    });
+    expect(deleted).toMatchObject({ success: false, error: { type: 'remove-failed' } });
+    expect((await listRecords())['wt-unactivated']?.lastRemovalAttempt).toMatchObject({
+      stage: 'teardown',
+      class: 'transient',
+    });
+    await expect(fs.stat(worktree.path)).resolves.toBeDefined();
+
+    // The orphan teardown settles at most once: the retry proceeds past it.
+    const retried = await wire.client.deleteWorktree({
+      workspaceId: 'wt-unactivated',
+      deleteBranch: false,
+    });
+    expect(retried).toEqual({ success: true, data: undefined });
+    await expect(fs.stat(worktree.path)).rejects.toThrow();
+    expect((await listRecords())['wt-unactivated']).toBeUndefined();
+  });
+
   it('deleteWorkspace records a failing teardown as a removal attempt and stays retryable', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });

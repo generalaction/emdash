@@ -900,12 +900,16 @@ export class WorkspaceRegistryRuntime {
   /**
    * The delete verbs' deactivation step: a failed teardown counts as a removal stage
    * (ADR 0006) — recorded durably before the verb returns. Transient by design:
-   * teardown runs at most once per activation, so the next attempt proceeds past it.
+   * teardown settles at most once (activation teardown or the no-activation orphan
+   * run), so the next attempt proceeds past it.
    */
   private async deactivateForRemoval(
     record: DurableWorkspaceRecord
   ): Promise<DeleteWorkspaceError | null> {
-    const { teardownFailure } = await this.deactivateLocked(record);
+    const { teardownFailure } = await this.activationManager.deactivateForRemoval(
+      record.id,
+      record.path
+    );
     if (!teardownFailure) return null;
     return await this.recordRemovalFailure(record.id, {
       stage: 'teardown',
