@@ -22,8 +22,8 @@ describe('lazy ACP session restoration', () => {
 
     await runtime.reconcile();
 
-    expect(internals(runtime).retained.size).toBe(0);
-    expect([...internals(runtime).suspendedIntents.keys()]).toEqual(['conv-one', 'conv-two']);
+    expect(runtime.manager.inspect().retained).toEqual([]);
+    expect(runtime.manager.inspect().indexedSuspended).toEqual(['conv-one', 'conv-two']);
     expect(peek(runtime.sessionsListLiveModel().states.list)).toMatchObject({
       'conv-one': {
         conversationId: 'conv-one',
@@ -52,14 +52,14 @@ describe('lazy ACP session restoration', () => {
     await runtime.reconcile();
 
     expect(runtime.getSessionState('conv-one')).toMatchObject({ suspended: true });
-    expect(internals(runtime).retained.size).toBe(0);
+    expect(runtime.manager.inspect().retained).toEqual([]);
 
     expect(runtime.sessionLiveModels('conv-one')).not.toBeNull();
 
-    expect(internals(runtime).retained.has('conv-one')).toBe(true);
-    expect(internals(runtime).retained.has('conv-two')).toBe(false);
-    expect(internals(runtime).suspendedIntents.has('conv-one')).toBe(false);
-    expect(internals(runtime).suspendedIntents.has('conv-two')).toBe(true);
+    expect(runtime.manager.inspect().retained).toContain('conv-one');
+    expect(runtime.manager.inspect().retained).not.toContain('conv-two');
+    expect(runtime.manager.inspect().indexedSuspended).not.toContain('conv-one');
+    expect(runtime.manager.inspect().indexedSuspended).toContain('conv-two');
     expect(harness.agent.loadSession).not.toHaveBeenCalled();
 
     await runtime.reconcile();
@@ -68,7 +68,7 @@ describe('lazy ACP session restoration', () => {
       'conv-one',
       'conv-two',
     ]);
-    expect(internals(runtime).retained.has('conv-one')).toBe(true);
+    expect(runtime.manager.inspect().retained).toContain('conv-one');
     expect(harness.agent.loadSession).not.toHaveBeenCalled();
 
     await runtime.dispose();
@@ -86,8 +86,8 @@ describe('lazy ACP session restoration', () => {
 
     expect(remove).toHaveBeenCalledWith('conv-cleanup');
     expect(intents.snapshot()).toEqual([]);
-    expect(internals(runtime).retained.size).toBe(0);
-    expect(internals(runtime).suspendedIntents.size).toBe(0);
+    expect(runtime.manager.inspect().retained).toEqual([]);
+    expect(runtime.manager.inspect().indexedSuspended).toEqual([]);
     expect(peek(runtime.sessionsListLiveModel().states.list)).not.toHaveProperty('conv-cleanup');
     expect(harness.agent.loadSession).not.toHaveBeenCalled();
     expect(harness.agent.closeSession).not.toHaveBeenCalled();
@@ -95,15 +95,6 @@ describe('lazy ACP session restoration', () => {
     await runtime.dispose();
   });
 });
-
-type LazySessionManagerInternals = {
-  retained: Map<string, unknown>;
-  suspendedIntents: Map<string, unknown>;
-};
-
-function internals(runtime: AcpRuntime): LazySessionManagerInternals {
-  return runtime.manager as unknown as LazySessionManagerInternals;
-}
 
 async function seedSuspendedIntent(
   intents: SessionIntentStore,

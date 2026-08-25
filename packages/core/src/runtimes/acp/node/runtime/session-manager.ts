@@ -86,6 +86,14 @@ export type AcpWakeFailure = {
   error: AcpStartError;
 };
 
+export type SessionManagerInspection = {
+  retained: string[];
+  indexedSuspended: string[];
+  running: string[];
+  materializing: string[];
+  pendingEvictions: string[];
+};
+
 export function isAcpWakeFailure(error: unknown): error is AcpWakeFailure {
   return (
     typeof error === 'object' &&
@@ -115,8 +123,6 @@ export class SessionManager {
   readonly router: SessionRouter;
   private readonly retained = new Map<string, ConversationHandle>();
   private readonly suspendedIntents = new Map<string, SuspendedIntentEntry>();
-  private readonly routes: Map<string, Map<string, string>>;
-  private readonly loadingConversations: Map<string, Set<string>>;
   private readonly clock: Clock;
   private readonly lifecycle: ConversationSessionLifecycle;
   private readonly listProjector: SessionsListProjector;
@@ -140,8 +146,6 @@ export class SessionManager {
       },
       deps.logger
     );
-    this.routes = this.router.routes;
-    this.loadingConversations = this.router.loadingConversations;
     this.listProjector = new SessionsListProjector(
       this.sessionsList,
       this.clock,
@@ -605,6 +609,21 @@ export class SessionManager {
     return this.lifecycle.sweepNow();
   }
 
+  /** Snapshot-style inspection seam for lifecycle ownership and leak assertions. */
+  inspect(): SessionManagerInspection {
+    const retained = [...this.retained.keys()];
+    const indexedSuspended = [...this.suspendedIntents.keys()];
+    const running: string[] = [];
+    const materializing: string[] = [];
+    const pendingEvictions: string[] = [];
+    for (const [conversationId, entry] of this.retained) {
+      if (entry.hasActivation()) running.push(conversationId);
+      if (entry.state === 'materializing') materializing.push(conversationId);
+      if (entry.pendingEviction()) pendingEvictions.push(conversationId);
+    }
+    return { retained, indexedSuspended, running, materializing, pendingEvictions };
+  }
+
   private buildSnapshot(record: SessionRecord): ActivationSnapshot {
     return {
       state: record.cell.sessionState,
@@ -764,29 +783,6 @@ export class SessionManager {
     for (const [conversationId, entry] of this.retained) {
       if (entry.hasActivation()) yield conversationId;
     }
-  }
-
-  /** Compatibility views for the existing leak assertions; lifecycle ownership lives in handles. */
-  private get activations(): { has(key: string): boolean } {
-    return { has: (key) => this.retained.get(key)?.hasActivation() ?? false };
-  }
-
-  private get materializing(): Map<string, SessionRecord> {
-    const records = new Map<string, SessionRecord>();
-    for (const [conversationId, entry] of this.retained) {
-      const record = entry.state === 'materializing' ? entry.currentRecord() : undefined;
-      if (record) records.set(conversationId, record);
-    }
-    return records;
-  }
-
-  private get evictions(): Map<string, Promise<void>> {
-    const pending = new Map<string, Promise<void>>();
-    for (const [conversationId, entry] of this.retained) {
-      const eviction = entry.pendingEviction();
-      if (eviction) pending.set(conversationId, eviction);
-    }
-    return pending;
   }
 
   private interruptRecord(record: SessionRecord): void {

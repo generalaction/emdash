@@ -13,7 +13,6 @@ import { createRecordingConversationLifecycleReporter } from '#services/conversa
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import {
   expectNoSessionResidue,
-  mapContainer,
   type LeakCheckContainer,
 } from '#services/session-lifecycle/node/testing';
 import { AcpRuntime } from './runtime';
@@ -77,7 +76,7 @@ describe('AcpRuntime session manager', () => {
     await clock.advanceBy(1_200);
     await rt.manager.sweepNow();
 
-    expect(peek(rt.sessionsLiveHost().get(undefined)!.states.list)['conv-idle']).toMatchObject({
+    expect(peek(rt.sessionsListLiveModel().states.list)['conv-idle']).toMatchObject({
       suspended: true,
       lifecycle: 'closed',
     });
@@ -455,9 +454,7 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-old',
       mcpServers: [],
     });
-    expect(peek(rt.sessionsLiveHost().get(undefined)!.states.list)).toHaveProperty(
-      'conv-reconcile'
-    );
+    expect(peek(rt.sessionsListLiveModel().states.list)).toHaveProperty('conv-reconcile');
   });
 
   it('injects host-scoped MCP servers into new ACP sessions', async () => {
@@ -1101,8 +1098,8 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     await rt.stopSession('conv-stop');
 
     expect(reports.ended).toEqual(['conv-stop']);
-    expect(managerInternals(rt).activations.has('conv-stop')).toBe(false);
-    expect(managerInternals(rt).retained.has('conv-stop')).toBe(true);
+    expect(rt.manager.inspect().running).not.toContain('conv-stop');
+    expect(rt.manager.inspect().retained).toContain('conv-stop');
   });
 
   it('reports session end exactly once when the provider process dies', async () => {
@@ -1123,8 +1120,8 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       })
     );
     expect(reports.ended).toEqual(['conv-died']);
-    expect(managerInternals(rt).activations.has('conv-died')).toBe(false);
-    expect(managerInternals(rt).retained.has('conv-died')).toBe(true);
+    expect(rt.manager.inspect().running).not.toContain('conv-died');
+    expect(rt.manager.inspect().retained).toContain('conv-died');
   });
 
   it('suspends the persisted intent when the provider process dies', async () => {
@@ -1176,35 +1173,23 @@ describe('AcpRuntime conversation lifecycle reports', () => {
   });
 });
 
-type ManagerInternals = {
-  activations: { has(key: string): boolean };
-  retained: Map<string, unknown>;
-  materializing: Map<string, unknown>;
-  evictions: Map<string, unknown>;
-  routes: Map<string, Map<string, string>>;
-  loadingConversations: Map<string, Set<string>>;
-};
-
-function managerInternals(rt: AcpRuntime): ManagerInternals {
-  return rt.manager as unknown as ManagerInternals;
-}
-
-/** Reflects over the manager's per-key maps so the shared leak check can see them. */
+/** Uses the runtime's inspection seams so leak assertions follow production ownership. */
 function leakContainers(rt: AcpRuntime): LeakCheckContainer[] {
-  const internals = managerInternals(rt);
   return [
-    { name: 'activations', has: (key) => internals.activations.has(key) },
-    mapContainer('retained', internals.retained),
-    mapContainer('materializing', internals.materializing),
-    mapContainer('evictions', internals.evictions),
+    { name: 'running', has: (key) => rt.manager.inspect().running.includes(key) },
+    { name: 'retained', has: (key) => rt.manager.inspect().retained.includes(key) },
     {
-      name: 'routes',
-      has: (key) =>
-        [...internals.routes.values()].some((bySession) => [...bySession.values()].includes(key)),
+      name: 'materializing',
+      has: (key) => rt.manager.inspect().materializing.includes(key),
     },
     {
+      name: 'pendingEvictions',
+      has: (key) => rt.manager.inspect().pendingEvictions.includes(key),
+    },
+    { name: 'routes', has: (key) => rt.manager.router.hasRoutesFor(key) },
+    {
       name: 'loadingConversations',
-      has: (key) => [...internals.loadingConversations.values()].some((set) => set.has(key)),
+      has: (key) => rt.manager.router.isLoadingConversation(key),
     },
     { name: 'liveModels', has: (key) => rt.sessionLiveModels(key) !== null },
     {

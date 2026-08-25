@@ -91,7 +91,6 @@ export type AcpSessionLiveHost = LeasedLiveModelProvider<typeof acpApiContract.s
 };
 export type AcpSessionsLiveHost = LeasedLiveModelProvider<typeof acpApiContract.sessions> & {
   model: SessionsListModel;
-  get(key: unknown): SessionsListModel | undefined;
 };
 
 export function createAcpSessionLiveHost(): AcpSessionLiveHost {
@@ -133,7 +132,7 @@ export function createAcpSessionsLiveHost(): AcpSessionsLiveHost {
       },
       { publish: { list: 'diff' } }
     ),
-    { model, get: () => model }
+    { model }
   );
 }
 

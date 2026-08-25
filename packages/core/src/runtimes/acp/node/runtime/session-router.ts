@@ -30,8 +30,8 @@ export interface SessionRouteTarget {
 }
 
 export class SessionRouter implements InboundRouter {
-  readonly routes = new Map<string, Map<string, string>>();
-  readonly loadingConversations = new Map<string, Set<string>>();
+  private readonly routes = new Map<string, Map<string, string>>();
+  private readonly loadingConversations = new Map<string, Set<string>>();
 
   constructor(
     private readonly target: SessionRouteTarget,
@@ -114,6 +114,20 @@ export class SessionRouter implements InboundRouter {
     if (!loading) return;
     loading.delete(conversationId);
     if (loading.size === 0) this.loadingConversations.delete(processOwner);
+  }
+
+  hasRoutesFor(conversationId: string): boolean {
+    for (const bySession of this.routes.values()) {
+      if ([...bySession.values()].includes(conversationId)) return true;
+    }
+    return false;
+  }
+
+  isLoadingConversation(conversationId: string): boolean {
+    for (const loading of this.loadingConversations.values()) {
+      if (loading.has(conversationId)) return true;
+    }
+    return false;
   }
 
   private resolveConversationForSession(processOwner: string, acpSessionId: string): string | null {
