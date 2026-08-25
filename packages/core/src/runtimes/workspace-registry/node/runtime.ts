@@ -316,12 +316,18 @@ export class WorkspaceRegistryRuntime {
       resolveLifecycleConfig: async (id) => {
         await this.bootConfigHydration;
         const resolved = await this.resolveProjectConfigFor(id);
+        // An orphaned worktree (its parent repository record was already removed) has
+        // no project root to layer against, but its own `.emdash.json` still governs
+        // its lifecycle — without this fallback, deleting such a worktree would skip
+        // its teardown while the removal itself still resolves the repository from
+        // disk. Same cached workspace layer the layered resolution reads.
+        const ownScripts = resolved === null ? this.configs.get(id)?.config.scripts : undefined;
         return {
           scripts: {
-            prepare: resolved?.resolved.prepare?.value,
-            setup: resolved?.resolved.setup?.value,
-            run: resolved?.resolved.run?.value,
-            teardown: resolved?.resolved.teardown?.value,
+            prepare: resolved?.resolved.prepare?.value ?? ownScripts?.prepare,
+            setup: resolved?.resolved.setup?.value ?? ownScripts?.setup,
+            run: resolved?.resolved.run?.value ?? ownScripts?.run,
+            teardown: resolved?.resolved.teardown?.value ?? ownScripts?.teardown,
           },
           shellSetup: resolved?.resolved.shellSetup?.value ?? '',
           autoRunSetup: resolved?.resolved.autoRunSetup.value ?? true,
@@ -898,10 +904,11 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
-   * The delete verbs' deactivation step: a failed teardown counts as a removal stage
+   * The delete verbs' deactivation step: settle teardown (activation teardown or the
+   * no-activation orphan run), then kill the path's sessions best-effort — the same
+   * script-then-sessions order as Stop. A failed teardown counts as a removal stage
    * (ADR 0006) — recorded durably before the verb returns. Transient by design:
-   * teardown settles at most once (activation teardown or the no-activation orphan
-   * run), so the next attempt proceeds past it.
+   * teardown settles at most once, so the next attempt proceeds past it.
    */
   private async deactivateForRemoval(
     record: DurableWorkspaceRecord
@@ -910,6 +917,12 @@ export class WorkspaceRegistryRuntime {
       record.id,
       record.path
     );
+    try {
+      await this.killSessions(record.path);
+    } catch (error) {
+      // Best-effort by contract: the removal must still proceed.
+      this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
+    }
     if (!teardownFailure) return null;
     return await this.recordRemovalFailure(record.id, {
       stage: 'teardown',

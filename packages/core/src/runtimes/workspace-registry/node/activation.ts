@@ -100,7 +100,7 @@ export class WorkspaceActivationManager {
   private readonly logger: Logger;
   private readonly teardownTimeoutMs: number;
   private readonly active = new Map<string, ActiveState>();
-  /** Workspaces whose no-activation teardown already ran (at most once per run). */
+  /** Workspaces whose removal teardown already settled (at most once per id). */
   private readonly removalTeardowns = new Set<string>();
 
   constructor(options: WorkspaceActivationManagerOptions) {
@@ -230,7 +230,13 @@ export class WorkspaceActivationManager {
     id: string,
     workspacePath: string
   ): Promise<WorkspaceDeactivationResult> {
-    if (this.active.has(id)) return await this.deactivate(id);
+    if (this.active.has(id)) {
+      const result = await this.deactivate(id);
+      // The activation's one teardown settled (success or not): consume the id so a
+      // failed-teardown retry proceeds past it instead of re-running the orphan path.
+      this.removalTeardowns.add(id);
+      return result;
+    }
     if (this.removalTeardowns.has(id)) return { teardownFailure: null };
     if (!(await isDirectory(workspacePath))) return { teardownFailure: null };
 
