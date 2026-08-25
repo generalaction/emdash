@@ -1,6 +1,45 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '#primitives/exec/api';
-import { listTmuxSessionActivity, parseTmuxSessionActivity } from './tmux';
+import {
+  decodeTmuxSessionName,
+  listTmuxSessionActivity,
+  makeTmuxSessionName,
+  parseTmuxSessionActivity,
+  TMUX_SESSION_PREFIX,
+} from './tmux';
+
+describe('tmux session names', () => {
+  const uuidSessionId =
+    '5ecb5f07-2f59-4c17-a3a2-bfc21eefa2d5:9d0f68e1-15e6-4a8b-98a7-d4e3f0c2b1aa:0f3be1c2-77d8-4b5f-a111-2ce4f5a6b9d0';
+
+  it('keeps UUID-backed session names short and decodable', () => {
+    const name = makeTmuxSessionName(uuidSessionId);
+
+    expect(name.startsWith(TMUX_SESSION_PREFIX)).toBe(true);
+    // The previous encoding base64url-ed the full 110-character id text (~154 chars).
+    expect(name.length).toBeLessThan(80);
+    expect(decodeTmuxSessionName(name)).toBe(uuidSessionId);
+  });
+
+  it('round-trips non-UUID session ids through the legacy encoding', () => {
+    const sessionId = 'project:task:leaf';
+
+    expect(decodeTmuxSessionName(makeTmuxSessionName(sessionId))).toBe(sessionId);
+  });
+
+  it('still decodes long names created by older builds', () => {
+    const legacy = TMUX_SESSION_PREFIX + Buffer.from(uuidSessionId, 'utf8').toString('base64url');
+
+    expect(legacy.length).toBeGreaterThan(100);
+    expect(decodeTmuxSessionName(legacy)).toBe(uuidSessionId);
+  });
+
+  it('rejects names that are not emdash session encodings', () => {
+    expect(decodeTmuxSessionName('someone-elses-session')).toBeNull();
+    expect(decodeTmuxSessionName(TMUX_SESSION_PREFIX)).toBeNull();
+    expect(decodeTmuxSessionName(`${TMUX_SESSION_PREFIX}not base64!`)).toBeNull();
+  });
+});
 
 describe('parseTmuxSessionActivity', () => {
   it('parses session activity timestamps as milliseconds', () => {
