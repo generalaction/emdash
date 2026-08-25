@@ -42,7 +42,6 @@ export const ActiveProject = observer(function ActiveProject() {
   if (!context || !view) return null;
 
   const activeView = view.activeView;
-  const fixedHeightSection = activeView !== 'workspaces';
   return (
     <div className="flex min-h-0 w-full flex-col gap-6">
       <PillTabs
@@ -58,7 +57,14 @@ export const ActiveProject = observer(function ActiveProject() {
         aria-labelledby={getPillTabId(PROJECT_SECTION_PANEL_ID, activeView)}
         className={cn(
           'flex w-full flex-col px-1',
-          fixedHeightSection ? 'h-[calc(100vh-16rem)] min-h-96' : 'min-h-[calc(100vh-16rem)]'
+          activeView === 'workspaces' && 'min-h-[calc(100vh-16rem)]',
+          (activeView === 'tasks' || activeView === 'pull-request') &&
+            'h-[calc(100vh-16rem)] min-h-96',
+          // Settings scrolls internally with a pinned footer, so its floor must
+          // fit the smallest supported window (500px − 16rem chrome = 244px);
+          // a larger floor would nest the section scroll inside the page scroll
+          // and strand the footer while the header and tabs scroll away.
+          activeView === 'settings' && 'h-[calc(100vh-16rem)] min-h-60'
         )}
       >
         {activeView === 'tasks' && <TaskList />}

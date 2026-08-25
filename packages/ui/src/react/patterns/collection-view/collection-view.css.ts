@@ -39,6 +39,8 @@ export const root = style({
 export const wrapperGrouped = style({
   '@layer': {
     recipes: {
+      // Positioned so overlay footers (ListPopoverCard) anchor to the wrapper.
+      position: 'relative',
       display: 'flex',
       width: '100%',
       minHeight: 0,

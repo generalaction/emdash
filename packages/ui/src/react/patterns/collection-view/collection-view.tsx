@@ -471,6 +471,8 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
           errorSlot={errorSlot}
           renderSectionHeader={renderSectionHeader}
         />
+        {/* The wrapper is the positioned ancestor overlay footers anchor to. */}
+        {footer}
       </div>
     );
   }
