@@ -1,4 +1,4 @@
-import type { Serializable } from '@emdash/shared';
+import { err, type Serializable } from '@emdash/shared';
 import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
@@ -91,6 +91,61 @@ describe('lazy ACP session restoration', () => {
     expect(peek(runtime.sessionsListLiveModel().states.list)).not.toHaveProperty('conv-cleanup');
     expect(harness.agent.loadSession).not.toHaveBeenCalled();
     expect(harness.agent.closeSession).not.toHaveBeenCalled();
+
+    await runtime.dispose();
+  });
+
+  it('keeps an index-only conversation retryable when durable intent deletion fails', async () => {
+    const persistedIntents = createMemorySessionIntentStore();
+    await seedSuspendedIntent(
+      persistedIntents,
+      makeStartInput({ conversationId: 'conv-delete-retry' })
+    );
+    let failRemove = true;
+    const intents: SessionIntentStore = {
+      list: () => persistedIntents.list(),
+      saveActive: (input) => persistedIntents.saveActive(input),
+      markSuspended: (conversationId, cause) =>
+        persistedIntents.markSuspended(conversationId, cause),
+      remove: vi.fn((conversationId) => {
+        if (failRemove) {
+          failRemove = false;
+          return Promise.resolve(
+            err({ type: 'io' as const, message: 'simulated intent deletion failure' })
+          );
+        }
+        return persistedIntents.remove(conversationId);
+      }),
+    };
+    const harness = makeAcpHarness({ intents });
+    const runtime = new AcpRuntime(harness.deps);
+    await runtime.reconcile();
+
+    const failed = await runtime.killSession('conv-delete-retry');
+
+    expect(failed).toMatchObject({
+      success: false,
+      error: {
+        type: 'intent_persistence_failed',
+        message: 'Failed to remove the durable session intent for conv-delete-retry',
+      },
+    });
+    expect(runtime.manager.inspect().indexedSuspended).toEqual(['conv-delete-retry']);
+    expect(peek(runtime.sessionsListLiveModel().states.list)).toHaveProperty('conv-delete-retry');
+    expect(persistedIntents.snapshot()).toHaveLength(1);
+
+    await runtime.reconcile();
+    expect(runtime.manager.inspect().indexedSuspended).toEqual(['conv-delete-retry']);
+
+    const retried = await runtime.killSession('conv-delete-retry');
+
+    expect(retried.success).toBe(true);
+    expect(persistedIntents.snapshot()).toEqual([]);
+    expect(runtime.manager.inspect().indexedSuspended).toEqual([]);
+    expect(peek(runtime.sessionsListLiveModel().states.list)).not.toHaveProperty(
+      'conv-delete-retry'
+    );
+    expect(harness.agent.loadSession).not.toHaveBeenCalled();
 
     await runtime.dispose();
   });

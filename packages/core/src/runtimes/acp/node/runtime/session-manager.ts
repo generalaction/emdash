@@ -7,7 +7,7 @@ import type {
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
-import { err, ok } from '@emdash/shared';
+import { err, ok, toSerializedError } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
@@ -19,6 +19,7 @@ import type {
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
+  AcpKillError,
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetModeOptionError,
@@ -329,7 +330,7 @@ export class SessionManager {
     return ok();
   }
 
-  async kill(conversationId: string): Promise<Result<void, never>> {
+  async kill(conversationId: string): Promise<Result<void, AcpKillError>> {
     const entry = this.retained.get(conversationId);
     if (entry) {
       this.removeSuspendedIntentEntry(conversationId);
@@ -346,8 +347,7 @@ export class SessionManager {
       return ok();
     }
 
-    const indexed = this.suspendedIntents.delete(conversationId);
-    if (indexed) this.listProjector.removeSuspendedIntent(conversationId);
+    const indexed = this.suspendedIntents.get(conversationId);
     await this.lifecycle.evict(conversationId, {
       cause: 'user',
       intent: indexed ? 'keep' : 'remove',
@@ -360,13 +360,22 @@ export class SessionManager {
             conversationId,
             error: removed.error,
           });
+          return acpErr.intentPersistenceFailed(conversationId, {
+            name: 'SessionIntentError',
+            message: removed.error.message,
+          });
         }
       } catch (error) {
         this.deps.logger.warn('SessionManager: failed to remove suspended session intent', {
           conversationId,
           error: String(error),
         });
+        return acpErr.intentPersistenceFailed(conversationId, toSerializedError(error));
       }
+    }
+    if (indexed && this.suspendedIntents.get(conversationId) === indexed) {
+      this.suspendedIntents.delete(conversationId);
+      this.listProjector.removeSuspendedIntent(conversationId);
     }
     return ok();
   }

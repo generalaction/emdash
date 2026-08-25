@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
   acpAttachmentErrorSchema,
+  acpKillErrorSchema,
   acpRuntimeErrorSchema,
   historyPageSchema,
   sessionConfigStateSchema,
@@ -152,6 +153,16 @@ describe('ACP API contract schemas', () => {
       acpRuntimeErrorSchema.parse({
         type: 'auth_required',
         cause: { name: 'RequestError', message: 'Authentication required' },
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts typed durable intent failures from kill', () => {
+    expect(() =>
+      acpKillErrorSchema.parse({
+        type: 'intent_persistence_failed',
+        message: 'Failed to remove the durable session intent for conv-1',
+        cause: { name: 'SessionIntentError', message: 'disk full' },
       })
     ).not.toThrow();
   });

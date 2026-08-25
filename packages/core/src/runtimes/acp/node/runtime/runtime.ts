@@ -89,7 +89,7 @@ export class AcpRuntime {
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
-  stopSession(conversationId: string): Promise<Result<void, AcpKillError>> {
+  stopSession(conversationId: string): Promise<Result<void, never>> {
     return this.manager.stop(conversationId);
   }
 
