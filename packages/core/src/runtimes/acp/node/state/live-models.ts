@@ -4,8 +4,6 @@ import {
   derived,
   expose,
   family,
-  peek,
-  produce,
   snapshot,
   type Cell,
   type Family,
@@ -134,14 +132,6 @@ export function createAcpSessionsLiveHost(): AcpSessionsLiveHost {
     ),
     { model }
   );
-}
-
-export function createSessionsListModel(host: AcpSessionsLiveHost): SessionsListModel {
-  return host.model;
-}
-
-export function produceCell<T>(target: Cell<T>, mutator: (draft: T) => void): void {
-  target.set(produce(peek(target), mutator));
 }
 
 export type {

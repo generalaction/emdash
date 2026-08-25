@@ -19,12 +19,12 @@ import type {
   AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
   ResumeResult,
   SessionState,
   TerminalState,
-  TranscriptTurn,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
 import { buildAgentClient } from '#runtimes/acp/node/agent-ports/agent-client';
@@ -37,7 +37,7 @@ import {
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
 import type { StoredAttachment } from './attachment-store';
-import { SessionManager, type AcpWakeFailure, type HistoryPage } from './session-manager';
+import { SessionManager, type AcpWakeFailure } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -163,13 +163,6 @@ export class AcpRuntime {
     return ok(this.manager.getHistory(conversationId, before, limit));
   }
 
-  getChatHistory(conversationId: string): {
-    committed: TranscriptTurn[];
-    active: TranscriptTurn | null;
-  } {
-    return this.manager.getChatHistory(conversationId);
-  }
-
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
     return this.manager.exportParsedTranscript(conversationId);
   }
@@ -184,10 +177,6 @@ export class AcpRuntime {
 
   getTerminals(conversationId: string): TerminalState[] {
     return this.manager.getTerminals(conversationId);
-  }
-
-  getHostTerminals(): TerminalState[] {
-    return this.manager.getHostTerminals();
   }
 
   killAllTerminals(): void {

@@ -44,7 +44,7 @@ export class SessionRouter implements InboundRouter {
     event: NormalizedEvent
   ): void {
     const conversationId = this.resolveConversationForSession(
-      connectionRouteOwnerId(connection),
+      routeOwnerId(connection.key, connection.generation),
       params.sessionId
     );
     if (!conversationId) {
@@ -61,7 +61,7 @@ export class SessionRouter implements InboundRouter {
     params: RequestPermissionRequest
   ): Promise<RequestPermissionResponse> {
     const conversationId = this.resolveConversationForSession(
-      connectionRouteOwnerId(connection),
+      routeOwnerId(connection.key, connection.generation),
       params.sessionId
     );
     if (!conversationId) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
@@ -73,7 +73,7 @@ export class SessionRouter implements InboundRouter {
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
     const conversationId = this.resolveConversationForSession(
-      connectionRouteOwnerId(connection),
+      routeOwnerId(connection.key, connection.generation),
       params.sessionId
     );
     if (!conversationId) {
@@ -141,6 +141,6 @@ export class SessionRouter implements InboundRouter {
   }
 }
 
-export function connectionRouteOwnerId(connection: AcpConnectionContext): string {
-  return `${connection.key}:${connection.generation}`;
+export function routeOwnerId(key: string, generation: number): string {
+  return `${key}:${generation}`;
 }

@@ -1,26 +1,9 @@
 import { flushStateTurn, peek } from '@emdash/wire/state';
 import { describe, expect, it } from 'vitest';
 import { initialSessionConfigState } from '#runtimes/acp/api';
-import {
-  closedSessionState,
-  createAcpSessionLiveHost,
-  createAcpSessionsLiveHost,
-  produceCell,
-} from './live-models';
+import { closedSessionState, createAcpSessionLiveHost } from './live-models';
 
 describe('ACP live models', () => {
-  it('executes cell producers once', async () => {
-    const host = createAcpSessionsLiveHost();
-    let calls = 0;
-
-    produceCell(host.model.states.list, () => {
-      calls += 1;
-    });
-
-    expect(calls).toBe(1);
-    await host.dispose();
-  });
-
   it('derives closed, suspended, and active slices from one explicit source', async () => {
     const host = createAcpSessionLiveHost();
     const projection = host.models('conversation-1');

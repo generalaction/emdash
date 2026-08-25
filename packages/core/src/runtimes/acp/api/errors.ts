@@ -67,6 +67,13 @@ export type AcpStartError =
   | InitializeFailedError
   | NewSessionFailedError
   | InvalidStateError;
+export const ACP_UNAMBIGUOUS_START_ERROR_TYPES = [
+  'provider_unsupported',
+  'auth_required',
+  'spawn_failed',
+  'initialize_failed',
+  'new_session_failed',
+] as const satisfies readonly AcpStartError['type'][];
 export type AcpResumeError = AcpStartError;
 export type AcpKillError = never;
 export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;

@@ -24,12 +24,12 @@ import type {
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpStartError,
+  HistoryPage,
   NormalizedEvent,
   SessionState,
   TerminalState,
-  TranscriptTurn,
 } from '#runtimes/acp/api';
-import { acpErr, acpStartInputSchema } from '#runtimes/acp/api';
+import { ACP_UNAMBIGUOUS_START_ERROR_TYPES, acpErr, acpStartInputSchema } from '#runtimes/acp/api';
 import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
@@ -42,7 +42,6 @@ import {
   closedSessionState,
   createAcpSessionLiveHost,
   createAcpSessionsLiveHost,
-  createSessionsListModel,
   suspendedSessionState,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
@@ -65,7 +64,7 @@ import type {
   SessionRecord,
 } from './conversation-types';
 import { SessionMaterializer } from './session-materializer';
-import { connectionRouteOwnerId, SessionRouter } from './session-router';
+import { routeOwnerId, SessionRouter } from './session-router';
 import { SessionsListProjector, type SuspendedIntentListEntry } from './sessions-list-projector';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
@@ -103,12 +102,6 @@ export function isAcpWakeFailure(error: unknown): error is AcpWakeFailure {
   );
 }
 
-export interface HistoryPage {
-  turns: TranscriptTurn[];
-  nextCursor: number | null;
-  unavailable?: true;
-}
-
 type SuspendedIntentEntry = {
   descriptor: AcpStartInput;
   configOverrides: ConfigOverrides;
@@ -118,7 +111,7 @@ type SuspendedIntentEntry = {
 export class SessionManager {
   readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
-  readonly sessionsList: SessionsListModel = createSessionsListModel(this.sessionsHost);
+  readonly sessionsList: SessionsListModel = this.sessionsHost.model;
   readonly router: SessionRouter;
   private readonly retained = new Map<string, ConversationHandle>();
   private readonly suspendedIntents = new Map<string, SuspendedIntentEntry>();
@@ -432,14 +425,6 @@ export class SessionManager {
     return ok();
   }
 
-  isRunning(conversationId: string): boolean {
-    return this.retained.get(conversationId)?.hasActivation() ?? false;
-  }
-
-  getChatHistory(conversationId: string): AcpChatHistory {
-    return this.readyRecord(conversationId)?.cell.history() ?? { committed: [], active: null };
-  }
-
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
     const record = this.readyRecord(conversationId);
     return record
@@ -477,10 +462,6 @@ export class SessionManager {
     return this.terminals.listByConversation(conversationId);
   }
 
-  getHostTerminals(): TerminalState[] {
-    return this.terminals.listAll();
-  }
-
   getLiveModels(conversationId: string): SessionLiveModels | null {
     return this.getOrRestoreHandle(conversationId)?.projection ?? null;
   }
@@ -505,7 +486,11 @@ export class SessionManager {
     this.lifecycle.recordOutput(conversationId);
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
-      this.router.register(connectionRouteOwnerId(connection), params.sessionId, conversationId);
+      this.router.register(
+        routeOwnerId(connection.key, connection.generation),
+        params.sessionId,
+        conversationId
+      );
       record.conversation.updateProviderSessionId(params.sessionId);
       this.lifecycle.providerSessionId(conversationId, {
         conversationId,
@@ -757,6 +742,10 @@ export class SessionManager {
     return this.retained.get(conversationId)?.readyRecord();
   }
 
+  private getChatHistory(conversationId: string): AcpChatHistory {
+    return this.readyRecord(conversationId)?.cell.history() ?? { committed: [], active: null };
+  }
+
   private recordForCallbacks(conversationId: string): SessionRecord | undefined {
     return this.retained.get(conversationId)?.currentRecord();
   }
@@ -796,7 +785,10 @@ export class SessionManager {
     record.disposed = true;
     record.cell.dispose();
     record.machineStateBinding.dispose();
-    this.router.unregister(recordRouteOwnerId(record), record.input.conversationId);
+    this.router.unregister(
+      routeOwnerId(record.processKey, record.processGeneration),
+      record.input.conversationId
+    );
     record.conversation.clearRecord(record);
     this.terminals.disposeConversation(record.input.conversationId);
   }
@@ -831,15 +823,7 @@ export class SessionManager {
 
 function isUnambiguousStartError(error: unknown): error is ActivationStartError {
   if (typeof error !== 'object' || error === null || !('type' in error)) return false;
-  return [
-    'provider_unsupported',
-    'auth_required',
-    'spawn_failed',
-    'initialize_failed',
-    'new_session_failed',
-  ].includes(String(error.type));
-}
-
-function recordRouteOwnerId(record: SessionRecord): string {
-  return `${record.processKey}:${record.processGeneration}`;
+  return ACP_UNAMBIGUOUS_START_ERROR_TYPES.includes(
+    String(error.type) as (typeof ACP_UNAMBIGUOUS_START_ERROR_TYPES)[number]
+  );
 }

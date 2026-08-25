@@ -21,6 +21,7 @@ import type { SessionCellCallbacks } from '#runtimes/acp/node/session/cell-deps'
 import type { ConversationHandle } from './conversation-handle';
 import type { ConnectionLeaseState, SessionRecord } from './conversation-types';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
+import { routeOwnerId } from './session-router';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
 export type MaterializationStartError = AcpStartError | ConversationNotFoundError;
@@ -98,7 +99,7 @@ export class SessionMaterializer {
           epoch,
           scope
         );
-        const processOwner = connectionOwnerId(connection);
+        const processOwner = routeOwnerId(connection.key, connection.generation);
         this.callbacks.addLoading(processOwner, input.conversationId);
         this.callbacks.registerRoute(processOwner, input.sessionId, input.conversationId);
         record.cell.beginReplay();
@@ -181,7 +182,7 @@ export class SessionMaterializer {
       }
 
       this.callbacks.registerRoute(
-        connectionOwnerId(connection),
+        routeOwnerId(connection.key, connection.generation),
         record.cell.acpSessionId,
         input.conversationId
       );
@@ -337,10 +338,6 @@ export class SessionMaterializer {
   ): LoadSessionRequest {
     return { cwd, sessionId, mcpServers };
   }
-}
-
-function connectionOwnerId(connection: AcpConnectionEntry): string {
-  return `${connection.key}:${connection.generation}`;
 }
 
 function isAuthRequiredError(error: unknown): boolean {
