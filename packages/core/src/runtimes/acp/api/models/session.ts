@@ -33,6 +33,8 @@ export type SessionLifecycle = z.infer<typeof sessionLifecycleSchema>;
 
 export const sessionStateSchema = z.object({
   lifecycle: sessionLifecycleSchema,
+  /** Present and true when the conversation is retained without a live provider session. */
+  suspended: z.literal(true).optional(),
   /** Current control-plane turn id, or null when no prompt/replay turn is active. */
   activeTurnId: z.string().nullable(),
   pendingPermissions: z.array(acpPermissionRequestSchema),
@@ -60,6 +62,8 @@ export const sessionSummarySchema = z.object({
   providerId: z.string(),
   cwd: z.string().optional(),
   lifecycle: sessionLifecycleSchema,
+  /** Present and true when the conversation is retained without a live provider session. */
+  suspended: z.literal(true).optional(),
   isGenerating: z.boolean(),
   lastStopReason: stopReasonSchema.nullable(),
   lastTurnErrored: z.boolean(),

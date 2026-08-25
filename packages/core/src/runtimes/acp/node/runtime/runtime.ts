@@ -19,12 +19,12 @@ import type {
   AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
+  HistoryPage,
   PromptInput,
   PromptPlacement,
   ResumeResult,
   SessionState,
   TerminalState,
-  TranscriptTurn,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
 import { buildAgentClient } from '#runtimes/acp/node/agent-ports/agent-client';
@@ -37,7 +37,7 @@ import {
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
 import type { StoredAttachment } from './attachment-store';
-import { SessionManager, type HistoryPage } from './session-manager';
+import { SessionManager, type AcpWakeFailure } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
 import type { AcpRuntimeDeps, AcpStartInput } from './types';
 
@@ -63,9 +63,9 @@ export class AcpRuntime {
       idleTtlMs: deps.lifecycle?.connectionIdleTtlMs ?? 120_000,
       buildClient: (_agent, context) => {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
-        return buildAgentClient(context, manager, { fs, terminals: terminalPort });
+        return buildAgentClient(context, manager.router, { fs, terminals: terminalPort });
       },
-      onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
+      onClosed: (key, generation, exitCode) => manager?.onProcessClosed(key, generation, exitCode),
     });
     manager = new SessionManager(deps, this.connections, this.terminals, {
       fs,
@@ -89,7 +89,7 @@ export class AcpRuntime {
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
-  stopSession(conversationId: string): Promise<Result<void, AcpKillError>> {
+  stopSession(conversationId: string): Promise<Result<void, never>> {
     return this.manager.stop(conversationId);
   }
 
@@ -105,7 +105,7 @@ export class AcpRuntime {
     conversationId: string,
     prompt: PromptInput,
     placement?: PromptPlacement
-  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
     return this.manager.prompt({ conversationId, prompt, placement });
   }
 
@@ -143,7 +143,7 @@ export class AcpRuntime {
   setModeOption(
     conversationId: string,
     modeId: string
-  ): Promise<Result<void, AcpSetModeOptionError>> {
+  ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
     return this.manager.setMode(conversationId, modeId);
   }
 
@@ -151,7 +151,7 @@ export class AcpRuntime {
     conversationId: string,
     dimension: 'model' | 'effort',
     value: string
-  ): Promise<Result<void, AcpSetModelOptionError>> {
+  ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
     return this.manager.setConfigOption(conversationId, dimension, value);
   }
 
@@ -161,13 +161,6 @@ export class AcpRuntime {
     limit?: number
   ): Result<HistoryPage, AcpGetHistoryError> {
     return ok(this.manager.getHistory(conversationId, before, limit));
-  }
-
-  getChatHistory(conversationId: string): {
-    committed: TranscriptTurn[];
-    active: TranscriptTurn | null;
-  } {
-    return this.manager.getChatHistory(conversationId);
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
@@ -184,10 +177,6 @@ export class AcpRuntime {
 
   getTerminals(conversationId: string): TerminalState[] {
     return this.manager.getTerminals(conversationId);
-  }
-
-  getHostTerminals(): TerminalState[] {
-    return this.manager.getHostTerminals();
   }
 
   killAllTerminals(): void {
@@ -257,7 +246,7 @@ export class AcpRuntime {
   }
 
   async dispose(): Promise<void> {
-    this.manager.dispose();
+    await this.manager.dispose();
     this.killAllTerminals();
     await this.connections.dispose();
   }

@@ -29,7 +29,7 @@ export function createSessionCounter(clients: WorkspaceSessionClients): SessionC
 
     let count = 0;
     for (const session of Object.values(acpSnapshot.data)) {
-      if (cwdUnder(root, session.cwd)) count += 1;
+      if (!session.suspended && cwdUnder(root, session.cwd)) count += 1;
     }
     for (const session of Object.values(tuiSnapshot.data)) {
       if (cwdUnder(root, session.cwd)) count += 1;

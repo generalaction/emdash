@@ -1,4 +1,4 @@
-import { ok, type Result } from '@emdash/shared';
+import { ok, type Result, type SerializedError } from '@emdash/shared';
 import { blobSourceFromBytes, type WireFile } from '@emdash/wire/rpc';
 import type {
   AcpAttachmentError,
@@ -24,7 +24,9 @@ import type {
   PromptPlacement,
   ResumeResult,
 } from '#runtimes/acp/api';
+import { acpErr } from '#runtimes/acp/api';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
+import { isAcpWakeFailure, type AcpWakeFailure } from '#runtimes/acp/node/runtime/session-manager';
 
 export type StartSessionInput = AcpStartInputWire;
 
@@ -41,12 +43,16 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     kill(input: { conversationId: string }): Promise<Result<void, AcpKillError>> {
       return runtime.killSession(input.conversationId);
     },
-    sendPrompt(input: {
+    async sendPrompt(input: {
       conversationId: string;
       prompt: PromptInput;
       placement?: PromptPlacement;
     }): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-      return runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
+      const result = await runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
+      if (!result.success && isAcpWakeFailure(result.error)) {
+        return acpErr.promptFailed(wakeFailureCause(result.error));
+      }
+      return result as Result<{ queued: boolean }, AcpSendPromptError>;
     },
     editQueuedPrompt(input: {
       conversationId: string;
@@ -70,18 +76,30 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     cancelTurn(input: { conversationId: string }): Promise<Result<void, AcpCancelTurnError>> {
       return runtime.cancelTurn(input.conversationId);
     },
-    setModelOption(input: {
+    async setModelOption(input: {
       conversationId: string;
       dimension: 'model' | 'effort';
       value: string;
     }): Promise<Result<void, AcpSetModelOptionError>> {
-      return runtime.setModelOption(input.conversationId, input.dimension, input.value);
+      const result = await runtime.setModelOption(
+        input.conversationId,
+        input.dimension,
+        input.value
+      );
+      if (!result.success && isAcpWakeFailure(result.error)) {
+        return acpErr.setConfigFailed(wakeFailureCause(result.error));
+      }
+      return result as Result<void, AcpSetModelOptionError>;
     },
-    setModeOption(input: {
+    async setModeOption(input: {
       conversationId: string;
       value: string;
     }): Promise<Result<void, AcpSetModeOptionError>> {
-      return runtime.setModeOption(input.conversationId, input.value);
+      const result = await runtime.setModeOption(input.conversationId, input.value);
+      if (!result.success && isAcpWakeFailure(result.error)) {
+        return acpErr.setModeFailed(wakeFailureCause(result.error));
+      }
+      return result as Result<void, AcpSetModeOptionError>;
     },
     resolvePermission(input: {
       conversationId: string;
@@ -153,3 +171,11 @@ export function createAcpProcedures(runtime: AcpRuntime) {
 }
 
 export type AcpProcedures = ReturnType<typeof createAcpProcedures>;
+
+function wakeFailureCause(failure: AcpWakeFailure): SerializedError {
+  if ('cause' in failure.error && failure.error.cause) return failure.error.cause;
+  return {
+    name: 'AcpStartError',
+    message: failure.error.message ?? failure.error.type,
+  };
+}

@@ -83,6 +83,8 @@ export const historyPageInputSchema = z.object({
 export const historyPageSchema = z.object({
   turns: z.array(transcriptTurnSchema),
   nextCursor: z.number().int().nullable(),
+  /** History is activation-local and currently unavailable while the session is suspended. */
+  unavailable: z.literal(true).optional(),
 });
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 

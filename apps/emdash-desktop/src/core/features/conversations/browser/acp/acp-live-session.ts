@@ -165,6 +165,7 @@ export class AcpLiveSession {
       data: {
         turns: result.data.turns,
         nextCursor: result.data.nextCursor,
+        ...(result.data.unavailable ? { unavailable: true as const } : {}),
       },
     };
   }
