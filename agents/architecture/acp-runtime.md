@@ -12,17 +12,22 @@ not mix cross-session routing with per-session state projection.
   handle map, suspended-intent index, process-close fan-out, lifecycle-chassis wiring, and the
   composition of the router, materializer, and list projector. Activity tracking, idle sweeping,
   intent persistence, lifecycle reports, and eviction sequencing remain delegated to the shared
-  session-lifecycle chassis (`packages/core/src/services/session-lifecycle/`).
+  session-lifecycle chassis (`packages/core/src/services/session-lifecycle/`). Its explicit
+  `inspect()` seam exposes identifier-only lifecycle snapshots for deterministic ownership and leak
+  assertions without revealing the directory maps.
 - `ConversationHandle` is the aggregate root for one conversation. It owns the wake descriptor,
   configuration overrides, conversation-lifetime projection, explicit lifecycle state and epoch,
-  current `SessionRecord`, and its single-key `LifecycleCell`. Descriptor changes write through one
-  intent-persistence seam, while the epoch invalidates stale asynchronous materialization work.
+  current `SessionRecord`, activation snapshot construction, and its single-key `LifecycleCell`.
+  Descriptor changes write through one intent-persistence seam, while killed/disposed state and the
+  epoch invalidate stale asynchronous materialization and command work before directory removal.
 - `LifecycleCell` provides coalesced starts, leases, interrupt-before-drain teardown, and bounded
   draining for one handle. The multi-key `LifecycleRegistry` remains available to other runtimes.
 - `SessionMaterializer` is stateless. It acquires a connection, loads or creates the provider
-  session, applies retained configuration and mode, and returns a `SessionRecord` for the handle to
-  adopt.
+  session, creates the record's machine-state binding, applies retained configuration and mode, and
+  returns a `SessionRecord` for the handle to adopt. Provisional loading registration and replay
+  setup share one cleanup path so failures cannot leave routing residue.
 - `SessionRouter` owns ACP `sessionId` routing and the provisional loading-conversation fallback.
+  Its route maps stay private; identifier-only queries support lifecycle leak assertions.
   `SessionsListProjector` composes live handle summaries with lightweight suspended-intent rows.
 - `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
   prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
