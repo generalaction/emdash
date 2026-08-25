@@ -1,6 +1,6 @@
 import semver from 'semver';
 
-export const PROTOCOL_VERSION = '2.0.0';
+export const PROTOCOL_VERSION = '3.0.0';
 
 export function protocolMajor(version: string = PROTOCOL_VERSION): number {
   const parsed = semver.parse(version);

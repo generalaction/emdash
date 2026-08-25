@@ -60,8 +60,8 @@ All workspace-server objects live under the `workspace-server/` prefix:
 ```text
 workspace-server/
   channels/
-    stable/protocol-2.json
-    canary/protocol-2.json
+    stable/protocol-3.json
+    canary/protocol-3.json
   <version>/
     install.sh
     emdash-workspace-server-<version>-linux-x64.tar.gz

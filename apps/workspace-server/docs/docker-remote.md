@@ -51,7 +51,7 @@ pnpm run dev:remote
 The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
 Silicon, `linux-x64` otherwise), starts the Compose services (`minio`, `minio-setup`, and
 `workspace-remote`), uploads the artifact layout to `http://localhost:9000/emdash-releases`, and
-verifies that minio's stable and canary `workspace-server/channels/*/protocol-2.json` pointers name
+verifies that minio's stable and canary `workspace-server/channels/*/protocol-3.json` pointers name
 the new version. Override the target with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or
 `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
