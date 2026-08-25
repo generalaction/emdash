@@ -29,6 +29,8 @@ export interface CollectionViewColumn<T> {
  */
 export interface CollectionViewHandle<T> {
   List: React.ComponentType<ListProps<T>>;
+  /** Context provider wrapping a single row; used by the grouped layout. */
+  Item: React.ComponentType<{ item: T; index: number; children: React.ReactNode }>;
   useListView(): ListViewSnapshot<T>;
   useItem(): ItemContextValue<T>;
   /** Present when the view spec declares selection; rows auto-derive `selected`. */
@@ -66,6 +68,13 @@ export interface CollectionViewProps<T> {
   renderSectionHeader?: (key: string, count: number) => React.ReactNode;
 
   // ── Behavior / appearance ───────────────────────────────────────────────
+  /**
+   * `card` (default): one rounded card, internally scrolled and virtualized.
+   * `grouped`: state mode only — one bordered card per section with its title
+   * on the page background (settings-section look); not virtualized, the page
+   * scrolls. Use for sectioned settings lists with modest item counts.
+   */
+  layout?: 'card' | 'grouped';
   density?: CollectionViewDensity;
   /** Override the density's row-height estimate when content is taller. */
   estimateSize?: number;
@@ -297,6 +306,85 @@ const StateBody = observer(function StateBody({
   );
 });
 
+/**
+ * Grouped-layout body: each section renders as its own bordered card with the
+ * section title above it on the page background — matching the settings-card
+ * look. Not virtualized; intended for sectioned lists with modest item counts.
+ */
+const GroupedStateBody = observer(function GroupedStateBody({
+  view,
+  columns,
+  renderRow,
+  template,
+  density,
+  onItemClick,
+  emptySlot,
+  loadingSlot,
+  errorSlot,
+  renderSectionHeader,
+}: Omit<StateBodyProps, 'estimateSize'>) {
+  const { status, error, visibleItems, orderedIds, sections } = view.useListView();
+  const errorMessage =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
+
+  if (status === 'error') {
+    return (
+      <div className={styles.groupCard}>
+        {errorSlot ?? <EmptyState bare label="Something went wrong" description={errorMessage} />}
+      </div>
+    );
+  }
+  if (status === 'loading' && visibleItems.length === 0) {
+    return <div className={styles.groupCard}>{loadingSlot ?? DEFAULT_LOADING_SLOT}</div>;
+  }
+  if (visibleItems.length === 0) {
+    return <div className={styles.groupCard}>{emptySlot ?? DEFAULT_EMPTY_SLOT}</div>;
+  }
+
+  const groups = sections ?? [{ key: '', items: visibleItems }];
+  let flatIndex = 0;
+
+  return (
+    <div className={styles.groupStack}>
+      {groups.map((group) => {
+        const start = flatIndex;
+        flatIndex += group.items.length;
+        const lastId = orderedIds[flatIndex - 1];
+        return (
+          <section key={group.key} className={styles.group}>
+            {group.key !== '' &&
+              (renderSectionHeader ? (
+                renderSectionHeader(group.key, group.items.length)
+              ) : (
+                <ListView.SectionHeader label={group.key} count={group.items.length} />
+              ))}
+            <div className={styles.groupCard}>
+              {group.items.map((item, indexInGroup) => {
+                const index = start + indexInGroup;
+                return (
+                  <view.Item key={orderedIds[index]} item={item} index={index}>
+                    <StateRow
+                      view={view}
+                      item={item}
+                      index={index}
+                      lastId={lastId}
+                      columns={columns}
+                      renderRow={renderRow}
+                      template={template}
+                      density={density}
+                      onItemClick={onItemClick}
+                    />
+                  </view.Item>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+});
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /**
@@ -333,6 +421,7 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
     toolbar,
     footer,
     renderSectionHeader,
+    layout = 'card',
     density = 'default',
     estimateSize,
     onItemClick,
@@ -357,58 +446,87 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
   if (items !== undefined && getItemKey === undefined) {
     throw new Error('CollectionView with `items` requires `getItemKey`.');
   }
+  if (layout === 'grouped' && view === undefined) {
+    throw new Error('CollectionView `layout="grouped"` requires `view`.');
+  }
 
   const estimate = estimateSize ?? DENSITY_ESTIMATE[density];
   // ListViewRoot spreads onto its div; typed via Record because HTMLAttributes
   // does not model data-* props on components.
   const rootDataProps: Record<string, string> = { 'data-density': density };
 
+  if (layout === 'grouped' && view !== undefined) {
+    return (
+      <div className={cx(styles.wrapperGrouped, className)} {...rootDataProps}>
+        {toolbar}
+        <GroupedStateBody
+          view={view}
+          columns={columns}
+          renderRow={renderRow}
+          template={template}
+          density={density}
+          onItemClick={onItemClick}
+          emptySlot={emptySlot}
+          loadingSlot={loadingSlot}
+          errorSlot={errorSlot}
+          renderSectionHeader={renderSectionHeader}
+        />
+        {/* The wrapper is the positioned ancestor overlay footers anchor to. */}
+        {footer}
+      </div>
+    );
+  }
+
   return (
-    <ListView className={cx(styles.root, className)} {...rootDataProps}>
-      {toolbar !== undefined && <ListView.Toolbar>{toolbar}</ListView.Toolbar>}
-      <ListView.Body>
-        {view !== undefined ? (
-          <StateBody
-            view={view}
-            columns={columns}
-            renderRow={renderRow}
-            template={template}
-            density={density}
-            estimateSize={estimate}
-            onItemClick={onItemClick}
-            emptySlot={emptySlot}
-            loadingSlot={loadingSlot}
-            errorSlot={errorSlot}
-            renderSectionHeader={renderSectionHeader}
-          />
-        ) : (
-          <ListView.List
-            items={listItems}
-            getItemKey={getItemKey as (item: T, index: number) => string}
-            estimateSize={estimate}
-            emptySlot={emptySlot ?? DEFAULT_EMPTY_SLOT}
-            renderItem={(item, index) => (
-              <ShellRow
-                interactive={onItemClick !== undefined}
-                isLast={index === listItems.length - 1}
-                onClick={
-                  onItemClick !== undefined ? (event) => onItemClick(item, index, event) : undefined
-                }
-              >
-                <RowContent
-                  item={item}
-                  index={index}
-                  columns={columns}
-                  renderRow={renderRow}
-                  template={template}
-                  density={density}
-                />
-              </ShellRow>
-            )}
-          />
-        )}
-      </ListView.Body>
-      {footer}
-    </ListView>
+    <div className={cx(styles.wrapper, className)} {...rootDataProps}>
+      {toolbar}
+      <ListView className={styles.root}>
+        <ListView.Body>
+          {view !== undefined ? (
+            <StateBody
+              view={view}
+              columns={columns}
+              renderRow={renderRow}
+              template={template}
+              density={density}
+              estimateSize={estimate}
+              onItemClick={onItemClick}
+              emptySlot={emptySlot}
+              loadingSlot={loadingSlot}
+              errorSlot={errorSlot}
+              renderSectionHeader={renderSectionHeader}
+            />
+          ) : (
+            <ListView.List
+              items={listItems}
+              getItemKey={getItemKey as (item: T, index: number) => string}
+              estimateSize={estimate}
+              emptySlot={emptySlot ?? DEFAULT_EMPTY_SLOT}
+              renderItem={(item, index) => (
+                <ShellRow
+                  interactive={onItemClick !== undefined}
+                  isLast={index === listItems.length - 1}
+                  onClick={
+                    onItemClick !== undefined
+                      ? (event) => onItemClick(item, index, event)
+                      : undefined
+                  }
+                >
+                  <RowContent
+                    item={item}
+                    index={index}
+                    columns={columns}
+                    renderRow={renderRow}
+                    template={template}
+                    density={density}
+                  />
+                </ShellRow>
+              )}
+            />
+          )}
+        </ListView.Body>
+        {footer}
+      </ListView>
+    </div>
   );
 }

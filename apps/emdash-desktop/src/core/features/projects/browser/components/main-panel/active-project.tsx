@@ -42,7 +42,6 @@ export const ActiveProject = observer(function ActiveProject() {
   if (!context || !view) return null;
 
   const activeView = view.activeView;
-  const virtualizedSection = activeView === 'tasks' || activeView === 'pull-request';
   return (
     <div className="flex min-h-0 w-full flex-col gap-6">
       <PillTabs
@@ -51,21 +50,31 @@ export const ActiveProject = observer(function ActiveProject() {
         onValueChange={(nextView) => view.setProjectView(nextView)}
         ariaLabel="Project sections"
         panelId={PROJECT_SECTION_PANEL_ID}
-        labelVisibility="active-only"
       />
       <section
         role="tabpanel"
         id={PROJECT_SECTION_PANEL_ID}
         aria-labelledby={getPillTabId(PROJECT_SECTION_PANEL_ID, activeView)}
         className={cn(
-          'mx-auto flex w-full max-w-4xl flex-col px-1',
-          virtualizedSection ? 'h-[calc(100vh-16rem)] min-h-96' : 'min-h-[calc(100vh-16rem)]'
+          'flex w-full flex-col px-1',
+          activeView === 'workspaces' && 'min-h-[calc(100vh-16rem)]',
+          (activeView === 'tasks' || activeView === 'pull-request') &&
+            'h-[calc(100vh-16rem)] min-h-96',
+          // Settings scrolls internally with a pinned footer, so its floor must
+          // fit the smallest supported window (500px − 16rem chrome = 244px);
+          // a larger floor would nest the section scroll inside the page scroll
+          // and strand the footer while the header and tabs scroll away.
+          activeView === 'settings' && 'h-[calc(100vh-16rem)] min-h-60'
         )}
       >
         {activeView === 'tasks' && <TaskList />}
         {activeView === 'pull-request' && <PullRequestView />}
         {activeView === 'workspaces' && <ProjectWorkspacesView projectId={projectId} />}
-        {activeView === 'settings' && <SettingsPanel />}
+        {activeView === 'settings' && (
+          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            <SettingsPanel />
+          </div>
+        )}
       </section>
     </div>
   );

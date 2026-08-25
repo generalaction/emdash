@@ -136,7 +136,10 @@ describe('ProjectMainPanel layout', () => {
     await act(async () => root.render(<ProjectMainPanel />));
 
     const scroller = host.querySelector('[data-project-page-scroll]');
+    const content = host.querySelector('[data-project-page-content]');
     expect(scroller?.classList.contains('overflow-y-auto')).toBe(true);
+    expect(content?.classList.contains('max-w-4xl')).toBe(true);
+    expect(content?.querySelectorAll('[data-layout-part]')).toHaveLength(4);
     expect(host.querySelector('[data-borderless-titlebar]')).not.toBeNull();
     expect(
       [...host.querySelectorAll('[data-layout-part]')].map((element) =>

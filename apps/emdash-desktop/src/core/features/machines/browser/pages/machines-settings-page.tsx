@@ -33,7 +33,7 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage({
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-8">
       <PageLayout.Header
         sticky
         title="Machines"
@@ -43,7 +43,7 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage({
         <CollectionView
           view={view}
           renderRow={(machine) => <MachineListRow machine={machine} />}
-          density="compact"
+          layout="grouped"
           toolbar={<MachinesToolbar view={view} onAdd={openCreateModal} />}
           onItemClick={(machine) => openDetail(machine.id)}
           emptySlot={<MachinesEmptyState hasMachines={machinesStore.connections.length > 0} />}

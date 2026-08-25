@@ -1,12 +1,5 @@
-import { CollectionView, SortSelect } from '@emdash/ui/react/patterns';
-import {
-  Button,
-  ContextMenu,
-  Input,
-  Popover,
-  SearchInput,
-  ToggleGroup,
-} from '@emdash/ui/react/primitives';
+import { CollectionToolbar, CollectionView, SortSelect } from '@emdash/ui/react/patterns';
+import { Button, ContextMenu, Input, Popover, ToggleGroup } from '@emdash/ui/react/primitives';
 import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
@@ -253,20 +246,6 @@ function PrErrorState({ error }: { error: string | null }) {
   );
 }
 
-/** Search bound directly to the view's search slice (needs Root context). */
-const PrSearchInput = observer(function PrSearchInput({ view }: { view: PullRequestListView }) {
-  const searchRef = useSearchFocusHotkeys();
-  const search = view.useSearch();
-  return (
-    <SearchInput
-      ref={searchRef}
-      placeholder="Search by title, branch, or number..."
-      value={search.query}
-      onChange={(e) => search.setQuery(e.target.value)}
-    />
-  );
-});
-
 const PullRequestViewContent = observer(function PullRequestViewContent({
   projectId,
   repositoryUrl,
@@ -301,110 +280,34 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
   } = usePrViewState(repositoryUrl);
 
   const toolbar = (
-    <div className="flex flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <ToggleGroup.Root
-          value={[statusFilter]}
-          onValueChange={(values) => {
-            const next = values.find((v) => v !== statusFilter) ?? statusFilter;
-            handleStatusChange(next as StatusFilter);
-          }}
-        >
-          <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
-          <ToggleGroup.Item value="not-open">Closed</ToggleGroup.Item>
-        </ToggleGroup.Root>
-
-        <div className="flex items-center gap-2">
-          <PrSearchInput view={view} />
-          <ContextMenu.Root>
-            <ContextMenu.Trigger>
-              <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
-                <motion.div
-                  animate={syncing ? { rotate: 360 } : {}}
-                  transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
-                >
-                  <RefreshCw className="size-3.5" />
-                </motion.div>
-              </Button>
-            </ContextMenu.Trigger>
-            <ContextMenu.Content>
-              <ContextMenu.Item onClick={handleForceFullSync} disabled={syncing}>
-                <RefreshCw className="size-4" />
-                Force full sync
-              </ContextMenu.Item>
-            </ContextMenu.Content>
-          </ContextMenu.Root>
-        </div>
-      </div>
-
-      {/* ── Sort + filter row ── */}
-      <div className="flex flex-col flex-wrap gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-foreground-passive">Sort</span>
-            <PrSortSelect view={view} />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-foreground-passive">Filter by</span>
-            <UserFilterPopover
-              label="Author"
-              items={authorItems}
-              selected={selectedAuthorLogin}
-              onChange={setSelectedAuthorLogin}
-            />
-            <LabelFilterPopover
-              items={labelItems}
-              selected={selectedLabelNames}
-              onChange={setSelectedLabelNames}
-            />
-            <UserFilterPopover
-              label="Assignee"
-              items={assigneeItems}
-              selected={selectedAssigneeLogin}
-              onChange={setSelectedAssigneeLogin}
-            />
-          </div>
-        </div>
-
-        {/* ── Active filter pills ── */}
-        {hasPills && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {selectedAuthorItem && (
-              <FilterPill
-                label={selectedAuthorItem.label}
-                avatarUrl={selectedAuthorItem.avatarUrl}
-                onRemove={() => setSelectedAuthorLogin(null)}
-              />
-            )}
-            {selectedLabelItems.map((l) => (
-              <FilterPill
-                key={l.value}
-                label={l.label}
-                color={l.color}
-                onRemove={() => removeLabel(l.value)}
-              />
-            ))}
-            {selectedAssigneeItem && (
-              <FilterPill
-                label={selectedAssigneeItem.label}
-                avatarUrl={selectedAssigneeItem.avatarUrl}
-                onRemove={() => setSelectedAssigneeLogin(null)}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    <PrToolbar
+      view={view}
+      statusFilter={statusFilter}
+      syncing={syncing}
+      onStatusChange={handleStatusChange}
+      onRefresh={handleRefresh}
+      onForceFullSync={handleForceFullSync}
+      authorItems={authorItems}
+      selectedAuthorLogin={selectedAuthorLogin}
+      onAuthorChange={setSelectedAuthorLogin}
+      labelItems={labelItems}
+      selectedLabelNames={selectedLabelNames}
+      onLabelChange={setSelectedLabelNames}
+      assigneeItems={assigneeItems}
+      selectedAssigneeLogin={selectedAssigneeLogin}
+      onAssigneeChange={setSelectedAssigneeLogin}
+      selectedAuthorItem={selectedAuthorItem}
+      selectedAssigneeItem={selectedAssigneeItem}
+      selectedLabelItems={selectedLabelItems}
+      hasPills={hasPills}
+      onRemoveLabel={removeLabel}
+    />
   );
 
   return (
     <view.Root>
       <CollectionView
         view={view}
-        // Rows are not click targets (a PR has no in-app destination); the
-        // hover actions inside PrRow carry the interactions, revealed via the
-        // wrapper's `group`.
         renderRow={(pr) => (
           <div className="group w-full">
             <PrRow pr={pr} projectId={projectId} />
@@ -419,9 +322,6 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
           />
         }
         errorSlot={<PrErrorState error={error} />}
-        // Refresh/sync failures don't set the list view's error status, so an
-        // empty list surfaces them here — matching the old error-before-empty
-        // precedence.
         emptySlot={
           error ? (
             <PrErrorState error={error} />
@@ -436,5 +336,152 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
         }
       />
     </view.Root>
+  );
+});
+
+const PrToolbar = observer(function PrToolbar({
+  view,
+  statusFilter,
+  syncing,
+  onStatusChange,
+  onRefresh,
+  onForceFullSync,
+  authorItems,
+  selectedAuthorLogin,
+  onAuthorChange,
+  labelItems,
+  selectedLabelNames,
+  onLabelChange,
+  assigneeItems,
+  selectedAssigneeLogin,
+  onAssigneeChange,
+  selectedAuthorItem,
+  selectedAssigneeItem,
+  selectedLabelItems,
+  hasPills,
+  onRemoveLabel,
+}: {
+  view: PullRequestListView;
+  statusFilter: StatusFilter;
+  syncing: boolean;
+  onStatusChange: (status: StatusFilter) => void;
+  onRefresh: () => void;
+  onForceFullSync: () => void;
+  authorItems: UserItem[];
+  selectedAuthorLogin: string | null;
+  onAuthorChange: (value: string | null) => void;
+  labelItems: LabelItem[];
+  selectedLabelNames: string[];
+  onLabelChange: (values: string[]) => void;
+  assigneeItems: UserItem[];
+  selectedAssigneeLogin: string | null;
+  onAssigneeChange: (value: string | null) => void;
+  selectedAuthorItem: UserItem | undefined;
+  selectedAssigneeItem: UserItem | undefined;
+  selectedLabelItems: LabelItem[];
+  hasPills: boolean;
+  onRemoveLabel: (value: string) => void;
+}) {
+  const searchRef = useSearchFocusHotkeys();
+  const search = view.useSearch();
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Primary row: status tabs, search, refresh. */}
+      <CollectionToolbar.Root>
+        <ToggleGroup.Root
+          value={[statusFilter]}
+          onValueChange={(values) => {
+            const next = values.find((v) => v !== statusFilter) ?? statusFilter;
+            onStatusChange(next as StatusFilter);
+          }}
+        >
+          <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
+          <ToggleGroup.Item value="not-open">Closed</ToggleGroup.Item>
+        </ToggleGroup.Root>
+        <CollectionToolbar.Spacer />
+        <CollectionToolbar.Search
+          ref={searchRef}
+          value={search.query}
+          onValueChange={search.setQuery}
+          placeholder="Search by title, branch, or number..."
+        />
+        <CollectionToolbar.Group>
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <Button variant="secondary" icon onClick={onRefresh} disabled={syncing}>
+                <motion.div
+                  animate={syncing ? { rotate: 360 } : {}}
+                  transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
+                >
+                  <RefreshCw className="size-3.5" />
+                </motion.div>
+              </Button>
+            </ContextMenu.Trigger>
+            <ContextMenu.Content>
+              <ContextMenu.Item onClick={onForceFullSync} disabled={syncing}>
+                <RefreshCw className="size-4" />
+                Force full sync
+              </ContextMenu.Item>
+            </ContextMenu.Content>
+          </ContextMenu.Root>
+        </CollectionToolbar.Group>
+      </CollectionToolbar.Root>
+
+      {/* Secondary row: sort and filters. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-foreground-passive">Sort</span>
+          <PrSortSelect view={view} />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-foreground-passive">Filter by</span>
+          <UserFilterPopover
+            label="Author"
+            items={authorItems}
+            selected={selectedAuthorLogin}
+            onChange={onAuthorChange}
+          />
+          <LabelFilterPopover
+            items={labelItems}
+            selected={selectedLabelNames}
+            onChange={onLabelChange}
+          />
+          <UserFilterPopover
+            label="Assignee"
+            items={assigneeItems}
+            selected={selectedAssigneeLogin}
+            onChange={onAssigneeChange}
+          />
+        </div>
+      </div>
+
+      {hasPills && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {selectedAuthorItem && (
+            <FilterPill
+              label={selectedAuthorItem.label}
+              avatarUrl={selectedAuthorItem.avatarUrl}
+              onRemove={() => onAuthorChange(null)}
+            />
+          )}
+          {selectedLabelItems.map((l) => (
+            <FilterPill
+              key={l.value}
+              label={l.label}
+              color={l.color}
+              onRemove={() => onRemoveLabel(l.value)}
+            />
+          ))}
+          {selectedAssigneeItem && (
+            <FilterPill
+              label={selectedAssigneeItem.label}
+              avatarUrl={selectedAssigneeItem.avatarUrl}
+              onRemove={() => onAssigneeChange(null)}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 });

@@ -30,7 +30,7 @@ export function ProjectSettingsFooter({
   const saveDisabled = saving || !dirty;
 
   return (
-    <div className="flex justify-between gap-2 pt-5">
+    <div className="sticky bottom-0 z-10 flex items-center gap-2 bg-background py-3">
       <Tooltip.Provider delay={150}>
         <Tooltip.Root>
           <Tooltip.Trigger
@@ -58,7 +58,7 @@ export function ProjectSettingsFooter({
         </Tooltip.Root>
       </Tooltip.Provider>
 
-      <div className="flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2">
         <Button
           variant="secondary"
           icon

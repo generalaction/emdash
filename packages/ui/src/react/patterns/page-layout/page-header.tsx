@@ -81,13 +81,12 @@ function PageHeader({
           </Text>
         )}
       </div>
+      <div className={styles.separator} />
       {actions && (
         <div className={styles.actions} style={actionsStyle}>
           {actions}
-          <div className={styles.separator} />
         </div>
       )}
-      {!actions && <div className={styles.separator} />}
     </div>
   );
 

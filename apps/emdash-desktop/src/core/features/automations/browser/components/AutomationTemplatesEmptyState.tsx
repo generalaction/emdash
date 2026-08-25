@@ -12,7 +12,7 @@ export function AutomationTemplatesEmptyState({
   onSelectTemplate,
 }: AutomationTemplatesEmptyStateProps) {
   return (
-    <section className="flex flex-col gap-4 py-8">
+    <section className="flex flex-col gap-4 py-2">
       <div className="flex flex-col gap-1">
         <Label>Start with a template</Label>
         <p className="max-w-xl text-sm text-foreground-muted">

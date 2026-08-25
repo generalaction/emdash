@@ -100,49 +100,52 @@ export function AutomationsView() {
       <div className="h-6 shrink-0 [-webkit-app-region:drag]" />
       <div className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-cols-1 gap-8">
         <div className="relative min-h-0 w-full min-w-0 overflow-y-auto px-8">
-          <div className="flex w-full flex-col gap-4 py-8">
+          <div className="flex w-full flex-col gap-8 py-8">
             <PageLayout.Header
               title="Automations"
               description="Run agents on a schedule across your projects"
             />
             <view.Root>
-              <CollectionView
-                view={view}
-                renderRow={(automation) => (
-                  <AutomationRow
-                    automation={automation}
-                    onToggleEnabled={(enabled) => handleToggleEnabled(automation, enabled)}
-                  />
-                )}
-                estimateSize={68}
-                toolbar={
+              {/* With zero automations the templates render on the page background —
+                  the tiles are cards themselves, so no list card should wrap them. */}
+              {!hasAutomations && !automations.isLoading && !automations.isError ? (
+                <div className="flex w-full flex-col gap-3">
                   <AutomationsToolbar view={view} onNewAutomation={() => openCreateSheet()} />
-                }
-                onItemClick={(automation) =>
-                  navigate(automationsViewDef({ automationId: automation.id }))
-                }
-                // The slot element is built on every render even though it only
-                // shows on error — guard so a null error is never formatted.
-                errorSlot={
-                  automations.isError ? (
-                    <EmptyState
-                      bare
-                      label="Could not load automations."
-                      description={formatAutomationError(automations.error)}
+                  <AutomationTemplatesEmptyState
+                    templates={emptyStateAutomationTemplates}
+                    onSelectTemplate={openCreateSheet}
+                  />
+                </div>
+              ) : (
+                <CollectionView
+                  view={view}
+                  renderRow={(automation) => (
+                    <AutomationRow
+                      automation={automation}
+                      onToggleEnabled={(enabled) => handleToggleEnabled(automation, enabled)}
                     />
-                  ) : undefined
-                }
-                emptySlot={
-                  hasAutomations ? (
-                    <EmptyState bare label="No automations match your search." />
-                  ) : (
-                    <AutomationTemplatesEmptyState
-                      templates={emptyStateAutomationTemplates}
-                      onSelectTemplate={openCreateSheet}
-                    />
-                  )
-                }
-              />
+                  )}
+                  estimateSize={68}
+                  toolbar={
+                    <AutomationsToolbar view={view} onNewAutomation={() => openCreateSheet()} />
+                  }
+                  onItemClick={(automation) =>
+                    navigate(automationsViewDef({ automationId: automation.id }))
+                  }
+                  // The slot element is built on every render even though it only
+                  // shows on error — guard so a null error is never formatted.
+                  errorSlot={
+                    automations.isError ? (
+                      <EmptyState
+                        bare
+                        label="Could not load automations."
+                        description={formatAutomationError(automations.error)}
+                      />
+                    ) : undefined
+                  }
+                  emptySlot={<EmptyState bare label="No automations match your search." />}
+                />
+              )}
             </view.Root>
           </div>
         </div>

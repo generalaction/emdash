@@ -8,7 +8,6 @@ type CSSExtra = { [key: string]: string };
 export const header = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1.5rem',
 });
 
 export const headerSticky = style({
@@ -34,6 +33,7 @@ export const actions = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '1rem',
+  marginTop: '2rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
@@ -43,5 +43,5 @@ export const separator = style({
   height: '1px',
   backgroundColor: vars.border,
   flexShrink: 0,
-  marginTop: '0.25rem',
+  marginTop: '1.75rem',
 });

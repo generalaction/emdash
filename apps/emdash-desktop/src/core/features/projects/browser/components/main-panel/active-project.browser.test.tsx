@@ -75,7 +75,8 @@ describe('ActiveProject section state', () => {
     expect(settings?.textContent).toBe('Settings');
     expect(panel?.textContent).toBe('Settings panel');
     expect(panel?.getAttribute('aria-labelledby')).toBe('project-section-panel-tab-settings');
-    expect(panel?.classList.contains('h-[calc(100vh-16rem)]')).toBe(false);
+    // Settings is viewport-sized and scrolls internally, like tasks and PRs.
+    expect(panel?.classList.contains('h-[calc(100vh-16rem)]')).toBe(true);
 
     const tasks = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
       (tab) => tab.textContent === 'Tasks'
@@ -86,6 +87,14 @@ describe('ActiveProject section state', () => {
     expect(host.querySelector('[role="tabpanel"]')?.textContent).toBe('Tasks panel');
     expect(
       host.querySelector('[role="tabpanel"]')?.classList.contains('h-[calc(100vh-16rem)]')
+    ).toBe(true);
+
+    const workspaces = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+      (tab) => tab.textContent === 'Workspaces'
+    );
+    await act(async () => workspaces?.click());
+    expect(
+      host.querySelector('[role="tabpanel"]')?.classList.contains('min-h-[calc(100vh-16rem)]')
     ).toBe(true);
     expect(window.location.href).toBe(initialUrl);
   });

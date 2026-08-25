@@ -177,9 +177,7 @@ describe('CollectionView shortcut mode', () => {
         density="compact"
       />
     );
-    expect(container.querySelector('[data-slot="list-view"]')?.getAttribute('data-density')).toBe(
-      'compact'
-    );
+    expect(container.querySelector('[data-density="compact"]')).toBeTruthy();
   });
 });
 

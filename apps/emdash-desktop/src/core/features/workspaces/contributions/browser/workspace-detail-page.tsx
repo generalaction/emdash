@@ -4,15 +4,17 @@ import {
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
 import {
+  CollectionToolbar,
   CollectionView,
   CollectionViewCell,
+  createTextMatcher,
   type CollectionViewColumn,
 } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, RelativeTime, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { BrushCleaningIcon, EllipsisIcon, FolderOpenIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useId, useMemo, type ReactNode } from 'react';
+import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
 import type { ProjectHostAccess } from '@core/features/projects/api/browser/stores/project-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
@@ -102,6 +104,12 @@ function buildDetailColumns(
     },
   ];
 }
+
+const matchWorktree = createTextMatcher<WorkspaceDetailListItem>((item) => [
+  item.name,
+  item.path,
+  item.branch ?? '',
+]);
 
 const DETAIL_COLUMNS: CollectionViewColumn<WorkspaceDetailListItem>[] = [
   {
@@ -198,6 +206,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   const hostActionDisabledReason = liveActionsEnabled
     ? undefined
     : projectAvailabilityUi.defaultLiveActionDisabledReason;
+  const [worktreeQuery, setWorktreeQuery] = useState('');
   const workspaceRows = useWorkspaceRows({ scope, projectId, enabled: liveActionsEnabled });
   const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
   const observation =
@@ -214,6 +223,10 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         loadingUsage: usageQuery.isLoading || usageQuery.isFetching,
       })
     );
+  const trimmedWorktreeQuery = worktreeQuery.trim();
+  const visibleWorktreeItems = trimmedWorktreeQuery
+    ? worktreeItems.filter((item) => matchWorktree(item, trimmedWorktreeQuery))
+    : worktreeItems;
 
   const handleDelete = useCallback(async () => {
     if (!group) return;
@@ -423,12 +436,30 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 
         <WorkspaceRemovalAttentionPanel rows={rows.map((joined) => joined.row)} />
 
-        <WorkspaceSection label="Worktrees">
+        <WorkspaceSection>
           <CollectionView
-            items={worktreeItems}
+            items={visibleWorktreeItems}
             columns={columns}
             getItemKey={(item) => item.id}
-            emptySlot={<WorkspacesEmptyState message="No worktrees found." className="h-32" />}
+            toolbar={
+              worktreeItems.length > 0 ? (
+                <CollectionToolbar.Root>
+                  <CollectionToolbar.Search
+                    value={worktreeQuery}
+                    onValueChange={setWorktreeQuery}
+                    placeholder="Search worktrees…"
+                  />
+                </CollectionToolbar.Root>
+              ) : undefined
+            }
+            emptySlot={
+              <WorkspacesEmptyState
+                message={
+                  trimmedWorktreeQuery ? 'No worktrees match your search.' : 'No worktrees found.'
+                }
+                className="h-32"
+              />
+            }
           />
         </WorkspaceSection>
       </div>
@@ -436,15 +467,8 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   );
 });
 
-function WorkspaceSection({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <section className="flex min-h-0 flex-col gap-2">
-      <div className="px-1 text-xs font-medium tracking-wide text-foreground-muted uppercase">
-        {label}
-      </div>
-      {children}
-    </section>
-  );
+function WorkspaceSection({ children }: { children: ReactNode }) {
+  return <section className="flex min-h-0 flex-col gap-2">{children}</section>;
 }
 
 function buildWorktreeItem({

@@ -43,6 +43,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
         <CollectionView
           view={view}
           renderRow={(agent) => <AgentRow agent={agent} />}
+          layout="grouped"
           density="compact"
           toolbar={toolbar}
           onItemClick={(agent) => setSelectedAgentId(agent.id)}

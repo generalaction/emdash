@@ -13,6 +13,17 @@ export const scrollContainer = style({
   },
 });
 
+/**
+ * Applied alongside `scrollContainer` on the loading/error/empty branches so
+ * the state slot keeps a usable height when the list card hugs its content.
+ */
+export const stateSlot = style({
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  minHeight: '10rem',
+});
+
 /** Absolute-positioned spacer that establishes total scroll height. */
 export const spacer = style({
   position: 'relative',

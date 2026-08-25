@@ -32,7 +32,7 @@ describe('Project section PillTabs', () => {
     host.remove();
   });
 
-  it('switches Project sections with animated presentation and keyboard navigation', async () => {
+  it('switches equal-width Project sections with keyboard navigation', async () => {
     const onChange = vi.fn();
 
     function Harness() {
@@ -47,7 +47,6 @@ describe('Project section PillTabs', () => {
           }}
           ariaLabel="Project sections"
           panelId="project-section-panel"
-          labelVisibility="active-only"
         />
       );
     }
@@ -64,8 +63,7 @@ describe('Project section PillTabs', () => {
       'Settings',
     ]);
     expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[0]?.parentElement?.hasAttribute('data-compact')).toBe(false);
-    expect(tabs.slice(1).every((tab) => tab.parentElement?.dataset.compact === 'true')).toBe(true);
+    expect(tabs.every((tab) => !tab.parentElement?.hasAttribute('data-compact'))).toBe(true);
     expect(tabs.every((tab) => tab.getAttribute('aria-controls') === 'project-section-panel')).toBe(
       true
     );

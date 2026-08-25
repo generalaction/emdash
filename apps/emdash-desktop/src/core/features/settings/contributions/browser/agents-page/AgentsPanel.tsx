@@ -52,7 +52,7 @@ export function AgentsPanel({
 
   if (header) {
     return (
-      <div className="flex min-h-0 flex-col gap-4">
+      <div className="flex min-h-0 flex-col gap-8">
         <PageLayout.Header sticky title={header.title} description={header.description} />
         {list}
       </div>
