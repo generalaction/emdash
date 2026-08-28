@@ -68,21 +68,41 @@ export class TreeResource {
     return this.state;
   }
 
-  expand(context: TreeMutationContext<'expand'>): Promise<Result<void, FsError>> {
+  async expand(context: TreeMutationContext<'expand'>): Promise<Result<void, FsError>> {
+    const depth = normalizeExpansionDepth(context.input.depth);
+    const currentRevision = this.materializedExpansionRevision(context.input.path, depth);
+    if (currentRevision !== null) {
+      await context.observed('tree', currentRevision);
+      return ok<void>();
+    }
+
     return this.run(async () => {
-      const result = await this.expandPath(
-        context.input.path,
-        context.mutationId,
-        normalizeExpansionDepth(context.input.depth)
-      );
+      const queuedRevision = this.materializedExpansionRevision(context.input.path, depth);
+      if (queuedRevision !== null) {
+        await context.observed('tree', queuedRevision);
+        return ok<void>();
+      }
+      const result = await this.expandPath(context.input.path, context.mutationId, depth);
       if (!result.success) return result;
       await context.observed('tree', result.data);
       return ok<void>();
     });
   }
 
-  reveal(context: TreeMutationContext<'reveal'>): Promise<Result<void, FsError>> {
+  async reveal(context: TreeMutationContext<'reveal'>): Promise<Result<void, FsError>> {
+    const depth = normalizeExpansionDepth(context.input.depth);
+    const currentRevision = this.materializedRevealRevision(context.input.path, depth);
+    if (currentRevision !== null) {
+      await context.observed('tree', currentRevision);
+      return ok<void>();
+    }
+
     return this.run(async () => {
+      const queuedRevision = this.materializedRevealRevision(context.input.path, depth);
+      if (queuedRevision !== null) {
+        await context.observed('tree', queuedRevision);
+        return ok<void>();
+      }
       const validated = this.options.root.paths.resolveEntry(context.input.path);
       if (!validated.success) return validated;
       const target = validated.data.path;
@@ -98,11 +118,6 @@ export class TreeResource {
         return { success: false, error: { type: 'not-found', path: target } };
       }
       if (isExpandableFileEntry(targetEntry)) {
-        const depth = normalizeExpansionDepth(context.input.depth);
-        if (depth === 1 && this.directoryChildrenLoaded(target)) {
-          await context.observed('tree', revision);
-          return ok<void>();
-        }
         const expanded = await this.expandPath(target, context.mutationId, depth);
         if (!expanded.success) return expanded;
         revision = expanded.data;
@@ -298,6 +313,38 @@ export class TreeResource {
   private directoryChildrenLoaded(entryPath: PortableRelativePath): boolean {
     const entry = snapshot(this.state).value.entries[entryPath];
     return !!entry && isExpandableFileEntry(entry) && entry.childrenLoaded;
+  }
+
+  private materializedExpansionRevision(
+    entryPath: PortableRelativePath,
+    depth: ExpansionDepth
+  ): Revision | null {
+    const validated = this.options.root.paths.resolveEntry(entryPath);
+    if (!validated.success) return null;
+    const current = snapshot(this.state);
+    const entry = current.value.entries[validated.data.path];
+    if (!entry || !isExpandableFileEntry(entry) || !entry.childrenLoaded) return null;
+    if (depth === 2) {
+      for (const childPath of entry.children) {
+        const child = current.value.entries[childPath];
+        if (child && isExpandableFileEntry(child) && !child.childrenLoaded) return null;
+      }
+    }
+    return revisionOf(this.state);
+  }
+
+  private materializedRevealRevision(
+    entryPath: PortableRelativePath,
+    depth: ExpansionDepth
+  ): Revision | null {
+    const validated = this.options.root.paths.resolveEntry(entryPath);
+    if (!validated.success) return null;
+    const entry = snapshot(this.state).value.entries[validated.data.path];
+    if (!entry) return null;
+    if (isExpandableFileEntry(entry)) {
+      return this.materializedExpansionRevision(entry.path, depth);
+    }
+    return revisionOf(this.state);
   }
 
   private run<T>(work: () => Promise<T>): Promise<T> {
