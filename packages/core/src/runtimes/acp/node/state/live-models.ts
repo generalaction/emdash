@@ -61,9 +61,23 @@ export type ActivationSnapshot = {
   mcpServers: readonly SessionMcpServer[];
 };
 
+export type RetainedConfiguredState = {
+  model: string | null;
+  modeId: string | null;
+  effort: string | null;
+};
+
+export type RetainedPresentation = {
+  configured: RetainedConfiguredState;
+  lastKnownCapabilities: SessionConfigState;
+  lastKnownMcpServers: readonly SessionMcpServer[];
+  lastKnownUsage: SessionUsage | null;
+  observedAt: number | null;
+};
+
 export type SessionProjectionSource =
   | { kind: 'closed' }
-  | { kind: 'suspended' }
+  | { kind: 'suspended'; retained?: RetainedPresentation }
   | { kind: 'active'; snapshot: ActivationSnapshot };
 
 export type SessionLiveModels = {
@@ -148,11 +162,20 @@ export type {
 
 function createProjection(): SessionLiveModels {
   const source = cell<SessionProjectionSource>({ kind: 'closed' }, { name: 'acp-session-source' });
-  const activeSlice = <T>(read: (current: ActivationSnapshot) => T, inactive: T, name: string) =>
+  const retainedSlice = <T>(
+    readActive: (current: ActivationSnapshot) => T,
+    readRetained: (retained: RetainedPresentation) => T,
+    inactive: T,
+    name: string
+  ) =>
     derived(
       () => {
         const current = snapshot(source).value;
-        return current.kind === 'active' ? read(current.snapshot) : inactive;
+        if (current.kind === 'active') return readActive(current.snapshot);
+        if (current.kind === 'suspended' && current.retained) {
+          return readRetained(current.retained);
+        }
+        return inactive;
       },
       { name }
     );
@@ -168,31 +191,79 @@ function createProjection(): SessionLiveModels {
         },
         { name: 'acp-session-state' }
       ),
-      config: activeSlice(
+      config: retainedSlice(
         (current) => current.config,
+        retainedConfig,
         initialSessionConfigState,
         'acp-session-config'
       ),
-      usage: activeSlice((current) => current.usage, null, 'acp-session-usage'),
-      plan: activeSlice((current) => current.plan, null, 'acp-session-plan'),
-      agents: activeSlice(
+      usage: retainedSlice(
+        (current) => current.usage,
+        (retained) => retained.lastKnownUsage,
+        null,
+        'acp-session-usage'
+      ),
+      plan: retainedSlice(
+        (current) => current.plan,
+        () => null,
+        null,
+        'acp-session-plan'
+      ),
+      agents: retainedSlice(
         (current) => asMutable(current.agents),
+        () => EMPTY_AGENTS,
         EMPTY_AGENTS,
         'acp-session-agents'
       ),
-      activeTurn: activeSlice((current) => current.activeTurn, null, 'acp-session-active-turn'),
-      terminals: activeSlice(
+      activeTurn: retainedSlice(
+        (current) => current.activeTurn,
+        () => null,
+        null,
+        'acp-session-active-turn'
+      ),
+      terminals: retainedSlice(
         (current) => asMutable(current.terminals),
+        () => EMPTY_TERMINALS,
         EMPTY_TERMINALS,
         'acp-session-terminals'
       ),
-      mcpServers: activeSlice(
+      mcpServers: retainedSlice(
         (current) => asMutable(current.mcpServers),
+        (retained) => asMutable(retained.lastKnownMcpServers),
         EMPTY_MCP_SERVERS,
         'acp-session-mcp-servers'
       ),
     },
   };
+}
+
+export function emptyRetainedPresentation(
+  configured: RetainedConfiguredState
+): RetainedPresentation {
+  return {
+    configured,
+    lastKnownCapabilities: initialSessionConfigState,
+    lastKnownMcpServers: EMPTY_MCP_SERVERS,
+    lastKnownUsage: null,
+    observedAt: null,
+  };
+}
+
+export function retainedConfig(retained: RetainedPresentation): SessionConfigState {
+  const { configured, lastKnownCapabilities } = retained;
+  return {
+    ...lastKnownCapabilities,
+    modelOptions: selected(lastKnownCapabilities.modelOptions, configured.model),
+    efforts: selected(lastKnownCapabilities.efforts, configured.effort),
+    modeOptions: selected(lastKnownCapabilities.modeOptions, configured.modeId),
+  };
+}
+
+function selected<T extends { selected: string | null }>(
+  group: T | null,
+  value: string | null
+): T | null {
+  return group ? { ...group, selected: value ?? group.selected } : null;
 }
 
 function asMutable<T>(value: readonly T[]): T[] {

@@ -9,20 +9,18 @@ import type {
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
-  AcpGetHistoryError,
+  AcpLoadHistoryError,
+  AcpPurgeConversationDataError,
   AcpResolvePermissionError,
-  AcpResumeError,
   AcpSendPromptError,
-  AcpSetModeOptionError,
-  AcpSetModelOptionError,
+  AcpSetOptionError,
   AcpStartError,
-  AcpKillError,
+  AcpTerminateError,
   AttachmentMimeType,
   AttachmentRef,
-  HistoryPage,
+  LoadHistoryResult,
   PromptInput,
   PromptPlacement,
-  ResumeResult,
   SessionState,
   TerminalState,
 } from '#runtimes/acp/api';
@@ -74,18 +72,12 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
-    return this.manager.start(input);
+  attachSession(input: AcpStartInput): Promise<Result<void, AcpStartError>> {
+    return this.manager.attach(input);
   }
 
-  async resumeSession(
-    input: AcpStartInput & { sessionId: string },
-    limit = 50
-  ): Promise<Result<ResumeResult, AcpResumeError>> {
-    const result = await this.manager.start(input);
-    if (!result.success) return result;
-    const page = this.manager.getHistory(input.conversationId, undefined, limit);
-    return ok({ sessionId: result.data.sessionId, ...page });
+  launchSession(input: AcpStartInput): ReturnType<SessionManager['launch']> {
+    return this.manager.launch(input);
   }
 
   /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
@@ -93,7 +85,7 @@ export class AcpRuntime {
     return this.manager.stop(conversationId);
   }
 
-  killSession(conversationId: string): Promise<Result<void, AcpKillError>> {
+  terminateSession(conversationId: string): Promise<Result<void, AcpTerminateError>> {
     return this.manager.kill(conversationId);
   }
 
@@ -140,27 +132,29 @@ export class AcpRuntime {
     return this.manager.resolvePermission(conversationId, requestId, optionId);
   }
 
-  setModeOption(
+  setOption(
     conversationId: string,
-    modeId: string
-  ): Promise<Result<void, AcpSetModeOptionError | AcpWakeFailure>> {
-    return this.manager.setMode(conversationId, modeId);
-  }
-
-  setModelOption(
-    conversationId: string,
-    dimension: 'model' | 'effort',
+    key: 'model' | 'mode' | 'effort',
     value: string
-  ): Promise<Result<void, AcpSetModelOptionError | AcpWakeFailure>> {
-    return this.manager.setConfigOption(conversationId, dimension, value);
+  ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
+    return key === 'mode'
+      ? this.manager.setMode(conversationId, value)
+      : this.manager.setConfigOption(conversationId, key, value);
   }
 
-  getHistory(
+  async loadHistory(
     conversationId: string,
     before?: number,
     limit?: number
-  ): Result<HistoryPage, AcpGetHistoryError> {
-    return ok(this.manager.getHistory(conversationId, before, limit));
+  ): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+    const activation = await this.manager.ensureActivation(conversationId);
+    if (!activation.success) return activation;
+    return ok({
+      ...this.manager.getHistory(conversationId, before, limit),
+      ...(activation.data.clearedConfiguration && {
+        clearedConfiguration: activation.data.clearedConfiguration,
+      }),
+    });
   }
 
   exportParsedTranscript(conversationId: string): Result<string, AcpExportTranscriptError> {
@@ -217,9 +211,11 @@ export class AcpRuntime {
    * Conversation-deletion cleanup (spec §3.6): removes the conversation's attachment
    * directory. Idempotent; a runtime without attachment storage has nothing to clean.
    */
-  async deleteConversationAttachments(
+  async purgeConversationData(
     conversationId: string
-  ): Promise<Result<void, AcpAttachmentError>> {
+  ): Promise<Result<void, AcpPurgeConversationDataError>> {
+    const terminated = await this.terminateSession(conversationId);
+    if (!terminated.success) return terminated;
     if (!this.deps.attachmentStore) return ok();
     await this.deps.attachmentStore.deleteConversation(conversationId);
     return ok();

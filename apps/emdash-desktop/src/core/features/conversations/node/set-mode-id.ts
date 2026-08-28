@@ -1,8 +1,6 @@
 import { err, ok, type BaseError, type Result } from '@emdash/shared';
-import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
-import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { HostConversationMutationDeps } from './host-mutation';
-import { resolveConversationHostClient } from './host-mutation';
+import { setConversationAcpConfigOption } from './set-acp-config-option';
 
 export type SetModeIdError = BaseError<
   'empty-mode-id' | 'conversation-not-found' | 'not-acp-conversation' | 'host-rejected'
@@ -25,36 +23,7 @@ export async function setConversationModeId(
   const trimmed = modeId.trim();
   if (!trimmed) return err({ type: 'empty-mode-id' });
 
-  let resolved: Awaited<ReturnType<typeof resolveConversationHostClient>>;
-  try {
-    resolved = await resolveConversationHostClient(deps, conversationId);
-  } catch (error) {
-    return err({
-      type: 'conversation-not-found',
-      message: error instanceof Error ? error.message : conversationId,
-    });
-  }
-  const { row, client } = resolved;
-  if (row.config?.type !== 'acp') {
-    return err({ type: 'not-acp-conversation', message: conversationId });
-  }
-
-  const context = { projectId: row.projectId, taskId: row.taskId };
-  if (row.config.modeId === trimmed) return ok(context);
-
-  const updated = await client.updateConfig({
-    conversationId,
-    config: { ...row.config, modeId: trimmed },
-  });
-  if (!updated.success) {
-    return err({ type: 'host-rejected', message: updated.error.message });
-  }
-
-  createConversationRegistry(deps.db).refresh(conversationId, {
-    config: updated.data.config as ConversationConfig,
-    updatedAt: new Date(updated.data.updatedAt).toISOString(),
-    lastObservedAt: new Date().toISOString(),
-  });
-
-  return ok(context);
+  const result = await setConversationAcpConfigOption(deps, conversationId, 'modeId', trimmed);
+  if (!result.success) return err(result.error as SetModeIdError);
+  return ok({ projectId: result.data.projectId, taskId: result.data.taskId });
 }

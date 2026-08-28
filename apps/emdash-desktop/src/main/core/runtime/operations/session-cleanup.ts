@@ -119,7 +119,7 @@ export async function killLifecycleAcpSessions(
   if (targets.acpConversationIds.length === 0) return;
   const client = await dependencies.getAcpRuntimeClient();
   for (const conversationId of targets.acpConversationIds) {
-    const result = await client.kill({ conversationId });
+    const result = await client.terminate({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
       throw new Error(errorMessage(result.error));
     }

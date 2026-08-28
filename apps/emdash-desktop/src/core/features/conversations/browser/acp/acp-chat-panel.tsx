@@ -577,11 +577,18 @@ const ComposerForStore = observer(function ComposerForStore({
           {disabledReason}
         </div>
       )}
+      {store.loadError && (
+        <div className="border-destructive/30 bg-destructive/5 mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
+          <span className="truncate text-foreground-muted">{store.loadError.message}</span>
+          <Button variant="secondary" size="sm" onClick={() => store.retry()}>
+            Retry
+          </Button>
+        </div>
+      )}
       <div inert={disabledReason ? true : undefined}>
         <ChatComposer
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
-          notice={a.isResuming ? { variant: 'info', message: 'Resuming conversation…' } : null}
           onSubmit={handleSubmit}
           onInputChange={(text) => store.setDraftText(text)}
           onSubmitWhileWorking={handleSubmit}
@@ -814,11 +821,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const unavailableWithoutTranscript =
     store.loadError?.kind === 'unavailable' && store.messageCount === 0;
   const showBlockingOverlay =
-    store.historyLoading ||
-    (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
-    unavailableWithoutTranscript;
-  const showComposer =
-    !store.historyLoading && (store.loadError === null || store.loadError.kind === 'unavailable');
+    store.session === null &&
+    (store.historyLoading ||
+      (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
+      unavailableWithoutTranscript);
+  const showComposer = store.session !== null;
   const showHero = showComposer && store.isEmpty && store.loadError === null;
 
   return (
@@ -837,10 +844,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Loading / error overlay portaled into the library-owned slot.
-          The slot sits at z-index 15 (above pinned, below composer at 20).
-          Hide the composer in error state so the overlay owns the whole content area.
-          Precedence: error > loading. */}
+      {/* Before attach, loading/errors own the content area. Once attached, activation errors are
+          non-blocking and render beside the still-usable composer. */}
       {overlaySlot &&
         showBlockingOverlay &&
         createPortal(

@@ -31,6 +31,8 @@ export type Conversation = {
   model?: string;
   /** Last user-selected ACP session mode id (provider-specific), re-applied on session start. */
   modeId?: string;
+  /** Last user-selected ACP reasoning/effort id, re-applied on session start. */
+  effort?: string;
   /** Initial queued prompts to deliver on first ACP spawn. Only present before sessionId is set. */
   initialQueue?: InitialQueuePrompt[];
   isInitialConversation: boolean | null;
@@ -47,7 +49,10 @@ export type ConversationEvent =
       taskId: string;
       projectId: string;
       changes: Partial<
-        Pick<Conversation, 'lastInteractedAt' | 'title' | 'sessionId' | 'model' | 'modeId'>
+        Pick<
+          Conversation,
+          'lastInteractedAt' | 'title' | 'sessionId' | 'model' | 'modeId' | 'effort'
+        >
       >;
     }
   | { type: 'created'; conversation: Conversation }
@@ -105,6 +110,10 @@ export type CreateConversationParams = {
   autoApprove?: boolean;
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
   model?: string;
+  /** Provider-native ACP mode id to apply on first activation. */
+  modeId?: string;
+  /** Provider-native ACP reasoning/effort id to apply on first activation. */
+  effort?: string;
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;

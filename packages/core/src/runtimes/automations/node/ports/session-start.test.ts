@@ -6,7 +6,10 @@ import { hostFileRef, parseAbsolute } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port's registry rewiring (workspaceHost retirement, spec §4.1)
 import type { WorkspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import type { ConversationIndexContract } from '#services/conversation-index/api';
-import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
+import type {
+  AcpSessionLaunchContract,
+  TuiSessionStartContract,
+} from '#services/session-start/api';
 import { createSessionPortFromDependencies } from './session-start';
 
 const cwd = absolute('/tmp/workspace');
@@ -22,7 +25,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace,
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { start } as ContractClient<AcpSessionStartContract>,
+      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: { create } as unknown as ContractClient<ConversationIndexContract>,
     });
@@ -99,7 +102,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: vi.fn(async () => ok({ id: 'existing-workspace' })),
         activateWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { start } as ContractClient<AcpSessionStartContract>,
+      acp: { launch: start } as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -180,7 +183,7 @@ describe('createSessionPortFromDependencies', () => {
       workspaceRegistry: {
         createWorkspace,
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { start } as unknown as ContractClient<AcpSessionStartContract>,
+      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: {
         create: async () => err({ type: 'invalid-input', message: 'Bad record' }),
@@ -210,7 +213,7 @@ describe('createSessionPortFromDependencies', () => {
         createWorkspace: async () => err({ type: 'path-not-found', path: '/tmp/workspace' }),
         activateWorkspace: vi.fn(),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { start } as unknown as ContractClient<AcpSessionStartContract>,
+      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -240,7 +243,7 @@ describe('createSessionPortFromDependencies', () => {
         activateWorkspace: async () =>
           err({ type: 'workspace-missing', workspaceId: 'workspace-1' }),
       } as unknown as ContractClient<WorkspaceRegistryContract>,
-      acp: { start } as unknown as ContractClient<AcpSessionStartContract>,
+      acp: { launch: start } as unknown as ContractClient<AcpSessionLaunchContract>,
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
     });
@@ -269,7 +272,7 @@ describe('createSessionPortFromDependencies', () => {
     const unavailable = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        start: async () => err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
+        launch: async () => err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
       },
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),
@@ -277,7 +280,7 @@ describe('createSessionPortFromDependencies', () => {
     const rejected = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        start: async () => {
+        launch: async () => {
           throw new Error('connection closed');
         },
       },
@@ -321,8 +324,8 @@ function creatingConversationIndex(): ContractClient<ConversationIndexContract> 
   } as unknown as ContractClient<ConversationIndexContract>;
 }
 
-function unusedAcpClient(): ContractClient<AcpSessionStartContract> {
-  return { start: vi.fn() };
+function unusedAcpClient(): ContractClient<AcpSessionLaunchContract> {
+  return { launch: vi.fn() };
 }
 
 function unusedTuiClient(): ContractClient<TuiSessionStartContract> {

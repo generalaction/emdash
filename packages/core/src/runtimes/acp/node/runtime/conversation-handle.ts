@@ -1,12 +1,15 @@
 import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
-import { acpErr, initialSessionConfigState } from '#runtimes/acp/api';
+import { acpErr } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import {
   closedSessionState,
+  emptyRetainedPresentation,
+  retainedConfig,
   suspendedSessionState,
   type ActivationSnapshot,
+  type RetainedPresentation,
   type SessionLiveModels,
 } from '#runtimes/acp/node/state/live-models';
 import type {
@@ -38,6 +41,7 @@ export interface ConversationHandleDeps {
   activationDrainTimeoutMs: number;
   onLeaseDrainTimeout(event: { leaseCount: number; timeoutMs: number }): void;
   onActivationObserverError(error: unknown): void;
+  now(): number;
 }
 
 export class ConversationHandle {
@@ -49,6 +53,8 @@ export class ConversationHandle {
   private projectionReleased = false;
   private disposedValue = false;
   private evictionPromiseValue: Promise<void> | null = null;
+  private retainedValue: RetainedPresentation;
+  private desiredRevisionValue = 0;
   private readonly activation: LifecycleCell<
     void,
     SessionRecord,
@@ -62,9 +68,12 @@ export class ConversationHandle {
     public descriptor: AcpStartInput,
     public configOverrides: ConfigOverrides,
     public initialQueueConsumed: boolean,
-    public everMaterialized: boolean
+    public everMaterialized: boolean,
+    retained?: RetainedPresentation
   ) {
     this.conversationId = descriptor.conversationId;
+    this.retainedValue =
+      retained ?? emptyRetainedPresentation(configuredFromDescriptor(descriptor));
     this.activation = createLifecycleCell({
       label: `acp-conversation:${this.conversationId}`,
       start: (_input, scope) => this.deps.materialize(scope),
@@ -93,6 +102,10 @@ export class ConversationHandle {
     return this.disposedValue;
   }
 
+  get desiredRevision(): number {
+    return this.desiredRevisionValue;
+  }
+
   get projection(): SessionLiveModels {
     return this.deps.projection;
   }
@@ -109,7 +122,10 @@ export class ConversationHandle {
     this.materializationAbort = new AbortController();
     this.stateValue = 'materializing';
     this.recordValue = null;
-    this.deps.projection.source.set({ kind: 'active', snapshot: startingSnapshot() });
+    this.deps.projection.source.set({
+      kind: 'active',
+      snapshot: startingSnapshot(this.retainedValue),
+    });
     this.deps.listProjector.upsert(this.materializationInput(), null, {
       lifecycle: 'starting',
       isGenerating: false,
@@ -271,9 +287,11 @@ export class ConversationHandle {
 
   syncRecord(record: SessionRecord): void {
     if (!this.canPublishRecord(record)) return;
+    if (this.stateValue === 'active') this.captureRetained(record);
+    const snapshot = this.buildSnapshot(record);
     this.deps.projection.source.set({
       kind: 'active',
-      snapshot: this.buildSnapshot(record),
+      snapshot,
     });
     this.deps.listProjector.upsert(record.input, record.cell, record.cell.sessionState);
   }
@@ -302,6 +320,7 @@ export class ConversationHandle {
   }
 
   updateMode(modeId: string): void {
+    this.updateConfigured({ modeId });
     this.updateDescriptor({ modeId });
   }
 
@@ -311,7 +330,38 @@ export class ConversationHandle {
 
   updateConfig(dimension: ConfigDimension, value: string): void {
     this.configOverrides = { ...this.configOverrides, [dimension]: value };
-    this.updateDescriptor(dimension === 'model' ? { model: value } : {}, true);
+    this.updateConfigured({ [dimension]: value });
+    this.updateDescriptor(dimension === 'model' ? { model: value } : { effort: value }, true);
+  }
+
+  clearMode(): void {
+    this.updateConfigured({ modeId: null });
+    this.updateDescriptor({ modeId: null });
+  }
+
+  clearConfig(dimension: ConfigDimension): void {
+    const { [dimension]: _removed, ...remaining } = this.configOverrides;
+    this.configOverrides = remaining;
+    this.updateConfigured({ [dimension]: null });
+    this.updateDescriptor(dimension === 'model' ? { model: null } : { effort: null }, true);
+  }
+
+  refreshDescriptor(descriptor: AcpStartInput): void {
+    if (!this.isCurrent()) return;
+    this.descriptor = {
+      ...descriptor,
+      // The runtime can observe a replacement session id before the host report converges. A
+      // stale host value must not discard that newer runtime fact on the next activation.
+      sessionId:
+        this.everMaterialized && this.descriptor.sessionId
+          ? this.descriptor.sessionId
+          : descriptor.sessionId,
+    };
+    this.configOverrides = {
+      ...(descriptor.model ? { model: descriptor.model } : {}),
+      ...(descriptor.effort ? { effort: descriptor.effort } : {}),
+    };
+    this.updateConfigured(configuredFromDescriptor(descriptor));
   }
 
   saveIntent(): void {
@@ -320,13 +370,15 @@ export class ConversationHandle {
 
   intentPayload(): { payload: Serializable; sessionId?: string | null } | null {
     if (!this.isCurrent()) return null;
-    const { initialQueue: _initialQueue, ...persisted } = this.descriptor;
     return {
       payload: {
-        ...persisted,
-        ...(Object.keys(this.configOverrides).length > 0
-          ? { configOverrides: this.configOverrides }
-          : {}),
+        version: '1',
+        conversationId: this.conversationId,
+        providerId: this.descriptor.providerId,
+        cwd: this.descriptor.cwd,
+        sessionId: this.descriptor.sessionId,
+        configured: this.retainedValue.configured,
+        presentation: this.retainedValue,
       } as unknown as Serializable,
       sessionId: this.descriptor.sessionId,
     };
@@ -393,20 +445,29 @@ export class ConversationHandle {
   }
 
   private publishSuspended(): void {
-    this.deps.projection.source.set({ kind: 'suspended' });
+    this.deps.projection.source.set({ kind: 'suspended', retained: this.retainedValue });
     this.deps.listProjector.suspend(this.descriptor);
   }
 
   private buildSnapshot(record: SessionRecord): ActivationSnapshot {
+    const state = record.cell.sessionState;
+    const lastKnownCapabilities = mergeCapabilities(
+      this.retainedValue.lastKnownCapabilities,
+      record.cell.config,
+      this.stateValue === 'materializing'
+    );
     return {
-      state: record.cell.sessionState,
-      config: record.cell.config,
-      usage: record.cell.usage,
+      state: this.stateValue === 'materializing' ? { ...state, canSubmit: true } : state,
+      config: retainedConfig({ ...this.retainedValue, lastKnownCapabilities }),
+      usage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
       plan: record.cell.transcript.plan,
       agents: record.cell.transcript.agents,
       activeTurn: record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
-      mcpServers: record.mcpServers,
+      mcpServers:
+        this.stateValue === 'materializing' && record.mcpServers.length === 0
+          ? this.retainedValue.lastKnownMcpServers
+          : record.mcpServers,
     };
   }
 
@@ -415,17 +476,81 @@ export class ConversationHandle {
     this.projectionReleased = true;
     this.deps.releaseProjection();
   }
+
+  private captureRetained(record: SessionRecord): void {
+    const nextContent = {
+      configured: this.retainedValue.configured,
+      lastKnownCapabilities: mergeCapabilities(
+        this.retainedValue.lastKnownCapabilities,
+        record.cell.config
+      ),
+      lastKnownMcpServers: record.mcpServers,
+      lastKnownUsage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
+    };
+    if (sameRetainedContent(this.retainedValue, nextContent)) return;
+    this.retainedValue = { ...nextContent, observedAt: this.deps.now() };
+    if (this.everMaterialized) this.deps.saveIntent();
+  }
+
+  private updateConfigured(patch: Partial<RetainedPresentation['configured']>): void {
+    this.desiredRevisionValue += 1;
+    this.retainedValue = {
+      ...this.retainedValue,
+      configured: { ...this.retainedValue.configured, ...patch },
+    };
+    if (this.stateValue === 'suspended') this.publishSuspended();
+    if (this.stateValue === 'materializing' && this.recordValue === null) {
+      this.deps.projection.source.set({
+        kind: 'active',
+        snapshot: startingSnapshot(this.retainedValue),
+      });
+    }
+    const record = this.recordValue;
+    if (record && this.canPublishRecord(record)) this.syncRecord(record);
+  }
 }
 
-function startingSnapshot(): ActivationSnapshot {
+function startingSnapshot(retained: RetainedPresentation): ActivationSnapshot {
   return {
-    state: { ...closedSessionState, lifecycle: 'starting' },
-    config: initialSessionConfigState,
-    usage: null,
+    state: { ...closedSessionState, lifecycle: 'starting', canSubmit: true },
+    config: retainedConfig(retained),
+    usage: retained.lastKnownUsage,
     plan: null,
     agents: [],
     activeTurn: null,
     terminals: [],
-    mcpServers: [],
+    mcpServers: retained.lastKnownMcpServers,
+  };
+}
+
+function configuredFromDescriptor(descriptor: AcpStartInput): RetainedPresentation['configured'] {
+  return {
+    model: descriptor.model ?? null,
+    modeId: descriptor.modeId ?? null,
+    effort: descriptor.effort ?? null,
+  };
+}
+
+function sameRetainedContent(
+  retained: RetainedPresentation,
+  next: Omit<RetainedPresentation, 'observedAt'>
+): boolean {
+  const { observedAt: _observedAt, ...current } = retained;
+  return JSON.stringify(current) === JSON.stringify(next);
+}
+
+function mergeCapabilities(
+  retained: RetainedPresentation['lastKnownCapabilities'],
+  current: RetainedPresentation['lastKnownCapabilities'],
+  preservePendingCommands = false
+): RetainedPresentation['lastKnownCapabilities'] {
+  return {
+    modelOptions: current.modelOptions ?? retained.modelOptions,
+    efforts: current.efforts ?? retained.efforts,
+    modeOptions: current.modeOptions ?? retained.modeOptions,
+    availableCommands:
+      preservePendingCommands && current.availableCommands.length === 0
+        ? retained.availableCommands
+        : current.availableCommands,
   };
 }

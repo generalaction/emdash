@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { hostAbsolutePathSchema, hostFileRefSchema } from '#primitives/path/api';
 import {
-  acpSessionStartInputSchema,
+  acpSessionLaunchInputSchema,
   tuiSessionStartInputSchema,
 } from '#services/session-start/api';
 
@@ -63,7 +63,7 @@ export const automationScheduleSchema = z.object({
 
 export const automationAcpAgentConfigSchema = z.object({
   type: z.literal('acp'),
-  start: acpSessionStartInputSchema.omit({
+  start: acpSessionLaunchInputSchema.omit({
     conversationId: true,
     cwd: true,
     sessionId: true,

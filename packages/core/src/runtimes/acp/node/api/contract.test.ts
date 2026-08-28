@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
   acpAttachmentErrorSchema,
-  acpKillErrorSchema,
+  acpTerminateErrorSchema,
   acpRuntimeErrorSchema,
   historyPageSchema,
   sessionConfigStateSchema,
@@ -22,7 +22,7 @@ describe('ACP API contract schemas', () => {
   it('parses runtime live model snapshots with the public schemas', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    const started = await rt.startSession(makeStartInput({ conversationId: 'conv-contract' }));
+    const started = await rt.launchSession(makeStartInput({ conversationId: 'conv-contract' }));
     expect(isOk(started)).toBe(true);
 
     const live = rt.sessionLiveModels('conv-contract');
@@ -47,7 +47,7 @@ describe('ACP API contract schemas', () => {
     try {
       await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
-      const started = await contractClient.start(input);
+      const started = await contractClient.launch(input);
       expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
 
       await vi.waitFor(() => {
@@ -67,29 +67,31 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('keeps suspended reads inert and maps implicit wake failures into existing errors', async () => {
+  it('loads history through activation and keeps dormant settings non-waking', async () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     const rt = new AcpRuntime(h.deps);
     const wire = createTestWire(acpApiContract, createAcpController(rt));
     const input = makeStartInput({ conversationId: 'conv-wire-suspended' });
 
     try {
-      await wire.client.start(input);
+      await wire.client.launch(input);
       await rt.stopSession(input.conversationId);
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
 
       await expect(
-        wire.client.getHistory({
+        wire.client.loadHistory({
           conversationId: input.conversationId,
           limit: 50,
         })
-      ).resolves.toEqual({
+      ).resolves.toMatchObject({
         success: true,
-        data: { turns: [], nextCursor: null, unavailable: true },
+        data: { turns: [], nextCursor: null },
       });
-      expect(h.agent.loadSession).not.toHaveBeenCalled();
+      expect(h.agent.loadSession).toHaveBeenCalled();
       expect(h.agent.newSession).not.toHaveBeenCalled();
+
+      await rt.stopSession(input.conversationId);
 
       h.agent.loadSession.mockRejectedValue(new Error('replay failed'));
       h.agent.newSession.mockRejectedValue(new Error('replacement failed'));
@@ -106,31 +108,24 @@ describe('ACP API contract schemas', () => {
           cause: { name: 'Error', message: 'replacement failed' },
         },
       });
+      h.agent.loadSession.mockClear();
+      h.agent.newSession.mockClear();
       await expect(
-        wire.client.setModeOption({
+        wire.client.setOption({
           conversationId: input.conversationId,
+          key: 'mode',
           value: 'agent',
         })
-      ).resolves.toMatchObject({
-        success: false,
-        error: {
-          type: 'set_mode_failed',
-          cause: { name: 'Error', message: 'replacement failed' },
-        },
-      });
+      ).resolves.toEqual({ success: true, data: undefined });
       await expect(
-        wire.client.setModelOption({
+        wire.client.setOption({
           conversationId: input.conversationId,
-          dimension: 'effort',
+          key: 'effort',
           value: 'high',
         })
-      ).resolves.toMatchObject({
-        success: false,
-        error: {
-          type: 'set_config_failed',
-          cause: { name: 'Error', message: 'replacement failed' },
-        },
-      });
+      ).resolves.toEqual({ success: true, data: undefined });
+      expect(h.agent.loadSession).not.toHaveBeenCalled();
+      expect(h.agent.newSession).not.toHaveBeenCalled();
     } finally {
       wire.dispose();
     }
@@ -159,7 +154,7 @@ describe('ACP API contract schemas', () => {
 
   it('accepts typed durable intent failures from kill', () => {
     expect(() =>
-      acpKillErrorSchema.parse({
+      acpTerminateErrorSchema.parse({
         type: 'intent_persistence_failed',
         message: 'Failed to remove the durable session intent for conv-1',
         cause: { name: 'SessionIntentError', message: 'disk full' },

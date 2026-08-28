@@ -8,40 +8,36 @@ import type {
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
-  AcpGetHistoryError,
-  AcpKillError,
+  AcpLoadHistoryError,
+  AcpPurgeConversationDataError,
   AcpResolvePermissionError,
-  AcpResumeError,
   AcpSendPromptError,
-  AcpSetModeOptionError,
-  AcpSetModelOptionError,
+  AcpSetOptionError,
   AcpStartError,
   AcpStartInputWire,
+  AcpTerminateError,
   AttachmentMimeType,
   AttachmentRef,
-  HistoryPage,
+  LoadHistoryResult,
   PromptInput,
   PromptPlacement,
-  ResumeResult,
 } from '#runtimes/acp/api';
 import { acpErr } from '#runtimes/acp/api';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 import { isAcpWakeFailure, type AcpWakeFailure } from '#runtimes/acp/node/runtime/session-manager';
 
-export type StartSessionInput = AcpStartInputWire;
+export type SessionDescriptorInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    start(input: StartSessionInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
-      return runtime.startSession(input);
+    attach(input: SessionDescriptorInput): Promise<Result<void, AcpStartError>> {
+      return runtime.attachSession(input);
     },
-    resume(
-      input: StartSessionInput & { sessionId: string }
-    ): Promise<Result<ResumeResult, AcpResumeError>> {
-      return runtime.resumeSession(input);
+    launch(input: SessionDescriptorInput): ReturnType<AcpRuntime['launchSession']> {
+      return runtime.launchSession(input);
     },
-    kill(input: { conversationId: string }): Promise<Result<void, AcpKillError>> {
-      return runtime.killSession(input.conversationId);
+    terminate(input: { conversationId: string }): Promise<Result<void, AcpTerminateError>> {
+      return runtime.terminateSession(input.conversationId);
     },
     async sendPrompt(input: {
       conversationId: string;
@@ -76,30 +72,18 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     cancelTurn(input: { conversationId: string }): Promise<Result<void, AcpCancelTurnError>> {
       return runtime.cancelTurn(input.conversationId);
     },
-    async setModelOption(input: {
+    async setOption(input: {
       conversationId: string;
-      dimension: 'model' | 'effort';
+      key: 'model' | 'mode' | 'effort';
       value: string;
-    }): Promise<Result<void, AcpSetModelOptionError>> {
-      const result = await runtime.setModelOption(
-        input.conversationId,
-        input.dimension,
-        input.value
-      );
+    }): Promise<Result<void, AcpSetOptionError>> {
+      const result = await runtime.setOption(input.conversationId, input.key, input.value);
       if (!result.success && isAcpWakeFailure(result.error)) {
-        return acpErr.setConfigFailed(wakeFailureCause(result.error));
+        return input.key === 'mode'
+          ? acpErr.setModeFailed(wakeFailureCause(result.error))
+          : acpErr.setConfigFailed(wakeFailureCause(result.error));
       }
-      return result as Result<void, AcpSetModelOptionError>;
-    },
-    async setModeOption(input: {
-      conversationId: string;
-      value: string;
-    }): Promise<Result<void, AcpSetModeOptionError>> {
-      const result = await runtime.setModeOption(input.conversationId, input.value);
-      if (!result.success && isAcpWakeFailure(result.error)) {
-        return acpErr.setModeFailed(wakeFailureCause(result.error));
-      }
-      return result as Result<void, AcpSetModeOptionError>;
+      return result as Result<void, AcpSetOptionError>;
     },
     resolvePermission(input: {
       conversationId: string;
@@ -155,17 +139,17 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Promise<Result<void, AcpAttachmentError>> {
       return runtime.deleteAttachment(input.conversationId, input.attachmentId);
     },
-    deleteAttachments(input: {
+    purgeConversationData(input: {
       conversationId: string;
-    }): Promise<Result<void, AcpAttachmentError>> {
-      return runtime.deleteConversationAttachments(input.conversationId);
+    }): Promise<Result<void, AcpPurgeConversationDataError>> {
+      return runtime.purgeConversationData(input.conversationId);
     },
-    getHistory(input: {
+    loadHistory(input: {
       conversationId: string;
       before?: number;
       limit: number;
-    }): Result<HistoryPage, AcpGetHistoryError> {
-      return runtime.getHistory(input.conversationId, input.before, input.limit);
+    }): Promise<Result<LoadHistoryResult, AcpLoadHistoryError>> {
+      return runtime.loadHistory(input.conversationId, input.before, input.limit);
     },
   };
 }

@@ -78,8 +78,9 @@ export const ACP_UNAMBIGUOUS_START_ERROR_TYPES = [
   'initialize_failed',
   'new_session_failed',
 ] as const satisfies readonly AcpStartError['type'][];
-export type AcpResumeError = AcpStartError;
-export type AcpKillError = IntentPersistenceFailedError;
+export type AcpLaunchError = AcpStartError;
+export type AcpLoadHistoryError = AcpStartError;
+export type AcpTerminateError = IntentPersistenceFailedError;
 export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;
 export type AcpQueueMutationError = ConversationNotFoundError | InvalidStateError;
 export type AcpEditQueuedPromptError = AcpQueueMutationError;
@@ -87,18 +88,15 @@ export type AcpDeleteQueuedPromptError = AcpQueueMutationError;
 export type AcpChangeQueuePromptOrderError = AcpQueueMutationError;
 export type AcpResolvePermissionError = AcpQueueMutationError;
 export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
-export type AcpSetModelOptionError =
+export type AcpSetOptionError =
   | ConversationNotFoundError
   | InvalidStateError
-  | SetConfigFailedError;
-export type AcpSetModeOptionError =
-  | ConversationNotFoundError
-  | InvalidStateError
+  | SetConfigFailedError
   | SetModeFailedError;
 export type AcpExportTranscriptError = ConversationNotFoundError;
 export type AcpExportRawLogError = ConversationNotFoundError;
 export type AcpAttachmentError = InvalidStateError | AttachmentNotFoundError;
-export type AcpGetHistoryError = never;
+export type AcpPurgeConversationDataError = AcpTerminateError | AcpAttachmentError;
 
 export const acpErr = {
   providerUnsupported: (providerId: string) =>
@@ -173,8 +171,9 @@ export const acpStartErrorSchema = z.discriminatedUnion('type', [
   newSessionFailedErrorSchema,
   invalidStateErrorSchema,
 ]);
-export const acpResumeErrorSchema = acpStartErrorSchema;
-export const acpKillErrorSchema = intentPersistenceFailedErrorSchema;
+export const acpLaunchErrorSchema = acpStartErrorSchema;
+export const acpLoadHistoryErrorSchema = acpStartErrorSchema;
+export const acpTerminateErrorSchema = intentPersistenceFailedErrorSchema;
 export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
@@ -192,14 +191,10 @@ export const acpCancelTurnErrorSchema = z.discriminatedUnion('type', [
   invalidStateErrorSchema,
   cancelFailedErrorSchema,
 ]);
-export const acpSetModelOptionErrorSchema = z.discriminatedUnion('type', [
+export const acpSetOptionErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
   setConfigFailedErrorSchema,
-]);
-export const acpSetModeOptionErrorSchema = z.discriminatedUnion('type', [
-  conversationNotFoundErrorSchema,
-  invalidStateErrorSchema,
   setModeFailedErrorSchema,
 ]);
 export const acpExportTranscriptErrorSchema = conversationNotFoundErrorSchema;
@@ -208,7 +203,11 @@ export const acpAttachmentErrorSchema = z.discriminatedUnion('type', [
   invalidStateErrorSchema,
   attachmentNotFoundErrorSchema,
 ]);
-export const acpGetHistoryErrorSchema = z.never();
+export const acpPurgeConversationDataErrorSchema = z.discriminatedUnion('type', [
+  intentPersistenceFailedErrorSchema,
+  invalidStateErrorSchema,
+  attachmentNotFoundErrorSchema,
+]);
 
 export const acpRuntimeErrorSchema = z.discriminatedUnion('type', [
   providerUnsupportedErrorSchema,

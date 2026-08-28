@@ -285,7 +285,7 @@ export async function createWorkspaceServerRuntimeHost(
         creationAdmission: createController(workspaceCreationAdmissionContract, {
           checkWorktreeCreation: async () => ok(undefined),
         }),
-        acpSessions: acp,
+        acpLauncher: acp,
         tuiSessions: tuiAgents,
         conversationIndex: conversations,
       },

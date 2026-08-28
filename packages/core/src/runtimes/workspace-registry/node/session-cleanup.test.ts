@@ -7,7 +7,7 @@ import {
 
 describe('workspace session cleanup', () => {
   it('kills suspended ACP entries but excludes them from active session counts', async () => {
-    const kill = vi.fn().mockResolvedValue({ success: true, data: undefined });
+    const terminate = vi.fn().mockResolvedValue({ success: true, data: undefined });
     const clients = {
       acp: {
         sessions: {
@@ -27,7 +27,7 @@ describe('workspace session cleanup', () => {
             }),
           }),
         },
-        kill,
+        terminate,
       },
       terminals: {
         sessions: { state: () => ({ snapshot: async () => ({ data: {} }) }) },
@@ -40,8 +40,8 @@ describe('workspace session cleanup', () => {
     await expect(createSessionCounter(clients)('/workspace/repo')).resolves.toBe(1);
     await createSessionKiller(clients)('/workspace/repo');
 
-    expect(kill).toHaveBeenCalledTimes(2);
-    expect(kill).toHaveBeenCalledWith({ conversationId: 'active' });
-    expect(kill).toHaveBeenCalledWith({ conversationId: 'suspended' });
+    expect(terminate).toHaveBeenCalledTimes(2);
+    expect(terminate).toHaveBeenCalledWith({ conversationId: 'active' });
+    expect(terminate).toHaveBeenCalledWith({ conversationId: 'suspended' });
   });
 });

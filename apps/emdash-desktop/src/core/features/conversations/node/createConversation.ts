@@ -97,6 +97,8 @@ export async function createConversation(
           type: 'acp',
           ...(params.autoApprove !== undefined && { autoApprove: params.autoApprove }),
           ...(params.model && { model: params.model }),
+          ...(params.modeId && { modeId: params.modeId }),
+          ...(params.effort && { effort: params.effort }),
           ...(initialQueue?.length && { initialQueue }),
         }
       : {

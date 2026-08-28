@@ -97,6 +97,21 @@ describe('conversation-config v1 schema', () => {
     }
   });
 
+  it('round-trips effort on a v1 acp config', () => {
+    const config = conversationConfig.safeParse({
+      version: '1',
+      type: 'acp',
+      effort: 'high',
+    });
+    expect(config.status).toBe('ok');
+    if (config.status === 'ok') {
+      expect(config.data.type === 'acp' && config.data.effort).toBe('high');
+      expect(conversationConfig.parseJson(conversationConfig.serialize(config.data))).toEqual(
+        config.data
+      );
+    }
+  });
+
   it('returns invalid for non-object input', () => {
     expect(conversationConfig.safeParse('not-json')).toMatchObject({ status: 'invalid' });
     expect(conversationConfig.safeParse(null)).toMatchObject({ status: 'invalid' });

@@ -31,7 +31,7 @@ export interface SessionRouteTarget {
 
 export class SessionRouter implements InboundRouter {
   private readonly routes = new Map<string, Map<string, string>>();
-  private readonly loadingConversations = new Map<string, Set<string>>();
+  private readonly loadingConversationByOwner = new Map<string, string>();
 
   constructor(
     private readonly target: SessionRouteTarget,
@@ -43,12 +43,11 @@ export class SessionRouter implements InboundRouter {
     params: SessionNotification,
     event: NormalizedEvent
   ): void {
-    const conversationId = this.resolveConversationForSession(
-      routeOwnerId(connection.key, connection.generation),
-      params.sessionId
-    );
+    const processOwner = routeOwnerId(connection.key, connection.generation);
+    const conversationId = this.resolveConversationForSession(processOwner, params.sessionId);
     if (!conversationId) {
       this.logger.warn('SessionManager: sessionUpdate for unknown sessionId', {
+        processOwner,
         sessionId: params.sessionId,
       });
       return;
@@ -100,20 +99,20 @@ export class SessionRouter implements InboundRouter {
     if (bySession.size === 0) this.routes.delete(processOwner);
   }
 
-  addLoading(processOwner: string, conversationId: string): void {
-    let loading = this.loadingConversations.get(processOwner);
-    if (!loading) {
-      loading = new Set();
-      this.loadingConversations.set(processOwner, loading);
+  beginLoad(processOwner: string, acpSessionId: string, conversationId: string): () => void {
+    if (this.loadingConversationByOwner.has(processOwner)) {
+      throw new Error(`SessionManager: ACP load already active for process owner ${processOwner}`);
     }
-    loading.add(conversationId);
-  }
-
-  removeLoading(processOwner: string, conversationId: string): void {
-    const loading = this.loadingConversations.get(processOwner);
-    if (!loading) return;
-    loading.delete(conversationId);
-    if (loading.size === 0) this.loadingConversations.delete(processOwner);
+    this.loadingConversationByOwner.set(processOwner, conversationId);
+    this.register(processOwner, acpSessionId, conversationId);
+    let ended = false;
+    return () => {
+      if (ended) return;
+      ended = true;
+      if (this.loadingConversationByOwner.get(processOwner) === conversationId) {
+        this.loadingConversationByOwner.delete(processOwner);
+      }
+    };
   }
 
   hasRoutesFor(conversationId: string): boolean {
@@ -124,17 +123,18 @@ export class SessionRouter implements InboundRouter {
   }
 
   isLoadingConversation(conversationId: string): boolean {
-    for (const loading of this.loadingConversations.values()) {
-      if (loading.has(conversationId)) return true;
-    }
-    return false;
+    return [...this.loadingConversationByOwner.values()].includes(conversationId);
+  }
+
+  invalidate(processOwner: string): void {
+    this.routes.delete(processOwner);
+    this.loadingConversationByOwner.delete(processOwner);
   }
 
   private resolveConversationForSession(processOwner: string, acpSessionId: string): string | null {
     const route = this.routes.get(processOwner)?.get(acpSessionId);
     if (route) return route;
-    const loading = this.loadingConversations.get(processOwner);
-    const pending = loading?.values().next().value;
+    const pending = this.loadingConversationByOwner.get(processOwner);
     if (!pending) return null;
     this.register(processOwner, acpSessionId, pending);
     return pending;

@@ -366,7 +366,7 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
     ptySpawner,
     client(): Client {
       if (!agent.capturedClient) {
-        throw new Error('capturedClient is null — has startSession() been called?');
+        throw new Error('capturedClient is null — has launchSession() been called?');
       }
       return agent.capturedClient;
     },

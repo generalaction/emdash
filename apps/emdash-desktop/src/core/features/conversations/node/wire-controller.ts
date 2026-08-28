@@ -4,7 +4,8 @@ import {
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { err, ok, type Result } from '@emdash/shared';
+import { acpErr } from '@emdash/core/runtimes/acp/api/client';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
@@ -12,7 +13,10 @@ import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
-import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
+import {
+  setConversationAcpConfigOption,
+  type AcpPersistedConfigKey,
+} from '@core/features/conversations/node/set-acp-config-option';
 import type { ProjectAttachmentError } from '@core/features/projects/api';
 import {
   requireAttachedProjectOrThrow,
@@ -41,7 +45,9 @@ type ConversationRuntimeTarget = Readonly<{
   conversationType: 'pty' | 'acp';
   providerId: string | null;
   sessionId: string | null;
+  model: string | null;
   modeId: string | null;
+  effort: string | null;
   workspacePath?: string;
   host: HostRef;
   acpInput?: ConversationsAcpStartInput;
@@ -52,7 +58,11 @@ type WorkspaceIdentityResolver = Readonly<{
 }>;
 
 type ConversationRuntimeHooks = Readonly<{
-  persistAcpMode(target: ConversationRuntimeTarget, modeId: string): Promise<void>;
+  persistAcpConfigOption(
+    target: ConversationRuntimeTarget,
+    key: AcpPersistedConfigKey,
+    value: string | null
+  ): Promise<void>;
   recordTuiInput(target: ConversationRuntimeTarget): Promise<void>;
 }>;
 
@@ -161,34 +171,24 @@ export function createConversationsWireController(
       conversationOperations.deleteHostConversation(conversationId),
     events: conversationWireEvents,
     acp: {
-      // The returned session id is not persisted client-side: the ACP runtime reports it
-      // into the conversation index (spec §3.3) and convergence caches it here.
-      start: async ({ conversationId }, meta) => {
-        const runtimeTarget = await target(conversationId);
-        if (!runtimeTarget.acpInput) {
-          throw missingAcpInputError(runtimeTarget);
-        }
-        const input = runtimeTarget.acpInput;
-        return withConversationRuntime(options, Promise.resolve(runtimeTarget), (client) =>
-          client.acp.start(input, callOptions(meta))
-        );
-      },
-      resume: async ({ conversationId }, meta) => {
+      attach: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         const input = runtimeTarget.acpInput;
-        if (!input) {
-          throw missingAcpInputError(runtimeTarget);
-        }
-        if (!input.sessionId) {
-          throw new Error(`Conversation '${conversationId}' has no ACP session to resume`);
-        }
-        const sessionId = input.sessionId;
+        if (!input) throw missingAcpInputError(runtimeTarget);
         return withConversationRuntime(options, Promise.resolve(runtimeTarget), (client) =>
-          client.acp.resume({ ...input, sessionId }, callOptions(meta))
+          client.acp.attach(input, callOptions(meta))
         );
       },
-      kill: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.kill(input, callOptions(meta))),
+      loadHistory: async (input, meta) => {
+        const runtimeTarget = await target(input.conversationId);
+        return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
+          const result = await client.acp.loadHistory(input, callOptions(meta));
+          await persistClearedConfiguration(hooks, runtimeTarget, result, options.logger);
+          return result;
+        });
+      },
+      terminate: (input, meta) =>
+        run(input.conversationId, (client) => client.acp.terminate(input, callOptions(meta))),
       sendPrompt: (input, meta) =>
         run(input.conversationId, (client) =>
           client.acp.sendPrompt(input, { ...callOptions(meta), timeoutMs: 0 })
@@ -207,16 +207,23 @@ export function createConversationsWireController(
         ),
       cancelTurn: (input, meta) =>
         run(input.conversationId, (client) => client.acp.cancelTurn(input, callOptions(meta))),
-      setModelOption: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.setModelOption(input, callOptions(meta))),
-      setModeOption: async (input, meta) => {
+      setOption: async (input, meta) => {
         const runtimeTarget = await target(input.conversationId);
         return withConversationRuntime(options, Promise.resolve(runtimeTarget), async (client) => {
-          const result = await client.acp.setModeOption(input, callOptions(meta));
-          if (result.success) {
-            await hooks.persistAcpMode(runtimeTarget, input.value);
+          const result = await client.acp.setOption(input, callOptions(meta));
+          if (!result.success) return result;
+          try {
+            await hooks.persistAcpConfigOption(
+              runtimeTarget,
+              input.key === 'mode' ? 'modeId' : input.key,
+              input.value
+            );
+            return result;
+          } catch (error) {
+            return input.key === 'mode'
+              ? acpErr.setModeFailed(toSerializedError(error))
+              : acpErr.setConfigFailed(toSerializedError(error));
           }
-          return result;
         });
       },
       resolvePermission: (input, meta) =>
@@ -239,8 +246,6 @@ export function createConversationsWireController(
         run(conversationId, (client) =>
           client.acp.deleteAttachment({ conversationId, attachmentId }, callOptions(meta))
         ),
-      getHistory: (input, meta) =>
-        run(input.conversationId, (client) => client.acp.getHistory(input, callOptions(meta))),
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: async ({ conversationId, terminalId }) =>
@@ -288,27 +293,29 @@ function createDefaultRuntimeHooks(
 ): ConversationRuntimeHooks {
   const { db, logger, telemetry, runtimes, hostIsReachable } = options;
   return {
-    async persistAcpMode(target, modeId) {
-      const result = await setConversationModeId(
+    async persistAcpConfigOption(target, key, value) {
+      const result = await setConversationAcpConfigOption(
         { db, runtimes, hostIsReachable },
         target.conversationId,
-        modeId
+        key,
+        value
       );
       if (!result.success) {
-        logger.warn('ACP runtime failed to persist selected mode id', {
+        logger.warn('ACP runtime failed to persist selected configuration', {
           conversationId: target.conversationId,
+          key,
           error: result.error,
         });
-        return;
+        throw new Error(result.error.message ?? result.error.type);
       }
-      if (target.modeId === modeId) return;
+      if (!result.data.changed || value === null) return;
       if (result.data.taskId === null || result.data.projectId === null) return;
       conversationWireEvents.emit(undefined, {
         type: 'changed',
         conversationId: target.conversationId,
         taskId: result.data.taskId,
         projectId: result.data.projectId,
-        changes: { modeId },
+        changes: { [key]: value },
       });
     },
     // Recency is a host fact now: the runtime's activity report feeds
@@ -388,6 +395,7 @@ async function resolveConversationRuntimeTarget(
           sessionId: row.sessionId,
           model: acpConfig?.model ?? null,
           modeId: acpConfig?.modeId ?? null,
+          effort: acpConfig?.effort ?? null,
           ...(initialQueue && { initialQueue }),
           ...(providerEnv && { env: providerEnv }),
         }
@@ -400,7 +408,9 @@ async function resolveConversationRuntimeTarget(
     conversationType: row.type === 'acp' ? 'acp' : 'pty',
     providerId: row.providerId,
     sessionId: row.sessionId,
+    model: acpConfig?.model ?? null,
     modeId: acpConfig?.modeId ?? null,
+    effort: acpConfig?.effort ?? null,
     workspacePath,
     host: identity?.host ?? LOCAL_HOST_REF,
     acpInput,
@@ -425,6 +435,26 @@ async function withConversationRuntime<T, E>(
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
+}
+
+async function persistClearedConfiguration(
+  hooks: ConversationRuntimeHooks,
+  target: ConversationRuntimeTarget,
+  result: Result<{ clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> }, unknown>,
+  logger: Logger
+): Promise<void> {
+  if (!result.success) return;
+  for (const key of result.data.clearedConfiguration ?? []) {
+    try {
+      await hooks.persistAcpConfigOption(target, key, null);
+    } catch (error) {
+      logger.warn('ACP runtime failed to clear unsupported stored configuration', {
+        conversationId: target.conversationId,
+        key,
+        error: String(error),
+      });
+    }
+  }
 }
 
 async function resolveConversationRuntimeSource(

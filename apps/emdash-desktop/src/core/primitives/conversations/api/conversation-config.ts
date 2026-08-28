@@ -37,6 +37,8 @@ const acpConfigV1 = z.object({
   model: z.string().optional(),
   /** Last user-selected ACP session mode id (provider-specific), re-applied on session start. */
   modeId: z.string().optional(),
+  /** Last user-selected provider reasoning/effort id, re-applied on session start. */
+  effort: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()

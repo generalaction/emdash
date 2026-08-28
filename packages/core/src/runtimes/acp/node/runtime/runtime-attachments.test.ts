@@ -68,7 +68,7 @@ describe('AcpRuntime conversation-scoped attachments', () => {
     });
     if (!first.success || !second.success || !other.success) throw new Error('upload failed');
 
-    const cleaned = await rt.deleteConversationAttachments('conv-1');
+    const cleaned = await rt.purgeConversationData('conv-1');
     expect(cleaned).toEqual({ success: true, data: undefined });
 
     await expect(rt.downloadAttachment('conv-1', first.data.id)).resolves.toMatchObject({
@@ -83,7 +83,7 @@ describe('AcpRuntime conversation-scoped attachments', () => {
     });
 
     // Idempotent for already-cleaned conversations.
-    await expect(rt.deleteConversationAttachments('conv-1')).resolves.toEqual({
+    await expect(rt.purgeConversationData('conv-1')).resolves.toEqual({
       success: true,
       data: undefined,
     });
@@ -92,7 +92,7 @@ describe('AcpRuntime conversation-scoped attachments', () => {
   it('cleanup is a no-op success when no attachment store is configured', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    await expect(rt.deleteConversationAttachments('conv-1')).resolves.toEqual({
+    await expect(rt.purgeConversationData('conv-1')).resolves.toEqual({
       success: true,
       data: undefined,
     });

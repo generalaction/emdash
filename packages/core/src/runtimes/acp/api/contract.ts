@@ -30,63 +30,62 @@ import {
   acpEditQueuedPromptErrorSchema,
   acpExportRawLogErrorSchema,
   acpExportTranscriptErrorSchema,
-  acpGetHistoryErrorSchema,
-  acpKillErrorSchema,
+  acpLaunchErrorSchema,
+  acpLoadHistoryErrorSchema,
+  acpPurgeConversationDataErrorSchema,
   acpResolvePermissionErrorSchema,
-  acpResumeErrorSchema,
   acpSendPromptErrorSchema,
-  acpSetModeOptionErrorSchema,
-  acpSetModelOptionErrorSchema,
+  acpSetOptionErrorSchema,
   acpStartErrorSchema,
+  acpTerminateErrorSchema,
 } from './errors';
 import {
-  acpResumeInputSchema,
   acpStartInputSchema,
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
   deleteAttachmentCommandSchema,
-  deleteAttachmentsCommandSchema,
   deleteQueuedPromptCommandSchema,
   downloadAttachmentCommandSchema,
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
   historyPageInputSchema,
-  historyPageSchema,
-  killCommandSchema,
+  loadHistoryResultSchema,
+  purgeConversationDataCommandSchema,
   resolvePermissionCommandSchema,
-  resumeResultSchema,
   sendPromptCommandSchema,
   sendPromptResponseSchema,
-  setModeOptionCommandSchema,
-  setModelOptionCommandSchema,
+  setOptionCommandSchema,
+  terminateCommandSchema,
   uploadAttachmentCommandSchema,
   uploadAttachmentResponseSchema,
 } from './schemas';
 
-const startResultSchema = z.object({ sessionId: z.string() });
+const launchResultSchema = z.object({
+  sessionId: z.string(),
+  clearedConfiguration: z.array(z.enum(['model', 'modeId', 'effort'])).optional(),
+});
 const sessionKeySchema = z.object({ conversationId: z.string() });
 const terminalOutputKeySchema = z.object({ terminalId: z.string() });
 
 export const acpApiContract = defineContract({
-  start: fallible({
+  attach: fallible({
     input: acpStartInputSchema,
-    data: startResultSchema,
     error: acpStartErrorSchema,
   }),
-  resume: fallible({
-    input: acpResumeInputSchema,
-    data: resumeResultSchema,
-    error: acpResumeErrorSchema,
+  launch: fallible({
+    input: acpStartInputSchema,
+    data: launchResultSchema,
+    error: acpLaunchErrorSchema,
   }),
   /**
    * Terminates any active process and removes the persisted active intent — the session no
    * longer auto-resumes across daemon restarts. The conversation record stays resumable
    * manually.
    */
-  kill: fallible({
-    input: killCommandSchema,
-    error: acpKillErrorSchema,
+  terminate: fallible({
+    input: terminateCommandSchema,
+    error: acpTerminateErrorSchema,
   }),
   sendPrompt: fallible({
     input: sendPromptCommandSchema,
@@ -109,13 +108,9 @@ export const acpApiContract = defineContract({
     input: cancelTurnCommandSchema,
     error: acpCancelTurnErrorSchema,
   }),
-  setModelOption: fallible({
-    input: setModelOptionCommandSchema,
-    error: acpSetModelOptionErrorSchema,
-  }),
-  setModeOption: fallible({
-    input: setModeOptionCommandSchema,
-    error: acpSetModeOptionErrorSchema,
+  setOption: fallible({
+    input: setOptionCommandSchema,
+    error: acpSetOptionErrorSchema,
   }),
   resolvePermission: fallible({
     input: resolvePermissionCommandSchema,
@@ -146,19 +141,14 @@ export const acpApiContract = defineContract({
     input: deleteAttachmentCommandSchema,
     error: acpAttachmentErrorSchema,
   }),
-  /**
-   * Maintenance verb for conversation deletion (spec §3.6, §4.2): removes every attachment
-   * stored for the conversation. Invoked by the conversation removal verb alongside
-   * `kill`; idempotent for absent conversations.
-   */
-  deleteAttachments: fallible({
-    input: deleteAttachmentsCommandSchema,
-    error: acpAttachmentErrorSchema,
+  purgeConversationData: fallible({
+    input: purgeConversationDataCommandSchema,
+    error: acpPurgeConversationDataErrorSchema,
   }),
-  getHistory: fallible({
+  loadHistory: fallible({
     input: historyPageInputSchema,
-    data: historyPageSchema,
-    error: acpGetHistoryErrorSchema,
+    data: loadHistoryResultSchema,
+    error: acpLoadHistoryErrorSchema,
   }),
   sessions: liveModel({
     key: z.void().optional(),

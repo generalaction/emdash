@@ -151,6 +151,28 @@ describe('createConversation', () => {
     expect(db.inserted[0]).toMatchObject({ cwd: '/work/repo', workspacePath: '/work/repo' });
   });
 
+  it('stores provider-native ACP model, mode, and effort defaults', async () => {
+    await createConversation(
+      {
+        ...baseParams,
+        model: 'sonnet',
+        modeId: 'agent-full-access',
+        effort: 'high',
+      },
+      dependencies()
+    );
+
+    expect(hostConversations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          model: 'sonnet',
+          modeId: 'agent-full-access',
+          effort: 'high',
+        }),
+      })
+    );
+  });
+
   it('refuses creation against an unreachable remote host before touching the host or DB', async () => {
     const deps = dependencies({
       hostIsReachable: vi.fn(() => false),

@@ -63,7 +63,7 @@ export function createSessionKiller(
 
     for (const session of Object.values(acpSnapshot.data)) {
       if (!cwdUnder(root, session.cwd)) continue;
-      const result = await clients.acp.kill({ conversationId: session.conversationId });
+      const result = await clients.acp.terminate({ conversationId: session.conversationId });
       if (!result.success) {
         logger?.warn?.(`failed to kill ACP session ${session.conversationId}`, {
           error: result.error,

@@ -469,25 +469,65 @@ describe('AcpChatStore prompt submission', () => {
     await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
     expect(chatSessionTestState.pendingPrompt).toMatchObject({ text: 'wake up' });
 
-    live.getHistory.mockClear();
+    live.loadHistory.mockClear();
     connectSessionOptions?.onTurnCommitted?.();
-    await vi.waitFor(() => expect(live.getHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     expect(chatSessionTestState.pendingPrompt).toMatchObject({ text: 'wake up' });
 
     finishPrompt();
     store.dispose();
   });
 
+  it('keeps the attached composer available when background activation fails', async () => {
+    const loadHistory = vi.fn(async () => ({
+      success: false as const,
+      error: { type: 'initialize_failed' as const, cause: { message: 'restore failed' } },
+    }));
+    const live = fakeLiveSession(suspendedState(), unavailableHistory(), {
+      loadHistory,
+    });
+
+    const store = await bootstrapWithSession(live.session);
+
+    expect(store.session).toBe(live.session);
+    expect(store.loadError).not.toBeNull();
+    expect(store.affordances).toMatchObject({ isBusy: false, canSubmit: true });
+    expect(loadHistory).toHaveBeenCalledTimes(1);
+    store.dispose();
+  });
+
+  it('does not remember a rejected provider change as a future default', async () => {
+    const setOption = vi.fn(async () => ({
+      success: false as const,
+      error: { type: 'set_mode_failed' as const, cause: { message: 'rejected' } },
+    }));
+    const store = createStore(idleState(), vi.fn(), { setOption });
+    const rememberPreference = vi
+      .spyOn(
+        store as unknown as {
+          _rememberPreference(patch: { modeId: string }): Promise<void>;
+        },
+        '_rememberPreference'
+      )
+      .mockResolvedValue();
+
+    store.setMode('agent-full-access');
+
+    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('mode', 'agent-full-access'));
+    expect(rememberPreference).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
     const store = await bootstrapWithSession(live.session);
-    live.getHistory.mockClear();
+    live.loadHistory.mockClear();
     historySeed.mockClear();
-    live.getHistory.mockResolvedValueOnce({ success: true, data: historyPage('completed') });
+    live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('completed') });
 
     connectSessionOptions?.onTurnCommitted?.();
 
-    await vi.waitFor(() => expect(live.getHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     expect(historySeed).toHaveBeenCalledTimes(1);
     expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'completed' })]);
     store.dispose();
@@ -496,13 +536,13 @@ describe('AcpChatStore prompt submission', () => {
   it('keeps rendered history when a suspension-driven refresh is unavailable', async () => {
     const live = fakeLiveSession(idleState(), historyPage('rendered'));
     const store = await bootstrapWithSession(live.session);
-    live.getHistory.mockClear();
+    live.loadHistory.mockClear();
     historySeed.mockClear();
-    live.getHistory.mockResolvedValueOnce({ success: true, data: unavailableHistory() });
+    live.loadHistory.mockResolvedValueOnce({ success: true, data: unavailableHistory() });
 
     connectSessionOptions?.onTurnCommitted?.();
 
-    await vi.waitFor(() => expect(live.getHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     expect(historySeed).not.toHaveBeenCalled();
     expect(transcriptTestState.committedTurns).toEqual([
       expect.objectContaining({ id: 'rendered' }),
@@ -513,26 +553,26 @@ describe('AcpChatStore prompt submission', () => {
   it('coalesces replay completion into one refresh without dropping the pending prompt', async () => {
     const live = fakeLiveSession(suspendedState(), historyPage('rendered'));
     const store = await bootstrapWithSession(live.session);
-    live.getHistory.mockClear();
+    live.loadHistory.mockClear();
     historySeed.mockClear();
     historySeed.mockImplementation((turns) => {
       transcriptTestState.committedTurns = turns;
       setPendingPrompt(null);
     });
-    live.getHistory.mockResolvedValue({ success: true, data: historyPage('replayed') });
+    live.loadHistory.mockResolvedValue({ success: true, data: historyPage('replayed') });
     setPendingPrompt({ id: 'optimistic-1', text: 'continue' });
 
-    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: false });
+    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: true });
     expect(store.affordances).toMatchObject({
       isWorking: false,
-      isBusy: true,
+      isBusy: false,
       isResuming: true,
-      canSubmit: false,
+      canSubmit: true,
     });
     live.sessionState.set(idleState());
     live.sessionState.set(idleState());
 
-    await vi.waitFor(() => expect(live.getHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     expect(historySeed).toHaveBeenCalledTimes(1);
     expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'replayed' })]);
     expect(chatSessionTestState.pendingPrompt).toEqual({
@@ -546,18 +586,18 @@ describe('AcpChatStore prompt submission', () => {
     let finishHistory!: (result: { success: true; data: HistoryPage }) => void;
     const live = fakeLiveSession(suspendedState(), historyPage('rendered'));
     const store = await bootstrapWithSession(live.session);
-    live.getHistory.mockClear();
+    live.loadHistory.mockClear();
     historySeed.mockClear();
-    live.getHistory.mockImplementationOnce(
+    live.loadHistory.mockImplementationOnce(
       () =>
         new Promise<{ success: true; data: HistoryPage }>((resolve) => {
           finishHistory = resolve;
         })
     );
 
-    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: false });
+    live.sessionState.set({ ...idleState(), lifecycle: 'replaying', canSubmit: true });
     live.sessionState.set(idleState());
-    await vi.waitFor(() => expect(live.getHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
     transcriptTestState.activeTurnSnapshot = historyPage('active').turns[0];
     finishHistory({ success: true, data: historyPage('replayed') });
     await Promise.resolve();
@@ -594,7 +634,7 @@ function fakeLiveSession(
   overrides: Record<string, unknown> = {}
 ) {
   const sessionState = new FakeRemote(state);
-  const getHistory = vi.fn(async () => ({ success: true as const, data: initialHistory }));
+  const loadHistory = vi.fn(async () => ({ success: true as const, data: initialHistory }));
   const session = {
     sessionState,
     config: new FakeRemote({ availableCommands: [] }),
@@ -603,13 +643,13 @@ function fakeLiveSession(
     activeTurn: new FakeRemote(null),
     terminals: new FakeRemote([]),
     mcpServers: new FakeRemote([]),
-    getHistory,
+    loadHistory,
     terminalOutput: vi.fn(),
     sendPrompt: vi.fn(async () => ({ success: true, data: { queued: false } })),
     dispose: vi.fn(),
     ...overrides,
   } as unknown as AcpLiveSession;
-  return { session, sessionState, getHistory };
+  return { session, sessionState, loadHistory };
 }
 
 async function bootstrapWithSession(session: AcpLiveSession): Promise<AcpChatStore> {

@@ -38,11 +38,12 @@ export interface SessionMaterializerCallbacks {
   onRecordClosed(record: SessionRecord): void;
   discardRecord(record: SessionRecord): void;
   registerRoute(processOwner: string, acpSessionId: string, conversationId: string): void;
-  addLoading(processOwner: string, conversationId: string): void;
-  removeLoading(processOwner: string, conversationId: string): void;
+  beginLoad(processOwner: string, acpSessionId: string, conversationId: string): () => void;
 }
 
 export class SessionMaterializer {
+  private readonly handshakeTails = new Map<string, Promise<void>>();
+
   constructor(
     private readonly deps: Pick<AcpRuntimeDeps, 'agentHost' | 'resolveAttachment'> & {
       logger: Logger;
@@ -85,11 +86,18 @@ export class SessionMaterializer {
     const connection = acquired.value;
     const mcpServers = await this.resolveSessionMcpServers(input.providerId, connection);
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
+    const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
     let resumeOutcome: SessionRecord['resumeOutcome'] = input.sessionId ? 'replaced-by-new' : null;
 
     try {
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
+        let releaseHandshake: () => void;
+        try {
+          releaseHandshake = await this.acquireHandshake(processOwner, signal);
+        } catch {
+          return acpErr.conversationNotFound(entry.conversationId);
+        }
         record = this.createRecord(
           entry,
           input,
@@ -99,11 +107,10 @@ export class SessionMaterializer {
           epoch,
           scope
         );
-        const processOwner = routeOwnerId(connection.key, connection.generation);
         let loaded = false;
+        let endLoad = () => {};
         try {
-          this.callbacks.addLoading(processOwner, input.conversationId);
-          this.callbacks.registerRoute(processOwner, input.sessionId, input.conversationId);
+          endLoad = this.callbacks.beginLoad(processOwner, input.sessionId, input.conversationId);
           record.cell.beginReplay();
           const response = await abortable(
             connection.agent.loadSession(
@@ -118,8 +125,7 @@ export class SessionMaterializer {
             modes: response.modes,
             configOptions: response.configOptions,
           });
-          await this.applyConfigOverrides(record, entry);
-          await this.applyInitialMode(record, input);
+          await this.applyDesiredConfiguration(record, entry);
           const queueResult = this.queueInitialPrompts(record, input);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
@@ -134,7 +140,8 @@ export class SessionMaterializer {
             conversationId: input.conversationId,
           });
         } finally {
-          this.callbacks.removeLoading(processOwner, input.conversationId);
+          endLoad();
+          releaseHandshake();
         }
 
         if (!loaded) {
@@ -173,8 +180,7 @@ export class SessionMaterializer {
           modes: response.modes,
           configOptions: response.configOptions,
         });
-        await this.applyConfigOverrides(record, entry);
-        await this.applyInitialMode(record, input);
+        await this.applyDesiredConfiguration(record, entry);
         const queueResult = this.queueInitialPrompts(record, input);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
@@ -192,6 +198,41 @@ export class SessionMaterializer {
       if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
       return acpErr.initializeFailed(toSerializedError(error));
     }
+  }
+
+  private async acquireHandshake(processOwner: string, signal: AbortSignal): Promise<() => void> {
+    const predecessor = this.handshakeTails.get(processOwner) ?? Promise.resolve();
+    let releaseCurrent = () => {};
+    const current = new Promise<void>((resolve) => {
+      releaseCurrent = resolve;
+    });
+    const tail = predecessor.catch(() => {}).then(() => current);
+    this.handshakeTails.set(processOwner, tail);
+    try {
+      await abortable(
+        predecessor.catch(() => {}),
+        signal
+      );
+    } catch (error) {
+      releaseCurrent();
+      this.cleanupHandshake(processOwner, tail);
+      throw error;
+    }
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      releaseCurrent();
+      this.cleanupHandshake(processOwner, tail);
+    };
+  }
+
+  private cleanupHandshake(processOwner: string, tail: Promise<void>): void {
+    void tail.then(() => {
+      if (this.handshakeTails.get(processOwner) === tail) {
+        this.handshakeTails.delete(processOwner);
+      }
+    });
   }
 
   private createRecord(
@@ -232,6 +273,7 @@ export class SessionMaterializer {
       epoch,
       input,
       resumeOutcome: null,
+      clearedConfiguration: [],
       processKey: connection.key,
       processGeneration: connection.generation,
       connectionLeaseState,
@@ -263,10 +305,18 @@ export class SessionMaterializer {
   private async applyConfigOverrides(
     record: SessionRecord,
     entry: ConversationHandle
-  ): Promise<void> {
+  ): Promise<Array<'model' | 'effort'>> {
+    const cleared: Array<'model' | 'effort'> = [];
     for (const dimension of ['model', 'effort'] as const) {
       const value = entry.configOverrides[dimension];
       if (!value) continue;
+      const catalog =
+        dimension === 'model' ? record.cell.config.modelOptions : record.cell.config.efforts;
+      if (catalog && !catalog.available.some((option) => option.id === value)) {
+        entry.clearConfig(dimension);
+        cleared.push(dimension);
+        continue;
+      }
       const result = await record.cell.setConfigOption(dimension, value);
       if (!result.success) {
         this.deps.logger.warn('SessionMaterializer: failed to apply retained config option', {
@@ -277,6 +327,22 @@ export class SessionMaterializer {
         });
       }
     }
+    return cleared;
+  }
+
+  private async applyDesiredConfiguration(
+    record: SessionRecord,
+    entry: ConversationHandle
+  ): Promise<void> {
+    let revision: number;
+    do {
+      revision = entry.desiredRevision;
+      const cleared = await this.applyConfigOverrides(record, entry);
+      const clearedMode = await this.applyInitialMode(record, entry);
+      for (const key of [...cleared, ...(clearedMode ? [clearedMode] : [])]) {
+        if (!record.clearedConfiguration.includes(key)) record.clearedConfiguration.push(key);
+      }
+    } while (entry.desiredRevision !== revision);
   }
 
   private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
@@ -299,28 +365,34 @@ export class SessionMaterializer {
     }
   }
 
-  private async applyInitialMode(record: SessionRecord, input: AcpStartInput): Promise<void> {
-    const modeId = input.modeId;
-    if (!modeId) return;
+  private async applyInitialMode(
+    record: SessionRecord,
+    entry: ConversationHandle
+  ): Promise<'modeId' | null> {
+    const modeId = entry.descriptor.modeId;
+    if (!modeId) return null;
     const modeOptions = record.cell.config.modeOptions;
-    if (!modeOptions?.available.some((mode) => mode.id === modeId)) {
+    if (!modeOptions) return null;
+    if (!modeOptions.available.some((mode) => mode.id === modeId)) {
       this.deps.logger.debug('SessionMaterializer: persisted mode not advertised, skipping', {
-        conversationId: input.conversationId,
-        providerId: input.providerId,
+        conversationId: entry.conversationId,
+        providerId: entry.descriptor.providerId,
         modeId,
       });
-      return;
+      entry.clearMode();
+      return 'modeId';
     }
-    if (modeOptions.selected === modeId) return;
+    if (modeOptions.selected === modeId) return null;
     const result = await record.cell.setMode(modeId);
     if (!result.success) {
       this.deps.logger.warn('SessionMaterializer: failed to apply initial mode', {
-        conversationId: input.conversationId,
-        providerId: input.providerId,
+        conversationId: entry.conversationId,
+        providerId: entry.descriptor.providerId,
         modeId,
         error: result.error,
       });
     }
+    return null;
   }
 
   private buildNewSessionRequest(

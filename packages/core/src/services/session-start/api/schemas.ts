@@ -17,7 +17,7 @@ export const headlessPromptInputSchema = z.object({
   hiddenContext: z.string().optional(),
 });
 
-export const acpSessionStartInputSchema = z.object({
+export const acpSessionLaunchInputSchema = z.object({
   conversationId: nonBlankStringSchema,
   providerId: nonBlankStringSchema,
   cwd: nonBlankStringSchema,
@@ -27,7 +27,7 @@ export const acpSessionStartInputSchema = z.object({
   initialQueue: z.array(headlessPromptInputSchema).min(1),
 });
 
-export const acpSessionStartResultSchema = z.object({
+export const acpSessionLaunchResultSchema = z.object({
   sessionId: nonBlankStringSchema,
 });
 
@@ -48,7 +48,7 @@ export const tuiSessionStartResultSchema = z.object({
 });
 
 export type SessionStartError = z.infer<typeof sessionStartErrorSchema>;
-export type AcpSessionStartInput = z.infer<typeof acpSessionStartInputSchema>;
-export type AcpSessionStartResult = z.infer<typeof acpSessionStartResultSchema>;
+export type AcpSessionLaunchInput = z.infer<typeof acpSessionLaunchInputSchema>;
+export type AcpSessionLaunchResult = z.infer<typeof acpSessionLaunchResultSchema>;
 export type TuiSessionStartInput = z.infer<typeof tuiSessionStartInputSchema>;
 export type TuiSessionStartResult = z.infer<typeof tuiSessionStartResultSchema>;

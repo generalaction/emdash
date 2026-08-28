@@ -44,4 +44,53 @@ describe('ACP live models', () => {
     expect(peek(projection.states.state)).toBe(closedSessionState);
     await host.dispose();
   });
+
+  it('keeps retained config, MCP servers, and usage visible while suspended', async () => {
+    const host = createAcpSessionLiveHost();
+    const projection = host.models('conversation-retained');
+
+    projection.source.set({
+      kind: 'suspended',
+      retained: {
+        configured: { model: 'sonnet', modeId: 'agent-full-access', effort: 'high' },
+        lastKnownCapabilities: {
+          modelOptions: {
+            configId: 'model',
+            selected: 'sonnet',
+            available: [{ id: 'sonnet', name: 'Sonnet' }],
+          },
+          efforts: {
+            configId: 'effort',
+            selected: 'high',
+            available: [{ id: 'high', name: 'High' }],
+          },
+          modeOptions: {
+            configId: 'mode',
+            selected: 'agent-full-access',
+            available: [{ id: 'agent-full-access', name: 'Full access' }],
+          },
+          availableCommands: [],
+        },
+        lastKnownMcpServers: [{ name: 'filesystem', transport: 'stdio' }],
+        lastKnownUsage: { contextSize: 200_000, contextUsed: 1_000, cost: null },
+        observedAt: 123,
+      },
+    });
+    flushStateTurn();
+
+    expect(peek(projection.states.config)).toMatchObject({
+      modelOptions: { selected: 'sonnet' },
+      efforts: { selected: 'high' },
+      modeOptions: { selected: 'agent-full-access' },
+    });
+    expect(peek(projection.states.mcpServers)).toEqual([
+      { name: 'filesystem', transport: 'stdio' },
+    ]);
+    expect(peek(projection.states.usage)).toEqual({
+      contextSize: 200_000,
+      contextUsed: 1_000,
+      cost: null,
+    });
+    await host.dispose();
+  });
 });

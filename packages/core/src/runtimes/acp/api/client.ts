@@ -4,7 +4,7 @@ export {
   promptPlacementSchema,
   type AcpStartInputWire,
   type HistoryPage,
+  type LoadHistoryResult,
   type PromptPlacement,
-  type ResumeResult,
 } from './schemas';
 export * from './models';
