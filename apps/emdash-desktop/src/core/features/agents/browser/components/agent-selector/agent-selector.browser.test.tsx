@@ -80,6 +80,25 @@ describe('AgentSelector', () => {
     host.remove();
   });
 
+  it('shows Chat UI and TUI capability icons instead of a Chat UI pill', async () => {
+    await act(async () => {
+      root.render(<AgentSelector value="codex" onChange={vi.fn()} />);
+    });
+
+    const trigger = host.querySelector<HTMLElement>('[data-slot="combobox-trigger"]');
+    expect(trigger).not.toBeNull();
+    await act(async () => trigger!.click());
+
+    const codexOption = page.getByRole('option', { name: 'Codex' }).element();
+    expect(codexOption.querySelector('[aria-label="Supports Chat UI"]')).not.toBeNull();
+    expect(codexOption.querySelector('[aria-label="Supports TUI"]')).not.toBeNull();
+    expect(codexOption.textContent).not.toContain('Chat UI');
+
+    const grokOption = page.getByRole('option', { name: 'Grok' }).element();
+    expect(grokOption.querySelector('[aria-label="Supports Chat UI"]')).toBeNull();
+    expect(grokOption.querySelector('[aria-label="Supports TUI"]')).not.toBeNull();
+  });
+
   it('shows agent details when an uninstalled agent is hovered', async () => {
     await act(async () => {
       root.render(<AgentSelector value="codex" onChange={vi.fn()} />);
