@@ -459,7 +459,7 @@ export class ConversationManagerStore implements Disposable {
     const client = await getConversationsClient();
     const result =
       conversation.data.type === 'acp'
-        ? await client.acp.kill({ conversationId })
+        ? await client.acp.terminate({ conversationId })
         : await client.tui.kill({ conversationId });
     if (!result.success) {
       throw new Error(

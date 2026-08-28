@@ -458,7 +458,7 @@ function startDesktopWorkersWithHost(
               // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
               // live in the app db, so the main process answers for the worker.
               creationAdmission: createAutomationCreationAdmissionController(getAppDb),
-              acpSessions: acp,
+              acpLauncher: acp,
               tuiSessions: tuiAgents.client,
               conversationIndex: conversationsClient,
             },

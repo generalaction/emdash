@@ -32,7 +32,9 @@ const target = {
   conversationType: 'acp',
   providerId: 'claude',
   sessionId: null,
+  model: null,
   modeId: null,
+  effort: null,
   workspacePath: '/repo',
   host: LOCAL_HOST_REF,
   acpInput: {
@@ -47,19 +49,71 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
-  it('passes ACP session start through without a client session id write', async () => {
-    const start = vi.fn(async () => ok({ sessionId: 'session-1' }));
-    const controller = setupController({
-      client: { acp: { start } },
-    });
+  it('attaches with the trusted descriptor and activates while loading history', async () => {
+    const attach = vi.fn(async () => ok(undefined));
+    const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
+    const controller = setupController({ client: { acp: { attach, loadHistory } } });
 
     await expect(
-      controller.call('acp.start', { conversationId: target.conversationId })
-    ).resolves.toEqual(ok({ sessionId: 'session-1' }));
+      controller.call('acp.attach', { conversationId: target.conversationId })
+    ).resolves.toEqual(ok(undefined));
+    await expect(
+      controller.call('acp.loadHistory', { conversationId: target.conversationId, limit: 100 })
+    ).resolves.toEqual(ok({ turns: [], nextCursor: null }));
 
-    // The ACP runtime reports the session id into the conversation index (spec §3.3);
-    // the desktop no longer persists it from the response.
-    expect(start).toHaveBeenCalledWith(target.acpInput, {});
+    expect(attach).toHaveBeenCalledWith(target.acpInput, {});
+    expect(loadHistory).toHaveBeenCalledWith(
+      { conversationId: target.conversationId, limit: 100 },
+      {}
+    );
+  });
+
+  it('acknowledges config mutations only after host config persistence succeeds', async () => {
+    const setOption = vi.fn(async () => ok(undefined));
+    const persistAcpConfigOption = vi.fn(async () => {});
+    const controller = setupController({
+      client: { acp: { setOption } },
+      hooks: { persistAcpConfigOption },
+    });
+    const input = {
+      conversationId: target.conversationId,
+      key: 'effort' as const,
+      value: 'high',
+    };
+
+    await expect(controller.call('acp.setOption', input)).resolves.toEqual(ok(undefined));
+    expect(persistAcpConfigOption).toHaveBeenCalledWith(target, 'effort', 'high');
+
+    persistAcpConfigOption.mockRejectedValueOnce(new Error('host rejected write'));
+    await expect(controller.call('acp.setOption', input)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'set_config_failed', cause: { message: 'host rejected write' } },
+    });
+  });
+
+  it('clears unsupported selections reported by activation from host config', async () => {
+    const loadHistory = vi.fn(async () =>
+      ok({
+        turns: [],
+        nextCursor: null,
+        clearedConfiguration: ['model', 'modeId'] as const,
+      })
+    );
+    const persistAcpConfigOption = vi.fn(async () => {});
+    const controller = setupController({
+      client: { acp: { loadHistory } },
+      hooks: { persistAcpConfigOption },
+    });
+
+    await controller.call('acp.loadHistory', {
+      conversationId: target.conversationId,
+      limit: 50,
+    });
+
+    expect(persistAcpConfigOption.mock.calls).toEqual([
+      [target, 'model', null],
+      [target, 'modeId', null],
+    ]);
   });
 
   it('disables the worker Wire deadline for the turn-long ACP prompt call', async () => {
@@ -240,7 +294,10 @@ describe('createConversationsWireController', () => {
     });
 
     await expect(
-      controller.call('acp.start', { conversationId: target.conversationId })
+      controller.call('acp.loadHistory', {
+        conversationId: target.conversationId,
+        limit: 50,
+      })
     ).resolves.toEqual(err(resolveError));
     await expect(
       controller.call('acp.downloadAttachment', {
@@ -292,12 +349,16 @@ function setupController(options: {
   attachmentError?: { type: 'project-missing'; projectId: string };
   resolvedHosts?: HostRef[];
   hooks?: Partial<{
-    persistAcpMode: (target: TestRuntimeTarget, modeId: string) => Promise<void>;
+    persistAcpConfigOption: (
+      target: TestRuntimeTarget,
+      key: 'model' | 'modeId' | 'effort',
+      value: string | null
+    ) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;
   }>;
 }) {
   const hooks = {
-    persistAcpMode: async () => {},
+    persistAcpConfigOption: async () => {},
     recordTuiInput: async () => {},
     ...options.hooks,
   };

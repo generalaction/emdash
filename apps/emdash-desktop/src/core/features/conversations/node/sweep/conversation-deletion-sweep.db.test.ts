@@ -26,10 +26,10 @@ describe('conversation deletion sweep (integration)', () => {
   let scope: Scope;
   let clock: ManualClock;
   let hostVerbs: {
-    killAcp: SessionKillMock;
+    terminateAcp: SessionKillMock;
     deleteTui: SessionKillMock;
     deleteRecord: IndexDeleteMock;
-    deleteAttachments: SessionKillMock;
+    purgeConversationData: SessionKillMock;
   };
   let reachable: boolean;
 
@@ -39,10 +39,10 @@ describe('conversation deletion sweep (integration)', () => {
     clock = new ManualClock(Date.parse('2026-02-01T00:00:00.000Z'));
     reachable = true;
     hostVerbs = {
-      killAcp: vi.fn(async () => ok(undefined)),
+      terminateAcp: vi.fn(async () => ok(undefined)),
       deleteTui: vi.fn(async () => ok(undefined)),
       deleteRecord: vi.fn(async () => ok(undefined)),
-      deleteAttachments: vi.fn(async () => ok(undefined)),
+      purgeConversationData: vi.fn(async () => ok(undefined)),
     };
   });
 
@@ -57,8 +57,8 @@ describe('conversation deletion sweep (integration)', () => {
         reachable
           ? ok({
               acp: {
-                kill: hostVerbs.killAcp,
-                deleteAttachments: hostVerbs.deleteAttachments,
+                terminate: hostVerbs.terminateAcp,
+                purgeConversationData: hostVerbs.purgeConversationData,
               },
               tuiAgents: { delete: hostVerbs.deleteTui },
               conversations: { delete: hostVerbs.deleteRecord },
@@ -112,7 +112,7 @@ describe('conversation deletion sweep (integration)', () => {
     service.attachHost(LOCAL_HOST_REF);
     await vi.waitFor(() => expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(1));
     // Killing the live session is part of the verb, ordered before the index delete.
-    expect(hostVerbs.killAcp).toHaveBeenCalledWith({ conversationId: 'conv-1' });
+    expect(hostVerbs.terminateAcp).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     expect(hostVerbs.deleteTui).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     expect(hostVerbs.deleteRecord).toHaveBeenCalledWith({ conversationId: 'conv-1' });
 

@@ -43,7 +43,7 @@ describe('lazy ACP session restoration', () => {
     await runtime.dispose();
   });
 
-  it('hydrates one indexed conversation on first touch without waking the provider', async () => {
+  it('hydrates one indexed conversation on attach without waking the provider', async () => {
     const intents = createMemorySessionIntentStore();
     await seedSuspendedIntent(intents, makeStartInput({ conversationId: 'conv-one' }));
     await seedSuspendedIntent(intents, makeStartInput({ conversationId: 'conv-two' }));
@@ -54,6 +54,9 @@ describe('lazy ACP session restoration', () => {
     expect(runtime.getSessionState('conv-one')).toMatchObject({ suspended: true });
     expect(runtime.manager.inspect().retained).toEqual([]);
 
+    await runtime.attachSession(
+      makeStartInput({ conversationId: 'conv-one', sessionId: 'conv-one-session' })
+    );
     expect(runtime.sessionLiveModels('conv-one')).not.toBeNull();
 
     expect(runtime.manager.inspect().retained).toContain('conv-one');
@@ -82,7 +85,7 @@ describe('lazy ACP session restoration', () => {
     await runtime.reconcile();
     const remove = vi.spyOn(intents, 'remove');
 
-    await runtime.killSession('conv-cleanup');
+    await runtime.terminateSession('conv-cleanup');
 
     expect(remove).toHaveBeenCalledWith('conv-cleanup');
     expect(intents.snapshot()).toEqual([]);
@@ -121,7 +124,7 @@ describe('lazy ACP session restoration', () => {
     const runtime = new AcpRuntime(harness.deps);
     await runtime.reconcile();
 
-    const failed = await runtime.killSession('conv-delete-retry');
+    const failed = await runtime.terminateSession('conv-delete-retry');
 
     expect(failed).toMatchObject({
       success: false,
@@ -137,7 +140,7 @@ describe('lazy ACP session restoration', () => {
     await runtime.reconcile();
     expect(runtime.manager.inspect().indexedSuspended).toEqual(['conv-delete-retry']);
 
-    const retried = await runtime.killSession('conv-delete-retry');
+    const retried = await runtime.terminateSession('conv-delete-retry');
 
     expect(retried.success).toBe(true);
     expect(persistedIntents.snapshot()).toEqual([]);

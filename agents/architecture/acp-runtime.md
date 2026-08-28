@@ -16,18 +16,23 @@ not mix cross-session routing with per-session state projection.
   `inspect()` seam exposes identifier-only lifecycle snapshots for deterministic ownership and leak
   assertions without revealing the directory maps.
 - `ConversationHandle` is the aggregate root for one conversation. It owns the wake descriptor,
-  configuration overrides, conversation-lifetime projection, explicit lifecycle state and epoch,
-  current `SessionRecord`, activation snapshot construction, and its single-key `LifecycleCell`.
-  Descriptor changes write through one intent-persistence seam, while killed/disposed state and the
-  epoch invalidate stale asynchronous materialization and command work before directory removal.
+  desired configuration, retained presentation snapshot, conversation-lifetime projection,
+  explicit lifecycle state and epoch, current `SessionRecord`, activation snapshot construction,
+  and its single-key `LifecycleCell`. Descriptor and retained-presentation changes write through one
+  intent-persistence seam, while killed/disposed state and the epoch invalidate stale asynchronous
+  materialization and command work before directory removal.
 - `LifecycleCell` provides coalesced starts, leases, interrupt-before-drain teardown, and bounded
   draining for one handle. The multi-key `LifecycleRegistry` remains available to other runtimes.
 - `SessionMaterializer` is stateless. It acquires a connection, loads or creates the provider
   session, creates the record's machine-state binding, applies retained configuration and mode, and
   returns a `SessionRecord` for the handle to adopt. Provisional loading registration and replay
   setup share one cleanup path so failures cannot leave routing residue.
-- `SessionRouter` owns ACP `sessionId` routing and the provisional loading-conversation fallback.
-  Its route maps stay private; identifier-only queries support lifecycle leak assertions.
+- `SessionRouter` owns ACP `sessionId` routing and one scoped provisional load route per process
+  generation. The materializer serializes `loadSession` handshakes for each generation, so a
+  provider that reports a rebound session ID still resolves unambiguously. Unknown or stale updates
+  outside that scope are dropped rather than retained across activations; generation invalidation
+  drops provisional and registered routes. Its maps stay private; identifier-only queries support
+  lifecycle leak assertions.
   `SessionsListProjector` composes live handle summaries with lightweight suspended-intent rows.
 - `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
   prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
@@ -99,10 +104,19 @@ hook, and asks the `SessionRouter` to resolve the owning conversation. The cell 
 through the reducer; its handle republishes the resulting activation snapshot through the
 conversation-keyed projection.
 
-The handle writes retained provider `sessionId`, mode, model, and configuration overrides through
-to the runtime's session intent after successful changes. The runtime also returns the session id
-from `start` and `resume`; desktop persists that value in its conversation record at the client
-boundary instead of using a child-to-host callback.
+The public API describes user intent instead of exposing lifecycle choreography. Desktop resolves
+the authoritative conversation configuration and fresh provider environment, then `attach` creates
+or refreshes the handle and publishes its retained projection without spawning a provider.
+`loadHistory` and `sendPrompt` ensure an activation internally and coalesce through the handle's
+lifecycle cell. `setOption` updates one of the provider's model, mode, or effort dimensions without
+waking a suspended session. Headless callers that need creation and activation as one atomic
+operation use `launch`; there is no public `ensureActivation`, `start`, or `resume` procedure.
+
+The handle persists an explicitly allowlisted, versioned intent containing provider/session
+identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot. Provider
+environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never persisted.
+The runtime reports provider session identity and resume outcomes through the host conversation
+index. Interactive callers therefore never persist lifecycle response data themselves.
 
 Parsed transcript and raw ACP log exports are live-activation reads. They never wake a suspended
 conversation because the raw log is activation-local and a post-wake export would describe the
@@ -111,27 +125,34 @@ replay rather than the evicted process.
 ## Suspension and Rematerialization
 
 The public identity is always `conversationId`; provider process activations are internal. A
-retained conversation keeps its wake descriptor after its live `SessionCell` is evicted. During one
-runtime generation, its handle and projection explicitly move between `closed`, `suspended`, and
-`active` sources. On boot, suspended intents remain lightweight index entries instead of eagerly
-allocating handles and projections. The sessions-list projector still publishes an index-derived
-row so cleanup and discovery see every suspended conversation. First start or wake hydrates the
-handle; killing an index-only entry deletes its intent without starting a provider. Suspended state
-uses the existing `closed` lifecycle plus the additive `suspended: true` marker, keeps prompt
-submission enabled, and clears activation-local queues, permissions, terminals, and active turns.
+retained conversation keeps its wake descriptor and presentation after its live `SessionCell` is
+evicted. The presentation separates desired configuration from last-known provider catalogs, MCP
+summaries, usage, and observation time. During one runtime generation, its handle and projection
+move between `closed`, `suspended`, `materializing`, and `active`; suspended and materializing
+projections keep controls visible and prompt submission enabled while clearing activation-local
+queues, permissions, terminals, active turns, plans, and agents.
 
-Only explicit `start`/`resume` and state-changing user commands (`sendPrompt`, `setMode`, and
-`setConfigOption`) materialize a suspended activation. Reads, exports, callbacks, cancellation,
-permission resolution, and queued-prompt edits never wake one. In particular, suspended history
-returns a successful page marked `unavailable: true`; callers keep their existing transcript and
-wait for a later replay-completion refresh.
+On worker boot, every valid persisted intent is restored only as a lightweight suspended index row;
+the worker never starts a provider from disk. The first desktop `attach` hydrates a handle using a
+trusted fresh descriptor and publishes the retained presentation. Terminating an index-only entry
+deletes its intent without starting a provider. Legacy or over-broad intents are parsed through a
+restricted migration and rewritten in the safe schema.
 
-Materialization is server-side and coalesced by the handle's lifecycle cell. `sendPrompt` leases the
-activation for the full provider turn, while mode and config changes use shorter leases. Eviction,
-kill, and runtime disposal abort pending materialization and interrupt the cell and provider session
-before waiting for leases, then continue after a bounded drain timeout if a provider does not
-settle. Process-close callbacks carry a connection generation so a stale process cannot suspend
-sessions on its replacement.
+`loadHistory`, `sendPrompt`, and the headless `launch` operation materialize a suspended activation.
+Mode, model, and effort changes update desired state and persist without waking when suspended or
+materializing; the latest revision is applied after load and before the first queued prompt. Other
+reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
+one. If a provider cannot replay history, `loadHistory` returns a successful page marked
+`unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
+one.
+
+Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
+while materializing joins that activation and dispatches once after the latest desired configuration
+has been applied. Active mode and config changes use shorter leases. Eviction, termination, and runtime
+disposal abort pending materialization and interrupt the cell and provider session before waiting
+for leases, then continue after a bounded drain timeout if a provider does not settle. Process-close
+callbacks carry a connection generation so a stale process cannot suspend sessions on its
+replacement.
 
 ## Process Hosting
 
@@ -151,10 +172,10 @@ attachment cleanup must therefore use explicit attachment deletion or whole-conv
 absence from transcript history does not prove that stored bytes are orphaned.
 
 Desktop composes the ACP client and renderer exposure in
-`apps/emdash-desktop/src/main/core/wire-workers/desktop-workers.ts`: the raw
-stable worker client is wrapped there for session-ID persistence, then forwarded
-to Electron windows through `exposeWireToWindows()`. `WireWorkerHost` itself
-does not own client decoration, startup policy, or renderer exposure.
+`apps/emdash-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed
+by typed desktop Wire controllers and by headless runtime services; renderer clients receive the
+smaller conversations contract. `WireWorkerHost` itself does not own client decoration, startup
+policy, or renderer exposure.
 
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
 `workspace-server`) rather than imported by `@emdash/core/runtimes`; this keeps runtime

@@ -3,7 +3,7 @@ import { z } from 'zod';
 // oxlint-disable-next-line emdash/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
 import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import { conversationIndexContract } from '#services/conversation-index/api';
-import { acpSessionStartContract, tuiSessionStartContract } from '#services/session-start/api';
+import { acpSessionLaunchContract, tuiSessionStartContract } from '#services/session-start/api';
 import { automationsContract } from '../api';
 import { workspaceCreationAdmissionContract } from '../api/creation-admission';
 import { createAutomationsController } from './api/controller';
@@ -27,7 +27,7 @@ export function createAutomationsComponent() {
       // Creation admission is client-plane data (deletion tombstones live on the
       // embedding app's mirror, ADR 0006), so the app supplies the check.
       creationAdmission: requireContract(workspaceCreationAdmissionContract),
-      acpSessions: requireContract(acpSessionStartContract),
+      acpLauncher: requireContract(acpSessionLaunchContract),
       tuiSessions: requireContract(tuiSessionStartContract),
       conversationIndex: requireContract(conversationIndexContract),
     },
@@ -44,7 +44,7 @@ export function createAutomationsComponent() {
         ),
         sessionPort: createSessionPortFromDependencies({
           workspaceRegistry: dependencies.workspaceRegistry,
-          acp: dependencies.acpSessions,
+          acp: dependencies.acpLauncher,
           tui: dependencies.tuiSessions,
           conversationIndex: dependencies.conversationIndex,
         }),

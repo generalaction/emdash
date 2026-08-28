@@ -52,12 +52,11 @@ describe('AcpLiveSession.sendPrompt', () => {
   });
 });
 
-describe('AcpLiveSession.resume', () => {
-  it('preserves the unavailable history marker', async () => {
-    const resume = vi.fn(async () => ({
+describe('AcpLiveSession.loadHistory', () => {
+  it('loads activation-aware history by conversation id', async () => {
+    const loadHistory = vi.fn(async () => ({
       success: true as const,
       data: {
-        sessionId: 'session-1',
         turns: [],
         nextCursor: null,
         unavailable: true as const,
@@ -65,12 +64,17 @@ describe('AcpLiveSession.resume', () => {
     }));
     const session = Object.assign(Object.create(AcpLiveSession.prototype), {
       conversationId: 'conversation-1',
-      client: { resume },
+      client: { loadHistory },
     }) as AcpLiveSession;
 
-    await expect(session.resume()).resolves.toEqual({
+    await expect(session.loadHistory(undefined, 100)).resolves.toEqual({
       success: true,
       data: { turns: [], nextCursor: null, unavailable: true },
+    });
+    expect(loadHistory).toHaveBeenCalledWith({
+      conversationId: 'conversation-1',
+      before: undefined,
+      limit: 100,
     });
   });
 });

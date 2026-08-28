@@ -7,7 +7,6 @@ import {
   terminalStateSchema,
   transcriptTurnSchema,
   type AcpRuntimeError,
-  type HistoryPage,
   type PromptInput,
   type PromptPlacement,
   type SessionState,
@@ -126,8 +125,8 @@ export class AcpLiveSession {
   static async create(conversationId: string): Promise<AcpLiveSession> {
     const client = (await getConversationsClient()).acp;
     const result = await withTimeout(
-      (signal) => client.start({ conversationId }, { signal }),
-      'Timed out starting ACP session'
+      (signal) => client.attach({ conversationId }, { signal }),
+      'Timed out attaching ACP session'
     );
     if (!result.success) {
       throw new AcpStartError(result.error);
@@ -153,25 +152,8 @@ export class AcpLiveSession {
     }
   }
 
-  start(): Promise<Result<{ sessionId: string }, unknown>> {
-    return this.client.start({ conversationId: this.conversationId });
-  }
-
-  async resume(): Promise<Result<HistoryPage, unknown>> {
-    const result = await this.client.resume({ conversationId: this.conversationId });
-    if (!result.success) return result;
-    return {
-      success: true,
-      data: {
-        turns: result.data.turns,
-        nextCursor: result.data.nextCursor,
-        ...(result.data.unavailable ? { unavailable: true as const } : {}),
-      },
-    };
-  }
-
-  getHistory(before?: number, limit = 50): Promise<Result<HistoryPage, unknown>> {
-    return this.client.getHistory({ conversationId: this.conversationId, before, limit });
+  loadHistory(before?: number, limit = 50) {
+    return this.client.loadHistory({ conversationId: this.conversationId, before, limit });
   }
 
   async exportTranscript(): Promise<Result<string, unknown>> {
@@ -214,12 +196,8 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {
-    return this.client.setModelOption({ conversationId: this.conversationId, dimension, value });
-  }
-
-  setModeOption(value: string): Promise<Result<void, unknown>> {
-    return this.client.setModeOption({ conversationId: this.conversationId, value });
+  setOption(key: 'model' | 'mode' | 'effort', value: string): Promise<Result<void, unknown>> {
+    return this.client.setOption({ conversationId: this.conversationId, key, value });
   }
 
   resolvePermission(requestId: string, optionId: string): Promise<Result<void, unknown>> {

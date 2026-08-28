@@ -1,7 +1,7 @@
 import { systemClock } from '@emdash/shared/scheduling';
 import { cell, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
-import { acpErr } from '#runtimes/acp/api';
+import { acpErr, initialSessionConfigState } from '#runtimes/acp/api';
 import { makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import {
   closedSessionState,
@@ -69,12 +69,36 @@ describe('ConversationHandle', () => {
     expect(setup.saveIntent).toHaveBeenCalledTimes(3);
     expect(setup.handle.intentPayload()).toMatchObject({
       payload: {
-        modeId: 'plan',
         sessionId: 'session-2',
-        configOverrides: { effort: 'high' },
+        configured: { modeId: 'plan', effort: 'high' },
       },
       sessionId: 'session-2',
     });
+  });
+
+  it('persists an allowlisted versioned intent without provider environment secrets', () => {
+    const setup = makeHandle({ everMaterialized: true });
+    setup.handle.refreshDescriptor({
+      ...setup.handle.descriptor,
+      env: { API_TOKEN: 'must-not-be-persisted' },
+      model: 'sonnet',
+      modeId: 'agent',
+      effort: 'high',
+    });
+
+    const intent = setup.handle.intentPayload();
+
+    expect(intent).toMatchObject({
+      payload: {
+        version: '1',
+        conversationId: 'conv-handle',
+        providerId: 'claude',
+        cwd: '/tmp/workspace',
+        configured: { model: 'sonnet', modeId: 'agent', effort: 'high' },
+      },
+    });
+    expect(JSON.stringify(intent)).not.toContain('API_TOKEN');
+    expect(JSON.stringify(intent)).not.toContain('must-not-be-persisted');
   });
 
   it('aborts in-flight materialization before disposal waits for activation drain', async () => {
@@ -159,6 +183,7 @@ function makeHandle(
       activationDrainTimeoutMs: 100,
       onLeaseDrainTimeout: () => {},
       onActivationObserverError: () => {},
+      now: () => 123,
     },
     makeStartInput({ conversationId: 'conv-handle' }),
     {},
@@ -196,13 +221,16 @@ function makeRecord(handle: ConversationHandle, epoch: number): SessionRecord {
     epoch,
     input,
     resumeOutcome: null,
+    clearedConfiguration: [],
     processKey: 'claude:/tmp/workspace',
     processGeneration: 1,
     connectionLeaseState: { release: true },
     cell: {
       sessionState: { ...closedSessionState, lifecycle: 'ready', canSubmit: true },
-      transcript: { title: null },
-    } as SessionRecord['cell'],
+      config: initialSessionConfigState,
+      usage: null,
+      transcript: { title: null, plan: null, agents: [], activeTurn: null },
+    } as unknown as SessionRecord['cell'],
     mcpServers: [],
     machineStateBinding: { dispose: () => {} },
     disposed: false,

@@ -1,4 +1,5 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type {
   AttachmentMimeType,
   AttachmentRef,
@@ -30,6 +31,7 @@ import {
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { updateProviderPreference } from '@core/features/conversations/browser/provider-preferences';
 import {
   ACP_DRAFT_MAX_LENGTH,
   acpDraftMemento,
@@ -288,7 +290,7 @@ export class AcpChatStore {
     const isResuming = state?.lifecycle === 'starting' || state?.lifecycle === 'replaying';
     return {
       isWorking: state?.isGenerating ?? false,
-      isBusy: (state?.isGenerating ?? false) || isResuming,
+      isBusy: state?.isGenerating ?? false,
       isResuming,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
       canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
@@ -450,27 +452,39 @@ export class AcpChatStore {
 
   setModel(model: string): void {
     void this.session
-      ?.setModelOption('model', model)
+      ?.setOption('model', model)
       .then((result) => {
-        if (!result.success) this._toastError('Failed to change model', result.error);
+        if (!result.success) {
+          this._toastError('Failed to change model', result.error);
+          return;
+        }
+        void this._rememberPreference({ model });
       })
       .catch((error: unknown) => this._toastError('Failed to change model', error));
   }
 
   setMode(modeId: string): void {
     void this.session
-      ?.setModeOption(modeId)
+      ?.setOption('mode', modeId)
       .then((result) => {
-        if (!result.success) this._toastError('Failed to change session mode', result.error);
+        if (!result.success) {
+          this._toastError('Failed to change session mode', result.error);
+          return;
+        }
+        void this._rememberPreference({ modeId });
       })
       .catch((error: unknown) => this._toastError('Failed to change session mode', error));
   }
 
   setEffort(effort: string): void {
     void this.session
-      ?.setModelOption('effort', effort)
+      ?.setOption('effort', effort)
       .then((result) => {
-        if (!result.success) this._toastError('Failed to change effort', result.error);
+        if (!result.success) {
+          this._toastError('Failed to change effort', result.error);
+          return;
+        }
+        void this._rememberPreference({ effort });
       })
       .catch((error: unknown) => this._toastError('Failed to change effort', error));
   }
@@ -549,19 +563,33 @@ export class AcpChatStore {
     }
     const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
       ?.data.providerId;
+    let clientSession: AcpLiveSession | null = null;
     try {
-      const clientSession = await AcpLiveSession.create(this.conversationId);
-
-      const history = await clientSession.getHistory(undefined, 100);
-      if (!history.success) throw resultError(history.error);
+      const attachedSession = await AcpLiveSession.create(this.conversationId);
+      clientSession = attachedSession;
 
       runInAction(() => {
         this.session?.dispose();
-        this.session = clientSession;
+        this.session = attachedSession;
+        this._subscribeLiveSession(attachedSession);
+      });
+
+      const history = await attachedSession.loadHistory(undefined, 100);
+      if (!history.success) throw new AcpStartError(history.error);
+      if (history.data.clearedConfiguration?.length) {
+        await this._rememberPreference(
+          Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
+            model?: null;
+            modeId?: null;
+            effort?: null;
+          }
+        );
+      }
+
+      runInAction(() => {
         if (!history.data.unavailable) {
           this.chatState.transcript.history.seed(history.data.turns);
         }
-        this._subscribeLiveSession(clientSession);
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
@@ -575,6 +603,7 @@ export class AcpChatStore {
         error,
       });
       runInAction(() => {
+        if (clientSession && this.session !== clientSession) clientSession.dispose();
         this.historyLoading = false;
         this.loadError =
           this.hostAccess?.liveAction.kind === 'disabled'
@@ -769,6 +798,22 @@ export class AcpChatStore {
     return this._acpClientPromise;
   }
 
+  private async _rememberPreference(patch: {
+    model?: string | null;
+    modeId?: string | null;
+    effort?: string | null;
+  }): Promise<void> {
+    const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
+      ?.data.providerId;
+    if (!providerId) return;
+    const host = formatHostRef(hostRefFromConnectionId(getProjectSshConnectionId(this.projectId)));
+    try {
+      await updateProviderPreference(host, providerId, 'acp', patch);
+    } catch (error) {
+      getMementoClient().reportError(error);
+    }
+  }
+
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
     return bindSessionTerminalOutputs(session, (terminalId, snapshot) =>
       this.chatState.session.setTerminalOutput(terminalId, snapshot)
@@ -798,7 +843,7 @@ export class AcpChatStore {
     if (!session) return;
 
     try {
-      const history = await session.getHistory(undefined, 100);
+      const history = await session.loadHistory(undefined, 100);
       if (!history.success || history.data.unavailable || this.session !== session) return;
       // A waking prompt may begin between replay completion and this response. Do not let a
       // replay-history seed reset the newly active turn; its normal completion refresh will seed
@@ -883,16 +928,6 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
   }
   return btoa(binary);
-}
-
-function resultError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  if (typeof error === 'object' && error !== null) {
-    const message = (error as { message?: unknown }).message;
-    const type = (error as { type?: unknown }).type;
-    return new Error(typeof message === 'string' ? message : String(type ?? 'Unknown error'));
-  }
-  return new Error(String(error));
 }
 
 function toLoadError(error: unknown): AcpLoadError {

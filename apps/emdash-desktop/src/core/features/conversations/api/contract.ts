@@ -88,9 +88,11 @@ const desktopTuiSessions = liveModel({
 });
 
 const conversationsAcpContract = defineContract({
-  start: runtimeFallibleProcedure(conversationKey, acpApiContract.start.output),
-  resume: runtimeFallibleProcedure(conversationKey, acpApiContract.resume.output),
-  kill: runtimeFallibleProcedure(acpApiContract.kill.input, acpApiContract.kill.output),
+  attach: runtimeFallibleProcedure(conversationKey, acpApiContract.attach.output),
+  terminate: runtimeFallibleProcedure(
+    acpApiContract.terminate.input,
+    acpApiContract.terminate.output
+  ),
   sendPrompt: runtimeFallibleProcedure(
     acpApiContract.sendPrompt.input,
     acpApiContract.sendPrompt.output
@@ -111,13 +113,9 @@ const conversationsAcpContract = defineContract({
     acpApiContract.cancelTurn.input,
     acpApiContract.cancelTurn.output
   ),
-  setModelOption: runtimeFallibleProcedure(
-    acpApiContract.setModelOption.input,
-    acpApiContract.setModelOption.output
-  ),
-  setModeOption: runtimeFallibleProcedure(
-    acpApiContract.setModeOption.input,
-    acpApiContract.setModeOption.output
+  setOption: runtimeFallibleProcedure(
+    acpApiContract.setOption.input,
+    acpApiContract.setOption.output
   ),
   resolvePermission: runtimeFallibleProcedure(
     acpApiContract.resolvePermission.input,
@@ -143,9 +141,9 @@ const conversationsAcpContract = defineContract({
     error: projectAttachmentErrorUnion(acpApiContract.downloadAttachment.error),
   }),
   deleteAttachment: runtimeFallibleProcedure(attachmentKey, acpApiContract.deleteAttachment.output),
-  getHistory: runtimeFallibleProcedure(
-    acpApiContract.getHistory.input,
-    acpApiContract.getHistory.output
+  loadHistory: runtimeFallibleProcedure(
+    acpApiContract.loadHistory.input,
+    acpApiContract.loadHistory.output
   ),
   sessions: desktopAcpSessions,
   session: acpApiContract.session,

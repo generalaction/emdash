@@ -37,8 +37,8 @@ export type ConversationRemovalBroker = {
     Result<
       {
         acp: {
-          kill(input: { conversationId: string }): Promise<unknown>;
-          deleteAttachments(input: { conversationId: string }): Promise<unknown>;
+          terminate(input: { conversationId: string }): Promise<unknown>;
+          purgeConversationData(input: { conversationId: string }): Promise<unknown>;
         };
         tuiAgents: { delete(input: { conversationId: string }): Promise<unknown> };
         conversations: {
@@ -103,7 +103,7 @@ export async function executeConversationRemoval(
   // here, so both kills run; absent sessions are no-ops and kill failures must not
   // block record deletion (the host reaps orphaned sessions).
   try {
-    await client.data.acp.kill({ conversationId });
+    await client.data.acp.terminate({ conversationId });
   } catch {
     // Swallowed by design; see comment above.
   }
@@ -123,7 +123,7 @@ export async function executeConversationRemoval(
   // the acp runtime purges the conversation's attachment directory. Best effort — a failed
   // purge leaves an inert orphaned directory, never a blocked deletion.
   try {
-    await client.data.acp.deleteAttachments({ conversationId });
+    await client.data.acp.purgeConversationData({ conversationId });
   } catch {
     // Swallowed by design; see comment above.
   }

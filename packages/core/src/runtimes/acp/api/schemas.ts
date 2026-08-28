@@ -11,16 +11,15 @@ export const acpStartInputSchema = z.object({
   sessionId: z.string().nullable(),
   model: z.string().nullable(),
   modeId: z.string().nullable().optional(),
+  effort: z.string().nullable().optional(),
   initialQueue: z.array(promptInputSchema).optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;
 
-export const acpResumeInputSchema = acpStartInputSchema.extend({ sessionId: z.string() });
-
 export const sendPromptResponseSchema = z.object({ queued: z.boolean() });
 
-export const killCommandSchema = z.object({ conversationId: z.string() });
+export const terminateCommandSchema = z.object({ conversationId: z.string() });
 export const promptPlacementSchema = z.enum(['auto', 'queue']);
 export type PromptPlacement = z.infer<typeof promptPlacementSchema>;
 export const sendPromptCommandSchema = z.object({
@@ -43,13 +42,9 @@ export const changeQueuePromptOrderCommandSchema = z.object({
   ids: z.array(z.string()),
 });
 export const cancelTurnCommandSchema = z.object({ conversationId: z.string() });
-export const setModelOptionCommandSchema = z.object({
+export const setOptionCommandSchema = z.object({
   conversationId: z.string(),
-  dimension: z.enum(['model', 'effort']),
-  value: z.string(),
-});
-export const setModeOptionCommandSchema = z.object({
-  conversationId: z.string(),
+  key: z.enum(['model', 'mode', 'effort']),
   value: z.string(),
 });
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
@@ -70,7 +65,7 @@ export const attachmentKeySchema = z.object({
 });
 export const downloadAttachmentCommandSchema = attachmentKeySchema;
 export const deleteAttachmentCommandSchema = attachmentKeySchema;
-export const deleteAttachmentsCommandSchema = z.object({
+export const purgeConversationDataCommandSchema = z.object({
   conversationId: z.string(),
 });
 
@@ -88,9 +83,9 @@ export const historyPageSchema = z.object({
 });
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 
-export const resumeResultSchema = historyPageSchema.extend({
-  sessionId: z.string(),
+export const loadHistoryResultSchema = historyPageSchema.extend({
+  clearedConfiguration: z.array(z.enum(['model', 'modeId', 'effort'])).optional(),
 });
-export type ResumeResult = z.infer<typeof resumeResultSchema>;
+export type LoadHistoryResult = z.infer<typeof loadHistoryResultSchema>;
 
 export { queuedPromptSchema };

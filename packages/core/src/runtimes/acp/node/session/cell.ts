@@ -13,8 +13,7 @@ import type {
   AcpPermissionRequest,
   AcpRuntimeError,
   AcpSendPromptError,
-  AcpSetModeOptionError,
-  AcpSetModelOptionError,
+  AcpSetOptionError,
   InvalidStateError,
   NormalizedEvent,
   PromptInput,
@@ -323,8 +322,8 @@ export class SessionCell {
     return this.permissions.request(request);
   }
 
-  async setMode(modeId: string): Promise<Result<void, AcpSetModeOptionError>> {
-    const result = this.dispatchFor<AcpSetModeOptionError>({ type: 'SetMode', modeId }, [
+  async setMode(modeId: string): Promise<Result<void, AcpSetOptionError>> {
+    const result = this.dispatchFor<AcpSetOptionError>({ type: 'SetMode', modeId }, [
       'invalid_state',
       'set_mode_failed',
     ]);
@@ -363,7 +362,7 @@ export class SessionCell {
   async setConfigOption(
     dimension: ConfigDimension,
     value: string
-  ): Promise<Result<void, AcpSetModelOptionError>> {
+  ): Promise<Result<void, AcpSetOptionError>> {
     const configId = this.configIdForDimension(dimension);
     if (!configId) {
       return acpErr.setConfigFailed({
@@ -371,7 +370,7 @@ export class SessionCell {
         message: `Agent connection does not expose ${dimension} configuration`,
       });
     }
-    const result = this.dispatchFor<AcpSetModelOptionError>(
+    const result = this.dispatchFor<AcpSetOptionError>(
       { type: 'SetConfigOption', configId, value },
       ['invalid_state', 'set_config_failed']
     );

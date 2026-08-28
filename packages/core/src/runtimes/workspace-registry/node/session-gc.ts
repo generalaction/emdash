@@ -114,7 +114,7 @@ export async function killSessionsUnderPath(
   const targets = await resolveSessionTargets(clients, path);
 
   for (const conversationId of targets.acpConversationIds) {
-    const result = await clients.acp.kill({ conversationId });
+    const result = await clients.acp.terminate({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
       return sessionError(
         `Failed to kill ACP session ${conversationId}: ${errorMessage(result.error)}`

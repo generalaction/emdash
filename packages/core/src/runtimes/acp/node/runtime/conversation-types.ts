@@ -16,6 +16,7 @@ export interface SessionRecord {
   epoch: number;
   input: AcpStartInput;
   resumeOutcome: 'loaded' | 'replaced-by-new' | null;
+  clearedConfiguration: Array<'model' | 'modeId' | 'effort'>;
   processKey: string;
   processGeneration: number;
   connectionLeaseState: ConnectionLeaseState;

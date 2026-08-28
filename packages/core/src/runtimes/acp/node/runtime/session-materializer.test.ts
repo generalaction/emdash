@@ -1,4 +1,5 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
 import type { AcpConnectionEntry, AcpConnectionSource } from '#runtimes/acp/node/connection/source';
@@ -91,6 +92,92 @@ describe('SessionMaterializer', () => {
     });
     await setup.scope.dispose();
   });
+
+  it('serializes provider load handshakes on one process generation', async () => {
+    const h = makeAcpHarness();
+    const firstLoad = deferred<Record<string, never>>();
+    const secondLoad = deferred<Record<string, never>>();
+    h.agent.loadSession
+      .mockImplementationOnce(async () => firstLoad.promise)
+      .mockImplementationOnce(async () => secondLoad.promise);
+    const setup = materializerHarness(h);
+    const secondInput = makeStartInput({
+      conversationId: 'conv-materializer-2',
+      sessionId: 'retained-session-2',
+    });
+    const secondEntry = {
+      conversationId: secondInput.conversationId,
+      descriptor: secondInput,
+      configOverrides: {},
+    } as ConversationHandle;
+
+    const first = setup.materializer.materialize(
+      setup.entry,
+      setup.entry.descriptor,
+      1,
+      setup.scope,
+      setup.controller.signal
+    );
+    await vi.waitFor(() => expect(h.agent.loadSession).toHaveBeenCalledTimes(1));
+    const second = setup.materializer.materialize(
+      secondEntry,
+      secondEntry.descriptor,
+      1,
+      setup.scope,
+      setup.controller.signal
+    );
+    await Promise.resolve();
+
+    expect(h.agent.loadSession).toHaveBeenCalledTimes(1);
+    expect(setup.loading).toEqual(['conv-materializer']);
+    firstLoad.resolve({});
+    await first;
+    await vi.waitFor(() => expect(h.agent.loadSession).toHaveBeenCalledTimes(2));
+    expect(setup.loading).toEqual(['conv-materializer-2']);
+    secondLoad.resolve({});
+    await second;
+    await setup.scope.dispose();
+  });
+
+  it('does not serialize new-session requests that need no provisional routing', async () => {
+    const h = makeAcpHarness();
+    const firstNew = deferred<{ sessionId: string }>();
+    const secondNew = deferred<{ sessionId: string }>();
+    h.agent.newSession
+      .mockImplementationOnce(async () => firstNew.promise)
+      .mockImplementationOnce(async () => secondNew.promise);
+    const setup = materializerHarness(h, {}, { sessionId: null });
+    const secondInput = makeStartInput({
+      conversationId: 'conv-materializer-2',
+      sessionId: null,
+    });
+    const secondEntry = {
+      conversationId: secondInput.conversationId,
+      descriptor: secondInput,
+      configOverrides: {},
+    } as ConversationHandle;
+
+    const first = setup.materializer.materialize(
+      setup.entry,
+      setup.entry.descriptor,
+      1,
+      setup.scope,
+      setup.controller.signal
+    );
+    const second = setup.materializer.materialize(
+      secondEntry,
+      secondEntry.descriptor,
+      1,
+      setup.scope,
+      setup.controller.signal
+    );
+
+    await vi.waitFor(() => expect(h.agent.newSession).toHaveBeenCalledTimes(2));
+    firstNew.resolve({ sessionId: 'new-session-1' });
+    secondNew.resolve({ sessionId: 'new-session-2' });
+    await Promise.all([first, second]);
+    await setup.scope.dispose();
+  });
 });
 
 function materializerHarness(
@@ -147,10 +234,13 @@ function materializerHarness(
     registerRoute: (processOwner, sessionId, conversationId) => {
       routes.push({ processOwner, sessionId, conversationId });
     },
-    addLoading: (_processOwner, conversationId) => loading.push(conversationId),
-    removeLoading: (_processOwner, conversationId) => {
-      const index = loading.indexOf(conversationId);
-      if (index >= 0) loading.splice(index, 1);
+    beginLoad: (processOwner, sessionId, conversationId) => {
+      routes.push({ processOwner, sessionId, conversationId });
+      loading.push(conversationId);
+      return () => {
+        const index = loading.indexOf(conversationId);
+        if (index >= 0) loading.splice(index, 1);
+      };
     },
   };
   const materializer = new SessionMaterializer(
