@@ -26,7 +26,7 @@ function stored(
   return {
     project,
     hostWorktreeRoot: null,
-    builtInWorktreeRoot: '/home/me/.emdash/worktrees',
+    builtInWorktreeRoot: '/home/me/emdash/worktrees',
     ...overrides,
   };
 }
@@ -424,7 +424,7 @@ describe('resolveEffectiveSettings', () => {
     it('inherits the built-in default when nothing is configured', () => {
       const result = resolveEffectiveSettings(stored(), facts(), []);
       expect(result.worktreeRoot).toEqual({
-        value: '/home/me/.emdash/worktrees',
+        value: '/home/me/emdash/worktrees',
         provenance: { kind: 'inferred', from: 'built-in default' },
       });
     });
@@ -478,7 +478,7 @@ describe('resolveEffectiveSettings', () => {
           []
         );
         expect(result.worktreeRoot).toEqual({
-          value: '/home/me/.emdash/worktrees',
+          value: '/home/me/emdash/worktrees',
           provenance: { kind: 'broken-setting', staleValue: 'not-absolute' },
         });
       });
@@ -490,7 +490,7 @@ describe('resolveEffectiveSettings', () => {
           []
         );
         expect(result.worktreeRoot).toEqual({
-          value: '/home/me/.emdash/worktrees',
+          value: '/home/me/emdash/worktrees',
           provenance: { kind: 'broken-setting', staleValue: 'bad-project' },
         });
       });
