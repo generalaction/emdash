@@ -103,7 +103,6 @@ export class FilesStore {
   private readonly pendingPathSet = observable.set<string>();
   private readonly directoryLoadErrors = observable.map<string, TreeMutationError>();
   private readonly forcedDirectoryLoadPaths = new Set<string>();
-  private readonly activeForcedDirectoryLoadPaths = new Set<string>();
   private treeHydrationScheduler: RequestScheduler | null = null;
   private treeHydrationAbort: AbortController | null = null;
 
@@ -689,9 +688,7 @@ export class FilesStore {
       return err({ type: 'unavailable', message: 'File tree is unavailable' });
     }
 
-    if (force && !this.activeForcedDirectoryLoadPaths.has(absolute)) {
-      this.forcedDirectoryLoadPaths.add(absolute);
-    }
+    if (force) this.forcedDirectoryLoadPaths.add(absolute);
     runInAction(() => this.pendingPathSet.add(absolute));
 
     try {
@@ -727,7 +724,6 @@ export class FilesStore {
     signal: AbortSignal
   ): Promise<Result<void, TreeMutationError>> {
     const force = this.forcedDirectoryLoadPaths.delete(path);
-    if (force) this.activeForcedDirectoryLoadPaths.add(path);
     let result: Result<void, TreeMutationError>;
     try {
       const model = this.treeModel ?? (await this.requireModel());
@@ -750,7 +746,6 @@ export class FilesStore {
     } catch (error) {
       result = err(treeMutationError(error));
     }
-    if (force) this.activeForcedDirectoryLoadPaths.delete(path);
     if (this.treeHydrationScheduler === scheduler && !abort.signal.aborted) {
       runInAction(() => {
         if (result.success) this.directoryLoadErrors.delete(path);
@@ -771,7 +766,6 @@ export class FilesStore {
     }
     void scheduler?.dispose();
     this.forcedDirectoryLoadPaths.clear();
-    this.activeForcedDirectoryLoadPaths.clear();
     runInAction(() => {
       this.pendingPathSet.clear();
       this.directoryLoadErrors.clear();

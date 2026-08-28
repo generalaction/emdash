@@ -410,6 +410,39 @@ describe('FilesStore', () => {
     await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
   });
 
+  it('runs a trailing forced load when a forced load is already active', async () => {
+    const tree = makeTreeModel('/repo');
+    tree.entries = {
+      '': makeEntry('', 'directory', ['src']),
+      src: makeEntry('src', 'directory', [], false),
+    };
+    const { store, mutationCalls } = setup({ tree });
+    disposeStore = () => store.dispose();
+    await store.start();
+    const firstRefresh = deferred<void>();
+    const refresh = vi
+      .spyOn(
+        (
+          store as unknown as {
+            treeModel: { states: { tree: { refresh(): Promise<void> } } };
+          }
+        ).treeModel.states.tree,
+        'refresh'
+      )
+      .mockImplementationOnce(() => firstRefresh.promise)
+      .mockResolvedValue();
+
+    const first = store.registerDir('/repo/src', true);
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    const second = store.registerDir('/repo/src', true);
+    firstRefresh.resolve();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([ok(undefined), ok(undefined)]);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(expandedMutationPaths(mutationCalls)).toEqual(['src', 'src']);
+    expect(store.pendingPaths.size).toBe(0);
+  });
+
   it('settles a queued directory load when the tree Runtime is disposed', async () => {
     const gate = deferred<void>();
     const tree = makeTreeModel('/repo');
