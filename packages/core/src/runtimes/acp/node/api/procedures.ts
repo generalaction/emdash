@@ -105,19 +105,15 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       return result.success ? ok({ log: result.data }) : result;
     },
     async uploadAttachment(
-      input: {
-        conversationId: string;
-        originalPath?: string;
-      },
+      input: { conversationId: string },
       file: WireFile
     ): Promise<Result<AttachmentRef, AcpAttachmentError>> {
-      const data = input.originalPath ? undefined : await file.bytes();
+      const data = await file.bytes();
       return runtime.uploadAttachment({
         conversationId: input.conversationId,
         data,
         mimeType: file.mimeType as AttachmentMimeType,
         name: file.name,
-        originalPath: input.originalPath,
       });
     },
     async downloadAttachment(input: {

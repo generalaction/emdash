@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
@@ -79,18 +78,11 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
         agentHost,
         host: childHost,
         resolveAttachment: async (conversationId, attachment) => {
-          if (attachment.type === 'attachment') {
-            const stored = await attachmentStore.get(conversationId, attachment.id);
-            if (!stored) throw new Error(`Attachment '${attachment.id}' could not be resolved`);
-            return {
-              data: Buffer.from(stored.data).toString('base64'),
-              mimeType: stored.ref.mimeType,
-            };
-          }
-          const data = await readFile(attachment.originalPath);
+          const stored = await attachmentStore.get(conversationId, attachment.id);
+          if (!stored) throw new Error(`Attachment '${attachment.id}' could not be resolved`);
           return {
-            data: data.toString('base64'),
-            mimeType: attachment.mimeType,
+            data: Buffer.from(stored.data).toString('base64'),
+            mimeType: stored.ref.mimeType,
           };
         },
         attachmentStore,

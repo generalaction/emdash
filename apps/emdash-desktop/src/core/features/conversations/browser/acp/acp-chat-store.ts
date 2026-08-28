@@ -68,6 +68,17 @@ export type AcpPromptAttachment = {
   previewUrl?: string;
 };
 
+type AcpAttachmentUploadMetadata = {
+  mimeType: AttachmentMimeType;
+  name?: string;
+};
+
+export type AcpAttachmentUploadInput = AcpAttachmentUploadMetadata &
+  (
+    | { data: Uint8Array; source?: never; size?: never }
+    | { data?: never; source: BlobSource; size?: number }
+  );
+
 type PermissionQueueItem = {
   requestId: string;
   title: string;
@@ -319,25 +330,17 @@ export class AcpChatStore {
     this._view = view;
   }
 
-  async uploadAttachment(input: {
-    data?: Uint8Array;
-    source?: BlobSource;
-    size?: number;
-    mimeType: AttachmentMimeType;
-    name?: string;
-    originalPath?: string;
-  }): Promise<AttachmentRef | null> {
+  async uploadAttachment(input: AcpAttachmentUploadInput): Promise<AttachmentRef | null> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return null;
     try {
       const client = await this._getAcpClient();
       const result = await client.uploadAttachment(
-        { conversationId: this.conversationId, originalPath: input.originalPath },
+        { conversationId: this.conversationId },
         {
           name: input.name ?? 'attachment',
           mimeType: input.mimeType,
           size: input.size ?? input.data?.byteLength,
-          source:
-            input.source ?? (input.data ? singleChunk(input.data) : singleChunk(new Uint8Array())),
+          source: input.source ?? singleChunk(input.data),
         }
       );
       if (!result.success) {

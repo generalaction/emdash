@@ -1,5 +1,5 @@
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
-import { attachmentMimeTypeSchema } from '@emdash/core/runtimes/acp/api/client';
+import { imageAttachmentMimeTypeSchema } from '@emdash/core/runtimes/acp/api/client';
 import { z } from 'zod';
 import { days, defineMemento } from '@core/primitives/mementos/api';
 import { appSubject } from '@core/primitives/subjects/api';
@@ -13,7 +13,7 @@ const acpDraftV1Schema = z.object({
   attachments: z.array(
     z.object({
       id: z.string(),
-      mimeType: attachmentMimeTypeSchema,
+      mimeType: imageAttachmentMimeTypeSchema,
       name: z.string().optional(),
     })
   ),
