@@ -281,10 +281,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
   }, [files, filesSettings?.treeExclude]);
 
   React.useEffect(() => {
-    files?.reconcileVisibleScopes(expandedPaths);
-  }, [expandedPaths, files]);
-
-  React.useEffect(() => {
     const activePath = activeFile?.path ?? null;
     if (!activePath) {
       lastSyncedActivePathRef.current = null;
@@ -317,19 +313,20 @@ export const EditorFileTree = observer(function EditorFileTree() {
   }, [pendingDraft, searchQuery]);
 
   React.useEffect(() => {
-    if (revealRequest.counter === 0 || !files) return;
-    void (async () => {
-      const result = await files.revealFile(revealRequest.path);
-      if (!result.success) {
-        toast.error('Reveal failed', { description: resultErrorMessage(result.error) });
-        return;
-      }
-      editorView.expandPaths(result.data);
-      setSelectedPaths(new Set([revealRequest.path]));
-      setSelectionAnchorPath(revealRequest.path);
-      window.requestAnimationFrame(() => treeRef.current?.scrollToPath(revealRequest.path));
-    })();
-  }, [editorView, files, revealRequest.counter, revealRequest.path]);
+    if (!revealRequest) return;
+    if (revealRequest.status === 'error') {
+      editorView.consumeRevealFileRequest(revealRequest.id);
+      toast.error('Reveal failed', { description: resultErrorMessage(revealRequest.error) });
+      return;
+    }
+    setSelectedPaths(new Set([revealRequest.path]));
+    setSelectionAnchorPath(revealRequest.path);
+    const frame = window.requestAnimationFrame(() => {
+      treeRef.current?.scrollToPath(revealRequest.path);
+      editorView.consumeRevealFileRequest(revealRequest.id);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editorView, revealRequest]);
 
   // Route through the openFile seam (spec §10): sidebar clicks resolve the
   // file's identity here at the edge and never reveal (the tree already shows
@@ -351,6 +348,17 @@ export const EditorFileTree = observer(function EditorFileTree() {
   };
 
   const collapseAll = () => editorView.collapsePaths([...expandedPaths]);
+  const loadDirectory = useCallback(
+    (path: string) => {
+      if (!files) return;
+      void files.registerDir(path).then((result) => {
+        if (!result.success) {
+          toast.error('Folder load failed', { description: resultErrorMessage(result.error) });
+        }
+      });
+    },
+    [files]
+  );
   const expandAll = () => {
     const directoryPaths = [...nodeByPath.values()]
       .filter(isExpandableFileTreeNode)
@@ -835,7 +843,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
           if (expanded) {
             editorView.expandPath(node.path);
             if (files && isExpandableFileTreeNode(node) && !files.loadedPaths.has(node.path)) {
-              void files.registerDir(node.path);
+              loadDirectory(node.path);
             }
           } else {
             editorView.collapsePath(node.path);
@@ -843,7 +851,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         }}
         onRequestExpand={(path) => {
           editorView.expandPath(path);
-          void files?.registerDir(path);
+          loadDirectory(path);
         }}
         onSelectionChange={(paths, anchorPath) => {
           setSelectedPaths(new Set(paths));

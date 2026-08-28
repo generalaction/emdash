@@ -50,6 +50,24 @@ describe('TreeResource', () => {
     expect(model.entries.repo?.children).toEqual([]);
   });
 
+  it('does not reread or republish an already materialized directory', async () => {
+    const { rootPath, tree } = await createHarness({ exclusions: [] });
+    await writeFile(path.join(rootPath, 'existing.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    const before = snapshot(tree.source()).revision;
+    await writeFile(path.join(rootPath, 'late.ts'), '');
+
+    const result = await tree.expand(
+      treeContext(tree, { path: ROOT_RELATIVE_PATH }, 'expand-loaded-test')
+    );
+
+    expect(result.success).toBe(true);
+    expect(snapshot(tree.source()).revision).toBe(before);
+    expect(diagnostic.current().entries['existing.ts']).toBeDefined();
+    expect(diagnostic.current().entries['late.ts']).toBeUndefined();
+  });
+
   it('filters excluded entries from expanded directories', async () => {
     const { rootPath, tree } = await createHarness({ exclusions: ['generated'] });
     await mkdir(path.join(rootPath, 'src', 'generated'), { recursive: true });
@@ -237,11 +255,22 @@ describe('TreeResource', () => {
     await diagnostic.expandPath(ROOT_RELATIVE_PATH);
     await diagnostic.expandPath(portable('src'));
     const before = snapshot(tree.source()).revision;
+    const blockedLane = deferred<void>();
+    diagnostic.lane = blockedLane.promise;
+    let settled = false;
 
-    const result = await tree.reveal(
-      treeContext(tree, { path: portable('src/app.ts') }, 'reveal-visible-test')
-    );
+    const reveal = tree
+      .reveal(treeContext(tree, { path: portable('src/app.ts') }, 'reveal-visible-test'))
+      .then((result) => {
+        settled = true;
+        return result;
+      });
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
+    const settledBeforeUnblock = settled;
+    blockedLane.resolve();
+    const result = await reveal;
+    expect(settledBeforeUnblock).toBe(true);
     expect(result.success).toBe(true);
     expect(snapshot(tree.source()).revision).toBe(before);
   });

@@ -503,7 +503,7 @@ export class TaskComposition {
 
   revealWorkspaceFile(path: string): void {
     this.chrome.commands.openSidebarTab('files');
-    this.editorView.requestRevealFile(path);
+    void this.editorView.revealFile(path);
   }
 
   setFocusedRegion(region: TaskFocusedRegion): void {
