@@ -53,7 +53,14 @@ export async function ensureEmdashGitExcluded(
   const alreadyExcluded = existing
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .some((line) => line === SSH_PROJECT_STATE_DIR_NAME || line === IGNORE_PATTERN);
+    .some((line) => {
+      const norm = line.replace(/^\/+/, '').replace(/^\*\*\//, '');
+      return (
+        norm === SSH_PROJECT_STATE_DIR_NAME ||
+        norm === IGNORE_PATTERN ||
+        norm === `${SSH_PROJECT_STATE_DIR_NAME}/`
+      );
+    });
   if (alreadyExcluded) return;
 
   const base = existing.replace(/\s*$/, '');
