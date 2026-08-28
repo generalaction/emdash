@@ -54,7 +54,11 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
         },
       });
     },
-    acp: forwardContractImpl(workspaceWireContract.acp, deps.runtimes.acp),
+    acp: {
+      ...forwardContractImpl(workspaceWireContract.acp, deps.runtimes.acp),
+      sendPrompt: (input, meta) =>
+        deps.runtimes.acp.sendPrompt(input, { signal: meta.signal, timeoutMs: 0 }),
+    },
     agentConfig: forwardContractImpl(workspaceWireContract.agentConfig, deps.runtimes.agentConfig),
     automations: forwardContractImpl(workspaceWireContract.automations, deps.runtimes.automations),
     conversations: forwardContractImpl(

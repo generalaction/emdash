@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -23,28 +23,28 @@ function conversationDir(root: string, conversationId = CONV): string {
 }
 
 describe('LocalAttachmentStore', () => {
-  it('stores references without copying original bytes', async () => {
+  it('snapshots uploaded bytes and returns their target Host path', async () => {
     const root = await makeRoot();
-    const sourcePath = join(root, 'source.png');
-    await writeFile(sourcePath, new Uint8Array([1, 2, 3]));
-
     const store = new LocalAttachmentStore(join(root, 'store'));
     const ref = await store.put({
       conversationId: CONV,
-      originalPath: sourcePath,
+      data: new Uint8Array([1, 2, 3]),
       mimeType: 'image/png',
       name: 'source.png',
     });
     const stored = await store.get(CONV, ref.id);
 
+    expect(ref.targetPath).toBe(join(conversationDir(root), 'objects', `${ref.id}.png`));
     expect(stored).toEqual({
       ref,
       data: new Uint8Array([1, 2, 3]),
     });
-    await expect(access(join(conversationDir(root), 'objects', ref.id))).rejects.toThrow();
+    await expect(
+      readFile(join(conversationDir(root), 'objects', `${ref.id}.png`))
+    ).resolves.toEqual(Buffer.from([1, 2, 3]));
   });
 
-  it('copies uploaded bytes into the conversation directory when no original path is provided', async () => {
+  it('copies uploaded bytes into the conversation directory', async () => {
     const root = await makeRoot();
     const store = new LocalAttachmentStore(join(root, 'store'));
 
@@ -55,9 +55,7 @@ describe('LocalAttachmentStore', () => {
       name: 'copy.webp',
     });
 
-    await expect(readFile(join(conversationDir(root), 'objects', ref.id))).resolves.toEqual(
-      Buffer.from([4, 5, 6])
-    );
+    await expect(readFile(ref.targetPath!)).resolves.toEqual(Buffer.from([4, 5, 6]));
     await expect(store.get(CONV, ref.id)).resolves.toEqual({
       ref,
       data: new Uint8Array([4, 5, 6]),
@@ -81,13 +79,11 @@ describe('LocalAttachmentStore', () => {
 
   it('persists the index across store instances', async () => {
     const root = await makeRoot();
-    const sourcePath = join(root, 'source.jpg');
-    await writeFile(sourcePath, new Uint8Array([7, 8, 9]));
     const storeDir = join(root, 'store');
 
     const ref = await new LocalAttachmentStore(storeDir).put({
       conversationId: CONV,
-      originalPath: sourcePath,
+      data: new Uint8Array([7, 8, 9]),
       mimeType: 'image/jpeg',
       name: 'source.jpg',
     });
@@ -96,41 +92,6 @@ describe('LocalAttachmentStore', () => {
       ref,
       data: new Uint8Array([7, 8, 9]),
     });
-  });
-
-  it('returns null when a referenced file disappears', async () => {
-    const root = await makeRoot();
-    const sourcePath = join(root, 'source.gif');
-    await writeFile(sourcePath, new Uint8Array([1]));
-    const store = new LocalAttachmentStore(join(root, 'store'));
-    const ref = await store.put({
-      conversationId: CONV,
-      originalPath: sourcePath,
-      mimeType: 'image/gif',
-      name: 'source.gif',
-    });
-
-    await rm(sourcePath);
-
-    await expect(store.get(CONV, ref.id)).resolves.toBeNull();
-  });
-
-  it('does not delete original files for reference records', async () => {
-    const root = await makeRoot();
-    const sourcePath = join(root, 'source.png');
-    await writeFile(sourcePath, new Uint8Array([1, 2, 3]));
-    const store = new LocalAttachmentStore(join(root, 'store'));
-    const ref = await store.put({
-      conversationId: CONV,
-      originalPath: sourcePath,
-      mimeType: 'image/png',
-      name: 'source.png',
-    });
-
-    await store.delete(CONV, ref.id);
-
-    await expect(readFile(sourcePath)).resolves.toEqual(Buffer.from([1, 2, 3]));
-    await expect(store.get(CONV, ref.id)).resolves.toBeNull();
   });
 
   it('deletes copied bytes for copy records', async () => {
@@ -145,7 +106,7 @@ describe('LocalAttachmentStore', () => {
 
     await store.delete(CONV, ref.id);
 
-    await expect(access(join(conversationDir(root), 'objects', ref.id))).rejects.toThrow();
+    await expect(access(ref.targetPath!)).rejects.toThrow();
     await expect(store.get(CONV, ref.id)).resolves.toBeNull();
   });
 

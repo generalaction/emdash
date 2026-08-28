@@ -56,7 +56,6 @@ export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 export const uploadAttachmentCommandSchema = z.object({
   /** Attachments belong to their conversation (spec §3.6); a conversation exists at upload time. */
   conversationId: z.string(),
-  originalPath: z.string().optional(),
 });
 export const uploadAttachmentResponseSchema = attachmentRefSchema;
 export const attachmentKeySchema = z.object({

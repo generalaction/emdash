@@ -19,6 +19,7 @@ import {
   mapContainer,
   type LeakCheckContainer,
 } from '#services/session-lifecycle/node/testing';
+import type { PromptSpillResult } from './prompt-spill';
 import { TuiAgentsRuntime } from './runtime';
 
 function createRuntime(
@@ -30,6 +31,7 @@ function createRuntime(
     conversationReports?: ConversationLifecycleReporter;
     hooks?: ResolvedTuiProvider['hooks'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
+    spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -67,6 +69,7 @@ function createRuntime(
     spawner,
     clock: options.clock,
     lifecycle: options.lifecycle,
+    spillPrompt: options.spillPrompt,
     logger: noopLogger,
   });
   return { runtime, spawner, agentHost, exec };
@@ -222,11 +225,35 @@ describe('TuiAgentsRuntime', () => {
     });
   });
 
+  it('spills large prompts inside the Host runtime and cleans them when stopped', async () => {
+    const cleanup = vi.fn(async () => undefined);
+    const spillPrompt = vi.fn(async () => ({
+      prompt: 'Read /host/tmp/task-context.md and complete the task.',
+      spilled: true,
+      cleanup,
+    }));
+    const { runtime, agentHost } = createRuntime({ spillPrompt });
+    const largePrompt = 'x'.repeat(20_000);
+
+    await runtime.startSession(startInput({ initialPrompt: largePrompt }));
+
+    expect(spillPrompt).toHaveBeenCalledWith(largePrompt);
+    expect(agentHost.buildPromptCommand).toHaveBeenCalledWith(
+      'test',
+      expect.objectContaining({
+        initialPrompt: 'Read /host/tmp/task-context.md and complete the task.',
+      })
+    );
+
+    await runtime.stopSession('conversation-1');
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
   it('stops and deletes sessions while cleaning up tmux', async () => {
     const { runtime, spawner, exec } = createRuntime();
 
     await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    runtime.stopSession('conversation-1');
+    await runtime.stopSession('conversation-1');
 
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => {
@@ -379,7 +406,7 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.startSession(startInput());
     spawner.processes[0]!.emitData('scrollback line\n');
-    runtime.stopSession('conversation-1');
+    await runtime.stopSession('conversation-1');
 
     const list = peek(runtime.sessionsLiveModel.get(undefined)!.states.list);
     expect(list['conversation-1']).toMatchObject({ status: 'exited' });
@@ -514,7 +541,7 @@ describe('TuiAgentsRuntime conversation lifecycle reports', () => {
     const { runtime, spawner } = createRuntime({ conversationReports: reports });
 
     await runtime.startSession(startInput());
-    runtime.stopSession('conversation-1');
+    await runtime.stopSession('conversation-1');
     expect(reports.ended).toEqual(['conversation-1']);
 
     await runtime.startSession(startInput());

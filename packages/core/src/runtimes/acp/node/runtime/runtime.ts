@@ -179,10 +179,9 @@ export class AcpRuntime {
 
   async uploadAttachment(input: {
     conversationId: string;
-    data?: Uint8Array;
+    data: Uint8Array;
     mimeType: AttachmentMimeType;
     name?: string;
-    originalPath?: string;
   }): Promise<Result<AttachmentRef, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
     return ok(await this.deps.attachmentStore.put(input));

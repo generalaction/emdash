@@ -54,7 +54,7 @@ export const SHAREABLE_FIELD_DESCRIPTORS: ShareableFieldDescriptor[] = [
     normalizeText: trimText,
     placeholder: 'python -m venv .venv\nmise install',
     description:
-      'Blocking commands run after the workspace exists and before task sessions start. Use this for environment setup that agents depend on.',
+      'Commands run after workspace creation. Task sessions start after these commands exit.',
     multiline: true,
     group: 'lifecycle',
   },

@@ -337,7 +337,6 @@ export async function bootServices(
         taskId: options.taskId,
         taskPath: options.taskPath,
         host: options.host,
-        files: options.files,
         tuiAgents: options.tuiAgents,
         launchContextSource: options.launchContextSource,
       },

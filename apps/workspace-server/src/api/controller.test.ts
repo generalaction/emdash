@@ -51,6 +51,22 @@ describe('createWorkspaceWireController', () => {
       transport.close?.();
     }
   });
+
+  it('disables the worker deadline for the turn-long ACP prompt call', async () => {
+    const acp = createFakeAcpClient();
+    const controller = createTestWorkspaceWireController({ acp });
+    const signal = new AbortController().signal;
+    const input = {
+      conversationId: 'conversation-1',
+      prompt: { text: 'hello' },
+    };
+
+    await expect(controller.call('acp.sendPrompt', input, { signal })).resolves.toEqual(
+      ok({ queued: false })
+    );
+
+    expect(acp.sendPrompt).toHaveBeenCalledWith(input, { signal, timeoutMs: 0 });
+  });
 });
 
 function createFakeAcpClient(): ContractClient<AcpApiContract> {
@@ -75,7 +91,7 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
     attach: vi.fn(),
     launch: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
     terminate: vi.fn(),
-    sendPrompt: vi.fn(),
+    sendPrompt: vi.fn(async () => ok({ queued: false })),
     editQueuedPrompt: vi.fn(),
     deleteQueuedPrompt: vi.fn(),
     changeQueuePromptOrder: vi.fn(),

@@ -55,6 +55,7 @@ import {
 } from '#services/session-lifecycle/api';
 import { createSessionLifecycle } from '#services/session-lifecycle/node';
 import { TuiAgentStates } from './agent-state';
+import { spillLargePrompt, type PromptSpillResult } from './prompt-spill';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 
 const RESUME_FALLBACK_WINDOW_MS = 3_000;
@@ -90,6 +91,7 @@ export class TuiAgentsRuntime {
   private readonly lifecycle: ConversationSessionLifecycle;
   private tmuxActivity = new Map<string, number>();
   private readonly unexpectedRespawns = new Map<string, number>();
+  private readonly promptSpills = new Map<string, PromptSpillResult>();
   /**
    * The session's tmux side can outlive the pty client; output inside tmux is
    * invisible to the activity tracker, so `busy` keeps such sessions alive for
@@ -186,6 +188,10 @@ export class TuiAgentsRuntime {
           },
         },
         {
+          name: 'prompt-spill',
+          run: (key) => this.cleanupPromptSpill(key),
+        },
+        {
           name: 'config',
           run: (key) => {
             this.configs.delete(key);
@@ -270,7 +276,8 @@ export class TuiAgentsRuntime {
       const active = this.sessions.get(input.conversationId);
       if (active?.pty) return ok({ outcome: 'attached' });
 
-      const config: TuiSessionConfig = { input, intent: 'fresh' };
+      const preparedInput = await this.preparePromptInput(input);
+      const config: TuiSessionConfig = { input: preparedInput, intent: 'fresh' };
       this.configs.set(input.conversationId, config);
       this.lifecycle.recordInput(input.conversationId);
       this.unexpectedRespawns.delete(input.conversationId);
@@ -281,7 +288,10 @@ export class TuiAgentsRuntime {
         config,
         generation
       );
-      if (!result.success) return result;
+      if (!result.success) {
+        await this.cleanupPromptSpill(input.conversationId);
+        return result;
+      }
 
       return ok({ outcome: 'started' });
     });
@@ -298,8 +308,9 @@ export class TuiAgentsRuntime {
       if (active?.pty) return ok({ outcome: 'attached' });
 
       const intent = input.sessionId ? 'resume' : 'fresh';
+      const preparedInput = intent === 'fresh' ? await this.preparePromptInput(input) : input;
       const config: TuiSessionConfig = {
-        input,
+        input: preparedInput,
         intent,
         ...(input.sessionId ? {} : { resumeFallback: true }),
       };
@@ -318,13 +329,16 @@ export class TuiAgentsRuntime {
         config,
         generation
       );
-      if (!result.success) return result;
+      if (!result.success) {
+        await this.cleanupPromptSpill(input.conversationId);
+        return result;
+      }
 
       return ok({ outcome: input.sessionId ? 'resumed' : 'fresh-fallback' });
     });
   }
 
-  stopSession(conversationId: string): Result<void, TuiSessionControlError> {
+  async stopSession(conversationId: string): Promise<Result<void, TuiSessionControlError>> {
     this.bumpGeneration(conversationId);
     const config = this.configs.get(conversationId);
     if (config) this.configs.set(conversationId, { ...config, intent: 'stopped' });
@@ -338,6 +352,7 @@ export class TuiAgentsRuntime {
     // Suspend-but-retain: scrollback, config tombstone, and list entry survive;
     // the stopped config keeps the key sweep-inert (snapshot returns null).
     this.lifecycle.end(conversationId, 'user');
+    await this.cleanupPromptSpill(conversationId);
     return ok(undefined);
   }
 
@@ -403,6 +418,7 @@ export class TuiAgentsRuntime {
     }
     this.registry.killAll();
     this.hookServer.stop();
+    await Promise.all([...this.promptSpills.keys()].map((key) => this.cleanupPromptSpill(key)));
     this.sessions.clear();
     this.logs.clear();
     this.configs.clear();
@@ -526,6 +542,7 @@ export class TuiAgentsRuntime {
               // stays live so a crash mid-respawn still reconciles.
               this.reports.sessionEnded(config.input.conversationId);
             } else {
+              void this.cleanupPromptSpill(config.input.conversationId);
               this.lifecycle.end(config.input.conversationId, 'process-exited');
             }
           },
@@ -611,6 +628,39 @@ export class TuiAgentsRuntime {
     };
   }
 
+  private async preparePromptInput(input: TuiAgentStartInput): Promise<TuiAgentStartInput> {
+    if (!input.initialPrompt) return input;
+    await this.cleanupPromptSpill(input.conversationId);
+    const spill = await (
+      this.deps.spillPrompt ??
+      ((prompt) =>
+        spillLargePrompt(prompt, {
+          onError: (error, promptLength) =>
+            this.deps.logger.warn('Failed to spill large TUI prompt; passing it inline', {
+              conversationId: input.conversationId,
+              promptLength,
+              error: String(error),
+            }),
+        }))
+    )(input.initialPrompt);
+    if (spill.spilled) this.promptSpills.set(input.conversationId, spill);
+    return spill.prompt === input.initialPrompt ? input : { ...input, initialPrompt: spill.prompt };
+  }
+
+  private async cleanupPromptSpill(conversationId: string): Promise<void> {
+    const spill = this.promptSpills.get(conversationId);
+    if (!spill) return;
+    this.promptSpills.delete(conversationId);
+    try {
+      await spill.cleanup();
+    } catch (error) {
+      this.deps.logger.warn('Failed to remove TUI prompt file', {
+        conversationId,
+        error: String(error),
+      });
+    }
+  }
+
   private sessionFor(conversationId: string): TuiAgentSession {
     let session = this.sessions.get(conversationId);
     if (!session) {
@@ -673,6 +723,7 @@ export class TuiAgentsRuntime {
       const result = await this.spawnInto(session, config, generation);
       if (result.success) return;
 
+      await this.cleanupPromptSpill(conversationId);
       this.lifecycle.end(conversationId, 'spawn-failed');
       this.deps.logger.warn('TuiAgentsRuntime: respawn/fallback failed', {
         conversationId,

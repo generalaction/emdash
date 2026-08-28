@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { mkdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
 import type { AttachmentMimeType, AttachmentRef } from '#runtimes/acp/api';
 import type {
   AttachmentStore,
@@ -38,10 +38,9 @@ export class LocalAttachmentStore implements AttachmentStore {
 
   async put(input: {
     conversationId: string;
-    data?: Uint8Array;
+    data: Uint8Array;
     name?: string;
     mimeType: AttachmentMimeType;
-    originalPath?: string;
   }): Promise<AttachmentRef> {
     return this.forConversation(input.conversationId).put(input);
   }
@@ -98,42 +97,22 @@ class ConversationAttachmentStore {
   }
 
   async put(input: {
-    data?: Uint8Array;
+    data: Uint8Array;
     name?: string;
     mimeType: AttachmentMimeType;
-    originalPath?: string;
   }): Promise<AttachmentRef> {
     await this.ensureLoaded();
     const id = crypto.randomUUID();
+    await mkdir(this.objectsDir, { recursive: true, mode: 0o700 });
+    const storedPath = join(this.objectsDir, `${id}${safeFileExtension(input.name)}`);
     const ref: AttachmentRef = {
       id,
-      name: input.name ?? (input.originalPath ? basename(input.originalPath) : 'attachment'),
+      name: input.name ?? 'attachment',
       mimeType: input.mimeType,
+      targetPath: storedPath,
     };
 
-    if (input.originalPath) {
-      const fileStat = await stat(input.originalPath);
-      this.records.set(id, {
-        ref,
-        createdAt: Date.now(),
-        source: {
-          kind: 'reference',
-          originalPath: input.originalPath,
-          size: fileStat.size,
-          mtimeMs: fileStat.mtimeMs,
-        },
-      });
-      await this.persist();
-      return ref;
-    }
-
-    if (!input.data) {
-      throw new Error('Attachment data is required when originalPath is not provided');
-    }
-
-    await mkdir(this.objectsDir, { recursive: true });
-    const storedPath = join(this.objectsDir, id);
-    await writeFile(storedPath, input.data);
+    await writeFile(storedPath, input.data, { mode: 0o600 });
     this.records.set(id, {
       ref,
       createdAt: Date.now(),
@@ -151,7 +130,7 @@ class ConversationAttachmentStore {
       const path =
         record.source.kind === 'reference' ? record.source.originalPath : record.source.storedPath;
       return {
-        ref: record.ref,
+        ref: record.ref.targetPath ? record.ref : { ...record.ref, targetPath: path },
         data: new Uint8Array(await readFile(path)),
       };
     } catch {
@@ -194,13 +173,21 @@ class ConversationAttachmentStore {
 
   private persist(): Promise<void> {
     this.persistQueue = this.persistQueue.then(async () => {
-      await mkdir(this.rootDir, { recursive: true });
+      await mkdir(this.rootDir, { recursive: true, mode: 0o700 });
       const tmpPath = `${this.indexPath}.${process.pid}.${Date.now()}.tmp`;
-      await writeFile(tmpPath, JSON.stringify([...this.records.values()], null, 2));
+      await writeFile(tmpPath, JSON.stringify([...this.records.values()], null, 2), {
+        mode: 0o600,
+      });
       await rename(tmpPath, this.indexPath);
     });
     return this.persistQueue;
   }
+}
+
+function safeFileExtension(name: string | undefined): string {
+  if (!name) return '';
+  const extension = extname(name);
+  return /^\.[a-zA-Z0-9]{1,16}$/.test(extension) ? extension : '';
 }
 
 function isAttachmentRecord(value: unknown): value is AttachmentRecord {

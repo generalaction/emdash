@@ -8,6 +8,7 @@ import type { IExecutionContext } from '#services/exec/api';
 import type { PtySpawner } from '#services/pty/api';
 import type { SessionIntentStore } from '#services/session-intents/api';
 import type { IdlePolicyConfig } from '#services/session-lifecycle/api';
+import type { PromptSpillResult } from './prompt-spill';
 
 export interface TuiAgentsRuntimeDeps {
   agentHost: AgentPluginHost;
@@ -22,6 +23,7 @@ export interface TuiAgentsRuntimeDeps {
     session?: IdlePolicyConfig;
     sweepIntervalMs?: number;
   };
+  spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
   logger: Logger;
 }
 

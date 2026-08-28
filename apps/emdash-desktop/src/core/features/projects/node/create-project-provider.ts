@@ -41,7 +41,6 @@ import {
   repositorySelector,
 } from '@core/services/runtime-broker/node/git';
 import { hostSettingsDefaults } from '@core/services/runtime-broker/node/host-settings';
-import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { migrateProjectSettingsOnAttachment } from './settings/migrations/migrate-project-settings-on-attachment';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
 import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
@@ -174,8 +173,6 @@ export async function createProvider(
     const repositoryService = dependencies.createGitRepository(git, repository, () =>
       resolveProjectEffectiveSettings({ settings, repoFacts, projectId: project.id })
     );
-
-    ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 
     const transport: ProjectProviderTransport = {
       kind: project.type,

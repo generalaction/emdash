@@ -172,11 +172,11 @@ describe('createConversationsWireController', () => {
 
     await controller.call(
       'acp.uploadAttachment',
-      { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
+      { conversationId: target.conversationId },
       { uploadFile: file }
     );
     expect(uploadAttachment).toHaveBeenCalledWith(
-      { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
+      { conversationId: target.conversationId },
       file,
       {}
     );

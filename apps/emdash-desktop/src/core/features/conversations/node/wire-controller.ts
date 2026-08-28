@@ -236,9 +236,9 @@ export function createConversationsWireController(
         ),
       exportRawAcpLog: (input, meta) =>
         run(input.conversationId, (client) => client.acp.exportRawAcpLog(input, callOptions(meta))),
-      uploadAttachment: ({ conversationId, originalPath }, file, meta) =>
+      uploadAttachment: ({ conversationId }, file, meta) =>
         run(conversationId, (client) =>
-          client.acp.uploadAttachment({ conversationId, originalPath }, file, callOptions(meta))
+          client.acp.uploadAttachment({ conversationId }, file, callOptions(meta))
         ),
       downloadAttachment: ({ conversationId, attachmentId }, meta) =>
         openAttachmentDownload(options, target(conversationId), attachmentId, callOptions(meta)),

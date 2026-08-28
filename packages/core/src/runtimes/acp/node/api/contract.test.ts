@@ -131,14 +131,10 @@ describe('ACP API contract schemas', () => {
     }
   });
 
-  it('accepts attachment upload sidecar input with or without original path', () => {
-    expect(() => uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).not.toThrow();
-    expect(() =>
-      uploadAttachmentCommandSchema.parse({
-        conversationId: 'conv-1',
-        originalPath: '/tmp/image.png',
-      })
-    ).not.toThrow();
+  it('scopes attachment upload sidecar input to the owning conversation', () => {
+    expect(uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).toEqual({
+      conversationId: 'conv-1',
+    });
     // Attachments are conversation-scoped (spec §3.6): the owning conversation is required.
     expect(() => uploadAttachmentCommandSchema.parse({})).toThrow();
   });
