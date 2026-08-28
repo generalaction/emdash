@@ -116,6 +116,15 @@ describe('ensureEmdashGitExcluded', () => {
     expect(writeFile).not.toHaveBeenCalled();
   });
 
+  it('treats glob patterns like **/.emdash/ and leading slashes as already excluded (#3033)', async () => {
+    const { files, writeFile } = makeFs({
+      gitType: 'directory',
+      excludeContent: '**/.emdash/\n',
+    });
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
   it('does not rewrite when the exclude read was truncated', async () => {
     // A truncated view could miss an existing entry past the cut; rewriting it would
     // drop the tail of the file, so bail instead.
