@@ -1,4 +1,6 @@
 import { decodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
+import { type Result } from '@emdash/shared';
+import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
@@ -16,7 +18,14 @@ import { log } from '@core/primitives/logging/browser/logger';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { allOpenFileResources } from '../../../../browser/task-editor/pane-selectors';
-import { FilesStore } from '../../../../browser/task-editor/stores/files-store';
+import {
+  FilesStore,
+  type TreeMutationError,
+} from '../../../../browser/task-editor/stores/files-store';
+
+export type RevealFileRequest =
+  | { id: number; path: string; status: 'ready' }
+  | { id: number; path: string; status: 'error'; error: TreeMutationError };
 
 /**
  * Manages file persistence (save, conflict resolution) and sidebar navigation state.
@@ -36,8 +45,8 @@ export class EditorViewStore {
   /** Monotonic signal used by the task-level search command to focus the sidebar input. */
   fileSearchFocusRequest = 0;
 
-  /** Monotonic signal consumed by the file tree adapter to reveal a path in the sidebar. */
-  revealFileRequest: { path: string; counter: number } = { path: '', counter: 0 };
+  /** One-shot presentation request consumed by the file tree after Runtime reveal settles. */
+  revealFileRequest: RevealFileRequest | null = null;
 
   /**
    * Per-view file-tree projection store. Created when the task session starts (`startFiles`) and
@@ -49,6 +58,10 @@ export class EditorViewStore {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly paneLayout: PaneLayoutStore;
+  private readonly revealScope: Scope;
+  private nextRevealFileRequestId = 1;
+  private activeRevealFileRequestId = 0;
+  private activeRevealRun: Run<Result<string[], TreeMutationError>> | null = null;
 
   constructor(
     paneLayout: PaneLayoutStore,
@@ -60,6 +73,7 @@ export class EditorViewStore {
     this.paneLayout = paneLayout;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
+    this.revealScope = createScope({ label: `editor-view:${workspaceId}:reveal` });
 
     makeObservable<EditorViewStore, 'treeHandle'>(this, {
       isSaving: observable,
@@ -69,7 +83,7 @@ export class EditorViewStore {
       files: observable.ref,
       expandedPaths: computed.struct,
       requestFileSearchFocus: action,
-      requestRevealFile: action,
+      consumeRevealFileRequest: action,
       treeHandle: false,
     });
   }
@@ -82,11 +96,51 @@ export class EditorViewStore {
     this.fileSearchFocusRequest += 1;
   }
 
-  requestRevealFile(path: string): void {
-    this.revealFileRequest = {
-      path,
-      counter: this.revealFileRequest.counter + 1,
-    };
+  async revealFile(path: string): Promise<void> {
+    const id = this.nextRevealFileRequestId;
+    this.nextRevealFileRequestId += 1;
+    this.activeRevealFileRequestId = id;
+    this.activeRevealRun?.cancel(new Error('File reveal superseded'));
+    runInAction(() => {
+      this.revealFileRequest = null;
+    });
+
+    const files = this.files;
+    if (!files) {
+      this.presentRevealFileError(id, path, {
+        type: 'unavailable',
+        message: 'File tree is unavailable',
+      });
+      return;
+    }
+    const run = this.revealScope.run(`reveal:${id}`, (signal) =>
+      files.revealFile(path, { signal })
+    );
+    this.activeRevealRun = run;
+    const exit = await run.exit;
+    if (this.activeRevealRun === run) this.activeRevealRun = null;
+    if (this.activeRevealFileRequestId !== id) return;
+    if (exit.kind === 'cancelled') return;
+    if (exit.kind === 'failure') {
+      this.presentRevealFileError(id, path, {
+        type: 'unavailable',
+        message: exit.error instanceof Error ? exit.error.message : String(exit.error),
+      });
+      return;
+    }
+    const result = exit.value;
+    if (!result.success) {
+      this.presentRevealFileError(id, path, result.error);
+      return;
+    }
+    this.expandPaths(result.data);
+    runInAction(() => {
+      this.revealFileRequest = { id, path, status: 'ready' };
+    });
+  }
+
+  consumeRevealFileRequest(id: number): void {
+    if (this.revealFileRequest?.id === id) this.revealFileRequest = null;
   }
 
   /** Opens the per-view file-tree projection. Idempotent. */
@@ -108,8 +162,13 @@ export class EditorViewStore {
   /** Closes the projection subscription and clears the per-view tree state. */
   disposeFiles(): void {
     const store = this.files;
+    this.activeRevealRun?.cancel(new Error('File tree disposed'));
+    this.activeRevealRun = null;
     runInAction(() => {
       this.files = null;
+      this.activeRevealFileRequestId = this.nextRevealFileRequestId;
+      this.nextRevealFileRequestId += 1;
+      this.revealFileRequest = null;
     });
     store?.dispose();
   }
@@ -277,10 +336,18 @@ export class EditorViewStore {
 
   dispose(): void {
     this.disposeFiles();
+    void this.revealScope.dispose();
   }
 
   private openEntryForPath(filePath: string): OpenFileEntry | undefined {
     return this.openFileResources.find((resource) => resource.path === filePath)?.entry;
+  }
+
+  private presentRevealFileError(id: number, path: string, error: TreeMutationError): void {
+    if (this.activeRevealFileRequestId !== id) return;
+    runInAction(() => {
+      this.revealFileRequest = { id, path, status: 'error', error };
+    });
   }
 
   private retargetExpandedPaths(oldPath: string, newPath: string): void {

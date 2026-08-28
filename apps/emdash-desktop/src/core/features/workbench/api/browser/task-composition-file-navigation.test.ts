@@ -3,20 +3,20 @@ import { TaskComposition } from '@core/features/workbench/api/browser/task-compo
 
 function createTaskCompositionHarness() {
   const open = vi.fn();
-  const requestRevealFile = vi.fn();
+  const revealFile = vi.fn();
   const focusRegion = vi.fn();
   const openSidebarTab = vi.fn();
   const taskView = Object.create(TaskComposition.prototype) as TaskComposition;
 
   Object.defineProperties(taskView, {
-    editorView: { value: { requestRevealFile } },
+    editorView: { value: { revealFile } },
     paneLayout: { value: { open } },
     chrome: { value: { commands: { focusRegion, openSidebarTab } } },
   });
 
   return {
     open,
-    requestRevealFile,
+    revealFile,
     focusRegion,
     openSidebarTab,
     taskView,
@@ -31,6 +31,6 @@ describe('TaskComposition workspace file navigation', () => {
 
     expect(harness.open).not.toHaveBeenCalled();
     expect(harness.openSidebarTab).toHaveBeenCalledWith('files');
-    expect(harness.requestRevealFile).toHaveBeenCalledWith('/repo/src/already-open.ts');
+    expect(harness.revealFile).toHaveBeenCalledWith('/repo/src/already-open.ts');
   });
 });

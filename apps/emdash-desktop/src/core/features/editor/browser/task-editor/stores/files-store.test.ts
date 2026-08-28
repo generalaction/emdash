@@ -3,9 +3,9 @@ import {
   DEFAULT_TREE_EXCLUDE,
 } from '@emdash/core/primitives/exclusion-policy/api';
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
-import type { FileTreeModel } from '@emdash/core/runtimes/files/api';
-import { ok } from '@emdash/shared';
-import { waitFor } from '@emdash/shared/testing';
+import type { FileTreeModel, FsError } from '@emdash/core/runtimes/files/api';
+import { ok, type Result } from '@emdash/shared';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { defineContract } from '@emdash/wire/rpc';
 import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
@@ -35,10 +35,27 @@ vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({
 
 type RecordedMutation = { name: string; key: FilesTreeKey; input: unknown };
 
+function expandedMutationPaths(calls: RecordedMutation[]): string[] {
+  return calls.flatMap((call) => {
+    if (call.name !== 'expand' || call.input === undefined) return [];
+    const path = (call.input as { path: string }).path;
+    return path === '' ? [] : [path];
+  });
+}
+
+function treeMutationOrder(calls: RecordedMutation[]): string[] {
+  return calls.flatMap((call) => {
+    if ((call.name !== 'expand' && call.name !== 'reveal') || call.input === undefined) return [];
+    const path = (call.input as { path: string }).path;
+    return path === '' ? [] : [`${call.name}:${path}`];
+  });
+}
+
 function makeEntry(
   path: string,
   kind: 'file' | 'directory',
-  children: readonly string[] = []
+  children: readonly string[] = [],
+  childrenLoaded = kind === 'directory'
 ): FileTreeModel['entries'][string] {
   return {
     path: portablePath(path),
@@ -46,7 +63,7 @@ function makeEntry(
     parentPath:
       path === '' ? null : portablePath(path.slice(0, Math.max(path.lastIndexOf('/'), 0))),
     kind,
-    childrenLoaded: kind === 'directory',
+    childrenLoaded,
     children: children.map((child) => portablePath(child)),
   };
 }
@@ -63,8 +80,15 @@ function makeTreeModel(root: string): FileTreeModel {
   };
 }
 
-function setup(options: { sshConnectionId?: string; hostAccess?: ProjectHostAccess } = {}) {
-  const treeCell = cell<FileTreeModel>(makeTreeModel('/repo'));
+function setup(
+  options: {
+    sshConnectionId?: string;
+    hostAccess?: ProjectHostAccess;
+    tree?: FileTreeModel;
+    beforeMutation?: (name: string, input: unknown) => Promise<Result<void, FsError> | undefined>;
+  } = {}
+) {
+  const treeCell = cell<FileTreeModel>(options.tree ?? makeTreeModel('/repo'));
   const stateKeys: FilesTreeKey[] = [];
   const mutationCalls: RecordedMutation[] = [];
   const fsCalls: Array<{ name: string; input: unknown }> = [];
@@ -79,6 +103,8 @@ function setup(options: { sshConnectionId?: string; hostAccess?: ProjectHostAcce
     }
   ) => {
     mutationCalls.push({ name, key: context.key, input: context.input });
+    const intercepted = await options.beforeMutation?.(name, context.input);
+    if (intercepted) return intercepted;
     const revision = treeCell.update((previous) => ({ ...previous }), {
       mutationIds: [context.mutationId],
     });
@@ -142,7 +168,7 @@ afterEach(() => {
 });
 
 describe('FilesStore', () => {
-  it('binds the files domain tree model keyed by the root ResourceUri', async () => {
+  it('binds the files domain tree model without re-expanding a populated root', async () => {
     const { store, stateKeys, mutationCalls } = setup();
     disposeStore = () => store.dispose();
 
@@ -153,7 +179,7 @@ describe('FilesStore', () => {
       sessionId: 'workspace-1',
       exclusions: canonicalExclusionPatterns(DEFAULT_TREE_EXCLUDE),
     });
-    expect(mutationCalls).toContainEqual({
+    expect(mutationCalls).not.toContainEqual({
       name: 'expand',
       key: stateKeys[0],
       input: { path: '' },
@@ -213,6 +239,237 @@ describe('FilesStore', () => {
     expect(mutationCalls.filter((call) => call.name === 'reveal')[0]?.input).toEqual({
       path: 'src/index.ts',
     });
+  });
+
+  it('cancels a superseded reveal through the Wire mutation signal', async () => {
+    const revealGate = deferred<void>();
+    const { store, mutationCalls } = setup({
+      beforeMutation: async (name) => {
+        if (name === 'reveal') await revealGate.promise;
+      },
+    });
+    disposeStore = () => store.dispose();
+    await store.start();
+    const abort = new AbortController();
+
+    const reveal = store.revealFile('/repo/src/index.ts', { signal: abort.signal });
+    await vi.waitFor(() =>
+      expect(mutationCalls).toContainEqual(
+        expect.objectContaining({ name: 'reveal', input: { path: 'src/index.ts' } })
+      )
+    );
+    abort.abort(new Error('File reveal superseded'));
+
+    await expect(reveal).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unavailable' },
+    });
+    revealGate.resolve();
+  });
+
+  it('attaches the Replica before background root hydration settles', async () => {
+    const rootGate = deferred<void>();
+    const tree = makeTreeModel('/repo');
+    tree.entries = { '': makeEntry('', 'directory', [], false) };
+    const { store, mutationCalls } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name === 'expand' && (input as { path: string }).path === '') {
+          await rootGate.promise;
+        }
+        return undefined;
+      },
+    });
+    disposeStore = () => store.dispose();
+
+    await expect(store.start()).resolves.toBeUndefined();
+    await vi.waitFor(() =>
+      expect(mutationCalls).toContainEqual(
+        expect.objectContaining({ name: 'expand', input: { path: '' } })
+      )
+    );
+    expect(store.error).toBeUndefined();
+    expect(store.isLoading).toBe(true);
+
+    rootGate.resolve();
+    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
+  });
+
+  it('hydrates restored directories serially and prioritizes a foreground request', async () => {
+    const gates: Array<ReturnType<typeof deferred<void>>> = [];
+    const tree = makeTreeModel('/repo');
+    tree.entries = {
+      '': makeEntry('', 'directory', ['a', 'b', 'c']),
+      a: makeEntry('a', 'directory', [], false),
+      b: makeEntry('b', 'directory', [], false),
+      c: makeEntry('c', 'directory', [], false),
+    };
+    const { store, mutationCalls } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name !== 'expand' || (input as { path: string }).path === '') return;
+        const gate = deferred<void>();
+        gates.push(gate);
+        await gate.promise;
+      },
+    });
+    disposeStore = () => store.dispose();
+    await store.start();
+
+    store.reconcileVisibleScopes(new Set(['/repo/a', '/repo/b']));
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a']));
+
+    const foreground = store.registerDir('/repo/c');
+    gates[0]?.resolve();
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a', 'c']));
+    gates[1]?.resolve();
+    await expect(foreground).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['a', 'c', 'b']));
+    gates[2]?.resolve();
+    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
+  });
+
+  it('prioritizes a foreground reveal over queued restored directories', async () => {
+    const gates: Array<ReturnType<typeof deferred<void>>> = [];
+    const tree = makeTreeModel('/repo');
+    tree.entries = {
+      '': makeEntry('', 'directory', ['a', 'b', 'c']),
+      a: makeEntry('a', 'directory', [], false),
+      b: makeEntry('b', 'directory', [], false),
+      c: makeEntry('c', 'directory', ['c/file.ts']),
+      'c/file.ts': makeEntry('c/file.ts', 'file'),
+    };
+    const { store, mutationCalls } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name !== 'expand' || (input as { path: string }).path === '') return;
+        const gate = deferred<void>();
+        gates.push(gate);
+        await gate.promise;
+      },
+    });
+    disposeStore = () => store.dispose();
+    await store.start();
+
+    store.reconcileVisibleScopes(new Set(['/repo/a', '/repo/b']));
+    await vi.waitFor(() => expect(treeMutationOrder(mutationCalls)).toEqual(['expand:a']));
+    const reveal = store.revealFile('/repo/c/file.ts');
+
+    gates[0]?.resolve();
+    await expect(reveal).resolves.toEqual(ok(['/repo/c']));
+    await vi.waitFor(() =>
+      expect(treeMutationOrder(mutationCalls).slice(0, 3)).toEqual([
+        'expand:a',
+        'reveal:c/file.ts',
+        'expand:b',
+      ])
+    );
+    gates[1]?.resolve();
+    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
+  });
+
+  it('runs a trailing forced load when a normal load is already active', async () => {
+    const gates: Array<ReturnType<typeof deferred<void>>> = [];
+    const tree = makeTreeModel('/repo');
+    tree.entries = {
+      '': makeEntry('', 'directory', ['src']),
+      src: makeEntry('src', 'directory', [], false),
+    };
+    const { store, mutationCalls } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name !== 'expand' || (input as { path: string }).path !== 'src') return;
+        const gate = deferred<void>();
+        gates.push(gate);
+        await gate.promise;
+      },
+    });
+    disposeStore = () => store.dispose();
+    await store.start();
+    const refresh = vi
+      .spyOn(
+        (
+          store as unknown as {
+            treeModel: { states: { tree: { refresh(): Promise<void> } } };
+          }
+        ).treeModel.states.tree,
+        'refresh'
+      )
+      .mockResolvedValue();
+
+    const normal = store.registerDir('/repo/src');
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src']));
+    const forced = store.registerDir('/repo/src', true);
+
+    gates[0]?.resolve();
+    await expect(normal).resolves.toEqual(ok(undefined));
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src', 'src']));
+    gates[1]?.resolve();
+    await expect(forced).resolves.toEqual(ok(undefined));
+    expect(refresh).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(store.pendingPaths.size).toBe(0));
+  });
+
+  it('settles a queued directory load when the tree Runtime is disposed', async () => {
+    const gate = deferred<void>();
+    const tree = makeTreeModel('/repo');
+    tree.entries = {
+      '': makeEntry('', 'directory', ['src']),
+      src: makeEntry('src', 'directory', [], false),
+    };
+    const { store, mutationCalls } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name === 'expand' && (input as { path: string }).path === 'src') {
+          await gate.promise;
+        }
+      },
+    });
+    await store.start();
+
+    const load = store.registerDir('/repo/src');
+    await vi.waitFor(() => expect(expandedMutationPaths(mutationCalls)).toEqual(['src']));
+    store.dispose();
+
+    await expect(load).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unavailable', message: 'File tree is unavailable' },
+    });
+    gate.resolve();
+  });
+
+  it('keeps a directory-load failure scoped to the requested path', async () => {
+    const tree = makeTreeModel('/repo');
+    tree.entries.src = makeEntry('src', 'directory', [], false);
+    const { store } = setup({
+      tree,
+      beforeMutation: async (name, input) => {
+        if (name === 'expand' && (input as { path: string }).path === 'src') {
+          return {
+            success: false,
+            error: {
+              type: 'io',
+              path: 'src',
+              message: "Wire call 'files.tree.model.expand' timed out after 30000ms",
+            },
+          };
+        }
+        return undefined;
+      },
+    });
+    disposeStore = () => store.dispose();
+    await store.start();
+
+    await expect(store.registerDir('/repo/src')).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'io',
+        path: 'src',
+        message: "Wire call 'files.tree.model.expand' timed out after 30000ms",
+      },
+    });
+    expect(store.error).toBeUndefined();
+    expect(store.rootNodes.map((node) => node.path)).toEqual(['/repo/src', '/repo/README.md']);
   });
 
   it('retains the observed tree as stale and blocks writes while offline', async () => {

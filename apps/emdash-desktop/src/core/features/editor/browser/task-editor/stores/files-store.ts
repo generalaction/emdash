@@ -15,6 +15,12 @@ import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
+  createRequestScheduler,
+  requestPriorities,
+  type RequestScheduler,
+} from '@emdash/shared/requests';
+import { throwIfAborted, waitWithSignal } from '@emdash/shared/scheduling';
+import {
   observe,
   optimistic,
   pin,
@@ -64,6 +70,7 @@ export type TreeMutationError =
     }
   | { type: 'unavailable'; message: string };
 type PendingUploadNode = { node: RenderableFileNode };
+type DirectoryLoadPriority = 'foreground' | 'background';
 type ViewData = {
   nodes: Map<string, RenderableFileNode>;
   rootNodes: RenderableFileNode[];
@@ -94,6 +101,11 @@ export class FilesStore {
 
   private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
   private readonly pendingPathSet = observable.set<string>();
+  private readonly directoryLoadErrors = observable.map<string, TreeMutationError>();
+  private readonly forcedDirectoryLoadPaths = new Set<string>();
+  private readonly activeForcedDirectoryLoadPaths = new Set<string>();
+  private treeHydrationScheduler: RequestScheduler | null = null;
+  private treeHydrationAbort: AbortController | null = null;
 
   constructor(
     private readonly projectId: string,
@@ -161,12 +173,16 @@ export class FilesStore {
   get isLoading(): boolean {
     if (this.hostAccess?.liveAction.kind === 'disabled' && this.treeData === null) return false;
     if (this.syncError !== null) return false;
+    if (this.directoryLoadErrors.has(this.rootPath)) return false;
     if (this.optimistic === null) return true;
     return this.tree?.entries['']?.childrenLoaded !== true;
   }
 
   get error(): string | undefined {
-    return this.syncError ?? undefined;
+    if (this.syncError !== null) return this.syncError;
+    if (this.tree?.entries['']?.childrenLoaded === true) return undefined;
+    const rootError = this.directoryLoadErrors.get(this.rootPath);
+    return rootError ? treeMutationErrorMessage(rootError) : undefined;
   }
 
   get observation(): LiveRuntimeObservation<FilesTreeModel> {
@@ -217,10 +233,11 @@ export class FilesStore {
   }
 
   reconcileVisibleScopes(expandedPaths: Set<string>): void {
+    const missing = new Set<string>();
     for (const expandedPath of expandedPaths) {
       const node = this.viewData.nodes.get(normalizeFileTreePath(expandedPath));
       if (node && isExpandableFileTreeNode(node) && !this.loadedPaths.has(node.path)) {
-        void this.registerDir(node.path);
+        missing.add(node.path);
       }
     }
     const rows = buildFileTreeVisibleRows(
@@ -235,42 +252,42 @@ export class FilesStore {
         expandedPaths.has(row.node.path) &&
         !this.loadedPaths.has(row.node.path)
       ) {
-        void this.registerDir(row.node.path);
+        missing.add(row.node.path);
       }
     }
-  }
-
-  async registerDir(dirPath: string, force = false): Promise<void> {
-    const model = await this.requireModel();
-    const absolute = this.resolveWorkspacePath(dirPath);
-    if (this.pendingPathSet.has(absolute)) return;
-    if (!force && this.loadedPaths.has(absolute)) return;
-    runInAction(() => this.pendingPathSet.add(absolute));
-    try {
-      if (force) await model.states.tree.refresh();
-      const invocation = await model.mutations.expand({ path: this.relative(absolute) });
-      if (invocation.result.success) await invocation.settled;
-    } finally {
-      runInAction(() => this.pendingPathSet.delete(absolute));
+    for (const path of [...missing].sort(compareDirectoryDepth)) {
+      void this.requestDirectoryLoad(path, 'background');
     }
   }
 
-  async revealFile(filePath: string): Promise<Result<string[], TreeMutationError>> {
+  registerDir(dirPath: string, force = false): Promise<Result<void, TreeMutationError>> {
+    return this.requestDirectoryLoad(dirPath, 'foreground', force);
+  }
+
+  async revealFile(
+    filePath: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<Result<string[], TreeMutationError>> {
     try {
       const model = await this.requireModel();
+      throwIfAborted(options.signal, 'File reveal cancelled');
+      const scheduler = this.treeHydrationScheduler;
+      const abort = this.treeHydrationAbort;
+      if (!scheduler || !abort || abort.signal.aborted) {
+        return err({ type: 'unavailable', message: 'File tree is unavailable' });
+      }
       const absolute = this.resolveWorkspacePath(filePath);
-      const relative = this.relative(absolute);
-      const invocation = await model.mutations.reveal({ path: relative });
-      if (!invocation.result.success) {
-        return invocation.result;
-      }
-      await invocation.settled;
-      const segments = relative.split('/').filter(Boolean);
-      const ancestors: string[] = [];
-      for (let index = 1; index < segments.length; index += 1) {
-        ancestors.push(this.absolute(portablePath(segments.slice(0, index).join('/'))));
-      }
-      return ok(ancestors);
+      const waiterSignal = options.signal
+        ? AbortSignal.any([abort.signal, options.signal])
+        : abort.signal;
+      return await scheduler.submit(
+        {
+          key: `reveal:${absolute}`,
+          priority: requestPriorities.interactive,
+          run: (signal) => this.performFileReveal(model, absolute, signal),
+        },
+        { signal: waiterSignal }
+      );
     } catch (error) {
       return err(treeMutationError(error));
     }
@@ -432,11 +449,15 @@ export class FilesStore {
       await model.states.tree.refresh();
       runInAction(() => {
         this.syncError = null;
+        this.directoryLoadErrors.clear();
       });
+      if (this.tree?.entries['']?.childrenLoaded !== true) {
+        void this.requestDirectoryLoad(this.rootPath, 'background');
+      }
     } catch (error) {
-      runInAction(() => {
-        this.syncError = error instanceof Error ? error.message : String(error);
-      });
+      if (this.tree?.entries['']?.childrenLoaded !== true) {
+        runInAction(() => this.directoryLoadErrors.set(this.rootPath, treeMutationError(error)));
+      }
     }
   }
 
@@ -503,19 +524,31 @@ export class FilesStore {
         await scope.dispose();
         return;
       }
+      const treeHydrationAbort = new AbortController();
+      runtimeScope.add(() => {
+        if (!treeHydrationAbort.signal.aborted) {
+          treeHydrationAbort.abort(new Error('File tree runtime disposed'));
+        }
+      });
+      const treeHydrationScheduler = createRequestScheduler({
+        scope: runtimeScope,
+        maxConcurrency: 1,
+        label: 'tree-hydration',
+      });
       runInAction(() => {
         this.treeScope = runtimeScope;
         this.treeRemote = treeRemote;
         this.treeModel = model;
         this.optimistic = view;
+        this.treeHydrationAbort = treeHydrationAbort;
+        this.treeHydrationScheduler = treeHydrationScheduler;
         this.syncError = null;
       });
       scope = null;
       treeRemote = null;
-      if (refresh) await model.states.tree.refresh();
-      const expanded = await model.mutations.expand({ path: portablePath('') });
-      if (expanded.result.success) await expanded.settled;
-      else this.setError(expanded.result.error);
+      if (refresh || this.tree?.entries['']?.childrenLoaded !== true) {
+        void this.requestDirectoryLoad(this.rootPath, 'background', refresh);
+      }
     } catch (error) {
       try {
         await treeRemote?.dispose();
@@ -598,18 +631,157 @@ export class FilesStore {
     return normalizeFileTreePath(nativePathFromHost(resolveRelativePath(this.root, relativePath)));
   }
 
-  private setError(error: unknown): void {
+  private async performFileReveal(
+    model: TreeRemoteMember,
+    absolutePath: string,
+    signal: AbortSignal
+  ): Promise<Result<string[], TreeMutationError>> {
+    try {
+      throwIfAborted(signal, 'File reveal cancelled');
+      const relative = this.relative(absolutePath);
+      const invocation = await model.mutations.reveal({ path: relative }, { signal });
+      if (!invocation.result.success) return invocation.result;
+      await waitWithSignal(invocation.settled, signal, 'File reveal cancelled');
+      const segments = relative.split('/').filter(Boolean);
+      const ancestors: string[] = [];
+      for (let index = 1; index < segments.length; index += 1) {
+        ancestors.push(this.absolute(portablePath(segments.slice(0, index).join('/'))));
+      }
+      return ok(ancestors);
+    } catch (error) {
+      return err(treeMutationError(error));
+    }
+  }
+
+  private async requestDirectoryLoad(
+    dirPath: string,
+    priority: DirectoryLoadPriority,
+    force = false
+  ): Promise<Result<void, TreeMutationError>> {
+    let absolute: string;
+    try {
+      absolute = this.resolveWorkspacePath(dirPath);
+    } catch (error) {
+      return Promise.resolve(err(treeMutationError(error)));
+    }
+
+    if (priority === 'foreground') {
+      runInAction(() => this.directoryLoadErrors.delete(absolute));
+    }
+    if (!force && this.loadedPaths.has(absolute)) {
+      runInAction(() => this.directoryLoadErrors.delete(absolute));
+      return Promise.resolve(ok<void>());
+    }
+    if (priority === 'background' && this.directoryLoadErrors.has(absolute)) {
+      return Promise.resolve(err(this.directoryLoadErrors.get(absolute)!));
+    }
+
+    if (!this.treeHydrationScheduler) {
+      try {
+        await this.ensureStarted();
+      } catch (error) {
+        return err(treeMutationError(error));
+      }
+    }
+    const scheduler = this.treeHydrationScheduler;
+    const abort = this.treeHydrationAbort;
+    if (!scheduler || !abort || abort.signal.aborted) {
+      return err({ type: 'unavailable', message: 'File tree is unavailable' });
+    }
+
+    if (force && !this.activeForcedDirectoryLoadPaths.has(absolute)) {
+      this.forcedDirectoryLoadPaths.add(absolute);
+    }
+    runInAction(() => this.pendingPathSet.add(absolute));
+
+    try {
+      const result = await scheduler.submit(
+        {
+          key: `directory:${absolute}`,
+          priority:
+            priority === 'foreground'
+              ? requestPriorities.interactive
+              : requestPriorities.background,
+          run: (signal) => this.performDirectoryLoad(scheduler, abort, absolute, signal),
+        },
+        { signal: abort.signal }
+      );
+      if (
+        force &&
+        this.treeHydrationScheduler === scheduler &&
+        !abort.signal.aborted &&
+        this.forcedDirectoryLoadPaths.has(absolute)
+      ) {
+        return this.requestDirectoryLoad(absolute, 'foreground', true);
+      }
+      return result;
+    } catch (error) {
+      return err(treeMutationError(error));
+    }
+  }
+
+  private async performDirectoryLoad(
+    scheduler: RequestScheduler,
+    abort: AbortController,
+    path: string,
+    signal: AbortSignal
+  ): Promise<Result<void, TreeMutationError>> {
+    const force = this.forcedDirectoryLoadPaths.delete(path);
+    if (force) this.activeForcedDirectoryLoadPaths.add(path);
+    let result: Result<void, TreeMutationError>;
+    try {
+      const model = this.treeModel ?? (await this.requireModel());
+      throwIfAborted(signal, 'Directory load cancelled');
+      if (!force && this.loadedPaths.has(path)) {
+        result = ok<void>();
+      } else {
+        if (force) {
+          await model.states.tree.refresh();
+          throwIfAborted(signal, 'Directory load cancelled');
+        }
+        const invocation = await model.mutations.expand({ path: this.relative(path) }, { signal });
+        if (!invocation.result.success) {
+          result = invocation.result;
+        } else {
+          await waitWithSignal(invocation.settled, signal, 'Directory load cancelled');
+          result = ok<void>();
+        }
+      }
+    } catch (error) {
+      result = err(treeMutationError(error));
+    }
+    if (force) this.activeForcedDirectoryLoadPaths.delete(path);
+    if (this.treeHydrationScheduler === scheduler && !abort.signal.aborted) {
+      runInAction(() => {
+        if (result.success) this.directoryLoadErrors.delete(path);
+        else this.directoryLoadErrors.set(path, result.error);
+        if (!this.forcedDirectoryLoadPaths.has(path)) this.pendingPathSet.delete(path);
+      });
+    }
+    return result;
+  }
+
+  private cancelTreeHydration(): void {
+    const scheduler = this.treeHydrationScheduler;
+    const abort = this.treeHydrationAbort;
+    this.treeHydrationScheduler = null;
+    this.treeHydrationAbort = null;
+    if (abort && !abort.signal.aborted) {
+      abort.abort(new Error('File tree is unavailable'));
+    }
+    void scheduler?.dispose();
+    this.forcedDirectoryLoadPaths.clear();
+    this.activeForcedDirectoryLoadPaths.clear();
     runInAction(() => {
-      this.syncError =
-        typeof error === 'object' && error && 'message' in error
-          ? String(error.message)
-          : String(error);
+      this.pendingPathSet.clear();
+      this.directoryLoadErrors.clear();
     });
   }
 
   private disposeRuntime(preserveData = false): void {
     const remote = this.treeRemote;
     const scope = this.treeScope;
+    this.cancelTreeHydration();
     runInAction(() => {
       this.optimistic = null;
       if (!preserveData) this.treeData = null;
@@ -635,6 +807,17 @@ function treeMutationError(error: unknown): TreeMutationError {
     return { type: 'unavailable', message: protocolUpgradeMessage('upgrade-server') };
   }
   return { type: 'unavailable', message };
+}
+
+function treeMutationErrorMessage(error: TreeMutationError): string {
+  if ('message' in error && error.message) return error.message;
+  if ('path' in error && error.path) return `${error.type}: ${error.path}`;
+  return error.type;
+}
+
+function compareDirectoryDepth(left: string, right: string): number {
+  const depth = (path: string) => path.split('/').filter(Boolean).length;
+  return depth(left) - depth(right) || left.localeCompare(right);
 }
 
 function pushChild(
