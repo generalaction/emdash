@@ -1,4 +1,4 @@
-import type { AttachmentRef, ImageAttachmentMimeType } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentRef } from '@emdash/core/runtimes/acp/api/client';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
   CommandItem,
@@ -52,7 +52,11 @@ import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pa
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
-import { uploadDroppedFile } from './acp-dropped-file';
+import {
+  shouldUseAcpImageAttachment,
+  toAcpImageAttachmentMimeType,
+  uploadDroppedFile,
+} from './acp-dropped-file';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 import { createTranscriptFileCommands } from './transcript-file-commands';
 
@@ -112,40 +116,6 @@ function toComposerPermission(
   };
 }
 
-const supportedAttachmentMimeTypes = new Set<ImageAttachmentMimeType>([
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-]);
-const attachmentMimeTypeByExtension: Record<string, ImageAttachmentMimeType> = {
-  gif: 'image/gif',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
-
-function toAttachmentMimeTypeValue(value: string): ImageAttachmentMimeType | null {
-  const mimeType = value.toLowerCase();
-  return supportedAttachmentMimeTypes.has(mimeType as ImageAttachmentMimeType)
-    ? (mimeType as ImageAttachmentMimeType)
-    : null;
-}
-
-function toAttachmentMimeType(file: File): ImageAttachmentMimeType | null {
-  const declaredMimeType = toAttachmentMimeTypeValue(file.type);
-  if (declaredMimeType) return declaredMimeType;
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  return extension ? (attachmentMimeTypeByExtension[extension] ?? null) : null;
-}
-
-const imageLikeFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
-
-function isImageLikeFile(file: File): boolean {
-  return file.type.toLowerCase().startsWith('image/') || imageLikeFileExtension.test(file.name);
-}
-
 function readFileAsDataUrl(file: File): Promise<string | undefined> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -159,7 +129,7 @@ async function uploadImageFile(
   store: AcpChatStore,
   file: File
 ): Promise<AcpPromptAttachment | null> {
-  const mimeType = toAttachmentMimeType(file);
+  const mimeType = toAcpImageAttachmentMimeType(file);
   if (!mimeType) {
     log.warn('Dropped image type is not supported for ACP attachments', {
       name: file.name,
@@ -341,7 +311,7 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const addFileMentions = useCallback(
     async (files: File[]) => {
-      const regularFiles = files.filter((file) => !isImageLikeFile(file));
+      const regularFiles = files.filter((file) => !shouldUseAcpImageAttachment(file));
       const refs = await Promise.all(
         regularFiles.map(async (file) => {
           try {
@@ -376,10 +346,10 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const addImageFiles = useCallback(
     async (files: File[]) => {
-      const supportedFiles = files.filter((file) => toAttachmentMimeType(file) !== null);
+      const supportedFiles = files.filter((file) => toAcpImageAttachmentMimeType(file) !== null);
       if (supportedFiles.length < files.length) {
         const unsupportedNames = files
-          .filter((file) => toAttachmentMimeType(file) === null)
+          .filter((file) => toAcpImageAttachmentMimeType(file) === null)
           .map((file) => file.name || 'unnamed image')
           .join(', ');
         toast.error('Unsupported image format', {
@@ -399,7 +369,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const handleFilesDropped = useCallback(
     async (files: File[]) => {
       const imagesMissingBrowserMime = files.filter(
-        (file) => !file.type.toLowerCase().startsWith('image/') && isImageLikeFile(file)
+        (file) => !file.type.toLowerCase().startsWith('image/') && shouldUseAcpImageAttachment(file)
       );
       await Promise.all([addImageFiles(imagesMissingBrowserMime), addFileMentions(files)]);
     },
@@ -424,7 +394,7 @@ const ComposerForStore = observer(function ComposerForStore({
       e.target.value = '';
       if (files.length === 0) return;
 
-      const images = files.filter(isImageLikeFile);
+      const images = files.filter(shouldUseAcpImageAttachment);
       await Promise.all([addImageFiles(images), addFileMentions(files)]);
     },
     [addFileMentions, addImageFiles]

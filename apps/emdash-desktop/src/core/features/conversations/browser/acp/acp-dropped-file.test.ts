@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   droppedFileMimeType,
+  shouldUseAcpImageAttachment,
+  toAcpImageAttachmentMimeType,
   uploadDroppedFile,
   type BrowserDroppedFile,
 } from './acp-dropped-file';
@@ -33,5 +35,24 @@ describe('ACP dropped files', () => {
 
   it('uses a binary MIME type when the browser does not declare one', () => {
     expect(droppedFileMimeType({ type: '' })).toBe('application/octet-stream');
+  });
+
+  it.each([
+    ['diagram.svg', ''],
+    ['photo.avif', 'application/octet-stream'],
+    ['scan.tiff', 'image/tiff'],
+  ])('routes unsupported image %s as a regular file', (name, type) => {
+    const file = { name, type };
+
+    expect(toAcpImageAttachmentMimeType(file)).toBeNull();
+    expect(shouldUseAcpImageAttachment(file)).toBe(false);
+  });
+
+  it.each([
+    ['photo.png', ''],
+    ['photo.jpg', 'application/octet-stream'],
+    ['clipboard-image', 'image/webp'],
+  ])('routes supported image %s as an ACP image attachment', (name, type) => {
+    expect(shouldUseAcpImageAttachment({ name, type })).toBe(true);
   });
 });
