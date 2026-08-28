@@ -1,9 +1,7 @@
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation } from '@core/primitives/conversations/api';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
-  createWorkspacePromptSpillDeps,
   TuiConversationProvider,
   type TuiConversationProviderOptions,
 } from './tui-conversation-provider';
@@ -158,52 +156,6 @@ describe('TuiConversationProvider', () => {
       })
     );
   });
-
-  it('backs prompt spill creation, writes, and cleanup with workspace files', async () => {
-    const createDirectory = vi.fn().mockResolvedValue(ok(undefined));
-    const writeFile = vi.fn().mockResolvedValue(ok(undefined));
-    const remove = vi.fn().mockResolvedValue(ok(undefined));
-    const root = hostPathFromNative('/workspace');
-    const files = {
-      root,
-      client: {
-        fs: {
-          createDirectory,
-          writeFile,
-          delete: remove,
-        },
-      },
-    } as never;
-    const deps = createWorkspacePromptSpillDeps(files, '/workspace', 'conversation-1');
-    if (!deps.createTempDir || !deps.writeContextFile || !deps.removeTempDir) {
-      throw new Error('Expected complete workspace spill dependencies');
-    }
-
-    const directory = await deps.createTempDir();
-    const contextFile = `${directory}/task-context.md`;
-    await deps.writeContextFile(contextFile, 'large prompt');
-    await deps.removeTempDir(directory);
-
-    expect(directory).toBe('/workspace/.emdash/tmp/prompt-conversation-1');
-    expect(createDirectory).toHaveBeenNthCalledWith(1, {
-      path: hostPathFromNative('/workspace/.emdash'),
-    });
-    expect(createDirectory).toHaveBeenNthCalledWith(2, {
-      path: hostPathFromNative('/workspace/.emdash/tmp'),
-    });
-    expect(createDirectory).toHaveBeenNthCalledWith(3, {
-      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
-    });
-    expect(writeFile).toHaveBeenCalledWith({
-      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1/task-context.md'),
-      content: 'large prompt',
-      precondition: { kind: 'overwrite' },
-    });
-    expect(remove).toHaveBeenCalledWith({
-      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
-      recursive: true,
-    });
-  });
 });
 
 function createProvider(
@@ -217,10 +169,6 @@ function createProvider(
   return new TuiConversationProvider(
     {
       host: overrides.host ?? { type: 'local', id: 'local' },
-      files: {
-        root: hostPathFromNative('/workspace'),
-        client: { mutations: {} },
-      } as never,
       tuiAgents: { start, resume } as never,
       projectId: 'project-1',
       taskId: 'task-1',

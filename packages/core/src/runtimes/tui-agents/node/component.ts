@@ -5,6 +5,7 @@ import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { tuiAgentsContract } from '#runtimes/tui-agents/api';
 import { createTuiAgentsController } from '#runtimes/tui-agents/node/api/controller';
+import { cleanupStalePromptSpills } from '#runtimes/tui-agents/node/runtime/prompt-spill';
 import { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
@@ -79,6 +80,10 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
         spawner: new NodePtySpawner(),
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
+      });
+      void cleanupStalePromptSpills({
+        onError: (error) =>
+          runtimeLogger.warn('Failed to clean stale TUI prompt files', { error: String(error) }),
       });
       void runtime.reconcile();
       scope.add(() => runtime.dispose());
