@@ -280,7 +280,7 @@ export class TreeResource {
       return;
     }
 
-    const run = this.run(() => this.drainResyncs());
+    const run = this.run(() => this.runResync());
     this.resyncRun = run;
     void run.then(
       () => this.finishResyncRun(run),
@@ -291,11 +291,9 @@ export class TreeResource {
     );
   }
 
-  private async drainResyncs(): Promise<void> {
-    do {
-      this.trailingResyncRequested = false;
-      await this.resync(this.current());
-    } while (this.trailingResyncRequested && !this.disposed);
+  private async runResync(): Promise<void> {
+    this.trailingResyncRequested = false;
+    await this.resync(this.current());
   }
 
   private finishResyncRun(run: Promise<void>): void {
