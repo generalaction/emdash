@@ -56,6 +56,7 @@ import type { MdastMention } from './mdast-mention';
 import type { MentionProvider } from './mention-provider';
 import { remarkInlineMentions } from './remark-inline-mentions';
 import type { ParseData } from './remark-inline-mentions';
+import { remarkResolveReferences } from './remark-resolve-references';
 
 // ── Shared processor instance ────────────────────────────────────────────────
 //
@@ -66,6 +67,7 @@ const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
   .use(remarkMath)
+  .use(remarkResolveReferences)
   .use(remarkInlineMentions)
   .freeze();
 

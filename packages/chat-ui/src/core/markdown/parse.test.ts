@@ -258,3 +258,35 @@ describe('blockquote paragraphs → variant: quote', () => {
     expect(prose?.depth).toBe(1);
   });
 });
+
+describe('reference-style links and images', () => {
+  const linkRun = (runs: InlineRun[]): InlineText | undefined =>
+    runs.find((r): r is InlineText => r.kind === 'text' && r.href !== undefined);
+
+  it('resolves a full reference link to its definition URL (text is not dropped)', () => {
+    const runs = firstProseRuns('See [the docs][d] for more.\n\n[d]: https://example.com/docs');
+    const link = linkRun(runs);
+    expect(link?.text).toBe('the docs');
+    expect(link?.href).toBe('https://example.com/docs');
+    expect(textSegments(runs).join('')).toContain('the docs');
+  });
+
+  it('resolves collapsed and shortcut references', () => {
+    for (const md of ['See [x][] now.\n\n[x]: https://c.com', 'See [x] now.\n\n[x]: https://c.com']) {
+      const link = linkRun(firstProseRuns(md));
+      expect(link?.text).toBe('x');
+      expect(link?.href).toBe('https://c.com');
+    }
+  });
+
+  it('resolves an image reference to its alt text and URL', () => {
+    const link = linkRun(firstProseRuns('![the alt][img]\n\n[img]: https://i.com/x.png'));
+    expect(link?.text).toBe('the alt');
+    expect(link?.href).toBe('https://i.com/x.png');
+  });
+
+  it('leaves an undefined reference as literal text', () => {
+    const runs = firstProseRuns('See [text][missing] here.', nullProvider);
+    expect(textSegments(runs).join('')).toContain('[text][missing]');
+  });
+});
