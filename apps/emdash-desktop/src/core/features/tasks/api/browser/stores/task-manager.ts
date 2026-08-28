@@ -59,6 +59,12 @@ type TaskMutationInvocation<Data, Error> = {
 
 type TaskListRemoteMember = ReturnType<RemoteModel<typeof tasksWireContract.taskList>>;
 
+export type TaskProvisionOutcome =
+  | { kind: 'active'; disposition: 'activated' | 'already-active' }
+  | { kind: 'deferred'; reason: 'host-unavailable' }
+  | { kind: 'skipped'; reason: 'task-missing' | 'task-not-provisionable' }
+  | { kind: 'failed'; message: string };
+
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   return match(error)
     .with({ type: 'project-not-found' }, () => 'Project not found.')
@@ -144,7 +150,7 @@ export class TaskManagerStore {
   private readonly _settingsStore: ProjectSettingsStore;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
-  private _provisionPromises = new Map<string, Promise<void>>();
+  private _provisionPromises = new Map<string, Promise<TaskProvisionOutcome>>();
   private readonly _taskListScope: Scope = createScope({ label: 'task-list-replica' });
   private _taskListRemote: RemoteModel<typeof tasksWireContract.taskList> | null = null;
   private _taskStatsRemote: RemoteModel<typeof tasksWireContract.taskStats> | null = null;
@@ -447,32 +453,68 @@ export class TaskManagerStore {
     await this.provisionTask(params.id);
   }
 
-  async provisionTask(taskId: string): Promise<void> {
-    if (!this.host.requireLive().success) return;
-    await this.loadTasks();
-
+  async provisionTask(taskId: string): Promise<TaskProvisionOutcome> {
     const inFlight = this._provisionPromises.get(taskId);
     if (inFlight) return inFlight;
 
+    const knownTask = this.tasks.get(taskId);
+    if (knownTask && isProvisioned(knownTask)) {
+      return { kind: 'active', disposition: 'already-active' };
+    }
+    if (!this.host.requireLive().success) {
+      return { kind: 'deferred', reason: 'host-unavailable' };
+    }
+
+    await this.loadTasks();
+
+    const loadedInFlight = this._provisionPromises.get(taskId);
+    if (loadedInFlight) return loadedInFlight;
+
     const task = this.tasks.get(taskId);
-    if (!task || !isUnprovisioned(task)) return;
+    if (!task) return { kind: 'skipped', reason: 'task-missing' };
+    if (isProvisioned(task)) return { kind: 'active', disposition: 'already-active' };
+    if (!isUnprovisioned(task)) {
+      return { kind: 'skipped', reason: 'task-not-provisionable' };
+    }
 
     runInAction(() => {
       task.phase = 'provision';
       task.errorMessage = undefined;
     });
 
-    const promise = this._doProvision(taskId).finally(() => {
-      this._provisionPromises.delete(taskId);
-    });
+    const promise = this._doProvision(taskId)
+      .catch((error): TaskProvisionOutcome => {
+        const message = formatErrorMessage(error);
+        log.error('Unexpected error provisioning task', {
+          projectId: this.projectId,
+          taskId,
+          error,
+        });
+        runInAction(() => {
+          const current = this.tasks.get(taskId);
+          if (current && isUnprovisioned(current)) {
+            current.phase = 'provision-error';
+            current.errorMessage = message;
+          }
+        });
+        return { kind: 'failed', message };
+      })
+      .finally(() => {
+        this._provisionPromises.delete(taskId);
+      });
 
     this._provisionPromises.set(taskId, promise);
     return promise;
   }
 
-  private async _doProvision(taskId: string): Promise<void> {
+  private async _doProvision(taskId: string): Promise<TaskProvisionOutcome> {
     const task = this.tasks.get(taskId);
-    if (!task || !isUnprovisioned(task)) return;
+    if (!task) return { kind: 'skipped', reason: 'task-missing' };
+    if (!isUnprovisioned(task)) {
+      return isProvisioned(task)
+        ? { kind: 'active', disposition: 'already-active' }
+        : { kind: 'skipped', reason: 'task-not-provisionable' };
+    }
 
     const wsId = task.data.workspaceId;
     if (!wsId) {
@@ -484,7 +526,7 @@ export class TaskManagerStore {
           current.errorMessage = message;
         }
       });
-      return;
+      return { kind: 'failed', message };
     }
 
     // Activation gates on registry/outbox state, then assembles and registers the task session.
@@ -514,7 +556,7 @@ export class TaskManagerStore {
           current.errorMessage = message;
         }
       });
-      return;
+      return { kind: 'failed', message };
     }
 
     const taskBeforeTransition = this.tasks.get(taskId);
@@ -522,7 +564,7 @@ export class TaskManagerStore {
       await taskBeforeTransition.ready();
     }
 
-    runInAction(() => {
+    const activated = runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
         current.transitionToProvisioned(
@@ -532,8 +574,16 @@ export class TaskManagerStore {
           result.data.sshConnectionId ?? undefined
         );
         current.activate();
+        return true;
       }
+      return false;
     });
+    if (activated) return { kind: 'active', disposition: 'activated' };
+
+    const current = this.tasks.get(taskId);
+    return current && isProvisioned(current)
+      ? { kind: 'active', disposition: 'already-active' }
+      : { kind: 'skipped', reason: current ? 'task-not-provisionable' : 'task-missing' };
   }
 
   private async _doHandleProvisioned(
