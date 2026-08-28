@@ -104,11 +104,15 @@ describe('TreeResource', () => {
     const diagnostic = tree as unknown as DiagnosticTreeResource;
     const firstStarted = deferred<void>();
     const resumeFirst = deferred<void>();
+    const secondCompleted = deferred<void>();
     let rebuilds = 0;
 
     diagnostic.resync = async () => {
       rebuilds += 1;
-      if (rebuilds !== 1) return;
+      if (rebuilds !== 1) {
+        secondCompleted.resolve();
+        return;
+      }
       firstStarted.resolve();
       await resumeFirst.promise;
     };
@@ -119,9 +123,63 @@ describe('TreeResource', () => {
 
     expect(rebuilds).toBe(1);
     resumeFirst.resolve();
+    await secondCompleted.promise;
     await diagnostic.lane;
 
     expect(rebuilds).toBe(2);
+  });
+
+  it('does not starve reveal behind a trailing watcher resync', async () => {
+    const { rootPath, tree, watcher } = await createHarness();
+    await mkdir(path.join(rootPath, 'apps/emdash-desktop/drizzle/meta'), { recursive: true });
+    await writeFile(
+      path.join(rootPath, 'apps/emdash-desktop/drizzle/meta/0044_snapshot.json'),
+      '{}'
+    );
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    const firstStarted = deferred<void>();
+    const secondStarted = deferred<void>();
+    const resumeFirst = deferred<void>();
+    const resumeSecond = deferred<void>();
+    let rebuilds = 0;
+
+    diagnostic.resync = async () => {
+      rebuilds += 1;
+      if (rebuilds === 1) {
+        firstStarted.resolve();
+        await resumeFirst.promise;
+        return;
+      }
+      secondStarted.resolve();
+      await resumeSecond.promise;
+    };
+
+    watcher.resync();
+    await firstStarted.promise;
+    watcher.resync();
+    let revealSettled = false;
+    const reveal = tree
+      .reveal(
+        treeContext(
+          tree,
+          { path: portable('apps/emdash-desktop/drizzle/meta/0044_snapshot.json') },
+          'reveal-during-resync-test'
+        )
+      )
+      .then((result) => {
+        revealSettled = true;
+        return result;
+      });
+
+    resumeFirst.resolve();
+    await secondStarted.promise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const settledBeforeTrailingResync = revealSettled;
+    resumeSecond.resolve();
+    const result = await reveal;
+
+    expect(settledBeforeTrailingResync).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('drops a trailing resync when disposed during the active rebuild', async () => {
