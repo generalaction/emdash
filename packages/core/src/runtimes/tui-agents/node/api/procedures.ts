@@ -24,7 +24,7 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
       return runtime.resumeSession(input);
     },
-    stop(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+    stop(input: { conversationId: string }): Promise<Result<void, TuiSessionControlError>> {
       return runtime.stopSession(input.conversationId);
     },
     delete(input: { conversationId: string }): Promise<Result<void, TuiSessionControlError>> {

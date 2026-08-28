@@ -130,7 +130,7 @@ const conversationsAcpContract = defineContract({
     acpApiContract.exportRawAcpLog.output
   ),
   uploadAttachment: uploadFile({
-    input: conversationKey.extend({ originalPath: z.string().optional() }),
+    input: acpApiContract.uploadAttachment.input,
     accept: acpApiContract.uploadAttachment.accept,
     result: acpApiContract.uploadAttachment.result,
     error: projectAttachmentErrorUnion(acpApiContract.uploadAttachment.error),

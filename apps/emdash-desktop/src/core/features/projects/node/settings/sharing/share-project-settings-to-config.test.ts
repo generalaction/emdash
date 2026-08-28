@@ -352,7 +352,7 @@ describe('shareProjectSettingsToConfig', () => {
   it('excludes task targets that use the project root working directory', async () => {
     const projectRootFs = createMemoryFileSystem({
       '.emdash.json': JSON.stringify({ scripts: { run: 'root run' } }),
-      '/repo/.emdash/worktrees/task-two/.emdash.json': JSON.stringify({
+      '/home/dev/emdash/worktrees/repo/task-two/.emdash.json': JSON.stringify({
         scripts: { run: 'worktree run' },
       }),
     });
@@ -368,7 +368,7 @@ describe('shareProjectSettingsToConfig', () => {
         return {
           workspaceId,
           projectId: 'project-1',
-          path: '/repo/.emdash/worktrees/task-two',
+          path: '/home/dev/emdash/worktrees/repo/task-two',
         };
       }
       return undefined;
@@ -425,8 +425,8 @@ describe('shareProjectSettingsToConfig', () => {
         type: 'task',
         taskId: 'task-2',
         label: 'Task Two',
-        path: '/repo/.emdash/worktrees/task-two',
-        configPath: '/repo/.emdash/worktrees/task-two/.emdash.json',
+        path: '/home/dev/emdash/worktrees/repo/task-two',
+        configPath: '/home/dev/emdash/worktrees/repo/task-two/.emdash.json',
         sourceWorkspaceId: 'worktree-workspace',
       },
     ]);

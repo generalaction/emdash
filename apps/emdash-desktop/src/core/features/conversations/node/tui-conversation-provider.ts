@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
@@ -10,22 +9,12 @@ import type {
   EnsureConversationSessionRequest,
   EnsureConversationSessionResult,
 } from '@core/features/conversations/api/node/types';
-import {
-  spillLargePrompt,
-  type SpillLargePromptDeps,
-  type SpillLargePromptResult,
-} from '@core/features/conversations/node/spill-large-prompt';
 import type { TaskSessionLaunchContextSource } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import {
-  fileKey,
-  fsErrorMessage,
-  type FilesClientScope,
-} from '@core/services/runtime-broker/node/files';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -41,7 +30,6 @@ const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set([
 
 export type TuiConversationProviderOptions = {
   host: HostRef;
-  files: FilesClientScope;
   tuiAgents: TuiAgentsRuntimeClient;
   projectId: string;
   taskId: string;
@@ -75,10 +63,8 @@ export class TuiConversationProvider implements ConversationProvider {
   private readonly taskId: string;
   private readonly taskPath: string;
   private readonly host: HostRef;
-  private readonly files: FilesClientScope;
   private readonly tuiAgents: TuiAgentsRuntimeClient;
   private readonly launchContextSource: TaskSessionLaunchContextSource;
-  private readonly spills = new Map<string, SpillLargePromptResult>();
 
   constructor(
     options: TuiConversationProviderOptions,
@@ -88,7 +74,6 @@ export class TuiConversationProvider implements ConversationProvider {
     this.taskId = options.taskId;
     this.taskPath = options.taskPath;
     this.host = options.host;
-    this.files = options.files;
     this.tuiAgents = options.tuiAgents;
     this.launchContextSource = options.launchContextSource;
   }
@@ -116,12 +101,10 @@ export class TuiConversationProvider implements ConversationProvider {
 
   async stopSession(conversationId: string): Promise<void> {
     await this.tuiAgents.stop({ conversationId });
-    await this.cleanupSpill(conversationId);
   }
 
   async deleteSession(conversationId: string): Promise<void> {
     await this.tuiAgents.delete({ conversationId });
-    await this.cleanupSpill(conversationId);
   }
 
   async destroyAll(): Promise<void> {
@@ -143,10 +126,8 @@ export class TuiConversationProvider implements ConversationProvider {
     initialPrompt: string | undefined
   ): Promise<TuiAgentStartInput> {
     const agentSession = resolveAgentSession(conversation, mode);
-    const effectiveInitialPrompt = await this.effectiveInitialPrompt(
-      conversation.id,
-      !agentSession.isResuming && mode === 'start' ? initialPrompt : undefined
-    );
+    const effectiveInitialPrompt =
+      !agentSession.isResuming && mode === 'start' ? initialPrompt : undefined;
     const [providerConfig, taskSettings, colorEnv, launchContext, gitCredentials] =
       await Promise.all([
         this.dependencies.getProviderConfig(conversation.providerId),
@@ -193,66 +174,6 @@ export class TuiConversationProvider implements ConversationProvider {
       tmuxSessionName: launchContext.data.tmux ? makeTmuxSessionName(sessionId) : undefined,
     };
   }
-
-  private async effectiveInitialPrompt(
-    conversationId: string,
-    initialPrompt: string | undefined
-  ): Promise<string | undefined> {
-    if (!initialPrompt) return undefined;
-    await this.cleanupSpill(conversationId);
-    const spill = await spillLargePrompt(
-      initialPrompt,
-      createWorkspacePromptSpillDeps(this.files, this.taskPath, conversationId)
-    );
-    this.spills.set(conversationId, spill);
-    return spill.prompt;
-  }
-
-  private async cleanupSpill(conversationId: string): Promise<void> {
-    const spill = this.spills.get(conversationId);
-    if (!spill) return;
-    this.spills.delete(conversationId);
-    await spill.cleanup();
-  }
-}
-
-export function createWorkspacePromptSpillDeps(
-  files: FilesClientScope,
-  taskPath: string,
-  conversationId: string
-): SpillLargePromptDeps {
-  const emdashDir = path.join(taskPath, '.emdash');
-  const tmpDir = path.join(emdashDir, 'tmp');
-  const promptDir = path.join(tmpDir, `prompt-${conversationId}`);
-
-  return {
-    createTempDir: async () => {
-      for (const directory of [emdashDir, tmpDir, promptDir]) {
-        const result = await files.client.fs.createDirectory(fileKey(files, directory));
-        if (!result.success && result.error.type !== 'already-exists') {
-          throw new Error(fsErrorMessage(result.error));
-        }
-      }
-      return promptDir;
-    },
-    writeContextFile: async (filePath, contents) => {
-      const result = await files.client.fs.writeFile({
-        ...fileKey(files, filePath),
-        content: contents,
-        precondition: { kind: 'overwrite' },
-      });
-      if (!result.success) throw new Error(fsErrorMessage(result.error));
-    },
-    removeTempDir: async (directory) => {
-      const result = await files.client.fs.delete({
-        ...fileKey(files, directory),
-        recursive: true,
-      });
-      if (!result.success && result.error.type !== 'not-found') {
-        throw new Error(fsErrorMessage(result.error));
-      }
-    },
-  };
 }
 
 function resolveAgentSession(

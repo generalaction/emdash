@@ -12,10 +12,9 @@ export interface StoredAttachment {
 export interface AttachmentStore {
   put(input: {
     conversationId: string;
-    data?: Uint8Array;
+    data: Uint8Array;
     name?: string;
     mimeType: AttachmentMimeType;
-    originalPath?: string;
   }): Promise<AttachmentRef>;
   get(conversationId: string, attachmentId: string): Promise<StoredAttachment | null>;
   delete(conversationId: string, attachmentId: string): Promise<void>;
