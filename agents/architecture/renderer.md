@@ -41,6 +41,12 @@ Task children have two explicit lifetimes: lightweight persistent stores survive
 for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
 disposed when the task session is torn down (`task-scoped-stores.ts`).
 
+The Tasks slice owns current-task workspace activation in its app-scoped
+`TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,
+Task state, and Host generation readiness. Views and navigation handlers only express which Task
+is current; they do not opportunistically provision it. Explicit Retry and Re-provision actions
+remain direct user commands.
+
 Feature views, modals, and task tabs are exposed through `contributions/` and aggregated by
 `src/core/manifests/browser/browser-contributions.ts` and
 `src/core/manifests/browser/task-tab-contributions.ts`.

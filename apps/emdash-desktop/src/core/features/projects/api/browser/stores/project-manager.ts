@@ -570,27 +570,7 @@ export class ProjectManagerStore {
   }
 
   private async _hydrateProjectContext(context: ProjectContext): Promise<void> {
-    const taskManager = context.get(taskManagerStoreToken);
-    await taskManager.loadTasks();
-    const currentContext = this.projects.get(context.project.id)?.context;
-    if (
-      this._disposed ||
-      currentContext?.kind !== 'available' ||
-      currentContext.context !== context
-    ) {
-      return;
-    }
-
-    const nav = getNavigation();
-    const navParams = nav.currentRef.params as {
-      projectId?: string;
-      taskId?: string;
-    };
-    const navTaskId =
-      nav.currentViewId === 'task' && navParams.projectId === context.project.id
-        ? navParams.taskId
-        : undefined;
-    if (navTaskId) void taskManager.provisionTask(navTaskId).catch(() => {});
+    await context.get(taskManagerStoreToken).loadTasks();
   }
 
   async deleteProject(projectId: string): Promise<void> {

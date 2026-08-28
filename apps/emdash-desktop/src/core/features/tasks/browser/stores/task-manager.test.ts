@@ -415,7 +415,10 @@ describe('TaskManagerStore lifecycle', () => {
       recovery: 'automatic',
     };
 
-    await manager.provisionTask('task-1');
+    await expect(manager.provisionTask('task-1')).resolves.toEqual({
+      kind: 'deferred',
+      reason: 'host-unavailable',
+    });
 
     expect(task).toMatchObject({ state: 'unprovisioned', phase: 'idle' });
     manager.dispose();

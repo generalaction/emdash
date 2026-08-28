@@ -1,12 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import {
-  getTaskManagerStore,
-  getTaskStore,
-  taskViewKind,
-} from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskViewWrapper } from '@core/features/tasks/contributions/browser/task-view-context';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
@@ -25,21 +21,6 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
-  const kind = taskViewKind(taskStore, projectId);
-
-  // Auto-provision when the task view is rendered with an idle task — covers
-  // session restore where the task wasn't in openTaskIds, direct navigation,
-  // and any other path that lands on the task view before provisioning runs.
-  useEffect(() => {
-    if (kind !== 'idle') return;
-    if (taskStore && 'archivedAt' in taskStore.data && taskStore.data.archivedAt) return;
-
-    getTaskManagerStore(projectId)
-      ?.provisionTask(taskId)
-      .catch(() => {});
-  }, [kind, projectId, taskId, taskStore]);
-
   // Single hydration gate for the task view (spec §Hydration gating): nothing
   // below this boundary may paint persisted view state (titlebar chrome
   // toggles, sidebar, pane layout) before the memento space has hydrated.
