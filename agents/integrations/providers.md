@@ -56,6 +56,20 @@ Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintai
 sessions are covered. The agent details UI obtains read-only installed/pending status through the
 host's `agent-config` runtime for both local and remote hosts.
 
+## Provider API Keys
+
+Emdash passes provider API keys through to the agent CLIs it spawns. The allowlisted agent
+environment in `packages/core/src/primitives/agent-env/api/index.ts` is the single source of truth
+for which variables reach a spawned agent.
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible gateway that routes to models from
+OpenAI, Anthropic, Google, DeepSeek, Qwen, and more through one API key (`sk-orca-…`). OpenCode
+resolves `orcarouter/*` models natively, so setting `ORCAROUTER_API_KEY` (optionally
+`ORCAROUTER_BASE_URL`, defaulting to `https://api.orcarouter.ai/v1`) lets you select a
+`orcarouter/<model>` from the OpenCode model picker. It also runs gateway-level, zero-trust
+security for AI agents on the same endpoint — screening every prompt/response and governing every
+tool call on a default-deny basis, with no application code changes.
+
 ## Provider Runtime Notes
 
 - Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.

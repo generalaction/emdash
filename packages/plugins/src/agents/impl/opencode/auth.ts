@@ -5,7 +5,12 @@ import type {
 import { authenticatedFromEnv } from '../../helpers/auth';
 
 const AUTH_STATUS_TIMEOUT_MS = 5_000;
-const PROVIDER_API_ENV_VARS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY'];
+const PROVIDER_API_ENV_VARS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
+  'ORCAROUTER_API_KEY',
+];
 
 export async function opencodeAuthStatus(ctx: AgentAuthContext): Promise<AgentAuthStatus> {
   const envStatus = authenticatedFromEnv(ctx, PROVIDER_API_ENV_VARS);
