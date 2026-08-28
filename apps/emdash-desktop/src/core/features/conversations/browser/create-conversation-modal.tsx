@@ -1,3 +1,4 @@
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
@@ -7,6 +8,7 @@ import { AgentSelector } from '@core/features/agents/contributions/browser/agent
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import { providerPreferencesMemento } from '@core/features/conversations/contributions/mementos';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
@@ -15,9 +17,16 @@ import { projectAvailabilityUi } from '@core/manifests/browser/project-availabil
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
+import { getMementoClient } from '@core/primitives/mementos/browser';
+import { useMemento } from '@core/primitives/mementos/react';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
 import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
+import {
+  patchProviderPreference,
+  providerPreference,
+  providerPreferenceKey,
+} from './provider-preferences';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   projectId,
@@ -34,11 +43,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
     false
   );
+  const [providerPreferences, setProviderPreferences] = useMemento(providerPreferencesMemento);
+  const [modelOverrides, setModelOverrides] = useState<Record<string, string | null>>({});
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   useCloseGuard(isSubmitting);
 
@@ -51,6 +61,31 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
   const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
   const useAcp = showAcpToggle && useChatUiPreference;
+  const transport = useAcp ? 'acp' : 'pty';
+  const host = formatHostRef(hostRefFromConnectionId(connectionId));
+  const preferenceKey = providerId ? providerPreferenceKey(host, providerId, transport) : null;
+  const savedPreference = providerId
+    ? providerPreference(providerPreferences, host, providerId, transport)
+    : undefined;
+  const savedModelUnsupported =
+    savedPreference?.model !== undefined &&
+    modelOptions !== null &&
+    modelOptions[savedPreference.model] === undefined;
+  const hasModelOverride =
+    preferenceKey !== null && Object.prototype.hasOwnProperty.call(modelOverrides, preferenceKey);
+  const selectedModel =
+    preferenceKey !== null && hasModelOverride
+      ? (modelOverrides[preferenceKey] ?? null)
+      : savedModelUnsupported
+        ? null
+        : (savedPreference?.model ?? null);
+  const setSelectedModel = useCallback(
+    (model: string | null) => {
+      if (!preferenceKey) return;
+      setModelOverrides((current) => ({ ...current, [preferenceKey]: model }));
+    },
+    [preferenceKey]
+  );
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
   const title = providerId
@@ -63,11 +98,9 @@ export const CreateConversationModal = observer(function CreateConversationModal
       )
     : 'Conversation';
 
-  // Reset model when the provider changes (ids are provider-specific).
   const handleProviderChange = useCallback(
     (next: typeof providerId) => {
       setProviderOverride(next);
-      setSelectedModel(null);
     },
     [setProviderOverride]
   );
@@ -95,8 +128,19 @@ export const CreateConversationModal = observer(function CreateConversationModal
         provider: providerId,
         title,
         model: selectedModel ?? undefined,
+        modeId: conversationType === 'acp' ? savedPreference?.modeId : undefined,
+        effort: conversationType === 'acp' ? savedPreference?.effort : undefined,
         type: conversationType,
       });
+      try {
+        setProviderPreferences((current) =>
+          patchProviderPreference(current, host, providerId, conversationType, {
+            model: selectedModel,
+          })
+        );
+      } catch (preferenceError) {
+        getMementoClient().reportError(preferenceError);
+      }
       setIsSubmitting(false);
       complete({ conversationId: id, type: conversationType });
     } catch {
@@ -116,6 +160,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
     skipPermissions,
     selectedModel,
     useAcp,
+    host,
+    savedPreference?.effort,
+    savedPreference?.modeId,
+    setProviderPreferences,
   ]);
 
   return (

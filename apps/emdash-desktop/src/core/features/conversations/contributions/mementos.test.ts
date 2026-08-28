@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ACP_DRAFT_MAX_LENGTH, acpDraftMemento, acpDraftSchema } from './mementos';
+import {
+  ACP_DRAFT_MAX_LENGTH,
+  acpDraftMemento,
+  acpDraftSchema,
+  providerPreferencesMemento,
+  providerPreferencesSchema,
+} from './mementos';
 
 describe('ACP draft memento', () => {
   it('retains up to 5000 conversation drafts for 90 days', () => {
@@ -31,5 +37,27 @@ describe('ACP draft memento', () => {
         attachments: [{ id: 'attachment-1', mimeType: 'text/plain', bytes: [1, 2, 3] }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe('provider preferences memento', () => {
+  it('stores provider-native selections without expiring', () => {
+    expect(
+      providerPreferencesSchema.safeParse({
+        version: '1',
+        entries: {
+          '["local","claude","acp"]': {
+            model: 'sonnet',
+            modeId: 'agent-full-access',
+            effort: 'high',
+          },
+        },
+      }).status
+    ).toBe('ok');
+    expect(providerPreferencesMemento.retention).toEqual({
+      tier: 'persisted',
+      maxAge: Number.MAX_SAFE_INTEGER,
+      maxEntries: 1,
+    });
   });
 });
