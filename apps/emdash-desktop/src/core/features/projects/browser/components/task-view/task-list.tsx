@@ -242,7 +242,6 @@ const TaskListContent = observer(function TaskListContent({
         }
         onItemClick={(task) => {
           if (task.data.archivedAt) return;
-          void taskManager.provisionTask(task.data.id);
           navigate(taskViewDef({ projectId, taskId: task.data.id }));
         }}
         emptySlot={
