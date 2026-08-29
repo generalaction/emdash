@@ -194,6 +194,9 @@ export class WorkspaceRegistryRuntime {
     read: (_id, workspacePath) => readWorkspaceConfig(workspacePath),
     onChanged: (id, entry, previous, workspacePath) =>
       this.onConfigChanged(id, entry, previous, workspacePath),
+    onReadError: (id, error, _previous, workspacePath) =>
+      this.onConfigReadError(id, error, workspacePath),
+    onReadSuccess: (id) => this.clearConfigReadError(id),
   });
   private readonly bootConfigHydration: Promise<void>;
   private disposed = false;
@@ -1560,8 +1563,15 @@ export class WorkspaceRegistryRuntime {
    * failure degrades to the empty config plus a visible notice; a change republishes
    * the record so the wire summary stays fresh.
    */
-  private refreshConfig(id: string, workspacePath: string): Promise<WorkspaceConfigEntry> {
-    return this.configs.refresh(id, workspacePath);
+  private async refreshConfig(id: string, workspacePath: string): Promise<WorkspaceConfigEntry> {
+    try {
+      return await this.configs.refresh(id, workspacePath);
+    } catch (error) {
+      this.logger.warn?.(`config refresh for '${workspacePath}' failed; keeping last good value`, {
+        error,
+      });
+      return this.configs.get(id) ?? { config: {}, parseError: false };
+    }
   }
 
   private async hydrateBootConfigs(): Promise<void> {
@@ -1702,6 +1712,31 @@ export class WorkspaceRegistryRuntime {
     if (projectRoot) this.invalidateProjectConfigForProjectRoot(projectRoot.id);
   }
 
+  private onConfigReadError(id: string, error: unknown, workspacePath: string): void {
+    const detail = errorMessage(error);
+    this.updateOverlay(id, (overlay) => ({
+      ...overlay,
+      notices: [
+        ...overlay.notices.filter((notice) => notice.id !== 'config-unreadable'),
+        {
+          id: 'config-unreadable',
+          kind: 'config-unreadable',
+          message: `Could not read .emdash.json in '${workspacePath}'; keeping the last valid settings (${detail})`,
+          at: this.clock.now(),
+        },
+      ],
+    }));
+  }
+
+  private clearConfigReadError(id: string): void {
+    const overlay = this.overlays.get(id);
+    if (!overlay?.notices.some((notice) => notice.id === 'config-unreadable')) return;
+    this.updateOverlay(id, (current) => ({
+      ...current,
+      notices: current.notices.filter((notice) => notice.id !== 'config-unreadable'),
+    }));
+  }
+
   /** Persists a scan result, stamping observation time and bumping updatedAt on change. */
   private saveRecord(next: DurableWorkspaceRecord, now: number): void {
     const previous = this.store.get(next.id);
@@ -1829,6 +1864,12 @@ function describeSkip(result: UpdateWorktreeExecutionResult): string {
     default:
       return result.status;
   }
+}
+
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const code = 'code' in error && typeof error.code === 'string' ? `${error.code}: ` : '';
+  return `${code}${error.message}`;
 }
 
 /**
