@@ -61,12 +61,12 @@ export class TerminalPort {
   async killTerminal(params: KillTerminalRequest): Promise<KillTerminalResponse> {
     const terminal = this.terminals.get(params.terminalId);
     if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
-    terminal.kill();
+    await terminal.kill();
     return {};
   }
 
-  releaseTerminal(params: ReleaseTerminalRequest): ReleaseTerminalResponse {
-    this.terminals.release(params.terminalId);
+  async releaseTerminal(params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse> {
+    await this.terminals.release(params.terminalId);
     return {};
   }
 }

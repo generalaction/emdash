@@ -134,46 +134,51 @@ export class AgentTerminalManager {
    * Dispose a single terminal and remove it from the registry.
    * Emits `onTerminalReleased`. No-op if the id is unknown.
    */
-  release(terminalId: string): void {
+  release(terminalId: string): Promise<void> {
     const entry = this.byId.get(terminalId);
-    if (!entry) return;
+    if (!entry) return Promise.resolve();
     const { conversationId, terminal } = entry;
-    terminal.dispose();
+    const termination = terminal.dispose();
     this.byId.delete(terminalId);
     this.byConversation.get(conversationId)?.delete(terminalId);
     if (this.byConversation.get(conversationId)?.size === 0) {
       this.byConversation.delete(conversationId);
     }
     this.hooks.onTerminalReleased({ conversationId, terminalId });
+    return termination;
   }
 
   /**
    * Dispose all terminals belonging to a conversation (called on session close).
    * Emits `onTerminalReleased` for each terminal.
    */
-  disposeConversation(conversationId: string): void {
+  disposeConversation(conversationId: string): Promise<void> {
     const ids = this.byConversation.get(conversationId);
-    if (!ids) return;
+    if (!ids) return Promise.resolve();
+    const terminations: Promise<void>[] = [];
     for (const terminalId of [...ids]) {
       const entry = this.byId.get(terminalId);
       if (!entry) continue;
-      entry.terminal.dispose();
+      terminations.push(entry.terminal.dispose());
       this.byId.delete(terminalId);
       this.hooks.onTerminalReleased({ conversationId, terminalId });
     }
     this.byConversation.delete(conversationId);
+    return Promise.all(terminations).then(() => undefined);
   }
 
   /**
    * Dispose every terminal on this host (called on host teardown).
    * Emits `onTerminalReleased` for each terminal.
    */
-  killAll(): void {
+  killAll(): Promise<void> {
+    const terminations: Promise<void>[] = [];
     for (const [terminalId, { conversationId, terminal }] of this.byId) {
-      terminal.dispose();
+      terminations.push(terminal.dispose());
       this.hooks.onTerminalReleased({ conversationId, terminalId });
     }
     this.byId.clear();
     this.byConversation.clear();
+    return Promise.all(terminations).then(() => undefined);
   }
 }

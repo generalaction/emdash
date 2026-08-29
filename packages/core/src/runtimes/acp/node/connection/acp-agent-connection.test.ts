@@ -158,6 +158,28 @@ describe('createAcpAgentConnection()', () => {
     expect(onClosed).not.toHaveBeenCalled();
   });
 
+  it('awaits process-tree cleanup during connection scope disposal', async () => {
+    const { host, behavior, scope } = makeCtx();
+    await createAcpAgentConnection({ host, behavior }, connArgs(scope));
+    let finishKill: () => void = () => {};
+    host.lastHandle.kill.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishKill = resolve;
+      })
+    );
+    let settled = false;
+
+    const shutdown = scope.dispose().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+
+    expect(settled).toBe(false);
+    finishKill();
+    await shutdown;
+    expect(settled).toBe(true);
+  });
+
   it('advertises terminal capability based on host.spawnTerminal presence', async () => {
     const withTerminal = new FakeAcpProcessHost();
     const withoutTerminal = new FakeAcpProcessHost();

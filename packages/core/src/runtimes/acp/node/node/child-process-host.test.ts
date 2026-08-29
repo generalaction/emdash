@@ -3,12 +3,17 @@ import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChildAcpProcessHost } from './child-process-host';
 
-const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }));
+const { execFileMock, spawnMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn(),
+  spawnMock: vi.fn(),
+}));
 
-vi.mock('node:child_process', () => ({ spawn: spawnMock }));
+vi.mock('node:child_process', () => ({ execFile: execFileMock, spawn: spawnMock }));
 
 describe('ChildAcpProcessHost', () => {
   beforeEach(() => {
+    execFileMock.mockReset();
+    execFileMock.mockImplementation((_file, _args, _options, callback) => callback(null, '', ''));
     spawnMock.mockReset();
     spawnMock.mockImplementation(() => fakeChild());
   });
@@ -50,6 +55,30 @@ describe('ChildAcpProcessHost', () => {
     );
     expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty('shell');
   });
+
+  it('terminates ACP primary and terminal Windows process trees', async () => {
+    const shim = 'C:\\Program Files\\npm\\provider.cmd';
+    const host = windowsHost(shim);
+    const spec = {
+      command: 'provider',
+      args: ['run'],
+      cwd: 'C:\\workspace',
+      env: windowsEnv(),
+    };
+
+    const primary = await host.spawn(spec);
+    const terminal = await host.spawnTerminal(spec);
+    await Promise.all([primary.kill(), terminal.kill()]);
+
+    expect(execFileMock).toHaveBeenCalledTimes(2);
+    for (const call of execFileMock.mock.calls) {
+      expect(call[0]).toBe('taskkill.exe');
+      expect(call[1]).toEqual(['/PID', '4321', '/T']);
+      expect(call[2]).toMatchObject({ windowsHide: true });
+    }
+    expect(spawnMock.mock.results[0]?.value.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(spawnMock.mock.results[1]?.value.kill).toHaveBeenCalledWith('SIGTERM');
+  });
 });
 
 function windowsHost(shim: string): ChildAcpProcessHost {
@@ -68,11 +97,19 @@ function windowsEnv(): Record<string, string> {
 }
 
 function fakeChild() {
-  return Object.assign(new EventEmitter(), {
+  const child = Object.assign(new EventEmitter(), {
     stdin: new PassThrough(),
     stdout: new PassThrough(),
     stderr: new PassThrough(),
     exitCode: null,
-    kill: vi.fn(),
+    signalCode: null as NodeJS.Signals | null,
+    pid: 4321,
+    kill: vi.fn<(signal?: NodeJS.Signals) => boolean>(),
   });
+  child.kill.mockImplementation((signal) => {
+    child.signalCode = signal ?? 'SIGTERM';
+    child.emit('exit', null, child.signalCode);
+    return true;
+  });
+  return child;
 }

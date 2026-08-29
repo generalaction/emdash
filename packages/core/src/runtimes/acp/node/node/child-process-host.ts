@@ -2,7 +2,12 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { recordSpawn } from '@emdash/shared/perf';
-import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
+import {
+  createChildProcessTreeTerminator,
+  planExecutableLaunch,
+  type FileExists,
+  type ProcessTreeTerminator,
+} from '#primitives/exec/node';
 import type {
   AcpFs,
   AcpProcessHandle,
@@ -12,7 +17,17 @@ import type {
 import type { AcpRuntimeProcessHost } from '#runtimes/acp/node/runtime/types';
 
 class ChildProcessHandle implements AcpProcessHandle {
-  constructor(private readonly child: ReturnType<typeof spawn>) {}
+  private readonly terminator: ProcessTreeTerminator;
+
+  constructor(
+    private readonly child: ReturnType<typeof spawn>,
+    platform: NodeJS.Platform
+  ) {
+    this.terminator = createChildProcessTreeTerminator(child, {
+      platform,
+      processGroup: platform !== 'win32',
+    });
+  }
 
   get stdin() {
     if (!this.child.stdin) throw new Error('ChildAcpProcessHost: child has no stdin');
@@ -40,16 +55,24 @@ class ChildProcessHandle implements AcpProcessHandle {
     this.child.on('error', cb);
   }
 
-  kill(signal?: NodeJS.Signals): void {
-    this.child.kill(signal ?? 'SIGTERM');
+  kill(signal?: NodeJS.Signals): Promise<void> {
+    return this.terminator.terminate(signal);
   }
 }
 
 class ChildTerminalProcess extends EventEmitter implements AcpTerminalProcess {
   private _exitCode: number | null = null;
+  private readonly terminator: ProcessTreeTerminator;
 
-  constructor(private readonly child: ReturnType<typeof spawn>) {
+  constructor(
+    private readonly child: ReturnType<typeof spawn>,
+    platform: NodeJS.Platform
+  ) {
     super();
+    this.terminator = createChildProcessTreeTerminator(child, {
+      platform,
+      processGroup: platform !== 'win32',
+    });
     child.on('exit', (code, signal) => {
       this._exitCode = code;
       this.emit('exit', { exitCode: code, signal: signal ?? null } satisfies AcpTerminalExit);
@@ -78,8 +101,8 @@ class ChildTerminalProcess extends EventEmitter implements AcpTerminalProcess {
     this.on('error', cb);
   }
 
-  kill(signal?: NodeJS.Signals): void {
-    this.child.kill(signal ?? 'SIGTERM');
+  kill(signal?: NodeJS.Signals): Promise<void> {
+    return this.terminator.terminate(signal);
   }
 }
 
@@ -105,8 +128,9 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpProcessHandle> {
+    const platform = this.options.platform ?? process.platform;
     const plan = planExecutableLaunch({
-      platform: this.options.platform ?? process.platform,
+      platform,
       command: spec.command,
       args: spec.args,
       cwd: spec.cwd,
@@ -116,6 +140,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     recordSpawn('agent', plan.executable);
     const child = spawn(plan.executable, plan.args, {
       cwd: plan.cwd,
+      detached: platform !== 'win32',
       env: spec.env,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsVerbatimArguments: plan.windowsVerbatimArguments,
@@ -123,7 +148,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     if (!child.stdin || !child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn process - no stdio streams');
     }
-    return new ChildProcessHandle(child);
+    return new ChildProcessHandle(child, platform);
   }
 
   async spawnTerminal(spec: {
@@ -132,8 +157,9 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess> {
+    const platform = this.options.platform ?? process.platform;
     const plan = planExecutableLaunch({
-      platform: this.options.platform ?? process.platform,
+      platform,
       command: spec.command,
       args: spec.args,
       cwd: spec.cwd,
@@ -143,6 +169,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     recordSpawn('agent', plan.executable);
     const child = spawn(plan.executable, plan.args, {
       cwd: plan.cwd,
+      detached: platform !== 'win32',
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsVerbatimArguments: plan.windowsVerbatimArguments,
@@ -150,6 +177,6 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     if (!child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn terminal - no stdout stream');
     }
-    return new ChildTerminalProcess(child);
+    return new ChildTerminalProcess(child, platform);
   }
 }
