@@ -34,6 +34,8 @@ function createRuntime(
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
     platform?: NodeJS.Platform;
     commandEnv?: Record<string, string>;
+    command?: string;
+    args?: string[];
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -54,8 +56,8 @@ function createRuntime(
     buildPromptCommand: vi.fn(() =>
       Promise.resolve(
         ok({
-          command: 'agent',
-          args: ['run', 'hello world'],
+          command: options.command ?? 'agent',
+          args: options.args ?? ['run', 'hello world'],
           env: options.commandEnv ?? { AGENT: '1' },
         })
       )
@@ -139,6 +141,26 @@ describe('TuiAgentsRuntime', () => {
     expect(
       Object.keys(spawner.specs[0]?.env ?? {}).filter((key) => key.toLowerCase() === 'path')
     ).toEqual(['PATH']);
+  });
+
+  it('launches Windows cmd providers through an explicit cmd wrapper', async () => {
+    const command = 'C:\\Program Files\\npm\\provider.cmd';
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      command,
+      commandEnv: {
+        PATH: 'C:\\Program Files\\npm',
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+      },
+    });
+
+    await runtime.startSession(startInput({ cwd: 'C:\\workspace' }));
+
+    expect(spawner.specs[0]).toMatchObject({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', expect.stringContaining(command)],
+      cwd: 'C:\\workspace',
+    });
   });
 
   it('trusts the workspace only when the start input opts in', async () => {

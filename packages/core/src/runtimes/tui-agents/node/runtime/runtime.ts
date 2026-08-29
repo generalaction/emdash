@@ -5,7 +5,6 @@ import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
 import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
-import { formatCommandLine } from '#primitives/exec/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
   PersistedTuiAgentStartInput,
@@ -40,10 +39,11 @@ import {
   type ConversationLifecycleReporter,
 } from '#services/conversation-reports/node';
 import {
-  buildTmuxShellLine,
   killTmuxSession,
   listTmuxSessionActivity,
+  logLocalPtySpawnWarnings,
   PtyRegistry,
+  resolveLocalPtySpawn,
   type PtyExitInfo,
   type PtySession,
   type PtySpawnSpec,
@@ -487,7 +487,23 @@ export class TuiAgentsRuntime {
       return this.cancelledSpawn(config.input.conversationId);
     }
 
-    const spawnSpec = this.spawnSpec(command, config.input);
+    // Git-credential behavior is applied last through the blessed construction (spec:
+    // github-git-settings §4) so a "none" scrub wins over provider and hook env.
+    const env = applyGitCredentialsToEnv(
+      mergeAgentEnvLayers(
+        currentAgentEnvPlatform(this.deps.platform),
+        {
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          TERM_PROGRAM: 'emdash',
+        },
+        command.env,
+        config.input.providerVars ?? {},
+        hookEnv
+      ),
+      config.input.gitCredentials
+    );
+    const spawnSpec = this.spawnSpec(command, config.input, env);
     let pty: PtySession;
     try {
       pty = await this.registry.create(
@@ -496,23 +512,7 @@ export class TuiAgentsRuntime {
           command: spawnSpec.command,
           args: spawnSpec.args,
           cwd: config.input.cwd,
-          // Git-credential behavior is applied last through the blessed
-          // construction (spec: github-git-settings §4) so a "none" scrub
-          // wins over provider and hook env.
-          env: applyGitCredentialsToEnv(
-            mergeAgentEnvLayers(
-              currentAgentEnvPlatform(this.deps.platform),
-              {
-                TERM: 'xterm-256color',
-                COLORTERM: 'truecolor',
-                TERM_PROGRAM: 'emdash',
-              },
-              command.env,
-              config.input.providerVars ?? {},
-              hookEnv
-            ),
-            config.input.gitCredentials
-          ),
+          env,
           cols: config.input.cols,
           rows: config.input.rows,
         },
@@ -893,25 +893,27 @@ export class TuiAgentsRuntime {
 
   private spawnSpec(
     command: AgentCommand,
-    input: TuiAgentStartInput
+    input: TuiAgentStartInput,
+    env: Record<string, string>
   ): Pick<PtySpawnSpec, 'command' | 'args'> {
-    if (!input.shellSetup && !input.tmuxSessionName) {
-      return { command: command.command, args: command.args };
-    }
-
-    const commandLine = formatCommandLine(command, 'posix');
-    const fullCommandLine = input.shellSetup
-      ? `${input.shellSetup} && ${commandLine}`
-      : commandLine;
-    return {
-      command: '/bin/sh',
-      args: [
-        '-c',
-        input.tmuxSessionName
-          ? buildTmuxShellLine(input.tmuxSessionName, fullCommandLine)
-          : fullCommandLine,
-      ],
-    };
+    const resolved = resolveLocalPtySpawn({
+      intent: {
+        kind: 'run-command',
+        cwd: input.cwd,
+        command: { kind: 'argv', command: command.command, args: command.args },
+        shellSetup: input.shellSetup,
+        tmuxSessionName: input.tmuxSessionName,
+      },
+      platform: this.deps.platform ?? process.platform,
+      env,
+    });
+    logLocalPtySpawnWarnings(
+      'TuiAgentsRuntime',
+      resolved.warnings,
+      { conversationId: input.conversationId },
+      this.deps.logger
+    );
+    return { command: resolved.command, args: resolved.args };
   }
 
   private maybeRespawnAfterUnexpectedExit(

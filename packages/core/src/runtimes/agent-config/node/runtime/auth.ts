@@ -10,7 +10,12 @@ import {
 import type { LiveLogSource } from '@emdash/wire/live';
 import type { AgentConfigAuthError, AuthStatusModelState } from '#runtimes/agent-config/api';
 import type { AgentAuthStatus, AgentHostError } from '#services/agent-plugins/api/plugins';
-import { PtyRegistry, type PtyExitInfo, type PtySession } from '#services/pty/api';
+import {
+  PtyRegistry,
+  resolveLocalPtySpawn,
+  type PtyExitInfo,
+  type PtySession,
+} from '#services/pty/api';
 import type { AgentInstallManager } from './install';
 import type { AgentConfigRuntimeDeps } from './types';
 
@@ -202,11 +207,21 @@ export class AgentAuthManager {
       },
     }));
 
+    const spawn = resolveLocalPtySpawn({
+      intent: {
+        kind: 'run-command',
+        cwd: this.deps.agentHost.homeDir,
+        command: { kind: 'argv', command, args },
+      },
+      platform: this.deps.platform ?? process.platform,
+      env,
+    });
+
     const pty = await this.ptys.create(
       providerId,
       {
-        command,
-        args,
+        command: spawn.command,
+        args: spawn.args,
         cwd: this.deps.agentHost.homeDir,
         env,
         cols: dimensions?.cols ?? DEFAULT_COLS,
