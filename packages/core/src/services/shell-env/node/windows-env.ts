@@ -1,16 +1,7 @@
 import path from 'node:path';
+import { getWindowsEnvKey, getWindowsEnvValue } from '#primitives/agent-env/api';
 
-export function getWindowsEnvKey(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  if (env[key] !== undefined) return key;
-
-  const lowerKey = key.toLowerCase();
-  return Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
-}
-
-export function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const envKey = getWindowsEnvKey(env, key);
-  return envKey ? env[envKey] : undefined;
-}
+export { getWindowsEnvKey, getWindowsEnvValue } from '#primitives/agent-env/api';
 
 export function getWindowsPathEnvKey(env: NodeJS.ProcessEnv): string {
   return getWindowsEnvKey(env, 'PATH') ?? 'PATH';

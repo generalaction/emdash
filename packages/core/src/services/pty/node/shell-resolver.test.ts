@@ -43,7 +43,7 @@ describe('terminal shell resolver', () => {
     const profile = await resolveTerminalShell({
       intent: 'system',
       platform: 'win32',
-      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      env: { cOmSpEc: 'C:\\Windows\\System32\\cmd.exe' },
     });
 
     expect(profile).toMatchObject({
@@ -52,6 +52,23 @@ describe('terminal shell resolver', () => {
       executable: 'C:\\Windows\\System32\\cmd.exe',
       family: 'windows-cmd',
     });
+  });
+
+  it('resolves Windows shell discovery variables with arbitrary casing', async () => {
+    const profile = await resolveTerminalShell({
+      intent: 'pwsh',
+      platform: 'win32',
+      env: {
+        pRoGrAmFiLeS: 'C:\\Program Files',
+        pAtH: 'C:\\Windows\\System32',
+        pAtHeXt: '.EXE;.CMD',
+      },
+      readDirNames: (candidate) => (candidate === 'C:\\Program Files\\PowerShell' ? ['7.5.1'] : []),
+      fileExists: (candidate) =>
+        candidate.toLowerCase() === 'c:\\program files\\powershell\\7.5.1\\pwsh.exe',
+    });
+
+    expect(profile.executable).toBe('C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe');
   });
 
   it('keeps regular PowerShell command profiles non-profile-loading by default', async () => {

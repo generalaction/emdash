@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { getWindowsEnvValue } from '#primitives/agent-env/api';
 import { formatCommandLine, quoteArg } from '#primitives/exec/api';
 import { buildTmuxShellLine } from './tmux';
 
@@ -89,17 +90,6 @@ function argvToPosixShellLine(intent: PtySpawnIntent, command: string, args: str
 
 function wrapCmdExeCommandLine(commandLine: string): string {
   return commandLine.startsWith('"') ? `"${commandLine}"` : commandLine;
-}
-
-function getWindowsEnvKey(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  if (env[key] !== undefined) return key;
-  const lowerKey = key.toLowerCase();
-  return Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
-}
-
-function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const envKey = getWindowsEnvKey(env, key);
-  return envKey ? env[envKey] : undefined;
 }
 
 function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
