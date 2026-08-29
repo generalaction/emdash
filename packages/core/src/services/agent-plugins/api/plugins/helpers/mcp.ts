@@ -58,7 +58,10 @@ type McpConfigShape = {
   serversKey: string;
   /** Treat serversKey as a literal key instead of a dot-delimited object path. */
   serversKeyIsLiteral?: boolean;
-  toNative(server: McpServerRegistration): Record<string, unknown>;
+  toNative(
+    server: McpServerRegistration,
+    current?: Record<string, unknown>
+  ): Record<string, unknown>;
   fromNative(name: string, raw: Record<string, unknown>): McpServerRegistration;
 };
 
@@ -165,7 +168,25 @@ export function createMcpAdapter(shape: McpConfigShape) {
       // Always write the canonical path only; legacy paths are read-only
       const content = await fs.read(shape.configPath);
       const parsed: Record<string, unknown> = content ? parseMcpFile(content, shape.format) : {};
-      const native = Object.fromEntries(servers.map((s) => [s.name, shape.toNative(s)]));
+      const currentServers = getServers(parsed);
+      const currentEntries =
+        currentServers && typeof currentServers === 'object'
+          ? (currentServers as Record<string, unknown>)
+          : {};
+      const native = Object.fromEntries(
+        servers.map((server) => {
+          const current = currentEntries[server.name];
+          return [
+            server.name,
+            shape.toNative(
+              server,
+              current && typeof current === 'object'
+                ? (current as Record<string, unknown>)
+                : undefined
+            ),
+          ];
+        })
+      );
       setServers(parsed, native);
       const output =
         shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
