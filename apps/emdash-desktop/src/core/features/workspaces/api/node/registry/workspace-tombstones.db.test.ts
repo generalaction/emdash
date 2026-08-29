@@ -177,6 +177,24 @@ describe('workspace deletion tombstones', () => {
       ).toBeUndefined();
     });
 
+    it('blocks Windows casing variants of a tombstoned placement path', () => {
+      const workspace = seedWorktree('ws-windows', 'C:\\Repo\\Worktrees\\One');
+      tombstoneWorkspaceRow(fixture.db, {
+        workspace,
+        options: { deleteBranch: false, deleteConversations: false },
+        createdAt: 1,
+      });
+
+      expect(
+        findWorkspaceTombstoneConflict(fixture.db, {
+          kind: 'placement',
+          location: 'local',
+          sshConnectionId: null,
+          path: 'c:\\repo\\worktrees\\one',
+        })
+      ).toMatchObject({ type: 'workspace-tombstone-pending', workspaceId: 'ws-windows' });
+    });
+
     it('keeps a tombstone-pending path out of placement: the row stays live and holds it', () => {
       const workspace = seedWorktree('ws-1', '/repo/.worktrees/one');
       tombstoneWorkspaceRow(fixture.db, {

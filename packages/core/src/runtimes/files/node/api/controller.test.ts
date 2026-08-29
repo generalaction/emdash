@@ -14,6 +14,7 @@ import {
   type LiveUpdate,
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createPathProfile } from '#primitives/path/api';
 import { filesContract } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -41,6 +42,7 @@ describe('createFilesController', () => {
     try {
       await expect(connection.api.getHomeDir()).resolves.toEqual({
         path: runtimeRoot(await realpath(homedir())),
+        profile: createPathProfile({ style: path.sep === '\\' ? 'win32' : 'posix' }),
       });
       await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
         data: { entries: { '': { childrenLoaded: false } } },

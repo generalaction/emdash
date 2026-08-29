@@ -6,6 +6,7 @@ import {
   formatAbsolute,
   joinAbsolute,
   parseAbsolute,
+  parseNativeAbsolute,
   relativeSegmentsFromAbsolute,
 } from './index';
 
@@ -61,6 +62,29 @@ describe('absolute paths', () => {
     expect(formatAbsolute(parsed.data)).toBe('//server/share/dir/file.ts');
   });
 
+  it.each([
+    [
+      'C:\\Users\\David\\repo\\file.ts',
+      {
+        root: { kind: 'drive', driveLetter: 'C' },
+        segments: ['Users', 'David', 'repo', 'file.ts'],
+      },
+    ],
+    [
+      '\\\\server\\share\\dir\\file.ts',
+      {
+        root: { kind: 'unc', server: 'server', share: 'share' },
+        segments: ['dir', 'file.ts'],
+      },
+    ],
+    [
+      '/repo/src\\literal/index.ts',
+      { root: { kind: 'posix' }, segments: ['repo', 'src\\literal', 'index.ts'] },
+    ],
+  ])('parses native Host path %s using its root syntax', (input, expected) => {
+    expect(parseNativeAbsolute(input)).toEqual({ success: true, data: expected });
+  });
+
   it('rejects incompatible absolute path styles', () => {
     expect(parseAbsolute('C:/repo', { profile: { style: 'posix' } })).toMatchObject({
       success: false,
@@ -99,6 +123,29 @@ describe('absolute paths', () => {
     expect(root.success && sibling.success && containsAbsolute(root.data, sibling.data)).toBe(
       false
     );
+  });
+
+  it('uses Windows identity semantics for equality, containment, and relative paths', () => {
+    const root = parseNativeAbsolute('C:\\Repo');
+    const child = parseNativeAbsolute('c:\\repo\\Src\\index.ts');
+    expect(root.success && child.success && containsAbsolute(root.data, child.data)).toBe(true);
+    if (!root.success || !child.success) return;
+    expect(relativeSegmentsFromAbsolute(root.data, child.data)).toEqual({
+      success: true,
+      data: ['Src', 'index.ts'],
+    });
+
+    const uncRoot = parseNativeAbsolute('\\\\Server\\Share\\Repo');
+    const uncChild = parseNativeAbsolute('\\\\server\\share\\repo\\file.ts');
+    expect(
+      uncRoot.success && uncChild.success && containsAbsolute(uncRoot.data, uncChild.data)
+    ).toBe(true);
+  });
+
+  it('keeps POSIX containment case-sensitive', () => {
+    const root = parseNativeAbsolute('/Repo');
+    const child = parseNativeAbsolute('/repo/file.ts');
+    expect(root.success && child.success && containsAbsolute(root.data, child.data)).toBe(false);
   });
 
   it('joins, finds parents, and relativizes paths', () => {

@@ -127,6 +127,12 @@ const runtimeOverlayV1 = z.object({
         message: z.string(),
         at: z.number(),
       }),
+      z.object({
+        id: z.string(),
+        kind: z.literal('config-unreadable'),
+        message: z.string(),
+        at: z.number(),
+      }),
     ])
   ),
   activation: z

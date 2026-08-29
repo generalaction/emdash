@@ -42,4 +42,40 @@ describe('NodePtySpawner', () => {
     expect(proc.write).toHaveBeenCalledWith('input');
     expect(proc.resize).toHaveBeenCalledWith(100, 30);
   });
+
+  it('terminates Windows PTY descendants with taskkill tree semantics', async () => {
+    let exitHandler:
+      | ((event: { exitCode: number | null; signal?: string | null }) => void)
+      | undefined;
+    const proc = {
+      pid: 4321,
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn((handler) => {
+        exitHandler = handler;
+      }),
+    };
+    spawnMock.mockReturnValue(proc);
+    const taskkill = vi.fn(async () => {
+      exitHandler?.({ exitCode: null, signal: 'SIGTERM' });
+    });
+    const spawned = await new NodePtySpawner({ platform: 'win32', taskkill }).spawn({
+      command: 'agent.cmd',
+      args: [],
+      cwd: 'C:\\workspace',
+      env: { PATH: 'C:\\Windows\\System32' },
+      cols: 80,
+      rows: 24,
+    });
+    spawned.onExit(vi.fn());
+
+    spawned.kill();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(taskkill).toHaveBeenCalledWith(['/PID', '4321', '/T']);
+    expect(proc.kill).toHaveBeenCalledOnce();
+  });
 });

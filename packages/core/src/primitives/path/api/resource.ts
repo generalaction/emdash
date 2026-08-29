@@ -45,7 +45,7 @@ export function relativizeHostFileRef(
       message: 'File refs are on different hosts',
     });
   }
-  const semantics = createPathSemantics(options.profile);
+  const semantics = semanticsForRef(root, options);
   if (!semantics.contains(root.path, candidate.path)) {
     return err({
       type: 'outside-root',
@@ -66,8 +66,15 @@ export function containsHostFileRef(
 ): boolean {
   return (
     hostRefEquals(root.host, candidate.host) &&
-    createPathSemantics(options.profile).contains(root.path, candidate.path)
+    semanticsForRef(root, options).contains(root.path, candidate.path)
   );
+}
+
+function semanticsForRef(root: HostFileRef, options: HostFileRefComparisonOptions) {
+  return createPathSemantics({
+    style: root.path.root.kind === 'posix' ? 'posix' : 'win32',
+    ...options.profile,
+  });
 }
 
 export function formatHostFileRef(ref: HostFileRef): string {

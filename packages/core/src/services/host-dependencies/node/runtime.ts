@@ -20,6 +20,7 @@ import {
   type PathCandidate,
 } from '#primitives/host-dependencies/api';
 import type { KeyValueStore } from '#primitives/kv/api';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import {
   hostDependenciesContract,
   type HostDependencyInstallBatchResult,
@@ -547,8 +548,9 @@ export class HostDependenciesRuntime {
       const paths = await resolveAllCommandPaths(command, this.deps.exec);
       for (const path of paths) {
         const realpath = await resolveRealpath(path, this.deps.exec);
-        if (seen.has(realpath)) continue;
-        seen.add(realpath);
+        const identity = executablePathIdentityKey(realpath);
+        if (seen.has(identity)) continue;
+        seen.add(identity);
         candidates.push({
           command,
           path,
@@ -587,6 +589,14 @@ export class HostDependenciesRuntime {
 
   private storeKey(): string {
     return `${STORE_KEY_PREFIX}:${this.deps.hostId}:selections`;
+  }
+}
+
+function executablePathIdentityKey(path: string): string {
+  try {
+    return nativePathIdentityKey(path);
+  } catch {
+    return `raw:${path}`;
   }
 }
 

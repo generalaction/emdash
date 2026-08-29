@@ -8,6 +8,7 @@ export {
   formatAbsolute,
   joinAbsolute,
   parseAbsolute,
+  parseNativeAbsolute,
   relativeSegmentsFromAbsolute,
   tryParseAbsolute,
 } from './absolute';
@@ -25,6 +26,7 @@ export {
   tryParsePortableRelativePath,
 } from './relative';
 export type { ParseRelativeOptions } from './relative';
+export { nativePathIdentityKey, stableNativePathDisplay } from './identity';
 export {
   comparisonKeyForAbsolutePath,
   createPathProfile,

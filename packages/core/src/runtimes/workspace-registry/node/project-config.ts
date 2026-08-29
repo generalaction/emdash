@@ -68,7 +68,8 @@ export function resolveProjectConfig(input: {
  */
 export function collectProjectConfigSources(
   records: readonly DurableWorkspaceRecord[],
-  configs: Pick<ReadonlyMap<string, WorkspaceConfigEntry>, 'get'>
+  configs: Pick<ReadonlyMap<string, WorkspaceConfigEntry>, 'get'>,
+  pathIdentity: (path: string) => string = (path) => path
 ): ProjectConfigSources {
   const sources = emptyProjectConfigSources();
   const ordered = [...records].sort((left, right) => {
@@ -81,8 +82,9 @@ export function collectProjectConfigSources(
   const seenPaths = new Set<string>();
 
   for (const record of ordered) {
-    if (seenPaths.has(record.path)) continue;
-    seenPaths.add(record.path);
+    const pathKey = pathIdentity(record.path);
+    if (seenPaths.has(pathKey)) continue;
+    seenPaths.add(pathKey);
     const entry = configs.get(record.id);
     if (!entry) continue;
     const configPath = path.join(record.path, '.emdash.json');

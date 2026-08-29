@@ -34,6 +34,13 @@ describe('file tree utils', () => {
     expect(node.parentPath).toBe('/repo/src');
   });
 
+  it('preserves the double leading separator of UNC paths', () => {
+    const node = makeNode('\\\\server\\share\\repo\\src\\Button.tsx', 'file');
+
+    expect(node.path).toBe('//server/share/repo/src/Button.tsx');
+    expect(node.parentPath).toBe('//server/share/repo/src');
+  });
+
   it('hides loaded descendants for collapsed directories', () => {
     const src = makeNode('src', 'directory');
     attach(src, makeNode('src/index.ts', 'file'));

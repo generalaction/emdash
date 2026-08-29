@@ -358,6 +358,7 @@ function projectHostSettingsDomains(
           hostWorktreeRoot: placementContext.hostWorktreeRoot,
           builtInWorktreeRoot: placementContext.builtInWorktreeRoot,
           homeDirectory: placementContext.homeDirectory,
+          pathProfile: placementContext.pathProfile,
         }),
         tmux: resolveTmux({
           projectTmux: tmux,

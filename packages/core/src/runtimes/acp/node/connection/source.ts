@@ -3,6 +3,7 @@ import { isErr, toSerializedError } from '@emdash/shared';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import { acpErr } from '#runtimes/acp/api';
 import type { AcpProcessHost } from '#runtimes/acp/api/transport';
 import type {
@@ -72,7 +73,7 @@ export function createAcpConnectionSource(
 }
 
 export function makeAcpConnectionKey(providerId: string, cwd: string): string {
-  return `${providerId}:${cwd}`;
+  return `${providerId}:${nativePathIdentityKey(cwd)}`;
 }
 
 export function acpConnectionCacheKey(key: AcpConnectionKey): string {

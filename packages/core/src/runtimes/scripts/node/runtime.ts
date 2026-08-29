@@ -4,12 +4,20 @@ import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { LiveLogSource } from '@emdash/wire/live';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire/rpc';
 import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
+import { createPathProfile, nativePathIdentityKey, type PathProfile } from '#primitives/path/api';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type TerminalPortProbe,
 } from '#services/preview-detection/node';
-import { buildTerminalEnv, PtyRegistry, type PtySpawner } from '#services/pty/api';
+import {
+  buildTerminalEnv,
+  logLocalPtySpawnWarnings,
+  PtyRegistry,
+  resolveLocalPtySpawn,
+  type PtySpawner,
+} from '#services/pty/api';
+import { resolveTerminalShell } from '#services/pty/node';
 import type { UserShellEnv } from '#services/shell-env/api';
 import { scriptsContract } from '../api/contract';
 import type { ScriptRunNotFoundError, StartScriptRunError } from '../api/errors';
@@ -39,6 +47,7 @@ export type ScriptsRuntimeOptions = {
   portProbe?: TerminalPortProbe;
   now?: () => number;
   logger?: Logger;
+  platform?: NodeJS.Platform;
 };
 
 type PreviewSource = {
@@ -74,8 +83,9 @@ export class ScriptsRuntime {
     scriptsContract.runs,
     {
       current: (key, scope) => {
-        scope.add(this.runStates.retain(key));
-        return this.runStates(key);
+        const identity = { workspacePath: this.workspaceStateKey(key.workspacePath) };
+        scope.add(this.runStates.retain(identity));
+        return this.runStates(identity);
       },
     }
   );
@@ -91,6 +101,8 @@ export class ScriptsRuntime {
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly now: () => number;
   private readonly logger: Logger;
+  private readonly platform: NodeJS.Platform;
+  private readonly pathProfile: PathProfile;
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly active = new Map<string, ActiveRun>();
   private readonly previewSources = new Map<string, PreviewSource>();
@@ -102,10 +114,14 @@ export class ScriptsRuntime {
     this.portProbe = options.portProbe;
     this.now = options.now ?? Date.now;
     this.logger = options.logger ?? noopLogger;
+    this.platform = options.platform ?? process.platform;
+    this.pathProfile = createPathProfile({
+      style: this.platform === 'win32' ? 'win32' : 'posix',
+    });
   }
 
   async start(input: StartScriptRunInput): Promise<Result<ScriptRunState, StartScriptRunError>> {
-    const runKey = runKeyFor(input);
+    const runKey = runKeyFor(input, this.pathProfile);
     if (this.active.has(runKey)) {
       return err({
         type: 'run-in-flight',
@@ -127,8 +143,14 @@ export class ScriptsRuntime {
     try {
       // User-shell env + the host-derived EMDASH_* vars; deliberately no CI=1
       // injection (spec: env parity — a documented breaking change).
+      const baseEnv = await this.loadUserEnv();
+      const shellProfile = await resolveTerminalShell({
+        intent: 'system',
+        platform: this.platform,
+        env: baseEnv,
+      });
       const env = buildTerminalEnv({
-        baseEnv: await this.loadUserEnv(),
+        baseEnv,
         overrides: buildScriptEnv(input.workspacePath, input.facts),
       });
       session = await this.registry.create(
@@ -136,10 +158,13 @@ export class ScriptsRuntime {
         spawnSpec({
           command: input.command,
           shellSetup: input.shellSetup,
+          shellProfile,
           cwd: input.workspacePath,
           env,
           cols: input.cols ?? DEFAULT_COLS,
           rows: input.rows ?? DEFAULT_ROWS,
+          platform: this.platform,
+          logger: this.logger,
         }),
         {
           output: log,
@@ -222,15 +247,17 @@ export class ScriptsRuntime {
       pid: session.getPid(),
       outputTail: '',
     };
-    this.runStates({ workspacePath: input.workspacePath }).update((previous) => ({
-      ...previous,
-      [input.script]: initial,
-    }));
+    this.runStates({ workspacePath: this.workspaceStateKey(input.workspacePath) }).update(
+      (previous) => ({
+        ...previous,
+        [input.script]: initial,
+      })
+    );
     return ok(initial);
   }
 
   async wait(input: WaitScriptRunInput): Promise<Result<ScriptRunState, ScriptRunNotFoundError>> {
-    const runKey = runKeyFor(input);
+    const runKey = runKeyFor(input, this.pathProfile);
     const active = this.active.get(runKey);
     if (active && (input.runId === undefined || active.runId === input.runId)) {
       return ok(await active.settled);
@@ -246,7 +273,7 @@ export class ScriptsRuntime {
   }
 
   stop(input: StopScriptRunInput): Result<void, ScriptRunNotFoundError> {
-    const runKey = runKeyFor(input);
+    const runKey = runKeyFor(input, this.pathProfile);
     const active = this.active.get(runKey);
     if (!active) {
       return err({
@@ -261,14 +288,14 @@ export class ScriptsRuntime {
   }
 
   sendInput(input: ScriptRunInput): Result<void, ScriptRunNotFoundError> {
-    if (!this.registry.write(runKeyFor(input), input.data)) {
+    if (!this.registry.write(runKeyFor(input, this.pathProfile), input.data)) {
       return err(notRunning(input.script));
     }
     return ok(undefined);
   }
 
   resize(input: ScriptRunResizeInput): Result<void, ScriptRunNotFoundError> {
-    if (!this.registry.resize(runKeyFor(input), input.cols, input.rows)) {
+    if (!this.registry.resize(runKeyFor(input, this.pathProfile), input.cols, input.rows)) {
       return err(notRunning(input.script));
     }
     return ok(undefined);
@@ -301,20 +328,24 @@ export class ScriptsRuntime {
     // PTY data/exit events may arrive after killAll returns. The state family is
     // already gone during shutdown, so those late callbacks are intentionally inert.
     if (this.disposed) return;
-    this.runStates({ workspacePath: key.workspacePath }).update((previous) => {
-      const current = previous[key.script];
-      // A newer run may have replaced this one; never clobber it with stale data.
-      if (!current || current.runId !== runId) return previous;
-      return { ...previous, [key.script]: update(current) };
-    });
+    this.runStates({ workspacePath: this.workspaceStateKey(key.workspacePath) }).update(
+      (previous) => {
+        const current = previous[key.script];
+        // A newer run may have replaced this one; never clobber it with stale data.
+        if (!current || current.runId !== runId) return previous;
+        return { ...previous, [key.script]: update(current) };
+      }
+    );
   }
 
   private lastRun(key: ScriptRunKey): ScriptRunState | undefined {
-    return peek(this.runStates({ workspacePath: key.workspacePath }))[key.script];
+    return peek(this.runStates({ workspacePath: this.workspaceStateKey(key.workspacePath) }))[
+      key.script
+    ];
   }
 
   private logFor(key: ScriptRunKey): LiveLogSource {
-    const id = runKeyFor(key);
+    const id = runKeyFor(key, this.pathProfile);
     let log = this.logs.get(id);
     if (!log) {
       log = new LiveLogSource();
@@ -325,7 +356,7 @@ export class ScriptsRuntime {
 
   /** Same detection interactive terminals get: URLs in run output become dev servers. */
   private previewSourceFor(key: ScriptRunKey): PreviewSource {
-    const runKey = runKeyFor(key);
+    const runKey = runKeyFor(key, this.pathProfile);
     const existing = this.previewSources.get(runKey);
     if (existing) return existing;
 
@@ -397,6 +428,10 @@ export class ScriptsRuntime {
       Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(prefix)))
     );
   }
+
+  private workspaceStateKey(workspacePath: string): string {
+    return nativePathIdentityKey(workspacePath, this.pathProfile);
+  }
 }
 
 function devServerKeyFor(runKey: string, server: DetectedPreviewUrl): string {
@@ -409,8 +444,8 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   return rest;
 }
 
-function runKeyFor(key: ScriptRunKey): string {
-  return `${key.workspacePath}\u0000${key.script}`;
+function runKeyFor(key: ScriptRunKey, profile: PathProfile): string {
+  return `${nativePathIdentityKey(key.workspacePath, profile)}\u0000${key.script}`;
 }
 
 function notRunning(script: ScriptKind): ScriptRunNotFoundError {
@@ -423,25 +458,29 @@ function notRunning(script: ScriptKind): ScriptRunNotFoundError {
 function spawnSpec(input: {
   command: string;
   shellSetup: string;
+  shellProfile: Awaited<ReturnType<typeof resolveTerminalShell>>;
   cwd: string;
   env: Record<string, string>;
   cols: number;
   rows: number;
+  platform: NodeJS.Platform;
+  logger: Logger;
 }) {
-  const command = input.shellSetup ? `${input.shellSetup}\n${input.command}` : input.command;
-  if (process.platform === 'win32') {
-    return {
-      command: input.env.ComSpec ?? 'cmd.exe',
-      args: ['/d', '/s', '/c', command],
+  const resolved = resolveLocalPtySpawn({
+    intent: {
+      kind: 'run-command',
       cwd: input.cwd,
-      env: input.env,
-      cols: input.cols,
-      rows: input.rows,
-    };
-  }
+      command: { kind: 'shell-line', commandLine: input.command },
+      shellSetup: input.shellSetup || undefined,
+      shellProfile: input.shellProfile,
+    },
+    platform: input.platform,
+    env: input.env,
+  });
+  logLocalPtySpawnWarnings('ScriptsRuntime', resolved.warnings, { cwd: input.cwd }, input.logger);
   return {
-    command: input.env.SHELL ?? '/bin/sh',
-    args: ['-lc', command],
+    command: resolved.command,
+    args: resolved.args,
     cwd: input.cwd,
     env: input.env,
     cols: input.cols,

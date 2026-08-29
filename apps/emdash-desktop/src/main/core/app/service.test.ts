@@ -1,6 +1,12 @@
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  hostPathFromNative,
+} from '@core/primitives/desktop-runtime/api';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -123,6 +129,34 @@ describe('AppService.openIn', () => {
     );
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppService.openPath', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('opens a typed local path outside the home directory without URL string building', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-open-path-'));
+    const filePath = path.join(directory, 'report #100%-資料.pdf');
+    try {
+      await writeFile(filePath, 'test');
+      mocks.openPath.mockResolvedValue('');
+
+      await appService.openPath(hostFileRefFromNativePath(filePath));
+
+      expect(mocks.openPath).toHaveBeenCalledWith(await realpath(filePath));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a remote file identity before touching the desktop OS', async () => {
+    await expect(
+      appService.openPath(hostFileRefFromNativePath('/tmp/report.pdf', 'ssh-1'))
+    ).rejects.toThrow('only available for local files');
+    expect(mocks.openPath).not.toHaveBeenCalled();
   });
 });
 

@@ -38,12 +38,16 @@ committed and shared.
   migration metadata, not a user setting.
 - Project settings pages are self-contained domain snapshots. Forms patch only touched fields;
   `null` removes an explicit value and restores inheritance.
-- The workspace registry is the sole resolver for lifecycle and file-handling config. The scripts
-  runtime receives already-resolved `command` and `shellSetup` values and does not read config.
+- The workspace registry is the sole resolver for lifecycle and file-handling config. It passes the
+  resolved `command` and `shellSetup` strings to host-owned runtimes, which select their host's default
+  shell immediately before spawning. Commands remain opaque; repository authors own their portability.
 - Task and terminal providers retain stable identity and runtime capabilities, not mutable launch
   settings. `TaskSessionLaunchContextResolver` reads task, project, host, and workspace-registry
   state immediately before a process starts; task-bound providers receive its zero-argument source.
 - Git/GitHub and placement previews must use the same portable resolvers as execution.
+- Placement obtains the owning host's structured home path and optional `PathProfile` from the files
+  runtime. It must not normalize SSH paths with the desktop's `node:path` dialect or desktop home.
+  Older workspace servers may omit the profile only for the negotiated remote-POSIX fallback.
 
 ## Deferred And Deliberate Legacy Behavior
 

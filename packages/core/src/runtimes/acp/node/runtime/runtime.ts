@@ -173,8 +173,8 @@ export class AcpRuntime {
     return this.manager.getTerminals(conversationId);
   }
 
-  killAllTerminals(): void {
-    this.manager.killAllTerminals();
+  killAllTerminals(): Promise<void> {
+    return this.manager.killAllTerminals();
   }
 
   async uploadAttachment(input: {
@@ -242,7 +242,7 @@ export class AcpRuntime {
 
   async dispose(): Promise<void> {
     await this.manager.dispose();
-    this.killAllTerminals();
+    await this.killAllTerminals();
     await this.connections.dispose();
   }
 }

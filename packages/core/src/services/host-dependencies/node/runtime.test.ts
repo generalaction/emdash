@@ -67,6 +67,28 @@ const neverElevateDefinition: HostDependencyDefinition = {
   status: 'active',
 };
 
+describe('HostDependenciesRuntime.runSelfUpdateCommand', () => {
+  it('streams the selected provider path and structured update argv', async () => {
+    const providerPath = 'C:\\Program Files\\npm\\fake-agent.cmd';
+    const selfUpdatingDefinition: HostDependencyDefinition = {
+      ...definition,
+      updateCommand: { kind: 'self', args: ['upgrade', '--channel', 'stable'] },
+    };
+    const { exec } = createFakeExec({ initiallyInstalled: true, resolvedPath: providerPath });
+    const runtime = createRuntime(exec, [selfUpdatingDefinition]);
+
+    const result = await runtime.runSelfUpdateCommand('fake-agent', jobContext());
+
+    expect(result.success).toBe(true);
+    expect(exec.execStreaming).toHaveBeenCalledWith(
+      providerPath,
+      ['upgrade', '--channel', 'stable'],
+      expect.any(Function),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+});
+
 describe('HostDependenciesRuntime.runInstallCommand', () => {
   it('runs the selected install command and returns the refreshed view', async () => {
     const { exec } = createFakeExec({ installedAfterStreaming: true });
@@ -593,6 +615,7 @@ function createFakeExec(options: {
   hostElevation?: HostElevation;
   binaryName?: string;
   streamOutput?: string;
+  resolvedPath?: string;
   dependencyProbe?: (context: {
     call: number;
     installed: boolean;
@@ -601,6 +624,7 @@ function createFakeExec(options: {
   let installed = options.initiallyInstalled ?? false;
   let dependencyProbeCall = 0;
   const binaryName = options.binaryName ?? 'fake-agent';
+  const resolvedPath = options.resolvedPath ?? `/usr/local/bin/${binaryName}`;
   const hostElevation = options.hostElevation ?? 'unavailable';
   const exec: IExecutionContext = {
     root: '',
@@ -631,10 +655,10 @@ function createFakeExec(options: {
           return { stdout: `${path}\n`, stderr: '' };
         }
         if (!installed) throw new Error('not found');
-        return { stdout: `/usr/local/bin/${binaryName}\n`, stderr: '' };
+        return { stdout: `${resolvedPath}\n`, stderr: '' };
       }
-      if (command === 'realpath' && args[0] === `/usr/local/bin/${binaryName}`) {
-        return { stdout: `/usr/local/bin/${binaryName}\n`, stderr: '' };
+      if (command === 'realpath' && args[0] === resolvedPath) {
+        return { stdout: `${resolvedPath}\n`, stderr: '' };
       }
       throw new Error(`Unexpected exec: ${command} ${args.join(' ')}`);
     }),

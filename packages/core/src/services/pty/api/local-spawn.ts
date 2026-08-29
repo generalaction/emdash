@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
+import { getWindowsEnvValue } from '#primitives/agent-env/api';
 import { formatCommandLine, quoteArg } from '#primitives/exec/api';
+import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
 import { buildTmuxShellLine } from './tmux';
 
 export type ResolvedPtyShellProfile = {
@@ -38,7 +38,7 @@ export type PtySpawnIntent =
       tmuxSessionName?: string;
     };
 
-export type LocalPtySpawnWarning = 'shell_setup_ignored_on_windows' | 'tmux_unsupported_on_windows';
+export type LocalPtySpawnWarning = 'tmux_unsupported_on_windows';
 
 export type ResolvedLocalPtySpawn = {
   command: string;
@@ -46,8 +46,6 @@ export type ResolvedLocalPtySpawn = {
   cwd: string;
   warnings: LocalPtySpawnWarning[];
 };
-
-type FileExists = (candidate: string) => boolean;
 
 function getPosixShell(env: NodeJS.ProcessEnv): string {
   return env.SHELL || '/bin/sh';
@@ -91,94 +89,20 @@ function wrapCmdExeCommandLine(commandLine: string): string {
   return commandLine.startsWith('"') ? `"${commandLine}"` : commandLine;
 }
 
-function getWindowsEnvKey(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  if (env[key] !== undefined) return key;
-  const lowerKey = key.toLowerCase();
-  return Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
-}
-
-function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const envKey = getWindowsEnvKey(env, key);
-  return envKey ? env[envKey] : undefined;
-}
-
-function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
-  const rawPath = getWindowsEnvValue(env, 'PATH') ?? '';
-  return rawPath.split(path.win32.delimiter).filter(Boolean);
-}
-
-function getWindowsPathExts(
-  env: NodeJS.ProcessEnv,
-  options: { powershell?: boolean } = {}
-): string[] {
-  const rawPathExt =
-    getWindowsEnvValue(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
-  const exts = rawPathExt
-    .split(';')
-    .map((ext) => ext.trim())
-    .filter(Boolean)
-    .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
-  if (!options.powershell) return exts;
-
-  const normalized = new Set(exts.map((ext) => ext.toUpperCase()));
-  if (!normalized.has('.PS1')) exts.push('.PS1');
-
-  const priority = new Map([
-    ['.COM', 0],
-    ['.EXE', 1],
-    ['.PS1', 2],
-    ['.CMD', 3],
-    ['.BAT', 4],
-  ]);
-  return [...exts].sort((a, b) => {
-    const aRank = priority.get(a.toUpperCase()) ?? 5;
-    const bRank = priority.get(b.toUpperCase()) ?? 5;
-    return aRank - bRank;
-  });
-}
-
-function hasWindowsPathSeparator(command: string): boolean {
-  return command.includes('\\') || command.includes('/');
-}
-
-function resolveWindowsCommandPath({
-  command,
-  cwd,
-  env,
-  fileExists,
-  powershell = false,
-}: {
-  command: string;
-  cwd: string;
-  env: NodeJS.ProcessEnv;
-  fileExists: FileExists;
-  powershell?: boolean;
-}): string | null {
-  if (path.win32.extname(command)) return null;
-
-  const baseCandidates =
-    hasWindowsPathSeparator(command) || path.win32.isAbsolute(command)
-      ? [path.win32.isAbsolute(command) ? command : path.win32.join(cwd, command)]
-      : [
-          path.win32.join(cwd, command),
-          ...getWindowsPathDirs(env).map((dir) => path.win32.join(dir, command)),
-        ];
-
-  for (const base of baseCandidates) {
-    for (const ext of getWindowsPathExts(env, { powershell })) {
-      const candidate = `${base}${ext}`;
-      if (fileExists(candidate)) return candidate;
-    }
-  }
-
-  return null;
-}
-
 function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
   const warnings: LocalPtySpawnWarning[] = [];
-  if (intent.shellSetup) warnings.push('shell_setup_ignored_on_windows');
   if (intent.tmuxSessionName) warnings.push('tmux_unsupported_on_windows');
   return warnings;
+}
+
+function combineShellSetup(
+  setup: string | undefined,
+  commandLine: string,
+  family: ResolvedPtyShellProfile['family']
+): string {
+  if (!setup) return commandLine;
+  if (family === 'powershell') return `${setup}\nif ($?) {\n${commandLine}\n}`;
+  return `${setup} && ${commandLine}`;
 }
 
 function windowsShellLineSpawn({
@@ -207,38 +131,46 @@ function windowsShellLineSpawn({
   };
 }
 
-function cmdShellLineSpawn({
-  commandLine,
-  cwd,
-  env,
-  warnings,
-}: {
-  commandLine: string;
-  cwd: string;
-  env: NodeJS.ProcessEnv;
-  warnings: LocalPtySpawnWarning[];
-}): ResolvedLocalPtySpawn {
-  return {
-    command: getWindowsShell(env),
-    args: ['/d', '/s', '/c', wrapCmdExeCommandLine(commandLine)],
-    cwd,
-    warnings,
-  };
-}
-
-function powerShellFileArgs(suppressProfile: boolean): string[] {
-  return [suppressProfile ? '-NoProfile' : '-NoLogo', '-ExecutionPolicy', 'Bypass', '-File'];
-}
-
 function resolveWindowsSpawn(
   intent: PtySpawnIntent,
   env: NodeJS.ProcessEnv,
-  fileExists: FileExists
+  fileExists?: FileExists
 ): ResolvedLocalPtySpawn {
   const warnings = windowsWarnings(intent);
   const shell = intent.shellProfile?.executable ?? getWindowsShell(env);
 
   if (intent.kind === 'interactive-shell') {
+    if (intent.shellSetup) {
+      const family = intent.shellProfile?.family ?? 'windows-cmd';
+      if (family === 'windows-cmd') {
+        return {
+          command: shell,
+          args: ['/d', '/s', '/k', wrapCmdExeCommandLine(intent.shellSetup)],
+          cwd: intent.cwd,
+          warnings,
+        };
+      }
+      if (family === 'powershell') {
+        return {
+          command: shell,
+          args: ['-NoExit', '-Command', intent.shellSetup],
+          cwd: intent.cwd,
+          warnings,
+        };
+      }
+      const interactiveArgs = intent.shellProfile?.interactiveArgs ?? [];
+      const reenter = formatCommandLine(
+        { command: shell, args: interactiveArgs },
+        family === 'csh' ? 'csh' : 'posix'
+      );
+      return windowsShellLineSpawn({
+        commandLine: combineShellSetup(intent.shellSetup, `exec ${reenter}`, family),
+        cwd: intent.cwd,
+        env,
+        shellProfile: intent.shellProfile,
+        warnings,
+      });
+    }
     return {
       command: shell,
       args: intent.shellProfile?.interactiveArgs ?? [],
@@ -248,8 +180,9 @@ function resolveWindowsSpawn(
   }
 
   if (intent.command.kind === 'shell-line') {
+    const family = intent.shellProfile?.family ?? 'windows-cmd';
     return windowsShellLineSpawn({
-      commandLine: intent.command.commandLine,
+      commandLine: combineShellSetup(intent.shellSetup, intent.command.commandLine, family),
       cwd: intent.cwd,
       env,
       shellProfile: intent.shellProfile,
@@ -258,6 +191,20 @@ function resolveWindowsSpawn(
   }
 
   const { command, args } = intent.command;
+  if (intent.shellSetup) {
+    const family = intent.shellProfile?.family ?? 'windows-cmd';
+    return windowsShellLineSpawn({
+      commandLine: combineShellSetup(
+        intent.shellSetup,
+        formatCommandLine({ command, args }, family),
+        family
+      ),
+      cwd: intent.cwd,
+      env,
+      shellProfile: intent.shellProfile,
+      warnings,
+    });
+  }
   if (intent.shellProfile?.family === 'wsl') {
     return windowsShellLineSpawn({
       commandLine: argvToPosixShellLine(intent, command, args),
@@ -268,67 +215,23 @@ function resolveWindowsSpawn(
     });
   }
 
-  const resolvedCommand =
-    resolveWindowsCommandPath({
-      command,
-      cwd: intent.cwd,
-      env,
-      fileExists,
-      powershell: intent.shellProfile?.family === 'powershell',
-    }) ?? command;
-  const ext = path.win32.extname(resolvedCommand).toLowerCase();
-
-  if (ext === '.cmd' || ext === '.bat') {
-    if (intent.shellProfile?.family === 'powershell') {
-      return windowsShellLineSpawn({
-        commandLine: formatCommandLine({ command: resolvedCommand, args }, 'powershell'),
-        cwd: intent.cwd,
-        env,
-        shellProfile: intent.shellProfile,
-        warnings,
-      });
-    }
-    return cmdShellLineSpawn({
-      commandLine: formatCommandLine({ command: resolvedCommand, args }, 'windows-cmd'),
-      cwd: intent.cwd,
-      env,
-      warnings,
-    });
-  }
-
-  if (ext === '.ps1') {
-    const selectedPowerShell =
-      intent.shellProfile?.family === 'powershell' ? intent.shellProfile : undefined;
-    return {
-      command: selectedPowerShell?.executable ?? 'powershell.exe',
-      args: [...powerShellFileArgs(selectedPowerShell === undefined), resolvedCommand, ...args],
-      cwd: intent.cwd,
-      warnings,
-    };
-  }
-
-  if (!ext) {
-    if (intent.shellProfile?.family === 'powershell') {
-      return windowsShellLineSpawn({
-        commandLine: formatCommandLine({ command, args }, 'powershell'),
-        cwd: intent.cwd,
-        env,
-        shellProfile: intent.shellProfile,
-        warnings,
-      });
-    }
-    return cmdShellLineSpawn({
-      commandLine: formatCommandLine({ command, args }, 'windows-cmd'),
-      cwd: intent.cwd,
-      env,
-      warnings,
-    });
-  }
-
-  return { command: resolvedCommand, args, cwd: intent.cwd, warnings };
+  const plan = planExecutableLaunch({
+    platform: 'win32',
+    command,
+    args,
+    cwd: intent.cwd,
+    env,
+    shellProfile: intent.shellProfile,
+    fileExists,
+  });
+  return { command: plan.executable, args: plan.args, cwd: intent.cwd, warnings };
 }
 
-function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): ResolvedLocalPtySpawn {
+function resolvePosixSpawn(
+  intent: PtySpawnIntent,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform
+): ResolvedLocalPtySpawn {
   const shell = getResolvedShell(intent, env);
   const interactiveArgs = getInteractiveArgs(intent);
   const commandArgs = getCommandArgs(intent);
@@ -375,6 +278,17 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
     );
   }
 
+  if (intent.command.kind === 'argv' && !intent.shellSetup && !intent.tmuxSessionName) {
+    const plan = planExecutableLaunch({
+      platform,
+      command: intent.command.command,
+      args: intent.command.args,
+      cwd: intent.cwd,
+      env,
+    });
+    return { command: plan.executable, args: plan.args, cwd: intent.cwd, warnings: [] };
+  }
+
   const commandLine =
     intent.command.kind === 'shell-line'
       ? intent.command.commandLine
@@ -404,7 +318,7 @@ export function resolveLocalPtySpawn({
   intent,
   platform,
   env,
-  fileExists = existsSync,
+  fileExists,
 }: {
   intent: PtySpawnIntent;
   platform: NodeJS.Platform;
@@ -413,7 +327,7 @@ export function resolveLocalPtySpawn({
 }): ResolvedLocalPtySpawn {
   return platform === 'win32'
     ? resolveWindowsSpawn(intent, env, fileExists)
-    : resolvePosixSpawn(intent, env);
+    : resolvePosixSpawn(intent, env, platform);
 }
 
 export function logLocalPtySpawnWarnings(

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
+import { buildAllowlistedAgentEnv, type AgentEnvPlatform } from '#primitives/agent-env/api';
 import type { EnvSource } from '#primitives/exec/api';
 
 export type SpawnContext = {
@@ -21,6 +21,7 @@ export type CreateSpawnContextResolverOptions = {
   env: EnvSource;
   homeDir: string;
   includeShellVar?: boolean;
+  platform?: AgentEnvPlatform;
   hasProvider?: (providerId: string) => boolean;
 };
 
@@ -51,6 +52,7 @@ export function createSpawnContextResolver(
     return buildAllowlistedAgentEnv(await options.env(), {
       homeDir: options.homeDir,
       includeShellVar: options.includeShellVar,
+      platform: options.platform,
     });
   }
 }

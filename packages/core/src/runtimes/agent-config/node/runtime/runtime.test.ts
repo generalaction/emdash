@@ -1,3 +1,6 @@
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
@@ -12,7 +15,11 @@ import type {
   PluginFs,
 } from '#services/agent-plugins/api/plugins';
 import { AgentPluginHost, createPluginRegistry } from '#services/agent-plugins/api/plugins';
-import type { ExecContextOptions, IExecutionContext } from '#services/exec/api';
+import {
+  NodeExecutionContext,
+  type ExecContextOptions,
+  type IExecutionContext,
+} from '#services/exec/api';
 import { FakePtySpawner } from '#services/pty/testing';
 import { AgentConfigRuntime } from './runtime';
 
@@ -191,6 +198,61 @@ describe('AgentConfigRuntime', () => {
     await runtime.dispose();
   });
 
+  it('launches a Windows cmd login provider through cmd.exe', async () => {
+    const ptySpawner = makePtySpawner();
+    const providerPath = 'C:\\Program Files\\npm\\fake-agent.cmd';
+    const { runtime } = makeRuntime({ ptySpawner, platform: 'win32', providerPath });
+
+    const started = await runtime.startLogin('claude', 'login');
+
+    expect(started).toEqual(ok(undefined));
+    expect(ptySpawner.specs[0]).toMatchObject({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', expect.stringContaining(providerPath)],
+      cwd: '/home/ada',
+    });
+    await runtime.dispose();
+  });
+
+  it('runs a Windows cmd authentication probe with the sanitized environment', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-auth-cmd-'));
+    const cmdWrapper = path.join(dir, 'cmd-wrapper');
+    const providerPath = path.join(dir, 'fake-agent.cmd');
+    await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');
+    await chmod(cmdWrapper, 0o755);
+    const sourceEnv = {
+      Path: dir,
+      PATHEXT: '.CMD',
+      ComSpec: cmdWrapper,
+      UNSAFE_ENV: 'must-not-leak',
+    };
+    const exec = new NodeExecutionContext({
+      platform: 'win32',
+      env: sourceEnv,
+      fileExists: (candidate) => candidate === providerPath,
+    });
+    const authCheckStatus = vi.fn(async (ctx: AgentAuthContext) => {
+      const result = await ctx.exec(ctx.cli, ['status', 'hello world']);
+      expect(result.stdout).toContain('/d\n/s\n/c\n');
+      expect(result.stdout).toContain('fake-agent.cmd');
+      expect(result.stdout).toContain('hello world');
+      expect(ctx.env).not.toHaveProperty('UNSAFE_ENV');
+      return { kind: 'authenticated' as const };
+    });
+    const { runtime } = makeRuntime({
+      authCheckStatus,
+      exec,
+      platform: 'win32',
+      providerPath,
+      sourceEnv,
+    });
+
+    await expect(runtime.refreshAuthStatus('claude')).resolves.toEqual(
+      ok({ kind: 'authenticated' })
+    );
+    await runtime.dispose();
+  });
+
   it('cancels login by releasing the managed PTY', async () => {
     const ptySpawner = makePtySpawner();
     const { runtime } = makeRuntime({ ptySpawner });
@@ -317,9 +379,13 @@ function makeRuntime(
     authCheckStatus?: (ctx: AgentAuthContext) => Promise<AgentAuthStatus>;
     logger?: Logger;
     ptySpawner?: FakePtySpawner;
+    platform?: NodeJS.Platform;
+    providerPath?: string;
+    exec?: IExecutionContext;
+    sourceEnv?: Record<string, string>;
   } = {}
 ) {
-  const exec = new FakeExecutionContext();
+  const exec = options.exec ?? new FakeExecutionContext();
   const fs = new MemoryPluginFs();
   const mcpServers: McpServerRegistration[] = [];
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
@@ -382,22 +448,25 @@ function makeRuntime(
         data: {
           id,
           command: 'fake-agent',
-          path: '/opt/fake-agent',
-          realpath: '/opt/fake-agent',
+          path: options.providerPath ?? '/opt/fake-agent',
+          realpath: options.providerPath ?? '/opt/fake-agent',
           source: { kind: 'auto' },
         },
       }),
     },
     fs,
-    env: async () => ({
-      PATH: '/bin',
-      HOME: '/home/ada',
-      USER: 'ada',
-      SHELL: '/bin/zsh',
-      ANTHROPIC_API_KEY: 'secret',
-      UNSAFE_ENV: 'nope',
-    }),
+    env: async () =>
+      options.sourceEnv ?? {
+        PATH: options.platform === 'win32' ? 'C:\\Program Files\\npm' : '/bin',
+        HOME: '/home/ada',
+        USER: 'ada',
+        SHELL: '/bin/zsh',
+        ...(options.platform === 'win32' ? { ComSpec: 'C:\\Windows\\System32\\cmd.exe' } : {}),
+        ANTHROPIC_API_KEY: 'secret',
+        UNSAFE_ENV: 'nope',
+      },
     homeDir: '/home/ada',
+    platform: options.platform === 'win32' ? 'windows' : undefined,
   });
 
   return {
@@ -407,6 +476,7 @@ function makeRuntime(
       agentHost,
       ptySpawner: options.ptySpawner ?? makePtySpawner(),
       logger,
+      platform: options.platform,
     }),
   };
 }

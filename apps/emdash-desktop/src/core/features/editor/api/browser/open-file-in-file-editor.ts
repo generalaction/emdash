@@ -94,7 +94,12 @@ export function makeFileLinkHandlers(
       void openFileInTaskEditor(projectId, taskId, filePath, options);
     },
     onOpenExternal: (filePath) => {
-      void openWithOS(filePath);
+      const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+      if (!provisioned) return;
+      const workspace = workspaceRegistry.get(provisioned.workspaceId);
+      if (!workspace) return;
+      const ref = resolveTaskFileRef(workspace.path, workspace.sshConnectionId, filePath);
+      if (ref) void openWithOS(ref);
     },
   };
 }

@@ -724,7 +724,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
 
     const provider = makeLocalProvider(projectPath);
-    const foreignPath = process.platform === 'win32' ? '/tmp/worktrees' : 'C:\\worktrees';
+    const foreignPath = 'C:\\worktrees';
     const result = await provider.patch({
       placement: { stored: { worktreeRoot: foreignPath } },
     });

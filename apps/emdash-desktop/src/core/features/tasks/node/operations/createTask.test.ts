@@ -1,4 +1,5 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
+import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-registry/api';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import type { TaskRow } from '@core/services/app-db/node/schema';
@@ -30,6 +31,11 @@ const hostConversations = {
   delete: vi.fn(async () => ({ success: true as const, data: undefined })),
 };
 const projectConfig = { preservePatterns: ['.env'] as string[] };
+const testWorktreePath = compileWorktreePayload({
+  repoPath: '/repo',
+  worktreeRoot: '/worktrees',
+  branchName: 'feature/test',
+}).worktreePath;
 const workspaceRegistry = {
   createWorkspace: vi.fn(async (input: { workspaceId: string; path: string }) => ({
     success: true as const,
@@ -147,15 +153,19 @@ function setupSelectMock() {
         }
       : {
           from: () => ({
-            where: () => ({
-              limit: () => ({
-                get: () => mocks.registryRows.shift(),
-                all: () => {
-                  const row = mocks.registryRows.shift();
-                  return row === undefined ? [] : [row];
-                },
-              }),
-            }),
+            where: () => {
+              const all = () => {
+                const row = mocks.registryRows.shift();
+                return row === undefined ? [] : [row];
+              };
+              return {
+                all,
+                limit: () => ({
+                  get: () => mocks.registryRows.shift(),
+                  all,
+                }),
+              };
+            },
           }),
         }
   );
@@ -337,7 +347,7 @@ describe('createTask', () => {
     it('suffixes past a genuine live-row collision but refuses a tombstone-pending candidate', async () => {
       // The base path is occupied by a live, non-tombstoned row; the suffixed
       // candidate is held by a pending deletion tombstone.
-      mocks.registryRows.push({ id: 'existing' });
+      mocks.registryRows.push({ id: 'existing', path: testWorktreePath });
       const conflict = {
         type: 'workspace-tombstone-pending' as const,
         workspaceId: 'ws-held',
@@ -719,7 +729,7 @@ describe('createTask', () => {
     });
 
     it('suffixes paths against live Registry rows without probing the host', async () => {
-      mocks.registryRows.push({ id: 'existing' });
+      mocks.registryRows.push({ id: 'existing', path: testWorktreePath });
       const { captured } = setupTransactionMock();
 
       await createTask(db, projects, hostIsReachable, {

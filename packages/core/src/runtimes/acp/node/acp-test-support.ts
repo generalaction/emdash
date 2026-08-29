@@ -136,7 +136,7 @@ export class FakeAcpTerminalProcess extends EventEmitter implements AcpTerminalP
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
   exitCode: number | null = null;
-  readonly killFn = vi.fn<(signal?: NodeJS.Signals) => void>();
+  readonly killFn = vi.fn<(signal?: NodeJS.Signals) => void | Promise<void>>();
 
   onExit(cb: (status: AcpTerminalExit) => void): void {
     this.on('exit', cb);
@@ -146,8 +146,8 @@ export class FakeAcpTerminalProcess extends EventEmitter implements AcpTerminalP
     this.on('error', cb);
   }
 
-  kill(signal?: NodeJS.Signals): void {
-    this.killFn(signal);
+  kill(signal?: NodeJS.Signals): void | Promise<void> {
+    return this.killFn(signal);
   }
 
   /** Push a chunk of text to stdout so ManagedTerminal buffers it. */
@@ -169,7 +169,7 @@ export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHand
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
   exitCode: number | null = null;
-  readonly kill = vi.fn<(signal?: NodeJS.Signals) => void>();
+  readonly kill = vi.fn<(signal?: NodeJS.Signals) => void | Promise<void>>();
 
   onExit(cb: (code: number | null) => void): void {
     this.on('exit', (code: number | null) => cb(code));

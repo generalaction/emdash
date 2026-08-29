@@ -1,6 +1,5 @@
-import os from 'node:os';
-import path from 'node:path';
 import type { Result } from '@emdash/shared';
+import { hostPathFromNative, joinHostPath } from '@core/primitives/desktop-runtime/api';
 import type { PlacementContext } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
@@ -13,8 +12,6 @@ import {
   DbProjectSettingsProvider,
   type DbProjectSettingsProviderOptions,
 } from './db-project-settings-provider';
-
-const pathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
 
 export type HostProjectSettingsProviderOptions = DbProjectSettingsProviderOptions & {
   placementContext(): Promise<PlacementContext>;
@@ -30,31 +27,38 @@ export class HostProjectSettingsProvider extends DbProjectSettingsProvider {
     files: FilesClientScope,
     private readonly hostOptions: HostProjectSettingsProviderOptions
   ) {
-    super(projectId, projectPath, defaultBranchFallback, files, path.join, hostOptions);
+    super(projectId, projectPath, defaultBranchFallback, files, joinHostPath, hostOptions);
   }
 
   protected placementContext(): Promise<PlacementContext> {
     return this.hostOptions.placementContext();
   }
 
-  protected validateWorktreeDirectory(
+  protected async validateWorktreeDirectory(
     worktreeDirectory: string | undefined
   ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
+    const placement = await this.hostOptions.placementContext();
     return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
-      pathApi: path,
-      pathPlatform,
+      pathApi: { join: joinHostPath },
+      pathPlatform: pathPlatformFor(placement),
       fs: this.hostOptions.worktreeDirectoryFileSystem,
-      homeDirectory: os.homedir(),
+      homeDirectory: placement.homeDirectory,
     });
   }
 
-  protected normalizeStoredWorktreeDirectory(
+  protected async normalizeStoredWorktreeDirectory(
     worktreeDirectory: string
   ): Promise<Result<string, UpdateProjectSettingsError>> {
+    const placement = await this.hostOptions.placementContext();
     return normalizeWorktreeDirectory(worktreeDirectory, {
-      pathApi: path,
-      pathPlatform,
-      homeDirectory: os.homedir(),
+      pathApi: { join: joinHostPath },
+      pathPlatform: pathPlatformFor(placement),
+      homeDirectory: placement.homeDirectory,
     });
   }
+}
+
+function pathPlatformFor(placement: PlacementContext): 'posix' | 'win32' {
+  if (placement.pathProfile) return placement.pathProfile.style;
+  return hostPathFromNative(placement.homeDirectory).root.kind === 'posix' ? 'posix' : 'win32';
 }

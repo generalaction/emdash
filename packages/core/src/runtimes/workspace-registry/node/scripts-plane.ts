@@ -2,6 +2,7 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { observe, remote, type RemoteModel } from '@emdash/wire/state';
+import { nativePathIdentityKey } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import { scriptsContract } from '#runtimes/scripts/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- see above
@@ -168,25 +169,28 @@ export class ScriptRunsObserver {
 
   /** Reconciles the watched set of workspace paths; extra watchers are released. */
   sync(paths: ReadonlySet<string>): void {
-    for (const [path, scope] of this.watched) {
-      if (!paths.has(path)) {
-        this.watched.delete(path);
+    const desired = new Map<string, string>();
+    for (const path of paths) desired.set(nativePathIdentityKey(path), path);
+
+    for (const [identity, scope] of this.watched) {
+      if (!desired.has(identity)) {
+        this.watched.delete(identity);
         for (const key of this.seen.keys()) {
-          if (key.startsWith(`${path}\u0000`)) this.seen.delete(key);
+          if (key.startsWith(`${identity}\u0000`)) this.seen.delete(key);
         }
         void scope.dispose();
       }
     }
-    for (const path of paths) {
-      if (this.watched.has(path)) continue;
+    for (const [identity, path] of desired) {
+      if (this.watched.has(identity)) continue;
       const scope = createScope({ label: `script-runs:${path}` });
-      this.watched.set(path, scope);
+      this.watched.set(identity, scope);
       const model = this.runs({ workspacePath: path });
       observe(
         model.states.current,
         (snapshot) => {
           if (snapshot.status === 'loading') return;
-          this.apply(path, snapshot.value ?? {});
+          this.apply(path, identity, snapshot.value ?? {});
         },
         { scope, immediate: true }
       );
@@ -200,10 +204,14 @@ export class ScriptRunsObserver {
     void this.scope.dispose();
   }
 
-  private apply(workspacePath: string, runs: Record<string, ScriptRunState>): void {
+  private apply(
+    workspacePath: string,
+    workspaceIdentity: string,
+    runs: Record<string, ScriptRunState>
+  ): void {
     const present = new Set<string>();
     for (const run of Object.values(runs)) {
-      const key = `${workspacePath}\u0000${run.script}`;
+      const key = `${workspaceIdentity}\u0000${run.script}`;
       present.add(run.script);
       const previous = this.seen.get(key);
       if (previous?.runId === run.runId && previous.status === run.status) continue;
@@ -221,8 +229,8 @@ export class ScriptRunsObserver {
     // A previously seen run gone from the model without settling: the scripts worker
     // restarted underneath us. Settle it as cancelled so the step never hangs.
     for (const [key, previous] of [...this.seen.entries()]) {
-      if (!key.startsWith(`${workspacePath}\u0000`)) continue;
-      const script = key.slice(workspacePath.length + 1) as ScriptKind;
+      if (!key.startsWith(`${workspaceIdentity}\u0000`)) continue;
+      const script = key.slice(workspaceIdentity.length + 1) as ScriptKind;
       if (present.has(script)) continue;
       this.seen.delete(key);
       if (previous.status === 'running') {

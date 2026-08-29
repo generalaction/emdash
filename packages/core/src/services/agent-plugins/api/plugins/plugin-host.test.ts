@@ -1,9 +1,12 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
-import type { EnvSource, IExecutionContext } from '#primitives/exec/api';
-import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
+import type { EnvSource, ExecContextOptions, IExecutionContext } from '#primitives/exec/api';
+import type { HostDependencyResolver, Platform } from '#primitives/host-dependencies/api';
 import type { IAcpBehavior } from '#services/agent-plugins/api/plugins/capabilities/acp';
-import type { IAgentAuthBehavior } from '#services/agent-plugins/api/plugins/capabilities/auth';
+import type {
+  AgentAuthContext,
+  IAgentAuthBehavior,
+} from '#services/agent-plugins/api/plugins/capabilities/auth';
 import type { CanonicalHookEvent } from '#services/agent-plugins/api/plugins/capabilities/hooks';
 import type { McpServerRegistration } from '#services/agent-plugins/api/plugins/capabilities/mcp';
 import type {
@@ -177,6 +180,36 @@ describe('AgentPluginHost', () => {
     });
   });
 
+  it('merges Windows ACP environment layers case-insensitively', async () => {
+    const buildSpawn = vi.fn(({ cwd, cli }: { cwd: string; cli: string }) => ({
+      command: cli,
+      args: [],
+      cwd,
+      env: { Path: 'C:\\plugin' },
+    }));
+    const host = createHost(
+      [
+        plugin({
+          acp: { kind: 'supported' },
+          behavior: { acp: { buildSpawn } as unknown as IAcpBehavior },
+        }),
+      ],
+      async () => ({ PATH: 'C:\\base' }),
+      { platform: 'windows' }
+    );
+
+    const result = await host.buildAcpSpawn('test', {
+      cwd: 'C:\\work',
+      env: { pAtH: 'C:\\caller' },
+    });
+
+    expect(result).toMatchObject({ success: true, data: { env: { PATH: 'C:\\caller' } } });
+    if (!result.success) throw new Error('Expected ACP spawn to resolve');
+    expect(Object.keys(result.data.env).filter((key) => key.toLowerCase() === 'path')).toEqual([
+      'PATH',
+    ]);
+  });
+
   it('binds machine dependencies for auth status checks', async () => {
     const checkStatus = vi.fn(async () => ({ kind: 'authenticated' as const, account: 'ada' }));
     const host = createHost([
@@ -209,6 +242,63 @@ describe('AgentPluginHost', () => {
         PATH: '/bin',
       }),
     });
+  });
+
+  it('runs auth subprocesses with the allowlisted environment', async () => {
+    const hostPath = 'C:\\Tools';
+    const sourceEnv = {
+      Path: hostPath,
+      USERPROFILE: 'C:\\Users\\ada',
+      USERNAME: 'ada',
+      UNSAFE_ENV: 'must-not-leak',
+    };
+    const execCommand = vi.fn(
+      async (_command: string, _args: string[] = [], _options: ExecContextOptions = {}) => ({
+        stdout: '',
+        stderr: '',
+      })
+    );
+    const exec = { ...fakeExec(), exec: execCommand } satisfies IExecutionContext;
+    const checkStatus = vi.fn(async (ctx: AgentAuthContext) => {
+      await ctx.exec('test', []);
+      expect(ctx.env.PATH).toBe(hostPath);
+      expect(ctx.env).not.toHaveProperty('UNSAFE_ENV');
+      return { kind: 'authenticated' as const };
+    });
+    const host = createHost(
+      [
+        plugin({
+          auth: {
+            kind: 'supported',
+            methods: [
+              {
+                kind: 'api-key',
+                id: 'api-key',
+                name: 'API Key',
+                envVars: [{ name: 'TEST_API_KEY', label: 'API key' }],
+              },
+            ],
+          },
+          behavior: { auth: { checkStatus } },
+        }),
+      ],
+      async () => sourceEnv,
+      { exec, platform: 'windows' }
+    );
+
+    try {
+      await expect(host.checkAuthStatus('test')).resolves.toEqual({
+        success: true,
+        data: { kind: 'authenticated' },
+      });
+      expect(execCommand).toHaveBeenCalledWith('test', [], {
+        env: expect.objectContaining({ PATH: hostPath }),
+      });
+      const options = execCommand.mock.calls[0]?.[2];
+      expect(options?.env).not.toHaveProperty('UNSAFE_ENV');
+    } finally {
+      await host.dispose();
+    }
   });
 
   it('binds plugin fs for MCP server reads', async () => {
@@ -246,18 +336,20 @@ describe('AgentPluginHost', () => {
 
 function createHost(
   plugins: CLIAgentPluginProvider[],
-  env: EnvSource = async () => ({ HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' })
+  env: EnvSource = async () => ({ HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' }),
+  options: { exec?: IExecutionContext; platform?: Platform } = {}
 ): AgentPluginHost {
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   for (const item of plugins) registry.register(item);
   return new AgentPluginHost({
     scope: createScope({ label: 'test' }),
     registry,
-    exec: fakeExec(),
+    exec: options.exec ?? fakeExec(),
     dependencies: fakeDependencies(),
     fs: memoryFs(),
     env,
     homeDir: '/home/test',
+    platform: options.platform,
   });
 }
 

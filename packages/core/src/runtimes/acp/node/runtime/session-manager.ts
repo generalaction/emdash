@@ -518,8 +518,8 @@ export class SessionManager {
     if (record) record.conversation.syncRecord(record);
   }
 
-  killAllTerminals(): void {
-    this.terminals.killAll();
+  killAllTerminals(): Promise<void> {
+    return this.terminals.killAll();
   }
 
   private handleSessionUpdate(
@@ -907,7 +907,7 @@ export class SessionManager {
       record.input.conversationId
     );
     record.conversation.clearRecord(record);
-    this.terminals.disposeConversation(record.input.conversationId);
+    await this.terminals.disposeConversation(record.input.conversationId);
   }
 
   private discardReplacedRecord(record: SessionRecord): void {

@@ -91,6 +91,26 @@ describe('BoundExec', () => {
     await expect(readFile(logPath, 'utf8')).resolves.toBe('hello\n');
   });
 
+  it('uses the Windows launch planner for a bound cmd shim', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-bound-windows-'));
+    const cmdWrapper = path.join(dir, 'cmd-wrapper');
+    const provider = path.join(dir, 'provider.cmd');
+    await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');
+    await chmod(cmdWrapper, 0o755);
+
+    const result = await createBoundExec({
+      file: provider,
+      cwd: dir,
+      env: { ComSpec: cmdWrapper, PATH: dir, PATHEXT: '.CMD' },
+      platform: 'win32',
+      fileExists: (candidate) => candidate === provider,
+    }).exec(['hello world']);
+
+    expect(result.stdout).toContain('/d\n/s\n/c\n');
+    expect(result.stdout).toContain('provider.cmd');
+    expect(result.stdout).toContain('hello world');
+  });
+
   it('rejects timed-out processes with an ExecError', async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-timeout-'));
 
@@ -152,6 +172,29 @@ describe('BoundExec', () => {
     controller.abort();
 
     await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
+    expect(isProcessAlive(pid)).toBe(false);
+  });
+
+  it('cleans up descendants after exceeding maxBuffer', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-buffer-tree-'));
+    const pidPath = path.join(cwd, 'child.pid');
+    const execution = createBoundExec({ file: process.execPath, cwd }).exec(
+      [
+        '-e',
+        [
+          "const { spawn } = require('node:child_process');",
+          "const fs = require('node:fs');",
+          `const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 10000)'], { stdio: 'ignore' });`,
+          `fs.writeFileSync(${JSON.stringify(pidPath)}, String(child.pid));`,
+          "process.stdout.write('x'.repeat(4096));",
+          'setInterval(() => {}, 10_000);',
+        ].join(' '),
+      ],
+      { maxBuffer: 128 }
+    );
+    const pid = Number.parseInt(await waitForFile(pidPath), 10);
+
+    await expect(execution).rejects.toMatchObject({ stderr: 'stdout exceeded maxBuffer' });
     expect(isProcessAlive(pid)).toBe(false);
   });
 });

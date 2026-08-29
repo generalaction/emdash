@@ -178,6 +178,88 @@ describe('WorkspaceRegistry', () => {
     });
   });
 
+  it('treats Windows casing variants as one persistent workspace identity', () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.recordCreationIntent({
+      id: 'display-owner',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: 'C:\\Repo',
+    });
+
+    expect(
+      registry.claim({ host: LOCAL_HOST, record: hostRecord('incoming', 'c:\\REPO') })
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'workspace-identity-conflict',
+        path: 'c:\\REPO',
+        incomingId: 'incoming',
+        conflictingId: 'display-owner',
+      },
+    });
+    expect(registry.findLiveByPath('local', null, 'c:\\repo')?.path).toBe('C:\\Repo');
+
+    const refreshed = registry.claim({
+      host: LOCAL_HOST,
+      record: hostRecord('display-owner', 'c:\\REPO'),
+    });
+    expect(refreshed).toMatchObject({ success: true, data: { path: 'C:\\Repo' } });
+  });
+
+  it('reports pre-existing Windows identity collisions deterministically without deleting them', () => {
+    fixture.db
+      .insert(workspaceRegistryTable)
+      .values([
+        {
+          id: 'newer',
+          type: 'local',
+          kind: 'repository',
+          location: 'local',
+          path: 'c:\\REPO',
+          createdAt: '2026-01-02T00:00:00.000Z',
+        },
+        {
+          id: 'older',
+          type: 'local',
+          kind: 'repository',
+          location: 'local',
+          path: 'C:\\Repo',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+      .run();
+
+    const registry = createWorkspaceRegistry(fixture.db);
+    expect(registry.pathCollisions().map((group) => group.map((row) => row.id))).toEqual([
+      ['older', 'newer'],
+    ]);
+    expect(registry.findLiveByPath('local', null, 'C:\\repo')?.id).toBe('older');
+    expect(fixture.db.select().from(workspaceRegistryTable).all()).toHaveLength(2);
+  });
+
+  it('keeps POSIX persistent workspace identity case-sensitive', () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.recordCreationIntent({
+      id: 'upper',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: '/Repo',
+    });
+    registry.recordCreationIntent({
+      id: 'lower',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: '/repo',
+    });
+
+    expect(registry.findLiveByPath('local', null, '/Repo')?.id).toBe('upper');
+    expect(registry.findLiveByPath('local', null, '/repo')?.id).toBe('lower');
+  });
+
   it('accepts Host canonicalization of a path spelling for the same id', () => {
     const registry = createWorkspaceRegistry(fixture.db);
     registry.recordCreationIntent({

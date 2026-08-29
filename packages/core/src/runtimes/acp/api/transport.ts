@@ -21,7 +21,7 @@ export interface AcpTerminalProcess {
   /** Register a callback to be called if the process emits an error. */
   onError(cb: (err: Error) => void): void;
   /** Send a termination signal to the process. */
-  kill(signal?: NodeJS.Signals): void;
+  kill(signal?: NodeJS.Signals): void | Promise<void>;
 }
 
 /**
@@ -42,7 +42,7 @@ export interface AcpProcessHandle {
   /** Register a callback to be called if the process emits an error. */
   onError(cb: (err: Error) => void): void;
   /** Send a termination signal to the process. */
-  kill(signal?: NodeJS.Signals): void;
+  kill(signal?: NodeJS.Signals): void | Promise<void>;
 }
 
 export interface AcpFs {

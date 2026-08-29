@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { incompatibleRoot, invalidPath, outsideRoot, type PathError } from './errors';
 import { normalizeSegmentStack, splitPosixInput, splitWindowsInput } from './segments';
-import { createPathProfile } from './semantics';
+import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';
 import type { HostAbsolutePath, HostPathRoot, PathProfile } from './types';
 
 export type ParseAbsoluteOptions = Readonly<{
@@ -25,6 +25,19 @@ export function parseAbsolute(
   return profile.style === 'win32'
     ? parseWindowsAbsolute(input, profile)
     : parsePosixAbsolute(input, profile);
+}
+
+/**
+ * Parses a native absolute path at a Host boundary. Windows drive and UNC roots
+ * are unambiguous; all other inputs retain the POSIX default.
+ */
+export function parseNativeAbsolute(input: string): Result<HostAbsolutePath, PathError> {
+  return parseAbsolute(input, {
+    profile: {
+      style: isWindowsAbsolute(input) ? 'win32' : 'posix',
+      unicodeNormalization: 'preserve',
+    },
+  });
 }
 
 export function formatAbsolute(
@@ -60,19 +73,14 @@ export function tryParseAbsolute(
 }
 
 export function absoluteRootEquals(a: HostPathRoot, b: HostPathRoot): boolean {
-  if (a.kind !== b.kind) return false;
-  switch (a.kind) {
-    case 'posix':
-      return true;
-    case 'drive':
-      return b.kind === 'drive' && a.driveLetter === b.driveLetter;
-    case 'unc':
-      return b.kind === 'unc' && a.server === b.server && a.share === b.share;
-  }
+  return (
+    comparisonKeyForAbsolutePath({ root: a, segments: [] }) ===
+    comparisonKeyForAbsolutePath({ root: b, segments: [] })
+  );
 }
 
 export function absoluteEquals(a: HostAbsolutePath, b: HostAbsolutePath): boolean {
-  return absoluteRootEquals(a.root, b.root) && segmentsEqual(a.segments, b.segments);
+  return comparisonKeyForAbsolutePath(a) === comparisonKeyForAbsolutePath(b);
 }
 
 export function absoluteBasename(path: HostAbsolutePath): string {
@@ -104,9 +112,10 @@ export function joinAbsolute(
 }
 
 export function containsAbsolute(root: HostAbsolutePath, candidate: HostAbsolutePath): boolean {
-  if (!absoluteRootEquals(root.root, candidate.root)) return false;
-  if (root.segments.length > candidate.segments.length) return false;
-  return root.segments.every((segment, index) => segment === candidate.segments[index]);
+  const rootKey = comparisonKeyForAbsolutePath(root);
+  const candidateKey = comparisonKeyForAbsolutePath(candidate);
+  const descendantPrefix = rootKey.endsWith('/') ? rootKey : `${rootKey}/`;
+  return candidateKey === rootKey || candidateKey.startsWith(descendantPrefix);
 }
 
 export function relativeSegmentsFromAbsolute(
@@ -191,6 +200,6 @@ function parseUncAbsolute(
   });
 }
 
-function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((segment, index) => segment === b[index]);
+function isWindowsAbsolute(input: string): boolean {
+  return /^[A-Za-z]:[\\/]/u.test(input) || /^[/\\]{2}[^/\\]+[/\\][^/\\]+/u.test(input);
 }

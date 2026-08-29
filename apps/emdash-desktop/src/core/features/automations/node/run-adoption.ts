@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { hostRefEquals, hostRefKey } from '@emdash/core/primitives/host/api';
+import { hostRefEquals } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { KeyedMutex } from '@emdash/shared/concurrency';
@@ -14,6 +14,7 @@ import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { hostWorkspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type { AutomationAdoptionError } from '@core/primitives/automations/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
@@ -135,7 +136,7 @@ async function adoptRunOnce(
 
   const workspacePath = nativePathFromHost(runtimeRun.data.workspace.path);
   const workspaceStorage = workspaceHostStorage(workspaceHost);
-  const workspaceMutexKey = `${hostRefKey(workspaceHost)}:${workspacePath}`;
+  const workspaceMutexKey = hostWorkspacePathIdentityKey(workspaceHost, workspacePath);
   return workspaceMutex.runExclusive(workspaceMutexKey, async () => {
     const concurrentAdoption = await findAdoptedTask(dependencies.db, runId);
     if (concurrentAdoption) return ok(concurrentAdoption);

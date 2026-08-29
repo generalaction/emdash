@@ -46,7 +46,10 @@ standalone worker client's upstream topic handles, and translates mutation curso
 same aggregate namespace. Runtime-owned persistence lives below the workspace-server state
 directory, including automation and file-search databases, session intents, ACP attachments, and
 other runtime state. Repository and worktree placement is desktop-owned; the server reports its
-home directory through the files runtime and executes plans containing absolute paths.
+structured home path and filesystem `PathProfile` through the files runtime and executes plans
+containing absolute paths. The profile is optional on the wire so current clients remain compatible
+with older same-major servers. Managed remote Windows hosts are rejected as unsupported before the
+POSIX home, layout, installer, or daemon paths run.
 
 Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
 The daemon parent owns one local `HostDependencies` component backed by a JSON-file
@@ -68,7 +71,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '5.0.0';
+export const PROTOCOL_VERSION = '5.1.0';
 ```
 
 ### What each component means

@@ -1,5 +1,9 @@
-import path from 'node:path';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import {
+  createPathProfile,
+  type HostAbsolutePath,
+  type PathProfile,
+  type PortableRelativePath,
+} from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import {
   hostPathFromNative,
@@ -13,20 +17,32 @@ import type { FilesRuntimeClient } from '../api/clients';
 export type FilesClientScope = {
   client: FilesRuntimeClient;
   root: HostAbsolutePath;
+  profile: PathProfile;
 };
 
 export type FileExclusionPredicate = (absolutePath: string) => boolean;
 
-export function filesClientScope(client: FilesRuntimeClient, rootPath: string): FilesClientScope {
-  const resolvedRoot = path.resolve(rootPath);
-  return { client, root: hostPathFromNative(resolvedRoot) };
+type HostAbsolutePathInput = string | HostAbsolutePath;
+
+export function filesClientScope(
+  client: FilesRuntimeClient,
+  rootPath: HostAbsolutePathInput,
+  profile?: PathProfile
+): FilesClientScope {
+  const root = asHostAbsolutePath(rootPath);
+  return {
+    client,
+    root,
+    profile:
+      profile ?? createPathProfile({ style: root.root.kind === 'posix' ? 'posix' : 'win32' }),
+  };
 }
 
 export function fileRelativePath(
-  scope: Pick<FilesClientScope, 'root'>,
-  targetPath: string
+  scope: Pick<FilesClientScope, 'root' | 'profile'>,
+  targetPath: HostAbsolutePathInput
 ): PortableRelativePath {
-  return relativePathWithin(scope.root, hostPathFromNative(path.resolve(targetPath)));
+  return relativePathWithin(scope.root, asHostAbsolutePath(targetPath), scope.profile);
 }
 
 /**
@@ -34,7 +50,10 @@ export function fileRelativePath(
  * through the scope's root keeps the historical containment check: a target
  * escaping the scope root still throws at this edge.
  */
-export function fileKey(scope: FilesClientScope, targetPath: string): { path: HostAbsolutePath } {
+export function fileKey(
+  scope: FilesClientScope,
+  targetPath: HostAbsolutePathInput
+): { path: HostAbsolutePath } {
   return { path: resolveRelativePath(scope.root, fileRelativePath(scope, targetPath)) };
 }
 
@@ -65,4 +84,8 @@ export function fsErrorMessage(error: FsError): string {
 
 export function isFileNotFoundError(error: FsError): boolean {
   return error.type === 'not-found' || error.type === 'not-a-directory';
+}
+
+function asHostAbsolutePath(path: HostAbsolutePathInput): HostAbsolutePath {
+  return typeof path === 'string' ? hostPathFromNative(path) : path;
 }

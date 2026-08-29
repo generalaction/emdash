@@ -2,7 +2,6 @@ import {
   ROOT_RELATIVE_PATH,
   joinAbsolute,
   joinPortableRelativePath,
-  portableRelativePathDirname,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
@@ -19,7 +18,7 @@ import {
   type DirectoryEntry,
   type DirectoryListing,
 } from '@emdash/ui/react/components';
-import { toast } from '@emdash/ui/react/primitives';
+import { Button, Input, toast } from '@emdash/ui/react/primitives';
 import { type Contract, type ContractClient } from '@emdash/wire/rpc';
 import {
   observe,
@@ -34,12 +33,9 @@ import {
   type ProjectHostParams,
   type ProjectsWireContract,
 } from '@core/features/projects/api';
-import {
-  hostPathFromNative,
-  nativePathFromHost,
-  relativePathWithin,
-} from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { type Strategy } from './add-project-modal';
+import { projectDirectoryLocation } from './project-directory-location';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
 type DirectoryTreeRemote = RemoteModel<DirectoryTreeModel>;
@@ -80,6 +76,7 @@ export function ProjectDirectoryPicker({
   const historyBack = history.back;
   const historyForward = history.forward;
   const historyNavigate = history.navigate;
+  const [locationInput, setLocationInput] = useState(history.path);
   const navigate = useCallback(
     (path: string) => {
       historyNavigate(path);
@@ -97,26 +94,17 @@ export function ProjectDirectoryPicker({
     historyForward();
     onSelect(historyForwardPath);
   }, [historyForward, historyForwardPath, onSelect]);
-  const root = useMemo(() => (homePath ? hostPathFromNative(homePath) : null), [homePath]);
+  useEffect(() => setLocationInput(history.path), [history.path]);
+  const location = useMemo(
+    () => projectDirectoryLocation(history.path || homePath),
+    [history.path, homePath]
+  );
+  const root = location?.root ?? null;
+  const navigationRoot = location?.navigationRoot ?? homePath;
+  const separator = location?.separator ?? '/';
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const tree = useProjectDirectoryTree(host, root, sessionId, getProjectsClient);
-  const currentRelativePath = useMemo(() => {
-    if (!root || !history.path) return ROOT_RELATIVE_PATH;
-    return relativePathWithin(root, hostPathFromNative(history.path));
-  }, [history.path, root]);
-  const handleRevealNotFound = useCallback(
-    (missingPath: PortableRelativePath) => {
-      if (!root) return false;
-      const parentPath = portableRelativePathDirname(missingPath);
-      if (parentPath === null) return false;
-      const parent = joinAbsolute(root, parentPath);
-      if (!parent.success) return false;
-      navigate(nativePathFromHost(parent.data));
-      return true;
-    },
-    [navigate, root]
-  );
-  const reveal = useRevealDirectory(tree.member, currentRelativePath, handleRevealNotFound);
+  const reveal = useRevealDirectory(tree.member, ROOT_RELATIVE_PATH, () => false);
 
   const listing = directoryListing({
     homePending,
@@ -124,13 +112,13 @@ export function ProjectDirectoryPicker({
     syncError: tree.error ?? reveal.error,
     pending: reveal.pending,
     model: tree.model,
-    path: currentRelativePath,
+    path: ROOT_RELATIVE_PATH,
   });
 
   async function createFolder(_parentPath: string, name: string) {
     if (!root || !host) return;
 
-    const childPath = joinPortableRelativePath(currentRelativePath, name);
+    const childPath = joinPortableRelativePath(ROOT_RELATIVE_PATH, name);
     if (!childPath.success) {
       toast.error('Invalid folder name', { description: childPath.error.message });
       return;
@@ -166,21 +154,46 @@ export function ProjectDirectoryPicker({
   }
 
   return (
-    <DirectorySelector
-      path={history.path || homePath}
-      navigationRoot={homePath}
-      listing={listing}
-      selectedPath={value || null}
-      canGoBack={history.canGoBack}
-      canGoForward={history.canGoForward}
-      onBack={goBack}
-      onForward={goForward}
-      onNavigate={navigate}
-      onSelect={(path) => {
-        if (path) onSelect(path);
-      }}
-      onCreateFolder={createFolder}
-    />
+    <div className="flex flex-col gap-2">
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const target = projectDirectoryLocation(locationInput.trim());
+          if (!target) {
+            toast.error('Invalid absolute path');
+            return;
+          }
+          navigate(nativePathFromHost(target.root));
+        }}
+      >
+        <Input
+          aria-label="Directory location"
+          value={locationInput}
+          spellCheck={false}
+          onChange={(event) => setLocationInput(event.currentTarget.value)}
+        />
+        <Button type="submit" variant="secondary">
+          Go
+        </Button>
+      </form>
+      <DirectorySelector
+        path={history.path || homePath}
+        navigationRoot={navigationRoot}
+        listing={listing}
+        selectedPath={value || null}
+        canGoBack={history.canGoBack}
+        canGoForward={history.canGoForward}
+        separator={separator}
+        onBack={goBack}
+        onForward={goForward}
+        onNavigate={navigate}
+        onSelect={(path) => {
+          if (path) onSelect(path);
+        }}
+        onCreateFolder={createFolder}
+      />
+    </div>
   );
 }
 

@@ -1,8 +1,17 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { TaskSessionLaunchContextResolver } from '../api/node/task-session-launch-context';
+import {
+  resolveSessionTmux,
+  TaskSessionLaunchContextResolver,
+} from '../api/node/task-session-launch-context';
 
 describe('TaskSessionLaunchContextResolver', () => {
+  it('forces tmux off only for local Windows sessions', () => {
+    expect(resolveSessionTmux({ type: 'local', id: 'local' }, true, 'win32')).toBe(false);
+    expect(resolveSessionTmux({ type: 'local', id: 'local' }, true, 'darwin')).toBe(true);
+    expect(resolveSessionTmux({ type: 'remote', id: 'ssh-1' }, true, 'win32')).toBe(true);
+  });
+
   it('reads mutable launch policy from its authorities on every resolution', async () => {
     let taskName = 'Old task';
     let tmux = false;

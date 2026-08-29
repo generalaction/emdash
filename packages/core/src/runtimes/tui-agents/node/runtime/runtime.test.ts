@@ -32,6 +32,11 @@ function createRuntime(
     hooks?: ResolvedTuiProvider['hooks'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
+    platform?: NodeJS.Platform;
+    userEnv?: NodeJS.ProcessEnv;
+    commandEnv?: Record<string, string>;
+    command?: string;
+    args?: string[];
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -50,7 +55,13 @@ function createRuntime(
       behavior: options.trustWorkspace ? { trust: { trustWorkspace: options.trustWorkspace } } : {},
     })),
     buildPromptCommand: vi.fn(() =>
-      Promise.resolve(ok({ command: 'agent', args: ['run', 'hello world'], env: { AGENT: '1' } }))
+      Promise.resolve(
+        ok({
+          command: options.command ?? 'agent',
+          args: options.args ?? ['run', 'hello world'],
+          env: options.commandEnv ?? { AGENT: '1' },
+        })
+      )
     ),
   } as unknown as AgentPluginHost;
   const exec = {
@@ -63,11 +74,17 @@ function createRuntime(
   } satisfies IExecutionContext;
   const runtime = new TuiAgentsRuntime({
     agentHost,
+    env: async () =>
+      options.userEnv ??
+      (options.platform === 'win32'
+        ? { Path: 'C:\\Tools', ComSpec: 'C:\\Windows\\System32\\cmd.exe' }
+        : { PATH: '/bin', SHELL: '/bin/bash' }),
     exec,
     intents: options.intents ?? createMemorySessionIntentStore(),
     conversationReports: options.conversationReports,
     spawner,
     clock: options.clock,
+    platform: options.platform,
     lifecycle: options.lifecycle,
     spillPrompt: options.spillPrompt,
     logger: noopLogger,
@@ -116,6 +133,40 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(1);
+  });
+
+  it('merges final Windows provider environment overlays case-insensitively', async () => {
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      commandEnv: { PATH: 'C:\\base' },
+    });
+
+    await runtime.startSession(startInput({ providerVars: { Path: 'C:\\override' } }));
+
+    expect(spawner.specs[0]?.env).toMatchObject({ PATH: 'C:\\override' });
+    expect(
+      Object.keys(spawner.specs[0]?.env ?? {}).filter((key) => key.toLowerCase() === 'path')
+    ).toEqual(['PATH']);
+  });
+
+  it('launches Windows cmd providers through an explicit cmd wrapper', async () => {
+    const command = 'C:\\Program Files\\npm\\provider.cmd';
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      command,
+      commandEnv: {
+        PATH: 'C:\\Program Files\\npm',
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+      },
+    });
+
+    await runtime.startSession(startInput({ cwd: 'C:\\workspace' }));
+
+    expect(spawner.specs[0]).toMatchObject({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', expect.stringContaining(command)],
+      cwd: 'C:\\workspace',
+    });
   });
 
   it('trusts the workspace only when the start input opts in', async () => {
@@ -182,11 +233,32 @@ describe('TuiAgentsRuntime', () => {
       })
     );
 
-    expect(spawner.specs[0]!.command).toBe('/bin/sh');
-    expect(spawner.specs[0]!.args[0]).toBe('-c');
+    expect(spawner.specs[0]!.command).toBe('/bin/bash');
+    expect(spawner.specs[0]!.args[0]).toBe('-lc');
     expect(spawner.specs[0]!.args[1]).toContain('tmux -u attach-session');
     expect(spawner.specs[0]!.args[1]).toContain('emdash-test');
     expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
+  });
+
+  it('resolves the Windows default shell, applies setup, and removes tmux intent', async () => {
+    const { runtime, spawner, exec } = createRuntime({ platform: 'win32' });
+
+    await runtime.startSession(
+      startInput({
+        cwd: 'C:\\workspace',
+        shellSetup: 'set READY=1',
+        tmuxSessionName: 'must-not-run',
+      })
+    );
+
+    expect(spawner.specs[0]).toMatchObject({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', expect.stringContaining('set READY=1 &&')],
+    });
+    expect(spawner.specs[0]!.args.join(' ')).not.toContain('tmux');
+    await runtime.reconcile();
+    await runtime.dispose();
+    expect(exec.exec).not.toHaveBeenCalled();
   });
 
   it('attaches to an already running session without replacing config', async () => {

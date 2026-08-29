@@ -191,6 +191,32 @@ describe('GitSchedule', () => {
 });
 
 describe('WorktreeWriteLocks', () => {
+  it('serializes Windows casing variants as one worktree', async () => {
+    const { WorktreeWriteLocks } = await import('./git-schedule');
+    const locks = new WorktreeWriteLocks();
+    let releaseWriter!: () => void;
+    const writing = locks.withWriter(
+      'C:\\Repo',
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWriter = resolve;
+        })
+    );
+    await settle();
+
+    let probed = false;
+    const probe = locks.whenUnlocked('c:\\repo').then(() => {
+      probed = true;
+    });
+    await settle();
+    expect(probed).toBe(false);
+
+    releaseWriter();
+    await writing;
+    await probe;
+    expect(probed).toBe(true);
+  });
+
   it('a writer excludes probes of that worktree; other worktrees proceed', async () => {
     const { WorktreeWriteLocks } = await import('./git-schedule');
     const locks = new WorktreeWriteLocks();

@@ -4,7 +4,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
-import { formatCommandLine } from '#primitives/exec/api';
+import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
   PersistedTuiAgentStartInput,
@@ -39,14 +39,16 @@ import {
   type ConversationLifecycleReporter,
 } from '#services/conversation-reports/node';
 import {
-  buildTmuxShellLine,
   killTmuxSession,
   listTmuxSessionActivity,
+  logLocalPtySpawnWarnings,
   PtyRegistry,
+  resolveLocalPtySpawn,
   type PtyExitInfo,
   type PtySession,
   type PtySpawnSpec,
 } from '#services/pty/api';
+import { resolveTerminalShell } from '#services/pty/node';
 import {
   SESSION_IDLE_MS,
   type ActivityFields,
@@ -151,6 +153,10 @@ export class TuiAgentsRuntime {
       idlePolicy: sessionPolicy,
       sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
       beforeSweep: async () => {
+        if ((this.deps.platform ?? process.platform) === 'win32') {
+          this.tmuxActivity = new Map();
+          return;
+        }
         // Skip the tmux subprocess entirely when nothing is tracked; the sweep
         // below iterates the same (empty) config set.
         if (this.configs.size === 0) {
@@ -237,6 +243,10 @@ export class TuiAgentsRuntime {
         },
         reconcile: {
           precheck: async () => {
+            if ((this.deps.platform ?? process.platform) === 'win32') {
+              this.tmuxActivity = new Map();
+              return { ctx: undefined };
+            }
             try {
               // The prefetch doubles as the gate's liveness table; a listing
               // failure vetoes the whole run (intents stay untouched).
@@ -252,7 +262,7 @@ export class TuiAgentsRuntime {
             if (parsed.data.lastAgentState) {
               this.agentStates.restore(parsed.data.lastAgentState);
             }
-            return { input: parsed.data };
+            return { input: this.normalizePlatformInput(parsed.data) };
           },
           gate: (input) => {
             if (!input.tmuxSessionName || !this.tmuxActivity.has(input.tmuxSessionName)) {
@@ -269,6 +279,7 @@ export class TuiAgentsRuntime {
   async startSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -300,6 +311,7 @@ export class TuiAgentsRuntime {
   async resumeSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -486,7 +498,26 @@ export class TuiAgentsRuntime {
       return this.cancelledSpawn(config.input.conversationId);
     }
 
-    const spawnSpec = this.spawnSpec(command, config.input);
+    // Git-credential behavior is applied last through the blessed construction (spec:
+    // github-git-settings §4) so a "none" scrub wins over provider and hook env.
+    const env = applyGitCredentialsToEnv(
+      mergeAgentEnvLayers(
+        currentAgentEnvPlatform(this.deps.platform),
+        {
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          TERM_PROGRAM: 'emdash',
+        },
+        command.env,
+        config.input.providerVars ?? {},
+        hookEnv
+      ),
+      config.input.gitCredentials
+    );
+    const spawnSpec = await this.spawnSpec(command, config.input, env);
+    if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
+      return this.cancelledSpawn(config.input.conversationId);
+    }
     let pty: PtySession;
     try {
       pty = await this.registry.create(
@@ -495,20 +526,7 @@ export class TuiAgentsRuntime {
           command: spawnSpec.command,
           args: spawnSpec.args,
           cwd: config.input.cwd,
-          // Git-credential behavior is applied last through the blessed
-          // construction (spec: github-git-settings §4) so a "none" scrub
-          // wins over provider and hook env.
-          env: applyGitCredentialsToEnv(
-            {
-              TERM: 'xterm-256color',
-              COLORTERM: 'truecolor',
-              TERM_PROGRAM: 'emdash',
-              ...command.env,
-              ...config.input.providerVars,
-              ...hookEnv,
-            },
-            config.input.gitCredentials
-          ),
+          env,
           cols: config.input.cols,
           rows: config.input.rows,
         },
@@ -887,27 +905,36 @@ export class TuiAgentsRuntime {
     return peek(this.sessionsList.states.list)[conversationId]?.resume ?? null;
   }
 
-  private spawnSpec(
+  private async spawnSpec(
     command: AgentCommand,
-    input: TuiAgentStartInput
-  ): Pick<PtySpawnSpec, 'command' | 'args'> {
-    if (!input.shellSetup && !input.tmuxSessionName) {
-      return { command: command.command, args: command.args };
-    }
-
-    const commandLine = formatCommandLine(command, 'posix');
-    const fullCommandLine = input.shellSetup
-      ? `${input.shellSetup} && ${commandLine}`
-      : commandLine;
-    return {
-      command: '/bin/sh',
-      args: [
-        '-c',
-        input.tmuxSessionName
-          ? buildTmuxShellLine(input.tmuxSessionName, fullCommandLine)
-          : fullCommandLine,
-      ],
-    };
+    input: TuiAgentStartInput,
+    env: Record<string, string>
+  ): Promise<Pick<PtySpawnSpec, 'command' | 'args'>> {
+    const platform = this.deps.platform ?? process.platform;
+    const shellProfile = await resolveTerminalShell({
+      intent: 'system',
+      platform,
+      env: await this.deps.env(),
+    });
+    const resolved = resolveLocalPtySpawn({
+      intent: {
+        kind: 'run-command',
+        cwd: input.cwd,
+        command: { kind: 'argv', command: command.command, args: command.args },
+        shellSetup: input.shellSetup,
+        shellProfile,
+        tmuxSessionName: input.tmuxSessionName,
+      },
+      platform,
+      env,
+    });
+    logLocalPtySpawnWarnings(
+      'TuiAgentsRuntime',
+      resolved.warnings,
+      { conversationId: input.conversationId },
+      this.deps.logger
+    );
+    return { command: resolved.command, args: resolved.args };
   }
 
   private maybeRespawnAfterUnexpectedExit(
@@ -941,6 +968,7 @@ export class TuiAgentsRuntime {
   }
 
   private async killTmuxForConfig(config: TuiSessionConfig | undefined): Promise<void> {
+    if ((this.deps.platform ?? process.platform) === 'win32') return;
     const sessionName = config?.input.tmuxSessionName;
     if (!sessionName) return;
     await killTmuxSession(this.deps.exec, sessionName, (error) => {
@@ -949,6 +977,13 @@ export class TuiAgentsRuntime {
         error: String(error),
       });
     });
+  }
+
+  private normalizePlatformInput<T extends TuiAgentStartInput>(input: T): T {
+    if ((this.deps.platform ?? process.platform) !== 'win32' || !input.tmuxSessionName)
+      return input;
+    const { tmuxSessionName: _tmuxSessionName, ...normalized } = input;
+    return normalized as T;
   }
 }
 

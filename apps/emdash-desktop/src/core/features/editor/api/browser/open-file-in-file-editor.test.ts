@@ -175,7 +175,22 @@ describe('makeFileLinkHandlers', () => {
     handlers.onOpenExternal('/outside/report.pdf');
     await flushMicrotasks();
 
-    expect(mocks.openPath).toHaveBeenCalledWith({ path: '/outside/report.pdf' });
+    expect(mocks.openPath).toHaveBeenCalledWith({
+      ref: hostFileRefFromNativePath('/outside/report.pdf'),
+    });
     expect(mocks.openFile).not.toHaveBeenCalled();
+  });
+
+  it('does not pass a remote conversation file to the desktop OS opener', async () => {
+    mocks.getWorkspace.mockReturnValue({
+      workspaceId: 'workspace-1',
+      path: '/home/dev/repo',
+      sshConnectionId: 'ssh-1',
+    });
+    const handlers = makeFileLinkHandlers('project-1', 'task-1');
+    handlers.onOpenExternal('/tmp/report.pdf');
+    await flushMicrotasks();
+
+    expect(mocks.openPath).not.toHaveBeenCalled();
   });
 });

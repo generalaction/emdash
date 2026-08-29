@@ -337,6 +337,22 @@ describe('OpenFileStore', () => {
       expect(h.resolves[0]?.uri).toBe(encodeResourceUri(nfc));
     });
 
+    it('shares one Windows buffer across path casing variants', async () => {
+      const h = start();
+      const displayRef = hostFileRefFromNativePath('C:\\Repo\\File.ts');
+      const variantRef = hostFileRefFromNativePath('c:\\repo\\file.ts');
+
+      const first = h.store.acquire(displayRef, BUFFER);
+      const second = h.store.acquire(variantRef, BUFFER);
+
+      expect(second.entry).toBe(first.entry);
+      expect(h.store.peek(variantRef)).toBe(first.entry);
+      h.publish(h.diskKey('C:\\Repo\\File.ts'), textContent('shared', 'e1'));
+      await waitFor(() => first.entry.status.kind === 'ready');
+      expect(h.resolves).toHaveLength(1);
+      expect(h.resolves[0]?.uri).toBe(encodeResourceUri(displayRef));
+    });
+
     it('holds git snapshot facets per ref alongside each other', async () => {
       const h = start();
       const path = '/repo/src/index.ts';

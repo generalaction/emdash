@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
 import type { WorkspaceKind } from '../../api/schemas';
 
@@ -339,9 +340,9 @@ function mergeRequests(previous: ScanRequest | undefined, next: ScanRequest): Sc
 }
 
 function workingTreeWatchKey(workspacePath: string): string {
-  return `tree:${workspacePath}`;
+  return `tree:${nativePathIdentityKey(workspacePath)}`;
 }
 
 function gitDirWatchKey(workspacePath: string): string {
-  return `git:${workspacePath}`;
+  return `git:${nativePathIdentityKey(workspacePath)}`;
 }

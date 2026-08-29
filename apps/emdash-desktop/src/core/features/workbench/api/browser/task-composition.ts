@@ -1,3 +1,4 @@
+import { nativePathIdentityKey } from '@emdash/core/primitives/path/api';
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { computed, makeAutoObservable, observable, reaction, runInAction, when } from 'mobx';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
@@ -311,7 +312,8 @@ export class TaskComposition {
     }
     if (
       this._acquiredWorkspaceId === workspaceId &&
-      this._workspace?.path === path &&
+      this._workspace !== null &&
+      nativePathIdentityKey(this._workspace.path) === nativePathIdentityKey(path) &&
       this._workspace.sshConnectionId === sshConnectionId
     ) {
       return;

@@ -3,8 +3,9 @@ import { ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import {
   containsAbsolute,
+  comparisonKeyForAbsolutePath,
   formatAbsolute,
-  parseAbsolute,
+  parseNativeAbsolute,
   type HostAbsolutePath,
 } from '#primitives/path/api';
 import type { WorkspaceSessionClients } from './session-cleanup';
@@ -83,7 +84,7 @@ export class WorkspaceSessionGc {
     const byPath = new Map<string, HostAbsolutePath>();
     const add = (path: HostAbsolutePath | null) => {
       if (!path) return;
-      byPath.set(formatAbsolute(path), path);
+      byPath.set(comparisonKeyForAbsolutePath(path), path);
     };
 
     for (const session of Object.values(terminalSnapshot.data)) {
@@ -178,7 +179,7 @@ function pathContains(root: HostAbsolutePath, candidate: HostAbsolutePath | null
 }
 
 function parsePath(path: string): HostAbsolutePath | null {
-  const parsed = parseAbsolute(path);
+  const parsed = parseNativeAbsolute(path);
   return parsed.success ? parsed.data : null;
 }
 

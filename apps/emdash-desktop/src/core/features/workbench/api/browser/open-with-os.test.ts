@@ -21,24 +21,39 @@ describe('openWithOS', () => {
     mocks.openPath.mockResolvedValue({ success: true });
   });
 
-  it('opens a raw path with the OS default application', async () => {
-    await openWithOS('/tmp/report.pdf');
+  it('opens a local HostFileRef without discarding its host identity', async () => {
+    const ref = hostFileRefFromNativePath('/tmp/photo.png');
+    await openWithOS(ref);
 
-    expect(mocks.openPath).toHaveBeenCalledWith({ path: '/tmp/report.pdf' });
-    expect(mocks.toastError).not.toHaveBeenCalled();
-  });
-
-  it('opens a HostFileRef by its native path', async () => {
-    await openWithOS(hostFileRefFromNativePath('/tmp/photo.png'));
-
-    expect(mocks.openPath).toHaveBeenCalledWith({ path: '/tmp/photo.png' });
+    expect(mocks.openPath).toHaveBeenCalledWith({ ref });
   });
 
   it('surfaces an OS-open failure as a toast', async () => {
     mocks.openPath.mockResolvedValue({ success: false, error: 'no handler' });
 
-    await openWithOS('/tmp/strange.bin');
+    await openWithOS(hostFileRefFromNativePath('/tmp/strange.bin'));
 
     expect(mocks.toastError).toHaveBeenCalledWith('Could not open /tmp/strange.bin: no handler');
+  });
+
+  it('never passes a remote file to the desktop OS opener', async () => {
+    await openWithOS(hostFileRefFromNativePath('/tmp/remote.pdf', 'ssh-1'));
+
+    expect(mocks.openPath).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      'Could not open /tmp/remote.pdf: default applications are only available for local files'
+    );
+  });
+
+  it.each([
+    String.raw`C:\Users\Jane Doe\report #100%.pdf`,
+    String.raw`C:\資料\résumé.pdf`,
+    String.raw`\\server\share\Team Files\report #100%.pdf`,
+  ])('preserves Windows path spelling at the local-host boundary: %s', async (path) => {
+    const ref = hostFileRefFromNativePath(path);
+    await openWithOS(ref);
+
+    expect(mocks.openPath).toHaveBeenCalledWith({ ref });
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 });

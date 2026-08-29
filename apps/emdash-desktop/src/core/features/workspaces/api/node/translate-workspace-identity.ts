@@ -6,6 +6,7 @@ import {
   type WorkspaceClaimError,
   type WorkspaceClaimInput,
 } from '@core/features/workspaces/api/node/registry';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 
@@ -52,7 +53,8 @@ export function translateWorkspaceIdentity(
         source.untrackedAt !== null ||
         source.location !== input.host.location ||
         source.sshConnectionId !== input.host.sshConnectionId ||
-        source.path !== expectedSourcePath
+        source.path === null ||
+        workspacePathIdentityKey(source.path) !== workspacePathIdentityKey(expectedSourcePath)
       ) {
         return identityConflict(input, sourceId);
       }

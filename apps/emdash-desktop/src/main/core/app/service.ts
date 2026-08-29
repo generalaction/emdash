@@ -1,9 +1,9 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { extname, resolve, sep } from 'node:path';
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import { parsePortableRelativePath, type HostFileRef } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
@@ -57,24 +57,6 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
   '.wav': 'audio/wav',
   '.webm': 'audio/webm',
 };
-
-function expandAbsoluteOrTildePath(rawPath: string): string {
-  if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
-  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
-  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
-  return expanded;
-}
-
-async function resolveHomeJailedPath(rawPath: string): Promise<string> {
-  const expanded = expandAbsoluteOrTildePath(rawPath);
-  const realPath = await realpath(expanded);
-  const realHome = await realpath(homedir());
-  const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
-  if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
-    throw new Error('Path must be inside the user home directory');
-  }
-  return realPath;
-}
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -228,8 +210,11 @@ class AppService implements Disposable {
     await shell.openExternal(url);
   }
 
-  async openPath(rawPath: string): Promise<void> {
-    const realPath = await resolveHomeJailedPath(rawPath);
+  async openPath(ref: HostFileRef): Promise<void> {
+    if (ref.host.type !== 'local') {
+      throw new Error('Default applications are only available for local files');
+    }
+    const realPath = await realpath(nativePathFromHost(ref.path));
     const errorMessage = await shell.openPath(realPath);
     if (errorMessage) throw new Error(errorMessage);
   }

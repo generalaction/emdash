@@ -1,8 +1,9 @@
 import { normalizeExclusionPatterns } from '@emdash/core/primitives/exclusion-policy/api';
-import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
-  formatAbsolute,
+  hostFileRef,
   portableRelativePathBasename,
+  resourceKeyFromFileRef,
   type HostAbsolutePath,
 } from '@emdash/core/primitives/path/api';
 import {
@@ -161,5 +162,5 @@ function isTransientSearchError(error: PathSearchError): boolean {
 }
 
 function activeRootKey(root: HostAbsolutePath, host: HostRef): string {
-  return `${hostRefKey(host)}:${formatAbsolute(root)}`;
+  return resourceKeyFromFileRef(hostFileRef(host, root));
 }

@@ -3,6 +3,7 @@ import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Field, Input, Separator, Switch, Textarea, toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { getMachinesStore } from '../../contributions/app-stores';
 import { useHostSettings } from '../use-host-settings';
 
@@ -26,6 +27,7 @@ export const HostSettingsCard = observer(function HostSettingsCard({
     ? machinesStore.connections.find((connection) => connection.id === machineId)
     : undefined;
   const syncLocalSettings = machine?.syncLocalSettings ?? false;
+  const tmuxSupported = machineId !== undefined || detectPlatformContext().os !== 'windows';
   const [shellSetup, setShellSetup] = useState('');
   const [worktreeRoot, setWorktreeRoot] = useState('');
   const [watcherExclude, setWatcherExclude] = useState('');
@@ -149,10 +151,15 @@ export const HostSettingsCard = observer(function HostSettingsCard({
             </Field.Description>
           </div>
           <Switch
-            checked={settings?.tmux ?? false}
-            disabled={disabled}
+            checked={tmuxSupported ? (settings?.tmux ?? false) : false}
+            disabled={disabled || !tmuxSupported}
             onCheckedChange={(checked) => void commit({ tmux: checked })}
           />
+          {!tmuxSupported ? (
+            <div className="text-sm text-foreground-muted">
+              tmux is unavailable for Windows sessions. Your stored preference is preserved.
+            </div>
+          ) : null}
         </Field.Root>
 
         {machineId ? (

@@ -11,4 +11,5 @@ export interface AgentConfigRuntimeDeps {
   agentHost: AgentPluginHost;
   ptySpawner: PtySpawner;
   logger: Logger;
+  platform?: NodeJS.Platform;
 }

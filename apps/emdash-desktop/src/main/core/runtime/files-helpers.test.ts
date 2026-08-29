@@ -4,18 +4,9 @@ import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import { isRealPathContained, realPathNearestExisting } from '../files/realpath-containment';
-import { filesClientScope } from '../files/runtime-client';
-
-const pathOperations = {
-  basename: path.basename,
-  dirname: path.dirname,
-  join: path.join,
-  contains(parent: string, child: string): boolean {
-    const relative = path.relative(parent, child);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-  },
-};
+import { ensureAbsoluteDir } from './files-helpers';
 
 function makeFiles(root: string) {
   return filesClientScope(
@@ -53,9 +44,8 @@ describe('realpath containment', () => {
     fs.mkdirSync(path.join(root, 'inside'));
     const result = await isRealPathContained(
       makeFiles(root),
-      pathOperations,
-      root,
-      path.join(root, 'inside', 'file.txt')
+      hostPathFromNative(root),
+      hostPathFromNative(path.join(root, 'inside', 'file.txt'))
     );
     expect(result.success && result.data).toBe(true);
   });
@@ -64,9 +54,8 @@ describe('realpath containment', () => {
     fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
     const result = await isRealPathContained(
       makeFiles(root),
-      pathOperations,
-      root,
-      path.join(root, 'escape', 'file.txt')
+      hostPathFromNative(root),
+      hostPathFromNative(path.join(root, 'escape', 'file.txt'))
     );
     expect(result.success && result.data).toBe(false);
   });
@@ -75,9 +64,8 @@ describe('realpath containment', () => {
     fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
     const result = await isRealPathContained(
       makeFiles(root),
-      pathOperations,
-      root,
-      path.join(root, 'escape'),
+      hostPathFromNative(root),
+      hostPathFromNative(path.join(root, 'escape')),
       { candidateMustExist: true }
     );
     expect(result.success && result.data).toBe(false);
@@ -88,9 +76,74 @@ describe('realpath containment', () => {
     const realRoot = fs.realpathSync(root);
     const resolved = await realPathNearestExisting(
       makeFiles(root),
-      pathOperations,
-      path.join(root, 'a', 'b', 'c.txt')
+      hostPathFromNative(path.join(root, 'a', 'b', 'c.txt'))
     );
-    expect(resolved.success && resolved.data).toBe(path.join(realRoot, 'a', 'b', 'c.txt'));
+    expect(resolved.success && nativePathFromHost(resolved.data)).toBe(
+      path.join(realRoot, 'a', 'b', 'c.txt')
+    );
   });
+
+  it('uses Win32 case-insensitive semantics for realpath containment', async () => {
+    const files = filesClientScope(
+      {
+        fs: {
+          realPath: async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) =>
+            ok({ path: target }),
+        },
+      } as never,
+      'C:\\Repo'
+    );
+
+    await expect(
+      isRealPathContained(
+        files,
+        hostPathFromNative('C:\\Repo'),
+        hostPathFromNative('c:\\REPO\\src\\file.ts')
+      )
+    ).resolves.toEqual(ok(true));
+  });
+});
+
+describe('absolute directory creation', () => {
+  it.each([
+    {
+      label: 'drive',
+      root: 'C:\\repo',
+      target: 'C:\\repo\\worktrees\\task',
+      expected: ['C:\\repo', 'C:\\repo\\worktrees', 'C:\\repo\\worktrees\\task'],
+    },
+    {
+      label: 'UNC',
+      root: '\\\\server\\share\\repo',
+      target: '\\\\server\\share\\repo\\worktrees\\task',
+      expected: [
+        '\\\\server\\share\\repo',
+        '\\\\server\\share\\repo\\worktrees',
+        '\\\\server\\share\\repo\\worktrees\\task',
+      ],
+    },
+  ])(
+    'uses the target $label root without desktop normalization',
+    async ({ root, target, expected }) => {
+      const created: string[] = [];
+      const client = {
+        fs: {
+          exists: async () => ok({ exists: false }),
+          createDirectory: async ({
+            path: directory,
+          }: {
+            path: Parameters<typeof nativePathFromHost>[0];
+          }) => {
+            created.push(nativePathFromHost(directory));
+            return ok();
+          },
+        },
+      } as never;
+
+      const result = await ensureAbsoluteDir(async () => client, root, target);
+
+      expect(result).toEqual(ok());
+      expect(created).toEqual(expected);
+    }
+  );
 });

@@ -15,7 +15,7 @@ import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 import { sshWorkspaceServerTarget } from '../targets';
 import type { RemoteWorkspaceServerDaemon } from './daemon-control';
-import type { RemoteHostProbe } from './host-probe';
+import { WINDOWS_SSH_UNSUPPORTED_MESSAGE, type RemoteHostProbe } from './host-probe';
 import { WorkspaceServerInstallError, type WorkspaceServerInstaller } from './installer';
 
 export type WorkspaceServerProvisionErrorCode =
@@ -139,6 +139,9 @@ export class WorkspaceServerProvisioner {
         throw provisionError('connection-failed', 'Could not inspect the remote machine', error);
       }
       throwIfAborted(signal);
+      if (host.platform === 'win32') {
+        throw provisionError('unsupported-platform', WINDOWS_SSH_UNSUPPORTED_MESSAGE);
+      }
 
       const layout = workspaceServerLayout(host.home);
       const target = sshWorkspaceServerTarget(connectionId, layout);

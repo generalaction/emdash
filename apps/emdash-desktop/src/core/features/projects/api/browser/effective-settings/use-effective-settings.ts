@@ -38,6 +38,7 @@ export function resolveRendererEffectiveSettings(
       hostWorktreeRoot: inputs.placementContext.hostWorktreeRoot,
       builtInWorktreeRoot: inputs.placementContext.builtInWorktreeRoot,
       homeDirectory: inputs.placementContext.homeDirectory,
+      pathProfile: inputs.placementContext.pathProfile,
     },
     inputs.repoFacts,
     inputs.accounts

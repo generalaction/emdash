@@ -1,4 +1,9 @@
-import path from 'node:path';
+import {
+  createPathProfile,
+  createPathSemantics,
+  parseNativeAbsolute,
+  type HostAbsolutePath,
+} from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
@@ -8,7 +13,7 @@ import {
   filesClientScope,
   parentFilePaths,
   type FilesClientScope,
-} from '@main/core/files/runtime-client';
+} from '@core/services/runtime-broker/node/files';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../files/realpath-containment';
 
 type FilesRuntimeClient = FilesClientScope['client'];
@@ -32,8 +37,9 @@ async function openFilesClientScope(
   getFilesRuntimeClient: GetFilesRuntimeClient,
   rootPath: string
 ): Promise<Result<FilesClientScope, FsError>> {
-  if (!path.isAbsolute(rootPath)) return err(expectedAbsolutePath(rootPath));
-  return ok(filesClientScope(await getFilesRuntimeClient(), rootPath));
+  const root = parseAbsolutePath(rootPath);
+  if (!root.success) return root;
+  return ok(filesClientScope(await getFilesRuntimeClient(), root.data));
 }
 
 export async function ensureAbsoluteDir(
@@ -42,23 +48,24 @@ export async function ensureAbsoluteDir(
   absPath: string,
   options: { recursive?: boolean } = {}
 ): Promise<Result<void, FsError>> {
-  if (!path.isAbsolute(rootPath)) return err(expectedAbsolutePath(rootPath));
-  if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
-  const resolvedRoot = path.resolve(rootPath);
-  const resolvedPath = path.resolve(absPath);
-  if (!nativePathOperations.contains(resolvedRoot, resolvedPath)) {
-    return err(expectedContainedPath(resolvedRoot, resolvedPath));
+  const root = parseAbsolutePath(rootPath);
+  if (!root.success) return root;
+  const target = parseAbsolutePath(absPath);
+  if (!target.success) return target;
+  const profile = createPathProfile({ style: root.data.root.kind === 'posix' ? 'posix' : 'win32' });
+  if (!createPathSemantics(profile).contains(root.data, target.data)) {
+    return err(expectedContainedPath(rootPath, absPath));
   }
 
   const recursive = options.recursive ?? true;
   const client = await getFilesRuntimeClient();
-  const volumeRoot = path.parse(resolvedRoot).root;
-  const rootReady = await ensureDirectory(filesClientScope(client, volumeRoot), resolvedRoot, {
+  const volumeRoot: HostAbsolutePath = { root: root.data.root, segments: [] };
+  const rootReady = await ensureDirectory(filesClientScope(client, volumeRoot), root.data, {
     recursive,
   });
   if (!rootReady.success) return rootReady;
 
-  return ensureDirectory(filesClientScope(client, resolvedRoot), resolvedPath, { recursive });
+  return ensureDirectory(filesClientScope(client, root.data), target.data, { recursive });
 }
 
 async function realPathAbsolute(
@@ -68,8 +75,9 @@ async function realPathAbsolute(
 ): Promise<Result<string, FsError>> {
   const opened = await openFilesClientScope(getFilesRuntimeClient, rootPath);
   if (!opened.success) return opened;
-  if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
-  const result = await opened.data.client.fs.realPath(fileKey(opened.data, absPath));
+  const target = parseAbsolutePath(absPath);
+  if (!target.success) return target;
+  const result = await opened.data.client.fs.realPath(fileKey(opened.data, target.data));
   return result.success ? ok(nativePathFromHost(result.data.path)) : result;
 }
 
@@ -81,19 +89,14 @@ async function isRealPathContained(
 ): Promise<Result<boolean, FsError>> {
   const opened = await openFilesClientScope(getFilesRuntimeClient, rootPath);
   if (!opened.success) return opened;
-  if (!path.isAbsolute(candidatePath)) return err(expectedAbsolutePath(candidatePath));
-  return isRealPathContainedByRealPath(
-    opened.data,
-    nativePathOperations,
-    rootPath,
-    candidatePath,
-    options
-  );
+  const candidate = parseAbsolutePath(candidatePath);
+  if (!candidate.success) return candidate;
+  return isRealPathContainedByRealPath(opened.data, opened.data.root, candidate.data, options);
 }
 
 async function ensureDirectory(
   files: FilesClientScope,
-  targetPath: string,
+  targetPath: HostAbsolutePath,
   options: { recursive?: boolean }
 ): Promise<Result<void, FsError>> {
   const relative = fileRelativePath(files, targetPath);
@@ -110,16 +113,6 @@ async function ensureDirectory(
   return ok<void>();
 }
 
-const nativePathOperations = {
-  basename: path.basename,
-  contains(parent: string, child: string): boolean {
-    const relative = path.relative(parent, child);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-  },
-  dirname: path.dirname,
-  join: path.join,
-};
-
 function expectedAbsolutePath(input: string): FsError {
   return { type: 'invalid-path', path: input, message: `Expected absolute path: ${input}` };
 }
@@ -130,4 +123,9 @@ function expectedContainedPath(rootPath: string, input: string): FsError {
     path: input,
     message: `Expected path inside ${rootPath}: ${input}`,
   };
+}
+
+function parseAbsolutePath(input: string): Result<HostAbsolutePath, FsError> {
+  const parsed = parseNativeAbsolute(input);
+  return parsed.success ? parsed : err(expectedAbsolutePath(input));
 }

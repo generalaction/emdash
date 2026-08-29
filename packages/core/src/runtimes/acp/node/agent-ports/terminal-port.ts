@@ -10,19 +10,24 @@ import type {
   WaitForTerminalExitRequest,
   WaitForTerminalExitResponse,
 } from '@agentclientprotocol/sdk';
+import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import type { AgentTerminalManager } from './terminal-manager';
 
 export class TerminalPort {
-  constructor(private readonly terminals: AgentTerminalManager) {}
+  constructor(
+    private readonly terminals: AgentTerminalManager,
+    private readonly platform: NodeJS.Platform = process.platform
+  ) {}
 
   async createTerminal(
     conversationId: string,
     defaultCwd: string,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    const envRecord = params.env
-      ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
-      : {};
+    const envRecord = mergeAgentEnvLayers(
+      currentAgentEnvPlatform(this.platform),
+      params.env ? Object.fromEntries(params.env.map((e) => [e.name, e.value])) : {}
+    );
     const terminalId = await this.terminals.create(conversationId, {
       command: params.command,
       args: params.args ?? [],
@@ -56,12 +61,12 @@ export class TerminalPort {
   async killTerminal(params: KillTerminalRequest): Promise<KillTerminalResponse> {
     const terminal = this.terminals.get(params.terminalId);
     if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
-    terminal.kill();
+    await terminal.kill();
     return {};
   }
 
-  releaseTerminal(params: ReleaseTerminalRequest): ReleaseTerminalResponse {
-    this.terminals.release(params.terminalId);
+  async releaseTerminal(params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse> {
+    await this.terminals.release(params.terminalId);
     return {};
   }
 }

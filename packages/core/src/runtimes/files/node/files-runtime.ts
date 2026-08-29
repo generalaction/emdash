@@ -5,7 +5,8 @@ import {
   DEFAULT_WATCHER_EXCLUDE,
   normalizeExclusionPatterns,
 } from '#primitives/exclusion-policy/api';
-import { parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import { createPathProfile, parseAbsolute } from '#primitives/path/api';
+import type { HomeDirectoryResult } from '#runtimes/files/api';
 import { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
 import { FileContentRuntime } from '#runtimes/files/node/content/content-runtime';
 import { FileSystemRuntime } from '#runtimes/files/node/fs/file-system';
@@ -49,18 +50,19 @@ export class FilesRuntime {
     this.content = new FileContentRuntime(this.allocations);
   }
 
-  async getHomeDir(): Promise<{ path: HostAbsolutePath }> {
+  async getHomeDir(): Promise<HomeDirectoryResult> {
     const canonicalHome = await realpath(homedir());
+    const profile = createPathProfile({ style: path.sep === '\\' ? 'win32' : 'posix' });
     const parsed = parseAbsolute(canonicalHome, {
       profile: {
-        style: path.sep === '\\' ? 'win32' : 'posix',
+        style: profile.style,
         unicodeNormalization: 'preserve',
       },
     });
     if (!parsed.success) {
       throw new Error(`Host home directory is not an absolute path: ${parsed.error.message}`);
     }
-    return { path: parsed.data };
+    return { path: parsed.data, profile };
   }
 
   async dispose(): Promise<void> {

@@ -1,5 +1,6 @@
 import type { Clock } from '@emdash/shared/scheduling';
 import { produce } from '@emdash/wire/state';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { SessionState, SessionSummary } from '#runtimes/acp/api';
 import type { SessionCell } from '#runtimes/acp/node/session/cell';
 import type { SessionsListModel } from '#runtimes/acp/node/state/live-models';
@@ -177,7 +178,7 @@ function sessionSummaryEquals(
   return (
     current.conversationId === candidate.conversationId &&
     current.providerId === candidate.providerId &&
-    current.cwd === candidate.cwd &&
+    cwdEquals(current.cwd, candidate.cwd) &&
     current.lifecycle === candidate.lifecycle &&
     current.suspended === candidate.suspended &&
     current.isGenerating === candidate.isGenerating &&
@@ -190,4 +191,14 @@ function sessionSummaryEquals(
     current.lastInputAt === candidate.lastInputAt &&
     current.lastOutputAt === candidate.lastOutputAt
   );
+}
+
+function cwdEquals(left: string | null | undefined, right: string | null | undefined): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  try {
+    return nativePathIdentityKey(left) === nativePathIdentityKey(right);
+  } catch {
+    return false;
+  }
 }

@@ -1,5 +1,9 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
-import { parseAbsolute } from '@emdash/core/primitives/path/api';
+import {
+  hostFileRef,
+  parseNativeAbsolute,
+  type HostFileRef,
+} from '@emdash/core/primitives/path/api';
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
@@ -34,7 +38,6 @@ import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/api/node/r
 import { deriveBranchName } from '@core/features/workspaces/api/node/workspace-branch';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
@@ -73,7 +76,7 @@ import type { TeardownTaskError } from './task-session-manager';
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
 type ActivatedTask = SessionProvisionResult & {
   path: string;
-  runtimeWorkspace: ReturnType<typeof hostFileRefFromNativePath>;
+  runtimeWorkspace: HostFileRef;
 };
 
 export type TaskLifecycleHooks = {
@@ -240,7 +243,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     );
     if (!access.success) return access;
     if (!access.data) return err({ type: 'missing-workspace' });
-    const workspacePath = parseAbsolute(workspaceRow.path);
+    const workspacePath = parseNativeAbsolute(workspaceRow.path);
     if (!workspacePath.success) {
       return err({
         type: 'setup-failed',
@@ -297,10 +300,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     }
     return ok({
       path: workspaceRow.path,
-      runtimeWorkspace: hostFileRefFromNativePath(
-        workspaceRow.path,
-        sshConnectionIdOf(access.data.identity.host)
-      ),
+      runtimeWorkspace: hostFileRef(access.data.identity.host, workspacePath.data),
       taskProvider: built.data.taskProvider,
       persistData: {
         workspaceId: workspaceRow.id,

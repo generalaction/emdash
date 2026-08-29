@@ -69,11 +69,20 @@ export function WorktreeDestinationPreviewView({
   if (branchName.trim() === '') return null;
 
   const worktreeRoot = effective.worktreeRoot;
-  const { worktreePath } = compileWorktreePayload({
-    repoPath: projectPath,
-    worktreeRoot: worktreeRoot.value,
-    branchName,
-  });
+  let worktreePath: string;
+  try {
+    worktreePath = compileWorktreePayload({
+      repoPath: projectPath,
+      worktreeRoot: worktreeRoot.value,
+      branchName,
+    }).worktreePath;
+  } catch (error) {
+    return (
+      <p className="text-xs text-foreground-warning">
+        {error instanceof Error ? error.message : String(error)}
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1 text-xs text-foreground-muted">
