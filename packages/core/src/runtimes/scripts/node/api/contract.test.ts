@@ -301,4 +301,46 @@ describe('scripts runtime contract', () => {
       windowsRuntime.dispose();
     }
   });
+
+  it('treats Windows casing variants as one script-run guard and live state', async () => {
+    const windowsSpawner = new FakePtySpawner();
+    const windowsRuntime = new ScriptsRuntime({
+      spawner: windowsSpawner,
+      platform: 'win32',
+      userEnv: async () => ({ ComSpec: 'C:\\Windows\\System32\\cmd.exe' }),
+    });
+    const windowsWire = createTestWire(scriptsContract, createScriptsController(windowsRuntime));
+    try {
+      const first = await windowsWire.client.start({
+        workspacePath: 'C:\\Repo',
+        script: 'run',
+        provenance: 'manual',
+        facts: { workspaceId: 'windows' },
+        command: 'pnpm dev',
+        shellSetup: '',
+      });
+      const duplicate = await windowsWire.client.start({
+        workspacePath: 'c:\\repo',
+        script: 'run',
+        provenance: 'manual',
+        facts: { workspaceId: 'windows' },
+        command: 'pnpm dev',
+        shellSetup: '',
+      });
+
+      expect(first.success).toBe(true);
+      expect(duplicate).toMatchObject({ success: false, error: { type: 'run-in-flight' } });
+      expect(windowsSpawner.processes).toHaveLength(1);
+      expect(await windowsWire.client.stop({ workspacePath: 'c:\\REPO', script: 'run' })).toEqual({
+        success: true,
+        data: undefined,
+      });
+      expect(
+        await windowsWire.client.wait({ workspacePath: 'C:\\repo', script: 'run' })
+      ).toMatchObject({ success: true, data: { status: 'cancelled' } });
+    } finally {
+      windowsWire.dispose();
+      windowsRuntime.dispose();
+    }
+  });
 });

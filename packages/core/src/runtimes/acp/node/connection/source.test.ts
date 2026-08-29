@@ -45,6 +45,15 @@ function sourceDeps(
 }
 
 describe('createAcpConnectionSource', () => {
+  it('uses host path identity for connection keys', () => {
+    expect(makeAcpConnectionKey('claude', 'C:\\Repo')).toBe(
+      makeAcpConnectionKey('claude', 'c:\\repo')
+    );
+    expect(makeAcpConnectionKey('claude', '/Repo')).not.toBe(
+      makeAcpConnectionKey('claude', '/repo')
+    );
+  });
+
   it('dedupes acquisitions by provider and cwd and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();

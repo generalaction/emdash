@@ -1,4 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
 import type { PluginScope } from '#services/agent-plugins/api/plugins/capabilities/plugins';
 import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
@@ -137,11 +138,13 @@ export class AgentHookInstaller {
   }
 
   private memoKey(installation: ResolvedHookInstallation): string {
-    return `${installation.providerId}\0${installation.roots[0]}`;
+    return `${installation.providerId}\0${pathIdentityKey(installation.roots[0]!)}`;
   }
 
   private async withRootLocks<T>(roots: string[], operation: () => Promise<T>): Promise<T> {
-    const uniqueRoots = [...new Set(roots)].sort();
+    const uniqueRoots = [
+      ...new Map(roots.map((root) => [pathIdentityKey(root), root] as const)).values(),
+    ].sort();
     const run = async (index: number): Promise<T> => {
       const root = uniqueRoots[index];
       if (!root) return operation();
@@ -151,20 +154,29 @@ export class AgentHookInstaller {
   }
 
   private async withRootLock<T>(root: string, operation: () => Promise<T>): Promise<T> {
-    const previous = this.rootLocks.get(root) ?? Promise.resolve();
+    const identity = pathIdentityKey(root);
+    const previous = this.rootLocks.get(identity) ?? Promise.resolve();
     let release = (): void => {};
     const current = new Promise<void>((resolve) => {
       release = resolve;
     });
     const tail = previous.then(() => current);
-    this.rootLocks.set(root, tail);
+    this.rootLocks.set(identity, tail);
     await previous;
     try {
       return await operation();
     } finally {
       release();
-      if (this.rootLocks.get(root) === tail) this.rootLocks.delete(root);
+      if (this.rootLocks.get(identity) === tail) this.rootLocks.delete(identity);
     }
+  }
+}
+
+function pathIdentityKey(path: string): string {
+  try {
+    return nativePathIdentityKey(path);
+  } catch {
+    return `raw:${path}`;
   }
 }
 

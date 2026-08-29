@@ -109,6 +109,38 @@ describe('TerminalsRuntime', () => {
     }
   });
 
+  it('does not duplicate a terminal scope for Windows casing variants', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-windows-identity' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      userEnv: async () => testUserEnv(),
+      shellResolver: new FakeShellResolver(),
+    });
+    const upper = parseAbsolute('C:\\Repo', { profile: { style: 'win32' } });
+    const lower = parseAbsolute('c:\\repo', { profile: { style: 'win32' } });
+    expect(upper.success && lower.success).toBe(true);
+    if (!upper.success || !lower.success) return;
+
+    try {
+      await runtime.start({
+        key: { workspace: hostFileRef(LOCAL_HOST_REF, upper.data), id: 'terminal-1' },
+        spec: { cwd: '/repo', env: {} },
+      });
+      await runtime.start({
+        key: { workspace: hostFileRef(LOCAL_HOST_REF, lower.data), id: 'terminal-1' },
+        spec: { cwd: '/repo', env: {} },
+      });
+
+      expect(spawner.processes).toHaveLength(1);
+      expect(Object.keys(await sessions(runtime))).toHaveLength(1);
+    } finally {
+      runtime.dispose();
+      await scope.dispose();
+    }
+  });
+
   it('loads the current user env for each newly started terminal', async () => {
     let userEnv = { PATH: '/tools/old', USER_VALUE: 'before-refresh' };
     const spawner = new FakePtySpawner();
