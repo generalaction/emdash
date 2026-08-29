@@ -1,4 +1,9 @@
+import { nativePathIdentityKey } from '#primitives/path/api';
+
 const WORKTREE_POOL_HASH_LENGTH = 8;
+const WINDOWS_REPOSITORY_SEGMENT_MAX = 48;
+const WINDOWS_BRANCH_SEGMENT_MAX = 64;
+const WINDOWS_GENERATED_PATH_BUDGET = 220;
 const SHA256_INITIAL = [
   0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ] as const;
@@ -35,8 +40,16 @@ export type CompiledWorktreePayload = {
  */
 export function deriveWorktreePoolPath(input: { worktreeRoot: string; repoPath: string }): string {
   const separator = pathSeparatorFor(input.worktreeRoot);
-  const repositoryName = basename(input.repoPath, separator) || 'repository';
-  const repositoryHash = sha256Hex(input.repoPath).slice(0, WORKTREE_POOL_HASH_LENGTH);
+  const windows = separator === '\\';
+  const rawRepositoryName = basename(input.repoPath, separator) || 'repository';
+  const repositoryName = windows
+    ? shortenWindowsSegment(
+        sanitizeWindowsSegment(rawRepositoryName, 'repository').toLocaleLowerCase('en-US'),
+        WINDOWS_REPOSITORY_SEGMENT_MAX
+      )
+    : rawRepositoryName;
+  const repositoryIdentity = windows ? nativePathIdentityKey(input.repoPath) : input.repoPath;
+  const repositoryHash = sha256Hex(repositoryIdentity).slice(0, WORKTREE_POOL_HASH_LENGTH);
   return joinPath(input.worktreeRoot, separator, `${repositoryName}-${repositoryHash}`);
 }
 
@@ -45,21 +58,61 @@ export function compileWorktreePayload(
 ): CompiledWorktreePayload {
   const separator = pathSeparatorFor(input.worktreeRoot);
   const worktreePoolPath = deriveWorktreePoolPath(input);
+  const windows = separator === '\\';
+  let branchSegment = sanitizeBranchName(input.branchName, windows);
+  if (windows) {
+    branchSegment = shortenWindowsSegment(branchSegment, WINDOWS_BRANCH_SEGMENT_MAX);
+    const available = WINDOWS_GENERATED_PATH_BUDGET - worktreePoolPath.length - 1;
+    if (available < WORKTREE_POOL_HASH_LENGTH + 2) {
+      throw windowsPathLengthError(input.worktreeRoot);
+    }
+    branchSegment = shortenWindowsSegment(branchSegment, available);
+  }
 
   return {
-    worktreePath: joinPath(worktreePoolPath, separator, sanitizeBranchName(input.branchName)),
+    worktreePath: joinPath(worktreePoolPath, separator, branchSegment),
     branchName: input.branchName,
     preservePatterns: [...(input.preservePatterns ?? [])],
   };
 }
 
-function sanitizeBranchName(branchName: string): string {
+function sanitizeBranchName(branchName: string, windows: boolean): string {
+  if (windows) return sanitizeWindowsSegment(branchName, 'branch');
   const sanitized = branchName.replace(/[^a-zA-Z0-9._-]/g, '-');
   if (!sanitized || sanitized === '.' || sanitized === '..') return 'branch';
+  return sanitized;
+}
+
+function sanitizeWindowsSegment(input: string, fallback: string): string {
+  const sanitized = input
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '-')
+    .replace(/-+/gu, '-')
+    .replace(/[ .]+$/gu, '');
+  if (!sanitized || sanitized === '.' || sanitized === '..') return fallback;
+  // Windows treats the basename before the first dot as a device name, so adding
+  // another extension/suffix does not make COM1.txt legal. Prefix the basename.
   if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(sanitized)) {
-    return `${sanitized}-branch`;
+    return `_${sanitized}`;
   }
   return sanitized;
+}
+
+function shortenWindowsSegment(segment: string, maxLength: number): string {
+  const characters = Array.from(segment);
+  if (characters.length <= maxLength) return segment;
+  const suffix = `-${sha256Hex(segment).slice(0, WORKTREE_POOL_HASH_LENGTH)}`;
+  const prefixLength = Math.max(1, maxLength - suffix.length);
+  return `${characters
+    .slice(0, prefixLength)
+    .join('')
+    .replace(/[ .]+$/gu, '')}${suffix}`;
+}
+
+function windowsPathLengthError(worktreeRoot: string): Error {
+  return new Error(
+    `The Windows worktree root is too long to create a safe generated path: "${worktreeRoot}". ` +
+      'Choose a shorter worktree root or enable Git core.longpaths.'
+  );
 }
 
 function pathSeparatorFor(absolutePath: string): '/' | '\\' {
