@@ -20,13 +20,7 @@ import {
 } from '@emdash/ui/react/components';
 import { Button, Input, toast } from '@emdash/ui/react/primitives';
 import { type Contract, type ContractClient } from '@emdash/wire/rpc';
-import {
-  observe,
-  remote,
-  whenReady,
-  type RemoteModel,
-  type RemoteMember,
-} from '@emdash/wire/state';
+import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   projectsWireContract,
@@ -39,7 +33,6 @@ import { projectDirectoryLocation } from './project-directory-location';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
 type DirectoryTreeRemote = RemoteModel<DirectoryTreeModel>;
-type DirectoryTreeMember = RemoteMember<DirectoryTreeModel>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 const DIRECTORY_TREE_READY_TIMEOUT_MS = 30_000;
 export type ProjectDirectoryPickerClient = ContractClient<
@@ -104,13 +97,12 @@ export function ProjectDirectoryPicker({
   const separator = location?.separator ?? '/';
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const tree = useProjectDirectoryTree(host, root, sessionId, getProjectsClient);
-  const reveal = useRevealDirectory(tree.member, ROOT_RELATIVE_PATH, () => false);
 
   const listing = directoryListing({
     homePending,
     homeError,
-    syncError: tree.error ?? reveal.error,
-    pending: reveal.pending,
+    syncError: tree.error,
+    pending: tree.pending,
     model: tree.model,
     path: ROOT_RELATIVE_PATH,
   });
@@ -203,18 +195,19 @@ function useProjectDirectoryTree(
   sessionId: string,
   getProjectsClient: () => Promise<ProjectDirectoryPickerClient>
 ): {
-  member: DirectoryTreeMember | null;
   model: FileTreeModel | null;
   error: string | null;
+  pending: boolean;
 } {
-  const [member, setMember] = useState<DirectoryTreeMember | null>(null);
   const [model, setModel] = useState<FileTreeModel | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (!host || !root) {
-      setMember(null);
       setModel(null);
+      setError(null);
+      setPending(false);
       return;
     }
 
@@ -224,6 +217,9 @@ function useProjectDirectoryTree(
     const scope = createScope({ label: `project-directory-picker:${sessionId}` });
 
     async function start() {
+      setModel(null);
+      setError(null);
+      setPending(true);
       try {
         const client = await getProjectsClient();
         if (disposed) return;
@@ -259,7 +255,16 @@ function useProjectDirectoryTree(
         });
         if (ready.status === 'error') throw ready.error;
         if (disposed) return;
-        setMember(treeMember);
+
+        const mutation = await treeMember.mutations.reveal({
+          path: ROOT_RELATIVE_PATH,
+          depth: 2,
+        });
+        if (!mutation.result.success) {
+          throw new Error(fsErrorMessage(mutation.result.error));
+        }
+        await mutation.settled;
+        if (disposed) return;
         setError(null);
       } catch (caught) {
         if (!disposed) {
@@ -270,60 +275,19 @@ function useProjectDirectoryTree(
           );
         }
         void scope.dispose();
+      } finally {
+        if (!disposed) setPending(false);
       }
     }
 
     void start();
     return () => {
       disposed = true;
-      setMember(null);
-      setModel(null);
-      setError(null);
       void scope.dispose();
     };
   }, [getProjectsClient, host, root, sessionId]);
 
-  return { member, model, error };
-}
-
-function useRevealDirectory(
-  member: DirectoryTreeMember | null,
-  path: PortableRelativePath,
-  onNotFound: (path: PortableRelativePath) => boolean
-): { pending: boolean; error: string | null } {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!member) return;
-    const currentMember = member;
-    let cancelled = false;
-    setPending(true);
-    setError(null);
-
-    async function reveal() {
-      try {
-        const mutation = await currentMember.mutations.reveal({ path, depth: 2 });
-        if (!mutation.result.success) {
-          if (mutation.result.error.type === 'not-found' && onNotFound(path)) return;
-          throw new Error(fsErrorMessage(mutation.result.error));
-        }
-        await mutation.settled;
-        if (!cancelled) setError(null);
-      } catch (caught) {
-        if (!cancelled) setError(errorMessage(caught));
-      } finally {
-        if (!cancelled) setPending(false);
-      }
-    }
-
-    void reveal();
-    return () => {
-      cancelled = true;
-    };
-  }, [member, onNotFound, path]);
-
-  return { pending, error };
+  return { model, error, pending };
 }
 
 function directoryListing({
