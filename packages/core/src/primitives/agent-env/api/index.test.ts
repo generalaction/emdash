@@ -91,6 +91,32 @@ describe('buildAllowlistedAgentEnv', () => {
     expect(env.PATH).toBe('/bin');
     expect(env.ANTHROPIC_API_KEY).toBe('included');
   });
+
+  it('forwards supported Prime configuration without leaking internal daemon state', () => {
+    const env = buildAllowlistedAgentEnv({
+      HOME: '/home/ada',
+      PATH: '/usr/bin',
+      PRIME_AGENT_CODING_AGENT_DIR: '/configs/prime-agent',
+      PRIME_AGENT_SESSION_DIR: '/sessions/prime-agent',
+      PRIME_AGENT_KERNEL_PYTHON: '/opt/prime/kernel-python',
+      PRIME_AGENT_TELEMETRY: 'off',
+      PRIME_API_KEY: 'prime-secret',
+      PRIME_TEAM_ID: 'team-1',
+      RLM_MAX_DEPTH: '3',
+      PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN: 'do-not-forward',
+    });
+
+    expect(env).toMatchObject({
+      PRIME_AGENT_CODING_AGENT_DIR: '/configs/prime-agent',
+      PRIME_AGENT_SESSION_DIR: '/sessions/prime-agent',
+      PRIME_AGENT_KERNEL_PYTHON: '/opt/prime/kernel-python',
+      PRIME_AGENT_TELEMETRY: 'off',
+      PRIME_API_KEY: 'prime-secret',
+      PRIME_TEAM_ID: 'team-1',
+      RLM_MAX_DEPTH: '3',
+    });
+    expect(env.PRIME_AGENT_INTERNAL_DAEMON_WORKER_TOKEN).toBeUndefined();
+  });
 });
 
 describe('mergeAgentEnvLayers', () => {
