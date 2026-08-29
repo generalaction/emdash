@@ -9,6 +9,6 @@ export function getPaletteFileDisplayPath({
   filePath: string;
   fallback?: string;
 }): string {
-  if (!workspacePath) return fallback ?? filePath.replace(/\\/g, '/');
+  if (!workspacePath) return fallback ?? filePath;
   return relativeToWorkspace(workspacePath, filePath);
 }

@@ -3,6 +3,7 @@ import { type Result } from '@emdash/shared';
 import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
+import { normalizeFileTreePath } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import {
   openFileStore,
   type OpenFileEntry,
@@ -367,9 +368,7 @@ export class EditorViewStore {
 }
 
 function normalizeTreePath(path: string): string {
-  const normalized = path.replaceAll('\\', '/').replace(/\/+/g, '/');
-  if (normalized.length > 1 && normalized.endsWith('/')) return normalized.slice(0, -1);
-  return normalized;
+  return normalizeFileTreePath(path);
 }
 
 function isPathAffected(candidate: string, oldPath: string): boolean {

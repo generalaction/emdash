@@ -96,6 +96,26 @@ describe('resolveWorkspaceResourcePath', () => {
         containingFilePath: 'C:/repo/docs/readme.md',
         resourcePath: '/assets/a.png',
       })
-    ).toBe('C:/repo/assets/a.png');
+    ).toBe('C:\\repo\\assets\\a.png');
+  });
+
+  it('round-trips UNC workspace roots without collapsing the share prefix', () => {
+    expect(
+      resolveWorkspaceResourcePath({
+        workspacePath: '\\\\server\\share\\repo',
+        containingFilePath: '\\\\server\\share\\repo\\docs\\readme.md',
+        resourcePath: '../assets/logo.png',
+      })
+    ).toBe('\\\\server\\share\\repo\\assets\\logo.png');
+  });
+
+  it('compares Windows containment case-insensitively', () => {
+    expect(
+      resolveWorkspaceResourcePath({
+        workspacePath: 'C:\\Repo',
+        containingFilePath: 'c:\\repo\\docs\\readme.md',
+        resourcePath: '../assets/logo.png',
+      })
+    ).toBe('C:\\repo\\assets\\logo.png');
   });
 });
