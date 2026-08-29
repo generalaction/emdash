@@ -48,6 +48,7 @@ import {
   type PtySession,
   type PtySpawnSpec,
 } from '#services/pty/api';
+import { resolveTerminalShell } from '#services/pty/node';
 import {
   SESSION_IDLE_MS,
   type ActivityFields,
@@ -513,7 +514,10 @@ export class TuiAgentsRuntime {
       ),
       config.input.gitCredentials
     );
-    const spawnSpec = this.spawnSpec(command, config.input, env);
+    const spawnSpec = await this.spawnSpec(command, config.input, env);
+    if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
+      return this.cancelledSpawn(config.input.conversationId);
+    }
     let pty: PtySession;
     try {
       pty = await this.registry.create(
@@ -901,20 +905,27 @@ export class TuiAgentsRuntime {
     return peek(this.sessionsList.states.list)[conversationId]?.resume ?? null;
   }
 
-  private spawnSpec(
+  private async spawnSpec(
     command: AgentCommand,
     input: TuiAgentStartInput,
     env: Record<string, string>
-  ): Pick<PtySpawnSpec, 'command' | 'args'> {
+  ): Promise<Pick<PtySpawnSpec, 'command' | 'args'>> {
+    const platform = this.deps.platform ?? process.platform;
+    const shellProfile = await resolveTerminalShell({
+      intent: 'system',
+      platform,
+      env: await this.deps.env(),
+    });
     const resolved = resolveLocalPtySpawn({
       intent: {
         kind: 'run-command',
         cwd: input.cwd,
         command: { kind: 'argv', command: command.command, args: command.args },
         shellSetup: input.shellSetup,
+        shellProfile,
         tmuxSessionName: input.tmuxSessionName,
       },
-      platform: this.deps.platform ?? process.platform,
+      platform,
       env,
     });
     logLocalPtySpawnWarnings(

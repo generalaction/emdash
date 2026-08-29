@@ -1,6 +1,7 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveLogSourceOptions } from '@emdash/wire/live';
+import type { EnvSource } from '#primitives/exec/api';
 import type { TuiAgentStartInput } from '#runtimes/tui-agents/api';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
@@ -12,6 +13,7 @@ import type { PromptSpillResult } from './prompt-spill';
 
 export interface TuiAgentsRuntimeDeps {
   agentHost: AgentPluginHost;
+  env: EnvSource;
   exec: IExecutionContext;
   spawner: PtySpawner;
   intents: SessionIntentStore;

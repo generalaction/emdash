@@ -72,7 +72,9 @@ Precedence is per-project DB override, then host settings, then app defaults.
   and a stop verb; the workspace registry observes runs and mirrors them into durable
   lifecycle steps for the Activity timeline
 - `shellSetup` runs inside each PTY before the interactive shell starts; the workspace's
-  `.emdash.json` value overrides the host-settings default
+  `.emdash.json` value overrides the host-settings default. Lifecycle commands and `shellSetup`
+  are opaque strings run together in the default shell selected by the host-owned runtime at
+  execution time; repository authors own their portability.
 - tmux wrapping has an app level default but is also project-configurable in Project Settings
   and affects PTY lifecycle behavior. It is always disabled for local Windows sessions without
   deleting the stored preference.

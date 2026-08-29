@@ -9,7 +9,14 @@ import {
   type DetectedPreviewUrl,
   type TerminalPortProbe,
 } from '#services/preview-detection/node';
-import { buildTerminalEnv, PtyRegistry, type PtySpawner } from '#services/pty/api';
+import {
+  buildTerminalEnv,
+  logLocalPtySpawnWarnings,
+  PtyRegistry,
+  resolveLocalPtySpawn,
+  type PtySpawner,
+} from '#services/pty/api';
+import { resolveTerminalShell } from '#services/pty/node';
 import type { UserShellEnv } from '#services/shell-env/api';
 import { scriptsContract } from '../api/contract';
 import type { ScriptRunNotFoundError, StartScriptRunError } from '../api/errors';
@@ -39,6 +46,7 @@ export type ScriptsRuntimeOptions = {
   portProbe?: TerminalPortProbe;
   now?: () => number;
   logger?: Logger;
+  platform?: NodeJS.Platform;
 };
 
 type PreviewSource = {
@@ -91,6 +99,7 @@ export class ScriptsRuntime {
   private readonly portProbe: TerminalPortProbe | undefined;
   private readonly now: () => number;
   private readonly logger: Logger;
+  private readonly platform: NodeJS.Platform;
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly active = new Map<string, ActiveRun>();
   private readonly previewSources = new Map<string, PreviewSource>();
@@ -102,6 +111,7 @@ export class ScriptsRuntime {
     this.portProbe = options.portProbe;
     this.now = options.now ?? Date.now;
     this.logger = options.logger ?? noopLogger;
+    this.platform = options.platform ?? process.platform;
   }
 
   async start(input: StartScriptRunInput): Promise<Result<ScriptRunState, StartScriptRunError>> {
@@ -127,8 +137,14 @@ export class ScriptsRuntime {
     try {
       // User-shell env + the host-derived EMDASH_* vars; deliberately no CI=1
       // injection (spec: env parity — a documented breaking change).
+      const baseEnv = await this.loadUserEnv();
+      const shellProfile = await resolveTerminalShell({
+        intent: 'system',
+        platform: this.platform,
+        env: baseEnv,
+      });
       const env = buildTerminalEnv({
-        baseEnv: await this.loadUserEnv(),
+        baseEnv,
         overrides: buildScriptEnv(input.workspacePath, input.facts),
       });
       session = await this.registry.create(
@@ -136,10 +152,13 @@ export class ScriptsRuntime {
         spawnSpec({
           command: input.command,
           shellSetup: input.shellSetup,
+          shellProfile,
           cwd: input.workspacePath,
           env,
           cols: input.cols ?? DEFAULT_COLS,
           rows: input.rows ?? DEFAULT_ROWS,
+          platform: this.platform,
+          logger: this.logger,
         }),
         {
           output: log,
@@ -423,25 +442,29 @@ function notRunning(script: ScriptKind): ScriptRunNotFoundError {
 function spawnSpec(input: {
   command: string;
   shellSetup: string;
+  shellProfile: Awaited<ReturnType<typeof resolveTerminalShell>>;
   cwd: string;
   env: Record<string, string>;
   cols: number;
   rows: number;
+  platform: NodeJS.Platform;
+  logger: Logger;
 }) {
-  const command = input.shellSetup ? `${input.shellSetup}\n${input.command}` : input.command;
-  if (process.platform === 'win32') {
-    return {
-      command: input.env.ComSpec ?? 'cmd.exe',
-      args: ['/d', '/s', '/c', command],
+  const resolved = resolveLocalPtySpawn({
+    intent: {
+      kind: 'run-command',
       cwd: input.cwd,
-      env: input.env,
-      cols: input.cols,
-      rows: input.rows,
-    };
-  }
+      command: { kind: 'shell-line', commandLine: input.command },
+      shellSetup: input.shellSetup || undefined,
+      shellProfile: input.shellProfile,
+    },
+    platform: input.platform,
+    env: input.env,
+  });
+  logLocalPtySpawnWarnings('ScriptsRuntime', resolved.warnings, { cwd: input.cwd }, input.logger);
   return {
-    command: input.env.SHELL ?? '/bin/sh',
-    args: ['-lc', command],
+    command: resolved.command,
+    args: resolved.args,
     cwd: input.cwd,
     env: input.env,
     cols: input.cols,

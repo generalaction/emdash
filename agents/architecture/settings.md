@@ -38,8 +38,9 @@ committed and shared.
   migration metadata, not a user setting.
 - Project settings pages are self-contained domain snapshots. Forms patch only touched fields;
   `null` removes an explicit value and restores inheritance.
-- The workspace registry is the sole resolver for lifecycle and file-handling config. The scripts
-  runtime receives already-resolved `command` and `shellSetup` values and does not read config.
+- The workspace registry is the sole resolver for lifecycle and file-handling config. It passes the
+  resolved `command` and `shellSetup` strings to host-owned runtimes, which select their host's default
+  shell immediately before spawning. Commands remain opaque; repository authors own their portability.
 - Task and terminal providers retain stable identity and runtime capabilities, not mutable launch
   settings. `TaskSessionLaunchContextResolver` reads task, project, host, and workspace-registry
   state immediately before a process starts; task-bound providers receive its zero-argument source.

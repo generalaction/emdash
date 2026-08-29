@@ -33,6 +33,7 @@ function createRuntime(
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
     platform?: NodeJS.Platform;
+    userEnv?: NodeJS.ProcessEnv;
     commandEnv?: Record<string, string>;
     command?: string;
     args?: string[];
@@ -73,6 +74,11 @@ function createRuntime(
   } satisfies IExecutionContext;
   const runtime = new TuiAgentsRuntime({
     agentHost,
+    env: async () =>
+      options.userEnv ??
+      (options.platform === 'win32'
+        ? { Path: 'C:\\Tools', ComSpec: 'C:\\Windows\\System32\\cmd.exe' }
+        : { PATH: '/bin', SHELL: '/bin/bash' }),
     exec,
     intents: options.intents ?? createMemorySessionIntentStore(),
     conversationReports: options.conversationReports,
@@ -227,22 +233,28 @@ describe('TuiAgentsRuntime', () => {
       })
     );
 
-    expect(spawner.specs[0]!.command).toBe('/bin/sh');
-    expect(spawner.specs[0]!.args[0]).toBe('-c');
+    expect(spawner.specs[0]!.command).toBe('/bin/bash');
+    expect(spawner.specs[0]!.args[0]).toBe('-lc');
     expect(spawner.specs[0]!.args[1]).toContain('tmux -u attach-session');
     expect(spawner.specs[0]!.args[1]).toContain('emdash-test');
     expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
   });
 
-  it('removes Windows tmux intent and never invokes tmux', async () => {
+  it('resolves the Windows default shell, applies setup, and removes tmux intent', async () => {
     const { runtime, spawner, exec } = createRuntime({ platform: 'win32' });
 
     await runtime.startSession(
       startInput({
+        cwd: 'C:\\workspace',
+        shellSetup: 'set READY=1',
         tmuxSessionName: 'must-not-run',
       })
     );
 
+    expect(spawner.specs[0]).toMatchObject({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', expect.stringContaining('set READY=1 &&')],
+    });
     expect(spawner.specs[0]!.args.join(' ')).not.toContain('tmux');
     await runtime.reconcile();
     await runtime.dispose();

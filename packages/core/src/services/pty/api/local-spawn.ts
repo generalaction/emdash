@@ -38,7 +38,7 @@ export type PtySpawnIntent =
       tmuxSessionName?: string;
     };
 
-export type LocalPtySpawnWarning = 'shell_setup_ignored_on_windows' | 'tmux_unsupported_on_windows';
+export type LocalPtySpawnWarning = 'tmux_unsupported_on_windows';
 
 export type ResolvedLocalPtySpawn = {
   command: string;
@@ -91,9 +91,18 @@ function wrapCmdExeCommandLine(commandLine: string): string {
 
 function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
   const warnings: LocalPtySpawnWarning[] = [];
-  if (intent.shellSetup) warnings.push('shell_setup_ignored_on_windows');
   if (intent.tmuxSessionName) warnings.push('tmux_unsupported_on_windows');
   return warnings;
+}
+
+function combineShellSetup(
+  setup: string | undefined,
+  commandLine: string,
+  family: ResolvedPtyShellProfile['family']
+): string {
+  if (!setup) return commandLine;
+  if (family === 'powershell') return `${setup}\nif ($?) {\n${commandLine}\n}`;
+  return `${setup} && ${commandLine}`;
 }
 
 function windowsShellLineSpawn({
@@ -131,6 +140,37 @@ function resolveWindowsSpawn(
   const shell = intent.shellProfile?.executable ?? getWindowsShell(env);
 
   if (intent.kind === 'interactive-shell') {
+    if (intent.shellSetup) {
+      const family = intent.shellProfile?.family ?? 'windows-cmd';
+      if (family === 'windows-cmd') {
+        return {
+          command: shell,
+          args: ['/d', '/s', '/k', wrapCmdExeCommandLine(intent.shellSetup)],
+          cwd: intent.cwd,
+          warnings,
+        };
+      }
+      if (family === 'powershell') {
+        return {
+          command: shell,
+          args: ['-NoExit', '-Command', intent.shellSetup],
+          cwd: intent.cwd,
+          warnings,
+        };
+      }
+      const interactiveArgs = intent.shellProfile?.interactiveArgs ?? [];
+      const reenter = formatCommandLine(
+        { command: shell, args: interactiveArgs },
+        family === 'csh' ? 'csh' : 'posix'
+      );
+      return windowsShellLineSpawn({
+        commandLine: combineShellSetup(intent.shellSetup, `exec ${reenter}`, family),
+        cwd: intent.cwd,
+        env,
+        shellProfile: intent.shellProfile,
+        warnings,
+      });
+    }
     return {
       command: shell,
       args: intent.shellProfile?.interactiveArgs ?? [],
@@ -140,8 +180,9 @@ function resolveWindowsSpawn(
   }
 
   if (intent.command.kind === 'shell-line') {
+    const family = intent.shellProfile?.family ?? 'windows-cmd';
     return windowsShellLineSpawn({
-      commandLine: intent.command.commandLine,
+      commandLine: combineShellSetup(intent.shellSetup, intent.command.commandLine, family),
       cwd: intent.cwd,
       env,
       shellProfile: intent.shellProfile,
@@ -150,6 +191,20 @@ function resolveWindowsSpawn(
   }
 
   const { command, args } = intent.command;
+  if (intent.shellSetup) {
+    const family = intent.shellProfile?.family ?? 'windows-cmd';
+    return windowsShellLineSpawn({
+      commandLine: combineShellSetup(
+        intent.shellSetup,
+        formatCommandLine({ command, args }, family),
+        family
+      ),
+      cwd: intent.cwd,
+      env,
+      shellProfile: intent.shellProfile,
+      warnings,
+    });
+  }
   if (intent.shellProfile?.family === 'wsl') {
     return windowsShellLineSpawn({
       commandLine: argvToPosixShellLine(intent, command, args),

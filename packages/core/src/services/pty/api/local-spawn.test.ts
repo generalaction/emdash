@@ -76,4 +76,96 @@ describe('resolveLocalPtySpawn', () => {
       args: ['-NoLogo', '-ExecutionPolicy', 'Bypass', '-File', script, 'run'],
     });
   });
+
+  it('runs setup and a command in the selected Windows PowerShell profile', () => {
+    const resolved = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: {},
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\workspace',
+        command: { kind: 'shell-line', commandLine: 'pnpm install' },
+        shellSetup: '$env:COREPACK_HOME = "C:\\Corepack"',
+        shellProfile: powershellProfile,
+      },
+    });
+
+    expect(resolved).toEqual({
+      command: powershellProfile.executable,
+      args: [
+        '-NoLogo',
+        '-Command',
+        '$env:COREPACK_HOME = "C:\\Corepack"\nif ($?) {\npnpm install\n}',
+      ],
+      cwd: 'C:\\workspace',
+      warnings: [],
+    });
+  });
+
+  it.each([
+    {
+      name: 'cmd',
+      platform: 'win32' as const,
+      executable: 'C:\\Windows\\System32\\cmd.exe',
+      family: 'windows-cmd' as const,
+      commandArgs: ['/d', '/s', '/c'],
+    },
+    {
+      name: 'Windows PowerShell',
+      platform: 'win32' as const,
+      executable: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      family: 'powershell' as const,
+      commandArgs: ['-NoProfile', '-Command'],
+    },
+    {
+      name: 'pwsh',
+      platform: 'win32' as const,
+      executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      family: 'powershell' as const,
+      commandArgs: ['-NoProfile', '-Command'],
+    },
+    {
+      name: 'WSL',
+      platform: 'win32' as const,
+      executable: 'C:\\Windows\\System32\\wsl.exe',
+      family: 'wsl' as const,
+      commandArgs: ['--exec', 'sh', '-lc'],
+    },
+    {
+      name: 'POSIX',
+      platform: 'linux' as const,
+      executable: '/bin/sh',
+      family: 'posix' as const,
+      commandArgs: ['-c'],
+    },
+    {
+      name: 'csh',
+      platform: 'linux' as const,
+      executable: '/bin/csh',
+      family: 'csh' as const,
+      commandArgs: ['-c'],
+    },
+  ])('uses the declared $name profile for shell-line commands', (entry) => {
+    const resolved = resolveLocalPtySpawn({
+      platform: entry.platform,
+      env: {},
+      intent: {
+        kind: 'run-command',
+        cwd: entry.platform === 'win32' ? 'C:\\workspace' : '/workspace',
+        command: { kind: 'shell-line', commandLine: 'echo ready' },
+        shellProfile: {
+          id: 'target-default',
+          resolvedShellId: entry.family === 'csh' ? 'csh' : 'sh',
+          resolvedFromSystem: false,
+          executable: entry.executable,
+          family: entry.family,
+          interactiveArgs: [],
+          commandArgs: entry.commandArgs,
+        },
+      },
+    });
+
+    expect(resolved.command).toBe(entry.executable);
+    expect(resolved.args.slice(0, entry.commandArgs.length)).toEqual(entry.commandArgs);
+  });
 });
