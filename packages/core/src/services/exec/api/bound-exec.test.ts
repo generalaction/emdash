@@ -174,6 +174,29 @@ describe('BoundExec', () => {
     await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
     expect(isProcessAlive(pid)).toBe(false);
   });
+
+  it('cleans up descendants after exceeding maxBuffer', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-buffer-tree-'));
+    const pidPath = path.join(cwd, 'child.pid');
+    const execution = createBoundExec({ file: process.execPath, cwd }).exec(
+      [
+        '-e',
+        [
+          "const { spawn } = require('node:child_process');",
+          "const fs = require('node:fs');",
+          `const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 10000)'], { stdio: 'ignore' });`,
+          `fs.writeFileSync(${JSON.stringify(pidPath)}, String(child.pid));`,
+          "process.stdout.write('x'.repeat(4096));",
+          'setInterval(() => {}, 10_000);',
+        ].join(' '),
+      ],
+      { maxBuffer: 128 }
+    );
+    const pid = Number.parseInt(await waitForFile(pidPath), 10);
+
+    await expect(execution).rejects.toMatchObject({ stderr: 'stdout exceeded maxBuffer' });
+    expect(isProcessAlive(pid)).toBe(false);
+  });
 });
 
 function isProcessAlive(pid: number): boolean {

@@ -2,7 +2,11 @@ import { spawn as spawnProcess } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { EnvSource } from '#primitives/exec/api';
-import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
+import {
+  createChildProcessTreeTerminator,
+  planExecutableLaunch,
+  type FileExists,
+} from '#primitives/exec/node';
 import {
   ExecError,
   type BoundExec,
@@ -13,7 +17,6 @@ import {
 } from './types';
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024;
-const TIMEOUT_KILL_GRACE_MS = 1_000;
 
 export type CreateBoundExecOptions = {
   file: string;
@@ -119,6 +122,10 @@ class ProcessBoundExec implements BoundExec {
       };
       recordSpawn(classifySpawnPurpose(this.file, args), plan.executable);
       const child = spawnProcess(plan.executable, plan.args, spawnOptions);
+      const terminator = createChildProcessTreeTerminator(child, {
+        platform: this.platform,
+        processGroup: this.platform !== 'win32',
+      });
       const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
       let stderr = '';
       let stdoutBytes = 0;
@@ -143,10 +150,10 @@ class ProcessBoundExec implements BoundExec {
         fail(new ExecError(this.file, args, exitCode, stdoutText(), stderrOverride ?? stderr));
       };
 
-      const startTermination = (error: Error): void => {
-        if (settled || terminationError) return;
-        terminationError = error;
-        terminationPromise = terminateProcessGroup(child);
+      const startTermination = (error?: Error): void => {
+        if (settled) return;
+        terminationError ??= error;
+        terminationPromise ??= terminator.terminate();
       };
       const timeout = options.timeoutMs
         ? setTimeout(() => {
@@ -184,14 +191,16 @@ class ProcessBoundExec implements BoundExec {
           const shouldContinue = sink.onStdout(chunk as string);
           if (shouldContinue === false && !stopped) {
             stopped = true;
-            child.kill();
+            startTermination();
+            cleanup();
           }
           return;
         }
         stdoutBytes += sink.kind === 'buffer' ? (chunk as Buffer).length : Buffer.byteLength(chunk);
         if (stdoutBytes > maxBuffer) {
-          child.kill();
-          failExec(null, 'stdout exceeded maxBuffer');
+          startTermination(
+            new ExecError(this.file, args, null, stdoutText(), 'stdout exceeded maxBuffer')
+          );
           return;
         }
         if (sink.kind === 'buffer') sink.chunks.push(chunk as Buffer);
@@ -202,8 +211,9 @@ class ProcessBoundExec implements BoundExec {
         options.onStderr?.(chunk);
         stderrBytes += Buffer.byteLength(chunk);
         if (stderrBytes > maxBuffer) {
-          child.kill();
-          failExec(null, 'stderr exceeded maxBuffer');
+          startTermination(
+            new ExecError(this.file, args, null, stdoutText(), 'stderr exceeded maxBuffer')
+          );
           return;
         }
         stderr += chunk;
@@ -221,8 +231,8 @@ class ProcessBoundExec implements BoundExec {
       child.on('close', async (code) => {
         cleanup();
         if (settled) return;
+        await terminationPromise;
         if (terminationError) {
-          await terminationPromise;
           settled = true;
           reject(terminationError);
           return;
@@ -252,44 +262,4 @@ function composeEnv(
   if (!base && !overlay) return undefined;
   if (!base) return { ...process.env, ...overlay };
   return overlay ? { ...base, ...overlay } : base;
-}
-
-async function terminateProcessGroup(child: ReturnType<typeof spawnProcess>): Promise<void> {
-  signalProcessGroup(child, 'SIGTERM');
-  if (await waitForProcessGroupExit(child, TIMEOUT_KILL_GRACE_MS)) return;
-  signalProcessGroup(child, 'SIGKILL');
-  await waitForProcessGroupExit(child, TIMEOUT_KILL_GRACE_MS);
-}
-
-function signalProcessGroup(child: ReturnType<typeof spawnProcess>, signal: NodeJS.Signals): void {
-  if (child.pid && process.platform !== 'win32') {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // The process may have exited between the timeout and the signal.
-    }
-  }
-  child.kill(signal);
-}
-
-async function waitForProcessGroupExit(
-  child: ReturnType<typeof spawnProcess>,
-  timeoutMs: number
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (processGroupIsAlive(child) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  return !processGroupIsAlive(child);
-}
-
-function processGroupIsAlive(child: ReturnType<typeof spawnProcess>): boolean {
-  if (!child.pid) return false;
-  try {
-    process.kill(process.platform === 'win32' ? child.pid : -child.pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
 }

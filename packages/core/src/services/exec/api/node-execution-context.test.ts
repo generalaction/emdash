@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -109,4 +109,73 @@ describe('NodeExecutionContext', () => {
     expect(streamed.join('')).toContain('provider.cmd');
     expect(streamed.join('')).toContain('streamed');
   });
+
+  it('kills streaming descendants when the consumer stops early', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-stream-stop-tree-'));
+    const pidPath = path.join(dir, 'descendant.pid');
+    const context = new NodeExecutionContext();
+    const execution = context.execStreaming(
+      process.execPath,
+      ['-e', descendantSpawnerScript(pidPath)],
+      () => false
+    );
+    const descendantPid = Number.parseInt(await waitForFile(pidPath), 10);
+
+    await expect(execution).resolves.toMatchObject({ exitCode: null });
+    expect(isProcessAlive(descendantPid)).toBe(false);
+  });
+
+  it('awaits forced descendant cleanup when the context is disposed', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-context-dispose-tree-'));
+    const pidPath = path.join(dir, 'descendant.pid');
+    const context = new NodeExecutionContext();
+    const execution = context.execStreaming(
+      process.execPath,
+      ['-e', descendantSpawnerScript(pidPath, true)],
+      () => true
+    );
+    const descendantPid = Number.parseInt(await waitForFile(pidPath), 10);
+
+    context.dispose();
+    context.dispose();
+
+    await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
+    expect(isProcessAlive(descendantPid)).toBe(false);
+  });
 });
+
+function descendantSpawnerScript(pidPath: string, ignoreSigterm = false): string {
+  const descendantProgram = [
+    ...(ignoreSigterm ? ["process.on('SIGTERM', () => {});"] : []),
+    'setInterval(() => {}, 10_000);',
+  ].join(' ');
+  return [
+    "const { spawn } = require('node:child_process');",
+    "const fs = require('node:fs');",
+    `const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendantProgram)}], { stdio: 'ignore' });`,
+    `fs.writeFileSync(${JSON.stringify(pidPath)}, String(child.pid));`,
+    "process.stdout.write('ready');",
+    ...(ignoreSigterm ? ["process.on('SIGTERM', () => {});"] : []),
+    'setInterval(() => {}, 10_000);',
+  ].join(' ');
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForFile(filePath: string): Promise<string> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      return await readFile(filePath, 'utf8');
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  throw new Error(`Timed out waiting for ${filePath}`);
+}

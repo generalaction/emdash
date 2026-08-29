@@ -1,16 +1,18 @@
-import { execFile, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { EnvSource } from '#primitives/exec/api';
-import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
+import {
+  createChildProcessTreeTerminator,
+  planExecutableLaunch,
+  type FileExists,
+} from '#primitives/exec/node';
+import { createBoundExec } from './bound-exec';
 import type {
   ExecContextOptions,
   ExecStreamingResult,
   IExecutionContext,
 } from './execution-context';
 import type { ExecResult } from './types';
-
-const execFileAsync = promisify(execFile);
 
 export type NodeExecutionContextOptions = {
   root?: string;
@@ -45,23 +47,19 @@ export class NodeExecutionContext implements IExecutionContext {
     opts: ExecContextOptions = {}
   ): Promise<ExecResult> {
     const env = opts.env ?? (await this.resolveEnv());
-    const plan = planExecutableLaunch({
+    const signal = this.signal(opts.signal);
+    if (signal.aborted) throw abortReason(signal);
+    return createBoundExec({
+      file: command,
+      cwd: this.root || process.cwd(),
+      env,
       platform: this.platform,
-      command,
-      args,
-      cwd: this.root || undefined,
-      env,
       fileExists: this.fileExists,
-    });
-    recordSpawn(classifySpawnPurpose(command, args), plan.executable);
-    return (await execFileAsync(plan.executable, plan.args, {
-      cwd: plan.cwd,
-      env,
-      timeout: opts.timeout,
+    }).exec(args, {
       maxBuffer: opts.maxBuffer,
-      signal: this.signal(opts.signal),
-      windowsVerbatimArguments: plan.windowsVerbatimArguments,
-    })) as ExecResult;
+      signal,
+      timeoutMs: opts.timeout,
+    });
   }
 
   async execStreaming(
@@ -89,26 +87,46 @@ export class NodeExecutionContext implements IExecutionContext {
       recordSpawn(classifySpawnPurpose(command, args), plan.executable);
       const child = spawn(plan.executable, plan.args, {
         cwd: plan.cwd,
+        detached: this.platform !== 'win32',
         env,
         windowsVerbatimArguments: plan.windowsVerbatimArguments,
       });
+      const terminator = createChildProcessTreeTerminator(child, {
+        platform: this.platform,
+        processGroup: this.platform !== 'win32',
+      });
       let settled = false;
+      let stopped = false;
+      let terminationPromise: Promise<void> | undefined;
+      let terminationError: unknown;
+
+      const startTermination = (error?: unknown): void => {
+        if (settled) return;
+        terminationError ??= error;
+        terminationPromise ??= terminator.terminate();
+      };
 
       const onAbort = () => {
         if (settled) return;
-        settled = true;
-        child.kill('SIGTERM');
-        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+        startTermination(abortReason(signal));
       };
       signal.addEventListener('abort', onAbort, { once: true });
 
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', (chunk: string) => {
-        if (!settled && !onChunk(chunk)) child.kill('SIGTERM');
+        if (!settled && !stopped && !onChunk(chunk)) {
+          stopped = true;
+          startTermination();
+          signal.removeEventListener('abort', onAbort);
+        }
       });
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', (chunk: string) => {
-        if (!settled) onChunk(chunk);
+        if (!settled && !stopped && !onChunk(chunk)) {
+          stopped = true;
+          startTermination();
+          signal.removeEventListener('abort', onAbort);
+        }
       });
 
       child.on('error', (error) => {
@@ -117,10 +135,15 @@ export class NodeExecutionContext implements IExecutionContext {
         settled = true;
         reject(error);
       });
-      child.on('close', (code) => {
+      child.on('close', async (code) => {
         signal.removeEventListener('abort', onAbort);
         if (settled) return;
+        await terminationPromise;
         settled = true;
+        if (terminationError) {
+          reject(terminationError);
+          return;
+        }
         resolve({ exitCode: code });
       });
     });
@@ -143,4 +166,8 @@ export class NodeExecutionContext implements IExecutionContext {
   private async resolveEnv(): Promise<NodeJS.ProcessEnv | undefined> {
     return typeof this.env === 'function' ? await this.env() : this.env;
   }
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException('Aborted', 'AbortError');
 }
