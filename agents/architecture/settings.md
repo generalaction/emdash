@@ -45,6 +45,9 @@ committed and shared.
   settings. `TaskSessionLaunchContextResolver` reads task, project, host, and workspace-registry
   state immediately before a process starts; task-bound providers receive its zero-argument source.
 - Git/GitHub and placement previews must use the same portable resolvers as execution.
+- Placement obtains the owning host's structured home path and optional `PathProfile` from the files
+  runtime. It must not normalize SSH paths with the desktop's `node:path` dialect or desktop home.
+  Older workspace servers may omit the profile only for the negotiated remote-POSIX fallback.
 
 ## Deferred And Deliberate Legacy Behavior
 
