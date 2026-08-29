@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { incompatibleRoot, invalidPath, outsideRoot, type PathError } from './errors';
 import { normalizeSegmentStack, splitPosixInput, splitWindowsInput } from './segments';
-import { createPathProfile } from './semantics';
+import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';
 import type { HostAbsolutePath, HostPathRoot, PathProfile } from './types';
 
 export type ParseAbsoluteOptions = Readonly<{
@@ -73,19 +73,14 @@ export function tryParseAbsolute(
 }
 
 export function absoluteRootEquals(a: HostPathRoot, b: HostPathRoot): boolean {
-  if (a.kind !== b.kind) return false;
-  switch (a.kind) {
-    case 'posix':
-      return true;
-    case 'drive':
-      return b.kind === 'drive' && a.driveLetter === b.driveLetter;
-    case 'unc':
-      return b.kind === 'unc' && a.server === b.server && a.share === b.share;
-  }
+  return (
+    comparisonKeyForAbsolutePath({ root: a, segments: [] }) ===
+    comparisonKeyForAbsolutePath({ root: b, segments: [] })
+  );
 }
 
 export function absoluteEquals(a: HostAbsolutePath, b: HostAbsolutePath): boolean {
-  return absoluteRootEquals(a.root, b.root) && segmentsEqual(a.segments, b.segments);
+  return comparisonKeyForAbsolutePath(a) === comparisonKeyForAbsolutePath(b);
 }
 
 export function absoluteBasename(path: HostAbsolutePath): string {
@@ -117,9 +112,10 @@ export function joinAbsolute(
 }
 
 export function containsAbsolute(root: HostAbsolutePath, candidate: HostAbsolutePath): boolean {
-  if (!absoluteRootEquals(root.root, candidate.root)) return false;
-  if (root.segments.length > candidate.segments.length) return false;
-  return root.segments.every((segment, index) => segment === candidate.segments[index]);
+  const rootKey = comparisonKeyForAbsolutePath(root);
+  const candidateKey = comparisonKeyForAbsolutePath(candidate);
+  const descendantPrefix = rootKey.endsWith('/') ? rootKey : `${rootKey}/`;
+  return candidateKey === rootKey || candidateKey.startsWith(descendantPrefix);
 }
 
 export function relativeSegmentsFromAbsolute(
@@ -202,10 +198,6 @@ function parseUncAbsolute(
     root: { kind: 'unc', server: normalizedServer.data[0], share: normalizedShare.data[0] },
     segments: segments.data,
   });
-}
-
-function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((segment, index) => segment === b[index]);
 }
 
 function isWindowsAbsolute(input: string): boolean {

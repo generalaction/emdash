@@ -1,6 +1,6 @@
 import { hostRefKey } from '#primitives/host/api';
 import { resolveScopedPath } from './resource';
-import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';
+import { comparisonKeyForAbsolutePath } from './semantics';
 import type { HostFileRef, ResourceKey, ResourceKeyOptions, ScopedPath } from './types';
 
 const RESOURCE_KEY_VERSION = 'v1';
@@ -9,8 +9,7 @@ export function resourceKeyFromFileRef(
   ref: HostFileRef,
   options: ResourceKeyOptions = {}
 ): ResourceKey {
-  const profile = createPathProfile(options.profile);
-  const pathKey = comparisonKeyForAbsolutePath(ref.path, profile);
+  const pathKey = comparisonKeyForAbsolutePath(ref.path, options.profile);
   return `${RESOURCE_KEY_VERSION}\0${hostRefKey(ref.host)}\0${pathKey}` as ResourceKey;
 }
 

@@ -26,6 +26,7 @@ export {
   tryParsePortableRelativePath,
 } from './relative';
 export type { ParseRelativeOptions } from './relative';
+export { nativePathIdentityKey, stableNativePathDisplay } from './identity';
 export {
   comparisonKeyForAbsolutePath,
   createPathProfile,

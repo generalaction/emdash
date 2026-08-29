@@ -125,6 +125,29 @@ describe('absolute paths', () => {
     );
   });
 
+  it('uses Windows identity semantics for equality, containment, and relative paths', () => {
+    const root = parseNativeAbsolute('C:\\Repo');
+    const child = parseNativeAbsolute('c:\\repo\\Src\\index.ts');
+    expect(root.success && child.success && containsAbsolute(root.data, child.data)).toBe(true);
+    if (!root.success || !child.success) return;
+    expect(relativeSegmentsFromAbsolute(root.data, child.data)).toEqual({
+      success: true,
+      data: ['Src', 'index.ts'],
+    });
+
+    const uncRoot = parseNativeAbsolute('\\\\Server\\Share\\Repo');
+    const uncChild = parseNativeAbsolute('\\\\server\\share\\repo\\file.ts');
+    expect(
+      uncRoot.success && uncChild.success && containsAbsolute(uncRoot.data, uncChild.data)
+    ).toBe(true);
+  });
+
+  it('keeps POSIX containment case-sensitive', () => {
+    const root = parseNativeAbsolute('/Repo');
+    const child = parseNativeAbsolute('/repo/file.ts');
+    expect(root.success && child.success && containsAbsolute(root.data, child.data)).toBe(false);
+  });
+
   it('joins, finds parents, and relativizes paths', () => {
     const root = parseAbsolute('/repo', { profile: { style: 'posix' } });
     expect(root.success).toBe(true);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createPathSemantics, parseAbsolute } from './index';
+import {
+  comparisonKeyForAbsolutePath,
+  createPathSemantics,
+  nativePathIdentityKey,
+  parseAbsolute,
+  stableNativePathDisplay,
+} from './index';
 
 describe('path semantics', () => {
   it('compares paths using explicit case sensitivity', () => {
@@ -34,6 +40,29 @@ describe('path semantics', () => {
     if (!root.success || !child.success) return;
 
     expect(createPathSemantics({ style: 'win32' }).contains(root.data, child.data)).toBe(true);
+  });
+
+  it('infers Win32 identity from structured drive and UNC roots', () => {
+    const upperDrive = parseAbsolute('C:/Repo/Src.ts', { profile: { style: 'win32' } });
+    const lowerDrive = parseAbsolute('c:/repo/src.ts', { profile: { style: 'win32' } });
+    expect(upperDrive.success && lowerDrive.success).toBe(true);
+    if (!upperDrive.success || !lowerDrive.success) return;
+
+    expect(comparisonKeyForAbsolutePath(upperDrive.data)).toBe(
+      comparisonKeyForAbsolutePath(lowerDrive.data)
+    );
+    expect(nativePathIdentityKey('\\\\SERVER\\Share\\Repo')).toBe(
+      nativePathIdentityKey('\\\\server\\share\\repo')
+    );
+  });
+
+  it('keeps inferred POSIX identity case-sensitive', () => {
+    expect(nativePathIdentityKey('/Repo')).not.toBe(nativePathIdentityKey('/repo'));
+  });
+
+  it('keeps canonical display casing but replaces legacy non-canonical spelling', () => {
+    expect(stableNativePathDisplay('C:\\Repo', 'c:\\REPO')).toBe('C:\\Repo');
+    expect(stableNativePathDisplay('/repo/../repo', '/repo')).toBe('/repo');
   });
 
   it('contains descendants of filesystem roots', () => {
