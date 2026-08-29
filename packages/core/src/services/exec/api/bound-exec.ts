@@ -2,6 +2,7 @@ import { spawn as spawnProcess } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { EnvSource } from '#primitives/exec/api';
+import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
 import {
   ExecError,
   type BoundExec,
@@ -18,10 +19,18 @@ export type CreateBoundExecOptions = {
   file: string;
   cwd: string;
   env?: NodeJS.ProcessEnv | EnvSource;
+  platform?: NodeJS.Platform;
+  fileExists?: FileExists;
 };
 
 export function createBoundExec(options: CreateBoundExecOptions): BoundExec {
-  return new ProcessBoundExec(options.file, options.cwd, options.env);
+  return new ProcessBoundExec(
+    options.file,
+    options.cwd,
+    options.env,
+    options.platform ?? process.platform,
+    options.fileExists
+  );
 }
 
 type StdoutSink =
@@ -33,7 +42,9 @@ class ProcessBoundExec implements BoundExec {
   constructor(
     readonly file: string,
     readonly cwd: string,
-    readonly env?: NodeJS.ProcessEnv | EnvSource
+    readonly env: NodeJS.ProcessEnv | EnvSource | undefined,
+    private readonly platform: NodeJS.Platform,
+    private readonly fileExists: FileExists | undefined
   ) {}
 
   async exec(args: string[], options: ExecOptions = {}): Promise<ExecResult> {
@@ -61,17 +72,27 @@ class ProcessBoundExec implements BoundExec {
     options: ExecSpawnOptions = {}
   ): Promise<ChildProcessWithoutNullStreams> {
     const env = await resolveEnv(this.env);
-    recordSpawn(classifySpawnPurpose(this.file, args), this.file);
-    return spawnProcess(this.file, args, {
+    const composedEnv = composeEnv(env, options.env);
+    const plan = planExecutableLaunch({
+      platform: this.platform,
+      command: this.file,
+      args,
       cwd: options.cwd ?? this.cwd,
-      env: composeEnv(env, options.env),
+      env: composedEnv,
+      fileExists: this.fileExists,
+    });
+    recordSpawn(classifySpawnPurpose(this.file, args), plan.executable);
+    return spawnProcess(plan.executable, plan.args, {
+      cwd: plan.cwd,
+      env: composedEnv,
       signal: options.signal,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsVerbatimArguments: plan.windowsVerbatimArguments,
     });
   }
 
   withCwd(cwd: string): BoundExec {
-    return new ProcessBoundExec(this.file, cwd, this.env);
+    return new ProcessBoundExec(this.file, cwd, this.env, this.platform, this.fileExists);
   }
 
   private async run(
@@ -81,13 +102,23 @@ class ProcessBoundExec implements BoundExec {
   ): Promise<{ stderr: string }> {
     const env = await resolveEnv(this.env);
     return new Promise((resolve, reject) => {
-      const spawnOptions: SpawnOptionsWithoutStdio = {
+      const composedEnv = composeEnv(env, options.env);
+      const plan = planExecutableLaunch({
+        platform: this.platform,
+        command: this.file,
+        args,
         cwd: options.cwd ?? this.cwd,
-        env: composeEnv(env, options.env),
-        detached: process.platform !== 'win32',
+        env: composedEnv,
+        fileExists: this.fileExists,
+      });
+      const spawnOptions: SpawnOptionsWithoutStdio = {
+        cwd: plan.cwd,
+        env: composedEnv,
+        detached: this.platform !== 'win32',
+        windowsVerbatimArguments: plan.windowsVerbatimArguments,
       };
-      recordSpawn(classifySpawnPurpose(this.file, args), this.file);
-      const child = spawnProcess(this.file, args, spawnOptions);
+      recordSpawn(classifySpawnPurpose(this.file, args), plan.executable);
+      const child = spawnProcess(plan.executable, plan.args, spawnOptions);
       const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
       let stderr = '';
       let stdoutBytes = 0;

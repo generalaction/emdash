@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { EnvSource } from '#primitives/exec/api';
+import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
 import type {
   ExecContextOptions,
   ExecStreamingResult,
@@ -15,6 +16,8 @@ export type NodeExecutionContextOptions = {
   root?: string;
   env?: NodeJS.ProcessEnv | EnvSource;
   refreshShellEnv?: () => Promise<void>;
+  platform?: NodeJS.Platform;
+  fileExists?: FileExists;
 };
 
 export class NodeExecutionContext implements IExecutionContext {
@@ -23,11 +26,15 @@ export class NodeExecutionContext implements IExecutionContext {
 
   private readonly lifetime = new AbortController();
   private readonly refreshShellEnvDelegate: (() => Promise<void>) | undefined;
+  private readonly platform: NodeJS.Platform;
+  private readonly fileExists: FileExists | undefined;
 
   constructor(options: NodeExecutionContextOptions = {}) {
     this.root = options.root ?? '';
     this.env = options.env;
     this.refreshShellEnvDelegate = options.refreshShellEnv;
+    this.platform = options.platform ?? process.platform;
+    this.fileExists = options.fileExists;
   }
 
   private readonly env: NodeJS.ProcessEnv | EnvSource | undefined;
@@ -38,13 +45,22 @@ export class NodeExecutionContext implements IExecutionContext {
     opts: ExecContextOptions = {}
   ): Promise<ExecResult> {
     const env = opts.env ?? (await this.resolveEnv());
-    recordSpawn(classifySpawnPurpose(command, args), command);
-    return (await execFileAsync(command, args, {
+    const plan = planExecutableLaunch({
+      platform: this.platform,
+      command,
+      args,
       cwd: this.root || undefined,
+      env,
+      fileExists: this.fileExists,
+    });
+    recordSpawn(classifySpawnPurpose(command, args), plan.executable);
+    return (await execFileAsync(plan.executable, plan.args, {
+      cwd: plan.cwd,
       env,
       timeout: opts.timeout,
       maxBuffer: opts.maxBuffer,
       signal: this.signal(opts.signal),
+      windowsVerbatimArguments: plan.windowsVerbatimArguments,
     })) as ExecResult;
   }
 
@@ -55,6 +71,14 @@ export class NodeExecutionContext implements IExecutionContext {
     opts: { signal?: AbortSignal } = {}
   ): Promise<ExecStreamingResult> {
     const env = await this.resolveEnv();
+    const plan = planExecutableLaunch({
+      platform: this.platform,
+      command,
+      args,
+      cwd: this.root || undefined,
+      env,
+      fileExists: this.fileExists,
+    });
     return new Promise((resolve, reject) => {
       const signal = this.signal(opts.signal);
       if (signal.aborted) {
@@ -62,10 +86,11 @@ export class NodeExecutionContext implements IExecutionContext {
         return;
       }
 
-      recordSpawn(classifySpawnPurpose(command, args), command);
-      const child = spawn(command, args, {
-        cwd: this.root || undefined,
+      recordSpawn(classifySpawnPurpose(command, args), plan.executable);
+      const child = spawn(plan.executable, plan.args, {
+        cwd: plan.cwd,
         env,
+        windowsVerbatimArguments: plan.windowsVerbatimArguments,
       });
       let settled = false;
 

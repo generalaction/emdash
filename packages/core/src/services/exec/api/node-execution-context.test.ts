@@ -1,3 +1,5 @@
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
@@ -78,5 +80,33 @@ describe('NodeExecutionContext', () => {
     const { stdout } = await context.exec(process.execPath, ['-e', script], { env: safeEnv });
 
     expect(JSON.parse(stdout)).toEqual({ path: hostPath, nestedStatus: 0 });
+  });
+
+  it('uses the Windows launch planner for buffered and streaming cmd shims', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'emdash-windows-exec-'));
+    const cmdWrapper = path.join(dir, 'cmd-wrapper');
+    const provider = path.join(dir, 'provider.cmd');
+    await writeFile(cmdWrapper, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n', 'utf8');
+    await chmod(cmdWrapper, 0o755);
+    const env = { ComSpec: cmdWrapper, PATH: dir, PATHEXT: '.CMD' };
+    const context = new NodeExecutionContext({
+      platform: 'win32',
+      env,
+      fileExists: (candidate) => candidate === provider,
+    });
+
+    const buffered = await context.exec(provider, ['hello world']);
+    const streamed: string[] = [];
+    const streaming = await context.execStreaming(provider, ['streamed'], (chunk) => {
+      streamed.push(chunk);
+      return true;
+    });
+
+    expect(buffered.stdout).toContain('/d\n/s\n/c\n');
+    expect(buffered.stdout).toContain('provider.cmd');
+    expect(buffered.stdout).toContain('hello world');
+    expect(streaming).toEqual({ exitCode: 0 });
+    expect(streamed.join('')).toContain('provider.cmd');
+    expect(streamed.join('')).toContain('streamed');
   });
 });

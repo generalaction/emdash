@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { recordSpawn } from '@emdash/shared/perf';
+import { planExecutableLaunch, type FileExists } from '#primitives/exec/node';
 import type {
   AcpFs,
   AcpProcessHandle,
@@ -91,17 +92,33 @@ const fsPort: AcpFs = {
 export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
   readonly fs = fsPort;
 
+  constructor(
+    private readonly options: {
+      platform?: NodeJS.Platform;
+      fileExists?: FileExists;
+    } = {}
+  ) {}
+
   async spawn(spec: {
     command: string;
     args: string[];
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpProcessHandle> {
-    recordSpawn('agent', spec.command);
-    const child = spawn(spec.command, spec.args, {
+    const plan = planExecutableLaunch({
+      platform: this.options.platform ?? process.platform,
+      command: spec.command,
+      args: spec.args,
       cwd: spec.cwd,
       env: spec.env,
+      fileExists: this.options.fileExists,
+    });
+    recordSpawn('agent', plan.executable);
+    const child = spawn(plan.executable, plan.args, {
+      cwd: plan.cwd,
+      env: spec.env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsVerbatimArguments: plan.windowsVerbatimArguments,
     });
     if (!child.stdin || !child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn process - no stdio streams');
@@ -115,11 +132,20 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess> {
-    recordSpawn('agent', spec.command);
-    const child = spawn(spec.command, spec.args, {
+    const plan = planExecutableLaunch({
+      platform: this.options.platform ?? process.platform,
+      command: spec.command,
+      args: spec.args,
       cwd: spec.cwd,
       env: spec.env,
+      fileExists: this.options.fileExists,
+    });
+    recordSpawn('agent', plan.executable);
+    const child = spawn(plan.executable, plan.args, {
+      cwd: plan.cwd,
+      env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsVerbatimArguments: plan.windowsVerbatimArguments,
     });
     if (!child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn terminal - no stdout stream');
