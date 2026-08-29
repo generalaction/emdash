@@ -9,7 +9,10 @@ import {
   WorkspaceServerDaemonError,
   type RemoteWorkspaceServerDaemon,
 } from './workspace-server/provision/daemon-control';
-import type { RemoteHostProbe } from './workspace-server/provision/host-probe';
+import {
+  WINDOWS_SSH_UNSUPPORTED_MESSAGE,
+  type RemoteHostProbe,
+} from './workspace-server/provision/host-probe';
 import {
   WorkspaceServerInstallError,
   type WorkspaceServerInstaller,
@@ -209,6 +212,9 @@ export class HostServerOperations {
     signal: AbortSignal
   ): Promise<WorkspaceServerLayout> {
     const host = await this.deps.host.probe(connectionId, signal);
+    if (host.platform === 'win32') {
+      throw new HostServerOperationError('unsupported-platform', WINDOWS_SSH_UNSUPPORTED_MESSAGE);
+    }
     return workspaceServerLayout(host.home);
   }
 
@@ -333,11 +339,13 @@ export class HostServerOperations {
   }
 }
 
+type HostServerOperationErrorCode = 'not-installed' | 'unsupported-platform';
+
 class HostServerOperationError extends Error {
   readonly name = 'HostServerOperationError';
 
   constructor(
-    readonly code: string,
+    readonly code: HostServerOperationErrorCode,
     message: string
   ) {
     super(message);

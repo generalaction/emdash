@@ -175,6 +175,25 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
+  it('rejects Windows before dialing or starting POSIX provisioning', async () => {
+    const fixture = createProvisionerFixture({ platform: 'win32' });
+
+    await expect(fixture.provisioner.ensure('ssh-1')).rejects.toMatchObject({
+      code: 'unsupported-platform',
+      message: 'Windows SSH hosts are not supported',
+    });
+    expect(fixture.status('ssh-1')).toMatchObject({
+      status: 'failed',
+      error: { code: 'unsupported-platform' },
+    });
+    expect(fixture.dialOnce).not.toHaveBeenCalled();
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.installer.availableVersion).not.toHaveBeenCalled();
+    expect(fixture.daemon.start).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
+    await fixture.dispose();
+  });
+
   it('cancels an in-flight host probe and removes its stale state', async () => {
     const fixture = createProvisionerFixture({ blockHostProbe: true });
     const pending = fixture.provisioner.ensure('ssh-1');
@@ -204,13 +223,22 @@ describe('WorkspaceServerProvisioner', () => {
 });
 
 function createProvisionerFixture(
-  options: { blockDial?: boolean; blockHostProbe?: boolean; devAutoUpdate?: boolean } = {}
+  options: {
+    blockDial?: boolean;
+    blockHostProbe?: boolean;
+    devAutoUpdate?: boolean;
+    platform?: 'posix' | 'win32';
+  } = {}
 ) {
   const scope = createScope({ label: 'workspace-server-provisioner-test' });
   const model = new HostStateModel();
   const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
     if (!options.blockHostProbe) {
-      return Promise.resolve({ home: '/home/devuser' });
+      return Promise.resolve(
+        options.platform === 'win32'
+          ? ({ platform: 'win32' } as const)
+          : ({ platform: 'posix', home: '/home/devuser' } as const)
+      );
     }
     return new Promise<never>((_resolve, reject) => {
       signal?.addEventListener(

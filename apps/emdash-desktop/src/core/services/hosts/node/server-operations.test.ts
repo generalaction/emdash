@@ -139,13 +139,41 @@ describe('HostServerOperations', () => {
     expect(fixture.status('ssh-1')).toEqual({ status: 'stopped', version: '1.2.3' });
     await fixture.dispose();
   });
+
+  it.each(['refresh', 'install', 'start', 'stop', 'restart', 'update'] as const)(
+    'rejects Windows before the explicit %s operation runs POSIX work',
+    async (action) => {
+      const fixture = createFixture({ platform: 'win32' });
+
+      await expect(fixture.operations[action]('ssh-1')).rejects.toMatchObject({
+        code: 'unsupported-platform',
+        message: 'Windows SSH hosts are not supported',
+      });
+      expect(fixture.status('ssh-1')).toMatchObject({
+        status: 'failed',
+        error: { code: 'unsupported-platform' },
+      });
+      expect(fixture.installer.installedVersion).not.toHaveBeenCalled();
+      expect(fixture.installer.availableVersion).not.toHaveBeenCalled();
+      expect(fixture.installer.install).not.toHaveBeenCalled();
+      expect(fixture.daemon.start).not.toHaveBeenCalled();
+      expect(fixture.daemon.stop).not.toHaveBeenCalled();
+      expect(fixture.wire.dialOnce).not.toHaveBeenCalled();
+      expect(fixture.wire.invalidateConnection).not.toHaveBeenCalled();
+      await fixture.dispose();
+    }
+  );
 });
 
-function createFixture() {
+function createFixture(options: { platform?: 'posix' | 'win32' } = {}) {
   const scope = createScope({ label: 'host-server-operations-test' });
   const state = new HostStateModel();
   const host = {
-    probe: vi.fn(async () => ({ home: '/home/devuser' })),
+    probe: vi.fn(async () =>
+      options.platform === 'win32'
+        ? ({ platform: 'win32' } as const)
+        : ({ platform: 'posix', home: '/home/devuser' } as const)
+    ),
   };
   const installer = {
     installedVersion: vi.fn(async () => '1.2.3' as string | undefined),
