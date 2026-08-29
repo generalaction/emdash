@@ -1,5 +1,6 @@
 import { recordSpawn } from '@emdash/shared/perf';
 import * as nodePty from 'node-pty';
+import { ProcessTreeTerminator, type TaskkillRunner } from '#primitives/exec/node';
 import {
   normalizeSignal,
   PosixPtyTerminator,
@@ -25,6 +26,13 @@ type NodePtyLike = {
 };
 
 export class NodePtySpawner implements PtySpawner {
+  constructor(
+    private readonly options: {
+      platform?: NodeJS.Platform;
+      taskkill?: TaskkillRunner;
+    } = {}
+  ) {}
+
   async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
       recordSpawn('pty', spec.command);
@@ -36,7 +44,12 @@ export class NodePtySpawner implements PtySpawner {
         env: spec.env,
       });
       suppressExpectedNodePtyErrors(proc);
-      return new NodePtyProcess(proc);
+      return new NodePtyProcess(
+        proc,
+        new PosixPtyTerminator(),
+        this.options.platform ?? process.platform,
+        this.options.taskkill
+      );
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       throw new Error(`Failed to spawn PTY: ${message}`);
@@ -46,14 +59,27 @@ export class NodePtySpawner implements PtySpawner {
 
 class NodePtyProcess implements PtyProcess {
   private killed = false;
+  private exited = false;
+  private readonly windowsTerminator: ProcessTreeTerminator;
 
   constructor(
     private readonly proc: NodePtyLike,
     private readonly posixTerminator: Pick<
       PosixPtyTerminator,
       'kill' | 'markExited'
-    > = new PosixPtyTerminator()
-  ) {}
+    > = new PosixPtyTerminator(),
+    private readonly platform: NodeJS.Platform = process.platform,
+    taskkill?: TaskkillRunner
+  ) {
+    this.windowsTerminator = new ProcessTreeTerminator(
+      {
+        pid: proc.pid,
+        isExited: () => this.exited,
+        kill: () => this.killPty(),
+      },
+      { platform: 'win32', taskkill }
+    );
+  }
 
   write(data: string): void {
     this.proc.write(data);
@@ -76,8 +102,12 @@ class NodePtyProcess implements PtyProcess {
     this.killed = true;
 
     const pid = this.proc.pid;
-    if (process.platform === 'win32' || !Number.isInteger(pid) || pid <= 0) {
+    if (!Number.isInteger(pid) || pid <= 0) {
       this.killPty();
+      return;
+    }
+    if (this.platform === 'win32') {
+      void this.windowsTerminator.terminate();
       return;
     }
 
@@ -90,6 +120,7 @@ class NodePtyProcess implements PtyProcess {
 
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.proc.onExit(({ exitCode, signal }) => {
+      this.exited = true;
       this.posixTerminator.markExited();
       handler({ exitCode, signal: normalizeSignal(signal) ?? null });
     });
