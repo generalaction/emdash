@@ -1,7 +1,6 @@
 import {
-  absoluteBasename,
-  absoluteDirname,
-  containsAbsolute,
+  createPathProfile,
+  createPathSemantics,
   joinAbsolute,
   parsePortableRelativePath,
   type PortableRelativePath,
@@ -9,30 +8,11 @@ import {
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';
-import type { FilesClientScope } from '../runtime-client';
 
 export type WorkspacePathResolution = {
   path: string;
-};
-
-const machinePathOperations = {
-  basename: (input: string) => absoluteBasename(hostPathFromNative(input)),
-  contains: (parent: string, child: string) =>
-    containsAbsolute(hostPathFromNative(parent), hostPathFromNative(child)),
-  dirname: (input: string) => {
-    const parsed = hostPathFromNative(input);
-    return nativePathFromHost(absoluteDirname(parsed) ?? parsed);
-  },
-  join: (base: string, ...segments: string[]) => {
-    const relative = parsePortableRelativePath(segments.join('/'), {
-      unicodeNormalization: 'preserve',
-    });
-    if (!relative.success) throw new Error(relative.error.message);
-    const joined = joinAbsolute(hostPathFromNative(base), relative.data);
-    if (!joined.success) throw new Error(joined.error.message);
-    return nativePathFromHost(joined.data);
-  },
 };
 
 export function resolveWorkspacePath(
@@ -58,11 +38,17 @@ export function resolveWorkspacePath(
     candidate = joined.data;
   }
 
-  if (!containsAbsolute(root, candidate)) {
+  const profile = createPathProfile({ style: root.root.kind === 'posix' ? 'posix' : 'win32' });
+  if (!createPathSemantics(profile).contains(root, candidate)) {
     return invalidPathError(filePath, 'Path must be inside the workspace');
   }
 
-  return ok({ path: nativePathFromHost(candidate) });
+  return ok({
+    path: nativePathFromHost({
+      root: root.root,
+      segments: [...root.segments, ...candidate.segments.slice(root.segments.length)],
+    }),
+  });
 }
 
 export async function assertWorkspaceWriteAllowed(
@@ -96,9 +82,12 @@ async function isWorkspaceRealPathContained(
   workspacePath: string,
   candidatePath: string
 ): Promise<Result<boolean, FsError>> {
-  return isRealPathContainedByRealPath(files, machinePathOperations, workspacePath, candidatePath, {
-    candidateErrorMode: 'error',
-  });
+  return isRealPathContainedByRealPath(
+    files,
+    hostPathFromNative(workspacePath),
+    hostPathFromNative(candidatePath),
+    { candidateErrorMode: 'error' }
+  );
 }
 
 function normalizeRelativePath(

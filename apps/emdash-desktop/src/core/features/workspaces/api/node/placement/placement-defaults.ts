@@ -1,5 +1,5 @@
-import path from 'node:path';
 import { deriveWorktreePoolPath as derivePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
+import { joinHostPath } from '@core/primitives/desktop-runtime/api';
 
 export type DeriveWorktreePoolPathOptions = {
   worktreesRoot: string;
@@ -7,7 +7,7 @@ export type DeriveWorktreePoolPathOptions = {
 };
 
 export function defaultRepositoriesRoot(homeDirectory: string): string {
-  return pathApiFor(homeDirectory).join(homeDirectory, 'emdash', 'repositories');
+  return joinHostPath(homeDirectory, 'emdash', 'repositories');
 }
 
 // The built-in worktree root lives in the portable resolver module
@@ -24,10 +24,4 @@ export function deriveWorktreePoolPath({
   repoPath,
 }: DeriveWorktreePoolPathOptions): string {
   return derivePoolPath({ worktreeRoot: worktreesRoot, repoPath });
-}
-
-function pathApiFor(absolutePath: string): typeof path.posix {
-  return /^[a-zA-Z]:[\\/]/u.test(absolutePath) || absolutePath.startsWith('\\\\')
-    ? path.win32
-    : path.posix;
 }
