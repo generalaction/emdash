@@ -73,5 +73,7 @@ Precedence is per-project DB override, then host settings, then app defaults.
   lifecycle steps for the Activity timeline
 - `shellSetup` runs inside each PTY before the interactive shell starts; the workspace's
   `.emdash.json` value overrides the host-settings default
-- tmux wrapping has an app level default but is also project-configurable in Project Settings and affects PTY lifecycle behavior.
+- tmux wrapping has an app level default but is also project-configurable in Project Settings
+  and affects PTY lifecycle behavior. It is always disabled for local Windows sessions without
+  deleting the stored preference.
 - `preservePatterns` never copies tracked files or `.emdash.json`

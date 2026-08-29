@@ -234,6 +234,21 @@ describe('TuiAgentsRuntime', () => {
     expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
   });
 
+  it('removes Windows tmux intent and never invokes tmux', async () => {
+    const { runtime, spawner, exec } = createRuntime({ platform: 'win32' });
+
+    await runtime.startSession(
+      startInput({
+        tmuxSessionName: 'must-not-run',
+      })
+    );
+
+    expect(spawner.specs[0]!.args.join(' ')).not.toContain('tmux');
+    await runtime.reconcile();
+    await runtime.dispose();
+    expect(exec.exec).not.toHaveBeenCalled();
+  });
+
   it('attaches to an already running session without replacing config', async () => {
     const { runtime, spawner, agentHost } = createRuntime();
 

@@ -152,6 +152,10 @@ export class TuiAgentsRuntime {
       idlePolicy: sessionPolicy,
       sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
       beforeSweep: async () => {
+        if ((this.deps.platform ?? process.platform) === 'win32') {
+          this.tmuxActivity = new Map();
+          return;
+        }
         // Skip the tmux subprocess entirely when nothing is tracked; the sweep
         // below iterates the same (empty) config set.
         if (this.configs.size === 0) {
@@ -238,6 +242,10 @@ export class TuiAgentsRuntime {
         },
         reconcile: {
           precheck: async () => {
+            if ((this.deps.platform ?? process.platform) === 'win32') {
+              this.tmuxActivity = new Map();
+              return { ctx: undefined };
+            }
             try {
               // The prefetch doubles as the gate's liveness table; a listing
               // failure vetoes the whole run (intents stay untouched).
@@ -253,7 +261,7 @@ export class TuiAgentsRuntime {
             if (parsed.data.lastAgentState) {
               this.agentStates.restore(parsed.data.lastAgentState);
             }
-            return { input: parsed.data };
+            return { input: this.normalizePlatformInput(parsed.data) };
           },
           gate: (input) => {
             if (!input.tmuxSessionName || !this.tmuxActivity.has(input.tmuxSessionName)) {
@@ -270,6 +278,7 @@ export class TuiAgentsRuntime {
   async startSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -301,6 +310,7 @@ export class TuiAgentsRuntime {
   async resumeSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -947,6 +957,7 @@ export class TuiAgentsRuntime {
   }
 
   private async killTmuxForConfig(config: TuiSessionConfig | undefined): Promise<void> {
+    if ((this.deps.platform ?? process.platform) === 'win32') return;
     const sessionName = config?.input.tmuxSessionName;
     if (!sessionName) return;
     await killTmuxSession(this.deps.exec, sessionName, (error) => {
@@ -955,6 +966,13 @@ export class TuiAgentsRuntime {
         error: String(error),
       });
     });
+  }
+
+  private normalizePlatformInput<T extends TuiAgentStartInput>(input: T): T {
+    if ((this.deps.platform ?? process.platform) !== 'win32' || !input.tmuxSessionName)
+      return input;
+    const { tmuxSessionName: _tmuxSessionName, ...normalized } = input;
+    return normalized as T;
   }
 }
 

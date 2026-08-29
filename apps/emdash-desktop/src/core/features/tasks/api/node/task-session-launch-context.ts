@@ -109,7 +109,7 @@ export class TaskSessionLaunchContextResolver {
 
     return ok({
       workspace: identity,
-      tmux: tmux.value,
+      tmux: resolveSessionTmux(identity.host, tmux.value),
       shellSetup: projectConfig.data.resolved.shellSetup?.value,
       env: getTaskEnvVars({
         taskId: task.id,
@@ -121,4 +121,12 @@ export class TaskSessionLaunchContextResolver {
       }),
     });
   }
+}
+
+export function resolveSessionTmux(
+  host: WorkspaceIdentity['host'],
+  requested: boolean,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  return host.type === 'local' && platform === 'win32' ? false : requested;
 }
