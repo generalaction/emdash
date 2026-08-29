@@ -6,6 +6,7 @@ import {
   formatAbsolute,
   joinAbsolute,
   parseAbsolute,
+  parseNativeAbsolute,
   relativeSegmentsFromAbsolute,
 } from './index';
 
@@ -59,6 +60,29 @@ describe('absolute paths', () => {
     });
     if (!parsed.success) return;
     expect(formatAbsolute(parsed.data)).toBe('//server/share/dir/file.ts');
+  });
+
+  it.each([
+    [
+      'C:\\Users\\David\\repo\\file.ts',
+      {
+        root: { kind: 'drive', driveLetter: 'C' },
+        segments: ['Users', 'David', 'repo', 'file.ts'],
+      },
+    ],
+    [
+      '\\\\server\\share\\dir\\file.ts',
+      {
+        root: { kind: 'unc', server: 'server', share: 'share' },
+        segments: ['dir', 'file.ts'],
+      },
+    ],
+    [
+      '/repo/src\\literal/index.ts',
+      { root: { kind: 'posix' }, segments: ['repo', 'src\\literal', 'index.ts'] },
+    ],
+  ])('parses native Host path %s using its root syntax', (input, expected) => {
+    expect(parseNativeAbsolute(input)).toEqual({ success: true, data: expected });
   });
 
   it('rejects incompatible absolute path styles', () => {

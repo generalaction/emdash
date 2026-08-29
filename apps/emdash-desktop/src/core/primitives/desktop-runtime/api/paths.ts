@@ -3,7 +3,7 @@ import {
   formatAbsolute,
   hostFileRef,
   joinAbsolute,
-  parseAbsolute,
+  parseNativeAbsolute,
   parsePortableRelativePath,
   relativeSegmentsFromAbsolute,
   type HostAbsolutePath,
@@ -12,10 +12,7 @@ import {
 } from '@emdash/core/primitives/path/api';
 
 export function hostPathFromNative(input: string): HostAbsolutePath {
-  const style = isWindowsAbsolute(input) ? 'win32' : 'posix';
-  const parsed = parseAbsolute(input, {
-    profile: { style, unicodeNormalization: 'preserve' },
-  });
+  const parsed = parseNativeAbsolute(input);
   if (!parsed.success) throw new Error(parsed.error.message);
   return parsed.data;
 }

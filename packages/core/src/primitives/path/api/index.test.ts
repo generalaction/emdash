@@ -9,6 +9,7 @@ describe('@emdash/core/primitives/path/api public exports', () => {
     const exported = pathExports as Record<string, unknown>;
 
     expect(exported.parseAbsolute).toBeTypeOf('function');
+    expect(exported.parseNativeAbsolute).toBeTypeOf('function');
     expect(exported.parsePortableRelativePath).toBeTypeOf('function');
     expect(exported.createPathSemantics).toBeTypeOf('function');
     expect(exported.hostFileRef).toBeTypeOf('function');

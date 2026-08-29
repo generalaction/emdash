@@ -8,6 +8,7 @@ export {
   formatAbsolute,
   joinAbsolute,
   parseAbsolute,
+  parseNativeAbsolute,
   relativeSegmentsFromAbsolute,
   tryParseAbsolute,
 } from './absolute';

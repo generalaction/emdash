@@ -4,7 +4,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import {
   containsAbsolute,
   formatAbsolute,
-  parseAbsolute,
+  parseNativeAbsolute,
   type HostAbsolutePath,
 } from '#primitives/path/api';
 import type { WorkspaceSessionClients } from './session-cleanup';
@@ -178,7 +178,7 @@ function pathContains(root: HostAbsolutePath, candidate: HostAbsolutePath | null
 }
 
 function parsePath(path: string): HostAbsolutePath | null {
-  const parsed = parseAbsolute(path);
+  const parsed = parseNativeAbsolute(path);
   return parsed.success ? parsed.data : null;
 }
 

@@ -27,6 +27,19 @@ export function parseAbsolute(
     : parsePosixAbsolute(input, profile);
 }
 
+/**
+ * Parses a native absolute path at a Host boundary. Windows drive and UNC roots
+ * are unambiguous; all other inputs retain the POSIX default.
+ */
+export function parseNativeAbsolute(input: string): Result<HostAbsolutePath, PathError> {
+  return parseAbsolute(input, {
+    profile: {
+      style: isWindowsAbsolute(input) ? 'win32' : 'posix',
+      unicodeNormalization: 'preserve',
+    },
+  });
+}
+
 export function formatAbsolute(
   path: HostAbsolutePath,
   options: FormatAbsoluteOptions = {}
@@ -193,4 +206,8 @@ function parseUncAbsolute(
 
 function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((segment, index) => segment === b[index]);
+}
+
+function isWindowsAbsolute(input: string): boolean {
+  return /^[A-Za-z]:[\\/]/u.test(input) || /^[/\\]{2}[^/\\]+[/\\][^/\\]+/u.test(input);
 }
