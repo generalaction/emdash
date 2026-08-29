@@ -1,4 +1,5 @@
 import { ok } from '@emdash/shared';
+import { LiveJobFailedError } from '@emdash/wire/live';
 import { cell } from '@emdash/wire/state';
 import { expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
@@ -11,7 +12,10 @@ import type {
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskPrAssociationStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { tasksWireContract } from '@core/features/tasks/api';
-import { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
+import {
+  TaskManagerStore,
+  wireErrorToWorkspaceError,
+} from '@core/features/tasks/api/browser/stores/task-manager';
 import { createUnprovisionedTask } from '@core/features/tasks/api/browser/stores/task-store';
 import type { Task, TaskListData, TaskStatsData } from '@core/primitives/tasks/api';
 
@@ -441,5 +445,23 @@ describe('TaskManagerStore lifecycle', () => {
     expect(store.state).toBe('provisioned');
     expect(mocks.archiveMutation).not.toHaveBeenCalled();
     manager.dispose();
+  });
+});
+
+describe('workspace provision errors', () => {
+  it('unwraps the typed failure carried by a live job', () => {
+    expect(
+      wireErrorToWorkspaceError(
+        new LiveJobFailedError({
+          type: 'setup-failed',
+          message: 'Path must be POSIX absolute',
+          stageId: 'activation-gate',
+        })
+      )
+    ).toEqual({
+      type: 'setup-failed',
+      message: 'Path must be POSIX absolute',
+      stageId: 'activation-gate',
+    });
   });
 });

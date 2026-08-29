@@ -1,7 +1,7 @@
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { toast } from '@emdash/ui/react/primitives';
-import { createLiveJobReplicaCache } from '@emdash/wire/live';
+import { createLiveJobReplicaCache, LiveJobFailedError } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { match } from 'ts-pattern';
@@ -130,18 +130,20 @@ function throwIfMutationFailed(result: SharedResult<unknown, unknown>): void {
   if (!result.success) throw new Error(formatErrorMessage(result.error));
 }
 
-function wireErrorToWorkspaceError(error: unknown): WorkspaceError {
+export function wireErrorToWorkspaceError(error: unknown): WorkspaceError {
+  const payload =
+    error instanceof LiveJobFailedError && error.error !== undefined ? error.error : error;
   if (
-    typeof error === 'object' &&
-    error !== null &&
-    typeof (error as { type?: unknown }).type === 'string' &&
-    typeof (error as { message?: unknown }).message === 'string'
+    typeof payload === 'object' &&
+    payload !== null &&
+    typeof (payload as { type?: unknown }).type === 'string' &&
+    typeof (payload as { message?: unknown }).message === 'string'
   ) {
-    return error as WorkspaceError;
+    return payload as WorkspaceError;
   }
   return {
     type: 'workspace-wire-error',
-    message: error instanceof Error ? error.message : String(error),
+    message: payload instanceof Error ? payload.message : String(payload),
   };
 }
 
