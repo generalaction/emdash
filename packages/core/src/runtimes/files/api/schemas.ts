@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
+import {
+  hostAbsolutePathSchema,
+  pathProfileSchema,
+  portableRelativePathSchema,
+} from '#primitives/path/api';
+
+export const homeDirectoryResultSchema = z.object({
+  path: hostAbsolutePathSchema,
+  profile: pathProfileSchema.optional(),
+});
 
 export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
 export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });
@@ -91,6 +100,7 @@ export const writeFileInputSchema = absolutePathKeySchema.extend({
 });
 
 export type RootKey = z.infer<typeof rootKeySchema>;
+export type HomeDirectoryResult = z.infer<typeof homeDirectoryResultSchema>;
 export type PathKey = z.infer<typeof pathKeySchema>;
 export type AbsolutePathKey = z.infer<typeof absolutePathKeySchema>;
 export type FromToKey = z.infer<typeof fromToKeySchema>;

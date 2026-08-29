@@ -23,6 +23,7 @@ import {
   fileEnumerationOptionsSchema,
   fileStatSchema,
   fromToKeySchema,
+  homeDirectoryResultSchema,
   pathBatchSchema,
   pathListSchema,
   readBytesMetaSchema,
@@ -46,7 +47,7 @@ export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const filesContract = defineContract({
   getHomeDir: procedure({
     input: z.void().optional(),
-    output: z.object({ path: hostAbsolutePathSchema }),
+    output: homeDirectoryResultSchema,
   }),
   fs: defineContract({
     stat: fallible({ input: absolutePathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
