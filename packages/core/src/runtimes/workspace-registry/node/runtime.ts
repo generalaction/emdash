@@ -18,6 +18,7 @@ import {
   type Query,
 } from '@emdash/wire/state';
 import type { EnvSource } from '#primitives/exec/api';
+import type { PathProfile } from '#primitives/path/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
@@ -109,6 +110,8 @@ import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './upd
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
+  /** Owning-host filesystem identity semantics. Defaults from this worker's platform. */
+  pathProfile?: PathProfile;
   env?: EnvSource;
   clock?: Clock;
   logger?: Logger;
@@ -222,7 +225,13 @@ export class WorkspaceRegistryRuntime {
     this.inspector = options.inspector ?? ((path) => inspectWorkspacePath(path, env));
     this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
-    this.store = new WorkspaceRecordStore(options.handle);
+    this.store = new WorkspaceRecordStore(options.handle, options.pathProfile);
+    for (const collision of this.store.pathCollisions()) {
+      this.logger.warn?.('Workspace registry contains ambiguous path spellings', {
+        key: collision.key,
+        records: collision.records.map(({ id, path }) => ({ id, path })),
+      });
+    }
     this.killSessions = options.killSessions ?? (async () => undefined);
     this.countSessions = options.countSessions ?? (async () => 0);
     this.scriptsClient = options.scripts ?? null;
@@ -992,7 +1001,7 @@ export class WorkspaceRegistryRuntime {
 
     const existing = this.store.get(input.workspaceId);
     if (existing) {
-      if (existing.path === canonical) {
+      if (this.store.pathsEqual(existing.path, canonical)) {
         // Idempotent replay: same id, same path — no-op success.
         return ok(this.toWire(existing));
       }
@@ -1080,7 +1089,7 @@ export class WorkspaceRegistryRuntime {
         spec.branch === input.branch &&
         spec.baseRef === (input.baseRef ?? null) &&
         sameGitSetup(spec.gitSetup, input.gitSetup) &&
-        spec.requestedPath === input.path &&
+        this.store.pathsEqual(existing.path, path.resolve(input.path)) &&
         existing.parentId === input.repositoryId;
       if (!matches) {
         return err({
@@ -1193,7 +1202,7 @@ export class WorkspaceRegistryRuntime {
     if (parent) {
       try {
         const listing = (await listRepositoryWorktrees(this.gitContext, parent.path)).find(
-          (entry) => entry.path === result.finalPath
+          (entry) => this.store.pathsEqual(entry.path, result.finalPath)
         );
         gitAdminName = listing?.adminName ?? gitAdminName;
       } catch {
@@ -1381,11 +1390,12 @@ export class WorkspaceRegistryRuntime {
   /** Points the run observer at every present record path; called on records changes. */
   private syncScriptObservers(): void {
     if (!this.scriptRuns || this.disposed) return;
-    const paths = new Set<string>();
+    const paths = new Map<string, string>();
     for (const record of this.store.list()) {
-      if (record.observedStatus === 'present') paths.add(record.path);
+      if (record.observedStatus === 'present')
+        paths.set(this.store.pathKey(record.path), record.path);
     }
-    this.scriptRuns.sync(paths);
+    this.scriptRuns.sync(new Set(paths.values()));
   }
 
   /**
@@ -1591,7 +1601,9 @@ export class WorkspaceRegistryRuntime {
       repositoryId: repository.id,
       ...resolved,
       personalConfig,
-      sources: collectProjectConfigSources(projectRecords, this.configs),
+      sources: collectProjectConfigSources(projectRecords, this.configs, (path) =>
+        this.store.pathKey(path)
+      ),
       legacyDesktopSettingsMigrated: this.store.hasMigratedLegacyDesktopSettings(repository.id),
     };
   }

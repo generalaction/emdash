@@ -1,4 +1,10 @@
 import { eq } from 'drizzle-orm';
+import {
+  createPathProfile,
+  nativePathIdentityKey,
+  stableNativePathDisplay,
+  type PathProfile,
+} from '#primitives/path/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { PersonalProjectConfig, WorkspaceRecord } from '../../api/schemas';
 import {
@@ -29,7 +35,15 @@ type RecordRow = Omit<Row, 'personalConfig' | 'legacyDesktopSettingsMigrated'>;
 export type DurableWorkspaceRecord = Omit<WorkspaceRecord, 'runtime' | 'config'>;
 
 export class WorkspaceRecordStore {
-  constructor(private readonly handle: StoreHandle<WorkspaceRegistryDb>) {}
+  private readonly profile: PathProfile;
+
+  constructor(
+    private readonly handle: StoreHandle<WorkspaceRegistryDb>,
+    profile?: PathProfile
+  ) {
+    this.profile =
+      profile ?? createPathProfile({ style: process.platform === 'win32' ? 'win32' : 'posix' });
+  }
 
   list(): DurableWorkspaceRecord[] {
     return this.handle.db.select().from(workspaceRecords).all().map(rowToRecord);
@@ -45,15 +59,42 @@ export class WorkspaceRecordStore {
   }
 
   getByPath(path: string): DurableWorkspaceRecord | null {
-    const row = this.handle.db
-      .select()
-      .from(workspaceRecords)
-      .where(eq(workspaceRecords.path, path))
-      .get();
-    return row ? rowToRecord(row) : null;
+    return this.recordsAtPath(path)[0] ?? null;
+  }
+
+  recordsAtPath(path: string): DurableWorkspaceRecord[] {
+    const key = this.pathKey(path);
+    return this.list()
+      .filter((record) => this.pathKey(record.path) === key)
+      .sort(compareRecords);
+  }
+
+  pathsEqual(left: string, right: string): boolean {
+    return this.pathKey(left) === this.pathKey(right);
+  }
+
+  pathKey(path: string): string {
+    return nativePathIdentityKey(path, this.profile);
+  }
+
+  pathCollisions(): Array<{ key: string; records: DurableWorkspaceRecord[] }> {
+    const byKey = new Map<string, DurableWorkspaceRecord[]>();
+    for (const record of this.list()) {
+      const key = this.pathKey(record.path);
+      const records = byKey.get(key) ?? [];
+      records.push(record);
+      byKey.set(key, records);
+    }
+    return [...byKey.entries()]
+      .filter(([, records]) => records.length > 1)
+      .map(([key, records]) => ({ key, records: records.sort(compareRecords) }));
   }
 
   insert(record: DurableWorkspaceRecord): void {
+    const conflicting = this.getByPath(record.path);
+    if (conflicting && conflicting.id !== record.id) {
+      throw pathCollision(record.path, record.id, conflicting.id);
+    }
     this.handle.db
       .insert(workspaceRecords)
       .values({
@@ -65,7 +106,19 @@ export class WorkspaceRecordStore {
   }
 
   update(record: DurableWorkspaceRecord): void {
-    const { id, ...columns } = recordToRow(record);
+    const current = this.get(record.id);
+    const conflicting = this.getByPath(record.path);
+    if (
+      conflicting &&
+      conflicting.id !== record.id &&
+      (!current || !this.pathsEqual(current.path, record.path))
+    ) {
+      throw pathCollision(record.path, record.id, conflicting.id);
+    }
+    const persisted = current
+      ? { ...record, path: stableNativePathDisplay(current.path, record.path, this.profile) }
+      : record;
+    const { id, ...columns } = recordToRow(persisted);
     this.handle.db.update(workspaceRecords).set(columns).where(eq(workspaceRecords.id, id)).run();
   }
 
@@ -110,6 +163,16 @@ export class WorkspaceRecordStore {
       .where(eq(workspaceRecords.id, repositoryId))
       .run();
   }
+}
+
+function compareRecords(left: DurableWorkspaceRecord, right: DurableWorkspaceRecord): number {
+  return left.createdAt - right.createdAt || left.id.localeCompare(right.id);
+}
+
+function pathCollision(path: string, incomingId: string, conflictingId: string): Error {
+  return new Error(
+    `Workspace path identity collision at '${path}': '${incomingId}' conflicts with '${conflictingId}'`
+  );
 }
 
 function rowToRecord(row: Row): DurableWorkspaceRecord {

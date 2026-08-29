@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { nativePathIdentityKey } from '#primitives/path/api';
 
 /**
  * Priority classes for registry-spawned subprocesses (spec: workspace-lifecycle-v2,
@@ -60,7 +61,8 @@ export class GitSchedule {
   async run<T>(work: GitWork, task: () => Promise<T> | T): Promise<T> {
     const tier = TIER_INDEX[work.tier];
     const gated = tier <= LAST_HIGH_TIER && work.repository !== undefined;
-    if (gated) this.enterRepo(work.repository!);
+    const repository = work.repository && pathIdentityKey(work.repository);
+    if (gated) this.enterRepo(repository!);
     try {
       await this.acquire(tier);
       try {
@@ -69,7 +71,7 @@ export class GitSchedule {
         this.release();
       }
     } finally {
-      if (gated) this.leaveRepo(work.repository!);
+      if (gated) this.leaveRepo(repository!);
     }
   }
 
@@ -80,11 +82,12 @@ export class GitSchedule {
    * idle-gated scans out of the gaps between an operation's subprocesses.
    */
   async withRepoHold<T>(repository: string, task: () => Promise<T> | T): Promise<T> {
-    this.enterRepo(repository);
+    const key = pathIdentityKey(repository);
+    this.enterRepo(key);
     try {
       return await task();
     } finally {
-      this.leaveRepo(repository);
+      this.leaveRepo(key);
     }
   }
 
@@ -94,7 +97,8 @@ export class GitSchedule {
    * caller past the poll floor.
    */
   whenIdle(repository: string, deadlineMs: number): Promise<void> {
-    if ((this.repoWork.get(repository) ?? 0) === 0) return Promise.resolve();
+    const key = pathIdentityKey(repository);
+    if ((this.repoWork.get(key) ?? 0) === 0) return Promise.resolve();
     return new Promise((resolve) => {
       let settled = false;
       const finish = () => {
@@ -105,9 +109,9 @@ export class GitSchedule {
       };
       const timer = setTimeout(finish, deadlineMs);
       timer.unref?.();
-      const waiters = this.idleWaiters.get(repository) ?? [];
+      const waiters = this.idleWaiters.get(key) ?? [];
       waiters.push(finish);
-      this.idleWaiters.set(repository, waiters);
+      this.idleWaiters.set(key, waiters);
     });
   }
 
@@ -165,25 +169,34 @@ export class WorktreeWriteLocks {
   private readonly writers = new Map<string, Promise<void>>();
 
   async withWriter<T>(key: string, task: () => Promise<T> | T): Promise<T> {
-    const previous = this.writers.get(key) ?? Promise.resolve();
+    const identity = pathIdentityKey(key);
+    const previous = this.writers.get(identity) ?? Promise.resolve();
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
     const chained = previous.then(() => held);
-    this.writers.set(key, chained);
+    this.writers.set(identity, chained);
     await previous;
     try {
       return await task();
     } finally {
       release();
-      if (this.writers.get(key) === chained) this.writers.delete(key);
+      if (this.writers.get(identity) === chained) this.writers.delete(identity);
     }
   }
 
   /** Resolves once no writer holds the worktree; immediate when unlocked. */
   whenUnlocked(key: string): Promise<void> {
-    return this.writers.get(key) ?? Promise.resolve();
+    return this.writers.get(pathIdentityKey(key)) ?? Promise.resolve();
+  }
+}
+
+function pathIdentityKey(path: string): string {
+  try {
+    return nativePathIdentityKey(path);
+  } catch {
+    return `raw:${path}`;
   }
 }
 

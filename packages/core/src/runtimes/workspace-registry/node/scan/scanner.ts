@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
 import type { RegistryGitContext } from '../git-context';
 import type { DurableWorkspaceRecord } from '../persistence/record-store';
@@ -241,7 +242,9 @@ export class RegistryScanner {
     const children = records.filter(
       (record) => record.kind === 'worktree' && record.parentId === repository.id
     );
-    const childByPath = new Map(children.map((child) => [child.path, child]));
+    const childByPath = new Map(
+      children.map((child) => [nativePathIdentityKey(child.path), child] as const)
+    );
     const childByAdminName = new Map(
       children.flatMap((child) => (child.gitAdminName ? [[child.gitAdminName, child]] : []))
     );
@@ -254,7 +257,7 @@ export class RegistryScanner {
         continue;
       }
 
-      const byPath = childByPath.get(canonicalPath);
+      const byPath = childByPath.get(nativePathIdentityKey(canonicalPath));
       const byAdmin = listing.adminName ? childByAdminName.get(listing.adminName) : undefined;
       const child = byPath ?? byAdmin;
       if (child) {
