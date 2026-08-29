@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
 import { NodeExecutionContext } from './node-execution-context';
 
 describe('NodeExecutionContext', () => {
@@ -45,5 +47,36 @@ describe('NodeExecutionContext', () => {
 
     expect(before.stdout.trim()).toBe('before-refresh');
     expect(after.stdout.trim()).toBe('after-refresh');
+  });
+
+  it('replaces the context environment with a per-command environment', async () => {
+    const currentPath = process.env.PATH ?? process.env.Path ?? '';
+    const hostPath = [path.dirname(process.execPath), currentPath]
+      .filter(Boolean)
+      .join(path.delimiter);
+    const safeEnv = buildAllowlistedAgentEnv(
+      {
+        Path: hostPath,
+        ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+        UNSAFE_ENV: 'must-not-leak',
+      },
+      { platform: 'windows' }
+    );
+    const context = new NodeExecutionContext({
+      env: { ...safeEnv, UNSAFE_ENV: 'must-not-leak' },
+    });
+    const script = [
+      "const { spawnSync } = require('node:child_process');",
+      "const nested = spawnSync('node', ['--version'], { encoding: 'utf8' });",
+      'process.stdout.write(JSON.stringify({',
+      '  path: process.env.PATH,',
+      '  unsafe: process.env.UNSAFE_ENV,',
+      '  nestedStatus: nested.status,',
+      '}));',
+    ].join('\n');
+
+    const { stdout } = await context.exec(process.execPath, ['-e', script], { env: safeEnv });
+
+    expect(JSON.parse(stdout)).toEqual({ path: hostPath, nestedStatus: 0 });
   });
 });

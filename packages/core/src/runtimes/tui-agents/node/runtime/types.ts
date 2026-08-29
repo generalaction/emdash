@@ -19,6 +19,7 @@ export interface TuiAgentsRuntimeDeps {
   conversationReports?: ConversationLifecycleReporter;
   log?: LiveLogSourceOptions;
   clock?: Clock;
+  platform?: NodeJS.Platform;
   lifecycle?: {
     session?: IdlePolicyConfig;
     sweepIntervalMs?: number;

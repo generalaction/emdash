@@ -32,6 +32,8 @@ function createRuntime(
     hooks?: ResolvedTuiProvider['hooks'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
+    platform?: NodeJS.Platform;
+    commandEnv?: Record<string, string>;
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -50,7 +52,13 @@ function createRuntime(
       behavior: options.trustWorkspace ? { trust: { trustWorkspace: options.trustWorkspace } } : {},
     })),
     buildPromptCommand: vi.fn(() =>
-      Promise.resolve(ok({ command: 'agent', args: ['run', 'hello world'], env: { AGENT: '1' } }))
+      Promise.resolve(
+        ok({
+          command: 'agent',
+          args: ['run', 'hello world'],
+          env: options.commandEnv ?? { AGENT: '1' },
+        })
+      )
     ),
   } as unknown as AgentPluginHost;
   const exec = {
@@ -68,6 +76,7 @@ function createRuntime(
     conversationReports: options.conversationReports,
     spawner,
     clock: options.clock,
+    platform: options.platform,
     lifecycle: options.lifecycle,
     spillPrompt: options.spillPrompt,
     logger: noopLogger,
@@ -116,6 +125,20 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(1);
+  });
+
+  it('merges final Windows provider environment overlays case-insensitively', async () => {
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      commandEnv: { PATH: 'C:\\base' },
+    });
+
+    await runtime.startSession(startInput({ providerVars: { Path: 'C:\\override' } }));
+
+    expect(spawner.specs[0]?.env).toMatchObject({ PATH: 'C:\\override' });
+    expect(
+      Object.keys(spawner.specs[0]?.env ?? {}).filter((key) => key.toLowerCase() === 'path')
+    ).toEqual(['PATH']);
   });
 
   it('trusts the workspace only when the start input opts in', async () => {

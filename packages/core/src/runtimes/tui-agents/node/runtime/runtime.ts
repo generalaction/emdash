@@ -4,6 +4,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
+import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { formatCommandLine } from '#primitives/exec/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
@@ -499,14 +500,17 @@ export class TuiAgentsRuntime {
           // construction (spec: github-git-settings §4) so a "none" scrub
           // wins over provider and hook env.
           env: applyGitCredentialsToEnv(
-            {
-              TERM: 'xterm-256color',
-              COLORTERM: 'truecolor',
-              TERM_PROGRAM: 'emdash',
-              ...command.env,
-              ...config.input.providerVars,
-              ...hookEnv,
-            },
+            mergeAgentEnvLayers(
+              currentAgentEnvPlatform(this.deps.platform),
+              {
+                TERM: 'xterm-256color',
+                COLORTERM: 'truecolor',
+                TERM_PROGRAM: 'emdash',
+              },
+              command.env,
+              config.input.providerVars ?? {},
+              hookEnv
+            ),
             config.input.gitCredentials
           ),
           cols: config.input.cols,

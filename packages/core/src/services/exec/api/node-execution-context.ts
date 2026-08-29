@@ -37,7 +37,7 @@ export class NodeExecutionContext implements IExecutionContext {
     args: string[] = [],
     opts: ExecContextOptions = {}
   ): Promise<ExecResult> {
-    const env = await this.resolveEnv();
+    const env = opts.env ?? (await this.resolveEnv());
     recordSpawn(classifySpawnPurpose(command, args), command);
     return (await execFileAsync(command, args, {
       cwd: this.root || undefined,
