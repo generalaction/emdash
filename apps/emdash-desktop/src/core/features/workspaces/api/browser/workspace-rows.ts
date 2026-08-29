@@ -1,4 +1,5 @@
 import type { HostObservation } from '@core/features/projects/api/host-observation';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import {
   workspaceRemovalNeedsAttention,
   type MeasureProjectWorkspacesResult,
@@ -39,7 +40,7 @@ export function joinWorkspaceRows(sources: WorkspaceRowSources): JoinedWorkspace
       pendingRemoval: row.pendingRemoval,
       removalNeedsAttention,
       statusMessage: rowStatusMessage(row, removalNeedsAttention),
-      usage: usageByPath.get(row.path),
+      usage: usageByPath.get(workspacePathIdentityKey(row.path)),
       // Mirror-derived; `added` includes untracked files' lines.
       gitStats: row.gitStats ?? undefined,
     };
@@ -92,7 +93,10 @@ function successfulResultsByPath<TValue, TResult extends { path: string; success
   const byPath = new Map<string, TValue>();
   for (const result of results ?? []) {
     if (result.success)
-      byPath.set(result.path, value(result as Extract<TResult, { success: true }>));
+      byPath.set(
+        workspacePathIdentityKey(result.path),
+        value(result as Extract<TResult, { success: true }>)
+      );
   }
   return byPath;
 }

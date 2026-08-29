@@ -11,6 +11,11 @@ import {
   type WorkspaceInsert,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
+import {
+  stableWorkspacePathDisplay,
+  storedWorkspacePathIdentityKey,
+  workspacePathIdentityKey,
+} from '../../workspace-path-identity';
 
 export type WorkspaceHostIdentity = Readonly<{
   location: 'local' | 'remote';
@@ -81,6 +86,22 @@ export class WorkspaceRegistry {
     return row;
   }
 
+  /** Existing collisions remain intact and are returned oldest-first for explicit repair. */
+  pathCollisions(tx?: DrizzleTx): WorkspaceRow[][] {
+    const byIdentity = new Map<string, WorkspaceRow[]>();
+    const rows = this.source(tx).select().from(workspaces).where(liveWorkspaces()).all();
+    for (const row of rows) {
+      if (row.location === null || row.path === null) continue;
+      const key = storedWorkspacePathIdentityKey(row.location, row.sshConnectionId, row.path);
+      const group = byIdentity.get(key) ?? [];
+      group.push(row);
+      byIdentity.set(key, group);
+    }
+    return [...byIdentity.values()]
+      .filter((group) => group.length > 1)
+      .map((group) => group.sort(compareWorkspaceRows));
+  }
+
   findLiveByPath(
     location: NonNullable<WorkspaceRow['location']>,
     sshConnectionId: string | null,
@@ -91,19 +112,14 @@ export class WorkspaceRegistry {
       sshConnectionId === null
         ? isNull(workspaces.sshConnectionId)
         : eq(workspaces.sshConnectionId, sshConnectionId);
+    const key = workspacePathIdentityKey(path);
     return this.source(tx)
       .select()
       .from(workspaces)
-      .where(
-        and(
-          eq(workspaces.location, location),
-          hostIdentity,
-          eq(workspaces.path, path),
-          liveWorkspaces()
-        )
-      )
-      .limit(1)
-      .get();
+      .where(and(eq(workspaces.location, location), hostIdentity, liveWorkspaces()))
+      .all()
+      .filter((row) => row.path !== null && workspacePathIdentityKey(row.path) === key)
+      .sort(compareWorkspaceRows)[0];
   }
 
   /**
@@ -166,6 +182,9 @@ export class WorkspaceRegistry {
       .update(workspaces)
       .set({
         ...observation,
+        ...(existing.path !== null && observation.path !== null && observation.path !== undefined
+          ? { path: stableWorkspacePathDisplay(existing.path, observation.path) }
+          : {}),
         ...(input.config !== undefined ? { config: input.config } : {}),
         untrackedAt: null,
         updatedAt: this.now(),
@@ -220,6 +239,9 @@ export class WorkspaceRegistry {
       .update(workspaces)
       .set({
         ...workspaceObservationFromRecord(input.record, input.host, input.observedAt ?? Date.now()),
+        ...(existing.path !== null
+          ? { path: stableWorkspacePathDisplay(existing.path, input.record.path) }
+          : {}),
         ...(input.config !== undefined ? { config: input.config } : {}),
         untrackedAt: null,
         updatedAt: this.now(),
@@ -240,11 +262,20 @@ export class WorkspaceRegistry {
 
   refresh(id: string, observation: WorkspaceObservation, tx?: DrizzleTx): number {
     const { path, ...observed } = observation;
+    let persistedPath = path;
+    if (path !== undefined && path !== null) {
+      const current = this.getLive(id, tx);
+      if (current?.location) {
+        const owner = this.findLiveByPath(current.location, current.sshConnectionId, path, tx);
+        if (owner && owner.id !== id) throw workspacePathCollision(path, id, owner.id);
+        if (current.path !== null) persistedPath = stableWorkspacePathDisplay(current.path, path);
+      }
+    }
     return this.source(tx)
       .update(workspaces)
       .set({
         ...observed,
-        ...(path !== undefined ? { path } : {}),
+        ...(persistedPath !== undefined ? { path: persistedPath } : {}),
         updatedAt: this.now(),
       })
       .where(and(eq(workspaces.id, id), liveWorkspaces()))
@@ -367,6 +398,17 @@ export class WorkspaceRegistry {
 
   private insert(values: WorkspaceInsert, tx?: DrizzleTx): WorkspaceRow {
     const now = this.now();
+    if (values.path && values.location) {
+      const owner = this.findLiveByPath(
+        values.location,
+        values.sshConnectionId ?? null,
+        values.path,
+        tx
+      );
+      if (owner && owner.id !== values.id) {
+        throw workspacePathCollision(values.path, values.id, owner.id);
+      }
+    }
     return this.source(tx)
       .insert(workspaces)
       .values({
@@ -378,6 +420,16 @@ export class WorkspaceRegistry {
       .returning()
       .get();
   }
+}
+
+function compareWorkspaceRows(left: WorkspaceRow, right: WorkspaceRow): number {
+  return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
+}
+
+function workspacePathCollision(path: string, incomingId: string, conflictingId: string): Error {
+  return new Error(
+    `Workspace path identity collision at '${path}': '${incomingId}' conflicts with '${conflictingId}'`
+  );
 }
 
 export function workspaceObservationFromRecord(

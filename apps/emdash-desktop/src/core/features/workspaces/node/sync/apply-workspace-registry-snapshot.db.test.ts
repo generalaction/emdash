@@ -485,6 +485,39 @@ describe('applyWorkspaceRegistrySnapshot', () => {
     });
   });
 
+  it('rejects a Windows casing collision before changing the mirror', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.recordCreationIntent({
+      id: 'desktop-id',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: 'C:\\Repo',
+      observedStatus: 'present',
+    });
+
+    await expect(
+      applyWorkspaceRegistrySnapshot({
+        db: fixture.db,
+        host: LOCAL_HOST,
+        records: {
+          'host-id': hostRecord({
+            id: 'host-id',
+            kind: 'repository',
+            path: 'c:\\REPO',
+            parentId: null,
+          }),
+        },
+      })
+    ).rejects.toMatchObject({
+      name: 'WorkspaceIdentityConflictError',
+      incomingId: 'host-id',
+      conflictingId: 'desktop-id',
+    });
+    expect(registry.getLive('desktop-id')?.path).toBe('C:\\Repo');
+    expect(registry.getLive('host-id')).toBeUndefined();
+  });
+
   it('rejects duplicate Host path ownership even when neither id exists locally', async () => {
     await expect(
       applyWorkspaceRegistrySnapshot({

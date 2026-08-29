@@ -5,6 +5,7 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, type ProjectRow } from '@core/services/app-db/node/schema';
@@ -108,7 +109,8 @@ export async function getProjectByPath(
   host: HostRef,
   path: string
 ): Promise<Project | undefined> {
-  const [row] = await db
+  const pathKey = workspacePathIdentityKey(path);
+  const rows = await db
     .select(repositorySelection)
     .from(projects)
     .innerJoin(workspaces, eq(projects.repositoryWorkspaceId, workspaces.id))
@@ -116,13 +118,18 @@ export async function getProjectByPath(
       and(
         isNull(projects.deletedAt),
         liveWorkspaces(),
-        eq(workspaces.path, path),
         host.type === 'local'
           ? eq(workspaces.location, 'local')
           : and(eq(workspaces.location, 'remote'), eq(workspaces.sshConnectionId, host.id))
       )
+    );
+  const row = rows
+    .filter(
+      (candidate) =>
+        candidate.repositoryPath !== null &&
+        workspacePathIdentityKey(candidate.repositoryPath) === pathKey
     )
-    .limit(1);
+    .sort((left, right) => left.project.id.localeCompare(right.project.id))[0];
   if (!row) return undefined;
   return projectFromJoinRow(row) ?? undefined;
 }

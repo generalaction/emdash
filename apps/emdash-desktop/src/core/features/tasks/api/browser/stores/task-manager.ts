@@ -1,3 +1,4 @@
+import { nativePathIdentityKey } from '@emdash/core/primitives/path/api';
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { toast } from '@emdash/ui/react/primitives';
@@ -303,7 +304,8 @@ export class TaskManagerStore {
           if (isProvisioned(current)) {
             const { path, workspaceId, sshConnectionId } = row.activeWorkspace;
             if (
-              current.workspacePath !== path ||
+              current.workspacePath === null ||
+              nativePathIdentityKey(current.workspacePath) !== nativePathIdentityKey(path) ||
               current.workspaceId !== workspaceId ||
               current.workspaceSshConnectionId !== sshConnectionId
             ) {

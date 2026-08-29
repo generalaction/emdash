@@ -3,6 +3,7 @@ import {
   deleteWorkspacePathThroughRegistry,
   type WorkspaceRemovalBroker,
 } from '@core/features/workspaces/api/node/operations/workspace-removal';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type {
   ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
@@ -30,11 +31,13 @@ export async function deleteProjectWorkspaces(
 
   const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
   const rows = await listProjectWorkspaces(dependencies, input.projectId);
-  const rowsByPath = new Map(rows.rows.map((row) => [row.path, row]));
+  const rowsByPath = new Map(
+    rows.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
+  );
   const results: ProjectWorkspaceActionResult[] = [];
 
   for (const targetPath of input.paths) {
-    const row = rowsByPath.get(targetPath);
+    const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
     if (!row) {
       results.push({
         path: targetPath,

@@ -9,6 +9,7 @@ import {
   type WorkspaceHostIdentity,
   type WorkspaceRegistry,
 } from '@core/features/workspaces/api/node/registry';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -49,7 +50,7 @@ export class WorkspaceIdentityConflictError extends Error {
     return [
       this.host.location,
       this.host.sshConnectionId ?? 'local',
-      this.path,
+      workspacePathIdentityKey(this.path),
       this.incomingId,
       this.conflictingId,
     ].join('\u0000');
@@ -173,7 +174,11 @@ function releaseMovedPaths(
   );
   const movedIds = rows.flatMap((row) => {
     const incomingPath = incomingPathById.get(row.id);
-    return incomingPath !== undefined && incomingPath !== row.path ? [row.id] : [];
+    return incomingPath !== undefined &&
+      (row.path === null ||
+        workspacePathIdentityKey(incomingPath) !== workspacePathIdentityKey(row.path))
+      ? [row.id]
+      : [];
   });
   if (movedIds.length === 0) return;
   tx.update(workspaces).set({ path: null }).where(inArray(workspaces.id, movedIds)).run();
@@ -209,21 +214,23 @@ function assertNoIdentityConflicts(
   const ownerByPath = new Map<string, string>();
   const rowById = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
-    if (row.path !== null) ownerByPath.set(row.path, row.id);
+    if (row.path !== null) ownerByPath.set(workspacePathIdentityKey(row.path), row.id);
   }
   // A known id may legitimately move. Release its old observed path in the
   // preflight model before checking the full incoming assignment.
   for (const record of Object.values(records)) {
     const previous = rowById.get(record.id);
-    if (previous?.path && ownerByPath.get(previous.path) === record.id) {
-      ownerByPath.delete(previous.path);
+    if (previous?.path) {
+      const previousKey = workspacePathIdentityKey(previous.path);
+      if (ownerByPath.get(previousKey) === record.id) ownerByPath.delete(previousKey);
     }
   }
   for (const record of Object.values(records)) {
-    const conflictingId = ownerByPath.get(record.path);
+    const pathKey = workspacePathIdentityKey(record.path);
+    const conflictingId = ownerByPath.get(pathKey);
     if (conflictingId !== undefined && conflictingId !== record.id) {
       throw new WorkspaceIdentityConflictError(host, record.path, record.id, conflictingId);
     }
-    ownerByPath.set(record.path, record.id);
+    ownerByPath.set(pathKey, record.id);
   }
 }
