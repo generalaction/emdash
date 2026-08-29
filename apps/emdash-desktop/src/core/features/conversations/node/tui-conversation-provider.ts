@@ -26,6 +26,7 @@ const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set([
   'goose',
   'oh-my-pi',
   'pi',
+  'prime-agent',
 ]);
 
 export type TuiConversationProviderOptions = {
