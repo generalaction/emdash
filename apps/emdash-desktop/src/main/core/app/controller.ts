@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import {
   ackShutdownFlush,
@@ -60,9 +61,9 @@ export const appOperations = {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
-  openPath: async (path: string) => {
+  openPath: async (ref: HostFileRef) => {
     try {
-      await appService.openPath(path);
+      await appService.openPath(ref);
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

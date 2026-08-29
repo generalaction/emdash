@@ -9,9 +9,13 @@ import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
  * external" affordance and the binary/too-large placeholder actions — never a
  * silent fallback of the editor open path.
  */
-export async function openWithOS(target: HostFileRef | string): Promise<void> {
-  const path = typeof target === 'string' ? target : nativePathFromHost(target.path);
-  const result = await (await getHostClient()).openPath({ path });
+export async function openWithOS(target: HostFileRef): Promise<void> {
+  const path = nativePathFromHost(target.path);
+  if (target.host.type !== 'local') {
+    toast.error(`Could not open ${path}: default applications are only available for local files`);
+    return;
+  }
+  const result = await (await getHostClient()).openPath({ ref: target });
   if (!result.success) {
     toast.error(`Could not open ${path}: ${result.error}`);
   }
