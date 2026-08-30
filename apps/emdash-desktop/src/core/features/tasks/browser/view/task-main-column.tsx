@@ -40,6 +40,7 @@ type ActiveDrag =
 // Drag-to-close threshold, in percent of the active resize group. Keeping it below the old 15%
 // resize floor preserves every bottom-dock size that previous versions could persist.
 const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+const TERMINAL_DRAWER_MIN_WIDTH = '120px';
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
@@ -120,6 +121,9 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
             <Resizable.Handle />
             <Resizable.Panel
               {...drawerBinding.collapsiblePanelProps}
+              minSize={terminalDockedRight ? TERMINAL_DRAWER_MIN_WIDTH : undefined}
+              collapsible={terminalDockedRight}
+              collapsedSize={terminalDockedRight ? '0%' : undefined}
               defaultSize={
                 drawerBinding.collapsiblePanelProps.defaultSize ??
                 (terminalDockedRight ? '40%' : '25%')

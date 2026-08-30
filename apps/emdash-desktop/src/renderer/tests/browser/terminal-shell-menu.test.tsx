@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import {
   NewTerminalButton,
   TerminalDockButton,
+  TerminalDrawerTabBar,
 } from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
 
 beforeAll(() => {
@@ -129,5 +130,45 @@ describe('terminal shell menu', () => {
       host.querySelector<HTMLButtonElement>(`[aria-label="Dock terminal ${target}"]`)!.click();
     });
     expect(onPositionChange).toHaveBeenCalledWith(target);
+  });
+
+  it('keeps the dock action visible at the minimum right-dock width', async () => {
+    host.style.width = '120px';
+    await act(async () => {
+      root.render(
+        <Tooltip.Provider>
+          <TerminalDrawerTabBar
+            mode="scripts"
+            onModeChange={() => {}}
+            lifecycleScriptsMgr={null}
+            activeScriptId={undefined}
+            onSelectScript={() => {}}
+            onRunScript={() => {}}
+            onStopScript={() => {}}
+            terminalTabView={{ tabs: [] }}
+            activeTerminalId={undefined}
+            shellMenuState={{ kind: 'ready', availability: [] }}
+            onShellMenuOpen={() => {}}
+            onRetryShellAvailability={() => {}}
+            onSelectTerminal={() => {}}
+            onAddTerminal={() => {}}
+            onRemoveTerminal={() => {}}
+            onRenameTerminal={() => {}}
+            projectId="project-1"
+            liveActionsDisabled={false}
+            dockPosition="right"
+            onDockPositionChange={() => {}}
+          />
+        </Tooltip.Provider>
+      );
+    });
+
+    const toolbar = host.firstElementChild!.getBoundingClientRect();
+    const dockAction = host
+      .querySelector<HTMLButtonElement>('[aria-label="Dock terminal bottom"]')!
+      .getBoundingClientRect();
+    expect(dockAction.width).toBeGreaterThan(0);
+    expect(dockAction.left).toBeGreaterThanOrEqual(toolbar.left);
+    expect(dockAction.right).toBeLessThanOrEqual(toolbar.right);
   });
 });

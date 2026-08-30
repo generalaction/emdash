@@ -49,7 +49,7 @@ interface TerminalDrawerTabBarProps {
   onSelectScript: (id: string) => void;
   onRunScript: (id: string) => void;
   onStopScript: (id: string) => void;
-  terminalTabView: TerminalTabViewStore;
+  terminalTabView: Pick<TerminalTabViewStore, 'tabs'>;
   activeTerminalId: string | undefined;
   shellMenuState: TerminalShellMenuState;
   onShellMenuOpen: () => void;
@@ -205,12 +205,14 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
         )}
       </div>
       <div className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-      <Tabs.Root value={mode} onValueChange={(value) => onModeChange(value as typeof mode)}>
-        <Tabs.List>
-          <Tabs.Tab value="terminals">Terminals</Tabs.Tab>
-          <Tabs.Tab value="scripts">Scripts</Tabs.Tab>
-        </Tabs.List>
-      </Tabs.Root>
+      <div className="min-w-0 overflow-x-auto">
+        <Tabs.Root value={mode} onValueChange={(value) => onModeChange(value as typeof mode)}>
+          <Tabs.List>
+            <Tabs.Tab value="terminals">Terminals</Tabs.Tab>
+            <Tabs.Tab value="scripts">Scripts</Tabs.Tab>
+          </Tabs.List>
+        </Tabs.Root>
+      </div>
       <div className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
       <TerminalDockButton position={dockPosition} onPositionChange={onDockPositionChange} />
     </div>
@@ -235,7 +237,7 @@ export function TerminalDockButton({
             variant="ghost"
             size="xs"
             icon
-            className="size-6 px-0"
+            className="size-6 shrink-0 px-0"
             aria-label={label}
             onClick={() => onPositionChange(nextPosition)}
           />
