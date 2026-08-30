@@ -470,6 +470,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
 
       void this.connect(id, () =>
         resolve().catch((error: unknown) => {
+          if (error instanceof SshAuthError) throw error;
           throw new SshResolutionError(error);
         })
       ).catch((error: unknown) => {
