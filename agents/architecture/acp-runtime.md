@@ -104,6 +104,9 @@ hook, and asks the `SessionRouter` to resolve the owning conversation. The cell 
 through the reducer; its handle republishes the resulting activation snapshot through the
 conversation-keyed projection.
 
+Renderer chat stores refresh authoritative history after prompt completion and Host recovery so
+reconnects recover turns whose live projection updates were missed.
+
 The public API describes user intent instead of exposing lifecycle choreography. Desktop resolves
 the authoritative conversation configuration and fresh provider environment, then `attach` creates
 or refreshes the handle and publishes its retained projection without spawning a provider.
