@@ -140,6 +140,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectContext?.project.type === 'ssh';
+  const hostState = projectContext?.host.state;
+  const connectionState =
+    workspace.connectionState !== 'connected' ||
+    !isRemoteProject ||
+    !hostState ||
+    hostState.kind === 'ready'
+      ? workspace.connectionState
+      : hostState.recovery === 'automatic'
+        ? 'reconnecting'
+        : 'disconnected';
   return (
     <Titlebar
       leftSlot={
@@ -159,7 +169,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <Popover.Trigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
-                      <ConnectionStatusDot state={workspace.connectionState} />
+                      <ConnectionStatusDot state={connectionState} />
                     </span>
                     <ChevronDown className="size-3.5 shrink-0" />
                   </Popover.Trigger>

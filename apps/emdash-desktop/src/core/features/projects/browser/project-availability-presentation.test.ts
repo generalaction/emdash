@@ -124,19 +124,19 @@ describe('classifyProjectAvailability', () => {
       'connecting',
       { kind: 'degraded', situation: 'connecting', recovery: 'automatic' },
       'Connecting to Orion',
-      ['Open Machines'],
+      ['Reconnect now', 'Open Machines'],
     ],
     [
       'provisioning',
       { kind: 'degraded', situation: 'provisioning', recovery: 'automatic' },
       'Preparing Orion',
-      ['Open Machines'],
+      ['Reconnect now', 'Open Machines'],
     ],
     [
       'handshaking',
       { kind: 'degraded', situation: 'handshaking', recovery: 'automatic' },
       'Preparing Orion',
-      ['Open Machines'],
+      ['Reconnect now', 'Open Machines'],
     ],
     [
       'attaching',

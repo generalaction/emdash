@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { SshWorkspaceServerTarget } from '../api/targets';
@@ -15,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   connectionLostListener: undefined as
     | ((target: SshWorkspaceServerTarget, error: unknown) => void)
     | undefined,
+  connectionStateListener: undefined as
+    | ((target: SshWorkspaceServerTarget, state: 'connected' | 'reconnecting') => void)
+    | undefined,
 }));
 
 vi.mock('./workspace-server/connect/wire-connection-manager', () => ({
@@ -26,6 +30,14 @@ vi.mock('./workspace-server/connect/wire-connection-manager', () => ({
       mocks.connectionLostListener = listener;
       return () => {
         mocks.connectionLostListener = undefined;
+      };
+    },
+    onConnectionStateChanged(
+      listener: (target: SshWorkspaceServerTarget, state: 'connected' | 'reconnecting') => void
+    ) {
+      mocks.connectionStateListener = listener;
+      return () => {
+        mocks.connectionStateListener = undefined;
       };
     },
     dispose: vi.fn(async () => {}),
@@ -53,12 +65,19 @@ const target: SshWorkspaceServerTarget = {
 };
 
 function connection(): WorkspaceServerConnection {
-  return { target, client: {} } as WorkspaceServerConnection;
+  return {
+    target,
+    client: {},
+    connection: {},
+    ready: vi.fn(async () => ({})),
+    currentHandshake: () => undefined,
+  } as unknown as WorkspaceServerConnection;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectionLostListener = undefined;
+  mocks.connectionStateListener = undefined;
   mocks.ensure.mockResolvedValue(target);
   mocks.client.mockResolvedValue(connection());
 });
@@ -92,6 +111,27 @@ describe('HostService', () => {
       expect(mocks.ensure).toHaveBeenCalledWith('ssh-1');
       expect(mocks.client).toHaveBeenCalledWith(target);
       expect(onPhase.mock.calls).toEqual([['connecting'], ['provisioning'], ['handshaking']]);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it('waits for a pinned Wire client to reconnect before reporting it ready', async () => {
+    const fixture = createFixture();
+    const ready = deferred<void>();
+    const wireConnection = connection();
+    wireConnection.ready = vi.fn(async () => {
+      await ready.promise;
+      return {} as never;
+    });
+    mocks.client.mockResolvedValue(wireConnection);
+
+    try {
+      const pending = fixture.service.client('ssh-1');
+      await vi.waitFor(() => expect(wireConnection.ready).toHaveBeenCalledOnce());
+
+      ready.resolve();
+      await expect(pending).resolves.toBe(wireConnection);
     } finally {
       await fixture.dispose();
     }
@@ -192,6 +232,30 @@ describe('HostService', () => {
     }
   });
 
+  it('reports SSH and workspace-server connectivity edges', async () => {
+    const fixture = createFixture();
+
+    try {
+      fixture.sshEventListener?.({ type: 'disconnected', connectionId: 'ssh-1' });
+      mocks.connectionStateListener?.(target, 'reconnecting');
+      fixture.sshEventListener?.({
+        type: 'reconnected',
+        connectionId: 'ssh-1',
+        proxy: {} as never,
+      });
+      mocks.connectionStateListener?.(target, 'connected');
+
+      expect(fixture.connectivity).toEqual([
+        { connectionId: 'ssh-1', state: 'disconnected' },
+        { connectionId: 'ssh-1', state: 'disconnected' },
+        { connectionId: 'ssh-1', state: 'connected' },
+        { connectionId: 'ssh-1', state: 'connected' },
+      ]);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
   it('continues notifying observers when one observer throws', async () => {
     const fixture = createFixture();
     fixture.service.onInvalidate(() => {
@@ -239,12 +303,15 @@ function createFixture() {
     },
   });
   const invalidations: unknown[] = [];
+  const connectivity: unknown[] = [];
   service.onInvalidate((event) => invalidations.push(event));
+  service.onConnectivityChange((event) => connectivity.push(event));
 
   return {
     service,
     ensureConnected,
     invalidations,
+    connectivity,
     get sshEventListener() {
       return sshEventListener;
     },

@@ -8,8 +8,10 @@ broker asks `HostService` (`core/services/hosts/`) for a runtime client. It coor
 existing `SshConnectionManager`, workspace-server provisioning, and `WireConnectionManager`.
 `WireConnectionManager` owns dial/initialize, reconnecting transports, and one pinned Wire client
 per target until lifecycle invalidation or shutdown. The broker only resolves clients and does not
-own connection lifetime. Ordinary SSH disconnects preserve the pinned connection; terminal Wire
-failures, exhausted SSH reconnects, and machine edits invalidate it.
+own connection lifetime. Ordinary SSH or Wire disconnects demote Host availability while preserving
+the pinned connection and retrying with capped backoff. A health heartbeat cycles silent half-open
+remote Wire transports. Authentication, protocol, configuration, and machine changes still
+invalidate the affected connection.
 
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under

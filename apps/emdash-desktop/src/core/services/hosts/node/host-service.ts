@@ -43,6 +43,11 @@ export type HostClientOptions = {
   onPhase(phase: HostPreparingPhase): void;
 };
 
+export type HostConnectivityEvent = {
+  connectionId: string;
+  state: 'connected' | 'disconnected';
+};
+
 /**
  * Orchestrates transport, provisioning, and lifecycle for remote runtime clients.
  * Machine persistence and CRUD remain owned by the feature-level MachinesService.
@@ -57,6 +62,7 @@ export interface HostService {
   restartServer(connectionId: string): Promise<void>;
   updateServer(connectionId: string): Promise<void>;
   onInvalidate(listener: (event: HostInvalidation) => void): () => void;
+  onConnectivityChange(listener: (event: HostConnectivityEvent) => void): () => void;
   dispose(): Promise<void>;
 }
 
@@ -93,8 +99,14 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
     provision: provisioner,
   });
   const invalidationListeners = new Set<(event: HostInvalidation) => void>();
+  const connectivityListeners = new Set<(event: HostConnectivityEvent) => void>();
 
   const handleSshEvent = (event: SshConnectionManagerEvent) => {
+    if (event.type === 'connected' || event.type === 'reconnected') {
+      notifyConnectivity({ connectionId: event.connectionId, state: 'connected' });
+    } else if (event.type === 'disconnected') {
+      notifyConnectivity({ connectionId: event.connectionId, state: 'disconnected' });
+    }
     if (event.type !== 'reconnect-failed') return;
     host.drop(event.connectionId);
     provisioner.drop(event.connectionId);
@@ -122,6 +134,15 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
     })
   );
   scope.add(
+    wire.onConnectionStateChanged((target, state) => {
+      if (target.kind !== 'ssh') return;
+      notifyConnectivity({
+        connectionId: target.sshConnectionId,
+        state: state === 'connected' ? 'connected' : 'disconnected',
+      });
+    })
+  );
+  scope.add(
     wire.onConnectionLost((target, error) => {
       if (target.kind !== 'ssh') return;
       provisioner.drop(target.sshConnectionId);
@@ -134,7 +155,10 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
       });
     })
   );
-  scope.add(() => invalidationListeners.clear());
+  scope.add(() => {
+    invalidationListeners.clear();
+    connectivityListeners.clear();
+  });
 
   let disposePromise: Promise<void> | undefined;
   return {
@@ -156,9 +180,13 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
         : await provisioner.ensure(connectionId);
       if (options) {
         options.onPhase('handshaking');
-        return await waitWithSignal(wire.client(target), options.signal);
+        const connection = await waitWithSignal(wire.client(target), options.signal);
+        await waitWithSignal(connection.ready(), options.signal);
+        return connection;
       }
-      return wire.client(target);
+      const connection = await wire.client(target);
+      await connection.ready();
+      return connection;
     },
     refreshServerState: (connectionId, options) => serverOperations.refresh(connectionId, options),
     installServer: (connectionId) => serverOperations.install(connectionId),
@@ -169,6 +197,10 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
     onInvalidate(listener) {
       invalidationListeners.add(listener);
       return () => invalidationListeners.delete(listener);
+    },
+    onConnectivityChange(listener) {
+      connectivityListeners.add(listener);
+      return () => connectivityListeners.delete(listener);
     },
     dispose() {
       disposePromise ??= scope.dispose();
@@ -183,6 +215,14 @@ export function createHostService(deps: CreateHostServiceDeps): HostService {
       } catch {
         // One observer must not prevent lifecycle cleanup or remaining listeners.
       }
+    }
+  }
+
+  function notifyConnectivity(event: HostConnectivityEvent): void {
+    for (const listener of connectivityListeners) {
+      try {
+        listener(event);
+      } catch {}
     }
   }
 }

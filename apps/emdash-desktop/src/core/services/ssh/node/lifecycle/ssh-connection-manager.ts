@@ -34,12 +34,20 @@ export class SshConnectionError extends Error {
   }
 }
 
+class SshResolutionError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'SshResolutionError';
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Delays between successive reconnect attempts; exhausting the sequence gives up. */
-const RECONNECT_SCHEDULE: RetrySchedule = retrySchedules.sequence([
-  1_000, 2_000, 5_000, 10_000, 20_000,
-]);
+/** Delays between successive reconnect attempts. */
+const RECONNECT_SCHEDULE: RetrySchedule = retrySchedules.sequence(
+  [1_000, 2_000, 5_000, 10_000, 20_000],
+  { repeatLast: true }
+);
 
 interface ReconnectState {
   attempt: number;
@@ -128,6 +136,13 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       this.ephemeralConnections.delete(id);
     }
 
+    return await this.connect(id, resolve);
+  }
+
+  private async connect(
+    id: string,
+    resolve: () => Promise<SshConnectResult>
+  ): Promise<SshClientProxy> {
     const existing = this.proxies.get(id);
     if (existing?.isConnected) return existing;
 
@@ -426,14 +441,7 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
 
     const delayMs = RECONNECT_SCHEDULE.delayFor(attempt - 1);
     if (delayMs === undefined) {
-      this.deps.log.error('SshConnectionManager: max reconnect attempts reached', {
-        connectionId: id,
-      });
-      this.reconnecting.delete(id);
-      this.emitConnectionEvent(
-        { type: 'reconnect-failed', connectionId: id },
-        { type: 'reconnect-failed', connectionId: id }
-      );
+      this.failReconnect(id, 'retry-exhausted');
       return;
     }
 
@@ -460,17 +468,14 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
         return;
       }
 
-      void this.createConnection(id, resolve).catch((error: unknown) => {
-        // Auth failures won't resolve with retries — stop immediately.
-        if (error instanceof SshAuthError) {
-          this.deps.log.error('SshConnectionManager: reconnect stopped — auth failure', {
-            connectionId: id,
-          });
-          this.reconnecting.delete(id);
-          this.emitConnectionEvent(
-            { type: 'reconnect-failed', connectionId: id },
-            { type: 'reconnect-failed', connectionId: id }
-          );
+      void this.connect(id, () =>
+        resolve().catch((error: unknown) => {
+          if (error instanceof SshAuthError) throw error;
+          throw new SshResolutionError(error);
+        })
+      ).catch((error: unknown) => {
+        if (error instanceof SshAuthError || error instanceof SshResolutionError) {
+          this.failReconnect(id, error instanceof SshAuthError ? 'authentication' : 'resolution');
         } else if (this.intentionalDisconnects.has(id)) {
           this.reconnecting.delete(id);
         } else {
@@ -480,6 +485,15 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     }, delayMs);
 
     this.reconnecting.set(id, { attempt, timer });
+  }
+
+  private failReconnect(id: string, reason: string): void {
+    this.deps.log.error('SshConnectionManager: reconnect stopped', { connectionId: id, reason });
+    this.reconnecting.delete(id);
+    this.emitConnectionEvent(
+      { type: 'reconnect-failed', connectionId: id },
+      { type: 'reconnect-failed', connectionId: id }
+    );
   }
 
   private cancelReconnect(id: string): void {

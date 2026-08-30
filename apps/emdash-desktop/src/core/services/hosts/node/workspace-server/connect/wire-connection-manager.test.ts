@@ -53,7 +53,6 @@ describe('WireConnectionManager', () => {
       idleTtlMs: 0,
       retrySchedule: retrySchedules.sequence([5], { repeatLast: true }),
     });
-
     try {
       const [first, second] = await Promise.all([manager.client(target), manager.client(target)]);
       expect(first).toBe(second);
@@ -246,14 +245,70 @@ describe('WireConnectionManager', () => {
     }
   });
 
-  it('keeps retrying beyond the SSH manager backoff window before becoming terminal', () => {
+  it('replaces a silent half-open transport when its heartbeat times out', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-heartbeat-'));
+    const target = {
+      kind: 'ssh',
+      sshConnectionId: 'ssh-1',
+      socketPath: join(directory, 'workspace.sock'),
+    } as const;
+    const server = await serveSocket(createTestWorkspaceWireController(), {
+      socketPath: target.socketPath,
+    });
+    const clock = createManualClock();
+    let openCount = 0;
+    let droppedHealthCalls = 0;
+    const states: string[] = [];
+    const manager = createWireConnectionManager({
+      clock,
+      heartbeatIntervalMs: 100,
+      heartbeatTimeoutMs: 20,
+      retrySchedule: retrySchedules.sequence([1], { repeatLast: true }),
+      openTransport: async (nextTarget) => {
+        const inner = await openLocalWorkspaceServerTransport(localTarget(nextTarget.socketPath));
+        openCount += 1;
+        if (openCount > 1) return inner;
+        return {
+          ...inner,
+          post(message) {
+            if (message.kind === 'call' && message.path === 'health') {
+              droppedHealthCalls += 1;
+            } else {
+              inner.post(message);
+            }
+          },
+          close: () => inner.close?.(),
+        };
+      },
+    });
+    manager.onConnectionStateChanged((_target, state) => states.push(state));
+
+    try {
+      const connection = await manager.client(target);
+      await clock.advanceBy(100);
+      await waitFor(() => droppedHealthCalls === 1);
+      await clock.advanceBy(20);
+      await waitFor(() => openCount === 2);
+
+      await expect(connection.ready()).resolves.toBeDefined();
+      expect(states).toEqual(['connected', 'reconnecting', 'connected']);
+      await expect(manager.client(target)).resolves.toBe(connection);
+    } finally {
+      await manager.dispose();
+      await server.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps retrying beyond the SSH manager backoff window', () => {
     const delays = Array.from({ length: 9 }, (_, index) =>
       workspaceServerReconnectSchedule.delayFor(index)
     );
     const total = delays.reduce<number>((sum, delay) => sum + (delay ?? 0), 0);
 
     expect(total).toBeGreaterThanOrEqual(90_000);
-    expect(workspaceServerReconnectSchedule.delayFor(9)).toBeUndefined();
+    expect(workspaceServerReconnectSchedule.delayFor(9)).toBe(30_000);
+    expect(workspaceServerReconnectSchedule.delayFor(100)).toBe(30_000);
   });
 
   it('dials once, handshakes, and closes the probe transport', async () => {

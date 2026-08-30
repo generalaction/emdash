@@ -340,6 +340,61 @@ describe('SshConnectionManager', () => {
     }
   });
 
+  it('keeps retrying a prolonged outage on the same proxy', async () => {
+    vi.useFakeTimers();
+    try {
+      const { SshConnectionManager } = await import('./ssh-connection-manager');
+      class ScriptedClient extends PassThrough {
+        constructor(private readonly succeeds: boolean) {
+          super();
+        }
+        connect() {
+          queueMicrotask(() =>
+            this.succeeds
+              ? this.emit('ready')
+              : this.emit('error', new Error('network unavailable'))
+          );
+        }
+        end() {
+          this.emit('close');
+          return this;
+        }
+      }
+      const clients: ScriptedClient[] = [];
+      let recover = false;
+      const manager = new SshConnectionManager({
+        createClient: () => {
+          const client = new ScriptedClient(clients.length === 0 || recover);
+          clients.push(client);
+          return client as unknown as Client;
+        },
+      });
+      const resolve = async () => ({
+        config: { sock: new PassThrough(), username: 'alice' },
+        cleanup: () => {},
+        debugLogs: [],
+      });
+
+      const proxy = await manager.createConnection('ssh-1', resolve);
+      clients[0]!.emit('error', new Error('transport failed'));
+      clients[0]!.emit('close');
+
+      for (const delayMs of [1_000, 2_000, 5_000, 10_000, 20_000, 20_000]) {
+        await vi.advanceTimersByTimeAsync(delayMs);
+      }
+      expect(manager.getConnectionState('ssh-1')).toBe('reconnecting');
+      expect(manager.getProxy('ssh-1')).toBe(proxy);
+
+      recover = true;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(proxy.isConnected).toBe(true);
+      expect(manager.getConnectionState('ssh-1')).toBe('connected');
+      await manager.dropConnection('ssh-1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not re-enter reconnecting after dropping an in-flight reconnect', async () => {
     vi.useFakeTimers();
     try {
@@ -471,47 +526,56 @@ describe('SshConnectionManager', () => {
     ).rejects.toBeInstanceOf(SshTimeoutError);
   });
 
-  it('stops reconnecting immediately after an auth failure during reconnect', async () => {
-    vi.useFakeTimers();
-    try {
-      const { SshAuthError, SshConnectionManager } = await import('./ssh-connection-manager');
-      class FakeReadyClient extends PassThrough {
-        connect() {
-          queueMicrotask(() => this.emit('ready'));
+  it.each(['authentication', 'resolution'] as const)(
+    'stops reconnecting immediately after a permanent %s failure',
+    async (failure) => {
+      vi.useFakeTimers();
+      try {
+        const { SshAuthError, SshConnectionManager } = await import('./ssh-connection-manager');
+        class FakeReadyClient extends PassThrough {
+          connect() {
+            queueMicrotask(() => this.emit('ready'));
+          }
+          end() {
+            this.emit('close');
+            return this;
+          }
         }
-        end() {
-          this.emit('close');
-          return this;
-        }
-      }
-      const client = new FakeReadyClient();
-      const events: string[] = [];
-      let resolveCalls = 0;
-      const resolve = async () => {
-        resolveCalls += 1;
-        if (resolveCalls > 1) throw new SshAuthError('auth failed');
-        return {
-          config: { sock: new PassThrough(), username: 'alice' },
-          cleanup: () => {},
-          debugLogs: [],
+        const client = new FakeReadyClient();
+        const events: string[] = [];
+        let resolveCalls = 0;
+        const resolve = async () => {
+          resolveCalls += 1;
+          if (resolveCalls > 1) {
+            throw failure === 'authentication'
+              ? new SshAuthError('auth failed')
+              : new Error('SSH agent socket not found');
+          }
+          return {
+            config: { sock: new PassThrough(), username: 'alice' },
+            cleanup: () => {},
+            debugLogs: [],
+          };
         };
-      };
-      const manager = new SshConnectionManager({
-        createClient: () => client as unknown as Client,
-      });
-      manager.on('connection-event', (event) => events.push(event.type));
+        const manager = new SshConnectionManager({
+          createClient: () => client as unknown as Client,
+        });
+        manager.on('connection-event', (event) => events.push(event.type));
 
-      await manager.createConnection('ssh-1', resolve);
-      client.emit('error', new Error('transport failed'));
-      client.emit('close');
-      await vi.advanceTimersByTimeAsync(1_000);
+        await manager.createConnection('ssh-1', resolve);
+        client.emit('error', new Error('transport failed'));
+        client.emit('close');
+        await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(events).toContain('reconnect-failed');
-      expect(manager.getConnectionState('ssh-1')).toBe('disconnected');
-    } finally {
-      vi.useRealTimers();
+        expect(events).toContain('reconnect-failed');
+        expect(manager.getConnectionState('ssh-1')).toBe('disconnected');
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(resolveCalls).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
     }
-  });
+  );
 
   it('suppresses ephemeral events, snapshots, and automatic reconnects', async () => {
     vi.useFakeTimers();

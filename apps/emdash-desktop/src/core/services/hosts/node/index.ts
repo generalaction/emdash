@@ -9,6 +9,7 @@ export {
   createHostService,
   type CreateHostServiceDeps,
   type HostClientOptions,
+  type HostConnectivityEvent,
   type HostService,
 } from './host-service';
 export { translateHostPreparationError } from './runtime-resolution';

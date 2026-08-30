@@ -3,12 +3,8 @@ import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-r
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  SshConnectionManager,
-  SshConnectionManagerListener,
-} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { HostInvalidation } from '@core/services/hosts/api';
-import type { HostService } from '@core/services/hosts/node';
+import type { HostConnectivityEvent, HostService } from '@core/services/hosts/node';
 import {
   WorkspaceServerProtocolError,
   WorkspaceServerProvisionError,
@@ -19,65 +15,66 @@ import {
 } from './host-availability';
 
 function createDesktopHostAvailability(
-  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'sshEvents' | 'runtimes'> & {
+  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'runtimes'> & {
     connectSsh?: CreateDesktopHostAvailabilityOptions['connectSsh'];
     runtimes?: CreateDesktopHostAvailabilityOptions['runtimes'];
-    sshEvents?: CreateDesktopHostAvailabilityOptions['sshEvents'];
   }
 ) {
   return createProductionHostAvailability({
     ...options,
+    hosts: {
+      ...options.hosts,
+      onConnectivityChange: options.hosts.onConnectivityChange ?? (() => () => {}),
+    } as HostService,
     connectSsh: options.connectSsh ?? (async () => 'connected'),
     runtimes: options.runtimes ?? { rebind: vi.fn() },
-    sshEvents:
-      options.sshEvents ??
-      ({
-        on: () => {},
-        off: () => {},
-      } as unknown as CreateDesktopHostAvailabilityOptions['sshEvents']),
   });
 }
 
+function createConnectivityFixture() {
+  const scope = createScope({ label: 'desktop-host-availability-test' });
+  let listener: ((event: HostConnectivityEvent) => void) | undefined;
+  const availability = createDesktopHostAvailability({
+    scope,
+    hosts: {
+      client: vi.fn(async () => ({})),
+      onInvalidate: () => () => {},
+      onConnectivityChange(next: (event: HostConnectivityEvent) => void) {
+        listener = next;
+        return () => {
+          listener = undefined;
+        };
+      },
+    } as unknown as HostService,
+    localReady: async () => {},
+  });
+  return { scope, availability, emit: (event: HostConnectivityEvent) => listener?.(event) };
+}
+
 describe('desktop Host availability', () => {
-  it.each(['connected', 'reconnected'] as const)(
-    'forwards an SSH %s edge to demanded Host recovery',
-    async (type) => {
-      const scope = createScope({ label: 'desktop-host-availability-test' });
-      let listener: SshConnectionManagerListener | undefined;
-      const off = vi.fn();
-      const sshEvents = {
-        on(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
-          listener = nextListener;
-          return this;
-        },
-        off(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
-          if (listener === nextListener) listener = undefined;
-          off();
-          return this;
-        },
-      } as Pick<SshConnectionManager, 'on' | 'off'>;
-      const availability = createDesktopHostAvailability({
-        scope,
-        hosts: {
-          client: vi.fn(async () => ({})),
-          onInvalidate: () => () => {},
-        } as unknown as HostService,
-        sshEvents,
-        localReady: async () => {},
-      });
-      const wake = vi.spyOn(availability, 'wake');
+  it('wakes demanded recovery when Host connectivity returns', async () => {
+    const { scope, availability, emit } = createConnectivityFixture();
+    const wake = vi.spyOn(availability, 'wake');
 
-      listener?.({
-        type,
-        connectionId: 'ssh-1',
-        proxy: {},
-      } as Parameters<SshConnectionManagerListener>[0]);
+    emit({ connectionId: 'ssh-1', state: 'connected' });
 
-      expect(wake).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'), 'ssh-edge');
-      await scope.dispose();
-      expect(off).toHaveBeenCalledOnce();
-    }
-  );
+    expect(wake).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'), 'ssh-edge');
+    await scope.dispose();
+  });
+
+  it('invalidates ready Host state on a transport disconnect', async () => {
+    const { scope, availability, emit } = createConnectivityFixture();
+    const host = hostRef('remote', 'ssh-1');
+    await availability.ensureReady(host, 'demand');
+
+    emit({ connectionId: 'ssh-1', state: 'disconnected' });
+
+    expect(availability.stateFor(host)).toEqual({
+      kind: 'unavailable',
+      recovery: 'eligible',
+    });
+    await scope.dispose();
+  });
 
   it.each(['connect', 'retry'] as const)(
     'records explicit SSH connection intent before %s prepares runtime readiness',

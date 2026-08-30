@@ -77,6 +77,10 @@ export function classifyProjectAvailability({
 }): ProjectAvailabilityPresentation | null {
   if (state.kind === 'ready') return null;
   const machineName = host.kind === 'ssh' ? host.machineName?.trim() || 'Machine' : undefined;
+  const preparingActions =
+    host.kind === 'ssh'
+      ? [action('retry', 'Reconnect now'), action('diagnostics', 'Open Machines')]
+      : [];
 
   switch (state.situation) {
     case 'suspended':
@@ -91,7 +95,7 @@ export function classifyProjectAvailability({
             ? 'The Project stays open while local services start.'
             : 'The Project stays open while the SSH connection is established.',
         progress: true,
-        actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
+        actions: preparingActions,
       };
     case 'provisioning':
     case 'handshaking':
@@ -104,7 +108,7 @@ export function classifyProjectAvailability({
             ? 'The Project stays open while local services start.'
             : 'SSH is connected. The workspace server is starting.',
         progress: true,
-        actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
+        actions: preparingActions,
       };
     case 'attaching':
       return {
