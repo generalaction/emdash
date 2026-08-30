@@ -11,6 +11,7 @@ import type {
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type {
   CommandItem,
+  ComposerCollaborationModeOption,
   ComposerEffortOption,
   ComposerModelOption,
   ComposerPermissionModeOption,
@@ -142,6 +143,8 @@ export class AcpChatStore {
       modelOptions: computed,
       permissionMode: computed,
       permissionModeOptions: computed,
+      collaborationMode: computed,
+      collaborationModeOptions: computed,
       effort: computed,
       effortOptions: computed,
       commands: computed,
@@ -155,6 +158,7 @@ export class AcpChatStore {
       stop: action,
       setModel: action,
       setMode: action,
+      setCollaborationMode: action,
       setEffort: action,
       resolvePermission: action,
       editQueuedPrompt: action,
@@ -231,6 +235,21 @@ export class AcpChatStore {
 
   get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
     const options = this.session?.config.current().modeOptions;
+    if (!options) return null;
+    return Object.fromEntries(
+      options.available.map((option) => [
+        option.id,
+        { name: option.name, description: option.description },
+      ])
+    );
+  }
+
+  get collaborationMode(): string | null {
+    return this.session?.config.current().collaborationModeOptions?.selected ?? null;
+  }
+
+  get collaborationModeOptions(): Record<string, ComposerCollaborationModeOption> | null {
+    const options = this.session?.config.current().collaborationModeOptions;
     if (!options) return null;
     return Object.fromEntries(
       options.available.map((option) => [
@@ -479,6 +498,19 @@ export class AcpChatStore {
       .catch((error: unknown) => this._toastError('Failed to change session mode', error));
   }
 
+  setCollaborationMode(modeId: string): void {
+    void this.session
+      ?.setOption('collaborationMode', modeId)
+      .then((result) => {
+        if (!result.success) {
+          this._toastError('Failed to change collaboration mode', result.error);
+          return;
+        }
+        void this._rememberPreference({ collaborationMode: modeId });
+      })
+      .catch((error: unknown) => this._toastError('Failed to change collaboration mode', error));
+  }
+
   setEffort(effort: string): void {
     void this.session
       ?.setOption('effort', effort)
@@ -585,6 +617,7 @@ export class AcpChatStore {
             model?: null;
             modeId?: null;
             effort?: null;
+            collaborationMode?: null;
           }
         );
       }
@@ -805,6 +838,7 @@ export class AcpChatStore {
     model?: string | null;
     modeId?: string | null;
     effort?: string | null;
+    collaborationMode?: string | null;
   }): Promise<void> {
     const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
       ?.data.providerId;

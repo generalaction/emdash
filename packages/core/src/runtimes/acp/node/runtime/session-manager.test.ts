@@ -250,7 +250,11 @@ describe('AcpRuntime session manager', () => {
     });
     h.agent.newSession.mockResolvedValueOnce({
       sessionId: 'session-1',
-      configOptions: [modeConfigOption('agent'), effortConfigOption('low')],
+      configOptions: [
+        modeConfigOption('agent'),
+        effortConfigOption('low'),
+        collaborationModeConfigOption('default'),
+      ],
     });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-dormant-settings' });
@@ -265,20 +269,28 @@ describe('AcpRuntime session manager', () => {
       ok()
     );
     await expect(rt.setOption(input.conversationId, 'effort', 'high')).resolves.toEqual(ok());
+    await expect(rt.setOption(input.conversationId, 'collaborationMode', 'plan')).resolves.toEqual(
+      ok()
+    );
 
     expect(h.agent.loadSession).not.toHaveBeenCalled();
     expect(h.agent.newSession).not.toHaveBeenCalled();
     expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
     expect(intents.snapshot()[0]?.payload).toMatchObject({
-      configured: { modeId: 'agent-full-access', effort: 'high' },
+      configured: { modeId: 'agent-full-access', effort: 'high', collaborationMode: 'plan' },
     });
     expect(peek(rt.sessionLiveModels(input.conversationId)!.states.config)).toMatchObject({
       modeOptions: { selected: 'agent-full-access' },
       efforts: { selected: 'high' },
+      collaborationModeOptions: { selected: 'plan' },
     });
 
     h.agent.loadSession.mockResolvedValueOnce({
-      configOptions: [modeConfigOption('agent'), effortConfigOption('low')],
+      configOptions: [
+        modeConfigOption('agent'),
+        effortConfigOption('low'),
+        collaborationModeConfigOption('default'),
+      ],
     });
     await rt.sendPrompt(input.conversationId, { text: 'wake once' });
 
@@ -292,6 +304,11 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-1',
       configId: 'reasoning_effort',
       value: 'high',
+    });
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'collaboration_mode',
+      value: 'plan',
     });
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
   });
@@ -1425,6 +1442,20 @@ function effortConfigOption(currentValue: string) {
     options: [
       { value: 'low', name: 'Low' },
       { value: 'high', name: 'High' },
+    ],
+  };
+}
+
+function collaborationModeConfigOption(currentValue: string) {
+  return {
+    id: 'collaboration_mode',
+    name: 'Collaboration mode',
+    category: 'collaboration_mode',
+    type: 'select',
+    currentValue,
+    options: [
+      { value: 'default', name: 'Default' },
+      { value: 'plan', name: 'Plan' },
     ],
   };
 }

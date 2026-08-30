@@ -51,7 +51,7 @@ export interface AcpChatHistory {
   active: TranscriptTurn | null;
 }
 
-type ConfigDimension = 'model' | 'effort';
+type ConfigDimension = 'model' | 'effort' | 'collaborationMode';
 
 export class SessionCell {
   readonly machine: SessionMachine;
@@ -614,6 +614,9 @@ export class SessionCell {
           ? [this.transcript.config.modelOptions.configId]
           : []),
         ...(this.transcript.config.efforts ? [this.transcript.config.efforts.configId] : []),
+        ...(this.transcript.config.collaborationModeOptions
+          ? [this.transcript.config.collaborationModeOptions.configId]
+          : []),
       ],
     };
   }
@@ -624,6 +627,8 @@ export class SessionCell {
         return this.transcript.config.modelOptions?.configId ?? null;
       case 'effort':
         return this.transcript.config.efforts?.configId ?? null;
+      case 'collaborationMode':
+        return this.transcript.config.collaborationModeOptions?.configId ?? null;
     }
   }
 

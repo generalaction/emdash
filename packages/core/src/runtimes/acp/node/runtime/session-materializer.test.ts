@@ -13,9 +13,9 @@ describe('SessionMaterializer', () => {
     h.agent.loadSession.mockRejectedValueOnce(new Error('session file is gone'));
     h.agent.newSession.mockResolvedValueOnce({
       sessionId: 'replacement',
-      configOptions: [effortConfigOption('low')],
+      configOptions: [effortConfigOption('low'), collaborationModeConfigOption('default')],
     });
-    const setup = materializerHarness(h, { effort: 'high' });
+    const setup = materializerHarness(h, { effort: 'high', collaborationMode: 'plan' });
 
     const result = await setup.materializer.materialize(
       setup.entry,
@@ -35,6 +35,11 @@ describe('SessionMaterializer', () => {
       sessionId: 'replacement',
       configId: 'reasoning_effort',
       value: 'high',
+    });
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'replacement',
+      configId: 'collaboration_mode',
+      value: 'plan',
     });
     expect(setup.discarded).toHaveLength(1);
 
@@ -283,6 +288,20 @@ function effortConfigOption(currentValue: string) {
     options: [
       { value: 'low', name: 'Low' },
       { value: 'high', name: 'High' },
+    ],
+  };
+}
+
+function collaborationModeConfigOption(currentValue: string) {
+  return {
+    id: 'collaboration_mode',
+    name: 'Collaboration mode',
+    category: 'collaboration_mode',
+    type: 'select',
+    currentValue,
+    options: [
+      { value: 'default', name: 'Default' },
+      { value: 'plan', name: 'Plan' },
     ],
   };
 }

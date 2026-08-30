@@ -258,6 +258,66 @@ describe('SessionCell config options', () => {
     });
     expect(cell.config.efforts?.selected).toBe('high');
   });
+
+  it('sets collaboration mode independently from permission mode', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Permissions',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [{ value: 'agent', name: 'Agent' }],
+        },
+        {
+          id: 'collaboration_mode',
+          name: 'Collaboration mode',
+          category: 'collaboration_mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'plan', name: 'Plan' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Permissions',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [{ value: 'agent', name: 'Agent' }],
+        },
+        {
+          id: 'collaboration_mode',
+          category: 'collaboration_mode',
+          type: 'select',
+          currentValue: 'plan',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'plan', name: 'Plan' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setConfigOption('collaborationMode', 'plan');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'collaboration_mode',
+      value: 'plan',
+    });
+    expect(cell.config.collaborationModeOptions?.selected).toBe('plan');
+    expect(cell.config.modeOptions?.selected).toBe('agent');
+  });
 });
 
 describe('SessionCell idle turns and queue commands', () => {

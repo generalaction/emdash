@@ -72,6 +72,10 @@ host's `agent-config` runtime for both local and remote hosts.
   sources such as Nix should add new source and selection variants without changing runtime spawn
   injection.
 - Claude uses deterministic `--session-id` values for conversation isolation.
+- Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
+  provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector
+  and persists that selection with the conversation; filesystem and approval controls remain in
+  the existing permission-mode selector.
 - Agents that cannot receive an automated initial prompt via argv or stdin declare `pty-only`
   prompt delivery. Their TUI opens without an initial prompt, and automation flows exclude them
   unless they also support ACP.

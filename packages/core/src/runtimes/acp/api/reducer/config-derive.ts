@@ -41,13 +41,13 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
 }
 
 /**
- * Map a raw `SessionConfigOption[]` to the three typed groups of
- * SessionConfigState: modelOptions, efforts, modeOptions.
+ * Map a raw `SessionConfigOption[]` to the typed groups of SessionConfigState.
  *
  * Category mapping:
  *   'model'         → modelOptions   (model selector)
  *   'thought_level' → efforts        (Claude effort / Codex reasoning effort)
  *   'mode'          → modeOptions    (permission mode)
+ *   'collaboration_mode' → collaborationModeOptions (provider workflow mode)
  *
  * `configId` preserves the provider-owned ACP config option id, `selected` is taken from
  * `currentValue`, and `available` is the full options list.
@@ -56,10 +56,14 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
  */
 export function deriveConfigGroups(
   options: ReadonlyArray<SessionConfigOption>
-): Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'modeOptions'> {
+): Pick<
+  SessionConfigState,
+  'modelOptions' | 'efforts' | 'modeOptions' | 'collaborationModeOptions'
+> {
   let modelOptions: SessionConfigState['modelOptions'] = null;
   let efforts: SessionConfigState['efforts'] = null;
   let modeOptions: SessionConfigState['modeOptions'] = null;
+  let collaborationModeOptions: SessionConfigState['collaborationModeOptions'] = null;
 
   for (const opt of options) {
     if (opt.type !== 'select') continue;
@@ -88,9 +92,16 @@ export function deriveConfigGroups(
           available: rawOptions.map(toModeOption),
         };
         break;
+      case 'collaboration_mode':
+        collaborationModeOptions = {
+          configId: opt.id,
+          selected: rawSelected,
+          available: rawOptions.map(toModeOption),
+        };
+        break;
       // Unknown categories (e.g. 'model_config') are ignored — extension point.
     }
   }
 
-  return { modelOptions, efforts, modeOptions };
+  return { modelOptions, efforts, modeOptions, collaborationModeOptions };
 }

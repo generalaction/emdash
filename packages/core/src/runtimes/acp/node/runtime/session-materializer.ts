@@ -305,13 +305,17 @@ export class SessionMaterializer {
   private async applyConfigOverrides(
     record: SessionRecord,
     entry: ConversationHandle
-  ): Promise<Array<'model' | 'effort'>> {
-    const cleared: Array<'model' | 'effort'> = [];
-    for (const dimension of ['model', 'effort'] as const) {
+  ): Promise<Array<'model' | 'effort' | 'collaborationMode'>> {
+    const cleared: Array<'model' | 'effort' | 'collaborationMode'> = [];
+    for (const dimension of ['model', 'effort', 'collaborationMode'] as const) {
       const value = entry.configOverrides[dimension];
       if (!value) continue;
       const catalog =
-        dimension === 'model' ? record.cell.config.modelOptions : record.cell.config.efforts;
+        dimension === 'model'
+          ? record.cell.config.modelOptions
+          : dimension === 'effort'
+            ? record.cell.config.efforts
+            : record.cell.config.collaborationModeOptions;
       if (catalog && !catalog.available.some((option) => option.id === value)) {
         entry.clearConfig(dimension);
         cleared.push(dimension);

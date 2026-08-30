@@ -134,7 +134,7 @@ export class AcpRuntime {
 
   setOption(
     conversationId: string,
-    key: 'model' | 'mode' | 'effort',
+    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
     value: string
   ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
     return key === 'mode'
