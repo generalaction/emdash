@@ -340,6 +340,61 @@ describe('SshConnectionManager', () => {
     }
   });
 
+  it('keeps retrying a prolonged outage on the same proxy', async () => {
+    vi.useFakeTimers();
+    try {
+      const { SshConnectionManager } = await import('./ssh-connection-manager');
+      class ScriptedClient extends PassThrough {
+        constructor(private readonly succeeds: boolean) {
+          super();
+        }
+        connect() {
+          queueMicrotask(() =>
+            this.succeeds
+              ? this.emit('ready')
+              : this.emit('error', new Error('network unavailable'))
+          );
+        }
+        end() {
+          this.emit('close');
+          return this;
+        }
+      }
+      const clients: ScriptedClient[] = [];
+      let recover = false;
+      const manager = new SshConnectionManager({
+        createClient: () => {
+          const client = new ScriptedClient(clients.length === 0 || recover);
+          clients.push(client);
+          return client as unknown as Client;
+        },
+      });
+      const resolve = async () => ({
+        config: { sock: new PassThrough(), username: 'alice' },
+        cleanup: () => {},
+        debugLogs: [],
+      });
+
+      const proxy = await manager.createConnection('ssh-1', resolve);
+      clients[0]!.emit('error', new Error('transport failed'));
+      clients[0]!.emit('close');
+
+      for (const delayMs of [1_000, 2_000, 5_000, 10_000, 20_000, 20_000]) {
+        await vi.advanceTimersByTimeAsync(delayMs);
+      }
+      expect(manager.getConnectionState('ssh-1')).toBe('reconnecting');
+      expect(manager.getProxy('ssh-1')).toBe(proxy);
+
+      recover = true;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(proxy.isConnected).toBe(true);
+      expect(manager.getConnectionState('ssh-1')).toBe('connected');
+      await manager.dropConnection('ssh-1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not re-enter reconnecting after dropping an in-flight reconnect', async () => {
     vi.useFakeTimers();
     try {

@@ -92,6 +92,24 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
+  it('replaces a silent half-open connection on demand', async () => {
+    const first = new FakeTransport();
+    const second = new FakeTransport();
+    let attempts = 0;
+    const transport = reconnectingTransport(() =>
+      Promise.resolve(attempts++ === 0 ? first : second)
+    );
+
+    await transport.ready();
+    transport.forceReconnect();
+
+    expect(first.isClosed).toBe(true);
+    await transport.ready();
+    transport.post({ kind: 'detach', topic: 'after-watchdog' });
+    expect(second.sent).toEqual([{ kind: 'detach', topic: 'after-watchdog' }]);
+    transport.close();
+  });
+
   it('returns readiness for the replacement connection after disconnect', async () => {
     const firstReady = deferred<WireTransport>();
     const secondReady = deferred<WireTransport>();
@@ -274,6 +292,10 @@ class FakeTransport implements WireTransport {
 
   get disconnectSubscriberCount(): number {
     return this.disconnectListeners.size;
+  }
+
+  get isClosed(): boolean {
+    return this.closed;
   }
 
   post(message: WireMessage): void {

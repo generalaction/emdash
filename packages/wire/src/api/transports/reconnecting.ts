@@ -26,6 +26,8 @@ export type ReconnectFailureContext = {
 export type ReconnectingTransport = WireTransport & {
   /** Resolves when the current physical connection has passed connectOnce readiness. */
   ready(): Promise<void>;
+  /** Replaces the current physical connection. */
+  forceReconnect(): void;
   onReconnect(cb: () => void): Unsubscribe;
   onTerminalFailure(cb: (error: unknown) => void): Unsubscribe;
   close(): void;
@@ -150,13 +152,24 @@ export function reconnectingTransport(
     );
     cleanupInner.push(
       next.onDisconnect(() => {
-        if (inner !== next) return;
-        inner = null;
-        resetReadiness();
-        for (const listener of disconnectListeners) listener();
-        if (!closed) void reconnect();
+        disconnectInner(next);
       })
     );
+  }
+
+  function disconnectInner(current: WireTransport, closeCurrent = false): void {
+    if (inner !== current) return;
+    inner = null;
+    for (const cleanup of cleanupInner) cleanup();
+    cleanupInner = [];
+    resetReadiness();
+    for (const listener of disconnectListeners) listener();
+    if (closeCurrent) {
+      try {
+        current.close?.();
+      } catch {}
+    }
+    if (!closed) void reconnect();
   }
 
   function notifyReconnect(): void {
@@ -191,12 +204,7 @@ export function reconnectingTransport(
       try {
         current.post(message);
       } catch (error) {
-        if (inner === current) {
-          inner = null;
-          resetReadiness();
-          for (const listener of disconnectListeners) listener();
-          if (!closed) void reconnect();
-        }
+        disconnectInner(current, true);
         throw error;
       }
     },
@@ -207,6 +215,11 @@ export function reconnectingTransport(
     onDisconnect(cb): Unsubscribe {
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
+    },
+    forceReconnect() {
+      if (closed || terminal) return;
+      if (inner) disconnectInner(inner, true);
+      else void reconnect();
     },
     onReconnect(cb): Unsubscribe {
       reconnectListeners.add(cb);
@@ -227,8 +240,9 @@ export function reconnectingTransport(
       const closeError = new Error('Reconnecting transport closed');
       void scope.dispose(closeError);
       for (const cleanup of cleanupInner.splice(0)) cleanup();
-      inner?.close?.();
+      const current = inner;
       inner = null;
+      current?.close?.();
       readiness.reject(closeError);
       for (const listener of terminalFailureListeners) listener(closeError);
       messageListeners.clear();

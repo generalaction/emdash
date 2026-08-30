@@ -4,6 +4,7 @@ import { createResourceCache, createScope, type Scope } from '@emdash/shared/con
 import {
   retrySchedules,
   runWithTimeout,
+  systemClock,
   waitWithSignal,
   type Clock,
   type RetrySchedule,
@@ -32,6 +33,8 @@ export type WorkspaceServerConnection = {
   currentHandshake(): WireInitializeResult | undefined;
 };
 
+export type WorkspaceServerConnectionState = 'connected' | 'reconnecting';
+
 export interface WireConnectionManager {
   client(target: WorkspaceServerTarget): Promise<WorkspaceServerConnection>;
   dialOnce(
@@ -40,6 +43,9 @@ export interface WireConnectionManager {
   ): Promise<WireInitializeResult>;
   invalidateConnection(connectionId: string): Promise<void>;
   onConnectionLost(listener: (target: WorkspaceServerTarget, error: unknown) => void): () => void;
+  onConnectionStateChanged(
+    listener: (target: WorkspaceServerTarget, state: WorkspaceServerConnectionState) => void
+  ): () => void;
   dispose(): Promise<void>;
 }
 
@@ -50,6 +56,8 @@ export type CreateWireConnectionManagerOptions = {
   retrySchedule?: RetrySchedule;
   protocolVersion?: string;
   client?: { id: string; appVersion: string };
+  heartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
   ssh?: WorkspaceServerSshPort;
   openTransport?: (target: WorkspaceServerTarget) => Promise<WireTransport>;
 };
@@ -67,11 +75,14 @@ export class WorkspaceServerConfigurationError extends Error {
   readonly name = 'WorkspaceServerConfigurationError';
 }
 
-export const workspaceServerReconnectSchedule = retrySchedules.sequence([
-  500, 1_000, 2_000, 5_000, 10_000, 15_000, 20_000, 30_000, 30_000,
-]);
+export const workspaceServerReconnectSchedule = retrySchedules.sequence(
+  [500, 1_000, 2_000, 5_000, 10_000, 15_000, 20_000, 30_000],
+  { repeatLast: true }
+);
 
 const DEFAULT_DIAL_TIMEOUT_MS = 5_000;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
+const DEFAULT_HEARTBEAT_TIMEOUT_MS = 8_000;
 
 export function createWireConnectionManager(
   options: CreateWireConnectionManagerOptions = {}
@@ -85,6 +96,9 @@ export function createWireConnectionManager(
   const connectionLostListeners = new Set<
     (target: WorkspaceServerTarget, error: unknown) => void
   >();
+  const connectionStateListeners = new Set<
+    (target: WorkspaceServerTarget, state: WorkspaceServerConnectionState) => void
+  >();
   const cache = createResourceCache<WorkspaceServerTarget, WorkspaceServerConnection>({
     key: workspaceServerTargetKey,
     scope,
@@ -93,10 +107,18 @@ export function createWireConnectionManager(
     idleTtlMs: options.idleTtlMs ?? 30_000,
     create: (target, connectionScope) => {
       trackTarget(target, connectionScope);
-      return createWorkspaceServerConnection(target, connectionScope, options, (error) => {
-        if (connectionScope.disposed) return;
-        void handleConnectionLost(target, error).catch(() => {});
-      });
+      return createWorkspaceServerConnection(
+        target,
+        connectionScope,
+        options,
+        (error) => {
+          if (connectionScope.disposed) return;
+          void handleConnectionLost(target, error).catch(() => {});
+        },
+        (state) => {
+          if (!connectionScope.disposed) notifyConnectionStateChanged(target, state);
+        }
+      );
     },
   });
 
@@ -105,6 +127,7 @@ export function createWireConnectionManager(
     targetsByKey.clear();
     targetKeysByConnection.clear();
     connectionLostListeners.clear();
+    connectionStateListeners.clear();
   });
 
   let disposePromise: Promise<void> | undefined;
@@ -140,6 +163,10 @@ export function createWireConnectionManager(
       return () => {
         connectionLostListeners.delete(listener);
       };
+    },
+    onConnectionStateChanged(listener) {
+      connectionStateListeners.add(listener);
+      return () => connectionStateListeners.delete(listener);
     },
     dispose() {
       disposePromise ??= scope.dispose();
@@ -193,6 +220,17 @@ export function createWireConnectionManager(
     }
   }
 
+  function notifyConnectionStateChanged(
+    target: WorkspaceServerTarget,
+    state: WorkspaceServerConnectionState
+  ): void {
+    for (const listener of connectionStateListeners) {
+      try {
+        listener(target, state);
+      } catch {}
+    }
+  }
+
   async function releasePinnedConnections(connectionId?: string): Promise<void> {
     const releases: Promise<void>[] = [];
     for (const [key, pinned] of pinnedConnections) {
@@ -213,7 +251,8 @@ async function createWorkspaceServerConnection(
   target: WorkspaceServerTarget,
   scope: Scope,
   options: CreateWireConnectionManagerOptions,
-  onConnectionLost: (error: unknown) => void
+  onConnectionLost: (error: unknown) => void,
+  onConnectionStateChanged: (state: WorkspaceServerConnectionState) => void
 ): Promise<WorkspaceServerConnection> {
   let handshake: WireInitializeResult | undefined;
   const openTransport =
@@ -240,10 +279,12 @@ async function createWorkspaceServerConnection(
   );
   scope.add(() => transport.close());
 
-  const connection = connect(transport);
+  const connection = connect(transport, options.clock ? { clock: options.clock } : {});
   scope.add(() => connection.dispose());
+  scope.add(transport.onReconnect(() => onConnectionStateChanged('connected')));
   scope.add(
     connection.onDisconnect(() => {
+      onConnectionStateChanged('reconnecting');
       void transport.ready().catch(onConnectionLost);
     })
   );
@@ -256,6 +297,7 @@ async function createWorkspaceServerConnection(
     throw error;
   }
   requireHandshake(handshake);
+  if (target.kind === 'ssh') startHeartbeat(scope, transport, client, options);
 
   return {
     target,
@@ -264,6 +306,32 @@ async function createWorkspaceServerConnection(
     ready: () => readyHandshake(transport, () => handshake),
     currentHandshake: () => handshake,
   };
+}
+
+function startHeartbeat(
+  scope: Scope,
+  transport: ReconnectingTransport,
+  client: ContractClient<typeof workspaceWireContract>,
+  options: CreateWireConnectionManagerOptions
+): void {
+  const intervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  if (intervalMs <= 0) return;
+  const timeoutMs = options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
+  const clock = options.clock ?? systemClock;
+
+  scope.run('workspace-server-heartbeat', async (signal) => {
+    while (!signal.aborted) {
+      await clock.sleep(intervalMs, { signal, unref: true });
+      if (signal.aborted) return;
+      try {
+        await client.health(undefined, { signal, timeoutMs });
+      } catch {
+        if (signal.aborted) return;
+        transport.forceReconnect();
+        await waitWithSignal(transport.ready(), signal);
+      }
+    }
+  });
 }
 
 export function openWorkspaceServerTransport(

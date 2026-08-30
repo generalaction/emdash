@@ -125,9 +125,9 @@ describe('ProjectAvailabilityBanner', () => {
   });
 
   it.each([
-    ['connecting', 'Connecting to Orion', 'Open Machines'],
-    ['provisioning', 'Preparing Orion', 'Open Machines'],
-    ['handshaking', 'Preparing Orion', 'Open Machines'],
+    ['connecting', 'Connecting to Orion', 'Reconnect now'],
+    ['provisioning', 'Preparing Orion', 'Reconnect now'],
+    ['handshaking', 'Preparing Orion', 'Reconnect now'],
     ['attaching', 'Opening Project on Orion', null],
   ] as const)('announces %s progress politely', async (state, title, actionLabel) => {
     await render(sshProject, {

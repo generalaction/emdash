@@ -36,7 +36,6 @@ export async function bootRuntimes(
       hosts: infrastructure.hosts,
       runtimes: broker,
       connectSsh: (connectionId) => infrastructure.ssh.ssh.connect(connectionId),
-      sshEvents: infrastructure.ssh.manager,
       localReady: () => runtimeWorkers.runtimeReady(),
     });
     runMementosOrphanPruning(database, runtimeWorkers.clients.mementos);

@@ -27,7 +27,22 @@ export function MachineConnectionRow({
     state === 'connected' || state === 'connecting' || state === 'reconnecting';
   const preparing = availability?.kind === 'preparing';
   const ready = availability?.kind === 'ready';
-  const retry = availability?.kind === 'unavailable' && availability.issue !== undefined;
+  const reconnectNow = preparing || state === 'connecting' || state === 'reconnecting';
+  const reconnect =
+    (ready && state !== 'connected') ||
+    (state === 'connected' && availability?.kind === 'unavailable');
+  const retry =
+    reconnectNow ||
+    reconnect ||
+    state === 'error' ||
+    (availability?.kind === 'unavailable' && availability.issue !== undefined);
+  const connectionActionLabel = reconnectNow
+    ? 'Reconnect now'
+    : reconnect
+      ? 'Reconnect'
+      : retry
+        ? 'Retry'
+        : 'Connect';
 
   return (
     <SettingsRow
@@ -46,10 +61,10 @@ export function MachineConnectionRow({
       }
       control={
         <span className="flex items-center gap-2">
-          {availability && !ready && !preparing ? (
+          {availability && (!ready || state !== 'connected') ? (
             <Button type="button" variant="primary" size="xs" onClick={retry ? onRetry : onConnect}>
               <PlugIcon />
-              {retry ? 'Retry' : 'Connect'}
+              {connectionActionLabel}
             </Button>
           ) : null}
           {transportActive || preparing ? (

@@ -36,10 +36,11 @@ export class SshConnectionError extends Error {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Delays between successive reconnect attempts; exhausting the sequence gives up. */
-const RECONNECT_SCHEDULE: RetrySchedule = retrySchedules.sequence([
-  1_000, 2_000, 5_000, 10_000, 20_000,
-]);
+/** Delays between successive reconnect attempts. */
+const RECONNECT_SCHEDULE: RetrySchedule = retrySchedules.sequence(
+  [1_000, 2_000, 5_000, 10_000, 20_000],
+  { repeatLast: true }
+);
 
 interface ReconnectState {
   attempt: number;
