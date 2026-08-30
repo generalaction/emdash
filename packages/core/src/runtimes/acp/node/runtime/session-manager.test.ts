@@ -55,12 +55,16 @@ describe('AcpRuntime session manager', () => {
     const rt = new AcpRuntime(h.deps);
 
     const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-unsupported-model', model: 'removed-model' })
+      makeStartInput({
+        conversationId: 'conv-unsupported-model',
+        model: 'removed-model',
+        collaborationMode: 'plan',
+      })
     );
 
     expect(result).toMatchObject({
       success: true,
-      data: { clearedConfiguration: ['model'] },
+      data: { clearedConfiguration: ['model', 'collaborationMode'] },
     });
     expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
 
@@ -68,7 +72,11 @@ describe('AcpRuntime session manager', () => {
     missingCatalogHarness.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
     const missingCatalogRuntime = new AcpRuntime(missingCatalogHarness.deps);
     const missingCatalogResult = await missingCatalogRuntime.launchSession(
-      makeStartInput({ conversationId: 'conv-missing-catalog', model: 'keep-me' })
+      makeStartInput({
+        conversationId: 'conv-missing-catalog',
+        model: 'keep-me',
+        collaborationMode: 'plan',
+      })
     );
     expect(missingCatalogResult).toMatchObject({ success: true, data: { sessionId: 'session-2' } });
     if (missingCatalogResult.success) {

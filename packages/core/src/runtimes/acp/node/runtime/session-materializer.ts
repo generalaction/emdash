@@ -125,7 +125,7 @@ export class SessionMaterializer {
             modes: response.modes,
             configOptions: response.configOptions,
           });
-          await this.applyDesiredConfiguration(record, entry);
+          await this.applyDesiredConfiguration(record, entry, response.configOptions !== undefined);
           const queueResult = this.queueInitialPrompts(record, input);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
@@ -180,7 +180,7 @@ export class SessionMaterializer {
           modes: response.modes,
           configOptions: response.configOptions,
         });
-        await this.applyDesiredConfiguration(record, entry);
+        await this.applyDesiredConfiguration(record, entry, response.configOptions !== undefined);
         const queueResult = this.queueInitialPrompts(record, input);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
@@ -304,7 +304,8 @@ export class SessionMaterializer {
 
   private async applyConfigOverrides(
     record: SessionRecord,
-    entry: ConversationHandle
+    entry: ConversationHandle,
+    hasAuthoritativeCatalog: boolean
   ): Promise<Array<'model' | 'effort' | 'collaborationMode'>> {
     const cleared: Array<'model' | 'effort' | 'collaborationMode'> = [];
     for (const dimension of ['model', 'effort', 'collaborationMode'] as const) {
@@ -316,7 +317,10 @@ export class SessionMaterializer {
           : dimension === 'effort'
             ? record.cell.config.efforts
             : record.cell.config.collaborationModeOptions;
-      if (catalog && !catalog.available.some((option) => option.id === value)) {
+      if (
+        (!catalog && hasAuthoritativeCatalog) ||
+        (catalog && !catalog.available.some((option) => option.id === value))
+      ) {
         entry.clearConfig(dimension);
         cleared.push(dimension);
         continue;
@@ -336,12 +340,13 @@ export class SessionMaterializer {
 
   private async applyDesiredConfiguration(
     record: SessionRecord,
-    entry: ConversationHandle
+    entry: ConversationHandle,
+    hasAuthoritativeCatalog: boolean
   ): Promise<void> {
     let revision: number;
     do {
       revision = entry.desiredRevision;
-      const cleared = await this.applyConfigOverrides(record, entry);
+      const cleared = await this.applyConfigOverrides(record, entry, hasAuthoritativeCatalog);
       const clearedMode = await this.applyInitialMode(record, entry);
       for (const key of [...cleared, ...(clearedMode ? [clearedMode] : [])]) {
         if (!record.clearedConfiguration.includes(key)) record.clearedConfiguration.push(key);
