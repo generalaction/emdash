@@ -2,7 +2,10 @@ import { Tooltip } from '@emdash/ui/react/primitives';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NewTerminalButton } from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
+import {
+  NewTerminalButton,
+  TerminalDockButton,
+} from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
 
 beforeAll(() => {
   (
@@ -107,5 +110,24 @@ describe('terminal shell menu', () => {
     await act(async () => trigger.click());
 
     expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['bottom', 'right'],
+    ['right', 'bottom'],
+  ] as const)('moves the terminal from the %s dock to the %s dock', async (position, target) => {
+    const onPositionChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <Tooltip.Provider>
+          <TerminalDockButton position={position} onPositionChange={onPositionChange} />
+        </Tooltip.Provider>
+      );
+    });
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>(`[aria-label="Dock terminal ${target}"]`)!.click();
+    });
+    expect(onPositionChange).toHaveBeenCalledWith(target);
   });
 });

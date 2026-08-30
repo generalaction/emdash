@@ -17,7 +17,22 @@ const taskChromeV1Schema = z.object({
   terminalDrawerOpen: z.boolean(),
 });
 
-export const taskChromeSchema = defineVersionedSchema().initial('1', taskChromeV1Schema).build();
+const taskChromeV2Schema = z.object({
+  version: z.literal('2'),
+  sidebarTab: z.enum(['conversations', 'changes', 'files']),
+  sidebarCollapsed: z.boolean(),
+  terminalDrawerOpen: z.boolean(),
+  terminalDockPosition: z.enum(['bottom', 'right']),
+});
+
+export const taskChromeSchema = defineVersionedSchema()
+  .initial('1', taskChromeV1Schema)
+  .version('2', taskChromeV2Schema, (value) => ({
+    ...value,
+    version: '2' as const,
+    terminalDockPosition: 'bottom' as const,
+  }))
+  .build();
 export type TaskChromeState = typeof taskChromeSchema.Type;
 
 export const taskChromeMemento = defineMemento({
@@ -25,10 +40,11 @@ export const taskChromeMemento = defineMemento({
   subject: taskSubject,
   schema: taskChromeSchema,
   default: {
-    version: '1' as const,
+    version: '2' as const,
     sidebarTab: 'conversations' as const,
     sidebarCollapsed: true,
     terminalDrawerOpen: false,
+    terminalDockPosition: 'bottom' as const,
   },
 });
 

@@ -87,8 +87,8 @@ Views use a contributions + catalog + parameterized navigation pattern.
 Workbench layout follows a strict ownership model (see
 `.scratch/workbench-state-architecture/spec.md` history for rationale):
 
-- **Chrome state lives in command stores, one per subject.** Task chrome
-  (`sidebarCollapsed`, `sidebarTab`, `terminalDrawerOpen`) and workspace chrome
+- **Chrome state lives in command stores, one per subject.** Task chrome (`sidebarCollapsed`,
+  `sidebarTab`, `terminalDrawerOpen`, `terminalDockPosition`) and workspace chrome
   (`leftSidebarOpen`, `zen`) are memento-backed state objects mutated only through
   named commands (`toggleSidebar`, `openSidebarTab`, `enterZenMode`, ...) — never
   through field setters. The shared mechanism is `defineChromeStore` in
@@ -102,7 +102,8 @@ Workbench layout follows a strict ownership model (see
 - **Pixel sizes belong to react-resizable-panels alone**, persisted via
   `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
   (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
-  MobX observables and never persisted to localStorage.
+  MobX observables and never persisted to localStorage. Each terminal dock position uses a
+  separate resize-group key so bottom and right sizes restore independently.
 - **Persisted view state renders below a hydration gate.** The task view gates on
   `space.isHydrated`; the storage facade dev-asserts on reads before hydration.
 

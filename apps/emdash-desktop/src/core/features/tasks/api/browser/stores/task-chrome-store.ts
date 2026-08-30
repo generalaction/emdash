@@ -1,4 +1,4 @@
-import type { SidebarTab } from '@core/features/tasks/api/browser/types';
+import type { SidebarTab, TerminalDockPosition } from '@core/features/tasks/api/browser/types';
 import {
   taskChromeMemento,
   type TaskChromeState,
@@ -59,6 +59,9 @@ export const taskChromeStore = defineChromeStore({
         ephemeral: { focusedRegion: open ? ('bottom' as const) : ('main' as const) },
       };
     },
+    setTerminalDockPosition: ({ state }, position: TerminalDockPosition) => ({
+      state: { ...state, terminalDockPosition: position },
+    }),
     focusRegion: (_current, region: TaskFocusedRegion) => ({
       ephemeral: { focusedRegion: region },
     }),

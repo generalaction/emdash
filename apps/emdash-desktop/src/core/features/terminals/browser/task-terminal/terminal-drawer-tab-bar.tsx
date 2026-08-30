@@ -5,9 +5,21 @@ import type {
 } from '@emdash/core/primitives/terminal-shell/api';
 import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components';
 import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives';
-import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
+import {
+  ChevronDown,
+  LoaderCircle,
+  PanelBottom,
+  PanelRight,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Terminal,
+  X,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { TerminalDockPosition } from '@core/features/tasks/api/browser/types';
 import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
@@ -49,6 +61,8 @@ interface TerminalDrawerTabBarProps {
   onHoverTerminal?: (id: string) => void;
   projectId: string;
   liveActionsDisabled: boolean;
+  dockPosition: TerminalDockPosition;
+  onDockPositionChange: (position: TerminalDockPosition) => void;
   className?: string;
 }
 
@@ -80,6 +94,8 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   onHoverTerminal,
   projectId,
   liveActionsDisabled,
+  dockPosition,
+  onDockPositionChange,
   className,
 }: TerminalDrawerTabBarProps) {
   const scripts = lifecycleScriptsMgr?.tabs ?? [];
@@ -195,9 +211,46 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
           <Tabs.Tab value="scripts">Scripts</Tabs.Tab>
         </Tabs.List>
       </Tabs.Root>
+      <div className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+      <TerminalDockButton position={dockPosition} onPositionChange={onDockPositionChange} />
     </div>
   );
 });
+
+export function TerminalDockButton({
+  position,
+  onPositionChange,
+}: {
+  position: TerminalDockPosition;
+  onPositionChange: (position: TerminalDockPosition) => void;
+}) {
+  const nextPosition = position === 'bottom' ? 'right' : 'bottom';
+  const label = `Dock terminal ${nextPosition}`;
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={
+          <Button
+            variant="ghost"
+            size="xs"
+            icon
+            className="size-6 px-0"
+            aria-label={label}
+            onClick={() => onPositionChange(nextPosition)}
+          />
+        }
+      >
+        {nextPosition === 'right' ? (
+          <PanelRight className="size-3.5" />
+        ) : (
+          <PanelBottom className="size-3.5" />
+        )}
+      </Tooltip.Trigger>
+      <Tooltip.Content>{label}</Tooltip.Content>
+    </Tooltip.Root>
+  );
+}
 
 export function NewTerminalButton({
   disabled = false,
