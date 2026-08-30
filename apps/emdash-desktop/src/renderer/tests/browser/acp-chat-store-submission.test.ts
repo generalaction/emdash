@@ -203,6 +203,53 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it('keeps a later identical prompt until its own turn is committed', async () => {
+    const text = 'continue';
+    let finishFirst!: () => void;
+    const sendPrompt = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ success: true; data: { queued: false } }>((resolve) => {
+            finishFirst = () => resolve({ success: true, data: { queued: false } });
+          })
+      )
+      .mockResolvedValueOnce({ success: true, data: { queued: true } });
+    const initialHistory = historyPage('before');
+    const firstHistory = {
+      turns: [...initialHistory.turns, ...historyPageWithPrompt('first', 1, text).turns],
+      nextCursor: null,
+    };
+    const completeHistory = {
+      turns: [...firstHistory.turns, ...historyPageWithPrompt('second', 2, text).turns],
+      nextCursor: null,
+    };
+    const live = fakeLiveSession(idleState(), initialHistory, { sendPrompt });
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory
+      .mockResolvedValueOnce({ success: true, data: initialHistory })
+      .mockResolvedValueOnce({ success: true, data: firstHistory })
+      .mockResolvedValueOnce({ success: true, data: completeHistory });
+
+    store.submitPrompt(text);
+    const firstId = chatSessionTestState.pendingPrompt?.id;
+    store.submitPrompt(text);
+    const secondId = chatSessionTestState.pendingPrompt?.id;
+
+    expect(secondId).not.toBe(firstId);
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
+    finishFirst();
+    await vi.waitFor(() => expect(historySeed).toHaveBeenLastCalledWith(firstHistory.turns));
+    expect(chatSessionTestState.pendingPrompt?.id).toBe(secondId);
+    expect(store.messageCount).toBe(2);
+
+    connectSessionOptions?.onTurnCommitted?.();
+    await vi.waitFor(() => expect(historySeed).toHaveBeenLastCalledWith(completeHistory.turns));
+    expect(chatSessionTestState.pendingPrompt).toBeNull();
+    store.dispose();
+  });
+
   it('restores the persisted draft when the live session is unavailable', async () => {
     const store = createStore(idleState(), vi.fn());
     const attachment = promptAttachment('attachment-no-session', 'data:image/png;base64,AQ==');

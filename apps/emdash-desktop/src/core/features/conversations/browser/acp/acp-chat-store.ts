@@ -110,7 +110,7 @@ export class AcpChatStore {
   private readonly _disposeHostReaction: () => void;
   private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
   private _submissionSequence = 0;
-  private _pendingPromptBaselineSeq: number | null = null;
+  private _optimisticPrompts: Array<{ id: string; text: string; baselineSeq: number }> = [];
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
   private _disposed = false;
@@ -395,8 +395,12 @@ export class AcpChatStore {
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
       const turns = this.chatState.transcript.state.committedTurns;
-      this._pendingPromptBaselineSeq = turns.at(-1)?.seq ?? -1;
-      optimisticId = `optimistic:user:${Date.now()}`;
+      optimisticId = `optimistic:user:${submissionSequence}`;
+      this._optimisticPrompts.push({
+        id: optimisticId,
+        text,
+        baselineSeq: turns.at(-1)?.seq ?? -1,
+      });
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -414,10 +418,15 @@ export class AcpChatStore {
         return;
       }
       runInAction(() => {
-        if (this._disposed || submissionSequence !== this._submissionSequence) return;
+        if (this._disposed) return;
+        if (optimisticId) {
+          this._optimisticPrompts = this._optimisticPrompts.filter(
+            (prompt) => prompt.id !== optimisticId
+          );
+        }
+        if (submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
           this.chatState.session.setPendingPrompt(null);
-          this._pendingPromptBaselineSeq = null;
           this._syncMessageCount();
         }
         if (this.draftText !== '' || this.draftAttachments.length > 0) return;
@@ -859,27 +868,30 @@ export class AcpChatStore {
       if (this.chatState.transcript.state.activeTurnSnapshot !== null) return;
       runInAction(() => {
         const pendingPrompt = this.chatState.session.state.pendingPrompt;
-        const baselineSeq = this._pendingPromptBaselineSeq;
-        const pendingPromptCommitted =
-          pendingPrompt !== null &&
-          baselineSeq !== null &&
-          history.data.turns.some(
-            (turn) =>
-              turn.seq > baselineSeq &&
-              turn.initiator === 'user' &&
-              turn.items.some(
+        const committedPromptIds = new Set<string>();
+        let afterSeq = -1;
+        for (const prompt of this._optimisticPrompts) {
+          const turn = history.data.turns.find(
+            (candidate) =>
+              candidate.seq > Math.max(prompt.baselineSeq, afterSeq) &&
+              candidate.initiator === 'user' &&
+              candidate.items.some(
                 (item) =>
-                  item.kind === 'message' &&
-                  item.role === 'user' &&
-                  item.text === pendingPrompt.text
+                  item.kind === 'message' && item.role === 'user' && item.text === prompt.text
               )
           );
+          if (!turn) break;
+          committedPromptIds.add(prompt.id);
+          afterSeq = turn.seq;
+        }
         this.chatState.transcript.history.seed(history.data.turns);
-        if (pendingPromptCommitted) {
+        if (pendingPrompt && committedPromptIds.has(pendingPrompt.id)) {
           this.chatState.session.setPendingPrompt(null);
-          this._pendingPromptBaselineSeq = null;
         } else if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
           this.chatState.session.setPendingPrompt(pendingPrompt);
+        }
+        if (committedPromptIds.size === this._optimisticPrompts.length) {
+          this._optimisticPrompts = [];
         }
         this._syncMessageCount();
       });
