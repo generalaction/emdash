@@ -26,6 +26,7 @@ const providerPreferenceSchema = z.object({
   model: z.string().optional(),
   modeId: z.string().optional(),
   effort: z.string().optional(),
+  collaborationMode: z.string().optional(),
 });
 
 export const providerPreferencesSchema = defineVersionedSchema()

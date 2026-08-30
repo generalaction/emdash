@@ -518,6 +518,25 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it('remembers a successful collaboration-mode change', async () => {
+    const setOption = vi.fn(async () => ({ success: true as const, data: undefined }));
+    const store = createStore(idleState(), vi.fn(), { setOption });
+    const rememberPreference = vi
+      .spyOn(
+        store as unknown as {
+          _rememberPreference(patch: { collaborationMode: string }): Promise<void>;
+        },
+        '_rememberPreference'
+      )
+      .mockResolvedValue();
+
+    store.setCollaborationMode('plan');
+
+    await vi.waitFor(() => expect(setOption).toHaveBeenCalledWith('collaborationMode', 'plan'));
+    expect(rememberPreference).toHaveBeenCalledWith({ collaborationMode: 'plan' });
+    store.dispose();
+  });
+
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
     const store = await bootstrapWithSession(live.session);

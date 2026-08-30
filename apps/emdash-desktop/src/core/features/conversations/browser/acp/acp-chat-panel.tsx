@@ -298,6 +298,13 @@ const ComposerForStore = observer(function ComposerForStore({
     [store]
   );
 
+  const handleCollaborationModeChange = useCallback(
+    (modeId: string) => {
+      store.setCollaborationMode(modeId);
+    },
+    [store]
+  );
+
   const handleEffortChange = useCallback(
     (effortId: string) => {
       store.setEffort(effortId);
@@ -605,6 +612,9 @@ const ComposerForStore = observer(function ComposerForStore({
           permissionModeOptions={store.permissionModeOptions}
           selectedPermissionMode={store.permissionMode ?? undefined}
           onPermissionModeChange={handleModeChange}
+          collaborationModeOptions={store.collaborationModeOptions}
+          selectedCollaborationMode={store.collaborationMode ?? undefined}
+          onCollaborationModeChange={handleCollaborationModeChange}
           mcpServers={store.mcpServers}
           agentOptions={agentOptions}
           selectedAgent={providerId ?? undefined}

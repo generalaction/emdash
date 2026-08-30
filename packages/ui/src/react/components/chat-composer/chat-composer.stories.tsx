@@ -6,6 +6,7 @@ import { Button } from '@/react/primitives/button';
 import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
+  ComposerCollaborationModeOption,
   ComposerEffortOption,
   ComposerModelOption,
   ComposerMcpServer,
@@ -215,8 +216,13 @@ const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
     name: 'Accept edits',
     description: 'Auto-allow file edits, prompt for shell commands.',
   },
-  plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
+  readOnly: { name: 'Read only', description: 'Allow inspection without writing files.' },
   bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
+};
+
+const MOCK_COLLABORATION_MODES: Record<string, ComposerCollaborationModeOption> = {
+  default: { name: 'Default', description: 'Work directly on the task.' },
+  plan: { name: 'Plan', description: 'Create a plan before making changes.' },
 };
 
 // ── Mock permission requests ──────────────────────────────────────────────────
@@ -342,6 +348,7 @@ interface PlaygroundArgs {
   noticeTitle: string;
   noticeMessage: string;
   showPermissionModeSelector: boolean;
+  showCollaborationModeSelector: boolean;
   showPermissionRequest: boolean;
   showQueuedPrompts: boolean;
 }
@@ -360,6 +367,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeTitle,
     noticeMessage,
     showPermissionModeSelector,
+    showCollaborationModeSelector,
     showPermissionRequest,
     showQueuedPrompts,
   } = args;
@@ -368,6 +376,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
   const [selectedPermissionMode, setSelectedPermissionMode] = useState('default');
+  const [selectedCollaborationMode, setSelectedCollaborationMode] = useState('default');
   const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>([]);
 
@@ -431,6 +440,9 @@ function ComposerPlayground(args: PlaygroundArgs) {
         permissionModeOptions={showPermissionModeSelector ? MOCK_PERMISSION_MODES : null}
         selectedPermissionMode={selectedPermissionMode}
         onPermissionModeChange={setSelectedPermissionMode}
+        collaborationModeOptions={showCollaborationModeSelector ? MOCK_COLLABORATION_MODES : null}
+        selectedCollaborationMode={selectedCollaborationMode}
+        onCollaborationModeChange={setSelectedCollaborationMode}
         permissionRequest={permissionQueue[0] ?? null}
         permissionQueueCount={permissionQueue.length}
         onResolvePermission={() => setPermissionQueue((q) => q.slice(1))}
@@ -505,6 +517,10 @@ const meta: Meta<PlaygroundArgs> = {
       control: 'boolean',
       description: 'Render the approval-policy (Permissions…) selector in the toolbar.',
     },
+    showCollaborationModeSelector: {
+      control: 'boolean',
+      description: 'Render the workflow (Default / Plan) selector in the toolbar.',
+    },
     showPermissionRequest: {
       control: 'boolean',
       description:
@@ -529,6 +545,7 @@ const meta: Meta<PlaygroundArgs> = {
     noticeMessage:
       'The agent hit the maximum number of turn requests. Send a new message to continue.',
     showPermissionModeSelector: true,
+    showCollaborationModeSelector: true,
     showPermissionRequest: false,
     showQueuedPrompts: false,
   },

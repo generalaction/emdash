@@ -48,6 +48,7 @@ type ConversationRuntimeTarget = Readonly<{
   model: string | null;
   modeId: string | null;
   effort: string | null;
+  collaborationMode: string | null;
   workspacePath?: string;
   host: HostRef;
   acpInput?: ConversationsAcpStartInput;
@@ -396,6 +397,7 @@ async function resolveConversationRuntimeTarget(
           model: acpConfig?.model ?? null,
           modeId: acpConfig?.modeId ?? null,
           effort: acpConfig?.effort ?? null,
+          collaborationMode: acpConfig?.collaborationMode ?? null,
           ...(initialQueue && { initialQueue }),
           ...(providerEnv && { env: providerEnv }),
         }
@@ -411,6 +413,7 @@ async function resolveConversationRuntimeTarget(
     model: acpConfig?.model ?? null,
     modeId: acpConfig?.modeId ?? null,
     effort: acpConfig?.effort ?? null,
+    collaborationMode: acpConfig?.collaborationMode ?? null,
     workspacePath,
     host: identity?.host ?? LOCAL_HOST_REF,
     acpInput,
@@ -440,7 +443,12 @@ function callOptions(meta: CallMeta): { signal?: AbortSignal } {
 async function persistClearedConfiguration(
   hooks: ConversationRuntimeHooks,
   target: ConversationRuntimeTarget,
-  result: Result<{ clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> }, unknown>,
+  result: Result<
+    {
+      clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+    },
+    unknown
+  >,
   logger: Logger
 ): Promise<void> {
   if (!result.success) return;

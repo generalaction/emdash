@@ -35,6 +35,7 @@ export function mapConversationRowToConversation(row: ConversationRow): Conversa
     model: config?.model,
     modeId: config?.type === 'acp' ? config.modeId : undefined,
     effort: config?.type === 'acp' ? config.effort : undefined,
+    collaborationMode: config?.type === 'acp' ? config.collaborationMode : undefined,
     initialQueue: initialQueueFromRow(row),
     lastInteractedAt: row.lastSessionActivityAt ?? null,
     isInitialConversation: row.isInitialConversation,

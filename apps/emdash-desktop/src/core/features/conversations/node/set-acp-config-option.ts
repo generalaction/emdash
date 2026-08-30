@@ -4,7 +4,7 @@ import type { ConversationConfig, ConversationConfigAcp } from '@core/primitives
 import type { HostConversationMutationDeps } from './host-mutation';
 import { resolveConversationHostClient } from './host-mutation';
 
-export type AcpPersistedConfigKey = 'model' | 'modeId' | 'effort';
+export type AcpPersistedConfigKey = 'model' | 'modeId' | 'effort' | 'collaborationMode';
 
 export type SetAcpConfigOptionError = BaseError<
   'empty-value' | 'conversation-not-found' | 'not-acp-conversation' | 'host-rejected'

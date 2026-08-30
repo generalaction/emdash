@@ -130,6 +130,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
         model: selectedModel ?? undefined,
         modeId: conversationType === 'acp' ? savedPreference?.modeId : undefined,
         effort: conversationType === 'acp' ? savedPreference?.effort : undefined,
+        collaborationMode:
+          conversationType === 'acp' ? savedPreference?.collaborationMode : undefined,
         type: conversationType,
       });
       try {
@@ -163,6 +165,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     host,
     savedPreference?.effort,
     savedPreference?.modeId,
+    savedPreference?.collaborationMode,
     setProviderPreferences,
   ]);
 

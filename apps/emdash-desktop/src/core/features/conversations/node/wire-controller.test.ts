@@ -35,6 +35,7 @@ const target = {
   model: null,
   modeId: null,
   effort: null,
+  collaborationMode: null,
   workspacePath: '/repo',
   host: LOCAL_HOST_REF,
   acpInput: {
@@ -44,6 +45,7 @@ const target = {
     sessionId: null,
     model: null,
     modeId: null,
+    collaborationMode: null,
   },
 } as const;
 type TestRuntimeTarget = typeof target;
@@ -96,7 +98,7 @@ describe('createConversationsWireController', () => {
       ok({
         turns: [],
         nextCursor: null,
-        clearedConfiguration: ['model', 'modeId'] as const,
+        clearedConfiguration: ['model', 'modeId', 'collaborationMode'] as const,
       })
     );
     const persistAcpConfigOption = vi.fn(async () => {});
@@ -113,6 +115,7 @@ describe('createConversationsWireController', () => {
     expect(persistAcpConfigOption.mock.calls).toEqual([
       [target, 'model', null],
       [target, 'modeId', null],
+      [target, 'collaborationMode', null],
     ]);
   });
 
@@ -351,7 +354,7 @@ function setupController(options: {
   hooks?: Partial<{
     persistAcpConfigOption: (
       target: TestRuntimeTarget,
-      key: 'model' | 'modeId' | 'effort',
+      key: 'model' | 'modeId' | 'effort' | 'collaborationMode',
       value: string | null
     ) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;

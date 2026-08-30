@@ -201,11 +201,12 @@ export class SessionManager {
     return ok();
   }
 
-  async ensureActivation(
-    conversationId: string
-  ): Promise<
+  async ensureActivation(conversationId: string): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -214,11 +215,12 @@ export class SessionManager {
     return this.activateEntry(entry, false);
   }
 
-  async launch(
-    input: AcpStartInput
-  ): Promise<
+  async launch(input: AcpStartInput): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -237,7 +239,10 @@ export class SessionManager {
     removeOnInitialFailure: boolean
   ): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -729,6 +734,7 @@ export class SessionManager {
         ({
           ...(input.model ? { model: input.model } : {}),
           ...(input.effort ? { effort: input.effort } : {}),
+          ...(input.collaborationMode ? { collaborationMode: input.collaborationMode } : {}),
         } satisfies ConfigOverrides),
       options.consumed ?? false,
       options.everMaterialized ?? options.suspended,
@@ -755,6 +761,7 @@ export class SessionManager {
         model: configured.model,
         modeId: configured.modeId,
         effort: configured.effort,
+        collaborationMode: configured.collaborationMode ?? null,
       };
       configOverrides = configuredOverrides(configured);
       retained = { ...parsedV1.data.presentation, configured };
@@ -766,6 +773,7 @@ export class SessionManager {
         model: legacyOverrides?.model ?? legacy.model ?? null,
         modeId: legacy.modeId ?? null,
         effort: legacyOverrides?.effort ?? legacy.effort ?? null,
+        collaborationMode: legacyOverrides?.collaborationMode ?? legacy.collaborationMode ?? null,
       };
       descriptor = {
         conversationId: intent.conversationId,
@@ -775,6 +783,7 @@ export class SessionManager {
         model: configured.model,
         modeId: configured.modeId,
         effort: configured.effort,
+        collaborationMode: configured.collaborationMode,
       };
       configOverrides = configuredOverrides(configured);
       retained = emptyRetainedPresentation(configured);
@@ -942,6 +951,7 @@ function configuredOverrides(configured: RetainedPresentation['configured']): Co
   return {
     ...(configured.model ? { model: configured.model } : {}),
     ...(configured.effort ? { effort: configured.effort } : {}),
+    ...(configured.collaborationMode ? { collaborationMode: configured.collaborationMode } : {}),
   };
 }
 

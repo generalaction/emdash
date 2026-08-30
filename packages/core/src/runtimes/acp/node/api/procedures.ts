@@ -74,7 +74,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     async setOption(input: {
       conversationId: string;
-      key: 'model' | 'mode' | 'effort';
+      key: 'model' | 'mode' | 'effort' | 'collaborationMode';
       value: string;
     }): Promise<Result<void, AcpSetOptionError>> {
       const result = await runtime.setOption(input.conversationId, input.key, input.value);

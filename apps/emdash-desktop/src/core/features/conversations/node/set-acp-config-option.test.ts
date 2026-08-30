@@ -4,7 +4,7 @@ import type { HostConversationMutationDeps } from './host-mutation';
 import { setConversationAcpConfigOption } from './set-acp-config-option';
 
 describe('setConversationAcpConfigOption', () => {
-  it('persists model and effort and can clear an unsupported stored selection', async () => {
+  it('persists ACP selections and can clear an unsupported stored selection', async () => {
     const { deps, hostCalls } = fakeDeps({
       version: '1',
       type: 'acp',
@@ -16,6 +16,11 @@ describe('setConversationAcpConfigOption', () => {
       setConversationAcpConfigOption(deps, 'conversation-1', 'effort', 'high')
     ).resolves.toMatchObject({ success: true, data: { changed: true } });
     expect(hostCalls.at(-1)?.config).toMatchObject({ effort: 'high' });
+
+    await expect(
+      setConversationAcpConfigOption(deps, 'conversation-1', 'collaborationMode', 'plan')
+    ).resolves.toMatchObject({ success: true, data: { changed: true } });
+    expect(hostCalls.at(-1)?.config).toMatchObject({ collaborationMode: 'plan' });
 
     const clearing = fakeDeps({
       version: '1',

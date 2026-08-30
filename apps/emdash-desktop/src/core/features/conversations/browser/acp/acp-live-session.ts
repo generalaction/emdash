@@ -196,7 +196,10 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setOption(key: 'model' | 'mode' | 'effort', value: string): Promise<Result<void, unknown>> {
+  setOption(
+    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
+    value: string
+  ): Promise<Result<void, unknown>> {
     return this.client.setOption({ conversationId: this.conversationId, key, value });
   }
 

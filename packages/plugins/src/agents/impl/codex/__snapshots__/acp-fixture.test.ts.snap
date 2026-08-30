@@ -115,6 +115,7 @@ exports[`Codex ACP fixture parsing > config 1`] = `
       "source": "provider-command",
     },
   ],
+  "collaborationModeOptions": null,
   "efforts": {
     "available": [
       {

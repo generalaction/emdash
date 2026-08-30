@@ -331,7 +331,14 @@ export class ConversationHandle {
   updateConfig(dimension: ConfigDimension, value: string): void {
     this.configOverrides = { ...this.configOverrides, [dimension]: value };
     this.updateConfigured({ [dimension]: value });
-    this.updateDescriptor(dimension === 'model' ? { model: value } : { effort: value }, true);
+    this.updateDescriptor(
+      dimension === 'model'
+        ? { model: value }
+        : dimension === 'effort'
+          ? { effort: value }
+          : { collaborationMode: value },
+      true
+    );
   }
 
   clearMode(): void {
@@ -343,7 +350,14 @@ export class ConversationHandle {
     const { [dimension]: _removed, ...remaining } = this.configOverrides;
     this.configOverrides = remaining;
     this.updateConfigured({ [dimension]: null });
-    this.updateDescriptor(dimension === 'model' ? { model: null } : { effort: null }, true);
+    this.updateDescriptor(
+      dimension === 'model'
+        ? { model: null }
+        : dimension === 'effort'
+          ? { effort: null }
+          : { collaborationMode: null },
+      true
+    );
   }
 
   refreshDescriptor(descriptor: AcpStartInput): void {
@@ -360,6 +374,7 @@ export class ConversationHandle {
     this.configOverrides = {
       ...(descriptor.model ? { model: descriptor.model } : {}),
       ...(descriptor.effort ? { effort: descriptor.effort } : {}),
+      ...(descriptor.collaborationMode ? { collaborationMode: descriptor.collaborationMode } : {}),
     };
     this.updateConfigured(configuredFromDescriptor(descriptor));
   }
@@ -528,6 +543,7 @@ function configuredFromDescriptor(descriptor: AcpStartInput): RetainedPresentati
     model: descriptor.model ?? null,
     modeId: descriptor.modeId ?? null,
     effort: descriptor.effort ?? null,
+    collaborationMode: descriptor.collaborationMode ?? null,
   };
 }
 
@@ -548,6 +564,8 @@ function mergeCapabilities(
     modelOptions: current.modelOptions ?? retained.modelOptions,
     efforts: current.efforts ?? retained.efforts,
     modeOptions: current.modeOptions ?? retained.modeOptions,
+    collaborationModeOptions:
+      current.collaborationModeOptions ?? retained.collaborationModeOptions ?? null,
     availableCommands:
       preservePendingCommands && current.availableCommands.length === 0
         ? retained.availableCommands

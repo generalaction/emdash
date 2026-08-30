@@ -39,6 +39,8 @@ const acpConfigV1 = z.object({
   modeId: z.string().optional(),
   /** Last user-selected provider reasoning/effort id, re-applied on session start. */
   effort: z.string().optional(),
+  /** Last user-selected provider collaboration mode, such as Codex Default or Plan. */
+  collaborationMode: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()

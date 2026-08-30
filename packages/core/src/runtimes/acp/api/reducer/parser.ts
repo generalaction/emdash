@@ -3,7 +3,7 @@
  *
  * A single push() call folds one raw ACP SessionUpdate into all slices:
  *   - transcript (committed turns + active turn)
- *   - config     (modelOptions / efforts / modeOptions / availableCommands)
+ *   - config     (model / effort / permission / collaboration options + commands)
  *   - usage      (contextUsed / contextSize / cost)
  *   - title      (session info title)
  *
