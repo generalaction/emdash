@@ -142,9 +142,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const isRemoteProject = projectContext?.project.type === 'ssh';
   const hostState = projectContext?.host.state;
   const connectionState =
-    workspace.connectionState !== 'connected' || hostState?.kind === 'ready'
+    workspace.connectionState !== 'connected' ||
+    !isRemoteProject ||
+    !hostState ||
+    hostState.kind === 'ready'
       ? workspace.connectionState
-      : hostState?.recovery === 'automatic'
+      : hostState.recovery === 'automatic'
         ? 'reconnecting'
         : 'disconnected';
   return (
