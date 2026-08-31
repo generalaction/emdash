@@ -64,11 +64,18 @@ Behavior:
 - tools: `list_projects`, `list_tasks`, `create_task`, `rename_task`, `archive_task`,
   `delete_task`, `run_task_script`, `stop_task_script`
 - `delete_task` refuses a dirty worktree unless the caller passes `confirm: true`, which
-  the agent is expected to obtain from the user. It reads the checkout's git status live
-  (`git.checkout.model.state(..., 'status')`) rather than the registry mirror's `dirty`
-  flag, because that flag is only as fresh as the last host scan and an agent typically
-  writes files moments before asking to delete. The gate fails closed: a worktree whose
-  status cannot be read needs confirmation too.
+  the agent is expected to obtain from the user. It asks git on the owning host rather
+  than trusting the registry mirror's `dirty` flag, which is only as fresh as the last
+  host scan while an agent typically writes files moments before asking to delete.
+  It takes two reads, because neither is both fresh and complete:
+  `git.checkout.model.state(..., 'status')` is the only exposed read that reports
+  untracked files, but it is recomputed by a filesystem watcher and so can lag a
+  just-written file; `getChangedFiles` with `working-vs-head` is a direct `git diff` with
+  no cache in front of it, so it always reflects the current tracked-file state but never
+  reports untracked files. Either read reporting work means dirty, and only agreement on
+  "nothing" counts as clean. The gate fails closed: an unreadable checkout is `unknown`,
+  which needs confirmation too, and an unopenable one rejects rather than returning an
+  error state, so both reads sit inside a `try`.
 - tool errors are summarized for the caller and logged in full; internal messages
   (paths, SQL, host errors) must not reach the MCP client
 - the server is headless, so it opens a project attachment itself via
