@@ -57,12 +57,18 @@ Behavior:
   start and persisted `0o600` at `<userData>/mcp-token`
 - requests are also rejected unless `Host` and `Origin` are loopback, guarding against
   DNS rebinding from a browser
+- the default port is scanned forward a few slots if it is taken (a second Emdash, or an
+  unrelated squatter); an explicit `EMDASH_MCP_PORT` is taken literally instead
 - the transport runs stateless (`sessionIdGenerator: undefined`, JSON responses), so a
   fresh `McpServer` is built per request
 - tools: `list_projects`, `list_tasks`, `create_task`, `rename_task`, `archive_task`,
   `delete_task`, `run_task_script`, `stop_task_script`
 - `delete_task` refuses a dirty worktree unless the caller passes `confirm: true`, which
-  the agent is expected to obtain from the user
+  the agent is expected to obtain from the user. It reads the checkout's git status live
+  (`git.checkout.model.state(..., 'status')`) rather than the registry mirror's `dirty`
+  flag, because that flag is only as fresh as the last host scan and an agent typically
+  writes files moments before asking to delete. The gate fails closed: a worktree whose
+  status cannot be read needs confirmation too.
 - tool errors are summarized for the caller and logged in full; internal messages
   (paths, SQL, host errors) must not reach the MCP client
 - the server is headless, so it opens a project attachment itself via
@@ -90,4 +96,9 @@ Rules:
   server that happens to be named `emdash` must pass through untouched.
 - the entry is hidden for remote hosts, since the listener is on the desktop's loopback
   interface
-- do not log or persist the token anywhere but its own file
+- registering writes the bearer token into each selected agent's own config file
+  (`~/.claude.json`, `~/.codex/config.toml`, ...), which is how MCP HTTP auth works but
+  does mean the token leaves its `0o600` file. Those files are frequently synced or
+  committed to dotfile repos, and loopback access plus this token is enough to create
+  tasks, so treat the token as a real credential: never log it, and do not copy it
+  anywhere beyond the agent configs the user chose.

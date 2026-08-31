@@ -2,7 +2,10 @@ import React from 'react';
 import mcpDefaultSvg from '@/assets/images/mcp/mcp_default.svg?raw';
 import { coerceRawSvgContent, prepareInlineSvgMarkup } from './mcp-icon-data';
 
-const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { query: '?raw', eager: true });
+// Aliased rather than relative: a relative glob silently matches nothing if this
+// file moves, which is how every catalog icon regressed to the default once
+// before. Keys are reduced to the basename below, so the prefix does not matter.
+const svgs = import.meta.glob('@/assets/images/mcp/*.svg', { query: '?raw', eager: true });
 
 const FALLBACK_ICON_KEY = 'mcp_default';
 
