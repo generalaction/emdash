@@ -479,8 +479,7 @@ function spawnSpec(input: {
   });
   logLocalPtySpawnWarnings('ScriptsRuntime', resolved.warnings, { cwd: input.cwd }, input.logger);
   return {
-    command: resolved.command,
-    args: resolved.args,
+    invocation: resolved.invocation,
     cwd: input.cwd,
     env: input.env,
     cols: input.cols,

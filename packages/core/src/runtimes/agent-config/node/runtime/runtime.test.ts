@@ -170,8 +170,7 @@ describe('AgentConfigRuntime', () => {
     expect(started).toEqual(ok(undefined));
     expect(ptySpawner.processes).toHaveLength(1);
     expect(ptySpawner.specs[0]).toMatchObject({
-      command: '/opt/fake-agent',
-      args: [],
+      invocation: { kind: 'argv', executable: '/opt/fake-agent', argv: [] },
       cwd: '/home/ada',
       cols: 120,
       rows: 30,
@@ -207,8 +206,11 @@ describe('AgentConfigRuntime', () => {
 
     expect(started).toEqual(ok(undefined));
     expect(ptySpawner.specs[0]).toMatchObject({
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', expect.stringContaining(providerPath)],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining(providerPath),
+      },
       cwd: '/home/ada',
     });
     await runtime.dispose();
@@ -233,7 +235,7 @@ describe('AgentConfigRuntime', () => {
     });
     const authCheckStatus = vi.fn(async (ctx: AgentAuthContext) => {
       const result = await ctx.exec(ctx.cli, ['status', 'hello world']);
-      expect(result.stdout).toContain('/d\n/s\n/c\n');
+      expect(result.stdout).toContain('/d /s /c');
       expect(result.stdout).toContain('fake-agent.cmd');
       expect(result.stdout).toContain('hello world');
       expect(ctx.env).not.toHaveProperty('UNSAFE_ENV');

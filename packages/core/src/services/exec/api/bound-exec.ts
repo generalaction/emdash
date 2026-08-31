@@ -5,6 +5,7 @@ import type { EnvSource } from '#primitives/exec/api';
 import {
   createChildProcessTreeTerminator,
   planExecutableLaunch,
+  toChildProcessLaunch,
   type FileExists,
 } from '#primitives/exec/node';
 import {
@@ -84,13 +85,14 @@ class ProcessBoundExec implements BoundExec {
       env: composedEnv,
       fileExists: this.fileExists,
     });
-    recordSpawn(classifySpawnPurpose(this.file, args), plan.executable);
-    return spawnProcess(plan.executable, plan.args, {
+    const launch = toChildProcessLaunch(plan.invocation);
+    recordSpawn(classifySpawnPurpose(this.file, args), launch.executable);
+    return spawnProcess(launch.executable, launch.args, {
       cwd: plan.cwd,
       env: composedEnv,
       signal: options.signal,
       stdio: ['pipe', 'pipe', 'pipe'],
-      windowsVerbatimArguments: plan.windowsVerbatimArguments,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
   }
 
@@ -114,14 +116,15 @@ class ProcessBoundExec implements BoundExec {
         env: composedEnv,
         fileExists: this.fileExists,
       });
+      const launch = toChildProcessLaunch(plan.invocation);
       const spawnOptions: SpawnOptionsWithoutStdio = {
         cwd: plan.cwd,
         env: composedEnv,
         detached: this.platform !== 'win32',
-        windowsVerbatimArguments: plan.windowsVerbatimArguments,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
       };
-      recordSpawn(classifySpawnPurpose(this.file, args), plan.executable);
-      const child = spawnProcess(plan.executable, plan.args, spawnOptions);
+      recordSpawn(classifySpawnPurpose(this.file, args), launch.executable);
+      const child = spawnProcess(launch.executable, launch.args, spawnOptions);
       const terminator = createChildProcessTreeTerminator(child, {
         platform: this.platform,
         processGroup: this.platform !== 'win32',

@@ -220,8 +220,7 @@ export class AgentAuthManager {
     const pty = await this.ptys.create(
       providerId,
       {
-        command: spawn.command,
-        args: spawn.args,
+        invocation: spawn.invocation,
         cwd: this.deps.agentHost.homeDir,
         env,
         cols: dimensions?.cols ?? DEFAULT_COLS,

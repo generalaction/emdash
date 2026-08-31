@@ -4,8 +4,7 @@ import { PtyRegistry } from './pty-registry';
 import type { PtySpawnSpec } from './types';
 
 const spec: PtySpawnSpec = {
-  command: 'claude',
-  args: ['auth', 'login'],
+  invocation: { kind: 'argv', executable: 'claude', argv: ['auth', 'login'] },
   cwd: '/tmp',
   env: { PATH: '/bin' },
   cols: 120,
@@ -57,10 +56,17 @@ describe('PtyRegistry', () => {
     const registry = new PtyRegistry(spawner);
 
     await registry.create('auth:claude', spec);
-    await registry.create('auth:claude', { ...spec, args: [] });
+    await registry.create('auth:claude', {
+      ...spec,
+      invocation: { kind: 'argv', executable: 'claude', argv: [] },
+    });
 
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     expect(spawner.processes).toHaveLength(2);
-    expect(registry.get('auth:claude')?.spec.args).toEqual([]);
+    expect(registry.get('auth:claude')?.spec.invocation).toEqual({
+      kind: 'argv',
+      executable: 'claude',
+      argv: [],
+    });
   });
 });

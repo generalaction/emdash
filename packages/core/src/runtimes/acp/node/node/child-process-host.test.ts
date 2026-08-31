@@ -31,8 +31,8 @@ describe('ChildAcpProcessHost', () => {
 
     const [executable, args, options] = spawnMock.mock.calls[0]!;
     expect(executable).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(args.slice(0, 3)).toEqual(['/d', '/s', '/c']);
-    expect(args[3].toLowerCase()).toContain(shim.toLowerCase());
+    expect(args).toHaveLength(1);
+    expect(args[0].toLowerCase()).toContain(`/d /s /c ""${shim.toLowerCase()}"`);
     expect(options).toMatchObject({ windowsVerbatimArguments: true });
     expect(options).not.toHaveProperty('shell');
   });
@@ -50,7 +50,7 @@ describe('ChildAcpProcessHost', () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       'C:\\Windows\\System32\\cmd.exe',
-      ['/d', '/s', '/c', expect.stringContaining(shim)],
+      [expect.stringContaining(`/d /s /c ""${shim}`)],
       expect.objectContaining({ windowsVerbatimArguments: true })
     );
     expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty('shell');

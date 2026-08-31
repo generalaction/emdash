@@ -343,8 +343,7 @@ export class TerminalsRuntime {
     return await this.registry.create(
       sessionKey,
       {
-        command: resolved.command,
-        args: resolved.args,
+        invocation: resolved.invocation,
         cwd: resolved.cwd,
         env,
         cols: spec.cols ?? DEFAULT_COLS,

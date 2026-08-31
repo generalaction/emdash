@@ -1,9 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { getWindowsEnvValue } from '#primitives/agent-env/api';
-import { formatCommandLine } from '#primitives/exec/api';
-
-export type ExecutableLaunchKind = 'direct' | 'windows-cmd' | 'powershell';
+import { formatCommandLine, type NativeInvocation } from '#primitives/exec/api';
 
 export type ExecutableLaunchDiagnostic = {
   type: 'command-not-found';
@@ -16,11 +14,14 @@ export type ExecutableShellProfile = {
 };
 
 export type ExecutableLaunchPlan = {
+  invocation: NativeInvocation;
+  cwd: string | undefined;
+  diagnostics: ExecutableLaunchDiagnostic[];
+};
+
+export type ChildProcessLaunch = {
   executable: string;
   args: string[];
-  cwd: string | undefined;
-  kind: ExecutableLaunchKind;
-  diagnostics: ExecutableLaunchDiagnostic[];
   windowsVerbatimArguments: boolean;
 };
 
@@ -57,31 +58,34 @@ export function planExecutableLaunch({
   if (extension === '.cmd' || extension === '.bat') {
     const commandLine = formatCommandLine({ command: executable, args: [...args] }, 'windows-cmd');
     return {
-      executable: resolveCmdExecutable(env),
-      args: ['/d', '/s', '/c', wrapCmdExeCommandLine(commandLine)],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: resolveCmdExecutable(env),
+        rawArguments: `/d /s /c ${wrapCmdExeCommandLine(commandLine)}`,
+      },
       cwd,
-      kind: 'windows-cmd',
       diagnostics,
-      windowsVerbatimArguments: true,
     };
   }
 
   if (extension === '.ps1') {
     const selectedPowerShell = shellProfile?.family === 'powershell' ? shellProfile : undefined;
     return {
-      executable: selectedPowerShell?.executable ?? resolveWindowsPowerShell(env, cwd, fileExists),
-      args: [
-        selectedPowerShell ? '-NoLogo' : '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        executable,
-        ...args,
-      ],
+      invocation: {
+        kind: 'argv',
+        executable:
+          selectedPowerShell?.executable ?? resolveWindowsPowerShell(env, cwd, fileExists),
+        argv: [
+          selectedPowerShell ? '-NoLogo' : '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          executable,
+          ...args,
+        ],
+      },
       cwd,
-      kind: 'powershell',
       diagnostics,
-      windowsVerbatimArguments: false,
     };
   }
 
@@ -97,13 +101,27 @@ function directPlan(
   cwd: string | undefined
 ): ExecutableLaunchPlan {
   return {
-    executable,
-    args: [...args],
+    invocation: { kind: 'argv', executable, argv: [...args] },
     cwd,
-    kind: 'direct',
     diagnostics: [],
-    windowsVerbatimArguments: false,
   };
+}
+
+export function toChildProcessLaunch(invocation: NativeInvocation): ChildProcessLaunch {
+  switch (invocation.kind) {
+    case 'argv':
+      return {
+        executable: invocation.executable,
+        args: [...invocation.argv],
+        windowsVerbatimArguments: false,
+      };
+    case 'windows-command-line':
+      return {
+        executable: invocation.executable,
+        args: [invocation.rawArguments],
+        windowsVerbatimArguments: true,
+      };
+  }
 }
 
 function resolveWindowsExecutable(

@@ -25,8 +25,11 @@ describe('resolveLocalPtySpawn', () => {
         },
       })
     ).toEqual({
-      command: '/opt/provider',
-      args: ['run', 'hello world'],
+      invocation: {
+        kind: 'argv',
+        executable: '/opt/provider',
+        argv: ['run', 'hello world'],
+      },
       cwd: '/workspace',
       warnings: [],
     });
@@ -51,8 +54,11 @@ describe('resolveLocalPtySpawn', () => {
     });
 
     expect(resolved).toMatchObject({
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', expect.stringMatching(/provider\.cmd/i)],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringMatching(/^\/d \/s \/c .*provider\.cmd/i),
+      },
       warnings: [],
     });
   });
@@ -72,8 +78,11 @@ describe('resolveLocalPtySpawn', () => {
     });
 
     expect(resolved).toMatchObject({
-      command: powershellProfile.executable,
-      args: ['-NoLogo', '-ExecutionPolicy', 'Bypass', '-File', script, 'run'],
+      invocation: {
+        kind: 'argv',
+        executable: powershellProfile.executable,
+        argv: ['-NoLogo', '-ExecutionPolicy', 'Bypass', '-File', script, 'run'],
+      },
     });
   });
 
@@ -91,12 +100,15 @@ describe('resolveLocalPtySpawn', () => {
     });
 
     expect(resolved).toEqual({
-      command: powershellProfile.executable,
-      args: [
-        '-NoLogo',
-        '-Command',
-        '$env:COREPACK_HOME = "C:\\Corepack"\nif ($?) {\npnpm install\n}',
-      ],
+      invocation: {
+        kind: 'argv',
+        executable: powershellProfile.executable,
+        argv: [
+          '-NoLogo',
+          '-Command',
+          '$env:COREPACK_HOME = "C:\\Corepack"\nif ($?) {\npnpm install\n}',
+        ],
+      },
       cwd: 'C:\\workspace',
       warnings: [],
     });
@@ -165,7 +177,13 @@ describe('resolveLocalPtySpawn', () => {
       },
     });
 
-    expect(resolved.command).toBe(entry.executable);
-    expect(resolved.args.slice(0, entry.commandArgs.length)).toEqual(entry.commandArgs);
+    expect(resolved.invocation.executable).toBe(entry.executable);
+    if (resolved.invocation.kind === 'windows-command-line') {
+      expect(resolved.invocation.rawArguments).toBe(`${entry.commandArgs.join(' ')} echo ready`);
+    } else {
+      expect(resolved.invocation.argv.slice(0, entry.commandArgs.length)).toEqual(
+        entry.commandArgs
+      );
+    }
   });
 });

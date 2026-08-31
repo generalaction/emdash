@@ -5,6 +5,7 @@ import { recordSpawn } from '@emdash/shared/perf';
 import {
   createChildProcessTreeTerminator,
   planExecutableLaunch,
+  toChildProcessLaunch,
   type FileExists,
   type ProcessTreeTerminator,
 } from '#primitives/exec/node';
@@ -137,13 +138,14 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
       env: spec.env,
       fileExists: this.options.fileExists,
     });
-    recordSpawn('agent', plan.executable);
-    const child = spawn(plan.executable, plan.args, {
+    const launch = toChildProcessLaunch(plan.invocation);
+    recordSpawn('agent', launch.executable);
+    const child = spawn(launch.executable, launch.args, {
       cwd: plan.cwd,
       detached: platform !== 'win32',
       env: spec.env,
       stdio: ['pipe', 'pipe', 'pipe'],
-      windowsVerbatimArguments: plan.windowsVerbatimArguments,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
     if (!child.stdin || !child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn process - no stdio streams');
@@ -166,13 +168,14 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
       env: spec.env,
       fileExists: this.options.fileExists,
     });
-    recordSpawn('agent', plan.executable);
-    const child = spawn(plan.executable, plan.args, {
+    const launch = toChildProcessLaunch(plan.invocation);
+    recordSpawn('agent', launch.executable);
+    const child = spawn(launch.executable, launch.args, {
       cwd: plan.cwd,
       detached: platform !== 'win32',
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsVerbatimArguments: plan.windowsVerbatimArguments,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
     if (!child.stdout) {
       throw new Error('ChildAcpProcessHost: failed to spawn terminal - no stdout stream');

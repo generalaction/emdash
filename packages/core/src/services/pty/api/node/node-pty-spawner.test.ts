@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resolveLocalPtySpawn } from '#services/pty/api';
 import { NodePtySpawner } from './node-pty-spawner';
 
 const { spawnMock } = vi.hoisted(() => ({
@@ -22,8 +23,7 @@ describe('NodePtySpawner', () => {
     spawnMock.mockReturnValue(proc);
 
     const spawned = await new NodePtySpawner().spawn({
-      command: 'agent',
-      args: ['--login'],
+      invocation: { kind: 'argv', executable: 'agent', argv: ['--login'] },
       cwd: '/tmp',
       env: { PATH: '/usr/bin' },
       cols: 80,
@@ -41,6 +41,51 @@ describe('NodePtySpawner', () => {
     spawned.resize(100, 30);
     expect(proc.write).toHaveBeenCalledWith('input');
     expect(proc.resize).toHaveBeenCalledWith(100, 30);
+  });
+
+  it('passes a preformatted Windows command line to node-pty without argv serialization', async () => {
+    const proc = {
+      pid: 123,
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    };
+    spawnMock.mockReturnValue(proc);
+    const shim = 'C:\\Program Files\\npm\\pi.cmd';
+    const resolved = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: {
+        PATH: 'C:\\Program Files\\npm',
+        PATHEXT: '.EXE;.cmd',
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+      },
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\workspace',
+        command: {
+          kind: 'argv',
+          command: 'pi',
+          args: ['hello world', 'embedded"quote'],
+        },
+      },
+      fileExists: (candidate) => candidate.toLowerCase() === shim.toLowerCase(),
+    });
+
+    await new NodePtySpawner({ platform: 'win32' }).spawn({
+      invocation: resolved.invocation,
+      cwd: 'C:\\workspace',
+      env: { PATH: 'C:\\Windows\\System32' },
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(spawnMock).toHaveBeenLastCalledWith(
+      'C:\\Windows\\System32\\cmd.exe',
+      '/d /s /c ""C:\\Program Files\\npm\\pi.cmd" "hello world" "embedded^"quote""',
+      expect.objectContaining({ cwd: 'C:\\workspace' })
+    );
   });
 
   it('terminates Windows PTY descendants with taskkill tree semantics', async () => {
@@ -62,8 +107,7 @@ describe('NodePtySpawner', () => {
       exitHandler?.({ exitCode: null, signal: 'SIGTERM' });
     });
     const spawned = await new NodePtySpawner({ platform: 'win32', taskkill }).spawn({
-      command: 'agent.cmd',
-      args: [],
+      invocation: { kind: 'argv', executable: 'agent.cmd', argv: [] },
       cwd: 'C:\\workspace',
       env: { PATH: 'C:\\Windows\\System32' },
       cols: 80,

@@ -1,7 +1,8 @@
 export {
   planExecutableLaunch,
+  toChildProcessLaunch,
+  type ChildProcessLaunch,
   type ExecutableLaunchDiagnostic,
-  type ExecutableLaunchKind,
   type ExecutableLaunchPlan,
   type ExecutableShellProfile,
   type FileExists,

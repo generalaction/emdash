@@ -102,7 +102,7 @@ describe('NodeExecutionContext', () => {
       return true;
     });
 
-    expect(buffered.stdout).toContain('/d\n/s\n/c\n');
+    expect(buffered.stdout).toContain('/d /s /c');
     expect(buffered.stdout).toContain('provider.cmd');
     expect(buffered.stdout).toContain('hello world');
     expect(streaming).toEqual({ exitCode: 0 });
