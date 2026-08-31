@@ -1,4 +1,5 @@
 import type { RawServerEntry } from '@emdash/core/primitives/mcp/api';
+import { EMDASH_SELF_SERVER_NAME } from './managed';
 
 export interface CredentialKeyDef {
   key: string;
@@ -11,9 +12,22 @@ export interface CatalogEntryDef {
   description: string;
   docsUrl: string;
   credentialKeys: CredentialKeyDef[];
+  /** See {@link import('./managed').MCP_MANAGED_META_KEY}. */
+  managed?: boolean;
 }
 
+// Entry order is display order in the catalog UI.
 export const catalogData: Record<string, CatalogEntryDef> = {
+  [EMDASH_SELF_SERVER_NAME]: {
+    // Managed: the real URL and bearer token are injected by the node side on
+    // save, so this config is never used as-is.
+    config: { type: 'http' },
+    name: 'Emdash',
+    description: 'Let agents create and manage Emdash tasks',
+    docsUrl: 'https://github.com/generalaction/emdash',
+    credentialKeys: [],
+    managed: true,
+  },
   playwright: {
     config: {
       command: 'npx',
