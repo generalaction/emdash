@@ -139,8 +139,10 @@ function resolveWindowsExecutable(
         path.win32.join(resolutionCwd, command),
         ...windowsPathDirs(env).map((dir) => path.win32.join(dir, command)),
       ];
+  // PATHEXT extensions come first: npm shim dirs hold an extensionless POSIX
+  // script next to the .cmd, and Windows cannot execute the bare file.
   const hasExtension = path.win32.extname(command).length > 0;
-  const extensions = hasExtension ? [''] : ['', ...windowsPathExtensions(env)];
+  const extensions = hasExtension ? [''] : [...windowsPathExtensions(env), ''];
 
   for (const base of pathCandidates) {
     for (const extension of extensions) {

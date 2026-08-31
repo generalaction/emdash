@@ -60,6 +60,45 @@ describe('planExecutableLaunch', () => {
     });
   });
 
+  it('prefers the cmd shim over an extensionless sibling for a resolved npm bin path', () => {
+    const bare = 'C:\\Users\\dev\\AppData\\Roaming\\npm\\pi';
+    const shim = 'C:\\Users\\dev\\AppData\\Roaming\\npm\\pi.CMD';
+    const plan = planExecutableLaunch({
+      platform: 'win32',
+      command: bare,
+      args: ['--session', 'abc'],
+      cwd: 'C:\\work',
+      env: { PATHEXT: '.COM;.EXE;.BAT;.CMD', ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      fileExists: (candidate) => candidate === bare || candidate === shim,
+    });
+
+    expect(plan).toMatchObject({
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining(shim),
+      },
+      diagnostics: [],
+    });
+  });
+
+  it('falls back to a bare extensionless file when no PATHEXT sibling exists', () => {
+    const bare = 'C:\\Tools\\provider';
+    const plan = planExecutableLaunch({
+      platform: 'win32',
+      command: bare,
+      args: ['run'],
+      cwd: 'C:\\work',
+      env: { PATHEXT: '.COM;.EXE;.BAT;.CMD' },
+      fileExists: (candidate) => candidate === bare,
+    });
+
+    expect(plan).toMatchObject({
+      invocation: { kind: 'argv', executable: bare, argv: ['run'] },
+      diagnostics: [],
+    });
+  });
+
   it('searches PATH for commands that already have an extension', () => {
     const provider = 'C:\\Tools With Spaces\\provider.cmd';
     const plan = planExecutableLaunch({
