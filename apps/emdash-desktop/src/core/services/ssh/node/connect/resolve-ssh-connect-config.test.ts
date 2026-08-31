@@ -808,4 +808,15 @@ describe('resolveSshConnectConfig', () => {
     expect(readFiles).toEqual([expect.stringContaining('/.ssh/corp_ed25519')]);
     expect(result.config.privateKey).toBe('ALIAS KEY');
   });
+
+  it('disables strictVendor so OpenSSH extensions work against non-OpenSSH servers', async () => {
+    const transient = await resolveSshConnectConfig(
+      { kind: 'transient', config: { ...baseConfig(), password: 'secret' } },
+      deps()
+    );
+    const persisted = await resolveSshConnectConfig({ kind: 'persisted', row: row() }, deps());
+
+    expect(transient.config.strictVendor).toBe(false);
+    expect(persisted.config.strictVendor).toBe(false);
+  });
 });

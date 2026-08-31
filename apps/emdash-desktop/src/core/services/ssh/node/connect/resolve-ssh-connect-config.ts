@@ -98,6 +98,13 @@ export async function resolveSshConnectConfig(
     host,
     port,
     username,
+    // ssh2 gates the OpenSSH extensions we rely on (notably
+    // direct-streamlocal@openssh.com, used to reach the workspace-server unix socket)
+    // behind a version-string match on the server banner. Non-OpenSSH servers that do
+    // implement those extensions — Tailscale SSH announces itself as SSH-2.0-Tailscale —
+    // would otherwise be rejected client-side before a channel is ever opened. Let the
+    // server decide: an unsupported extension still fails, just with its own error.
+    strictVendor: false,
     readyTimeout:
       resolved?.connectTimeout !== undefined
         ? resolved.connectTimeout * 1000
