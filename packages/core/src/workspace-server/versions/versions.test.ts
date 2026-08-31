@@ -80,12 +80,13 @@ describe('negotiateProtocol', () => {
       expect(result.compatible).toBe(true);
     });
 
-    it('negotiates an older 5.0 server down from the current optional-field version', () => {
-      expect(PROTOCOL_VERSION).toBe('5.1.0');
-      expect(negotiateProtocol(PROTOCOL_VERSION, '5.0.0')).toEqual({
-        compatible: true,
-        agreedVersion: '5.0.0',
-        agreedMinor: 0,
+    it('rejects the previous protocol major with upgrade-client', () => {
+      expect(PROTOCOL_VERSION).toBe('6.0.0');
+      expect(negotiateProtocol('5.1.0')).toEqual({
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '5.1.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
       });
     });
 
