@@ -36,14 +36,27 @@ const CLEAN_STATUS: StatusSnapshot = {
   summary: { staged: 0, unstaged: 0, conflicted: 0, untracked: 0 },
 };
 
-/** A runtimes client whose only exercised verb is the checkout status snapshot. */
-function fakeRuntimes(status: StatusSnapshot) {
+/**
+ * A runtimes client exposing the two reads the delete gate makes: the watcher-
+ * backed status snapshot and the fresh `git diff`. `snapshot` throws when
+ * `status` is an Error, mirroring a checkout the runtime cannot open at all.
+ */
+function fakeRuntimes(status: StatusSnapshot | Error, changedTrackedFiles = 0) {
   return {
     client: async () =>
       ok({
         git: {
           checkout: {
-            model: { state: () => ({ snapshot: async () => ({ data: status }) }) },
+            model: {
+              state: () => ({
+                snapshot: async () => {
+                  if (status instanceof Error) throw status;
+                  return { data: status };
+                },
+              }),
+            },
+            getChangedFiles: async () =>
+              ok({ files: Array.from({ length: changedTrackedFiles }, () => ({ path: 'a.txt' })) }),
           },
         },
       }),
@@ -73,12 +86,16 @@ function dependencies(overrides: Partial<McpToolDependencies> = {}): McpToolDepe
 
 /** Deps for delete_task: a worktree this task owns, with the given git status. */
 function deleteDependencies(options: {
-  status?: StatusSnapshot;
+  status?: StatusSnapshot | Error;
+  changedTrackedFiles?: number;
   hasWorktree?: boolean;
   deleteTask: ReturnType<typeof vi.fn>;
 }): McpToolDependencies {
   return dependencies({
-    runtimes: fakeRuntimes(options.status ?? CLEAN_STATUS) as never,
+    runtimes: fakeRuntimes(
+      options.status ?? CLEAN_STATUS,
+      options.changedTrackedFiles ?? 0
+    ) as never,
     tasks: {
       getDeletePreflight: async () => ({
         tasks: [{ taskId: 'task-1', hasWorktree: options.hasWorktree ?? true }],
@@ -205,6 +222,36 @@ describe('buildEmdashMcpServer', () => {
 
     expect(result.requiresConfirmation).toBe(true);
     expect(result.reason).toContain('could not check');
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('refuses when opening the checkout throws instead of reporting a state', async () => {
+    const deleteTask = vi.fn();
+    const deps = deleteDependencies({
+      deleteTask,
+      status: new Error('fatal: not a git repository'),
+    });
+
+    const result = parse(
+      await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' })
+    ) as { requiresConfirmation?: boolean; reason?: string };
+
+    expect(result.requiresConfirmation).toBe(true);
+    expect(result.reason).toContain('could not check');
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('trusts the fresh diff when the watcher-backed summary still reads clean', async () => {
+    const deleteTask = vi.fn();
+    const deps = deleteDependencies({
+      deleteTask,
+      status: CLEAN_STATUS,
+      changedTrackedFiles: 1,
+    });
+
+    expect(
+      parse(await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' }))
+    ).toMatchObject({ requiresConfirmation: true, changes: null });
     expect(deleteTask).not.toHaveBeenCalled();
   });
 
