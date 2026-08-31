@@ -23,23 +23,69 @@ function fakeDb(rows: unknown[]) {
   return { select: () => chain };
 }
 
+type StatusSnapshot =
+  | {
+      kind: 'ok';
+      summary: { staged: number; unstaged: number; conflicted: number; untracked: number };
+    }
+  | { kind: 'too-many-files' }
+  | { kind: 'error'; message: string };
+
+const CLEAN_STATUS: StatusSnapshot = {
+  kind: 'ok',
+  summary: { staged: 0, unstaged: 0, conflicted: 0, untracked: 0 },
+};
+
+/** A runtimes client whose only exercised verb is the checkout status snapshot. */
+function fakeRuntimes(status: StatusSnapshot) {
+  return {
+    client: async () =>
+      ok({
+        git: {
+          checkout: {
+            model: { state: () => ({ snapshot: async () => ({ data: status }) }) },
+          },
+        },
+      }),
+  };
+}
+
 function dependencies(overrides: Partial<McpToolDependencies> = {}): McpToolDependencies {
   return {
     appVersion: '0.0.0',
     logger,
-    db: fakeDb([{ id: 'task-1' }]),
+    db: fakeDb([{ id: 'task-1', workspaceId: 'workspace-1' }]),
     projects: {
       track: () => cell({ kind: 'attached' }),
       requireAttached: () => ok({}),
     },
     tasks: {},
-    runtimes: { client: async () => ok({}) },
-    workspaceIdentity: { resolve: async () => null },
+    runtimes: fakeRuntimes(CLEAN_STATUS),
+    workspaceIdentity: {
+      resolve: async () => ({ host: { type: 'local', id: 'local' }, path: '/worktrees/task-1' }),
+    },
     appSettings: { get: async () => ({}) },
     telemetry: { capture: () => {} },
     startInitialConversation: async () => ({ started: true }),
     ...overrides,
   } as unknown as McpToolDependencies;
+}
+
+/** Deps for delete_task: a worktree this task owns, with the given git status. */
+function deleteDependencies(options: {
+  status?: StatusSnapshot;
+  hasWorktree?: boolean;
+  deleteTask: ReturnType<typeof vi.fn>;
+}): McpToolDependencies {
+  return dependencies({
+    runtimes: fakeRuntimes(options.status ?? CLEAN_STATUS) as never,
+    tasks: {
+      getDeletePreflight: async () => ({
+        tasks: [{ taskId: 'task-1', hasWorktree: options.hasWorktree ?? true }],
+      }),
+      deleteTask: options.deleteTask,
+    } as never,
+  });
 }
 
 async function connect(deps: McpToolDependencies): Promise<Client> {
@@ -117,13 +163,9 @@ describe('buildEmdashMcpServer', () => {
 
   it('refuses to delete a dirty worktree without confirmation', async () => {
     const deleteTask = vi.fn();
-    const deps = dependencies({
-      tasks: {
-        getDeletePreflight: async () => ({
-          tasks: [{ taskId: 'task-1', hasUncommittedChanges: true, changedLines: 12 }],
-        }),
-        deleteTask,
-      } as never,
+    const deps = deleteDependencies({
+      deleteTask,
+      status: { kind: 'ok', summary: { staged: 1, unstaged: 2, conflicted: 0, untracked: 3 } },
     });
 
     const result = await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' });
@@ -132,20 +174,55 @@ describe('buildEmdashMcpServer', () => {
     expect(parse(result)).toMatchObject({
       deleted: false,
       requiresConfirmation: true,
-      changedLines: 12,
+      changes: { staged: 1, unstaged: 2, conflicted: 0, untracked: 3 },
     });
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('counts untracked files alone as needing confirmation', async () => {
+    const deleteTask = vi.fn();
+    const deps = deleteDependencies({
+      deleteTask,
+      status: { kind: 'ok', summary: { staged: 0, unstaged: 0, conflicted: 0, untracked: 1 } },
+    });
+
+    expect(
+      parse(await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' }))
+    ).toMatchObject({ requiresConfirmation: true });
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the worktree status cannot be read', async () => {
+    const deleteTask = vi.fn();
+    const deps = deleteDependencies({
+      deleteTask,
+      status: { kind: 'error', message: 'not a git repository' },
+    });
+
+    const result = parse(
+      await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' })
+    ) as { requiresConfirmation?: boolean; reason?: string };
+
+    expect(result.requiresConfirmation).toBe(true);
+    expect(result.reason).toContain('could not check');
+    expect(deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('treats an oversized working set as dirty', async () => {
+    const deleteTask = vi.fn();
+    const deps = deleteDependencies({ deleteTask, status: { kind: 'too-many-files' } });
+
+    expect(
+      parse(await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' }))
+    ).toMatchObject({ requiresConfirmation: true, changes: null });
     expect(deleteTask).not.toHaveBeenCalled();
   });
 
   it('deletes a dirty worktree once confirmed, keeping the branch', async () => {
     const deleteTask = vi.fn(async () => ok(undefined));
-    const deps = dependencies({
-      tasks: {
-        getDeletePreflight: async () => ({
-          tasks: [{ taskId: 'task-1', hasUncommittedChanges: true }],
-        }),
-        deleteTask,
-      } as never,
+    const deps = deleteDependencies({
+      deleteTask,
+      status: { kind: 'ok', summary: { staged: 0, unstaged: 4, conflicted: 0, untracked: 0 } },
     });
 
     expect(
@@ -161,13 +238,21 @@ describe('buildEmdashMcpServer', () => {
 
   it('deletes a clean worktree without confirmation', async () => {
     const deleteTask = vi.fn(async () => ok(undefined));
-    const deps = dependencies({
-      tasks: {
-        getDeletePreflight: async () => ({
-          tasks: [{ taskId: 'task-1', hasUncommittedChanges: false }],
-        }),
-        deleteTask,
-      } as never,
+    const deps = deleteDependencies({ deleteTask });
+
+    expect(
+      parse(await callTool(deps, 'delete_task', { projectId: 'p', taskId: 'task-1' }))
+    ).toMatchObject({ deleted: true });
+    expect(deleteTask).toHaveBeenCalled();
+  });
+
+  it('skips the git check when the delete leaves the worktree in place', async () => {
+    const deleteTask = vi.fn(async () => ok(undefined));
+    const deps = deleteDependencies({
+      deleteTask,
+      hasWorktree: false,
+      // Would demand confirmation if it were consulted.
+      status: { kind: 'ok', summary: { staged: 9, unstaged: 9, conflicted: 0, untracked: 0 } },
     });
 
     expect(

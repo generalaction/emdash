@@ -22,8 +22,14 @@ const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 
 /**
  * True when an installed entry named "emdash" looks like our own loopback
- * registration. A user's unrelated server that happens to be named "emdash" is
- * left alone rather than silently overwritten with our URL and token.
+ * registration, so a user's unrelated server is not silently overwritten with
+ * our URL and token.
+ *
+ * The port is deliberately not compared: healing a registration whose port
+ * changed (EMDASH_MCP_PORT, or the default being taken at startup) is exactly
+ * what this predicate is for. The residual collision is a user server named
+ * "emdash" on loopback under `/mcp`, which would get its URL and headers
+ * rewritten; renaming it opts out.
  */
 export function isSelfServerEntry(server: Pick<McpServer, 'url'>): boolean {
   if (!server.url) return false;

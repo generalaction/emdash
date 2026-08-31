@@ -31,8 +31,16 @@ export async function attachProject(
 
   const state = projects.track(projectId, scope);
   const settled = await new Promise<'attached' | 'failed' | 'timeout'>((resolve) => {
-    if (peek(state).kind === 'attached') {
+    const current = peek(state);
+    if (current.kind === 'attached') {
       resolve('attached');
+      return;
+    }
+    // A recorded failure with nothing in flight ('attaching' is its own state)
+    // means no further update is coming: `track` only starts an attach for an
+    // entry it just created. Answer now instead of waiting out the timeout.
+    if (current.kind === 'absent' && current.lastFailure) {
+      resolve('failed');
       return;
     }
     const timer = setTimeout(
