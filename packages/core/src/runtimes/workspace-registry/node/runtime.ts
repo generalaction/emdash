@@ -364,9 +364,11 @@ export class WorkspaceRegistryRuntime {
       }
     }
     this.recordsCell = cell<WorkspaceRecords>(initial, { name: 'workspace-records' });
-    this.recordsHost = expose(workspaceRegistryContract.records, {
-      list: () => this.recordsCell,
-    });
+    this.recordsHost = expose(
+      workspaceRegistryContract.records,
+      { list: () => this.recordsCell },
+      { publish: { list: 'diff' } }
+    );
     this.bootConfigHydration = Promise.resolve().then(() => this.hydrateBootConfigs());
     this.projectConfigs = family(
       (key, scope) =>

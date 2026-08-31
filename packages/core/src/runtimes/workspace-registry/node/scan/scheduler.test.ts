@@ -153,11 +153,45 @@ function createHarness(
     activeDebounceMs: options.activeDebounceMs ?? 5,
     pollIntervalMs: options.pollIntervalMs ?? 60 * 60_000,
   });
-  scheduler.start();
+  void scheduler.start();
   return { watcher, requests, scheduler };
 }
 
 describe('WorkspaceScanScheduler', () => {
+  it('reports initial readiness only after every startup watch has settled', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const watcher = new FakeWatchService();
+    const requests: ScanRequest[] = [];
+    const scheduler = new WorkspaceScanScheduler({
+      watcher,
+      execute: async (request) => {
+        requests.push(request);
+      },
+      listTargets: () => [repo],
+      isActive: () => false,
+      pollIntervalMs: 60 * 60_000,
+    });
+
+    try {
+      const ready = scheduler.start();
+      let settled = false;
+      void ready.then(() => {
+        settled = true;
+      });
+
+      watcher.resolveReady('/repos/main');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(settled).toBe(false);
+
+      watcher.resolveReady(path.join('/repos/main', '.git'));
+      await ready;
+      expect(settled).toBe(true);
+      expect(requests).toEqual([]);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
   it('rescans a target when its watcher becomes ready', async () => {
     const directory: ScanTarget = {
       id: 'dir-1',
@@ -168,13 +202,72 @@ describe('WorkspaceScanScheduler', () => {
       observedStatus: 'present',
       lastObservedAt: 0,
     };
-    const { watcher, requests, scheduler } = createHarness([directory], { debounceMs: 1 });
+    const targets: ScanTarget[] = [];
+    const { watcher, requests, scheduler } = createHarness(targets, { debounceMs: 1 });
     try {
+      targets.push(directory);
+      scheduler.syncWatches();
       expect(requests).toHaveLength(0);
       watcher.resolveReady('/plain');
 
       await eventually(() => {
         expect(requests).toEqual([{ kind: 'workspace', id: 'dir-1', mode: 'full' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('coalesces repository and worktree watcher readiness into one repository scan', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id);
+    const wtB = worktreeTarget('wt-b', '/worktrees/b', repo.id);
+    const targets: ScanTarget[] = [];
+    const { watcher, requests, scheduler } = createHarness(targets, { debounceMs: 5 });
+    try {
+      targets.push(repo, wtA, wtB);
+      scheduler.syncWatches();
+      watcher.resolveReady('/repos/main');
+      watcher.resolveReady(path.join('/repos/main', '.git'));
+      watcher.resolveReady('/worktrees/a');
+      watcher.resolveReady('/worktrees/b');
+
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: repo.id }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('falls back to a standalone scan when a watched worktree loses its parent record', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const worktree = worktreeTarget('wt-1', '/worktrees/wt', repo.id);
+    const targets = [repo, worktree];
+    const { watcher, requests, scheduler } = createHarness(targets, { debounceMs: 5 });
+    try {
+      targets.splice(0, 1);
+      scheduler.syncWatches();
+      watcher.emit(worktree.path, [{ kind: 'update', path: path.join(worktree.path, 'file.txt') }]);
+
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'full' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('falls back to a standalone scan when a worktree parent is missing', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    repo.observedStatus = 'missing';
+    const worktree = worktreeTarget('wt-1', '/worktrees/wt', repo.id);
+    const { watcher, requests, scheduler } = createHarness([repo, worktree], { debounceMs: 5 });
+    try {
+      watcher.emit(worktree.path, [{ kind: 'update', path: path.join(worktree.path, 'file.txt') }]);
+
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: worktree.id, mode: 'full' }]);
       });
     } finally {
       await scheduler.dispose();
@@ -324,6 +417,29 @@ describe('WorkspaceScanScheduler', () => {
         expect(requests).toContainEqual({ kind: 'workspace', id: 'dir-1', mode: 'full' });
       });
     } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('polls a stale repository and all of its worktrees as one repository scan', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', repo.id);
+    const wtB = worktreeTarget('wt-b', '/worktrees/b', repo.id);
+    const { requests, scheduler } = createHarness([repo, wtA, wtB], {
+      debounceMs: 1,
+      pollIntervalMs: 25,
+      block: () => gate,
+    });
+    try {
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: repo.id }]);
+      });
+    } finally {
+      release();
       await scheduler.dispose();
     }
   });

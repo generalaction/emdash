@@ -116,7 +116,7 @@ export class RegistryScanner {
       const record = this.landing.get(request.id);
       if (!record) return;
       if (request.kind === 'repository') {
-        await this.scanRepository(record, this.landing.list());
+        await this.scanRepositoryGroup(record);
         return;
       }
       if (request.mode === 'refs') {
@@ -192,18 +192,29 @@ export class RegistryScanner {
 
   private async scanRecordPass(record: DurableWorkspaceRecord): Promise<void> {
     if (record.kind === 'repository') {
-      await this.scanRepository(record, this.landing.list());
+      await this.scanRepositoryGroup(record);
       return;
     }
     if (record.kind === 'worktree' && record.parentId !== null) {
       const parent = this.landing.get(record.parentId);
       if (parent && (await isDirectory(parent.path))) {
         // Reconcile through the owning repository so relinks and locked/prunable land.
-        await this.scanRepository(parent, this.landing.list());
+        await this.scanRepositoryGroup(parent);
         return;
       }
     }
     await this.scanStandalone(record);
+  }
+
+  private async scanRepositoryGroup(repository: DurableWorkspaceRecord): Promise<void> {
+    const records = this.landing.list();
+    const settled = await this.scanRepository(repository, records);
+    for (const child of records) {
+      if (child.kind !== 'worktree' || child.parentId !== repository.id || settled.has(child.id)) {
+        continue;
+      }
+      await this.scanStandalone(child);
+    }
   }
 
   /**

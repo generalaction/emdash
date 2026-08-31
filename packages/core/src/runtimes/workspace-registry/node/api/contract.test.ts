@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createScope } from '@emdash/shared/concurrency';
 import { ManualClock } from '@emdash/shared/testing';
+import type { LiveUpdate } from '@emdash/wire/rpc';
 import { pin, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -149,6 +150,34 @@ describe('workspace registry contract', () => {
 
     const records = await listRecords();
     expect(Object.keys(records)).toEqual(['ws-repo']);
+  });
+
+  it('publishes record changes as structural patches instead of whole-map replacements', async () => {
+    const directoryPath = path.join(root, 'diff-published-directory');
+    await fs.mkdir(directoryPath);
+    const lease = runtime.recordsHost.acquireState(undefined, 'list');
+    const source = await lease.ready();
+    const updates: LiveUpdate[] = [];
+    const unsubscribe = await source.subscribe((update) => updates.push(update));
+
+    try {
+      await wire.client.createWorkspace({ workspaceId: 'ws-diff', path: directoryPath });
+
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        delta: [expect.objectContaining({ op: 'add', path: ['ws-diff'] })],
+      });
+      expect(
+        updates.every(
+          (update) =>
+            Array.isArray(update.delta) &&
+            !update.delta.some((patch) => Array.isArray(patch.path) && patch.path.length === 0)
+        )
+      ).toBe(true);
+    } finally {
+      unsubscribe();
+      await lease.release();
+    }
   });
 
   it('createWorkspace detects a plain directory (including subdirectories of a repo)', async () => {
@@ -1215,7 +1244,7 @@ describe('workspace registry contract', () => {
       pollIntervalMs: 60 * 60_000,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
-    scheduler.start();
+    await scheduler.start();
     try {
       await fs.writeFile(path.join(repoPath, 'untracked.txt'), 'a\nb\n');
       await eventually(async () => {

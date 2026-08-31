@@ -75,6 +75,7 @@ export class WorkspaceScanScheduler {
   private readonly muted = new Map<string, number>();
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly rerunAfterFlight = new Map<string, ScanRequest>();
+  private targetsById = new Map<string, ScanTarget>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
@@ -90,17 +91,26 @@ export class WorkspaceScanScheduler {
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   }
 
-  start(): void {
-    this.syncWatches();
+  start(): Promise<void> {
+    const ready = this.reconcileWatches(false);
     this.pollTimer = setInterval(() => this.pollFloor(), this.pollIntervalMs);
     this.pollTimer.unref?.();
+    return ready;
   }
 
   /** Called by the runtime after every records change: reconciles watches with targets. */
   syncWatches(): void {
-    if (this.disposed || this.watcher === null) return;
+    void this.reconcileWatches(true);
+  }
+
+  private reconcileWatches(reconcileOnReady: boolean): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    const targets = this.listTargets();
+    this.targetsById = new Map(targets.map((target) => [target.id, target]));
+    if (this.watcher === null) return Promise.resolve();
     const desired = new Map<string, { target: ScanTarget; gitDir: boolean }>();
-    for (const target of this.listTargets()) {
+    const readiness: Promise<void>[] = [];
+    for (const target of targets) {
       if (target.observedStatus !== 'present') continue;
       desired.set(workingTreeWatchKey(target.path), { target, gitDir: false });
       if (target.kind === 'repository') {
@@ -133,29 +143,26 @@ export class WorkspaceScanScheduler {
               onResync: () => this.request({ kind: 'repository', id: target.id }),
             }
           )
-        : this.watcher.watch(
-            target.path,
-            () => this.request({ kind: 'workspace', id: target.id, mode: 'full' }),
-            {
-              ignore: ['.git/**'],
-              onError,
-              onResync: () => this.request({ kind: 'workspace', id: target.id, mode: 'full' }),
-            }
-          );
+        : this.watcher.watch(target.path, () => this.requestFullScan(target.id), {
+            ignore: ['.git/**'],
+            onError,
+            onResync: () => this.requestFullScan(target.id),
+          });
       handleRef.current = handle;
       this.watches.set(key, handle);
-      void handle.ready().then((attached) => {
+      const ready = handle.ready().then((attached) => {
         if (!attached.success || this.disposed || this.watches.get(key) !== handle) return;
+        if (!reconcileOnReady) return;
 
         // Changes can land after the last scan but before the asynchronous watcher attaches.
-        // Reconcile once at readiness so that startup gap cannot leave observations stale.
-        this.request(
-          gitDir
-            ? { kind: 'repository', id: target.id }
-            : { kind: 'workspace', id: target.id, mode: 'full' }
-        );
+        // Dynamic watches reconcile once at readiness so their attach gap cannot leave
+        // observations stale. Startup instead waits for all watches, then scans the host once.
+        if (gitDir) this.request({ kind: 'repository', id: target.id });
+        else this.requestFullScan(target.id);
       });
+      readiness.push(ready);
     }
+    return Promise.all(readiness).then(() => undefined);
   }
 
   /**
@@ -294,6 +301,13 @@ export class WorkspaceScanScheduler {
     this.pending.set(key, { request, timer });
   }
 
+  private requestFullScan(targetId: string): void {
+    const target = this.targetsById.get(targetId);
+    if (!target) return;
+    if (this.muted.has(target.id)) return;
+    this.request(fullScanRequest(target, this.targetsById));
+  }
+
   private fire(key: string): void {
     const pending = this.pending.get(key);
     if (!pending || this.disposed) return;
@@ -316,15 +330,25 @@ export class WorkspaceScanScheduler {
   private pollFloor(): void {
     this.syncWatches();
     const cutoff = this.clock.now() - this.pollIntervalMs;
-    for (const target of this.listTargets()) {
+    for (const target of this.targetsById.values()) {
       if (target.lastObservedAt > cutoff) continue;
-      this.request(
-        target.kind === 'repository'
-          ? { kind: 'repository', id: target.id }
-          : { kind: 'workspace', id: target.id, mode: 'full' }
-      );
+      if (target.kind === 'repository') this.request({ kind: 'repository', id: target.id });
+      else this.requestFullScan(target.id);
     }
   }
+}
+
+function fullScanRequest(
+  target: ScanTarget,
+  targetsById: ReadonlyMap<string, ScanTarget>
+): ScanRequest {
+  if (target.kind === 'worktree' && target.parentId !== null) {
+    const parent = targetsById.get(target.parentId);
+    if (parent?.kind === 'repository' && parent.observedStatus === 'present') {
+      return { kind: 'repository', id: parent.id };
+    }
+  }
+  return { kind: 'workspace', id: target.id, mode: 'full' };
 }
 
 /** Full scans subsume ref scans; repository reconciliation subsumes both. */
