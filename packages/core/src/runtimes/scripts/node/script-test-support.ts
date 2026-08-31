@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { toChildProcessLaunch } from '#primitives/exec/node';
 import {
   normalizeSignal,
   type PtyExitInfo,
@@ -14,10 +15,12 @@ import {
  */
 export class ChildProcessPtySpawner implements PtySpawner {
   spawn(spec: PtySpawnSpec): PtyProcess {
-    const child = spawn(spec.command, spec.args, {
+    const launch = toChildProcessLaunch(spec.invocation);
+    const child = spawn(launch.executable, launch.args, {
       cwd: spec.cwd,
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
     });
     const dataHandlers: Array<(data: string) => void> = [];
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];

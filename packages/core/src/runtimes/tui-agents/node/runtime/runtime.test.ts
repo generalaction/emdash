@@ -117,8 +117,11 @@ describe('TuiAgentsRuntime', () => {
 
     expect(spawner.specs).toEqual([
       {
-        command: 'agent',
-        args: ['run', 'hello world'],
+        invocation: {
+          kind: 'argv',
+          executable: 'agent',
+          argv: ['run', 'hello world'],
+        },
         cwd: '/workspace',
         env: {
           TERM: 'xterm-256color',
@@ -163,8 +166,11 @@ describe('TuiAgentsRuntime', () => {
     await runtime.startSession(startInput({ cwd: 'C:\\workspace' }));
 
     expect(spawner.specs[0]).toMatchObject({
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', expect.stringContaining(command)],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining(command),
+      },
       cwd: 'C:\\workspace',
     });
   });
@@ -233,11 +239,14 @@ describe('TuiAgentsRuntime', () => {
       })
     );
 
-    expect(spawner.specs[0]!.command).toBe('/bin/bash');
-    expect(spawner.specs[0]!.args[0]).toBe('-lc');
-    expect(spawner.specs[0]!.args[1]).toContain('tmux -u attach-session');
-    expect(spawner.specs[0]!.args[1]).toContain('emdash-test');
-    expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind).toBe('argv');
+    if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
+    expect(invocation.executable).toBe('/bin/bash');
+    expect(invocation.argv[0]).toBe('-lc');
+    expect(invocation.argv[1]).toContain('tmux -u attach-session');
+    expect(invocation.argv[1]).toContain('emdash-test');
+    expect(invocation.argv[1]).toContain("source ~/.profile && agent run 'hello world'");
   });
 
   it('resolves the Windows default shell, applies setup, and removes tmux intent', async () => {
@@ -252,10 +261,16 @@ describe('TuiAgentsRuntime', () => {
     );
 
     expect(spawner.specs[0]).toMatchObject({
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', expect.stringContaining('set READY=1 &&')],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining('/d /s /c set READY=1 &&'),
+      },
     });
-    expect(spawner.specs[0]!.args.join(' ')).not.toContain('tmux');
+    const windowsInvocation = spawner.specs[0]!.invocation;
+    expect(
+      windowsInvocation.kind === 'windows-command-line' ? windowsInvocation.rawArguments : ''
+    ).not.toContain('tmux');
     await runtime.reconcile();
     await runtime.dispose();
     expect(exec.exec).not.toHaveBeenCalled();

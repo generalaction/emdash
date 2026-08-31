@@ -11,12 +11,9 @@ describe('planExecutableLaunch', () => {
         cwd: '/workspace',
       })
     ).toEqual({
-      executable: 'provider',
-      args: ['', 'hello world'],
+      invocation: { kind: 'argv', executable: 'provider', argv: ['', 'hello world'] },
       cwd: '/workspace',
-      kind: 'direct',
       diagnostics: [],
-      windowsVerbatimArguments: false,
     });
   });
 
@@ -52,17 +49,14 @@ describe('planExecutableLaunch', () => {
     });
 
     expect(plan).toEqual({
-      executable: 'C:\\Windows\\System32\\cmd.exe',
-      args: [
-        '/d',
-        '/s',
-        '/c',
-        '""C:\\Program Files\\npm shims\\provider.CMD" "" "hello world" "embedded^"quote" "%%TOKEN%%" "bang^^!" "caret^^" "ampersand^&" "pipe^|" "less^<" "greater^>" "^(parentheses^)" "space trailing\\" ユニコード /c "x ^& echo injected""',
-      ],
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments:
+          '/d /s /c ""C:\\Program Files\\npm shims\\provider.CMD" "" "hello world" "embedded^"quote" "%%TOKEN%%" "bang^^!" "caret^^" "ampersand^&" "pipe^|" "less^<" "greater^>" "^(parentheses^)" "space trailing\\" ユニコード /c "x ^& echo injected""',
+      },
       cwd: 'C:\\Work Space',
-      kind: 'windows-cmd',
       diagnostics: [],
-      windowsVerbatimArguments: true,
     });
   });
 
@@ -77,8 +71,11 @@ describe('planExecutableLaunch', () => {
       fileExists: (candidate) => candidate === provider,
     });
 
-    expect(plan.executable).toBe('C:\\Windows\\cmd.exe');
-    expect(plan.args[3]).toContain(provider);
+    expect(plan.invocation).toMatchObject({
+      kind: 'windows-command-line',
+      executable: 'C:\\Windows\\cmd.exe',
+      rawArguments: expect.stringContaining(provider),
+    });
     expect(plan.diagnostics).toEqual([]);
   });
 
@@ -93,7 +90,10 @@ describe('planExecutableLaunch', () => {
       fileExists: (candidate) => candidate === provider,
     });
 
-    expect(plan).toMatchObject({ executable: provider, kind: 'direct', diagnostics: [] });
+    expect(plan).toMatchObject({
+      invocation: { kind: 'argv', executable: provider },
+      diagnostics: [],
+    });
   });
 
   it('runs native executables directly with exact argv', () => {
@@ -123,10 +123,11 @@ describe('planExecutableLaunch', () => {
     });
 
     expect(plan).toMatchObject({
-      executable: 'C:\\Program Files\\Provider\\provider.exe',
-      args,
-      kind: 'direct',
-      windowsVerbatimArguments: false,
+      invocation: {
+        kind: 'argv',
+        executable: 'C:\\Program Files\\Provider\\provider.exe',
+        argv: args,
+      },
     });
   });
 
@@ -141,7 +142,10 @@ describe('planExecutableLaunch', () => {
       fileExists: (candidate) => candidate === executable,
     });
 
-    expect(plan).toMatchObject({ executable, args: ['run'], kind: 'direct', diagnostics: [] });
+    expect(plan).toMatchObject({
+      invocation: { kind: 'argv', executable, argv: ['run'] },
+      diagnostics: [],
+    });
   });
 
   it('uses the selected PowerShell profile for ps1 files', () => {
@@ -172,16 +176,18 @@ describe('planExecutableLaunch', () => {
     });
 
     expect(plan).toMatchObject({
-      executable: 'C:\\Program Files\\PowerShell\\pwsh.exe',
-      args: [
-        '-NoLogo',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        'C:\\Scripts\\provider.ps1',
-        ...args,
-      ],
-      kind: 'powershell',
+      invocation: {
+        kind: 'argv',
+        executable: 'C:\\Program Files\\PowerShell\\pwsh.exe',
+        argv: [
+          '-NoLogo',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          'C:\\Scripts\\provider.ps1',
+          ...args,
+        ],
+      },
     });
   });
 
@@ -198,9 +204,11 @@ describe('planExecutableLaunch', () => {
     });
 
     expect(plan).toMatchObject({
-      executable: powershell,
-      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, 'run'],
-      kind: 'powershell',
+      invocation: {
+        kind: 'argv',
+        executable: powershell,
+        argv: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, 'run'],
+      },
       diagnostics: [],
     });
   });
@@ -216,9 +224,7 @@ describe('planExecutableLaunch', () => {
     });
 
     expect(plan).toMatchObject({
-      executable: 'missing-provider',
-      args: ['run'],
-      kind: 'direct',
+      invocation: { kind: 'argv', executable: 'missing-provider', argv: ['run'] },
       diagnostics: [{ type: 'command-not-found', command: 'missing-provider' }],
     });
   });
@@ -233,6 +239,6 @@ describe('planExecutableLaunch', () => {
       fileExists: () => true,
     });
 
-    expect(plan.executable).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(plan.invocation.executable).toBe('C:\\Windows\\System32\\cmd.exe');
   });
 });

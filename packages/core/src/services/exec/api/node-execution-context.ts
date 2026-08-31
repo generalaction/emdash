@@ -4,6 +4,7 @@ import type { EnvSource } from '#primitives/exec/api';
 import {
   createChildProcessTreeTerminator,
   planExecutableLaunch,
+  toChildProcessLaunch,
   type FileExists,
 } from '#primitives/exec/node';
 import { createBoundExec } from './bound-exec';
@@ -77,6 +78,7 @@ export class NodeExecutionContext implements IExecutionContext {
       env,
       fileExists: this.fileExists,
     });
+    const launch = toChildProcessLaunch(plan.invocation);
     return new Promise((resolve, reject) => {
       const signal = this.signal(opts.signal);
       if (signal.aborted) {
@@ -84,12 +86,12 @@ export class NodeExecutionContext implements IExecutionContext {
         return;
       }
 
-      recordSpawn(classifySpawnPurpose(command, args), plan.executable);
-      const child = spawn(plan.executable, plan.args, {
+      recordSpawn(classifySpawnPurpose(command, args), launch.executable);
+      const child = spawn(launch.executable, launch.args, {
         cwd: plan.cwd,
         detached: this.platform !== 'win32',
         env,
-        windowsVerbatimArguments: plan.windowsVerbatimArguments,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
       });
       const terminator = createChildProcessTreeTerminator(child, {
         platform: this.platform,

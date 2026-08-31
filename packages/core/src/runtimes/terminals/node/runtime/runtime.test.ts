@@ -435,8 +435,11 @@ describe('TerminalsRuntime', () => {
     });
 
     expect(shellResolver.resolveCalls).toEqual(['zsh']);
-    expect(spawner.specs[0]!.command).toBe('/opt/homebrew/bin/zsh');
-    expect(spawner.specs[0]!.args).toEqual(['-il']);
+    expect(spawner.specs[0]!.invocation).toEqual({
+      kind: 'argv',
+      executable: '/opt/homebrew/bin/zsh',
+      argv: ['-il'],
+    });
     await scope.dispose();
   });
 

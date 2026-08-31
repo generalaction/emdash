@@ -2,7 +2,6 @@ export { createBoundExec, type CreateBoundExecOptions } from './bound-exec';
 export {
   planExecutableLaunch,
   type ExecutableLaunchDiagnostic,
-  type ExecutableLaunchKind,
   type ExecutableLaunchPlan,
   type ExecutableShellProfile,
   type FileExists,

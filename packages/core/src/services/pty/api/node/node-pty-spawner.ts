@@ -35,8 +35,10 @@ export class NodePtySpawner implements PtySpawner {
 
   async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
-      recordSpawn('pty', spec.command);
-      const proc = nodePty.spawn(spec.command, spec.args, {
+      const { invocation } = spec;
+      recordSpawn('pty', invocation.executable);
+      const args = invocation.kind === 'argv' ? [...invocation.argv] : invocation.rawArguments;
+      const proc = nodePty.spawn(invocation.executable, args, {
         name: 'xterm-256color',
         cols: spec.cols,
         rows: spec.rows,

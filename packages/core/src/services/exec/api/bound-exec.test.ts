@@ -106,7 +106,7 @@ describe('BoundExec', () => {
       fileExists: (candidate) => candidate === provider,
     }).exec(['hello world']);
 
-    expect(result.stdout).toContain('/d\n/s\n/c\n');
+    expect(result.stdout).toContain('/d /s /c');
     expect(result.stdout).toContain('provider.cmd');
     expect(result.stdout).toContain('hello world');
   });

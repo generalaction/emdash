@@ -83,7 +83,9 @@ describe('scripts runtime contract', () => {
     expect(started.success && started.data.status).toBe('running');
 
     const spec = spawner.specs[0]!;
-    expect(spec.args?.slice(-1)[0]).toBe('pnpm install');
+    expect(spec.invocation.kind === 'argv' ? spec.invocation.argv.at(-1) : null).toBe(
+      'pnpm install'
+    );
     expect(spec.cwd).toBe(WORKSPACE);
     expect(spec.env).toMatchObject({
       EMDASH_TASK_ID: 'ws-1',
@@ -212,7 +214,8 @@ describe('scripts runtime contract', () => {
   it('executes the supplied command', async () => {
     const result = await start('setup', { command: 'echo personal setup' });
     expect(result.success).toBe(true);
-    expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe('echo personal setup');
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind === 'argv' ? invocation.argv.at(-1) : null).toBe('echo personal setup');
   });
 
   it('stop and wait on a workspace with no runs return not-found', async () => {
@@ -263,7 +266,8 @@ describe('scripts runtime contract', () => {
         command: 'echo supplied command',
         shellSetup: 'source /supplied/profile',
       });
-      expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe(
+      const { invocation } = spawner.specs[0]!;
+      expect(invocation.kind === 'argv' ? invocation.argv.at(-1) : null).toBe(
         'source /supplied/profile && echo supplied command'
       );
       expect(readFile).not.toHaveBeenCalled();
@@ -294,8 +298,11 @@ describe('scripts runtime contract', () => {
 
       expect(result.success).toBe(true);
       expect(windowsSpawner.specs[0]).toMatchObject({
-        command: 'C:\\Windows\\System32\\cmd.exe',
-        args: ['/d', '/s', '/c', 'set READY=1 && pnpm install'],
+        invocation: {
+          kind: 'windows-command-line',
+          executable: 'C:\\Windows\\System32\\cmd.exe',
+          rawArguments: '/d /s /c set READY=1 && pnpm install',
+        },
       });
     } finally {
       windowsRuntime.dispose();
