@@ -41,5 +41,4 @@ export {
   TMUX_SESSION_PREFIX,
 } from './tmux';
 export { buildTerminalEnv } from './terminal-env';
-export type { NativeInvocation } from '#primitives/exec/api';
 export type { PtyDimensions, PtyExitInfo, PtyProcess, PtySpawner, PtySpawnSpec } from './types';
