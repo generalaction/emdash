@@ -1,8 +1,6 @@
-import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
-import { and, eq, isNull } from 'drizzle-orm';
 import type { LifecycleScriptType } from '@core/primitives/tasks/api';
-import { tasks } from '@core/services/app-db/node/schema';
 import type { McpToolDependencies } from './dependencies';
+import { resolveTaskWorkspaceId, resolveWorkspaceRuntime } from './workspace-runtime';
 
 export type TaskScriptInput = {
   projectId: string;
@@ -19,24 +17,6 @@ export type TaskScriptResult =
   | { status: 'not_running'; taskId: string; type: LifecycleScriptType }
   | { status: 'failed'; taskId: string; type: LifecycleScriptType; message: string };
 
-async function resolveWorkspaceId(
-  dependencies: McpToolDependencies,
-  input: TaskScriptInput
-): Promise<{ workspaceId: string } | { message: string }> {
-  const [row] = await dependencies.db
-    .select({ workspaceId: tasks.workspaceId })
-    .from(tasks)
-    .where(
-      and(eq(tasks.id, input.taskId), eq(tasks.projectId, input.projectId), isNull(tasks.deletedAt))
-    )
-    .limit(1);
-  if (!row) return { message: `Task not found in project ${input.projectId}: ${input.taskId}` };
-  if (!row.workspaceId) {
-    return { message: `Task ${input.taskId} has no workspace yet, so it has no scripts to run` };
-  }
-  return { workspaceId: row.workspaceId };
-}
-
 /**
  * Starts one of a task's worktree lifecycle scripts through the same host
  * registry verb the Scripts panel uses, and returns as soon as it has started.
@@ -45,14 +25,14 @@ export async function runTaskScript(
   dependencies: McpToolDependencies,
   input: TaskScriptInput
 ): Promise<TaskScriptResult> {
-  const resolved = await resolveWorkspaceId(dependencies, input);
-  if ('message' in resolved) return { status: 'not_found', message: resolved.message };
+  const resolved = await resolveTaskWorkspaceId(dependencies, input);
+  if (!resolved.success) return { status: 'not_found', message: resolved.error };
 
-  const runtime = await runtimeForWorkspace(dependencies, resolved.workspaceId);
-  if ('message' in runtime) return { status: 'not_found', message: runtime.message };
+  const runtime = await resolveWorkspaceRuntime(dependencies, resolved.data);
+  if (!runtime.success) return { status: 'not_found', message: runtime.error };
 
-  const started = await runtime.client.workspaceRegistry.runScript({
-    workspaceId: resolved.workspaceId,
+  const started = await runtime.data.client.workspaceRegistry.runScript({
+    workspaceId: resolved.data,
     script: input.type,
     provenance: 'manual',
   });
@@ -85,14 +65,14 @@ export async function stopTaskScript(
   dependencies: McpToolDependencies,
   input: TaskScriptInput
 ): Promise<TaskScriptResult> {
-  const resolved = await resolveWorkspaceId(dependencies, input);
-  if ('message' in resolved) return { status: 'not_found', message: resolved.message };
+  const resolved = await resolveTaskWorkspaceId(dependencies, input);
+  if (!resolved.success) return { status: 'not_found', message: resolved.error };
 
-  const runtime = await runtimeForWorkspace(dependencies, resolved.workspaceId);
-  if ('message' in runtime) return { status: 'not_found', message: runtime.message };
+  const runtime = await resolveWorkspaceRuntime(dependencies, resolved.data);
+  if (!runtime.success) return { status: 'not_found', message: runtime.error };
 
-  const stopped = await runtime.client.scripts.stop({
-    workspacePath: runtime.path,
+  const stopped = await runtime.data.client.scripts.stop({
+    workspacePath: runtime.data.path,
     script: input.type,
   });
   if (stopped.success) return { status: 'stopped', taskId: input.taskId, type: input.type };
@@ -105,21 +85,6 @@ export async function stopTaskScript(
     type: input.type,
     message: scriptErrorMessage(stopped.error),
   };
-}
-
-type ResolvedRuntime = { message: string } | { client: HostRuntimesClient; path: string };
-
-async function runtimeForWorkspace(
-  dependencies: McpToolDependencies,
-  workspaceId: string
-): Promise<ResolvedRuntime> {
-  const identity = await dependencies.workspaceIdentity.resolve(workspaceId);
-  if (!identity) return { message: `Workspace ${workspaceId} is no longer known` };
-  const client = await dependencies.runtimes.client(identity.host);
-  if (!client.success) {
-    return { message: `The task's host is unavailable (${client.error.type})` };
-  }
-  return { client: client.data, path: identity.path };
 }
 
 function scriptErrorMessage(error: { type: string; message?: string }): string {
