@@ -11,6 +11,11 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
+import {
+  EMDASH_SELF_SERVER_NAME,
+  isManagedCatalogEntry,
+  isSelfServerEntry,
+} from '@core/primitives/mcp/api';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -94,6 +99,10 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
 }) => {
   const isEdit = mode.type === 'edit';
   const isCatalog = mode.type === 'add-catalog';
+  // Managed entries (Emdash's own MCP server) carry no user-editable connection:
+  // the node side fills in the local URL and bearer token on save, so the form
+  // is reduced to the agent selection.
+  const isManaged = isManagedMode(mode);
   const credentialKeys = isCatalog
     ? new Map(mode.entry.credentialKeys.map((c) => [c.key, c.required]))
     : new Map<string, boolean>();
@@ -169,6 +178,11 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
         {isCatalog && mode.entry.description && (
           <p className="text-muted-foreground mb-4 text-xs">{mode.entry.description}</p>
         )}
+        {isManaged && (
+          <p className="text-muted-foreground mb-4 text-xs">
+            Emdash fills in its local server address and access token for the agents you pick.
+          </p>
+        )}
         <Field.Group>
           <form.Field name="name">
             {(field) => (
@@ -184,7 +198,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
             )}
           </form.Field>
 
-          {!isCatalog && (
+          {!isCatalog && !isManaged && (
             <form.Field name="transport">
               {(field) => (
                 <Field.Root>
@@ -212,7 +226,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
           <form.Subscribe selector={(state) => state.values.transport}>
             {(transport) => (
               <>
-                {transport === 'stdio' && (
+                {!isManaged && transport === 'stdio' && (
                   <>
                     <form.Field name="command">
                       {(field) => (
@@ -245,7 +259,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
                   </>
                 )}
 
-                {transport === 'http' && (
+                {!isManaged && transport === 'http' && (
                   <form.Field name="url">
                     {(field) => (
                       <Field.Root>
@@ -264,38 +278,42 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
             )}
           </form.Subscribe>
 
-          <form.Field name="envEntries">
-            {(field) => (
-              <KeyValueSection
-                label="Environment Variables"
-                entries={field.state.value}
-                onChange={(entries) => field.handleChange(entries)}
-                addLabel="+ Add env var"
-                makeId={makeId}
-                credentialKeys={credentialKeys}
-                splitEnvPaste
-              />
-            )}
-          </form.Field>
+          {!isManaged && (
+            <form.Field name="envEntries">
+              {(field) => (
+                <KeyValueSection
+                  label="Environment Variables"
+                  entries={field.state.value}
+                  onChange={(entries) => field.handleChange(entries)}
+                  addLabel="+ Add env var"
+                  makeId={makeId}
+                  credentialKeys={credentialKeys}
+                  splitEnvPaste
+                />
+              )}
+            </form.Field>
+          )}
 
-          <form.Subscribe selector={(state) => state.values.transport}>
-            {(transport) =>
-              transport === 'http' && (
-                <form.Field name="headerEntries">
-                  {(field) => (
-                    <KeyValueSection
-                      label="Headers"
-                      entries={field.state.value}
-                      onChange={(entries) => field.handleChange(entries)}
-                      addLabel="+ Add header"
-                      makeId={makeId}
-                      credentialKeys={credentialKeys}
-                    />
-                  )}
-                </form.Field>
-              )
-            }
-          </form.Subscribe>
+          {!isManaged && (
+            <form.Subscribe selector={(state) => state.values.transport}>
+              {(transport) =>
+                transport === 'http' && (
+                  <form.Field name="headerEntries">
+                    {(field) => (
+                      <KeyValueSection
+                        label="Headers"
+                        entries={field.state.value}
+                        onChange={(entries) => field.handleChange(entries)}
+                        addLabel="+ Add header"
+                        makeId={makeId}
+                        credentialKeys={credentialKeys}
+                      />
+                    )}
+                  </form.Field>
+                )
+              }
+            </form.Subscribe>
+          )}
 
           <form.Field name="selectedProviders">
             {(field) => (
@@ -338,7 +356,8 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
               !!values.name.trim() &&
               !saving &&
               values.selectedProviders.length > 0 &&
-              !!(values.transport === 'http' ? values.url.trim() : values.command.trim());
+              (isManaged ||
+                !!(values.transport === 'http' ? values.url.trim() : values.command.trim()));
             return (
               <ConfirmButton
                 variant="primary"
@@ -356,6 +375,19 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
     </>
   );
 };
+
+/**
+ * True for the entry Emdash registers for its own MCP server. A catalog entry
+ * declares it in `_meta`; an installed entry is recognised by pointing at the
+ * local server's endpoint, so a user's own server named "emdash" stays editable.
+ */
+function isManagedMode(mode: McpDrawerMode): boolean {
+  if (mode.type === 'add-catalog') return isManagedCatalogEntry(mode.entry);
+  if (mode.type === 'edit') {
+    return mode.server.name === EMDASH_SELF_SERVER_NAME && isSelfServerEntry(mode.server);
+  }
+  return false;
+}
 
 function getInitialState(mode: McpDrawerMode) {
   if (mode.type === 'edit') {

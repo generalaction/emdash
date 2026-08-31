@@ -41,6 +41,7 @@ import {
 import type { PromptLibraryService } from '@core/features/library/node/prompt-library-service';
 import { createPromptLibraryWireController } from '@core/features/library/node/wire-controller';
 import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
+import type { EmdashMcpServerHandle } from '@core/features/mcp/node/server/create-mcp-server';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
 import type { PreviewServerAccessOperations } from '@core/features/preview-servers/node/preview-server-access-service';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
@@ -133,6 +134,7 @@ export type DesktopControllerContext = {
   readonly legacyPortOperations: LegacyPortControllerOperations;
   readonly logger: Logger;
   readonly loggingOperations: LoggingControllerOperations;
+  readonly mcpSelfServer: Pick<EmdashMcpServerHandle, 'resolveSelfServer'>;
   readonly notifications: NotificationService;
   readonly previewServerAccess: PreviewServerAccessOperations;
   readonly projectDeletion: ProjectDeletionDependencies;
@@ -258,7 +260,11 @@ export const desktopNodeControllers = {
       }),
   },
   mcp: {
-    create: ({ runtimes }) => createMcpWireController({ runtimes }),
+    create: ({ mcpSelfServer, runtimes }) =>
+      createMcpWireController({
+        runtimes,
+        resolveSelfServer: (providers) => mcpSelfServer.resolveSelfServer(providers),
+      }),
   },
   skills: {
     create: ({ runtimes }) => createSkillsWireController({ runtimes }),

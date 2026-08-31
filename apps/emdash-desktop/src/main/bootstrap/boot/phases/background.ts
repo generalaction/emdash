@@ -16,6 +16,16 @@ export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntim
   // moved out of preflight under the window-first boot (spec build issue 2).
   runInBackground('updater-initialize', initializeUpdater);
 
+  // Escape hatch for users who do not want a listening socket at all; the
+  // server is loopback-only and token-authenticated, so it is on by default.
+  if (process.env.EMDASH_MCP_SERVER !== 'false') {
+    runInBackground('mcp-server', async () => {
+      await services.mcpServer.start();
+      // Heal an existing registration whose URL or token has since changed.
+      await services.mcpServer.refreshRegistration();
+    });
+  }
+
   runInBackground('dependency-probe', async () => {
     await runtimes.clients.hostDependencies.snapshot.mutate('refresh', {
       key: undefined,
