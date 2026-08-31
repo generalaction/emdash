@@ -107,6 +107,7 @@ export async function resolveSshConnectConfig(
     keepaliveInterval: resolved?.serverAliveInterval ? resolved.serverAliveInterval * 1000 : 60_000,
     keepaliveCountMax: resolved?.serverAliveCountMax ?? 3,
     ...authResult.config,
+    strictVendor: false,
   };
 
   const forwardAgent = resolved?.forwardAgent ?? base.forwardAgent === true;
