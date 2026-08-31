@@ -5,7 +5,6 @@ import type {
   ProjectRecoveryRequestError,
 } from '@core/features/projects/api';
 import { projectAttachmentIssueRecovery } from '@core/features/projects/api/browser/project-attachment-recovery';
-import type { createLayoutStorage, MementoLayoutStorage } from '@core/primitives/mementos/browser';
 import type { Project } from '@core/primitives/projects/api';
 import type { ScopedStoreToken, ScopedStoreValue } from '@core/primitives/scoped-stores/browser';
 import type { HostAvailabilityState } from '@core/services/hosts/api';
@@ -62,9 +61,6 @@ export interface ProjectContext {
   readonly project: Project;
   readonly host: ProjectHostAccess;
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token>;
-  createLayoutStorage(
-    definition: Parameters<typeof createLayoutStorage<'project'>>[1]
-  ): MementoLayoutStorage;
   dispose(): Promise<void>;
 }
 

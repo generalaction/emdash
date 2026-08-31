@@ -23,11 +23,7 @@ import type {
 } from '@core/features/projects/api/host-observation';
 import type { ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
-import {
-  createLayoutStorage,
-  getMementoClient,
-  type SubjectSpace,
-} from '@core/primitives/mementos/browser';
+import { getMementoClient, type SubjectSpace } from '@core/primitives/mementos/browser';
 import { projectHostRef, projectSchema, type Project } from '@core/primitives/projects/api';
 import {
   ScopedStoreHost,
@@ -157,12 +153,6 @@ export class ProjectContext implements ProjectContextApi {
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
     return this.stores.get(token);
-  }
-
-  createLayoutStorage(
-    definition: Parameters<typeof createLayoutStorage<'project'>>[1]
-  ): ReturnType<typeof createLayoutStorage<'project'>> {
-    return createLayoutStorage(this.space, definition);
   }
 
   static async hydrate(
