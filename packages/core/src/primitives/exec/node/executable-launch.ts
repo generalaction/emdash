@@ -140,7 +140,7 @@ function resolveWindowsExecutable(
         ...windowsPathDirs(env).map((dir) => path.win32.join(dir, command)),
       ];
   const hasExtension = path.win32.extname(command).length > 0;
-  const extensions = hasExtension ? [''] : ['', ...windowsPathExtensions(env)];
+  const extensions = hasExtension ? [''] : [...windowsPathExtensions(env), ''];
 
   for (const base of pathCandidates) {
     for (const extension of extensions) {
