@@ -146,6 +146,7 @@ describe('resolveSshConnectConfig', () => {
       username: 'deploy',
       agent: '/tmp/agent.sock',
       agentForward: true,
+      strictVendor: false,
     });
     expect(result.config.sock).toBeDefined();
     expect(spawned).toEqual(['cloudflared access ssh --hostname %h dev.internal:2222 deploy']);
