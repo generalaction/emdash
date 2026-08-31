@@ -11,6 +11,11 @@ import { attachProject } from './attach-project';
 import { createTaskFromPrompt, validProviderIds } from './create-task-from-prompt';
 import type { McpToolDependencies } from './dependencies';
 import { runTaskScript, stopTaskScript } from './run-task-script';
+import {
+  inspectWorktreeChanges,
+  resolveTaskWorkspaceId,
+  type WorktreeChangeCounts,
+} from './workspace-runtime';
 
 const MAX_LISTED_TASKS = 50;
 
@@ -57,6 +62,53 @@ async function findTaskInProject(
   return row;
 }
 
+type DeleteConfirmationGate = Readonly<{
+  reason: string;
+  changes?: WorktreeChangeCounts | null;
+}>;
+
+/**
+ * Returns why deleting a task needs the user's explicit confirmation, or null
+ * when its worktree is verifiably safe to remove.
+ *
+ * Fails closed: a worktree whose state cannot be read counts as needing
+ * confirmation, because refusing a delete is recoverable and deleting
+ * uncommitted work is not.
+ */
+async function deleteConfirmationGate(
+  dependencies: McpToolDependencies,
+  projectId: string,
+  taskId: string
+): Promise<DeleteConfirmationGate | null> {
+  const preflight = await dependencies.tasks.getDeletePreflight([taskId]);
+  const item = preflight.tasks.find((task) => task.taskId === taskId);
+  if (!item) {
+    return { reason: 'Emdash could not determine what deleting this task would remove.' };
+  }
+  // Nothing to lose: either the task has no worktree, or another task still uses
+  // it and the delete leaves it in place.
+  if (!item.hasWorktree) return null;
+
+  const workspaceId = await resolveTaskWorkspaceId(dependencies, { projectId, taskId });
+  if (!workspaceId.success) {
+    return { reason: `Emdash could not locate the task's worktree (${workspaceId.error}).` };
+  }
+
+  const changes = await inspectWorktreeChanges(dependencies, workspaceId.data);
+  if (changes.kind === 'clean') return null;
+  if (changes.kind === 'unknown') {
+    return {
+      reason:
+        'Emdash could not check the worktree for uncommitted changes ' +
+        `(${changes.reason}), so it may contain work that would be lost.`,
+    };
+  }
+  return {
+    reason: 'The task worktree has uncommitted changes that will be permanently lost.',
+    changes: changes.counts,
+  };
+}
+
 const projectIdInput = z.string().describe('Project id from list_projects');
 const taskIdInput = z.string().describe('Task id from list_tasks or create_task');
 const scriptTypeInput = z.enum(['setup', 'run', 'teardown']);
@@ -91,14 +143,23 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
     'list_tasks',
     {
       title: 'List tasks',
-      description: 'Lists tasks in an Emdash project, most recently updated first.',
-      inputSchema: { projectId: projectIdInput },
+      description:
+        `Lists tasks in an Emdash project, most recently updated first, up to ${MAX_LISTED_TASKS} ` +
+        'of them. Archived tasks are left out unless you ask for them. When the result is ' +
+        'truncated, do not assume a task you cannot see does not exist.',
+      inputSchema: {
+        projectId: projectIdInput,
+        includeArchived: z
+          .boolean()
+          .optional()
+          .describe('Include archived tasks in the list; defaults to false'),
+      },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    guarded(dependencies, 'list_tasks', async ({ projectId }) => {
+    guarded(dependencies, 'list_tasks', async ({ projectId, includeArchived }) => {
       // Query directly instead of the task list service: that assembles
       // conversation and diff-stat aggregates this output never uses.
-      const projectTasks = await db
+      const rows = await db
         .select({
           id: tasks.id,
           name: tasks.name,
@@ -108,9 +169,19 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
           workspaceId: tasks.workspaceId,
         })
         .from(tasks)
-        .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)))
+        .where(
+          and(
+            eq(tasks.projectId, projectId),
+            isNull(tasks.deletedAt),
+            includeArchived === true ? undefined : isNull(tasks.archivedAt)
+          )
+        )
         .orderBy(desc(tasks.updatedAt))
-        .limit(MAX_LISTED_TASKS);
+        // One extra row is the cheapest way to know the list was cut short.
+        .limit(MAX_LISTED_TASKS + 1);
+
+      const truncated = rows.length > MAX_LISTED_TASKS;
+      const projectTasks = truncated ? rows.slice(0, MAX_LISTED_TASKS) : rows;
 
       const workspaceIds = projectTasks
         .map((task) => task.workspaceId)
@@ -123,8 +194,8 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
         : [];
       const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
 
-      return textResult(
-        projectTasks.map((task) => {
+      return textResult({
+        tasks: projectTasks.map((task) => {
           const workspace = task.workspaceId ? workspaceById.get(task.workspaceId) : undefined;
           return {
             id: task.id,
@@ -135,8 +206,17 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
             branchName: workspace ? getProvisionedWorkspaceBranch(workspace) : null,
             workspacePath: workspace?.path ?? null,
           };
-        })
-      );
+        }),
+        truncated,
+        ...(truncated
+          ? {
+              note:
+                `Only the ${MAX_LISTED_TASKS} most recently updated tasks are shown. Older ` +
+                'tasks exist but are not listed, so treat a missing task as unknown rather ' +
+                'than absent.',
+            }
+          : {}),
+      });
     })
   );
 
@@ -271,9 +351,9 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
       title: 'Delete task',
       description:
         'Deletes an Emdash task and removes its worktree. The task branch is always kept, so ' +
-        'committed work stays recoverable. If the worktree has uncommitted changes the tool ' +
-        'returns requiresConfirmation instead of deleting; get the user’s explicit approval, ' +
-        'then retry with confirm: true.',
+        'committed work stays recoverable. If the worktree has uncommitted changes, or Emdash ' +
+        'cannot verify that it is clean, the tool returns requiresConfirmation instead of ' +
+        'deleting; get the user’s explicit approval, then retry with confirm: true.',
       inputSchema: {
         projectId: projectIdInput,
         taskId: taskIdInput,
@@ -292,15 +372,13 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
       const row = await findTaskInProject(dependencies, projectId, taskId);
       if (!row) return errorResult(`Task not found in project ${projectId}: ${taskId}`);
 
-      // The preflight reads dirty state from the workspace mirror, which is only
-      // fresh while the host is attached; fail closed rather than delete a
-      // worktree whose state could not be verified.
+      // Hold the attachment across both steps: the delete's session teardown
+      // needs it, and it keeps the host runtime up for the status read.
       const attached = await attachProject(dependencies.projects, projectId);
       if (!attached.success) return errorResult(attached.error);
       try {
-        const preflight = await dependencies.tasks.getDeletePreflight([taskId]);
-        const item = preflight.tasks.find((task) => task.taskId === taskId);
-        if (item?.hasUncommittedChanges && confirm !== true) {
+        const gate = await deleteConfirmationGate(dependencies, projectId, taskId);
+        if (gate && confirm !== true) {
           // An ordinary (non-error) result: the agent is expected to relay this
           // to its user and retry with confirm, not to treat it as a failure and
           // work around the check by touching the worktree itself.
@@ -308,9 +386,7 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
             taskId,
             deleted: false,
             requiresConfirmation: true,
-            reason: 'The task worktree has uncommitted changes that will be permanently lost.',
-            changedLines: item.changedLines ?? null,
-            unpushedCommits: item.unpushedCommits ?? null,
+            ...gate,
             instructions:
               'Ask the user to confirm deleting this task, then call delete_task again with ' +
               "confirm: true. Do not set confirm without the user's explicit approval, and do " +

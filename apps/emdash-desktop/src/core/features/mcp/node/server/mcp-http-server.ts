@@ -8,6 +8,12 @@ import { EMDASH_MCP_PATH } from '@core/primitives/mcp/api';
 
 /** 8212 = U+2014 EM DASH. Override with EMDASH_MCP_PORT. */
 export const DEFAULT_MCP_PORT = 8212;
+/**
+ * How many ports past the default to try when it is taken, so a second Emdash
+ * (canary beside prod) or an unrelated squatter does not leave the server down.
+ * An explicit EMDASH_MCP_PORT is taken literally and never scanned past.
+ */
+const PORT_SCAN_ATTEMPTS = 10;
 const MAX_BODY_BYTES = 4_000_000;
 
 // Loopback only: requests are rejected unless both the Host header and, when a
@@ -35,6 +41,10 @@ function hostnameOf(value: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function isAddressInUse(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'EADDRINUSE';
 }
 
 function tokensMatch(expected: string, presented: string): boolean {
@@ -72,11 +82,52 @@ export class McpHttpServer {
   private async doStart(): Promise<void> {
     const { logger } = this.options;
     this.token = await this.loadOrCreateToken();
-    const envPort = Number(process.env.EMDASH_MCP_PORT);
-    const port =
-      this.options.portOverride ??
-      (Number.isInteger(envPort) && envPort > 0 ? envPort : DEFAULT_MCP_PORT);
 
+    const candidates = this.candidatePorts();
+    let lastError: unknown;
+    for (const [index, candidate] of candidates.entries()) {
+      const server = this.createServer();
+      try {
+        await this.listen(server, candidate);
+      } catch (error) {
+        lastError = error;
+        // Reset fully so getConnectionInfo() reports not-running instead of a
+        // port-0 URL that self-registration would write into agent configs.
+        server.close();
+        this.server = null;
+        this.port = 0;
+        if (isAddressInUse(error) && index < candidates.length - 1) {
+          logger.info(`McpHttpServer: port ${candidate} is in use, trying the next one`);
+          continue;
+        }
+        throw error;
+      }
+
+      // Without a listener, a post-startup server 'error' event would crash the
+      // main process (unhandled EventEmitter error).
+      server.on('error', (error) => {
+        logger.error('McpHttpServer: server error', { error: String(error) });
+      });
+      logger.info(`McpHttpServer: listening at ${this.getUrl()}`);
+      return;
+    }
+    throw lastError;
+  }
+
+  /**
+   * The one requested port, or the default plus a short scan. `portOverride`
+   * (tests) and EMDASH_MCP_PORT are explicit instructions, so they are not
+   * scanned past.
+   */
+  private candidatePorts(): number[] {
+    if (this.options.portOverride !== undefined) return [this.options.portOverride];
+    const envPort = Number(process.env.EMDASH_MCP_PORT);
+    if (Number.isInteger(envPort) && envPort > 0) return [envPort];
+    return Array.from({ length: PORT_SCAN_ATTEMPTS }, (_, offset) => DEFAULT_MCP_PORT + offset);
+  }
+
+  private createServer(): http.Server {
+    const { logger } = this.options;
     const server = http.createServer((req, res) => {
       this.handleRequest(req, res).catch((error) => {
         logger.error('McpHttpServer: request handler error', { error: String(error) });
@@ -84,34 +135,20 @@ export class McpHttpServer {
       });
     });
     this.server = server;
+    return server;
+  }
 
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const onError = (error: Error) => reject(error);
-        server.once('error', onError);
-        server.listen(port, '127.0.0.1', () => {
-          server.removeListener('error', onError);
-          const address = server.address();
-          this.port = typeof address === 'object' && address ? address.port : port;
-          resolve();
-        });
+  private listen(server: http.Server, port: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => reject(error);
+      server.once('error', onError);
+      server.listen(port, '127.0.0.1', () => {
+        server.removeListener('error', onError);
+        const address = server.address();
+        this.port = typeof address === 'object' && address ? address.port : port;
+        resolve();
       });
-    } catch (error) {
-      // Reset fully so getConnectionInfo() reports not-running instead of a
-      // port-0 URL that self-registration would write into agent configs.
-      server.close();
-      this.server = null;
-      this.port = 0;
-      throw error;
-    }
-
-    // Without a listener, a post-startup server 'error' event would crash the
-    // main process (unhandled EventEmitter error).
-    server.on('error', (error) => {
-      logger.error('McpHttpServer: server error', { error: String(error) });
     });
-
-    logger.info(`McpHttpServer: listening at ${this.getUrl()}`);
   }
 
   async stop(): Promise<void> {
