@@ -39,43 +39,49 @@ describe('TuiConversationProvider', () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
-  it('routes native-id providers to the runtime resume path when a native id exists', async () => {
-    const provider = createProvider();
+  it.each(['codex', 'prime-agent'])(
+    'routes native-id provider %s to the runtime resume path when a native id exists',
+    async (providerId) => {
+      const provider = createProvider();
 
-    await provider.ensureSession({
-      conversation: conversation({ providerId: 'codex', sessionId: 'native-session' }),
-      mode: 'resume',
-      initialPrompt: 'do not replay',
-    });
+      await provider.ensureSession({
+        conversation: conversation({ providerId, sessionId: 'native-session' }),
+        mode: 'resume',
+        initialPrompt: 'do not replay',
+      });
 
-    expect(resume).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'codex',
-        sessionId: 'native-session',
-        initialPrompt: undefined,
-      })
-    );
-    expect(start).not.toHaveBeenCalled();
-  });
+      expect(resume).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId,
+          sessionId: 'native-session',
+          initialPrompt: undefined,
+        })
+      );
+      expect(start).not.toHaveBeenCalled();
+    }
+  );
 
-  it('downgrades missing-native-id providers to fresh without replaying the prompt', async () => {
-    const provider = createProvider();
+  it.each(['codex', 'prime-agent'])(
+    'downgrades missing-native-id provider %s to fresh without replaying the prompt',
+    async (providerId) => {
+      const provider = createProvider();
 
-    await provider.ensureSession({
-      conversation: conversation({ providerId: 'codex', sessionId: 'conversation-1' }),
-      mode: 'resume',
-      initialPrompt: 'do not replay',
-    });
+      await provider.ensureSession({
+        conversation: conversation({ providerId, sessionId: 'conversation-1' }),
+        mode: 'resume',
+        initialPrompt: 'do not replay',
+      });
 
-    expect(start).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'codex',
-        sessionId: null,
-        initialPrompt: undefined,
-      })
-    );
-    expect(resume).not.toHaveBeenCalled();
-  });
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId,
+          sessionId: null,
+          initialPrompt: undefined,
+        })
+      );
+      expect(resume).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     { label: 'local', host: { type: 'local', id: 'local' } as const },

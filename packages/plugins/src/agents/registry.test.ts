@@ -20,6 +20,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'oh-my-pi',
   'opencode',
   'pi',
+  'prime-agent',
   'qoder',
   'qwen',
 ].sort();

@@ -7,13 +7,13 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (35)
+## Current Providers (36)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, jules, junie, oh-my-pi, pi, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, jules, junie, oh-my-pi, pi, prime-agent, autohand, letta, mimocode, zero
 
-## Current ACP-Capable Providers (22)
+## Current ACP-Capable Providers (23)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, codebuddy
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, prime-agent, codebuddy
 
 ## Provider Metadata Includes
 
@@ -50,6 +50,7 @@ The global roots used by the built-in integrations are:
 | OpenCode, MiMoCode, Devin | Provider override where supported, then XDG config on POSIX or APPDATA on Windows |
 | Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
+| Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
 
 Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
 `agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
@@ -81,6 +82,11 @@ host's `agent-config` runtime for both local and remote hosts.
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
+- Prime Agent uses its native ACP stdio mode (`prime-agent --mode acp`). Its TUI extension reports
+  session file paths, turn starts, and turn completion for resume and notification support. Emdash
+  synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP
+  sessions receive those definitions through `session/new`, and Prime exposes them to the model
+  through its pre-imported `mcp` Python program.
 
 ## Adding Or Changing A Provider
 

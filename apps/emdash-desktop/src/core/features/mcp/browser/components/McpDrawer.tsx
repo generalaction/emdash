@@ -117,6 +117,10 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
       envEntries: toKV(initial.env),
       headerEntries: toKV(initial.headers),
       selectedProviders: initial.providers,
+      enabled: initial.enabled,
+      cwd: initial.cwd,
+      timeout: initial.timeout,
+      oauth: initial.oauth,
     },
   });
 
@@ -142,6 +146,10 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
         env: filledEnv.length
           ? Object.fromEntries(filledEnv.map((e) => [e.key, e.value]))
           : undefined,
+        enabled: v.enabled,
+        cwd: v.transport === 'stdio' ? v.cwd : undefined,
+        timeout: v.timeout,
+        oauth: v.transport === 'http' ? v.oauth : undefined,
         providers: v.selectedProviders,
       };
       await onSave(server);
@@ -369,6 +377,10 @@ function getInitialState(mode: McpDrawerMode) {
       env: Object.entries(s.env ?? {}),
       headers: Object.entries(s.headers ?? {}),
       providers: s.providers,
+      enabled: s.enabled,
+      cwd: s.cwd,
+      timeout: s.timeout,
+      oauth: s.oauth,
     };
   }
   if (mode.type === 'add-catalog') {
@@ -385,6 +397,15 @@ function getInitialState(mode: McpDrawerMode) {
       env: clearPlaceholders(Object.entries((cfg.env as Record<string, string>) ?? {})),
       headers: clearPlaceholders(Object.entries((cfg.headers as Record<string, string>) ?? {})),
       providers: [] as string[],
+      enabled: typeof cfg.enabled === 'boolean' ? cfg.enabled : undefined,
+      cwd: typeof cfg.cwd === 'string' ? cfg.cwd : undefined,
+      timeout: typeof cfg.timeout === 'number' ? cfg.timeout : undefined,
+      oauth:
+        cfg.oauth === true
+          ? {}
+          : cfg.oauth === false || (typeof cfg.oauth === 'object' && cfg.oauth !== null)
+            ? (cfg.oauth as Record<string, unknown> | false)
+            : undefined,
     };
   }
   return {
@@ -396,5 +417,9 @@ function getInitialState(mode: McpDrawerMode) {
     env: [] as [string, string][],
     headers: [] as [string, string][],
     providers: [] as string[],
+    enabled: undefined,
+    cwd: undefined,
+    timeout: undefined,
+    oauth: undefined,
   };
 }
