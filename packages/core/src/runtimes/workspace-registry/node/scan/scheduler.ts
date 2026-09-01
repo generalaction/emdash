@@ -33,7 +33,10 @@ export type WorkspaceScanSchedulerOptions = {
   watcher: IWatchService | null;
   execute: (request: ScanRequest) => Promise<void>;
   listTargets: () => ScanTarget[];
-  /** Activity escalation gate: active workspaces coalesce on a shorter debounce. */
+  /**
+   * Activity gate: active workspaces hold a working-tree watch and coalesce on a shorter
+   * debounce; idle ones rely on the polling floor.
+   */
   isActive: (id: string) => boolean;
   watchIgnore?: readonly string[];
   clock?: Clock;
@@ -62,8 +65,9 @@ type PendingScan = {
  * Event-driven freshness for the workspace registry (ADR 0005): fs events are the
  * primary trigger, classified into cheap ref-only scans vs full scans; rapid triggers
  * coalesce per record (full beats refs); a polling floor guarantees staleness is bounded
- * even when watchers fail. The scheduler never writes the registry — it only asks the
- * sole-writer runtime to scan.
+ * even when watchers fail. Working-tree watches exist only for active workspaces, so watch
+ * usage scales with what is in use rather than with every registered path. The scheduler
+ * never writes the registry — it only asks the sole-writer runtime to scan.
  */
 export class WorkspaceScanScheduler {
   private readonly watcher: IWatchService | null;
@@ -123,7 +127,9 @@ export class WorkspaceScanScheduler {
     const readiness: Promise<void>[] = [];
     for (const target of targets) {
       if (target.observedStatus !== 'present') continue;
-      desired.set(workingTreeWatchKey(target.path), { target, gitDir: false });
+      if (this.isActive(target.id)) {
+        desired.set(workingTreeWatchKey(target.path), { target, gitDir: false });
+      }
       if (target.kind === 'repository') {
         desired.set(gitDirWatchKey(target.path), { target, gitDir: true });
       }

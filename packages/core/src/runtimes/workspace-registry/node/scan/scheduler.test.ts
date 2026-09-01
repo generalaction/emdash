@@ -150,9 +150,12 @@ function createHarness(
       await options.block?.();
     },
     listTargets: () => targets,
-    isActive: (id) => options.active?.has(id) ?? false,
+    // Working-tree watches follow activity, so the harness treats every target as active
+    // unless a test supplies its own set. Both debounces then default to the same value so
+    // tests that only tune `debounceMs` keep the timing they were written against.
+    isActive: (id) => (options.active ? options.active.has(id) : true),
     debounceMs: options.debounceMs ?? 20,
-    activeDebounceMs: options.activeDebounceMs ?? 5,
+    activeDebounceMs: options.activeDebounceMs ?? options.debounceMs ?? 20,
     pollIntervalMs: options.pollIntervalMs ?? 60 * 60_000,
   });
   void scheduler.start();
@@ -168,7 +171,7 @@ describe('WorkspaceScanScheduler', () => {
       watcher,
       execute: async () => {},
       listTargets: () => [repo, worktree],
-      isActive: () => false,
+      isActive: () => true,
       watchIgnore: ['**/dist/**'],
       pollIntervalMs: 60 * 60_000,
     });
@@ -196,7 +199,7 @@ describe('WorkspaceScanScheduler', () => {
         requests.push(request);
       },
       listTargets: () => [repo],
-      isActive: () => false,
+      isActive: () => true,
       pollIntervalMs: 60 * 60_000,
     });
 
@@ -613,6 +616,85 @@ describe('WorkspaceScanScheduler', () => {
       watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/a.txt' }]);
       await eventually(() => {
         expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'full' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('holds working-tree watches only for active workspaces, metadata watches always', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const activeWorktree = worktreeTarget('wt-a', '/worktrees/a', 'repo-1');
+    const idleWorktree = worktreeTarget('wt-b', '/worktrees/b', 'repo-1');
+    const { watcher, scheduler } = createHarness([repo, activeWorktree, idleWorktree], {
+      active: new Set(['wt-a']),
+    });
+    try {
+      // The idle repository keeps its `.git` watch but not its working-tree watch.
+      expect([...watcher.roots.keys()].sort()).toEqual([
+        path.join('/repos/main', '.git'),
+        '/worktrees/a',
+      ]);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('adds a working-tree watch on activation and scans once it attaches', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const worktree = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
+    const active = new Set<string>();
+    const { watcher, requests, scheduler } = createHarness([repo, worktree], {
+      active,
+      debounceMs: 1,
+    });
+    try {
+      expect(watcher.roots.has('/worktrees/wt')).toBe(false);
+
+      active.add('wt-1');
+      scheduler.syncWatches();
+      expect(watcher.roots.has('/worktrees/wt')).toBe(true);
+      expect(requests).toHaveLength(0);
+
+      // Changes may have landed while the workspace was idle and unwatched: attaching
+      // reconciles once, and a worktree with a present parent scans as that repository.
+      watcher.resolveReady('/worktrees/wt');
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('releases the working-tree watch once a workspace goes idle', async () => {
+    const worktree = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
+    const active = new Set(['wt-1']);
+    const { watcher, scheduler } = createHarness([worktree], { active });
+    try {
+      const attempt = watcher.roots.get('/worktrees/wt');
+      expect(attempt).toBeDefined();
+
+      active.delete('wt-1');
+      scheduler.syncWatches();
+      expect(attempt?.released).toBe(true);
+      expect(watcher.roots.has('/worktrees/wt')).toBe(false);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('keeps polling idle workspaces so they stay eventually consistent unwatched', async () => {
+    const worktree = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
+    const { watcher, requests, scheduler } = createHarness([worktree], {
+      active: new Set(),
+      debounceMs: 1,
+      pollIntervalMs: 25,
+    });
+    try {
+      expect(watcher.roots.size).toBe(0);
+      await eventually(() => {
+        expect(requests).toContainEqual({ kind: 'workspace', id: 'wt-1', mode: 'full' });
       });
     } finally {
       await scheduler.dispose();
