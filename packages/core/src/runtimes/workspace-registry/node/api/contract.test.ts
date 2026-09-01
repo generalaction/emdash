@@ -1230,7 +1230,7 @@ describe('workspace registry contract', () => {
     });
   });
 
-  it('fs events refresh observations without any client call', async () => {
+  it('fs events refresh observations for an active workspace without an explicit refresh', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-live', path: repoPath });
 
@@ -1239,13 +1239,14 @@ describe('workspace registry contract', () => {
       watcher: watchService,
       execute: (request) => runtime.executeScanRequest(request),
       listTargets: () => runtime.scanTargets(),
-      isActive: () => false,
+      isActive: (id) => runtime.isWorkspaceActive(id),
       debounceMs: 25,
       pollIntervalMs: 60 * 60_000,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
     await scheduler.start();
     try {
+      await wire.client.activateWorkspace({ workspaceId: 'ws-live' });
       await fs.writeFile(path.join(repoPath, 'untracked.txt'), 'a\nb\n');
       await eventually(async () => {
         const records = await listRecords();
