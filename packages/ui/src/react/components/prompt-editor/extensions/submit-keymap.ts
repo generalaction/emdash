@@ -30,10 +30,7 @@ export function buildSubmitKeymap({ getShortcut, onSubmit }: SubmitKeymapOptions
 
         'Mod-Enter': () => submit('mod-enter'),
 
-        'Shift-Enter': ({ editor }) => {
-          editor.commands.setHardBreak();
-          return true;
-        },
+        'Shift-Enter': ({ editor }) => editor.chain().setHardBreak().scrollIntoView().run(),
       };
     },
   });

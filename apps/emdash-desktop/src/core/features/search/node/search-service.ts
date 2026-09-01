@@ -1,4 +1,4 @@
-import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
 import {
   isRuntimeResolveError,
   type HostRuntimesClient,
@@ -68,7 +68,7 @@ export type SearchServiceDeps = {
   acquireWorkspaceRuntime(workspaceId: string): Promise<WorkspaceRuntimeAccess | null>;
   searchFileSearchRoot(
     client: HostRuntimesClient['fileSearch'],
-    root: HostAbsolutePath,
+    root: HostFileRef,
     query: string,
     limit?: number
   ): Promise<WorkspaceFileHit[]>;
@@ -110,7 +110,7 @@ export class SearchService {
     if (!workspace) return [];
     return await this.deps.searchFileSearchRoot(
       workspace.client.fileSearch,
-      workspace.files.root,
+      hostFileRef(workspace.identity.host, workspace.files.root),
       query,
       limit
     );

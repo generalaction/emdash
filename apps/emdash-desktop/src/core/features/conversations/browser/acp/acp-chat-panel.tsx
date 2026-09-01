@@ -491,12 +491,12 @@ const ComposerForStore = observer(function ComposerForStore({
           });
         }
 
-        const fileItems = files.map((f) => ({
-          id: f.path,
-          label: f.path,
-          name: f.filename,
-          kind: 'file' as const,
-          description: f.path,
+        const fileItems: MentionItem[] = files.map((file) => ({
+          id: file.relativePath,
+          label: file.relativePath,
+          name: file.filename,
+          kind: 'file',
+          description: file.relativePath,
         }));
 
         return [...pinnedIssueItems, ...fileItems, ...searchedIssueItems];

@@ -1,14 +1,20 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { encodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { openCommandPaletteFile } from './open-command-palette-file';
 
 const mocks = vi.hoisted(() => ({
-  openFileInTaskEditor: vi.fn(),
+  openFile: vi.fn(),
 }));
 
-vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
-  openFileInTaskEditor: mocks.openFileInTaskEditor,
+vi.mock('@core/features/workbench/api/browser/open-file', () => ({
+  openFile: mocks.openFile,
 }));
+
+const fileRef = hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo/src/command-k.ts'));
+const resource = encodeResourceUri(fileRef);
 
 describe('openCommandPaletteFile', () => {
   beforeEach(() => {
@@ -21,7 +27,7 @@ describe('openCommandPaletteFile', () => {
 
     openCommandPaletteFile(
       {
-        id: '/repo/src/command-k.ts',
+        resource,
         projectId: 'project-1',
         taskId: 'task-1',
       },
@@ -29,11 +35,10 @@ describe('openCommandPaletteFile', () => {
       navigate
     );
 
-    expect(mocks.openFileInTaskEditor).toHaveBeenCalledWith(
-      'project-1',
-      'task-1',
-      '/repo/src/command-k.ts'
-    );
+    expect(mocks.openFile).toHaveBeenCalledWith(fileRef, {
+      context: { projectId: 'project-1', taskId: 'task-1' },
+      reveal: true,
+    });
     expect(dismiss).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith(
       taskViewDef({ projectId: 'project-1', taskId: 'task-1' })
@@ -46,7 +51,7 @@ describe('openCommandPaletteFile', () => {
 
     openCommandPaletteFile(
       {
-        id: '/repo/src/command-k.ts',
+        resource,
         projectId: null,
         taskId: null,
       },
@@ -54,7 +59,7 @@ describe('openCommandPaletteFile', () => {
       navigate
     );
 
-    expect(mocks.openFileInTaskEditor).not.toHaveBeenCalled();
+    expect(mocks.openFile).not.toHaveBeenCalled();
     expect(dismiss).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });

@@ -1,3 +1,5 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { encodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { createController } from '@emdash/wire/rpc';
@@ -35,6 +37,15 @@ vi.mock('@core/features/projects/api/node/project-events', () => ({
 
 describe('SearchService runtime file search', () => {
   const root = hostPathFromNative('/repo');
+  const rootRef = hostFileRef(LOCAL_HOST_REF, root);
+  const relativePath = portablePath('src/index.ts');
+  const hit = {
+    resource: encodeResourceUri(
+      hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo/src/index.ts'))
+    ),
+    relativePath,
+    filename: 'index.ts',
+  };
   const searchService = createSearchService({
     db: {} as never,
     sqlite: { prepare: mocks.prepare } as never,
@@ -47,20 +58,19 @@ describe('SearchService runtime file search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.workspaceGet.mockReturnValue({
+      identity: { host: LOCAL_HOST_REF },
       client: { fileSearch: { searchPaths: vi.fn() } },
       files: { root },
     });
-    mocks.fileSearch.mockResolvedValue([{ path: '/repo/src/index.ts', filename: 'index.ts' }]);
+    mocks.fileSearch.mockResolvedValue([hit]);
     mocks.getSearchExclusions.mockResolvedValue(['dist']);
   });
 
   it('delegates path search to the resolved workspace runtime', async () => {
-    await expect(searchService.searchFiles('workspace-1', 'index', 25)).resolves.toEqual([
-      { path: '/repo/src/index.ts', filename: 'index.ts' },
-    ]);
+    await expect(searchService.searchFiles('workspace-1', 'index', 25)).resolves.toEqual([hit]);
     expect(mocks.fileSearch).toHaveBeenCalledWith(
       expect.objectContaining({ searchPaths: expect.any(Function) }),
-      root,
+      rootRef,
       'index',
       25
     );

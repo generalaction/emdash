@@ -1,4 +1,5 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { encodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
@@ -84,18 +85,25 @@ describe('file-search runtime client', () => {
     expect(mocks.registerRoot).toHaveBeenNthCalledWith(2, { root, exclusions: ['dist'] });
   });
 
-  it('searches only files and preserves absolute desktop file identities', async () => {
-    const root = hostPathFromNative('/repo');
+  it('searches only files and preserves canonical identity plus the relative coordinate', async () => {
+    const root = hostFileRef(hostRef('remote', 'machine-1'), hostPathFromNative('/repo'));
+    const relativePath = portablePath('src/index.ts');
     mocks.searchPaths.mockResolvedValue(
-      ok({ hits: [{ path: portablePath('src/index.ts'), kind: 'file' as const }] })
+      ok({ hits: [{ path: relativePath, kind: 'file' as const }] })
     );
 
     const client = { searchPaths: mocks.searchPaths } as never;
     await expect(searchFileSearchRoot(client, root, 'index', 500)).resolves.toEqual([
-      { path: '/repo/src/index.ts', filename: 'index.ts' },
+      {
+        resource: encodeResourceUri(
+          hostFileRef(root.host, hostPathFromNative('/repo/src/index.ts'))
+        ),
+        relativePath,
+        filename: 'index.ts',
+      },
     ]);
     expect(mocks.searchPaths).toHaveBeenCalledWith({
-      root,
+      root: root.path,
       query: 'index',
       kinds: ['file'],
       limit: 200,
@@ -103,9 +111,9 @@ describe('file-search runtime client', () => {
   });
 
   it('quietly omits file hits while a root index is still being built', async () => {
-    const root = hostPathFromNative('/repo');
+    const root = hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo'));
     mocks.searchPaths.mockResolvedValue(
-      err({ type: 'index-not-ready', root, message: 'still building' })
+      err({ type: 'index-not-ready', root: root.path, message: 'still building' })
     );
 
     await expect(
@@ -115,8 +123,10 @@ describe('file-search runtime client', () => {
   });
 
   it('logs operational search failures and returns no file hits', async () => {
-    const root = hostPathFromNative('/repo');
-    mocks.searchPaths.mockResolvedValue(err({ type: 'io', root, message: 'database failed' }));
+    const root = hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo'));
+    mocks.searchPaths.mockResolvedValue(
+      err({ type: 'io', root: root.path, message: 'database failed' })
+    );
 
     await expect(
       searchFileSearchRoot({ searchPaths: mocks.searchPaths } as never, root, 'index')
