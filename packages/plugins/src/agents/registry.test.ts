@@ -25,6 +25,20 @@ const GLOBAL_HOOK_PROVIDERS = [
 ].sort();
 
 describe('agent plugin registry', () => {
+  it('advertises Claude Opus 5', () => {
+    const claude = pluginRegistry.get('claude');
+
+    expect(claude).toBeDefined();
+    expect(claude?.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'claude-opus-5': {
+          name: 'Claude Opus 5',
+        },
+      },
+    });
+  });
+
   it('keeps every shipped hook integration user-global', () => {
     const hookProviders = pluginRegistry
       .getAll()
