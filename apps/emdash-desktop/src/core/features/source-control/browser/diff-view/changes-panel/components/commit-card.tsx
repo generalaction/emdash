@@ -1,4 +1,5 @@
 import { Input, SplitButton, Textarea, toast } from '@emdash/ui/react/primitives';
+import { card } from '@emdash/ui/styles/recipes/card';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -14,6 +15,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 type CommitPhase =
   | 'idle'
@@ -156,7 +158,12 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       : diffView.effectiveCommitAction;
 
   return (
-    <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
+    <div
+      className={cn(
+        card({ level: 'elevated-emphasis', radius: 'lg', padding: 'sm' }),
+        'mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2'
+      )}
+    >
       <Input
         placeholder="Commit message"
         className="w-full bg-background"
