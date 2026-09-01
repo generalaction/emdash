@@ -143,6 +143,7 @@ function createDirectoryTreeModelProvider(
             {
               root: key.root,
               sessionId: key.sessionId,
+              watchScope: 'children',
             },
             name
           )
@@ -163,6 +164,7 @@ function createDirectoryTreeModelProvider(
         {
           root: envelope.key.root,
           sessionId: envelope.key.sessionId,
+          watchScope: 'children',
         }
       );
     },

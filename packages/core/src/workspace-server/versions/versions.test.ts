@@ -81,7 +81,7 @@ describe('negotiateProtocol', () => {
     });
 
     it('rejects the previous protocol major with upgrade-client', () => {
-      expect(PROTOCOL_VERSION).toBe('6.0.0');
+      expect(PROTOCOL_VERSION).toBe('6.1.0');
       expect(negotiateProtocol('5.1.0')).toEqual({
         compatible: false,
         action: 'upgrade-client',
