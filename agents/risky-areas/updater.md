@@ -87,6 +87,25 @@ R2 uploads continue until telemetry confirms all clients have migrated to the Gi
 - `scripts/release/rebuild-native.ts` — uses `@electron/rebuild`'s `rebuild()` API (no CLI spawn)
 - `scripts/release/notarize-mac.ts` — uses `@electron/notarize`'s `notarize()` API for DMG submission + auto-staple; system spawns are kept only for `.app` bundle stapling and Gatekeeper verification
 
+## Release Manifest Parser Dependency
+
+Release scripts declare `yaml` 2.9 as a direct development dependency because electron-builder
+emits YAML updater manifests that must be parsed, structurally validated, merged, and serialized.
+Node.js does not provide a YAML parser. A handwritten parser would be unsafe, while importing the
+copy used transitively by Vite or electron-builder would create an undeclared and unstable
+dependency on their internal dependency graphs.
+
+Dependency assessment recorded on 2026-09-01:
+
+- `yaml` 2.9.0 was already resolved in `pnpm-lock.yaml`, so declaring it directly adds no package
+  resolution or transitive dependency
+- the package uses the permissive ISC license, has no runtime dependencies or native components,
+  and defines no install or postinstall lifecycle hook
+- a targeted `pnpm audit` check reports no advisory for `yaml`; the workspace-wide audit still
+  reports unrelated existing dependency findings and is not considered clean
+- it remains a development dependency because only repository release tooling imports it; it is not
+  shipped as an application runtime dependency
+
 ## Current Notes
 
 - macOS and Linux release jobs rebuild native modules for the target Electron version
