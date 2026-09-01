@@ -3,25 +3,13 @@ import {
   expectedManifestFiles,
   expectedReleaseAssets,
   findMissingReleaseAssets,
-  forbiddenReleaseAssets,
   isPlatformReleaseAsset,
   releaseIdentity,
-  selectedReleaseArches,
 } from './release-assets.ts';
 
-describe('selectedReleaseArches', () => {
-  it('expands both in a stable order', () => {
-    expect(selectedReleaseArches('both')).toEqual(['x64', 'arm64']);
-  });
-
-  it('keeps a single requested architecture', () => {
-    expect(selectedReleaseArches('arm64')).toEqual(['arm64']);
-  });
-});
-
 describe('expectedReleaseAssets', () => {
-  it('requires all stable installers and manifests for a dual-architecture release', () => {
-    const assets = expectedReleaseAssets('stable', 'both');
+  it('requires all stable installers and manifests', () => {
+    const assets = expectedReleaseAssets('stable');
 
     expect(assets).toContain('emdash-x86_64.AppImage');
     expect(assets).toContain('emdash-amd64.deb');
@@ -35,20 +23,16 @@ describe('expectedReleaseAssets', () => {
     expect(assets).toContain('v1-stable-linux-arm64.yml');
   });
 
-  it('does not require x64 macOS or Linux assets for an ARM-only canary', () => {
-    const assets = expectedReleaseAssets('canary', 'arm64');
-
+  it('requires the complete canary architecture set', () => {
+    const assets = expectedReleaseAssets('canary');
     expect(assets).toContain('emdash-canary-arm64.dmg');
     expect(assets).toContain('emdash-canary-arm64.AppImage');
     expect(assets).toContain('canary-linux-arm64.yml');
-    expect(assets).not.toContain('emdash-canary-x64.dmg');
-    expect(assets).not.toContain('emdash-canary-x86_64.AppImage');
-    expect(assets).not.toContain('canary-linux.yml');
-  });
-
-  it('always requires the supported x64 Windows artifacts', () => {
-    expect(expectedReleaseAssets('stable', 'arm64')).toEqual(
-      expect.arrayContaining(['emdash-x64.exe', 'emdash-x64.msi', 'latest.yml'])
+    expect(assets).toContain('emdash-canary-x64.dmg');
+    expect(assets).toContain('emdash-canary-x86_64.AppImage');
+    expect(assets).toContain('canary-linux.yml');
+    expect(assets).toEqual(
+      expect.arrayContaining(['emdash-canary-x64.exe', 'emdash-canary-x64.msi', 'canary.yml'])
     );
   });
 });
@@ -96,8 +80,8 @@ describe('isPlatformReleaseAsset', () => {
 });
 
 describe('expectedManifestFiles', () => {
-  it('requires both mac architectures in a dual-architecture release', () => {
-    const manifests = expectedManifestFiles('stable', 'both');
+  it('requires the complete architecture set', () => {
+    const manifests = expectedManifestFiles('stable');
 
     expect(manifests.get('latest-mac.yml')).toEqual([
       'emdash-x64.zip',
@@ -123,39 +107,18 @@ describe('expectedManifestFiles', () => {
     ]);
   });
 
-  it('requires only selected architecture entries for a partial release', () => {
-    const manifests = expectedManifestFiles('canary', 'arm64');
+  it('requires both canary Linux manifests', () => {
+    const manifests = expectedManifestFiles('canary');
 
-    expect(manifests.get('canary-mac.yml')).toEqual([
-      'emdash-canary-arm64.zip',
-      'emdash-canary-arm64.dmg',
+    expect(manifests.get('canary-linux.yml')).toEqual([
+      'emdash-canary-x86_64.AppImage',
+      'emdash-canary-amd64.deb',
+      'emdash-canary-x86_64.rpm',
     ]);
-    expect(manifests.has('canary-linux.yml')).toBe(false);
     expect(manifests.get('v1-canary-linux-arm64.yml')).toEqual([
       'emdash-canary-arm64.AppImage',
       'emdash-canary-arm64.deb',
       'emdash-canary-aarch64.rpm',
     ]);
-  });
-});
-
-describe('forbiddenReleaseAssets', () => {
-  it('rejects stale assets for an architecture that was not selected', () => {
-    expect(forbiddenReleaseAssets('stable', 'x64')).toEqual(
-      expect.arrayContaining([
-        'emdash-arm64.AppImage',
-        'emdash-arm64.deb',
-        'emdash-aarch64.rpm',
-        'emdash-arm64.dmg',
-        'emdash-arm64.zip',
-        'latest-linux-arm64.yml',
-        'v1-stable-linux-arm64.yml',
-      ])
-    );
-    expect(forbiddenReleaseAssets('stable', 'x64')).toHaveLength(7);
-  });
-
-  it('has no forbidden architecture assets when both are selected', () => {
-    expect(forbiddenReleaseAssets('stable', 'both')).toEqual([]);
   });
 });

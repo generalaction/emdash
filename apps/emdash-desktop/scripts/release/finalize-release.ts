@@ -22,11 +22,8 @@ import {
   expectedManifestFiles,
   expectedReleaseAssets,
   findMissingReleaseAssets,
-  forbiddenReleaseAssets,
-  isReleaseArch,
   releaseIdentity,
 } from './lib/release-assets.ts';
-import type { ReleaseArch } from './lib/release-assets.ts';
 import { releaseHasOwnership } from './lib/release-ownership.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
@@ -34,7 +31,6 @@ import type { ReleaseChannel } from './lib/version.ts';
 const { values } = parseArgs({
   options: {
     channel: { type: 'string', default: 'stable' },
-    arch: { type: 'string', default: 'both' },
     'release-id': { type: 'string' },
   },
   strict: true,
@@ -50,15 +46,6 @@ if (!values['release-id']) {
   await finalizeLegacyRelease(channel, token);
   process.exit(0);
 }
-
-const archInput = values.arch ?? 'both';
-if (!isReleaseArch(archInput)) {
-  fail(`Unknown architecture "${archInput}"; must be "arm64", "x64", or "both"`);
-}
-if (archInput !== 'both') {
-  fail('Public releases must contain the complete x64 and arm64 architecture set');
-}
-const arch: ReleaseArch = archInput;
 
 const releaseId = Number(values['release-id']);
 if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
@@ -95,7 +82,7 @@ if (!release.draft && release.prerelease !== isCanary) {
   fail(`Published release ${releaseId} has an unexpected prerelease state`);
 }
 
-step(`Verifying release assets and update manifests for ${arch}`);
+step('Verifying the complete release asset and update manifest inventory');
 const assets = await octokit.paginate(octokit.rest.repos.listReleaseAssets, {
   owner: GITHUB_OWNER,
   repo: GITHUB_REPO,
@@ -104,23 +91,16 @@ const assets = await octokit.paginate(octokit.rest.repos.listReleaseAssets, {
 });
 const assetNames = assets.map((asset) => asset.name);
 const assetNameSet = new Set(assetNames);
-const expectedAssets = expectedReleaseAssets(channel, arch);
+const expectedAssets = expectedReleaseAssets(channel);
 const missingAssets = findMissingReleaseAssets(assetNames, expectedAssets);
 if (missingAssets.length > 0) {
   fail(`Refusing to publish ${tag}; missing release assets:\n${missingAssets.join('\n')}`);
 }
-const forbidden = forbiddenReleaseAssets(channel, arch).filter((name) => assetNameSet.has(name));
-if (forbidden.length > 0) {
-  fail(
-    `Refusing to publish ${tag}; found assets for an unselected architecture:\n${forbidden.join('\n')}`
-  );
-}
-
 const assetByName = new Map(assets.map((asset) => [asset.name, asset]));
 const manifestContents = new Map<string, string>();
 const manifestMetadata = new Map<string, { sha512: string; size?: number }>();
 const { artifactPrefix, r2Channel } = releaseIdentity(channel);
-for (const [manifestName, requiredFiles] of expectedManifestFiles(channel, arch)) {
+for (const [manifestName, requiredFiles] of expectedManifestFiles(channel)) {
   const asset = assetByName.get(manifestName);
   if (!asset) fail(`Missing update manifest asset: ${manifestName}`);
   const content = new TextDecoder().decode(await downloadAsset(asset.url, token));
