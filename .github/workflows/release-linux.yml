@@ -1,0 +1,101 @@
+name: Release Linux
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        type: string
+      release_id:
+        description: Exact GitHub draft release id created by the caller
+        required: true
+        type: string
+      posthog_key:
+        description: Public PostHog project key embedded in the desktop client
+        required: false
+        type: string
+        default: ''
+      posthog_host:
+        description: Public PostHog host embedded in the desktop client
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
+    container: ubuntu:22.04
+    steps:
+      - name: Install system build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: >
+          apt-get update &&
+          apt-get install -y
+          build-essential
+          ca-certificates
+          cpio
+          curl
+          git
+          libsecret-1-dev
+          pkg-config
+          python-is-python3
+          python3
+          python3-setuptools
+          python3-wheel
+          rpm
+          xz-utils
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ inputs.posthog_key }}
+          posthog-host: ${{ inputs.posthog_host }}
+          build-variant: ${{ inputs.channel == 'canary' && 'canary' || 'prod' }}
+          setup-python: 'false'
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build Linux ${{ matrix.arch }} packages
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RELEASE_CONFIG: ${{ inputs.channel == 'canary' && 'electron-builder.canary.config.ts' || 'electron-builder.config.ts' }}
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform linux --arch "$RELEASE_ARCH" --targets AppImage,deb,rpm
+          --config "$RELEASE_CONFIG" --channel "$RELEASE_CHANNEL"
+          --release-id "${{ inputs.release_id }}"
+
+      - name: Verify Linux ${{ matrix.arch }} packages
+        working-directory: apps/emdash-desktop
+        env:
+          ARTIFACT_PREFIX: ${{ inputs.channel == 'canary' && 'emdash-canary' || 'emdash' }}
+          EXECUTABLE_NAME: ${{ inputs.channel == 'canary' && 'emdash-canary' || 'Emdash' }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: >
+          node --experimental-strip-types scripts/release/verify-linux.ts
+          --arch "$RELEASE_ARCH" --targets AppImage,deb,rpm
+          --prefix "$ARTIFACT_PREFIX" --executable "$EXECUTABLE_NAME"
+
+      - name: Upload verified Linux ${{ matrix.arch }} assets to owned draft
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: >
+          node --experimental-strip-types scripts/release/upload-github-assets.ts
+          --platform linux --channel "$RELEASE_CHANNEL"
+          --release-id "${{ inputs.release_id }}"

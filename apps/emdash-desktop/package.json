@@ -140,7 +140,8 @@
     "typescript": "^6.0.2",
     "vite": "^6.4.1",
     "vitest": "^4.1.0",
-    "vitest-browser-react": "^2.1.0"
+    "vitest-browser-react": "^2.1.0",
+    "yaml": "^2.9.0"
   },
   "engines": {
     "node": ">=24.0.0",
