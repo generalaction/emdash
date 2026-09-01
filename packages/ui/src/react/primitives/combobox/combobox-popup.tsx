@@ -49,6 +49,8 @@ interface ComboboxPopupProps {
   header?: React.ReactNode;
   /** Render label and description as two stacked rows instead of a single row. */
   stacked?: boolean;
+  /** Give path-heavy suggestion lists additional horizontal space. */
+  wide?: boolean;
   className?: string;
 }
 
@@ -56,7 +58,7 @@ interface ComboboxPopupProps {
 
 export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopupProps>(
   function ComboboxPopup(
-    { items, anchorRect, onSelect, emptyLabel, header, stacked = false, className },
+    { items, anchorRect, onSelect, emptyLabel, header, stacked = false, wide = false, className },
     ref
   ) {
     const [selectedIndex, setSelectedIndex] = React.useState(0);
@@ -122,7 +124,12 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
       <div
         role="listbox"
         style={style}
-        className={cx('surface-elevated', styles.popupRoot, className)}
+        className={cx(
+          'surface-elevated',
+          styles.popupRoot,
+          wide && styles.popupRootWide,
+          className
+        )}
       >
         {header && <div className={styles.popupHeader}>{header}</div>}
         <ul ref={listRef} className={styles.popupList}>

@@ -517,6 +517,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
             items={mentionPopupItems}
             anchorRect={mentionSuggestion.rect}
             className={popupClassName}
+            wide
             onSelect={(popupItem) => {
               const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
               if (original) mentionSuggestion.onSelect(original);

@@ -15,6 +15,11 @@ export const popupRoot = style({
   animation: `${kfPopupIn} 100ms both`,
 });
 
+export const popupRootWide = style({
+  width: 'min(30rem, calc(100vw - 1rem))',
+  maxWidth: 'calc(100vw - 1rem)',
+});
+
 export const popupHeader = style({
   borderBottom: `1px solid ${vars.border}`,
   paddingLeft: '0.5rem',
