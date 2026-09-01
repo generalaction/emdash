@@ -23,7 +23,7 @@ import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import type { RepositoryResource } from '#runtimes/git/node/repository/repository-resource';
 import type { WorktreeWatchEffects } from '#runtimes/git/node/repository/watch-classifier';
-import { requireWatchReady, type IWatchService, type WatchHandle } from '#services/fs-watch/api';
+import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 import { GitFileContentRegistry } from './file-content-registry';
 import type { GitCheckout } from './git-checkout';
 
@@ -65,14 +65,7 @@ export class CheckoutResource {
   private disposed = false;
 
   static async create(options: CheckoutResourceOptions): Promise<CheckoutResource> {
-    const resource = new CheckoutResource(options);
-    try {
-      await requireWatchReady(resource.worktreeWatch);
-      return resource;
-    } catch (error) {
-      await resource.dispose();
-      throw error;
-    }
+    return new CheckoutResource(options);
   }
 
   private constructor(options: CheckoutResourceOptions) {
@@ -90,14 +83,7 @@ export class CheckoutResource {
       maxEntries: options.maxFileContentStates,
       onError: this.onError,
     });
-    this.worktreeWatch = options.watcher.watch(
-      this.identity.checkoutRoot,
-      (events) => this.onWorktreeEvents(events),
-      {
-        ignore: ['.git/**'],
-        onResync: () => this.onWorktreeResync(),
-      }
-    );
+    this.worktreeWatch = this.attachWorktreeWatch(options.watcher);
     this.unregister = this.repository.registerCheckout(this);
   }
 
@@ -281,6 +267,32 @@ export class CheckoutResource {
     this.invalidateRepositoryHistory();
     this.fileContents.invalidate('all', 'history');
     this.repository.invalidate('refs');
+  }
+
+  private attachWorktreeWatch(watcher: IWatchService): WatchHandle {
+    const context = `watch ${this.identity.checkoutRoot}`;
+    const handle = watcher.watch(
+      this.identity.checkoutRoot,
+      (events) => this.onWorktreeEvents(events),
+      {
+        ignore: ['.git/**'],
+        onResync: () => this.onWorktreeResync(),
+      }
+    );
+    void handle.ready().then(
+      (attached) => {
+        if (this.disposed) return;
+        if (!attached.success) {
+          this.onError(context, attached.error);
+          return;
+        }
+        this.onWorktreeResync();
+      },
+      (error: unknown) => {
+        if (!this.disposed) this.onError(context, error);
+      }
+    );
+    return handle;
   }
 
   private onWorktreeEvents(_events: { path: string }[]): void {
