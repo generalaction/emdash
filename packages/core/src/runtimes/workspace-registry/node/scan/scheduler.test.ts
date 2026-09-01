@@ -17,6 +17,7 @@ import {
 
 type FakeWatchAttempt = {
   root: string;
+  ignore: string[] | undefined;
   onEvents: (events: WatchEvent[]) => void;
   onError: ((error: unknown) => void) | undefined;
   ready: Deferred<Result<void, unknown>>;
@@ -33,6 +34,7 @@ class FakeWatchService implements IWatchService {
     const ready = deferred<Result<void, unknown>>();
     const attempt: FakeWatchAttempt = {
       root,
+      ignore: options?.ignore,
       onEvents,
       onError: options?.onError,
       ready,
@@ -158,6 +160,32 @@ function createHarness(
 }
 
 describe('WorkspaceScanScheduler', () => {
+  it('applies the workspace-content and Git-metadata watch profiles', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const worktree = worktreeTarget('wt-1', '/repos/wt', 'repo-1');
+    const watcher = new FakeWatchService();
+    const scheduler = new WorkspaceScanScheduler({
+      watcher,
+      execute: async () => {},
+      listTargets: () => [repo, worktree],
+      isActive: () => false,
+      watchIgnore: ['**/dist/**'],
+      pollIntervalMs: 60 * 60_000,
+    });
+
+    try {
+      void scheduler.start();
+      expect(watcher.roots.get('/repos/main')?.ignore).toEqual(['.git/**', '**/dist/**']);
+      expect(watcher.roots.get('/repos/wt')?.ignore).toEqual(['.git/**', '**/dist/**']);
+      expect(watcher.roots.get(path.join('/repos/main', '.git'))?.ignore).toEqual([
+        'objects/**',
+        'subtree-cache/**',
+      ]);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
   it('reports initial readiness only after every startup watch has settled', async () => {
     const repo = repoTarget('repo-1', '/repos/main');
     const watcher = new FakeWatchService();
