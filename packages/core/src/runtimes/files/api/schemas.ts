@@ -23,9 +23,11 @@ export const fromToKeySchema = z.object({
   to: hostAbsolutePathSchema,
 });
 export const exclusionPatternsSchema = z.array(z.string()).optional();
+export const treeWatchScopeSchema = z.enum(['recursive', 'children']);
 export const treeKeySchema = rootKeySchema.extend({
   sessionId: z.string(),
   exclusions: exclusionPatternsSchema,
+  watchScope: treeWatchScopeSchema.optional(),
 });
 export const contentKeySchema = absolutePathKeySchema;
 
@@ -106,6 +108,7 @@ export type AbsolutePathKey = z.infer<typeof absolutePathKeySchema>;
 export type FromToKey = z.infer<typeof fromToKeySchema>;
 export type ReadFileKey = z.infer<typeof readFileKeySchema>;
 export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
+export type TreeWatchScope = z.infer<typeof treeWatchScopeSchema>;
 export type TreeKey = z.infer<typeof treeKeySchema>;
 export type ContentKey = z.infer<typeof contentKeySchema>;
 export type FileStat = z.infer<typeof fileStatSchema>;

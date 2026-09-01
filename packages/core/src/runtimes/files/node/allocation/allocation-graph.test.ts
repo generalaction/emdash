@@ -128,6 +128,44 @@ describe('FilesAllocationGraph', () => {
 
     expect(watchOptions?.ignore).toEqual(['**/node_modules/**']);
   });
+
+  it('keeps children-scoped trees shallow without changing recursive tree defaults', async () => {
+    const root = await makeRoot();
+    const watched: { root: string; options: WatchOptions | undefined }[] = [];
+    const watcher: IWatchService = {
+      watch: (watchRoot, _onEvents, options) => {
+        watched.push({ root: watchRoot, options });
+        return {
+          ready: async () => ok(undefined),
+          release: async () => {},
+        };
+      },
+      dispose: async () => {},
+    };
+    const graph = new FilesAllocationGraph({
+      watcher,
+      watchIgnoreGlobs: ['**/node_modules/**'],
+      idleTtlMs: 10_000,
+    });
+    const rootRef = runtimeRoot(root);
+
+    const recursive = graph.acquireTree({ root: rootRef, sessionId: 'recursive' });
+    await recursive.ready();
+    const children = graph.acquireTree({
+      root: rootRef,
+      sessionId: 'children',
+      watchScope: 'children',
+    });
+    await children.ready();
+
+    expect(watched).toEqual([
+      { root, options: expect.objectContaining({ ignore: ['**/node_modules/**'] }) },
+      { root, options: expect.objectContaining({ ignore: ['*/**'] }) },
+    ]);
+
+    await Promise.all([recursive.release(), children.release()]);
+    await graph.dispose();
+  });
 });
 
 async function makeRoot(): Promise<string> {
