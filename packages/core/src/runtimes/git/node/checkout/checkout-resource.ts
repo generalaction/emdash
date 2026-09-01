@@ -43,6 +43,8 @@ export type CheckoutResourceOptions = Readonly<{
   commands: GitCheckout;
   repository: RepositoryResource;
   watcher: IWatchService;
+  /** Workspace-content profile ignore globs; see `workspaceContentWatchIgnore`. */
+  watchIgnore: readonly string[];
   onError?: (context: string, error: unknown) => void;
   maxFileContentStates?: number;
 }>;
@@ -83,7 +85,7 @@ export class CheckoutResource {
       maxEntries: options.maxFileContentStates,
       onError: this.onError,
     });
-    this.worktreeWatch = this.attachWorktreeWatch(options.watcher);
+    this.worktreeWatch = this.attachWorktreeWatch(options.watcher, options.watchIgnore);
     this.unregister = this.repository.registerCheckout(this);
   }
 
@@ -269,13 +271,13 @@ export class CheckoutResource {
     this.repository.invalidate('refs');
   }
 
-  private attachWorktreeWatch(watcher: IWatchService): WatchHandle {
+  private attachWorktreeWatch(watcher: IWatchService, ignore: readonly string[]): WatchHandle {
     const context = `watch ${this.identity.checkoutRoot}`;
     const handle = watcher.watch(
       this.identity.checkoutRoot,
       (events) => this.onWorktreeEvents(events),
       {
-        ignore: ['.git/**'],
+        ignore: [...ignore],
         onResync: () => this.onWorktreeResync(),
       }
     );

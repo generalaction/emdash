@@ -11,7 +11,11 @@ import {
 import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
-import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
+import {
+  gitMetadataWatchIgnore,
+  type IWatchService,
+  type WatchHandle,
+} from '#services/fs-watch/api';
 import type { GitRepository } from './git-repository';
 import { RepositoryFamilyLane } from './repository-family-lane';
 import { classifyGitWatchEvents, type WorktreeWatchEffects } from './watch-classifier';
@@ -162,7 +166,7 @@ export class RepositoryResource {
       this.identity.gitCommonDir,
       (events) => this.onCommonDirEvents(events),
       {
-        ignore: ['objects/**'],
+        ignore: gitMetadataWatchIgnore(),
         onResync: () => this.onCommonDirResync(),
       }
     );
