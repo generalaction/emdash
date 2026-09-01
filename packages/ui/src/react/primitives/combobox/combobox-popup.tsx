@@ -14,10 +14,10 @@
  * on highlight and text-foreground-muted descriptions.
  */
 
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 import * as styles from './combobox-popup.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -99,94 +99,102 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
       },
     }));
 
+    const virtualAnchor = React.useMemo(
+      () => (anchorRect ? { getBoundingClientRect: () => anchorRect } : null),
+      [anchorRect]
+    );
+
     // Nothing to render.
     if (!anchorRect) return null;
     if (items.length === 0 && !emptyLabel) return null;
 
-    // Position above or below the caret depending on available space.
-    const spaceBelow = window.innerHeight - anchorRect.bottom;
-    const spaceAbove = anchorRect.top;
-    const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow;
-
-    const style: React.CSSProperties = openAbove
-      ? {
-          position: 'fixed',
-          left: anchorRect.left,
-          bottom: window.innerHeight - anchorRect.top + 4,
-        }
-      : {
-          position: 'fixed',
-          left: anchorRect.left,
-          top: anchorRect.bottom + 4,
-        };
-
-    const popup = (
-      <div
-        role="listbox"
-        style={style}
-        className={cx(
-          'surface-elevated',
-          styles.popupRoot,
-          wide && styles.popupRootWide,
-          className
-        )}
-      >
-        {header && <div className={styles.popupHeader}>{header}</div>}
-        <ul ref={listRef} className={styles.popupList}>
-          {items.length === 0 && emptyLabel ? (
-            <li className={cx(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
-          ) : (
-            items.map((item, index) => {
-              const showSection = item.section && item.section !== items[index - 1]?.section;
-              return (
-                <React.Fragment key={item.id}>
-                  {showSection && (
-                    <li className={styles.popupSectionHeader} role="presentation">
-                      {item.section}
-                    </li>
-                  )}
-                  <li
-                    role="option"
-                    aria-selected={index === selectedIndex}
-                    data-popup-item-index={index}
-                    onMouseDown={(e) => {
-                      // Prevent editor blur before select fires.
-                      e.preventDefault();
-                      onSelect(item);
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={cx(
-                      styles.popupItem,
-                      stacked && styles.popupItemStacked,
-                      index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
-                    )}
-                  >
-                    {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
-                    {stacked ? (
-                      <span className={styles.popupItemTextStack}>
-                        <span className={styles.popupItemLabel}>{item.label}</span>
-                        {item.description && (
-                          <span className={styles.popupItemDescription}>{item.description}</span>
+    return (
+      <PopoverPrimitive.Root open modal={false}>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner
+            anchor={virtualAnchor}
+            positionMethod="fixed"
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            collisionPadding={8}
+            collisionAvoidance={{ side: 'flip', align: 'shift', fallbackAxisSide: 'none' }}
+            className={styles.popupPositioner}
+          >
+            <PopoverPrimitive.Popup
+              role="listbox"
+              initialFocus={false}
+              finalFocus={false}
+              className={cx(
+                'surface-elevated',
+                styles.popupRoot,
+                wide && styles.popupRootWide,
+                className
+              )}
+            >
+              {header && <div className={styles.popupHeader}>{header}</div>}
+              <ul ref={listRef} className={styles.popupList}>
+                {items.length === 0 && emptyLabel ? (
+                  <li className={cx(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
+                ) : (
+                  items.map((item, index) => {
+                    const showSection = item.section && item.section !== items[index - 1]?.section;
+                    return (
+                      <React.Fragment key={item.id}>
+                        {showSection && (
+                          <li className={styles.popupSectionHeader} role="presentation">
+                            {item.section}
+                          </li>
                         )}
-                      </span>
-                    ) : (
-                      <>
-                        <span className={styles.popupItemLabel}>{item.label}</span>
-                        {item.description && (
-                          <span className={styles.popupItemDescription}>{item.description}</span>
-                        )}
-                      </>
-                    )}
-                  </li>
-                </React.Fragment>
-              );
-            })
-          )}
-        </ul>
-      </div>
+                        <li
+                          role="option"
+                          aria-selected={index === selectedIndex}
+                          data-popup-item-index={index}
+                          onMouseDown={(e) => {
+                            // Prevent editor blur before select fires.
+                            e.preventDefault();
+                            onSelect(item);
+                          }}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          className={cx(
+                            styles.popupItem,
+                            stacked && styles.popupItemStacked,
+                            index === selectedIndex
+                              ? styles.popupItemHighlighted
+                              : styles.popupItemHover
+                          )}
+                        >
+                          {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
+                          {stacked ? (
+                            <span className={styles.popupItemTextStack}>
+                              <span className={styles.popupItemLabel}>{item.label}</span>
+                              {item.description && (
+                                <span className={styles.popupItemDescription}>
+                                  {item.description}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <>
+                              <span className={styles.popupItemLabel}>{item.label}</span>
+                              {item.description && (
+                                <span className={styles.popupItemDescription}>
+                                  {item.description}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </li>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </ul>
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
     );
-
-    return createPortal(popup, document.body);
   }
 );
 

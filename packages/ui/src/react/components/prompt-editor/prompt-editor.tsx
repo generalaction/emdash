@@ -22,7 +22,6 @@ import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type React from 'react';
-import { createPortal } from 'react-dom';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
@@ -510,37 +509,32 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
           </span>
         )}
       </div>
-      {mentionActive &&
-        createPortal(
-          <ComboboxPopup
-            ref={mentionPopupRef}
-            items={mentionPopupItems}
-            anchorRect={mentionSuggestion.rect}
-            className={popupClassName}
-            wide
-            onSelect={(popupItem) => {
-              const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
-              if (original) mentionSuggestion.onSelect(original);
-            }}
-          />,
-          document.body
-        )}
-      {commandActive &&
-        commandPopupOpen !== false &&
-        createPortal(
-          <ComboboxPopup
-            ref={commandPopupRef}
-            items={commandPopupItems}
-            anchorRect={commandSuggestion.rect}
-            className={popupClassName}
-            stacked
-            onSelect={(popupItem) => {
-              const original = commandSuggestion.items.find((c) => c.id === popupItem.id);
-              if (original) commandSuggestion.onSelect(original);
-            }}
-          />,
-          document.body
-        )}
+      {mentionActive && (
+        <ComboboxPopup
+          ref={mentionPopupRef}
+          items={mentionPopupItems}
+          anchorRect={mentionSuggestion.rect}
+          className={popupClassName}
+          wide
+          onSelect={(popupItem) => {
+            const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
+            if (original) mentionSuggestion.onSelect(original);
+          }}
+        />
+      )}
+      {commandActive && commandPopupOpen !== false && (
+        <ComboboxPopup
+          ref={commandPopupRef}
+          items={commandPopupItems}
+          anchorRect={commandSuggestion.rect}
+          className={popupClassName}
+          stacked
+          onSelect={(popupItem) => {
+            const original = commandSuggestion.items.find((c) => c.id === popupItem.id);
+            if (original) commandSuggestion.onSelect(original);
+          }}
+        />
+      )}
     </>
   );
 });

@@ -3,11 +3,17 @@ import { kfPopupIn } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
-export const popupRoot = style({
+export const popupPositioner = style({
+  isolation: 'isolate',
   zIndex: 50,
-  minWidth: '220px',
-  maxWidth: '340px',
+});
+
+export const popupRoot = style({
+  minWidth: 'min(220px, var(--available-width))',
+  maxWidth: 'min(340px, var(--available-width))',
+  transformOrigin: 'var(--transform-origin)',
   overflow: 'hidden',
+  outline: 'none',
   borderRadius: tokenVars.radiusMd,
   backgroundColor: vars.surface,
   color: vars.foreground,
@@ -16,8 +22,8 @@ export const popupRoot = style({
 });
 
 export const popupRootWide = style({
-  width: 'min(30rem, calc(100vw - 1rem))',
-  maxWidth: 'calc(100vw - 1rem)',
+  width: 'min(30rem, var(--available-width))',
+  maxWidth: 'var(--available-width)',
 });
 
 export const popupHeader = style({
