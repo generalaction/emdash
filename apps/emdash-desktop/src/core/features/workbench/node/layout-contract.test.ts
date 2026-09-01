@@ -177,11 +177,28 @@ const sourceFiles = listSourceFiles(SRC_ROOT).map((file) => ({
   lines: readFileSync(file, 'utf8').split('\n'),
 }));
 
+function sourceText(relPath: string): string {
+  const source = sourceFiles.find((file) => file.relPath === relPath);
+  if (!source) throw new Error(`Missing source file: ${relPath}`);
+  return source.lines.join('\n');
+}
+
 describe('workbench layout contract', () => {
   it('scans a plausible source tree', () => {
     // Guard against the walker silently scanning nothing (e.g. after a move).
     expect(sourceFiles.length).toBeGreaterThan(500);
     expect(sourceFiles.some((file) => surfaceDirs(file.relPath))).toBe(true);
+  });
+
+  it('keeps the workspace outer layout app-scoped across navigation', () => {
+    const provider = sourceText(
+      'core/features/workbench/contributions/browser/layout-provider.tsx'
+    );
+    const workspaceLayout = sourceText('renderer/lib/layout/workspace-layout.tsx');
+
+    expect(provider).toContain('createLayoutStorage(appSpace, workbenchPanelLayoutsMemento)');
+    expect(provider).not.toMatch(/projectPanelLayoutsMemento|layoutKey/);
+    expect(workspaceLayout).not.toMatch(/key=\{layoutKey\}/);
   });
 
   for (const check of checks) {

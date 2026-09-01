@@ -25,7 +25,7 @@ interface WorkspaceLayoutProps {
 }
 
 export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
-  const { isLeftOpen, toggleLeftSidebar, layoutStorage, layoutKey } = useWorkspaceLayoutContext();
+  const { isLeftOpen, toggleLeftSidebar, layoutStorage } = useWorkspaceLayoutContext();
   const binding = useCollapsiblePanelBinding({
     storageKey: 'workspace-outer',
     storage: layoutStorage,
@@ -38,12 +38,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
   });
 
   return (
-    <Resizable.Group
-      key={layoutKey}
-      id="workspace-outer"
-      orientation="horizontal"
-      {...binding.groupProps}
-    >
+    <Resizable.Group id="workspace-outer" orientation="horizontal" {...binding.groupProps}>
       {/* Closed = panel AND handle unmounted (sync contract: never program
           the panels). */}
       {isLeftOpen && (

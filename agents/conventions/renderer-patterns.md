@@ -102,7 +102,9 @@ Workbench layout follows a strict ownership model (see
 - **Pixel sizes belong to react-resizable-panels alone**, persisted via
   `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
   (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
-  MobX observables and never persisted to localStorage.
+  MobX observables and never persisted to localStorage. The workspace outer layout is
+  app-scoped because it belongs to the workbench shell; task-internal panel layouts are
+  task-scoped.
 - **Persisted view state renders below a hydration gate.** The task view gates on
   `space.isHydrated`; the storage facade dev-asserts on reads before hydration.
 

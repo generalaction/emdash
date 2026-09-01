@@ -6,9 +6,12 @@ import {
   getProjectStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { WorkspaceChromeStore } from '@core/features/projects/api/browser/stores/workspace-chrome-store';
-import { projectPanelLayoutsMemento } from '@core/features/projects/contributions/mementos';
 import { workspaceChromeStoreToken } from '@core/features/projects/contributions/project-stores';
+import { workbenchPanelLayoutsMemento } from '@core/features/workbench/contributions/mementos';
+import { createLayoutStorage } from '@core/primitives/mementos/browser';
+import { useSubjectSpace } from '@core/primitives/mementos/react';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import { appSubject } from '@core/primitives/subjects/api';
 import type { ViewRef } from '@core/primitives/views/api';
 
 export interface WorkspaceLayoutContextValue {
@@ -17,17 +20,10 @@ export interface WorkspaceLayoutContextValue {
   toggleLeftSidebar: () => void;
   toggleZenMode: () => void;
   /**
-   * Storage facade for the workspace outer layout, scoped to the active
-   * project's chrome subject (spec §Persistence model editorial call);
-   * ephemeral in-memory storage until a project chrome is hydrated.
+   * App-scoped storage facade for the workspace outer layout. The left
+   * sidebar is workbench chrome, so navigation never changes its size owner.
    */
   layoutStorage: LayoutStorage;
-  /**
-   * Remount key for the outer `Resizable.Group`: the library reads
-   * `defaultLayout` only at group mount, so the group must remount whenever
-   * the storage subject changes (project switch or hydration completing).
-   */
-  layoutKey: string;
 }
 
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
@@ -41,22 +37,11 @@ function projectIdFromRef(ref: ViewRef | undefined): string | undefined {
 /**
  * Workspace chrome for one project, readable only once its subject space has
  * hydrated. There is no render gate at the project boundary (the task-view
- * `isHydrated` gate covers only task subjects), so callers gate here: reading
- * chrome state or the layout facade pre-hydration is a loud dev error by
- * design, never a silent reset.
+ * `isHydrated` gate covers only task subjects), so callers gate here rather
+ * than reading project chrome before hydration.
  */
 function hydratedWorkspaceChrome(projectId: string): WorkspaceChromeStore | undefined {
   return asAvailableProject(getProjectStore(projectId))?.get(workspaceChromeStoreToken);
-}
-
-function createEphemeralLayoutStorage(): LayoutStorage {
-  const entries = new Map<string, string>();
-  return {
-    getItem: (key) => entries.get(key) ?? null,
-    setItem: (key, value) => {
-      entries.set(key, value);
-    },
-  };
 }
 
 export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutContextProvider({
@@ -73,6 +58,9 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
   // sidebar toggle still works on a fresh install's home view. Not a shadow
   // copy of store state — it feeds the view only while no chrome store exists.
   const [fallbackLeftOpen, setFallbackLeftOpen] = useState(true);
+  // The root app SubjectProvider hydrates before rendering this provider, so
+  // the layout facade is safe to read synchronously from the first paint.
+  const appSpace = useSubjectSpace(appSubject);
 
   useEffect(() => {
     return getNavigation().onDidNavigate.subscribe((event) => {
@@ -101,10 +89,9 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
     : undefined;
   const chrome = context?.get(workspaceChromeStoreToken);
 
-  const ephemeralStorage = useMemo(() => createEphemeralLayoutStorage(), []);
   const layoutStorage = useMemo(
-    () => (context ? context.createLayoutStorage(projectPanelLayoutsMemento) : ephemeralStorage),
-    [context, ephemeralStorage]
+    () => createLayoutStorage(appSpace, workbenchPanelLayoutsMemento),
+    [appSpace]
   );
 
   const state = chrome ? chrome.state : undefined;
@@ -121,7 +108,6 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
       else chrome.commands.enterZenMode();
     },
     layoutStorage,
-    layoutKey: context && activeProjectId ? `project:${activeProjectId}` : 'unscoped',
   };
 
   return (

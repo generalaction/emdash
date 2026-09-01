@@ -20,7 +20,7 @@ const taskSubject = defineSubject({
 });
 
 // Mirrors the real panel-layouts memento shape (`tasks.panel-layouts` /
-// `projects.panel-layouts`); the catalog test in
+// `workbench.panel-layouts`); the catalog test in
 // src/core/manifests/shared/memento-catalog.test.ts covers the real
 // definitions, which module boundaries keep out of services tests.
 const panelLayoutsSchema = defineVersionedSchema()
