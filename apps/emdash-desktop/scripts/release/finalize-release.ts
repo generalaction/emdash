@@ -9,7 +9,7 @@ import {
   versionUpdateManifestUrls,
 } from './lib/artifacts.ts';
 import { GITHUB_OWNER, GITHUB_REPO, r2Endpoint, requireEnv } from './lib/config.ts';
-import { fail, info, step, warn } from './lib/log.ts';
+import { fail, info, step } from './lib/log.ts';
 import {
   PromotionCommitUncertainError,
   promoteObjectsWithRollback,
@@ -42,11 +42,6 @@ if (!['stable', 'canary'].includes(channel)) {
 }
 
 const token = requireEnv('GH_TOKEN');
-if (!values['release-id']) {
-  await finalizeLegacyRelease(channel, token);
-  process.exit(0);
-}
-
 const releaseId = Number(values['release-id']);
 if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
   fail('--release-id must be a positive integer from prepare-release');
@@ -290,48 +285,4 @@ async function downloadAsset(url: string, authToken: string): Promise<Uint8Array
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Preserves the current finalization behavior until the workflow migration starts passing an exact
- * release id. Remove this compatibility path in the workflow migration commit.
- */
-async function finalizeLegacyRelease(releaseChannel: ReleaseChannel, authToken: string) {
-  const { tag: releaseTag, isCanary: releaseIsCanary } = resolveReleaseVersion(releaseChannel);
-  const legacyOctokit = new Octokit({ auth: authToken });
-
-  step(`Looking for draft release with tag ${releaseTag} (channel: ${releaseChannel})`);
-  const { data: releases } = await legacyOctokit.rest.repos.listReleases({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    per_page: 100,
-  });
-  const drafts = releases.filter(
-    (candidate) => candidate.tag_name === releaseTag && candidate.draft
-  );
-  if (drafts.length === 0) {
-    const summary = releases
-      .map((candidate) => `${candidate.tag_name}(draft=${String(candidate.draft)})`)
-      .join(', ');
-    warn(`Available releases: ${summary}`);
-    fail(`No draft release found for tag ${releaseTag}`);
-  }
-  if (drafts.length > 1) {
-    const ids = drafts.map((candidate) => String(candidate.id)).join(', ');
-    fail(
-      `Multiple draft releases found for tag ${releaseTag} (ids: ${ids}); ` +
-        'prepare-release should have prevented this. Clean them up before retrying.'
-    );
-  }
-
-  const draft = drafts[0];
-  step(`Publishing release ${releaseTag} (id: ${draft.id}, prerelease: ${releaseIsCanary})`);
-  await legacyOctokit.rest.repos.updateRelease({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    release_id: draft.id,
-    draft: false,
-    prerelease: releaseIsCanary,
-  });
-  info(`Release ${releaseTag} is now published on GitHub`);
 }

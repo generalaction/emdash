@@ -41,9 +41,6 @@ const archInput = values.arch;
 const targetsInput = values.targets;
 const prefix = values.prefix;
 const executable = values.executable;
-const useLegacyMode = [archInput, targetsInput, prefix, executable].every(
-  (value) => value === undefined
-);
 
 interface GlibcSymbol {
   file: string;
@@ -186,108 +183,36 @@ function verifyExtractedPayload(
   return nativeModules.length;
 }
 
-interface GlibcInspection {
-  file: string;
-  symbols: string[];
-  error?: string;
+if (!archInput || !isLinuxArch(archInput) || !targetsInput || !prefix || !executable) {
+  fail(
+    'Usage: verify-linux.ts --arch arm64|x64 --targets AppImage,deb,rpm ' +
+      '--prefix <artifact-prefix> --executable <name>'
+  );
 }
-
-function inspectGlibcSymbols(file: string): GlibcInspection {
-  try {
-    const output = command('objdump', ['-T', file]);
-    return {
-      file,
-      symbols: Array.from(output.matchAll(/GLIBC_(\d+\.\d+)/g), (match) => match[1]),
-    };
-  } catch (error) {
-    return {
-      file,
-      symbols: [],
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-function verifyLegacyNativeModules(): void {
-  const nativeModules = findFiles(RELEASE_DIR, (file) => {
-    const normalized = file.replaceAll('\\', '/');
-    return (
-      file.endsWith('.node') && !normalized.includes('/darwin-') && !normalized.includes('/win32-')
-    );
-  });
-  if (nativeModules.length === 0) {
-    fail(`Cannot verify Linux native modules because no .node files were found in ${RELEASE_DIR}/`);
-  }
-
-  const violations: GlibcSymbol[] = [];
-  const inspectionFailures: GlibcInspection[] = [];
-  let inspected = 0;
-  for (const file of nativeModules) {
-    const inspection = inspectGlibcSymbols(file);
-    if (inspection.error) {
-      inspectionFailures.push(inspection);
-      continue;
-    }
-    if (inspection.symbols.length === 0) continue;
-
-    inspected += 1;
-    for (const version of new Set(inspection.symbols)) {
-      if (isGreaterVersion(version, maxGlibc)) violations.push({ file, version });
-    }
-  }
-
-  if (inspectionFailures.length > 0) {
-    const details = inspectionFailures.map(({ file, error }) => `  ${file}: ${error}`).join('\n');
-    fail(`Cannot verify Linux native modules because objdump failed for:\n${details}`);
-  }
-  if (inspected === 0) {
-    fail('Cannot verify Linux native modules because objdump found no GLIBC symbols');
-  }
-  if (violations.length > 0) {
-    const details = violations.map(({ file, version }) => `  ${file}: GLIBC_${version}`).join('\n');
-    fail(`Linux native modules require GLIBC newer than ${maxGlibc}:\n${details}`);
-  }
-  info(`Verified ${inspected} Linux native module(s) against GLIBC <= ${maxGlibc}`);
-}
-
+const targets = parseLinuxTargets(targetsInput);
+if (!targets) fail(`Unsupported Linux targets: ${targetsInput}`);
 if (!existsSync(RELEASE_DIR)) {
-  if (useLegacyMode) {
-    fail(`Cannot verify Linux native modules because ${RELEASE_DIR}/ does not exist`);
-  }
   fail(`Cannot verify Linux packages because ${RELEASE_DIR}/ does not exist`);
 }
 
-if (useLegacyMode) {
-  verifyLegacyNativeModules();
-} else {
-  if (!archInput || !isLinuxArch(archInput) || !targetsInput || !prefix || !executable) {
-    fail(
-      'Usage: verify-linux.ts --arch arm64|x64 --targets AppImage,deb,rpm ' +
-        '--prefix <artifact-prefix> --executable <name>'
-    );
+const verificationDir = mkdtempSync(path.join(tmpdir(), `emdash-linux-${archInput}-`));
+let inspectedNativeModules = 0;
+try {
+  for (const target of targets) {
+    const artifact = path.join(RELEASE_DIR, linuxArtifactName(prefix, archInput, target));
+    if (!existsSync(artifact)) fail(`Expected Linux release artifact is missing: ${artifact}`);
+    verifyPackageMetadata(artifact, target, archInput);
+    if (target === 'AppImage') verifyBinaryArch(artifact, archInput);
+
+    const destination = path.join(verificationDir, target.toLowerCase());
+    const payload = extractPackage(artifact, target, destination);
+    inspectedNativeModules += verifyExtractedPayload(payload, target, archInput, executable);
   }
-  const targets = parseLinuxTargets(targetsInput);
-  if (!targets) fail(`Unsupported Linux targets: ${targetsInput}`);
-
-  const verificationDir = mkdtempSync(path.join(tmpdir(), `emdash-linux-${archInput}-`));
-  let inspectedNativeModules = 0;
-  try {
-    for (const target of targets) {
-      const artifact = path.join(RELEASE_DIR, linuxArtifactName(prefix, archInput, target));
-      if (!existsSync(artifact)) fail(`Expected Linux release artifact is missing: ${artifact}`);
-      verifyPackageMetadata(artifact, target, archInput);
-      if (target === 'AppImage') verifyBinaryArch(artifact, archInput);
-
-      const destination = path.join(verificationDir, target.toLowerCase());
-      const payload = extractPackage(artifact, target, destination);
-      inspectedNativeModules += verifyExtractedPayload(payload, target, archInput, executable);
-    }
-  } finally {
-    rmSync(verificationDir, { recursive: true, force: true });
-  }
-
-  info(
-    `Extracted and verified ${archInput} ${targets.join(', ')} payloads, including ` +
-      `${inspectedNativeModules} native module instance(s) against GLIBC <= ${maxGlibc}`
-  );
+} finally {
+  rmSync(verificationDir, { recursive: true, force: true });
 }
+
+info(
+  `Extracted and verified ${archInput} ${targets.join(', ')} payloads, including ` +
+    `${inspectedNativeModules} native module instance(s) against GLIBC <= ${maxGlibc}`
+);

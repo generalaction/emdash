@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Octokit } from '@octokit/rest';
@@ -75,31 +75,26 @@ if (isCanary) {
   info(`Canary build: packaging as version ${overrideVersion} (tag ${tag})`);
 }
 
-const ghToken = process.env.GH_TOKEN;
-const releaseId = values['release-id'] ? Number(values['release-id']) : undefined;
-if (values['release-id'] && (!Number.isSafeInteger(releaseId) || (releaseId ?? 0) <= 0)) {
-  fail(`Invalid release id: ${values['release-id']}`);
+const releaseId = Number(values['release-id']);
+if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
+  fail('--release-id must be a positive integer from prepare-release');
 }
-const deferredPublish = releaseId !== undefined;
-if (deferredPublish && !ghToken) fail('GH_TOKEN is required with --release-id');
-
-if (ghToken && releaseId) {
-  const octokit = new Octokit({ auth: ghToken });
-  const { data: draft } = await octokit.rest.repos.getRelease({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    release_id: releaseId,
-  });
-  const ownership = {
-    runId: requireEnv('GITHUB_RUN_ID'),
-    sha: requireEnv('GITHUB_SHA'),
-  };
-  if (!draft.draft || draft.tag_name !== tag || !releaseHasOwnership(draft.body, ownership)) {
-    fail(`Release ${releaseId} is not the owned ${tag} draft for this workflow run and commit`);
-  }
-  if (draft.target_commitish !== ownership.sha) {
-    fail(`Release ${releaseId} targets ${draft.target_commitish}, expected ${ownership.sha}`);
-  }
+const ghToken = requireEnv('GH_TOKEN');
+const octokit = new Octokit({ auth: ghToken });
+const { data: draft } = await octokit.rest.repos.getRelease({
+  owner: GITHUB_OWNER,
+  repo: GITHUB_REPO,
+  release_id: releaseId,
+});
+const ownership = {
+  runId: requireEnv('GITHUB_RUN_ID'),
+  sha: requireEnv('GITHUB_SHA'),
+};
+if (!draft.draft || draft.tag_name !== tag || !releaseHasOwnership(draft.body, ownership)) {
+  fail(`Release ${releaseId} is not the owned ${tag} draft for this workflow run and commit`);
+}
+if (draft.target_commitish !== ownership.sha) {
+  fail(`Release ${releaseId} targets ${draft.target_commitish}, expected ${ownership.sha}`);
 }
 
 step('Creating deployment directory with production dependencies');
@@ -162,118 +157,41 @@ try {
       projectDir: deployDir,
       // Platform verification and notarization must run against the exact bytes that ship.
       // A later explicit step uploads those final files to the owned GitHub draft.
-      publish: deferredPublish ? 'never' : 'always',
+      publish: 'never',
     });
 
-    if (deferredPublish) {
-      for (const manifest of findManifests(githubChannel, join(deployDir, 'release'))) {
-        const name = basename(manifest);
-        const versions = collectedManifests.get(name) ?? [];
-        versions.push(readFileSync(manifest, 'utf8'));
-        collectedManifests.set(name, versions);
-      }
+    for (const manifest of findManifests(githubChannel, join(deployDir, 'release'))) {
+      const name = basename(manifest);
+      const versions = collectedManifests.get(name) ?? [];
+      versions.push(readFileSync(manifest, 'utf8'));
+      collectedManifests.set(name, versions);
     }
 
     info(`Built ${platform} ${targetList.join(' ')} for ${arch}`);
   }
 
-  if (deferredPublish) {
-    for (const [name, manifests] of collectedManifests) {
-      writeFileSync(join(deployDir, 'release', name), mergeUpdateManifests(manifests));
-    }
+  for (const [name, manifests] of collectedManifests) {
+    writeFileSync(join(deployDir, 'release', name), mergeUpdateManifests(manifests));
   }
 
   step('Copying release artifacts to app directory');
-  if (deferredPublish) rmSync('release', { recursive: true, force: true });
+  rmSync('release', { recursive: true, force: true });
   cpSync(join(deployDir, 'release'), 'release', { recursive: true });
 
-  step(deferredPublish ? 'Preparing GitHub and R2 channel manifests' : 'Duplicating manifests');
+  step('Preparing GitHub and R2 channel manifests');
   const generatedManifests = findManifests(githubChannel);
   if (r2Channel && githubChannel !== r2Channel) {
     const duplicated = duplicateChannelManifests(githubChannel, r2Channel);
     if (duplicated.length > 0) {
       info(`Duplicated ${duplicated.length} manifest(s): "${githubChannel}" → "${r2Channel}"`);
       generatedManifests.push(...duplicated);
-      if (!deferredPublish) {
-        if (ghToken) {
-          await uploadManifestsToGithubDraft(duplicated, tag, ghToken);
-        } else {
-          info(
-            'GH_TOKEN not set; skipping GitHub manifest upload (R2 upload will still include them)'
-          );
-        }
-      }
     } else {
       warn(`No "${githubChannel}" manifests found to duplicate for R2 channel "${r2Channel}"`);
     }
   }
-  if (deferredPublish) {
-    info(
-      `Prepared ${generatedManifests.length} local update manifest(s) for post-verification upload`
-    );
-  }
+  info(
+    `Prepared ${generatedManifests.length} local update manifest(s) for post-verification upload`
+  );
 } finally {
   rmSync(deployDir, { recursive: true, force: true });
-}
-
-/**
- * Legacy publishing path used until every workflow has switched to explicit verified uploads.
- * Remove this together with the implicit build mode when the workflow migration is committed.
- */
-async function uploadManifestsToGithubDraft(
-  files: string[],
-  tag: string,
-  token: string
-): Promise<void> {
-  const octokit = new Octokit({ auth: token });
-
-  const { data: releases } = await octokit.rest.repos.listReleases({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    per_page: 100,
-  });
-  const drafts = releases.filter((release) => release.tag_name === tag && release.draft);
-  if (drafts.length === 0) {
-    warn(`No draft release found for tag ${tag}; skipping GitHub manifest upload`);
-    return;
-  }
-  if (drafts.length > 1) {
-    const ids = drafts.map((release) => String(release.id)).join(', ');
-    fail(
-      `Multiple draft releases found for tag ${tag} (ids: ${ids}); cannot safely upload manifests. Run prepare-release.ts to fix.`
-    );
-  }
-  const draft = drafts[0];
-
-  const { data: assets } = await octokit.rest.repos.listReleaseAssets({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    release_id: draft.id,
-    per_page: 100,
-  });
-
-  step(`Uploading ${files.length} R2 channel manifest(s) to GitHub draft release ${tag}`);
-  for (const file of files) {
-    const name = basename(file);
-    const existing = assets.find((asset) => asset.name === name);
-    if (existing) {
-      await octokit.rest.repos.deleteReleaseAsset({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
-        asset_id: existing.id,
-      });
-    }
-    await octokit.rest.repos.uploadReleaseAsset({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
-      release_id: draft.id,
-      name,
-      data: readFileSync(file, 'utf8'),
-      headers: {
-        'content-type': 'application/yaml',
-        'content-length': statSync(file).size,
-      },
-    });
-    info(`Uploaded ${name} to draft release ${tag}`);
-  }
 }
