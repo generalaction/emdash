@@ -44,6 +44,7 @@ describe('taskChromeStore sidebar commands', () => {
     expect(store.state.sidebarCollapsed).toBe(true);
     expect(store.state.sidebarTab).toBe('conversations');
     expect(store.state.terminalDrawerOpen).toBe(false);
+    expect(store.state.terminalDockPosition).toBe('bottom');
   });
 
   it('toggleSidebar flips collapsed without touching the tab', () => {
@@ -159,6 +160,17 @@ describe('taskChromeStore terminal drawer commands', () => {
 
     store.commands.openTerminalDrawer();
 
+    expect(store.state.terminalDrawerOpen).toBe(true);
+    expect(store.ephemeral.focusedRegion).toBe('bottom');
+  });
+
+  it('changes the terminal dock without affecting visibility or focus', () => {
+    const store = createStore({ terminalDrawerOpen: true });
+    store.commands.focusRegion('bottom');
+
+    store.commands.setTerminalDockPosition('right');
+
+    expect(store.state.terminalDockPosition).toBe('right');
     expect(store.state.terminalDrawerOpen).toBe(true);
     expect(store.ephemeral.focusedRegion).toBe('bottom');
   });

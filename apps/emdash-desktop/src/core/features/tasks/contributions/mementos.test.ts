@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { taskDiffSelectionSchema, taskPaneLayoutMemento, taskPaneLayoutSchema } from './mementos';
+import {
+  taskChromeMemento,
+  taskChromeSchema,
+  taskDiffSelectionSchema,
+  taskPaneLayoutMemento,
+  taskPaneLayoutSchema,
+} from './mementos';
+
+describe('task chrome memento', () => {
+  it('defaults and upgrades the terminal dock to the bottom', () => {
+    expect(taskChromeMemento.default.terminalDockPosition).toBe('bottom');
+    expect(
+      taskChromeSchema.safeParse({
+        version: '1',
+        sidebarTab: 'files',
+        sidebarCollapsed: false,
+        terminalDrawerOpen: true,
+      })
+    ).toEqual({
+      status: 'ok',
+      data: {
+        version: '2',
+        sidebarTab: 'files',
+        sidebarCollapsed: false,
+        terminalDrawerOpen: true,
+        terminalDockPosition: 'bottom',
+      },
+    });
+  });
+});
 
 describe('task pane layout memento', () => {
   it('uses a safe one-pane default', () => {

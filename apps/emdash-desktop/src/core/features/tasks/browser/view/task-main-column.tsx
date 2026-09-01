@@ -37,16 +37,16 @@ type ActiveDrag =
   | { kind: 'tab'; tabId: string }
   | { kind: 'terminal'; terminal: TerminalDrawerDragData };
 
-// Drag-to-close threshold for the bottom drawer, in percent of the column.
-// Below ~10% only the drawer tab bar and a row or two of terminal remain
-// visible, so a drag settling there reads as intent to close rather than a
-// resize. Deliberately under the drawer's old 15% resize floor, so every
-// height the previous UI could persist stays a plain restore, never a close.
+// Drag-to-close threshold, in percent of the active resize group. Keeping it below the old 15%
+// resize floor preserves every bottom-dock size that previous versions could persist.
 const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+const TERMINAL_DRAWER_MIN_WIDTH = '120px';
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
+  const terminalDockedRight = taskView.chrome.state.terminalDockPosition === 'right';
+  const terminalGroupId = terminalDockedRight ? 'task-main-horizontal' : 'task-main-vertical';
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
 
@@ -57,7 +57,7 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
     [taskView.space]
   );
   const drawerBinding = useCollapsiblePanelBinding({
-    storageKey: 'task-main-vertical',
+    storageKey: terminalGroupId,
     storage: layoutStorage,
     panelIds: ['task-main-content', 'task-terminal-drawer'],
     collapsiblePanelId: 'task-terminal-drawer',
@@ -103,7 +103,12 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <Resizable.Group orientation="vertical" id="task-main-vertical" {...drawerBinding.groupProps}>
+      <Resizable.Group
+        key={terminalGroupId}
+        orientation={terminalDockedRight ? 'horizontal' : 'vertical'}
+        id={terminalGroupId}
+        {...drawerBinding.groupProps}
+      >
         <Resizable.Panel id="task-main-content" minSize="30%">
           <SplitPaneLayout storage={layoutStorage} />
         </Resizable.Panel>
@@ -116,7 +121,13 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
             <Resizable.Handle />
             <Resizable.Panel
               {...drawerBinding.collapsiblePanelProps}
-              defaultSize={drawerBinding.collapsiblePanelProps.defaultSize ?? '25%'}
+              minSize={terminalDockedRight ? TERMINAL_DRAWER_MIN_WIDTH : undefined}
+              collapsible={terminalDockedRight}
+              collapsedSize={terminalDockedRight ? '0%' : undefined}
+              defaultSize={
+                drawerBinding.collapsiblePanelProps.defaultSize ??
+                (terminalDockedRight ? '40%' : '25%')
+              }
             >
               <TerminalsPanel />
             </Resizable.Panel>

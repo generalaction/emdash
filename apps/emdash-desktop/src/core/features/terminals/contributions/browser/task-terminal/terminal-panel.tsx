@@ -228,6 +228,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         <TerminalDrawerTabBar
           projectId={projectId}
           liveActionsDisabled={liveActionsDisabled}
+          dockPosition={taskView.chrome.state.terminalDockPosition}
+          onDockPositionChange={taskView.chrome.commands.setTerminalDockPosition}
           mode={mode}
           onModeChange={handleModeChange}
           lifecycleScriptsMgr={lifecycleScriptsMgr}
