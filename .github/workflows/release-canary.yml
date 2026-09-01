@@ -2,14 +2,13 @@ name: Release (Canary)
 
 on:
   workflow_dispatch:
-    inputs:
-      arch:
-        description: 'Architecture to build (arm64 | x64 | both)'
-        required: false
-        default: 'both'
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-canary
+  cancel-in-progress: false
 
 jobs:
   prepare-release:
@@ -44,64 +43,13 @@ jobs:
 
   release-linux:
     needs: [prepare-release]
-    runs-on: ubuntu-latest
-    container: ubuntu:22.04
+    uses: ./.github/workflows/release-linux.yml
     permissions:
       contents: write
-    environment: release
-    steps:
-      - name: Install system build dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: >
-          apt-get update &&
-          apt-get install -y
-          build-essential
-          ca-certificates
-          curl
-          git
-          libsecret-1-dev
-          pkg-config
-          python-is-python3
-          python3
-          python3-setuptools
-          python3-wheel
-          rpm
-          xz-utils
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-build
-        with:
-          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
-          posthog-host: ${{ secrets.POSTHOG_HOST }}
-          build-variant: canary
-          setup-python: 'false'
-
-      - run: pnpm run build
-
-      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
-
-      - name: Build Linux packages
-        working-directory: apps/emdash-desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          node --experimental-strip-types scripts/release/build.ts
-          --platform linux --arch x64
-          --config electron-builder.canary.config.ts
-          --channel canary
-
-      - name: Verify Linux native modules
-        working-directory: apps/emdash-desktop
-        run: node --experimental-strip-types scripts/release/verify-linux.ts
-
-      - uses: ./.github/actions/upload-r2
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-bucket: ${{ secrets.R2_BUCKET }}
-          channel: v1-canary
-          prefix: emdash-canary
+    with:
+      channel: canary
+      release_id: ${{ needs.prepare-release.outputs.release_id }}
+    secrets: inherit
 
   release-win:
     needs: [prepare-release]
@@ -128,8 +76,7 @@ jobs:
       - shell: bash
         run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
-      - name: Check Azure Trusted Signing secrets
-        id: signing
+      - name: Require Azure Trusted Signing secrets
         shell: bash
         env:
           AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
@@ -137,10 +84,10 @@ jobs:
           AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           if [ -n "$AZ_TENANT" ] && [ -n "$AZ_CLIENT" ] && [ -n "$AZ_SECRET" ]; then
-            echo "has_signing=true" >> "$GITHUB_OUTPUT"
+            echo "Azure Trusted Signing is configured."
           else
-            echo "has_signing=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
+            echo "::error::Azure Trusted Signing secrets are required for a public release."
+            exit 1
           fi
 
       - name: Build Windows packages
@@ -156,22 +103,22 @@ jobs:
           --platform win --arch x64
           --config electron-builder.canary.config.ts
           --channel canary
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
 
       - name: Verify Windows code signature
-        if: ${{ steps.signing.outputs.has_signing == 'true' }}
         shell: bash
         working-directory: apps/emdash-desktop
         run: node --experimental-strip-types scripts/release/verify-win.ts
 
-      - name: Upload to R2
-        uses: ./.github/actions/upload-r2
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-bucket: ${{ secrets.R2_BUCKET }}
-          channel: v1-canary
-          prefix: emdash-canary
+      - name: Upload verified Windows assets to owned draft
+        shell: bash
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          node --experimental-strip-types scripts/release/upload-github-assets.ts
+          --platform win --channel canary
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
 
   release-mac:
     needs: [prepare-release]
@@ -209,9 +156,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           node --experimental-strip-types scripts/release/build.ts
-          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
+          --platform mac --arch both --targets dmg,zip
           --config electron-builder.canary.config.ts
           --channel canary
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
 
       - name: Notarize and staple
         working-directory: apps/emdash-desktop
@@ -221,18 +169,17 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: node --experimental-strip-types scripts/release/notarize-mac.ts --app-bundle "Emdash Canary.app"
 
-      - name: Upload to R2
-        uses: ./.github/actions/upload-r2
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2-bucket: ${{ secrets.R2_BUCKET }}
-          channel: v1-canary
-          prefix: emdash-canary
+      - name: Upload notarized macOS assets to owned draft
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          node --experimental-strip-types scripts/release/upload-github-assets.ts
+          --platform mac --channel canary
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
 
   finalize-release:
-    needs: [release-linux, release-win, release-mac]
+    needs: [prepare-release, release-linux, release-win, release-mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -256,4 +203,11 @@ jobs:
         working-directory: apps/emdash-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node --experimental-strip-types scripts/release/finalize-release.ts --channel canary
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: >
+          node --experimental-strip-types scripts/release/finalize-release.ts
+          --channel canary
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
