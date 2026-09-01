@@ -377,6 +377,7 @@ function startDesktopWorkersWithHost(
   const gitReady = timedReady(
     'git',
     watcherReady.then(async (watcher) => {
+      const filesSettings = await deps.getFilesSettings();
       const worker = host.create(
         ...gitWorkerSpec({
           executable: desktopWorkerPath('git'),
@@ -387,6 +388,7 @@ function startDesktopWorkersWithHost(
             userEnv: userShellEnv,
           },
           gitExecutable: getGitExecutable(),
+          watchIgnore: filesSettings.watcherExclude,
         })
       );
       return await worker.ready();
@@ -422,6 +424,7 @@ function startDesktopWorkersWithHost(
       scriptsReady,
       hostSettingsReady,
     ]).then(async ([watcher, acp, terminals, tuiAgents, scripts, hostSettings]) => {
+      const filesSettings = await deps.getFilesSettings();
       const worker = host.create(
         ...workspaceRegistryWorkerSpec({
           executable: desktopWorkerPath('workspace-registry'),
@@ -436,6 +439,7 @@ function startDesktopWorkersWithHost(
             userEnv: userShellEnv,
           },
           databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+          watchIgnore: filesSettings.watcherExclude,
         })
       );
       return await worker.ready();

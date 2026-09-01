@@ -216,18 +216,21 @@ export async function createWorkspaceServerRuntimeHost(
   ]);
 
   // Host-settings are already awaited above, so the per-host watcherExclude can
-  // configure the files worker at spawn (restart-applied). Unset leaves
-  // watchIgnore undefined and FilesRuntime falls back to the shared
-  // DEFAULT_WATCHER_EXCLUDE — defaults live in code, never in the store.
+  // configure the files, git, and workspace-registry workers at spawn
+  // (restart-applied). Unset leaves watchIgnore undefined and each runtime falls
+  // back to the shared DEFAULT_WATCHER_EXCLUDE — defaults live in code, never in
+  // the store. All three receive the same list so their working-tree watches
+  // share one native subscription per root.
   const hostSettingsState = await hostSettings.get();
+  const watchIgnore = hostSettingsState.success
+    ? hostSettingsState.data.settings.watcherExclude
+    : undefined;
   const filesPromise = workerHost.spawn(
     ...filesWorkerSpec({
       executable: workspaceWorkerPath('files'),
       env,
       dependencies: { watcher },
-      watchIgnore: hostSettingsState.success
-        ? hostSettingsState.data.settings.watcherExclude
-        : undefined,
+      watchIgnore,
     })
   );
   const fileSearchPromise = workerHost.spawn(
@@ -248,6 +251,7 @@ export async function createWorkspaceServerRuntimeHost(
         hostDependencies: hostDependencies.client.resolver,
         userEnv: userShellEnv,
       },
+      watchIgnore,
     })
   );
   const workspaceRegistryPromise = workerHost.spawn(
@@ -264,6 +268,7 @@ export async function createWorkspaceServerRuntimeHost(
         userEnv: userShellEnv,
       },
       databasePath: paths.workspaceRegistryDatabase,
+      watchIgnore,
     })
   );
 
