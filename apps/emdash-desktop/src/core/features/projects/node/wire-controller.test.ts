@@ -1,5 +1,3 @@
-import { projectsWireContract, type ProjectAttachmentState } from '@core/features/projects/api';
-import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
@@ -8,6 +6,8 @@ import type { LiveSource } from '@emdash/wire/rpc';
 import { cell, observe, remote, snapshot, whenReady } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
+import { projectsWireContract, type ProjectAttachmentState } from '@core/features/projects/api';
+import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
 import type { ProjectOperationDependencies } from './controller';
 import { createProjectsWireController } from './wire-controller';
 

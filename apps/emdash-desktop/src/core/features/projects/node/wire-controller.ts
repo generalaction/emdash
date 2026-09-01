@@ -1,3 +1,15 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
+import { err, ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import type {
+  Contract,
+  ContractImpl,
+  LeasedLiveModelProvider,
+  LiveModelProvider,
+  LiveSource,
+} from '@emdash/wire/rpc';
+import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire/state';
 import {
   projectsWireContract,
   type ProjectListData,
@@ -11,18 +23,6 @@ import {
   forwardLiveModel,
   forwardModelMutation,
 } from '@core/services/runtime-clients/node/forward-live-model';
-import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
-import { err, ok } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
-import type {
-  Contract,
-  ContractImpl,
-  LeasedLiveModelProvider,
-  LiveModelProvider,
-  LiveSource,
-} from '@emdash/wire/rpc';
-import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire/state';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
