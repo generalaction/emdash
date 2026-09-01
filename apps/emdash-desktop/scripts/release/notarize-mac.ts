@@ -30,8 +30,7 @@ const apiKeyId = process.env.APPLE_API_KEY_ID;
 const apiIssuer = process.env.APPLE_API_ISSUER;
 
 if (!apiKeyContent || !apiKeyId || !apiIssuer) {
-  warn('Apple API key not configured; skipping notarization.');
-  process.exit(0);
+  fail('Apple API key is required; refusing to publish macOS artifacts without notarization');
 }
 
 // If the env var carries the key content inline (not a file path), write it to a temp file
@@ -48,8 +47,7 @@ const dmgs = readdirSync(RELEASE_DIR)
   .map((f) => resolve(RELEASE_DIR, f));
 
 if (dmgs.length === 0) {
-  warn('No DMG files found — nothing to notarize.');
-  process.exit(0);
+  fail('No DMG files found; refusing to continue without notarization');
 }
 
 // Notarize and auto-staple each DMG via @electron/notarize (submits to notarytool, then staples)
