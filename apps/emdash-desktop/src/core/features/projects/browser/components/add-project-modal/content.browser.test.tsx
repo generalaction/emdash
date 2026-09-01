@@ -2,11 +2,11 @@ import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CreateNewPanel } from './content';
-import type { NewModeState } from './modes';
+import { CreateRepositoryPanel } from './content';
+import type { CreateRepositoryModeState } from './modes';
 import type { ProjectDirectoryPickerClient } from './project-directory-picker';
 
-describe('CreateNewPanel layout', () => {
+describe('CreateRepositoryPanel layout', () => {
   let container: HTMLDivElement;
   let root: Root;
   let style: HTMLStyleElement;
@@ -45,7 +45,7 @@ describe('CreateNewPanel layout', () => {
 
   it('keeps the owner and repository name fields within the row', () => {
     const owner = { value: 'octocat', label: 'octocat', avatarUrl: '' };
-    const state: NewModeState = {
+    const state: CreateRepositoryModeState = {
       repositoryName: '',
       repositoryOwner: owner,
       repositoryVisibility: 'private',
@@ -62,7 +62,7 @@ describe('CreateNewPanel layout', () => {
 
     act(() => {
       root.render(
-        <CreateNewPanel
+        <CreateRepositoryPanel
           strategy="local"
           state={state}
           getProjectsClient={getProjectsClient}

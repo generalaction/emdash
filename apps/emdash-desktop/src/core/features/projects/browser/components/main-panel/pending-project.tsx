@@ -8,6 +8,7 @@ import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import {
   type ProjectCreationStage,
+  type ProjectMode,
   type UnregisteredProject,
 } from '@core/features/projects/api/browser/stores/project';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -20,10 +21,10 @@ const STAGE_LABELS: Record<ProjectCreationStage, string> = {
   registering: 'Registering project',
 };
 
-const STAGES_BY_MODE: Record<'pick' | 'clone' | 'new', ProjectCreationStage[]> = {
+const STAGES_BY_MODE: Record<ProjectMode, ProjectCreationStage[]> = {
   pick: ['registering'],
   clone: ['cloning', 'registering'],
-  new: ['creating-repo', 'cloning', 'registering'],
+  create: ['creating-repo', 'cloning', 'registering'],
 };
 
 export const PendingProjectStatus = observer(function PendingProjectStatus({

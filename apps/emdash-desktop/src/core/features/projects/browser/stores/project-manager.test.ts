@@ -1008,13 +1008,13 @@ describe('ProjectManagerStore project creation', () => {
     expect(store.projects.has('optimistic-project')).toBe(false);
   });
 
-  it('inspects the final new-project path instead of the parent directory', async () => {
+  it('inspects the final repository-creation path instead of the parent directory', async () => {
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'child-project',
         path: '/parent',
         repositoryName: 'child-project',
@@ -1056,7 +1056,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
 
-  it('does not let a project registered at the new-project parent path short-circuit creation', async () => {
+  it('does not let a project at the repository-creation parent path short-circuit creation', async () => {
     const parentProject = localProject({ id: 'parent-project', path: '/parent' });
     mocks.inspectProjectPath.mockImplementation(async ({ path }: { path: string }) => ({
       isDirectory: true,
@@ -1068,7 +1068,7 @@ describe('ProjectManagerStore project creation', () => {
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'child-project',
         path: '/parent',
         repositoryName: 'child-project',
@@ -1083,13 +1083,13 @@ describe('ProjectManagerStore project creation', () => {
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
 
-  it('persists the selected GitHub account after registering a new project', async () => {
+  it('persists the selected GitHub account after creating the project', async () => {
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/parent',
         repositoryName: 'project',
@@ -1264,13 +1264,13 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
-  it('uses the selected GitHub account when creating a repository for a new project', async () => {
+  it('uses the selected GitHub account when creating a repository for the project', async () => {
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/parent',
         repositoryName: 'project',
@@ -1302,7 +1302,7 @@ describe('ProjectManagerStore project creation', () => {
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/parent',
         repositoryName: 'project',
@@ -1333,7 +1333,7 @@ describe('ProjectManagerStore project creation', () => {
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/parent',
         repositoryName: 'project',
@@ -1368,7 +1368,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.createProject).not.toHaveBeenCalled();
   });
 
-  it('starts new-project cloning on the SSH host and rolls back GitHub if it fails', async () => {
+  it('starts repository-creation cloning on the SSH host and rolls back GitHub if it fails', async () => {
     mocks.projectWireResult = Promise.reject(
       new LiveJobFailedError({ type: 'clone-failed', message: 'Remote clone failed' })
     );
@@ -1377,7 +1377,7 @@ describe('ProjectManagerStore project creation', () => {
     const result = await store.startProjectCreation(
       { type: 'ssh', connectionId: 'ssh-1' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/remote/parent',
         repositoryName: 'project',
@@ -1404,7 +1404,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.projectWireCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         host: { type: 'ssh', connectionId: 'ssh-1' },
-        mode: 'new',
+        mode: 'create',
         repositoryUrl: 'https://github.com/acme/project.git',
         targetPath: '/remote/parent/Project',
       })
@@ -1426,7 +1426,7 @@ describe('ProjectManagerStore project creation', () => {
     const result = await store.startProjectCreation(
       { type: 'local' },
       {
-        mode: 'new',
+        mode: 'create',
         name: 'Project',
         path: '/parent',
         repositoryName: 'project',
