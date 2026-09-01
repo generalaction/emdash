@@ -11,11 +11,16 @@ on:
         description: Exact GitHub draft release id created by the caller
         required: true
         type: string
-    secrets:
-      POSTHOG_PROJECT_API_KEY:
+      posthog_key:
+        description: Public PostHog project key embedded in the desktop client
         required: false
-      POSTHOG_HOST:
+        type: string
+        default: ''
+      posthog_host:
+        description: Public PostHog host embedded in the desktop client
         required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -29,7 +34,6 @@ jobs:
         arch: [x64, arm64]
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
     container: ubuntu:22.04
-    environment: release
     steps:
       - name: Install system build dependencies
         env:
@@ -53,8 +57,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
-          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
-          posthog-host: ${{ secrets.POSTHOG_HOST }}
+          posthog-key: ${{ inputs.posthog_key }}
+          posthog-host: ${{ inputs.posthog_host }}
           build-variant: ${{ inputs.channel == 'canary' && 'canary' || 'prod' }}
           setup-python: 'false'
 
