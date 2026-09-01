@@ -13,7 +13,7 @@ export type CreationStatus =
     }
   | { kind: 'failed'; stage: ProjectCreationStage; message: string };
 
-export type ProjectMode = 'pick' | 'clone' | 'new';
+export type ProjectMode = 'pick' | 'clone' | 'create';
 
 /**
  * Container class — holds a stable reference in the ObservableMap across all
