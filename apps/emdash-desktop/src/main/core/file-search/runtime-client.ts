@@ -1,10 +1,12 @@
 import { normalizeExclusionPatterns } from '@emdash/core/primitives/exclusion-policy/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
+  encodeResourceUri,
   hostFileRef,
   portableRelativePathBasename,
   resourceKeyFromFileRef,
   type HostAbsolutePath,
+  type HostFileRef,
 } from '@emdash/core/primitives/path/api';
 import {
   PATH_SEARCH_DEFAULT_LIMIT,
@@ -115,13 +117,13 @@ async function unregisterFileSearchRoot(
 
 export async function searchFileSearchRoot(
   client: FileSearchRuntimeClient,
-  root: HostAbsolutePath,
+  root: HostFileRef,
   query: string,
   limit?: number
 ): Promise<WorkspaceFileHit[]> {
   try {
     const result = await client.searchPaths({
-      root,
+      root: root.path,
       query,
       kinds: ['file'],
       limit: normalizeLimit(limit),
@@ -129,7 +131,7 @@ export async function searchFileSearchRoot(
     if (!result.success) {
       if (!isTransientSearchError(result.error)) {
         log.warn('Failed to search file paths', {
-          root: nativePathFromHost(root),
+          root: nativePathFromHost(root.path),
           query,
           error: result.error,
         });
@@ -138,12 +140,13 @@ export async function searchFileSearchRoot(
     }
 
     return result.data.hits.map((hit) => ({
-      path: nativePathFromHost(resolveRelativePath(root, hit.path)),
+      resource: encodeResourceUri(hostFileRef(root.host, resolveRelativePath(root.path, hit.path))),
+      relativePath: hit.path,
       filename: portableRelativePathBasename(hit.path),
     }));
   } catch (error) {
     log.warn('File path search threw unexpectedly', {
-      root: nativePathFromHost(root),
+      root: nativePathFromHost(root.path),
       query,
       error: String(error),
     });

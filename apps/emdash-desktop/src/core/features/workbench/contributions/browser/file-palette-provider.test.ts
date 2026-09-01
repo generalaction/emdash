@@ -1,4 +1,7 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { encodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { PaletteController, definePaletteProviderCatalog } from '@core/primitives/palette/api';
 import { createFilePaletteProviderDef, filePaletteProviderDef } from './file-palette-provider';
 
@@ -16,15 +19,19 @@ vi.mock('../../browser/command-palette/open-command-palette-file', () => ({
   openCommandPaletteFile: vi.fn(),
 }));
 
-vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () => ({
-  workspaceRegistry: { get: vi.fn() },
-}));
-
 const context = {
   projectId: 'project-1',
   taskId: 'task-1',
   workspaceId: 'local-workspace',
 };
+
+function fileHit(path: string, relativePath: string, filename: string) {
+  return {
+    resource: encodeResourceUri(hostFileRef(LOCAL_HOST_REF, hostPathFromNative(path))),
+    relativePath: portablePath(relativePath),
+    filename,
+  };
+}
 
 describe('file palette provider', () => {
   beforeEach(() => {
@@ -36,7 +43,6 @@ describe('file palette provider', () => {
     const searchWorkspaceFiles = vi.fn(async () => []);
     const provider = createFilePaletteProviderDef({
       searchWorkspaceFiles,
-      getWorkspacePath: () => '/repo',
     });
     const controller = new PaletteController(definePaletteProviderCatalog([provider]));
 
@@ -74,19 +80,22 @@ describe('file palette provider', () => {
   );
 
   it('maps filename matches as primary and displays the workspace-relative path', async () => {
+    const hit = fileHit(
+      '/repo/src/components/button.tsx',
+      'src/components/button.tsx',
+      'button.tsx'
+    );
     const provider = createFilePaletteProviderDef({
-      searchWorkspaceFiles: vi.fn(async () => [
-        { path: '/repo/src/components/button.tsx', filename: 'button.tsx' },
-      ]),
-      getWorkspacePath: () => '/repo',
+      searchWorkspaceFiles: vi.fn(async () => [hit]),
     });
 
     await expect(provider.search({ query: 'button.tsx', context })).resolves.toEqual([
       {
-        id: '/repo/src/components/button.tsx',
+        id: hit.resource,
         title: 'button.tsx',
         subtitle: 'src/components/button.tsx',
-        path: '/repo/src/components/button.tsx',
+        resource: hit.resource,
+        relativePath: hit.relativePath,
         projectId: 'project-1',
         taskId: 'task-1',
         relevance: { band: 'exact', score: 1 },
@@ -95,19 +104,23 @@ describe('file palette provider', () => {
   });
 
   it('maps path-only matches as secondary and omits unrelated candidates', async () => {
+    const button = fileHit(
+      '/repo/src/components/button.tsx',
+      'src/components/button.tsx',
+      'button.tsx'
+    );
     const provider = createFilePaletteProviderDef({
       searchWorkspaceFiles: vi.fn(async () => [
-        { path: '/repo/src/components/button.tsx', filename: 'button.tsx' },
-        { path: '/repo/test/dialog.test.tsx', filename: 'dialog.test.tsx' },
+        button,
+        fileHit('/repo/test/dialog.test.tsx', 'test/dialog.test.tsx', 'dialog.test.tsx'),
       ]),
-      getWorkspacePath: () => '/repo',
     });
 
     const matches = await provider.search({ query: 'components', context });
 
     expect(matches).toHaveLength(1);
     expect(matches[0]).toMatchObject({
-      id: '/repo/src/components/button.tsx',
+      id: button.resource,
       subtitle: 'src/components/button.tsx',
       relevance: { band: 'secondary' },
     });
