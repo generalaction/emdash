@@ -104,28 +104,35 @@ export const provider = registerPluginBehavior(plugin, {
           : 'stdio';
       const entry: Record<string, unknown> = { ...current, type };
 
-      for (const key of ['url', 'headers', 'command', 'args', 'env', 'enabled']) {
+      for (const key of [
+        'url',
+        'headers',
+        'command',
+        'args',
+        'env',
+        'enabled',
+        'cwd',
+        'timeout',
+        'oauth',
+        'callTimeoutMs',
+      ]) {
         delete entry[key];
       }
 
       if (type === 'http') {
-        delete entry.command;
-        delete entry.args;
-        delete entry.env;
         if (server.url !== undefined) entry.url = server.url;
         if (server.headers !== undefined) entry.headers = server.headers;
         if (server.oauth !== undefined) entry.oauth = server.oauth !== false;
       } else {
-        delete entry.url;
-        delete entry.headers;
-        delete entry.oauth;
         delete entry.bearerTokenEnvVar;
         if (server.command !== undefined) entry.command = server.command;
         if (server.args !== undefined) entry.args = server.args;
         if (server.env !== undefined) entry.env = server.env;
+        if (server.cwd !== undefined) entry.cwd = server.cwd;
       }
 
       if (server.enabled !== undefined) entry.enabled = server.enabled;
+      if (server.timeout !== undefined) entry.callTimeoutMs = server.timeout;
       for (const key of ['bearerTokenEnvVar', 'enabledTools', 'disabledTools']) {
         if (server[key] !== undefined) entry[key] = server[key];
       }
@@ -140,6 +147,10 @@ export const provider = registerPluginBehavior(plugin, {
           ? 'http'
           : 'stdio';
       if (entry.oauth === true) entry.oauth = {};
+      if (typeof entry.callTimeoutMs === 'number') {
+        entry.timeout = entry.callTimeoutMs;
+        delete entry.callTimeoutMs;
+      }
       return { name, ...entry, transport: type, type };
     },
   }),

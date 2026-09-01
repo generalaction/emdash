@@ -229,4 +229,113 @@ describe('prime-agent provider', () => {
       },
     });
   });
+
+  it('maps canonical cwd and timeout fields to Prime stdio config', async () => {
+    const configPath = '.prime/agent/settings.json';
+    const fs = createMemoryFs();
+
+    await provider.behavior.mcp!.writeServers(fs, [
+      {
+        name: 'local',
+        transport: 'stdio',
+        command: 'node',
+        cwd: '/srv/mcp',
+        timeout: 60_000,
+      },
+    ]);
+
+    expect(JSON.parse((await fs.read(configPath))!)).toEqual({
+      mcpServers: {
+        local: {
+          type: 'stdio',
+          command: 'node',
+          cwd: '/srv/mcp',
+          callTimeoutMs: 60_000,
+        },
+      },
+    });
+    expect(await provider.behavior.mcp!.readServers(fs)).toEqual([
+      {
+        name: 'local',
+        type: 'stdio',
+        transport: 'stdio',
+        command: 'node',
+        cwd: '/srv/mcp',
+        timeout: 60_000,
+      },
+    ]);
+  });
+
+  it('clears omitted canonical stdio fields while preserving Prime-only fields', async () => {
+    const configPath = '.prime/agent/settings.json';
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        mcpServers: {
+          local: {
+            type: 'stdio',
+            command: 'node',
+            cwd: '/old/workspace',
+            timeout: 5_000,
+            callTimeoutMs: 10_000,
+            startupTimeoutMs: 30_000,
+            enabledTools: ['search'],
+          },
+        },
+      }),
+    });
+
+    await provider.behavior.mcp!.writeServers(fs, [
+      {
+        name: 'local',
+        transport: 'stdio',
+        command: 'pnpm',
+      },
+    ]);
+
+    expect(JSON.parse((await fs.read(configPath))!)).toEqual({
+      mcpServers: {
+        local: {
+          type: 'stdio',
+          command: 'pnpm',
+          startupTimeoutMs: 30_000,
+          enabledTools: ['search'],
+        },
+      },
+    });
+  });
+
+  it('clears OAuth when it is omitted from an existing HTTP server', async () => {
+    const configPath = '.prime/agent/settings.json';
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        mcpServers: {
+          docs: {
+            type: 'http',
+            url: 'https://old.example.com/mcp',
+            oauth: true,
+            bearerTokenEnvVar: 'DOCS_TOKEN',
+          },
+        },
+      }),
+    });
+
+    await provider.behavior.mcp!.writeServers(fs, [
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://new.example.com/mcp',
+      },
+    ]);
+
+    expect(JSON.parse((await fs.read(configPath))!)).toEqual({
+      mcpServers: {
+        docs: {
+          type: 'http',
+          url: 'https://new.example.com/mcp',
+          bearerTokenEnvVar: 'DOCS_TOKEN',
+        },
+      },
+    });
+  });
 });
