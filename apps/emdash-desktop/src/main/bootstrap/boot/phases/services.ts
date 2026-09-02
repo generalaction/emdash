@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { isLocalHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { err, ok } from '@emdash/shared';
@@ -49,6 +50,10 @@ import {
   type PromptLibraryKV,
 } from '@core/features/library/node/prompt-library-service';
 import { LocalSettingsSync } from '@core/features/machines/node/local-settings-sync';
+import {
+  createEmdashMcpServer,
+  type EmdashMcpServerHandle,
+} from '@core/features/mcp/node/server/create-mcp-server';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { PreviewServerAccessService } from '@core/features/preview-servers/node/preview-server-access-service';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
@@ -136,6 +141,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { appScope } from '../../core/app-scope';
 import { step } from '../../core/phase';
 import { setCoreServiceInstances } from '../../core/service-instances';
+import { createStartInitialConversation } from '../mcp-initial-conversation';
 import { registerProviderTokenHandlers, wireAccountTelemetry } from '../wiring';
 import type { DatabaseBundle } from './database';
 import type { InfrastructureBundle } from './infrastructure';
@@ -174,6 +180,7 @@ export type ServicesBundle = {
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly conversationSync: ConversationSyncService;
   readonly reconcileSweep: ReconcileSweepService;
+  readonly mcpServer: EmdashMcpServerHandle;
 };
 
 export async function bootServices(
@@ -795,6 +802,32 @@ export async function bootServices(
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
   registerProviderTokenHandlers();
+  // Local MCP server: exposes Emdash's task tools to agents over loopback HTTP.
+  // Constructed here so the MCP wire controller can resolve the managed "emdash"
+  // agent-config entry; the listener itself starts in the background phase.
+  const mcpServer = createEmdashMcpServer({
+    appSettings: appSettingsService,
+    appVersion: app.getVersion(),
+    db,
+    logger: log,
+    projects: projectManager,
+    runtimes,
+    startInitialConversation: createStartInitialConversation({
+      db,
+      logger: log,
+      runtimes,
+      taskSessions: taskSessionManager,
+      telemetry: telemetryService,
+      workspaceIdentity,
+      getProviderEnv: async (providerId) =>
+        (await providerOverrideSettings.getItem(providerId))?.env,
+    }),
+    tasks: taskService,
+    telemetry: telemetryService,
+    tokenFilePath: join(app.getPath('userData'), 'mcp-token'),
+    workspaceIdentity,
+  });
+  appScope.add(() => mcpServer.stop());
   return {
     account: accountService,
     automations: automationsService,
@@ -818,5 +851,6 @@ export async function bootServices(
     workspacePlacement,
     conversationSync,
     reconcileSweep,
+    mcpServer,
   };
 }
