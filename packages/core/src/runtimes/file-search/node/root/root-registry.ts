@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import {
+  createConcurrencyLimiter,
   createLifecycleRegistry,
   type LifecycleRegistry,
   type Scope,
@@ -20,6 +21,9 @@ import type { FileSearchExclusions } from '../exclusions';
 import { hostAbsolutePathFromNative } from '../native-paths';
 import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-identity';
+
+/** Keeps catalog validation background work that cannot crowd out active registrations. */
+const MAX_CONCURRENT_VALIDATION_PROBES = 2;
 
 type RootStartInput = Readonly<{
   root: HostAbsolutePath;
@@ -55,8 +59,9 @@ type FileSearchRootRegistryOptions = {
   ) => RegisteredRoot;
   /** Compile a canonical pattern list into a matcher. */
   compileExclusions(patterns: readonly string[]): FileSearchExclusions;
-  /** Patterns used when restoring persisted roots or when input has no exclusions. */
+  /** Patterns used when input has no exclusions. */
   defaultExclusionPatterns: readonly string[];
+  probeRootMissing?: (root: HostAbsolutePath) => Promise<boolean>;
   scope: Scope;
   onError?: (context: string, error: unknown) => void;
 };
@@ -80,8 +85,22 @@ export class FileSearchRootRegistry {
       stop: (rootKey, _registration, context) => this.stopRoot(rootKey, context),
       onObserverError: ({ error }) => this.report('file-search root observer failed', error),
     });
+  }
 
-    for (const stored of options.catalog.listRoots()) this.restore(stored);
+  /**
+   * Prunes catalog rows whose roots are definitively gone. Persisted rows are
+   * cold caches, not registrations: construction starts no maintenance, and
+   * this sweep only ever deletes rows — it never attaches watchers or scans.
+   */
+  startCatalogValidation(): void {
+    const run = this.options.scope.run('file-search-catalog-validation', (signal) =>
+      this.validateCatalog(signal)
+    );
+    void run.value().catch((error: unknown) => {
+      if (!this.options.scope.signal.aborted) {
+        this.report('file-search catalog validation failed', error);
+      }
+    });
   }
 
   async registerRoot(
@@ -245,27 +264,40 @@ export class FileSearchRootRegistry {
     return ok();
   }
 
-  private restore(stored: StoredFileSearchRoot): void {
-    const root = hostAbsolutePathFromNative(stored.rootPath);
-    if (this.options.resolver.comparisonKey(root) !== stored.rootKey) {
-      throw new Error(`Corrupt file-search root identity: ${stored.rootKey}`);
-    }
-    const exclusionPatterns = canonicalExclusionPatterns(this.options.defaultExclusionPatterns);
-    void this.lifecycle
-      .start({
-        root,
-        rootKey: stored.rootKey,
-        exclusionPatterns,
-      })
-      .then(
-        (result) => {
-          if (!result.success) this.report('file-search root restoration failed', result.error);
-        },
-        (error: unknown) => {
-          this.report('file-search root restoration crashed', error);
-          void this.lifecycle.forceRemove(stored.rootKey, error);
+  private async validateCatalog(signal: AbortSignal): Promise<void> {
+    const limiter = createConcurrencyLimiter(MAX_CONCURRENT_VALIDATION_PROBES);
+    await Promise.all(
+      this.options.catalog.listRoots().map(async (stored) => {
+        try {
+          await limiter.run(signal, () => this.validateCatalogRow(stored));
+        } catch (error) {
+          // One unreadable row must not stop the sweep from reaching the rest.
+          if (this.options.scope.signal.aborted || signal.aborted) return;
+          this.report('file-search catalog validation failed', error);
         }
-      );
+      })
+    );
+  }
+
+  private async validateCatalogRow(stored: StoredFileSearchRoot): Promise<void> {
+    // Registered roots own their rows; the sweep only inspects cold ones.
+    if (this.lifecycle.state(stored.rootKey).kind !== 'idle') return;
+    const missing = await this.probeRootMissing(hostAbsolutePathFromNative(stored.rootPath));
+    if (!missing) return;
+    // Re-check after the probe: a root registered mid-probe must not be pruned.
+    if (this.lifecycle.state(stored.rootKey).kind !== 'idle') return;
+    this.options.catalog.deleteRoot(stored.rootKey);
+  }
+
+  private async probeRootMissing(root: HostAbsolutePath): Promise<boolean> {
+    if (this.options.probeRootMissing) return this.options.probeRootMissing(root);
+    const resolved = await this.options.resolver.resolve(root);
+    if (resolved.success) return false;
+    const error = resolved.error;
+    return (
+      error.type === 'root-unavailable' &&
+      (error.reason === 'not-found' || error.reason === 'not-a-directory')
+    );
   }
 
   private assertResolvedIdentity(input: RootStartInput, resolved: ResolvedFileSearchRoot): void {

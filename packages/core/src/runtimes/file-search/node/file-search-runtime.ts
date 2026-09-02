@@ -105,6 +105,7 @@ export class FileSearchRuntime {
         scope: this.scope,
         onError,
       });
+      this.roots.startCatalogValidation();
     } catch (error) {
       void this.scope.dispose(error);
       throw error;

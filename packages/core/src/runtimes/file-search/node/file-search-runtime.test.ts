@@ -49,9 +49,14 @@ describe('FileSearchRuntime', () => {
       success: true,
       data: undefined,
     });
+    // Unregister deletes the durable row, so no cold generation remains either.
+    await expect(runtime.searchPaths({ root, query: '', kinds: ['file'] })).resolves.toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
   });
 
-  it('preserves durable root rows on shutdown and restores them in a new runtime', async () => {
+  it('serves persisted generations cold in a new runtime without starting watchers', async () => {
     const parent = await createRoot();
     const rootPath = path.join(parent, 'workspace');
     const databasePath = path.join(parent, 'file-search.db');
@@ -68,13 +73,15 @@ describe('FileSearchRuntime', () => {
     });
     await first.dispose();
 
-    const second = createRuntime(databasePath);
-    await vi.waitFor(async () => {
-      expect(await second.searchPaths({ root, query: '', kinds: ['file'] })).toEqual({
-        success: true,
-        data: { hits: [{ path: 'restored.ts', kind: 'file' }] },
-      });
+    // Persisted rows are cold cache, not registrations: the new runtime serves
+    // the published generation immediately and attaches zero watchers.
+    const watcher = new CountingWatchService();
+    const second = createRuntime(databasePath, watcher);
+    await expect(second.searchPaths({ root, query: '', kinds: ['file'] })).resolves.toEqual({
+      success: true,
+      data: { hits: [{ path: 'restored.ts', kind: 'file' }] },
     });
+    expect(watcher.watchCount).toBe(0);
   });
 });
 
@@ -86,12 +93,21 @@ class NoopWatchService implements IWatchService {
   async dispose(): Promise<void> {}
 }
 
-function createRuntime(databasePath = ':memory:'): FileSearchRuntime {
+class CountingWatchService extends NoopWatchService {
+  watchCount = 0;
+
+  override watch(): ReturnType<NoopWatchService['watch']> {
+    this.watchCount += 1;
+    return super.watch();
+  }
+}
+
+function createRuntime(
+  databasePath = ':memory:',
+  watcher: IWatchService = new NoopWatchService()
+): FileSearchRuntime {
   const handle: StoreHandle<FileSearchDb, Database.Database> = fileSearchStore.open(databasePath);
-  const runtime = new FileSearchRuntime({
-    handle,
-    watcher: new NoopWatchService(),
-  });
+  const runtime = new FileSearchRuntime({ handle, watcher });
   cleanups.push(async () => {
     await runtime.dispose();
     handle.close();

@@ -83,32 +83,83 @@ describe('FileSearchRootRegistry', () => {
     expect(store.listRoots()).toHaveLength(1);
   });
 
-  it('explicitly removes a persisted root whose restoration failed to start', async () => {
+  it('starts no maintenance for persisted rows and keeps them as cold cache', async () => {
+    const rootPath = await createRoot();
+    const store = await createPersistedStore(rootPath);
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ store, createRoot: createRegistered });
+
+    expect(createRegistered).not.toHaveBeenCalled();
+    expect(registry.resolveRegisteredRoot(absolute(rootPath))).toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
+    expect(store.listRoots()).toHaveLength(1);
+  });
+
+  it('prunes catalog rows for definitively missing roots during validation', async () => {
+    const rootPath = await createRoot();
+    const store = await createPersistedStore(rootPath);
+    await rm(rootPath, { recursive: true, force: true });
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ store, createRoot: createRegistered });
+
+    registry.startCatalogValidation();
+
+    await vi.waitFor(() => expect(store.listRoots()).toEqual([]));
+    expect(createRegistered).not.toHaveBeenCalled();
+  });
+
+  it('retains catalog rows when the validation probe fails transiently', async () => {
+    const rootPath = await createRoot();
+    const store = await createPersistedStore(rootPath);
+    await rm(rootPath, { recursive: true, force: true });
+    // A transient failure (permissions, I/O) is not proof the root is gone.
+    const probeRootMissing = vi.fn(async () => false);
+    const { registry } = createRegistry({ store, probeRootMissing });
+
+    registry.startCatalogValidation();
+
+    await vi.waitFor(() => expect(probeRootMissing).toHaveBeenCalledOnce());
+    expect(store.listRoots()).toHaveLength(1);
+  });
+
+  it('never prunes a root that registers while its validation probe is in flight', async () => {
     const rootPath = await createRoot();
     const root = absolute(rootPath);
-    const resolver = new NodeFileSearchRootResolver();
-    const resolved = await resolver.resolve(root);
-    if (!resolved.success) throw new Error('Expected root to resolve');
-    const store = createStore();
-    store.upsertRoot(resolved.data);
-    await rm(rootPath, { recursive: true, force: true });
-    const { registry } = createRegistry({ store });
-
-    await vi.waitFor(() =>
-      expect(registry.resolveRegisteredRoot(root)).toMatchObject({
-        success: false,
-        error: { type: 'root-unavailable' },
-      })
+    const store = await createPersistedStore(rootPath);
+    let reportMissing: ((missing: boolean) => void) | undefined;
+    const probeRootMissing = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          reportMissing = resolve;
+        })
     );
-    await expect(registry.unregisterRoot({ root })).resolves.toEqual({
+    const { registry } = createRegistry({ store, probeRootMissing });
+
+    registry.startCatalogValidation();
+    await vi.waitFor(() => expect(probeRootMissing).toHaveBeenCalledOnce());
+    await registry.registerRoot({ root });
+    // A stale "missing" verdict must lose to the registration that now owns the row.
+    reportMissing?.(true);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(store.listRoots()).toHaveLength(1);
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
+  });
+
+  it('deletes a cold persisted row on unregister without starting maintenance', async () => {
+    const rootPath = await createRoot();
+    const store = await createPersistedStore(rootPath);
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ store, createRoot: createRegistered });
+
+    await expect(registry.unregisterRoot({ root: absolute(rootPath) })).resolves.toEqual({
       success: true,
       data: undefined,
     });
     expect(store.listRoots()).toEqual([]);
-    expect(registry.resolveRegisteredRoot(root)).toMatchObject({
-      success: false,
-      error: { type: 'root-not-registered' },
-    });
+    expect(createRegistered).not.toHaveBeenCalled();
   });
 
   it('rolls back a new durable row when registered-root construction fails', async () => {
@@ -163,6 +214,7 @@ function createRegistry(
       exclusions: unknown,
       fingerprint: string
     ) => RegisteredRoot;
+    probeRootMissing?: () => Promise<boolean>;
   } = {}
 ): { registry: FileSearchRootRegistry; store: SqliteFileSearchStore; scope: Scope } {
   const store = options.store ?? createStore();
@@ -177,6 +229,7 @@ function createRegistry(
       watchIgnoreGlobs: () => [],
     }),
     defaultExclusionPatterns: [],
+    probeRootMissing: options.probeRootMissing,
     scope,
   });
   cleanups.push(async () => {
@@ -185,6 +238,14 @@ function createRegistry(
     storeHandles.get(store)?.close();
   });
   return { registry, store, scope };
+}
+
+async function createPersistedStore(rootPath: string): Promise<SqliteFileSearchStore> {
+  const resolved = await new NodeFileSearchRootResolver().resolve(absolute(rootPath));
+  if (!resolved.success) throw new Error('Expected root to resolve');
+  const store = createStore();
+  store.upsertRoot(resolved.data);
+  return store;
 }
 
 function createStore(): SqliteFileSearchStore {
