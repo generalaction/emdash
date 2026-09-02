@@ -7,9 +7,11 @@ import { createFileSearchRuntime, searchFileSearchRoot } from './runtime-client'
 
 const mocks = vi.hoisted(() => ({
   client: vi.fn(),
-  registerRoot: vi.fn(),
+  state: vi.fn(),
+  attach: vi.fn(),
+  detach: vi.fn(),
+  evictRoot: vi.fn(),
   searchPaths: vi.fn(),
-  unregisterRoot: vi.fn(),
   getSearchExclusions: vi.fn(),
   warn: vi.fn(),
 }));
@@ -18,71 +20,107 @@ vi.mock('@main/lib/logger', () => ({
   log: { warn: mocks.warn },
 }));
 
-describe('file-search runtime client', () => {
-  const runtime = createFileSearchRuntime({ client: mocks.client } as never, {
+function createRuntime() {
+  return createFileSearchRuntime({ client: mocks.client } as never, {
     getSearchExclusions: mocks.getSearchExclusions,
   });
+}
 
+describe('file-search runtime client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getSearchExclusions.mockResolvedValue(['node_modules']);
+    mocks.state.mockImplementation(() => ({ attach: mocks.attach }));
+    mocks.attach.mockResolvedValue(mocks.detach);
+    mocks.evictRoot.mockResolvedValue(ok());
     mocks.client.mockResolvedValue(
       ok({
         fileSearch: {
-          registerRoot: mocks.registerRoot,
+          activeRoot: { state: mocks.state },
+          evictRoot: mocks.evictRoot,
           searchPaths: mocks.searchPaths,
-          unregisterRoot: mocks.unregisterRoot,
         },
       })
     );
-    mocks.registerRoot.mockResolvedValue(ok());
-    mocks.unregisterRoot.mockResolvedValue(ok());
   });
 
-  it('registers and unregisters structured workspace roots', async () => {
+  it('holds one status attachment per acquired root and detaches on release', async () => {
+    const runtime = createRuntime();
     const root = hostPathFromNative('/repo');
 
-    await runtime.registerRoot(root, LOCAL_HOST_REF);
-    await runtime.unregisterRoot(root, LOCAL_HOST_REF);
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    expect(mocks.state).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] }, 'status');
+    expect(mocks.attach).toHaveBeenCalledOnce();
+    expect(mocks.client).toHaveBeenCalledWith(LOCAL_HOST_REF);
 
-    expect(mocks.registerRoot).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] });
-    expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
-    expect(mocks.client).toHaveBeenCalledTimes(2);
-    expect(mocks.client).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
-    expect(mocks.client).toHaveBeenNthCalledWith(2, LOCAL_HOST_REF);
+    // A second acquire for the same root is a no-op: the attachment is held.
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    expect(mocks.attach).toHaveBeenCalledOnce();
+
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).toHaveBeenCalledOnce();
+
+    // Releasing again is a no-op.
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).toHaveBeenCalledOnce();
   });
 
-  it('routes root registration and unregistration through the workspace host client', async () => {
+  it('routes lease attachments through the workspace host client', async () => {
+    const runtime = createRuntime();
     const root = hostPathFromNative('/repo');
     const remoteHost = hostRef('remote', 'machine-1');
 
-    await runtime.registerRoot(root, remoteHost);
-    await runtime.unregisterRoot(root, remoteHost);
+    await runtime.acquireRoot(root, remoteHost);
+    await runtime.releaseRoot(root, remoteHost);
 
-    expect(mocks.client).toHaveBeenCalledTimes(2);
-    expect(mocks.client).toHaveBeenNthCalledWith(1, remoteHost);
-    expect(mocks.client).toHaveBeenNthCalledWith(2, remoteHost);
-    expect(mocks.registerRoot).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] });
-    expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.client).toHaveBeenCalledTimes(1);
+    expect(mocks.client).toHaveBeenCalledWith(remoteHost);
+    expect(mocks.state).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] }, 'status');
+    expect(mocks.detach).toHaveBeenCalledOnce();
   });
 
-  it('re-registers active roots when exclusions are refreshed, without an unregister step', async () => {
+  it('re-leases under the new policy when refreshed exclusions differ, detach before attach', async () => {
+    const runtime = createRuntime();
     const root = hostPathFromNative('/repo');
     mocks.getSearchExclusions
       .mockResolvedValueOnce(['node_modules'])
       .mockResolvedValueOnce(['dist']);
 
-    await runtime.registerRoot(root, LOCAL_HOST_REF);
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    const calls: string[] = [];
+    mocks.detach.mockImplementation(() => calls.push('detach'));
+    mocks.attach.mockImplementation(async () => {
+      calls.push('attach');
+      return mocks.detach;
+    });
+
     await runtime.refreshExclusions();
 
-    // refreshExclusions calls registerRoot only — the server handles fingerprint comparison.
-    expect(mocks.unregisterRoot).not.toHaveBeenCalled();
-    expect(mocks.registerRoot).toHaveBeenCalledTimes(2);
-    expect(mocks.registerRoot).toHaveBeenNthCalledWith(1, {
-      root,
-      exclusions: ['node_modules'],
-    });
-    expect(mocks.registerRoot).toHaveBeenNthCalledWith(2, { root, exclusions: ['dist'] });
+    // Break-before-make so the ordered transport hands the root over.
+    expect(calls).toEqual(['detach', 'attach']);
+    expect(mocks.state).toHaveBeenNthCalledWith(2, { root, exclusions: ['dist'] }, 'status');
+  });
+
+  it('keeps the existing lease when refreshed exclusions are unchanged', async () => {
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await runtime.refreshExclusions();
+
+    expect(mocks.attach).toHaveBeenCalledOnce();
+    expect(mocks.detach).not.toHaveBeenCalled();
+  });
+
+  it('releases the lease before evicting the durable index', async () => {
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await runtime.evictRoot(root, LOCAL_HOST_REF);
+
+    expect(mocks.detach).toHaveBeenCalledOnce();
+    expect(mocks.evictRoot).toHaveBeenCalledWith({ root });
   });
 
   it('searches only files and preserves canonical identity plus the relative coordinate', async () => {

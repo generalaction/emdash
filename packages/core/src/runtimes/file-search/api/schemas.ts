@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
+import { fileSearchAcquireRootErrorSchema } from './errors';
 import { pathEntryKinds } from './path-entry-kind';
 
 export const PATH_SEARCH_MAX_LIMIT = 200;
@@ -13,6 +14,24 @@ export const fileSearchRootInputSchema = z.object({
   root: hostAbsolutePathSchema,
   exclusions: z.array(z.string()).optional(),
 });
+
+export const evictRootInputSchema = z.object({
+  root: hostAbsolutePathSchema,
+});
+
+export const activeRootAvailabilitySchema = z.enum(['building', 'searchable', 'failed']);
+
+export const activeRootWatcherHealthSchema = z.enum(['attaching', 'live', 'degraded']);
+
+export const activeRootStatusSchema = z.discriminatedUnion('phase', [
+  z.object({ phase: z.literal('starting') }),
+  z.object({
+    phase: z.literal('active'),
+    availability: activeRootAvailabilitySchema,
+    watcher: activeRootWatcherHealthSchema,
+  }),
+  z.object({ phase: z.literal('failed'), error: fileSearchAcquireRootErrorSchema }),
+]);
 
 export const pathEntryKindSchema = z.enum(pathEntryKinds);
 
@@ -87,6 +106,10 @@ export const contentSearchResultSchema = z.object({
 });
 
 export type FileSearchRootInput = z.infer<typeof fileSearchRootInputSchema>;
+export type EvictRootInput = z.infer<typeof evictRootInputSchema>;
+export type ActiveRootAvailability = z.infer<typeof activeRootAvailabilitySchema>;
+export type ActiveRootWatcherHealth = z.infer<typeof activeRootWatcherHealthSchema>;
+export type ActiveRootStatus = z.infer<typeof activeRootStatusSchema>;
 export type PathEntryKind = z.infer<typeof pathEntryKindSchema>;
 export type PathSearchInput = z.infer<typeof pathSearchInputSchema>;
 export type PathSearchHit = z.infer<typeof pathSearchHitSchema>;

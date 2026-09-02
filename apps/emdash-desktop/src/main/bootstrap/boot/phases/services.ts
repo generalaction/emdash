@@ -243,7 +243,8 @@ export async function bootServices(
     },
   });
   const lifecycleParticipants = createWorkspaceLifecycleParticipants({
-    registerFileSearchRoot: fileSearchRuntime.registerRoot,
+    acquireFileSearchRoot: fileSearchRuntime.acquireRoot,
+    releaseFileSearchRoot: fileSearchRuntime.releaseRoot,
     stopPreviewServers: (projectId, workspaceId) =>
       previewServerService.stopForWorkspace(projectId, workspaceId),
   });
@@ -382,7 +383,7 @@ export async function bootServices(
       sessionCleanup: lifecycleSessions,
       getMementosRuntimeClient,
       telemetry: telemetryService,
-      unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
+      evictFileSearchRoot: fileSearchRuntime.evictRoot,
     },
   });
   const searchService = createSearchService({

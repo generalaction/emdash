@@ -1,5 +1,6 @@
 import type { Run, Scope } from '@emdash/shared/concurrency';
 import { throwIfAborted, waitWithSignal, type RetrySchedule } from '@emdash/shared/scheduling';
+import { cell, peek, type Cell, type Readable } from '@emdash/wire/state';
 import {
   ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
@@ -62,7 +63,10 @@ export class RootIndex {
   private eventQueue: Promise<void> = Promise.resolve();
   private reconcileRun: Run<void> | undefined;
   private trailingReconcileRequested = false;
-  private currentStatus: RootIndexStatus = { kind: 'building' };
+  private readonly currentStatus: Cell<RootIndexStatus> = cell(
+    { kind: 'building' },
+    { equals: sameSteadyStatus }
+  );
   private attached = false;
   private needsGapClose = false;
 
@@ -87,11 +91,19 @@ export class RootIndex {
   }
 
   get status(): RootIndexStatus {
+    return peek(this.currentStatus);
+  }
+
+  get statusChanges(): Readable<RootIndexStatus> {
     return this.currentStatus;
   }
 
   get watcherHealth(): WatchSupervisorHealth {
     return this.supervisor.health;
+  }
+
+  get watcherHealthChanges(): Readable<WatchSupervisorHealth> {
+    return this.supervisor.healthChanges;
   }
 
   /** Coalesces concurrent requests and settles when the current reconciliation attempt settles. */
@@ -101,7 +113,7 @@ export class RootIndex {
     }
     if (this.reconcileRun) return this.reconcileRun.value();
 
-    if (this.currentStatus.kind !== 'failed') this.currentStatus = { kind: 'building' };
+    if (peek(this.currentStatus).kind !== 'failed') this.currentStatus.set({ kind: 'building' });
     const run = this.scope.run('reconcile', (signal) => this.reconcileLoop(signal));
     this.reconcileRun = run;
     void run.exit.then(() => {
@@ -145,7 +157,7 @@ export class RootIndex {
       activeBuild.publish(finalPatches);
       this.publicationState = { kind: 'published' };
       if (!startedUnattached) this.needsGapClose = false;
-      if (!this.trailingReconcileRequested) this.currentStatus = { kind: 'ready' };
+      if (!this.trailingReconcileRequested) this.currentStatus.set({ kind: 'ready' });
     } catch (error) {
       if (build) {
         try {
@@ -155,7 +167,7 @@ export class RootIndex {
         }
       }
       this.publicationState = { kind: 'published' };
-      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
+      this.currentStatus.set({ kind: 'failed', failure: this.classifyFailure(error) });
       throw error;
     }
   }
@@ -195,8 +207,9 @@ export class RootIndex {
   private enqueueEvents(events: WatchEvent[]): void {
     if (this.scope.state !== 'open' || events.length === 0) return;
     if (events.every((event) => event.kind === 'update')) {
-      if (this.currentStatus.kind === 'ready') return;
-      if (this.currentStatus.kind === 'failed') {
+      const status = peek(this.currentStatus);
+      if (status.kind === 'ready') return;
+      if (status.kind === 'failed') {
         this.requestReconcile();
         return;
       }
@@ -223,7 +236,7 @@ export class RootIndex {
     });
     this.eventQueue = run.value().catch((error: unknown) => {
       if (this.scope.signal.aborted) return;
-      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
+      this.currentStatus.set({ kind: 'failed', failure: this.classifyFailure(error) });
       this.report('file-search watcher patch failed', error);
       this.requestReconcile();
     });
@@ -277,4 +290,9 @@ export class RootIndex {
     );
     return expected ? { expected } : { unexpected: error };
   }
+}
+
+/** Building/ready re-announcements are no-ops; failures always publish. */
+function sameSteadyStatus(left: RootIndexStatus, right: RootIndexStatus): boolean {
+  return left.kind === right.kind && left.kind !== 'failed';
 }

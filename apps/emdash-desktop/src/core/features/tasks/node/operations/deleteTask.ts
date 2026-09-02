@@ -67,7 +67,7 @@ export type TaskDeletionDependencies = {
   sessionCleanup: TaskSessionCleanup;
   getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
   telemetry: Pick<TelemetryService, 'capture'>;
-  unregisterFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
+  evictFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
 };
 
 export async function deleteTask(
@@ -158,7 +158,7 @@ export async function deleteTask(
     });
     if (workspace?.path && workspaceIsUntracked(db, workspace.id)) {
       const removed = hostFileRefFromNativePath(workspace.path, sshConnectionIdOf(host));
-      await dependencies.unregisterFileSearchRoot(removed.path, removed.host);
+      await dependencies.evictFileSearchRoot(removed.path, removed.host);
     }
   }
 

@@ -13,14 +13,14 @@ import type {
   ContentSearchError,
   ContentSearchInput,
   ContentSearchResult,
-  FileSearchRegisterRootError,
-  FileSearchRootInput,
+  EvictRootInput,
   FileSearchUnregisterRootError,
   PathSearchError,
   PathSearchInput,
   PathSearchResult,
 } from '#runtimes/file-search/api';
 import type { IWatchService } from '#services/fs-watch/api';
+import { createActiveRootHost, type ActiveRootHost } from './api/active-root-host';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';
@@ -50,6 +50,7 @@ export type FileSearchRuntimeOptions = Readonly<{
 
 /** Host-scoped composition root for durable root, path, and content search. */
 export class FileSearchRuntime {
+  readonly activeRoots: ActiveRootHost;
   private readonly scope: Scope;
   private readonly roots: FileSearchRootRegistry;
   private readonly store: SqliteFileSearchStore;
@@ -105,6 +106,7 @@ export class FileSearchRuntime {
         scope: this.scope,
         onError,
       });
+      this.activeRoots = createActiveRootHost({ registry: this.roots, scope: this.scope });
       void this.roots.startCatalogValidation();
     } catch (error) {
       void this.scope.dispose(error);
@@ -112,12 +114,8 @@ export class FileSearchRuntime {
     }
   }
 
-  registerRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchRegisterRootError>> {
-    return this.roots.registerRoot(input);
-  }
-
-  unregisterRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchUnregisterRootError>> {
-    return this.roots.unregisterRoot(input);
+  evictRoot(input: EvictRootInput): Promise<Result<void, FileSearchUnregisterRootError>> {
+    return this.roots.evictRoot(input);
   }
 
   async searchPaths(input: PathSearchInput): Promise<Result<PathSearchResult, PathSearchError>> {
@@ -148,6 +146,7 @@ export class FileSearchRuntime {
 
   private async disposeInternal(): Promise<void> {
     try {
+      await this.activeRoots.dispose();
       await this.roots.dispose();
     } finally {
       await this.scope.dispose(new Error('File-search runtime disposed'));

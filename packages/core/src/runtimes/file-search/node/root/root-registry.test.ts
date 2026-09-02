@@ -31,43 +31,41 @@ describe('FileSearchRootRegistry', () => {
     const { registry } = createRegistry({ createRoot: createRegistered });
     const root = absolute(rootPath);
 
-    await expect(registry.registerRoot({ root })).resolves.toEqual({
-      success: true,
-      data: undefined,
-    });
+    await expect(registry.acquireRoot({ root })).resolves.toMatchObject({ success: true });
     expect(createRegistered).toHaveBeenCalledOnce();
     expect(createRegistered.mock.calls[0][0]).toMatchObject({ rootPath });
     expect(createRegistered.mock.calls[0][1].state).toBe('open');
     expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
   });
 
-  it('re-registers and rebuilds the index when exclusions differ from the ready root', async () => {
+  it('rebuilds the index when a released root is re-leased with different exclusions', async () => {
     const rootPath = await createRoot();
     const createRegistered = vi.fn(fakeRoot);
     const { registry } = createRegistry({ createRoot: createRegistered });
     const root = absolute(rootPath);
 
-    // First registration — empty default patterns.
-    await registry.registerRoot({ root });
+    const first = await registry.acquireRoot({ root });
+    if (!first.success) throw new Error('Expected lease to acquire');
     expect(createRegistered).toHaveBeenCalledTimes(1);
+    await first.data.release();
 
-    // Second registration with different exclusions — fingerprint mismatch triggers rebuild.
-    await registry.registerRoot({ root, exclusions: ['node_modules'] });
+    // A new lease with different exclusions rebuilds under the new policy.
+    const second = await registry.acquireRoot({ root, exclusions: ['node_modules'] });
+    expect(second).toMatchObject({ success: true });
     expect(createRegistered).toHaveBeenCalledTimes(2);
 
     // Catalog row must be preserved (not re-created).
-    const resolved = registry.resolveRegisteredRoot(root);
-    expect(resolved).toMatchObject({ success: true });
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
   });
 
-  it('does not rebuild the index when the same exclusion set is re-registered (order-insensitive)', async () => {
+  it('shares the index across leases with the same exclusion set (order-insensitive)', async () => {
     const rootPath = await createRoot();
     const createRegistered = vi.fn(fakeRoot);
     const { registry } = createRegistry({ createRoot: createRegistered });
     const root = absolute(rootPath);
 
-    await registry.registerRoot({ root, exclusions: ['dist', 'build'] });
-    await registry.registerRoot({ root, exclusions: ['build', 'dist'] });
+    await registry.acquireRoot({ root, exclusions: ['dist', 'build'] });
+    await registry.acquireRoot({ root, exclusions: ['build', 'dist'] });
 
     // Same canonical set — no stop+start should occur.
     expect(createRegistered).toHaveBeenCalledTimes(1);
@@ -76,7 +74,7 @@ describe('FileSearchRootRegistry', () => {
   it('keeps durable registrations when registry shutdown stops maintenance', async () => {
     const rootPath = await createRoot();
     const { registry, store } = createRegistry();
-    await registry.registerRoot({ root: absolute(rootPath) });
+    await registry.acquireRoot({ root: absolute(rootPath) });
 
     await registry.dispose();
 
@@ -144,7 +142,7 @@ describe('FileSearchRootRegistry', () => {
 
     const sweep = registry.startCatalogValidation();
     await probeEntered;
-    await registry.registerRoot({ root });
+    await registry.acquireRoot({ root });
     // A stale "missing" verdict must lose to the registration that now owns the row.
     reportMissing(true);
     await sweep;
@@ -153,18 +151,97 @@ describe('FileSearchRootRegistry', () => {
     expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
   });
 
-  it('deletes a cold persisted row on unregister without starting maintenance', async () => {
+  it('deletes a cold persisted row on evict without starting maintenance', async () => {
     const rootPath = await createRoot();
     const store = await createPersistedStore(rootPath);
     const createRegistered = vi.fn(fakeRoot);
     const { registry } = createRegistry({ store, createRoot: createRegistered });
 
-    await expect(registry.unregisterRoot({ root: absolute(rootPath) })).resolves.toEqual({
+    await expect(registry.evictRoot({ root: absolute(rootPath) })).resolves.toEqual({
       success: true,
       data: undefined,
     });
     expect(store.listRoots()).toEqual([]);
     expect(createRegistered).not.toHaveBeenCalled();
+  });
+
+  it('shares maintenance across identical leases and stops after the last release', async () => {
+    const rootPath = await createRoot();
+    const root = absolute(rootPath);
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry, store } = createRegistry({ createRoot: createRegistered });
+
+    const first = await registry.acquireRoot({ root });
+    const second = await registry.acquireRoot({ root });
+    if (!first.success || !second.success) throw new Error('Expected leases to acquire');
+    expect(createRegistered).toHaveBeenCalledOnce();
+
+    await first.data.release();
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
+
+    await second.data.release();
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
+    // Releasing the last lease keeps the catalog row as cold cache.
+    expect(store.listRoots()).toHaveLength(1);
+  });
+
+  it('rejects a concurrent conflicting exclusion policy with a typed error', async () => {
+    const rootPath = await createRoot();
+    const root = absolute(rootPath);
+    const { registry } = createRegistry();
+
+    const holder = await registry.acquireRoot({ root, exclusions: ['dist'] });
+    if (!holder.success) throw new Error('Expected lease to acquire');
+
+    await expect(registry.acquireRoot({ root, exclusions: ['build'] })).resolves.toMatchObject({
+      success: false,
+      error: { type: 'exclusion-policy-conflict' },
+    });
+    // The rejected attempt must not disturb the holder's maintenance.
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
+    await holder.data.release();
+  });
+
+  it('hands over deterministically when release precedes a different-policy acquire', async () => {
+    const rootPath = await createRoot();
+    const root = absolute(rootPath);
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ createRoot: createRegistered });
+
+    const first = await registry.acquireRoot({ root, exclusions: ['dist'] });
+    if (!first.success) throw new Error('Expected lease to acquire');
+    // Initiate the release without awaiting it: the count drops in its
+    // synchronous prefix, so the acquire below must queue behind the in-flight
+    // stop and start fresh under the new policy instead of conflicting.
+    const releasing = first.data.release();
+    const second = await registry.acquireRoot({ root, exclusions: ['build'] });
+    await releasing;
+
+    expect(second).toMatchObject({ success: true });
+    expect(createRegistered).toHaveBeenCalledTimes(2);
+    if (second.success) await second.data.release();
+  });
+
+  it('invalidates outstanding leases when the root is evicted', async () => {
+    const rootPath = await createRoot();
+    const root = absolute(rootPath);
+    const { registry, store } = createRegistry();
+    const lease = await registry.acquireRoot({ root });
+    if (!lease.success) throw new Error('Expected lease to acquire');
+
+    await expect(registry.evictRoot({ root })).resolves.toEqual({ success: true, data: undefined });
+    expect(store.listRoots()).toEqual([]);
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
+
+    // A stale release after eviction is a no-op, not a second stop.
+    await lease.data.release();
+    expect(store.listRoots()).toEqual([]);
   });
 
   it('rolls back a new durable row when registered-root construction fails', async () => {
@@ -176,7 +253,7 @@ describe('FileSearchRootRegistry', () => {
       },
     });
 
-    await expect(registry.registerRoot({ root: absolute(rootPath) })).resolves.toMatchObject({
+    await expect(registry.acquireRoot({ root: absolute(rootPath) })).resolves.toMatchObject({
       success: false,
       error: { type: 'root-unavailable', reason: 'not-found' },
     });
@@ -201,7 +278,7 @@ describe('FileSearchRootRegistry', () => {
       },
     });
 
-    const registration = registry.registerRoot({ root: absolute(rootPath) });
+    const registration = registry.acquireRoot({ root: absolute(rootPath) });
     await expect(registration).rejects.toBeInstanceOf(AggregateError);
     await expect(registration).rejects.toMatchObject({
       errors: [{ cause: attachmentFailure }, rollbackFailure],

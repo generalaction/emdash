@@ -1,28 +1,30 @@
-import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
+import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   contentSearchErrorSchema,
-  fileSearchRegisterRootErrorSchema,
   fileSearchUnregisterRootErrorSchema,
   pathSearchErrorSchema,
 } from './errors';
 import {
+  activeRootStatusSchema,
   contentSearchInputSchema,
   contentSearchProgressSchema,
   contentSearchResultSchema,
+  evictRootInputSchema,
   fileSearchRootInputSchema,
   pathSearchInputSchema,
   pathSearchResultSchema,
 } from './schemas';
 
 export const fileSearchContract = defineContract({
-  registerRoot: fallible({
-    input: fileSearchRootInputSchema,
-    data: z.void(),
-    error: fileSearchRegisterRootErrorSchema,
+  activeRoot: liveModel({
+    key: fileSearchRootInputSchema,
+    states: {
+      status: liveState({ data: activeRootStatusSchema }),
+    },
   }),
-  unregisterRoot: fallible({
-    input: fileSearchRootInputSchema,
+  evictRoot: fallible({
+    input: evictRootInputSchema,
     data: z.void(),
     error: fileSearchUnregisterRootErrorSchema,
   }),

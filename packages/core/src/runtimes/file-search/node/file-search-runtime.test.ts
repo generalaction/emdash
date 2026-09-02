@@ -27,10 +27,9 @@ describe('FileSearchRuntime', () => {
     await expect(
       runtime.searchPaths({ root, query: '', kinds: ['file', 'directory'] })
     ).resolves.toMatchObject({ success: false, error: { type: 'root-not-registered' } });
-    await expect(runtime.registerRoot({ root })).resolves.toEqual({
-      success: true,
-      data: undefined,
-    });
+    // Attaching to the activeRoot status state IS acquiring the lease.
+    const lease = runtime.activeRoots.acquireState({ root }, 'status');
+    await lease.ready();
 
     await vi.waitFor(async () => {
       expect(
@@ -41,15 +40,16 @@ describe('FileSearchRuntime', () => {
       });
     });
 
-    await expect(runtime.unregisterRoot({ root })).resolves.toEqual({
+    await lease.release();
+    await expect(runtime.evictRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
-    await expect(runtime.unregisterRoot({ root })).resolves.toEqual({
+    await expect(runtime.evictRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
-    // Unregister deletes the durable row, so no cold generation remains either.
+    // Eviction deletes the durable row, so no cold generation remains either.
     await expect(runtime.searchPaths({ root, query: '', kinds: ['file'] })).resolves.toMatchObject({
       success: false,
       error: { type: 'root-not-registered' },
@@ -65,7 +65,8 @@ describe('FileSearchRuntime', () => {
     const root = absolute(rootPath);
 
     const first = createRuntime(databasePath);
-    await first.registerRoot({ root });
+    const lease = first.activeRoots.acquireState({ root }, 'status');
+    await lease.ready();
     await vi.waitFor(async () => {
       expect(await first.searchPaths({ root, query: '', kinds: ['file'] })).toMatchObject({
         success: true,

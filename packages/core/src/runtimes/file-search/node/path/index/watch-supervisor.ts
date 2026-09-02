@@ -5,6 +5,7 @@ import {
   waitWithSignal,
   type RetrySchedule,
 } from '@emdash/shared/scheduling';
+import { cell, peek, type Cell, type Readable } from '@emdash/wire/state';
 import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
 
 /** Freshness floor for a searchable root whose watcher is unavailable. */
@@ -41,7 +42,7 @@ type WatchSupervisorOptions = Readonly<{
  * terminal for its handle — recovery always acquires a fresh subscription.
  */
 export class WatchSupervisor {
-  private state: WatchSupervisorHealth = 'attaching';
+  private readonly state: Cell<WatchSupervisorHealth> = cell('attaching');
   private currentHandle: WatchHandle | undefined;
   private pollingStarted = false;
 
@@ -51,6 +52,10 @@ export class WatchSupervisor {
   }
 
   get health(): WatchSupervisorHealth {
+    return peek(this.state);
+  }
+
+  get healthChanges(): Readable<WatchSupervisorHealth> {
     return this.state;
   }
 
@@ -69,11 +74,11 @@ export class WatchSupervisor {
       const outcome = await this.attemptAttach(signal);
       if (outcome.kind === 'attached') {
         await this.options.onAttached();
-        this.state = 'live';
+        this.state.set('live');
         return;
       }
 
-      this.state = 'degraded';
+      this.state.set('degraded');
       this.report('file-search watcher could not attach to the root', outcome.error);
       if (this.options.isPermanentFailure(outcome.error)) return;
 
@@ -126,9 +131,9 @@ export class WatchSupervisor {
     this.pollingStarted = true;
     const pollMs = this.options.degradedPollMs ?? DEGRADED_POLL_MS;
     const run = this.options.scope.run('watch-degraded-poll', async (signal) => {
-      while (this.state === 'degraded') {
+      while (peek(this.state) === 'degraded') {
         await systemClock.sleep(pollMs, { signal });
-        if (this.state !== 'degraded') return;
+        if (peek(this.state) !== 'degraded') return;
         this.options.onRefresh();
       }
     });
