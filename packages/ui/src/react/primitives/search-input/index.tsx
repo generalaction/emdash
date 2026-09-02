@@ -9,6 +9,8 @@ import * as styles from './search-input.css';
 
 export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 'size' | 'type'> {
   size?: InputVariantProps['size'];
+  /** Removes the standalone field shell for use on an existing surface. */
+  bare?: InputVariantProps['bare'];
   /** Called when the user clicks the × clear button. Renders the button when provided. */
   onClear?: () => void;
   /** Optional trailing content, such as a keyboard shortcut hint. */
@@ -36,7 +38,16 @@ export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 's
  *   />
  */
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, size = 'base', onClear, shortcut, value, style: consumerStyle, ...props },
+  {
+    className,
+    size = 'base',
+    bare = false,
+    onClear,
+    shortcut,
+    value,
+    style: consumerStyle,
+    ...props
+  },
   ref
 ) {
   const hasValue = value !== undefined && value !== '';
@@ -57,6 +68,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
         ref={ref}
         type="search"
         size={size}
+        bare={bare}
         value={value}
         className={cx(className)}
         style={{ paddingLeft, paddingRight }}
