@@ -12,19 +12,29 @@ export const LIBSECRET_PASSWORD_STORE = 'gnome-libsecret';
  * Service is on the session bus, which breaks every encrypted-secret feature
  * (account sign-in, cached GitHub/Linear tokens, SSH credentials, …). See #1875.
  *
- * Force `gnome-libsecret` when a session bus is present (a Secret Service can
- * only live on D-Bus) and the desktop is not KDE — KDE is left to its native
- * kwallet auto-detection. With no session bus we leave the default untouched:
- * there is no Secret Service to reach, so forcing would not help. On GNOME the
- * switch is a harmless no-op (Chromium already picks libsecret there).
+ * Force `gnome-libsecret` unless the desktop is KDE, which is left to its native
+ * KWallet auto-detection. We intentionally do not infer Secret Service
+ * availability from `DBUS_SESSION_BUS_ADDRESS`: it is only an address, services
+ * may be activated on demand, and Chromium will report whether the requested
+ * backend actually initialized. On GNOME the switch is a harmless no-op because
+ * Chromium already picks libsecret there.
  */
 export function shouldForceLibsecretBackend(
   env: NodeJS.ProcessEnv = process.env,
   options: { passwordStoreSwitchPresent?: boolean } = {}
 ): boolean {
   if (options.passwordStoreSwitchPresent) return false;
-  if (!env.DBUS_SESSION_BUS_ADDRESS?.trim()) return false;
-  const desktop = (env.XDG_CURRENT_DESKTOP ?? '').toLowerCase();
-  if (desktop.includes('kde')) return false;
-  return true;
+  return !isKdeDesktop(env);
+}
+
+function isKdeDesktop(env: NodeJS.ProcessEnv): boolean {
+  const desktops = (env.XDG_CURRENT_DESKTOP ?? '')
+    .split(':')
+    .map((desktop) => desktop.trim().toLowerCase());
+
+  return (
+    desktops.some((desktop) => desktop === 'kde' || desktop === 'plasma') ||
+    env.KDE_FULL_SESSION?.trim().toLowerCase() === 'true' ||
+    Boolean(env.KDE_SESSION_VERSION?.trim())
+  );
 }

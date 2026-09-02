@@ -1,10 +1,6 @@
 import { app } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { initializeFileLogger, registerProcessErrorLogging } from '@main/host/file-logger';
-import {
-  LIBSECRET_PASSWORD_STORE,
-  shouldForceLibsecretBackend,
-} from '@main/host/linux-secret-storage';
 import { registerAppScheme } from '@main/host/protocol';
 import { log } from '@main/lib/logger';
 import type { AppConfig } from '../../core/config';
@@ -12,17 +8,6 @@ import { step } from '../../core/phase';
 import { BootAborted, type BootSignals } from '../types';
 
 export async function prepareElectron(config: AppConfig, signals: BootSignals): Promise<void> {
-  if (process.platform === 'linux') {
-    app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-    if (
-      shouldForceLibsecretBackend(process.env, {
-        passwordStoreSwitchPresent: app.commandLine.hasSwitch('password-store'),
-      })
-    ) {
-      app.commandLine.appendSwitch('password-store', LIBSECRET_PASSWORD_STORE);
-    }
-  }
-
   registerAppScheme();
   initializeFileLogger();
   registerProcessErrorLogging(log);
