@@ -32,6 +32,7 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
     scope: serviceScope,
     label: 'channels',
     idleTtlMs: options.graceMs ?? 0,
+    cancelPendingOnRelease: true,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
       const events = createEmitter<WatchEvent[]>();
@@ -40,21 +41,24 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
         events.clear();
         resync.clear();
       });
-      await runWithTimeout(
-        () =>
-          options.backend.subscribe(
-            key,
-            {
-              events: (batch) => events.emit(batch),
-              resync: () => resync.emit(),
-            },
-            scope
-          ),
+      let markStarted: () => void = () => {};
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const subscription = options.backend.subscribe(
+        key,
         {
-          timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
-          signal: scope.signal,
-        }
+          events: (batch) => events.emit(batch),
+          resync: () => resync.emit(),
+        },
+        scope,
+        markStarted
       );
+      await Promise.race([started, subscription]);
+      await runWithTimeout(() => subscription, {
+        timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
+        signal: scope.signal,
+      });
       return { events, resync };
     },
   });

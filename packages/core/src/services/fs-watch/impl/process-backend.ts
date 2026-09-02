@@ -16,7 +16,8 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
   const onError = options.onError ?? (() => {});
 
   return {
-    async subscribe(key, sink, scope) {
+    async subscribe(key, sink, scope, onStart) {
+      onStart();
       await options.ready?.();
       const client = await getClient(options.client);
       const detach = await client.events.handle(key).attach(
@@ -32,6 +33,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
           }
         },
         {
+          signal: scope.signal,
           onReattach: () => sink.resync(),
           onReattachError: (error, context) => {
             const mode = context.retrying ? 'retrying' : 'terminal';

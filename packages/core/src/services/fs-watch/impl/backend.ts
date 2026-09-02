@@ -14,6 +14,6 @@ export type WatchSink = {
 export type WatchOnError = (context: string, error: unknown) => void;
 
 export interface WatchBackend {
-  subscribe(key: WatchKey, sink: WatchSink, scope: Scope): Promise<void>;
+  subscribe(key: WatchKey, sink: WatchSink, scope: Scope, onStart: () => void): Promise<void>;
   dispose?(): Promise<void> | void;
 }

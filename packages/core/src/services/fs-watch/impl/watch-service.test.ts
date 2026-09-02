@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
@@ -249,7 +249,8 @@ describe('createWatchService', () => {
       await handle.release();
       attempt.ready.reject(failure);
 
-      await expect(handle.ready()).resolves.toEqual(err(failure));
+      const result = await handle.ready();
+      expect(result.success).toBe(false);
       expect(onError).not.toHaveBeenCalled();
     } finally {
       await service.dispose();
@@ -332,6 +333,7 @@ describe('createWatchService', () => {
     try {
       const first = service.watch(root, () => {});
       const firstReady = first.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
       await vi.advanceTimersByTimeAsync(1_000);
       const firstResult = await firstReady;
       expect(firstResult.success).toBe(false);
@@ -340,12 +342,13 @@ describe('createWatchService', () => {
       await first.release();
 
       const second = service.watch(root, () => {});
-      const secondReady = expect(second.ready()).resolves.toEqual(ok(undefined));
+      const secondReady = second.ready();
+      expect(subscribe).toHaveBeenCalledOnce();
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
       await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
       secondSubscription.resolve({ unsubscribe: secondUnsubscribe });
-      await secondReady;
+      await expect(secondReady).resolves.toEqual(ok(undefined));
 
-      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
       await vi.advanceTimersByTimeAsync(0);
       expect(firstUnsubscribe).toHaveBeenCalledOnce();
       await second.release();
@@ -355,6 +358,157 @@ describe('createWatchService', () => {
       await service.dispose();
     }
   });
+
+  it('starts native subscriptions FIFO without timing out queued roots', async () => {
+    vi.useFakeTimers();
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-queue-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const secondSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const secondUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockReturnValueOnce(firstSubscription.promise)
+      .mockReturnValueOnce(secondSubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe, maxConcurrentStarts: 1 }),
+      startupTimeoutMs: 1_000,
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const firstReady = first.ready();
+      let secondSettled = false;
+      const secondReady = second.ready().finally(() => {
+        secondSettled = true;
+      });
+
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+      expect(subscribe.mock.calls[0]?.[0]).toBe(realpathOrResolve(firstRoot));
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const firstResult = await firstReady;
+      expect(firstResult.success).toBe(false);
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(secondSettled).toBe(false);
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      expect(subscribe.mock.calls[1]?.[0]).toBe(realpathOrResolve(secondRoot));
+      secondSubscription.resolve({ unsubscribe: secondUnsubscribe });
+      await expect(secondReady).resolves.toEqual(ok(undefined));
+
+      await first.release();
+      await second.release();
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+      expect(secondUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
+  it('cancels a queued native subscription when its final lease is released', async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi.fn().mockReturnValueOnce(firstSubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe, maxConcurrentStarts: 1 }),
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const secondReady = second.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+
+      await second.release();
+      const secondResult = await secondReady;
+      expect(secondResult.success).toBe(false);
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      await first.release();
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      await service.dispose();
+    }
+  });
+
+  it('survives native unsubscribe failure and accepts a later root', async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-release-second-'));
+    const failure = new Error('Unable to remove watcher');
+    const firstUnsubscribe = vi.fn().mockRejectedValue(failure);
+    const secondUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockResolvedValueOnce({ unsubscribe: firstUnsubscribe })
+      .mockResolvedValueOnce({ unsubscribe: secondUnsubscribe });
+    const onError = vi.fn();
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe, onError }),
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      await expect(first.ready()).resolves.toEqual(ok(undefined));
+      await first.release();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(onError).toHaveBeenCalledWith(`unsubscribe ${realpathOrResolve(firstRoot)}`, failure);
+      expect(unhandled).not.toHaveBeenCalled();
+
+      const second = service.watch(secondRoot, () => {});
+      await expect(second.ready()).resolves.toEqual(ok(undefined));
+      await second.release();
+      expect(secondUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      await service.dispose();
+    }
+  });
+
+  it('releases every native subscription after repeated many-root churn', async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), 'emdash-native-churn-'));
+    const roots = Array.from({ length: 8 }, (_, index) => path.join(parent, `root-${index}`));
+    await Promise.all(roots.map((root) => mkdir(root)));
+    const service = createNativeWatchService();
+
+    try {
+      for (let cycle = 0; cycle < 4; cycle += 1) {
+        const handles = roots.map((root) => service.watch(root, () => {}));
+        await expect(Promise.all(handles.map((handle) => handle.ready()))).resolves.toEqual(
+          roots.map(() => ok(undefined))
+        );
+        await Promise.all(handles.map((handle) => handle.release()));
+      }
+
+      const events: WatchEvent[] = [];
+      const final = service.watch(roots[0]!, (batch) => events.push(...batch));
+      await expect(final.ready()).resolves.toEqual(ok(undefined));
+      await writeFile(path.join(roots[0]!, 'after-churn.txt'), 'still alive\n', 'utf8');
+      await eventually(() =>
+        events.some((event) => path.basename(event.path) === 'after-churn.txt') ? true : undefined
+      );
+      await final.release();
+    } finally {
+      await service.dispose();
+      await rm(parent, { recursive: true, force: true });
+    }
+  }, 15_000);
 
   it('disposes active handles by releasing their shared native subscription', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
@@ -375,7 +529,13 @@ class FakeWatchBackend implements WatchBackend {
     return this.sinks.size;
   }
 
-  async subscribe(key: WatchKey, sink: WatchSink, scope: Scope): Promise<void> {
+  async subscribe(
+    key: WatchKey,
+    sink: WatchSink,
+    scope: Scope,
+    onStart: () => void
+  ): Promise<void> {
+    onStart();
     this.subscribeCount += 1;
     const keyId = keyOf(key);
     this.sinks.set(keyId, sink);
@@ -399,7 +559,13 @@ class DeferredWatchBackend implements WatchBackend {
     disposed: boolean;
   }> = [];
 
-  async subscribe(_key: WatchKey, _sink: WatchSink, scope: Scope): Promise<void> {
+  async subscribe(
+    _key: WatchKey,
+    _sink: WatchSink,
+    scope: Scope,
+    onStart: () => void
+  ): Promise<void> {
+    onStart();
     const attempt = { ready: deferred(), disposed: false };
     this.attempts.push(attempt);
     scope.add(() => {

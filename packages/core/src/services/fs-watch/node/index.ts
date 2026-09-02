@@ -11,13 +11,18 @@ export type CreateNativeWatchServiceOptions = Readonly<{
   graceMs?: number;
   onError?: NativeWatchBackendOptions['onError'];
   subscribe?: NativeWatchBackendOptions['subscribe'];
+  maxConcurrentStarts?: NativeWatchBackendOptions['maxConcurrentStarts'];
 }>;
 
 export function createNativeWatchService(
   options: CreateNativeWatchServiceOptions = {}
 ): IWatchService {
   return createWatchService({
-    backend: nativeWatchBackend({ onError: options.onError, subscribe: options.subscribe }),
+    backend: nativeWatchBackend({
+      onError: options.onError,
+      subscribe: options.subscribe,
+      maxConcurrentStarts: options.maxConcurrentStarts,
+    }),
     scope: options.scope,
     graceMs: options.graceMs,
     onError: options.onError,

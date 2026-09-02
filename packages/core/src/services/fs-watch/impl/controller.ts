@@ -1,4 +1,6 @@
+import { once } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
+import { abortableWait } from '@emdash/shared/scheduling';
 import { stableStringify } from '@emdash/shared/util';
 import { createEventStreamHost } from '@emdash/wire/live';
 import { createController, type Controller } from '@emdash/wire/rpc';
@@ -22,7 +24,7 @@ export function createFsWatchController(options: CreateFsWatchControllerOptions)
       onError: options.onError,
     });
   const events = createEventStreamHost(fsWatchContract.events, {
-    activate: async (key) => {
+    activate: async (key, signal) => {
       const handle = service.watch(
         key.root,
         (batch) => events.emit(key, { kind: 'events', events: batch }),
@@ -31,21 +33,22 @@ export function createFsWatchController(options: CreateFsWatchControllerOptions)
           onResync: () => events.emit(key, { kind: 'resync' }),
         }
       );
+      const release = once(() => handle.release());
       try {
-        await requireWatchReady(handle);
+        await abortableWait<void>({ signal }, (settle) => {
+          requireWatchReady(handle).then(settle.resolve, settle.reject);
+        });
       } catch (error) {
         try {
-          await handle.release();
+          await release();
         } catch (releaseError) {
           options.onError?.(`release failed watch ${keyId(key)}`, releaseError);
         }
-        options.onError?.(`watch ${keyId(key)}`, error);
+        if (!signal.aborted) options.onError?.(`watch ${keyId(key)}`, error);
         throw error;
       }
       return () => {
-        void handle
-          .release()
-          .catch((error) => options.onError?.(`release watch ${keyId(key)}`, error));
+        void release().catch((error) => options.onError?.(`release watch ${keyId(key)}`, error));
       };
     },
   });
