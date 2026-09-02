@@ -57,7 +57,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         }
       : { kind: 'loading' };
 
-  const autoFocus =
+  const shouldAutoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
 
   const lifecycleScriptTabs = lifecycleScriptsMgr?.tabs ?? [];
@@ -124,10 +124,11 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   };
 
   const activeStore = mode === 'terminals' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
-  const { attachRef: attachPaneScope, instance: paneScopeInstance } = usePaneScope(
-    `terminal-drawer:${projectId}:${taskId}`,
-    activeStore ?? terminalTabView
-  );
+  const {
+    attachRef: attachPaneScope,
+    instance: paneScopeInstance,
+    isFocused,
+  } = usePaneScope(`terminal-drawer:${projectId}:${taskId}`, activeStore ?? terminalTabView);
 
   const handleCreate = async (shell?: TerminalShellId) => {
     if (liveActionsDisabled) return;
@@ -218,6 +219,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         }}
       >
         <TerminalDrawerTabBar
+          isFocused={isFocused}
           projectId={projectId}
           liveActionsDisabled={liveActionsDisabled}
           mode={mode}
@@ -250,7 +252,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           className="min-h-0 flex-1"
           activeSession={activeSession}
           allSessionIds={allSessionIds}
-          autoFocus={autoFocus}
+          autoFocus={shouldAutoFocus}
           emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
           unavailableState={
             <EmptyState

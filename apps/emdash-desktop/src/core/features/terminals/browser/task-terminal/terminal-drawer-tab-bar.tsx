@@ -30,6 +30,7 @@ export type TerminalShellMenuState =
   | Readonly<{ kind: 'ready'; availability: TerminalShellAvailability[] }>;
 
 interface TerminalDrawerTabBarProps {
+  isFocused: boolean;
   mode: TerminalDrawerMode;
   onModeChange: (mode: TerminalDrawerMode) => void;
   lifecycleScriptsMgr: LifecycleScriptsStore | null;
@@ -62,6 +63,7 @@ const SCRIPT_STATUS_MAP: Record<LifecycleScriptStatus, ScriptStatusKind> = {
 };
 
 export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
+  isFocused,
   mode,
   onModeChange,
   lifecycleScriptsMgr,
@@ -103,6 +105,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                 icon={<Terminal className="size-3" />}
                 label={terminal.data.name}
                 isActive={activeTerminalId === terminal.data.id}
+                isFocused={isFocused}
                 dragData={{
                   type: TERMINAL_DRAWER_DRAG_TYPE,
                   terminalId: terminal.data.id,
@@ -152,6 +155,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
               icon={<ScriptStatus status={SCRIPT_STATUS_MAP[script.status]} size={12} />}
               label={script.data.label}
               isActive={activeScriptId === script.data.id}
+              isFocused={isFocused}
               onSelect={() => onSelectScript(script.data.id)}
               iconAction={
                 <Tooltip.Root>
@@ -282,6 +286,7 @@ interface DrawerItemTabProps {
   icon: ReactNode;
   label: string;
   isActive: boolean;
+  isFocused: boolean;
   onSelect: () => void;
   onRename?: (name: string) => void;
   onHover?: () => void;
@@ -295,6 +300,7 @@ function DrawerItemTab({
   icon,
   label,
   isActive,
+  isFocused,
   onSelect,
   onRename,
   onHover,
@@ -323,7 +329,14 @@ function DrawerItemTab({
         isDragging && 'opacity-50'
       )}
     >
-      {isActive && <div className="absolute inset-x-0 bottom-0 h-0.5 bg-foreground" />}
+      {isActive && (
+        <div
+          className={cn(
+            'absolute inset-x-0 bottom-0 h-0.5',
+            isFocused ? 'bg-(--primary-button-background)' : 'bg-border-1'
+          )}
+        />
+      )}
       {isEditing && onRename ? (
         <div className="flex min-w-0 flex-1 items-center gap-1.5 px-3">
           <span className="shrink-0">{icon}</span>
