@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { PaneDimensionProvider } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { usePaneContext } from '../tabs/pane-context';
+import { paneDropTargetId } from './pane-drop-target';
 import { TabBar } from './tab-bar';
 import { PaneSplitDropZones } from './tab-bar/pane-split-drop-zones';
 
@@ -27,7 +28,7 @@ export const PaneContent = observer(function PaneContent({
 }) {
   const { paneId, pane } = usePaneContext();
   const { setNodeRef: setContentDropRef, isOver: isOverContent } = useDroppable({
-    id: `pane-content-${paneId}`,
+    id: paneDropTargetId({ kind: 'content', paneId }),
   });
   const contentRef = useRef<HTMLDivElement | null>(null);
 

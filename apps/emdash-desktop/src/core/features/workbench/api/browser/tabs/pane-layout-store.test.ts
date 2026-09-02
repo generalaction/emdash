@@ -64,12 +64,12 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
+import { paneDropTargetId } from '@core/primitives/workbench-shell/browser/tabs/pane-drop-target';
 import { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import type {
   PaneLayoutSnapshotDocument,
   PaneLayoutSnapshotMemento,
 } from '@core/primitives/workbench-shell/browser/tabs/persistence';
-import { splitDropId } from '@core/primitives/workbench-shell/browser/tabs/split-drop-id';
 
 const testCtx = {
   viewId: 'task-1',
@@ -573,6 +573,22 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     layout.dispose();
   });
 
+  it('materializes content and split targets for external drags', () => {
+    const layout = createLayout();
+    const firstPaneId = layout.groups[0]!.paneId;
+
+    expect(
+      layout.materializeDropDestination(paneDropTargetId({ kind: 'content', paneId: firstPaneId }))
+    ).toEqual({ paneId: firstPaneId });
+
+    const destination = layout.materializeDropDestination(
+      paneDropTargetId({ kind: 'split', paneId: firstPaneId, side: 'right' })
+    );
+    expect(destination?.paneId).toBe(layout.groups[1]!.paneId);
+    expect(layout.groups).toHaveLength(2);
+    layout.dispose();
+  });
+
   it('dropping a tab on a right split zone creates a new pane holding that tab', () => {
     const layout = createLayout();
     layout.open('browser', {});
@@ -580,7 +596,10 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     const sourcePaneId = layout.groups[0]!.paneId;
     const draggedTabId = layout.focusedPane.resolvedActiveTabId!;
 
-    layout.handleDragEnd(draggedTabId, splitDropId(sourcePaneId, 'right'));
+    layout.handleDragEnd(
+      draggedTabId,
+      paneDropTargetId({ kind: 'split', paneId: sourcePaneId, side: 'right' })
+    );
 
     expect(layout.groups).toHaveLength(2);
     expect(layout.groups[0]!.paneId).toBe(sourcePaneId);
@@ -598,7 +617,10 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     const sourcePaneId = layout.groups[0]!.paneId;
     const draggedTabId = layout.focusedPane.resolvedActiveTabId!;
 
-    layout.handleDragEnd(draggedTabId, splitDropId(sourcePaneId, 'left'));
+    layout.handleDragEnd(
+      draggedTabId,
+      paneDropTargetId({ kind: 'split', paneId: sourcePaneId, side: 'left' })
+    );
 
     expect(layout.groups).toHaveLength(2);
     expect(layout.groups[1]!.paneId).toBe(sourcePaneId);
@@ -616,9 +638,18 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     const paneIds = layout.groups.map((g) => g.paneId);
 
     // All three adjacent slots would recreate the current layout.
-    layout.handleDragEnd(soleTabId, splitDropId(right!.paneId, 'left'));
-    layout.handleDragEnd(soleTabId, splitDropId(right!.paneId, 'right'));
-    layout.handleDragEnd(soleTabId, splitDropId(left!.paneId, 'right'));
+    layout.handleDragEnd(
+      soleTabId,
+      paneDropTargetId({ kind: 'split', paneId: right!.paneId, side: 'left' })
+    );
+    layout.handleDragEnd(
+      soleTabId,
+      paneDropTargetId({ kind: 'split', paneId: right!.paneId, side: 'right' })
+    );
+    layout.handleDragEnd(
+      soleTabId,
+      paneDropTargetId({ kind: 'split', paneId: left!.paneId, side: 'right' })
+    );
 
     expect(layout.groups.map((g) => g.paneId)).toEqual(paneIds);
     expect(right!.pane.tabOrder).toEqual([soleTabId]);
@@ -633,7 +664,10 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     const [left, right] = layout.groups;
     const soleTabId = right!.pane.tabOrder[0]!;
 
-    layout.handleDragEnd(soleTabId, splitDropId(left!.paneId, 'left'));
+    layout.handleDragEnd(
+      soleTabId,
+      paneDropTargetId({ kind: 'split', paneId: left!.paneId, side: 'left' })
+    );
 
     // New pane inserted at index 0; the emptied source pane auto-closed.
     expect(layout.groups).toHaveLength(2);
@@ -652,7 +686,10 @@ describe('PaneLayoutStore: insertPane and drag-to-split', () => {
     const targetPane = layout.groups[3]!;
     const draggedTabId = layout.groups[0]!.pane.resolvedActiveTabId!;
 
-    layout.handleDragEnd(draggedTabId, splitDropId(targetPane.paneId, 'right'));
+    layout.handleDragEnd(
+      draggedTabId,
+      paneDropTargetId({ kind: 'split', paneId: targetPane.paneId, side: 'right' })
+    );
 
     expect(layout.groups).toHaveLength(8);
     expect(targetPane.pane.tabOrder).toEqual([draggedTabId]);

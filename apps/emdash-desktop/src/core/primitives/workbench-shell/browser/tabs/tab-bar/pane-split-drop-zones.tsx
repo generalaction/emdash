@@ -1,28 +1,42 @@
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { splitDropId, type SplitSide } from '../split-drop-id';
+import { paneDropTargetId, type SplitSide } from '../pane-drop-target';
+import { usePaneLayoutContext } from '../pane-layout-context';
 
 /**
  * Edge drop zones that create a new split pane on drop (VS Code style).
  * Mounted only while a drag is active, so the strips never intercept normal
  * pointer interaction with the pane content. Hit area is the outer 20% of the
  * content region; the hover highlight previews the half where the new pane
- * lands. All drop-validity guards (pane cap, no-op splits) live in
- * PaneLayoutStore.handleDragEnd — a no-op drop simply leaves the layout as is.
+ * lands. PaneLayoutStore owns drop validity, so invalid zones are not mounted.
  */
 export function PaneSplitDropZones({ paneId }: { paneId: string }) {
   const { active } = useDndContext();
   if (!active) return null;
   return (
     <>
-      <SplitZone paneId={paneId} side="left" />
-      <SplitZone paneId={paneId} side="right" />
+      <SplitZone paneId={paneId} side="left" draggedId={String(active.id)} />
+      <SplitZone paneId={paneId} side="right" draggedId={String(active.id)} />
     </>
   );
 }
 
-function SplitZone({ paneId, side }: { paneId: string; side: SplitSide }) {
-  const { setNodeRef, isOver } = useDroppable({ id: splitDropId(paneId, side) });
+function SplitZone({
+  paneId,
+  side,
+  draggedId,
+}: {
+  paneId: string;
+  side: SplitSide;
+  draggedId: string;
+}) {
+  const paneLayout = usePaneLayoutContext();
+  const canSplit = paneLayout.canSplitAt(paneId, side, draggedId);
+  const { setNodeRef, isOver } = useDroppable({
+    id: paneDropTargetId({ kind: 'split', paneId, side }),
+    disabled: !canSplit,
+  });
+  if (!canSplit) return null;
   return (
     <>
       <div

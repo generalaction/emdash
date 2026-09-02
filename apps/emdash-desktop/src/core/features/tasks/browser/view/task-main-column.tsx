@@ -29,11 +29,8 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { PaneProvider } from '@core/features/workbench/contributions/browser/tabs/pane-provider';
 import { createLayoutStorage, type MementoLayoutStorage } from '@core/primitives/mementos/browser';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
+import { isPaneSplitDropTargetId } from '@core/primitives/workbench-shell/browser/tabs/pane-drop-target';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
-import {
-  isSplitDropId,
-  parseSplitDropId,
-} from '@core/primitives/workbench-shell/browser/tabs/split-drop-id';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
 import { NewConversationTabButton } from '../new-conversation-tab-button';
 import { PaneEmptyState } from '../pane-empty-state';
@@ -51,7 +48,9 @@ const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);
-  const splitZones = collisions.filter((collision) => isSplitDropId(String(collision.id)));
+  const splitZones = collisions.filter((collision) =>
+    isPaneSplitDropTargetId(String(collision.id))
+  );
   return splitZones.length > 0 ? splitZones : collisions;
 };
 
@@ -93,16 +92,13 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
     const terminalDragData = event.active.data.current;
     if (isTerminalDrawerDragData(terminalDragData)) {
       const overId = String(event.over.id);
-      const split = parseSplitDropId(overId);
-      const paneId = split
-        ? (paneLayout.insertPane(split.paneId, split.side) ?? split.paneId)
-        : resolveDropPaneId(overId, paneLayout);
-      if (!paneId) return;
-      paneLayout.setActiveGroup(paneId);
+      const destination = paneLayout.materializeDropDestination(overId);
+      if (!destination) return;
+      paneLayout.setActiveGroup(destination.paneId);
       paneLayout.open(
         'terminal',
         { terminalId: terminalDragData.terminalId },
-        { target: { paneId } }
+        { target: { paneId: destination.paneId } }
       );
       return;
     }
@@ -166,7 +162,7 @@ const SplitPane = observer(function SplitPane({
   defaultSize: string;
 }) {
   const taskView = useTaskComposition();
-  const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
+  const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.canInsertPane;
   return (
     <>
       {index > 0 && <Resizable.Handle />}
@@ -235,15 +231,6 @@ const SplitPaneLayout = observer(function SplitPaneLayout({
     </Resizable.Group>
   );
 });
-
-function resolveDropPaneId(
-  overId: string,
-  paneLayout: ReturnType<typeof useTaskComposition>['paneLayout']
-): string | undefined {
-  if (overId.startsWith('pane-drop-')) return overId.slice('pane-drop-'.length);
-  if (overId.startsWith('pane-content-')) return overId.slice('pane-content-'.length);
-  return paneLayout.groups.find((group) => group.pane.entries.has(overId))?.paneId;
-}
 
 function TerminalDragPreview({ label }: { label: string }) {
   return (
