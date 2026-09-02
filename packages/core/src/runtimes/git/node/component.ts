@@ -14,6 +14,7 @@ export const gitComponentConfigSchema = z.object({
   idleTtlMs: z.number().nonnegative().optional(),
   aliasTtlMs: z.number().nonnegative().optional(),
   maxFileContentStates: z.number().nonnegative().optional(),
+  watchIgnore: z.array(z.string()).optional(),
 });
 
 export const gitComponent = defineWireComponent({
@@ -33,6 +34,7 @@ export const gitComponent = defineWireComponent({
     });
     const runtime = new GitRuntime({
       watcher,
+      watchIgnoreGlobs: config.watchIgnore,
       executable: config.executable,
       env: async () => gitRuntimeEnv(await dependencies.userEnv.get()),
       idleTtlMs: config.idleTtlMs,

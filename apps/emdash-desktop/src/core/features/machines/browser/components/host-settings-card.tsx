@@ -189,7 +189,7 @@ export const HostSettingsCard = observer(function HostSettingsCard({
               <Field.Description className="text-foreground-muted">
                 {syncLocalSettings
                   ? 'Synced from this machine\u2019s local settings. '
-                  : 'Reduce file-watcher work for noisy folders on this host, one pattern per line. Leave empty to use the default exclusions. '}
+                  : 'Folders the file watcher skips on this host for the editor, Git status, and workspace tracking, one pattern per line. Leave empty to use the default exclusions; watching dependency or build folders can use tens of thousands of native watches. '}
                 Changes apply the next time the workspace server restarts.
               </Field.Description>
               <Textarea

@@ -11,6 +11,7 @@ import { createNativeWatchService } from '#services/fs-watch/node';
 
 export type GitRuntimeOptions = Readonly<{
   watcher?: IWatchService;
+  watchIgnoreGlobs?: readonly string[];
   executable?: string;
   env?: EnvSource;
   exec?: BoundExec;
@@ -46,6 +47,7 @@ export class GitRuntime {
     this.allocations = new GitAllocationGraph({
       exec,
       watcher: this.watcher,
+      watchIgnoreGlobs: options.watchIgnoreGlobs,
       objectStoreMutex: new KeyedMutex(),
       idleTtlMs: options.idleTtlMs,
       aliasTtlMs: options.aliasTtlMs,

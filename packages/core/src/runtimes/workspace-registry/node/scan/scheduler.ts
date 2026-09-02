@@ -2,7 +2,13 @@ import path from 'node:path';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { nativePathIdentityKey } from '#primitives/path/api';
-import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
+import {
+  gitMetadataWatchIgnore,
+  workspaceContentWatchIgnore,
+  type IWatchService,
+  type WatchEvent,
+  type WatchHandle,
+} from '#services/fs-watch/api';
 import type { WorkspaceKind } from '../../api/schemas';
 
 /** What the scheduler asks the runtime to do. Repository scans reconcile worktree sets. */
@@ -27,8 +33,12 @@ export type WorkspaceScanSchedulerOptions = {
   watcher: IWatchService | null;
   execute: (request: ScanRequest) => Promise<void>;
   listTargets: () => ScanTarget[];
-  /** Activity escalation gate: active workspaces coalesce on a shorter debounce. */
+  /**
+   * Activity gate: active workspaces hold a working-tree watch and coalesce on a shorter
+   * debounce; idle ones rely on the polling floor.
+   */
   isActive: (id: string) => boolean;
+  watchIgnore?: readonly string[];
   clock?: Clock;
   logger?: Logger;
   debounceMs?: number;
@@ -55,8 +65,9 @@ type PendingScan = {
  * Event-driven freshness for the workspace registry (ADR 0005): fs events are the
  * primary trigger, classified into cheap ref-only scans vs full scans; rapid triggers
  * coalesce per record (full beats refs); a polling floor guarantees staleness is bounded
- * even when watchers fail. The scheduler never writes the registry — it only asks the
- * sole-writer runtime to scan.
+ * even when watchers fail. Working-tree watches exist only for active workspaces, so watch
+ * usage scales with what is in use rather than with every registered path. The scheduler
+ * never writes the registry — it only asks the sole-writer runtime to scan.
  */
 export class WorkspaceScanScheduler {
   private readonly watcher: IWatchService | null;
@@ -68,6 +79,8 @@ export class WorkspaceScanScheduler {
   private readonly debounceMs: number;
   private readonly activeDebounceMs: number;
   private readonly pollIntervalMs: number;
+  private readonly contentWatchIgnore: string[];
+  private readonly gitMetadataWatchIgnore: string[];
 
   private readonly watches = new Map<string, WatchHandle>();
   private readonly pending = new Map<string, PendingScan>();
@@ -89,6 +102,8 @@ export class WorkspaceScanScheduler {
     this.debounceMs = options.debounceMs ?? DEFAULT_SCAN_DEBOUNCE_MS;
     this.activeDebounceMs = options.activeDebounceMs ?? DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+    this.contentWatchIgnore = workspaceContentWatchIgnore(options.watchIgnore);
+    this.gitMetadataWatchIgnore = gitMetadataWatchIgnore();
   }
 
   start(): Promise<void> {
@@ -112,7 +127,9 @@ export class WorkspaceScanScheduler {
     const readiness: Promise<void>[] = [];
     for (const target of targets) {
       if (target.observedStatus !== 'present') continue;
-      desired.set(workingTreeWatchKey(target.path), { target, gitDir: false });
+      if (this.isActive(target.id)) {
+        desired.set(workingTreeWatchKey(target.path), { target, gitDir: false });
+      }
       if (target.kind === 'repository') {
         desired.set(gitDirWatchKey(target.path), { target, gitDir: true });
       }
@@ -139,12 +156,13 @@ export class WorkspaceScanScheduler {
             path.join(target.path, '.git'),
             (events) => this.onGitDirEvents(target.id, target.path, events),
             {
+              ignore: this.gitMetadataWatchIgnore,
               onError,
               onResync: () => this.request({ kind: 'repository', id: target.id }),
             }
           )
         : this.watcher.watch(target.path, () => this.requestFullScan(target.id), {
-            ignore: ['.git/**'],
+            ignore: this.contentWatchIgnore,
             onError,
             onResync: () => this.requestFullScan(target.id),
           });

@@ -11,7 +11,11 @@ import {
 import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
-import { requireWatchReady, type IWatchService, type WatchHandle } from '#services/fs-watch/api';
+import {
+  gitMetadataWatchIgnore,
+  type IWatchService,
+  type WatchHandle,
+} from '#services/fs-watch/api';
 import type { GitRepository } from './git-repository';
 import { RepositoryFamilyLane } from './repository-family-lane';
 import { classifyGitWatchEvents, type WorktreeWatchEffects } from './watch-classifier';
@@ -52,14 +56,7 @@ export class RepositoryResource {
   private disposed = false;
 
   static async create(options: RepositoryResourceOptions): Promise<RepositoryResource> {
-    const resource = new RepositoryResource(options);
-    try {
-      await requireWatchReady(resource.commonDirWatch);
-      return resource;
-    } catch (error) {
-      await resource.dispose();
-      throw error;
-    }
+    return new RepositoryResource(options);
   }
 
   private constructor(private readonly options: RepositoryResourceOptions) {
@@ -70,14 +67,7 @@ export class RepositoryResource {
       refs: this.computed('refs', () => this.commands.getRefs()),
       remotes: this.computed('remotes', () => this.commands.getRemotes()),
     };
-    this.commonDirWatch = options.watcher.watch(
-      this.identity.gitCommonDir,
-      (events) => this.onCommonDirEvents(events),
-      {
-        ignore: ['objects/**'],
-        onResync: () => this.onCommonDirResync(),
-      }
-    );
+    this.commonDirWatch = this.attachCommonDirWatch(options.watcher);
   }
 
   state(name: 'refs'): Query<GitRefsState>;
@@ -168,6 +158,32 @@ export class RepositoryResource {
 
   private invalidateCheckoutHistory(): void {
     for (const checkout of this.checkouts.values()) checkout.invalidateRepositoryHistory();
+  }
+
+  private attachCommonDirWatch(watcher: IWatchService): WatchHandle {
+    const context = `watch ${this.identity.gitCommonDir}`;
+    const handle = watcher.watch(
+      this.identity.gitCommonDir,
+      (events) => this.onCommonDirEvents(events),
+      {
+        ignore: gitMetadataWatchIgnore(),
+        onResync: () => this.onCommonDirResync(),
+      }
+    );
+    void handle.ready().then(
+      (attached) => {
+        if (this.disposed) return;
+        if (!attached.success) {
+          this.onError(context, attached.error);
+          return;
+        }
+        this.onCommonDirResync();
+      },
+      (error: unknown) => {
+        if (!this.disposed) this.onError(context, error);
+      }
+    );
+    return handle;
   }
 
   private onCommonDirEvents(events: Parameters<typeof classifyGitWatchEvents>[0]): void {

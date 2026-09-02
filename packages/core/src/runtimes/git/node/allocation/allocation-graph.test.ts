@@ -2,7 +2,11 @@ import { err, ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hostPath } from '#runtimes/git/node/testing/paths';
 import type { BoundExec } from '#services/exec/api';
-import type { IWatchService } from '#services/fs-watch/api';
+import {
+  gitMetadataWatchIgnore,
+  workspaceContentWatchIgnore,
+  type IWatchService,
+} from '#services/fs-watch/api';
 import { GitAllocationGraph } from './allocation-graph';
 import type { CheckoutIdentity, GitIdentityResolver } from './identity';
 
@@ -66,26 +70,82 @@ describe('GitAllocationGraph', () => {
     await graph.dispose();
   });
 
-  it('evicts a mount when watcher readiness returns a failure Result', async () => {
+  it('allocates a checkout when watcher readiness returns a failure Result', async () => {
     const failure = new Error('watch attach failed');
-    let fail = true;
+    const errors: string[] = [];
+    const released: string[] = [];
+    const watcher: IWatchService = {
+      watch: (root) => ({
+        ready: async () => err(failure),
+        release: async () => {
+          released.push(root);
+        },
+      }),
+      dispose: async () => {},
+    };
+    const graph = new GitAllocationGraph({
+      exec,
+      watcher,
+      identityResolver: resolver,
+      onError: (context, error) => errors.push(`${context}: ${String(error)}`),
+    });
+
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
+    await expect(lease.ready()).resolves.toMatchObject({
+      identity: { checkoutId: identity.checkoutId },
+    });
+    await vi.waitFor(() => expect(errors).toHaveLength(2));
+    expect(errors).toEqual([
+      'watch /repo/.git: Error: watch attach failed',
+      'watch /repo: Error: watch attach failed',
+    ]);
+    // A failed handle is held, not released, so the shared subscription keeps its demand.
+    expect(released).toEqual([]);
+    await lease.release();
+    await graph.dispose();
+    expect(released).toEqual(['/repo', '/repo/.git']);
+  });
+
+  it('allocates a checkout while watcher readiness is still pending', async () => {
     const watcher: IWatchService = {
       watch: () => ({
-        ready: async () => (fail ? err(failure) : ok(undefined)),
+        ready: () => new Promise(() => {}),
         release: async () => {},
       }),
       dispose: async () => {},
     };
     const graph = new GitAllocationGraph({ exec, watcher, identityResolver: resolver });
-    const selector = { repository: hostPath('/repo') };
 
-    await expect(graph.acquireRepository(selector).ready()).rejects.toBe(failure);
-    fail = false;
-    const retry = graph.acquireRepository(selector);
-    await expect(retry.ready()).resolves.toMatchObject({
-      identity: { repositoryId: identity.repositoryId },
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
+    await expect(lease.ready()).resolves.toMatchObject({
+      identity: { checkoutId: identity.checkoutId },
     });
-    await retry.release();
+    await lease.release();
+    await graph.dispose();
+  });
+
+  it('applies the Git-metadata and workspace-content watch profiles', async () => {
+    const ignores = new Map<string, string[] | undefined>();
+    const watcher: IWatchService = {
+      watch: (root, _onEvents, options) => {
+        ignores.set(root, options?.ignore);
+        return { ready: async () => ok(undefined), release: async () => {} };
+      },
+      dispose: async () => {},
+    };
+    const graph = new GitAllocationGraph({
+      exec,
+      watcher,
+      identityResolver: resolver,
+      watchIgnoreGlobs: ['**/dist/**'],
+    });
+
+    const lease = graph.acquireCheckout({ checkout: hostPath('/repo') });
+    await lease.ready();
+    expect(ignores.get('/repo/.git')).toEqual(gitMetadataWatchIgnore());
+    expect(ignores.get('/repo')).toEqual(workspaceContentWatchIgnore(['**/dist/**']));
+    expect(ignores.get('/repo')).toEqual(['.git/**', '**/dist/**']);
+    await lease.release();
     await graph.dispose();
   });
 

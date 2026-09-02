@@ -22,6 +22,7 @@ export const workspaceRegistryComponentConfigSchema = z.object({
     .refine((value) => value === ':memory:' || path.isAbsolute(value), {
       message: 'Workspace registry database path must be absolute or :memory:',
     }),
+  watchIgnore: z.array(z.string()).optional(),
 });
 
 /**
@@ -99,6 +100,7 @@ export const workspaceRegistryComponent = defineWireComponent({
       execute: (request) => runtime.scanner.executeScanRequest(request),
       listTargets: () => runtime.scanTargets(),
       isActive: (id) => runtime.isWorkspaceActive(id),
+      watchIgnore: config.watchIgnore,
       logger,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
