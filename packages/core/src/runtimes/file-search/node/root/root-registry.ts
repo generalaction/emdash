@@ -91,12 +91,15 @@ export class FileSearchRootRegistry {
    * Prunes catalog rows whose roots are definitively gone. Persisted rows are
    * cold caches, not registrations: construction starts no maintenance, and
    * this sweep only ever deletes rows — it never attaches watchers or scans.
+   *
+   * Settles when the sweep finishes and never rejects; failures are reported
+   * through `onError`. Callers that do not care about completion may void it.
    */
-  startCatalogValidation(): void {
+  startCatalogValidation(): Promise<void> {
     const run = this.options.scope.run('file-search-catalog-validation', (signal) =>
       this.validateCatalog(signal)
     );
-    void run.value().catch((error: unknown) => {
+    return run.value().catch((error: unknown) => {
       if (!this.options.scope.signal.aborted) {
         this.report('file-search catalog validation failed', error);
       }

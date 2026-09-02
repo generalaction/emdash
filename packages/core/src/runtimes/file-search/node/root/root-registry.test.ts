@@ -104,9 +104,9 @@ describe('FileSearchRootRegistry', () => {
     const createRegistered = vi.fn(fakeRoot);
     const { registry } = createRegistry({ store, createRoot: createRegistered });
 
-    registry.startCatalogValidation();
+    await registry.startCatalogValidation();
 
-    await vi.waitFor(() => expect(store.listRoots()).toEqual([]));
+    expect(store.listRoots()).toEqual([]);
     expect(createRegistered).not.toHaveBeenCalled();
   });
 
@@ -118,9 +118,9 @@ describe('FileSearchRootRegistry', () => {
     const probeRootMissing = vi.fn(async () => false);
     const { registry } = createRegistry({ store, probeRootMissing });
 
-    registry.startCatalogValidation();
+    await registry.startCatalogValidation();
 
-    await vi.waitFor(() => expect(probeRootMissing).toHaveBeenCalledOnce());
+    expect(probeRootMissing).toHaveBeenCalledOnce();
     expect(store.listRoots()).toHaveLength(1);
   });
 
@@ -128,21 +128,26 @@ describe('FileSearchRootRegistry', () => {
     const rootPath = await createRoot();
     const root = absolute(rootPath);
     const store = await createPersistedStore(rootPath);
-    let reportMissing: ((missing: boolean) => void) | undefined;
+    let enterProbe: () => void = () => {};
+    const probeEntered = new Promise<void>((resolve) => {
+      enterProbe = resolve;
+    });
+    let reportMissing: (missing: boolean) => void = () => {};
     const probeRootMissing = vi.fn(
       () =>
         new Promise<boolean>((resolve) => {
           reportMissing = resolve;
+          enterProbe();
         })
     );
     const { registry } = createRegistry({ store, probeRootMissing });
 
-    registry.startCatalogValidation();
-    await vi.waitFor(() => expect(probeRootMissing).toHaveBeenCalledOnce());
+    const sweep = registry.startCatalogValidation();
+    await probeEntered;
     await registry.registerRoot({ root });
     // A stale "missing" verdict must lose to the registration that now owns the row.
-    reportMissing?.(true);
-    await new Promise((resolve) => setImmediate(resolve));
+    reportMissing(true);
+    await sweep;
 
     expect(store.listRoots()).toHaveLength(1);
     expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
