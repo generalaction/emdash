@@ -141,7 +141,7 @@ export const GenericTabItem = observer(function GenericTabItem({
             <div
               className={cn(
                 'absolute inset-x-0 bottom-0 h-0.5',
-                isFocusedPane ? 'bg-foreground' : 'bg-foreground/35'
+                isFocusedPane ? 'bg-(--primary-button-background)' : 'bg-border-1'
               )}
             />
           )}
