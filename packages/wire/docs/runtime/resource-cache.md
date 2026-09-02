@@ -50,6 +50,10 @@ waiting forever on leaked consumers.
 - Every acquire receives its own idempotent lease.
 - `peek(key)` returns only completed active values.
 - Failed creation is not cached.
+- By default, releasing the final lease during creation retains the in-flight entry so a later
+  acquire can share it and the factory's terminal result remains authoritative.
+- Set `cancelPendingOnRelease: true` for resources such as watchers that have no useful lifetime
+  without a lease. Pending work must then observe the entry scope's signal and clean up late results.
 - `idleTtlMs` retains a zero-ref entry briefly so flapping demand can reuse it.
 - Acquiring during teardown waits for teardown to finish, then provisions fresh.
 

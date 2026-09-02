@@ -177,6 +177,29 @@ describe('processWatchBackend', () => {
     wire.dispose();
     await scope.dispose();
   });
+
+  it('releases a child watcher when the final lease disappears during startup', async () => {
+    const childService = new FakeWatchService();
+    const scope = createScope({ label: 'test' });
+    const controller = createFsWatchController({ scope, service: childService });
+    const wire = createTestWire(fsWatchContract, controller);
+    const service = createWatchService({
+      backend: processWatchBackend({ client: wire.client }),
+      scope,
+    });
+    const handle = service.watch('/tmp/project', () => {});
+    const ready = handle.ready();
+
+    await waitFor(() => childService.watches.length === 1);
+    await handle.release();
+
+    await waitFor(() => childService.latest().released);
+    const readyResult = await ready;
+    expect(readyResult.success).toBe(false);
+
+    wire.dispose();
+    await scope.dispose();
+  });
 });
 
 function createProcessWatchService({
@@ -204,7 +227,6 @@ function createProcessWatchService({
       client: () => worker.ready(),
     }),
     scope,
-    graceMs: 2_500,
   });
 }
 

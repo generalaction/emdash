@@ -189,6 +189,20 @@ void runWireComponentWorker(counterComponent);
 The client returned by `ready()` is stable across process generations. Calls fail while the worker is
 unavailable; the client does not buffer calls during restarts.
 
+## Unrecoverable Failures
+
+Component code can call `fatal(error)` when process-local state is poisoned and the current instance
+cannot safely serve later requests. Fatal failures retire the component scope exactly once. An
+in-process caller can observe the failure through `onFatal`; `runWireComponentWorker` exits with code
+`1`, allowing the owning `WireWorkerHost` to replace that process generation under its supervision
+policy.
+
+Use `fatal` only when replacing the instance is the recovery mechanism, such as a native operation
+that remains pending after its deadline and cannot be cancelled in-process. Expected request errors
+should still be returned or thrown through the contract. A fatal report does not make an unresponsive
+native call safe to overlap with another call in the same process; worker deployment recovers by
+terminating the process that owns the native state.
+
 ## Testing Components
 
 For in-process tests, create the component under a test scope and pass fake dependency clients
@@ -249,6 +263,8 @@ generation. They are not part of the component runtime API.
 ## Guidelines
 
 - Keep component factories synchronous and cheap.
+- Report poisoned process-local state through `fatal`; keep expected operation failures on the
+  contract.
 - Pass dependencies by name from the composition root; never look them up from a global registry.
 - Prefer contract requirements for shared capabilities that may cross process boundaries.
 - Use typed config for deployment-specific values such as paths, limits, executable names, and
