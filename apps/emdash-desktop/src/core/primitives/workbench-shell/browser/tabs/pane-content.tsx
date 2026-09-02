@@ -18,12 +18,12 @@ function focusActiveContentElement(container: HTMLElement): void {
 /** The content for a single pane: tab bar + content area. */
 export const PaneContent = observer(function PaneContent({
   emptyState,
-  actionsSlot,
+  trailingSlot,
 }: {
   /** Rendered when the pane has no open tabs (domain-specific, injected by the task view). */
   emptyState?: ReactNode;
-  /** Rendered in the tab bar action area (domain-specific, injected by the task view). */
-  actionsSlot?: ReactNode;
+  /** Rendered after the last tab in the tab strip (domain-specific, injected by the task view). */
+  trailingSlot?: ReactNode;
 }) {
   const { paneId, pane } = usePaneContext();
   const { setNodeRef: setContentDropRef, isOver: isOverContent } = useDroppable({
@@ -62,7 +62,7 @@ export const PaneContent = observer(function PaneContent({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TabBar actionsSlot={actionsSlot} />
+      <TabBar trailingSlot={trailingSlot} />
       <div ref={setContentRef} className="surface-paper relative min-h-0 flex-1 bg-(--em-surface)">
         <PaneSplitDropZones paneId={paneId} />
         {/*

@@ -35,8 +35,8 @@ import {
   parseSplitDropId,
 } from '@core/primitives/workbench-shell/browser/tabs/split-drop-id';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
+import { NewConversationTabButton } from '../new-conversation-tab-button';
 import { PaneEmptyState } from '../pane-empty-state';
-import { TabBarActions } from '../tab-bar-actions';
 
 type ActiveDrag =
   | { kind: 'tab'; tabId: string }
@@ -181,7 +181,10 @@ const SplitPane = observer(function SplitPane({
           canSplit={canSplit}
           splitPane={() => taskView.paneLayout.splitRight()}
         >
-          <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
+          <PaneContent
+            emptyState={<PaneEmptyState />}
+            trailingSlot={<NewConversationTabButton />}
+          />
         </PaneProvider>
       </Resizable.Panel>
     </>
