@@ -62,6 +62,14 @@ export const Interactive: Story = {
   ),
 };
 
+export const PaperSurface: Story = {
+  render: () => (
+    <StoryFrame>
+      <MockFileTree initialNodes={baseNodes} surface="paper" />
+    </StoryFrame>
+  ),
+};
+
 export const DragToMove: Story = {
   render: () => (
     <StoryFrame note="Drag files or folders onto directories. Invalid moves are rejected by the mock dnd spec.">
@@ -205,6 +213,7 @@ function MockFileTree({
   initialOpenedPaths,
   enableDnd = false,
   compactChains = false,
+  surface = 'base',
   renderHeader,
 }: {
   initialNodes: readonly FileTreeNode[];
@@ -212,6 +221,7 @@ function MockFileTree({
   initialOpenedPaths?: ReadonlySet<string>;
   enableDnd?: boolean;
   compactChains?: boolean;
+  surface?: FileTreeProps['surface'];
   renderHeader?: FileTreeProps['renderHeader'];
 }) {
   const [nodes, setNodes] = React.useState(() => cloneNodes(initialNodes));
@@ -248,6 +258,7 @@ function MockFileTree({
         openedPaths={openedPaths}
         renamePath={renamePath}
         compactChains={compactChains}
+        surface={surface}
         renderHeader={renderHeader}
         onToggleExpand={(node, expanded) => {
           setExpandedPaths((current) => togglePath(current, node.path, expanded));

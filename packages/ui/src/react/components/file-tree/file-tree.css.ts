@@ -24,6 +24,11 @@ export const root = style({
   overflow: 'hidden',
   backgroundColor: vars.surfaceBase,
   color: vars.foreground,
+  selectors: {
+    '&[data-surface="paper"]': {
+      backgroundColor: vars.surfacePaper,
+    },
+  },
 });
 
 export const header = style({
