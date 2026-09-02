@@ -53,7 +53,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
           >
             {leftSidebar}
           </Resizable.Panel>
-          <Resizable.Handle variant="ghost" />
+          <Resizable.Handle variant="ghost" className="-ml-px" />
         </>
       )}
       <Resizable.Panel id="workspace-main" minSize={MAIN_PANEL_MIN_SIZE}>

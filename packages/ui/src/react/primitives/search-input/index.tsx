@@ -9,6 +9,8 @@ import * as styles from './search-input.css';
 
 export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 'size' | 'type'> {
   size?: InputVariantProps['size'];
+  /** Removes the standalone field shell for use on an existing surface. */
+  bare?: InputVariantProps['bare'];
   /** Called when the user clicks the × clear button. Renders the button when provided. */
   onClear?: () => void;
   /** Optional trailing content, such as a keyboard shortcut hint. */
@@ -36,20 +38,29 @@ export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 's
  *   />
  */
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, size = 'base', onClear, shortcut, value, style: consumerStyle, ...props },
+  {
+    className,
+    size = 'base',
+    bare = false,
+    onClear,
+    shortcut,
+    value,
+    style: consumerStyle,
+    ...props
+  },
   ref
 ) {
   const hasValue = value !== undefined && value !== '';
 
   // Left padding: icon (0.875rem) + left offset (0.625rem) + gap (0.25rem) = ~1.875rem → 2rem
-  const paddingLeft = size === 'sm' ? '1.75rem' : '2rem';
+  const paddingLeft = bare ? '1.375rem' : size === 'sm' ? '1.75rem' : '2rem';
   // Right padding only reserves space for the clear button; the shortcut is treated as a
   // placeholder overlay and does not reduce the input's available text width.
   const paddingRight = onClear != null ? '1.875rem' : undefined;
 
   return (
     <div data-slot="search-input" className={styles.container} style={consumerStyle}>
-      <span className={styles.icon} aria-hidden>
+      <span className={cx(styles.icon, bare && styles.iconWithoutInset)} aria-hidden>
         <SearchIcon />
       </span>
 
@@ -57,6 +68,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
         ref={ref}
         type="search"
         size={size}
+        bare={bare}
         value={value}
         className={cx(className)}
         style={{ paddingLeft, paddingRight }}

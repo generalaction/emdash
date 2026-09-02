@@ -22,7 +22,7 @@ export const root = style({
   minWidth: 0,
   flexDirection: 'column',
   overflow: 'hidden',
-  backgroundColor: vars.surfaceBase,
+  backgroundColor: vars.surface,
   color: vars.foreground,
 });
 
@@ -46,6 +46,28 @@ export const headerTarget = style({
 });
 
 export const headerActions = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: '0.25rem',
+});
+
+export const toolbar = style({
+  display: 'flex',
+  height: '41px',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: '0.25rem',
+  padding: '0 0.5rem',
+  backgroundColor: vars.surface,
+});
+
+export const toolbarSearch = style({
+  minWidth: 0,
+  flex: '1 1 auto',
+});
+
+export const toolbarActions = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',

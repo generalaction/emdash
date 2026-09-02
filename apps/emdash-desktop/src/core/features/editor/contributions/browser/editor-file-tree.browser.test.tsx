@@ -70,35 +70,67 @@ describe('FileTreeHeaderBar layout', () => {
     expect(host.querySelector('[aria-label="Clear search"]')).not.toBeNull();
   });
 
-  it('uses compact search geometry in a tab-aligned header row', async () => {
+  it('aligns search content with root folder rows', async () => {
     const context: FileTreeHeaderContext = {
       targetPath: '',
       startDraft: vi.fn(),
       collapseAll: vi.fn(),
       expandAll: vi.fn(),
     };
+    const folder: FileTreeNode = {
+      id: 'src',
+      path: '/repo/src',
+      name: 'src',
+      parentId: null,
+      parentPath: '/repo',
+      depth: 0,
+      type: 'directory',
+      childrenLoaded: true,
+    };
 
     await act(async () => {
       root.render(
-        <FileTreeHeaderBar
-          context={context}
-          searchQuery=""
-          setSearchQuery={vi.fn()}
-          setSearchInputRef={vi.fn()}
-          onRefresh={vi.fn()}
-          isRefreshing={false}
-        />
+        <div className="flex h-full flex-col">
+          <FileTreeHeaderBar
+            context={context}
+            searchQuery=""
+            setSearchQuery={vi.fn()}
+            setSearchInputRef={vi.fn()}
+            onRefresh={vi.fn()}
+            isRefreshing={false}
+          />
+          <FileTree
+            rootPath="/repo"
+            rootNodes={[folder]}
+            childrenById={new Map([['src', []]])}
+            renderHeader={() => null}
+          />
+        </div>
       );
     });
 
-    const header = host.firstElementChild;
     const input = host.querySelector<HTMLInputElement>('[aria-label="Search"]');
-    expect(header).not.toBeNull();
+    const searchIcon = input?.parentElement?.querySelector<SVGSVGElement>('svg');
+    const folderRow = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent === 'src'
+    );
+    const folderChevron = folderRow?.querySelector<SVGSVGElement>('svg');
+    const folderName = Array.from(folderRow?.querySelectorAll<HTMLElement>('span') ?? []).find(
+      (span) => span.textContent === 'src' && span.children.length === 0
+    );
     expect(input).not.toBeNull();
+    expect(searchIcon).not.toBeNull();
+    expect(folderChevron).toBeDefined();
+    expect(folderName).toBeDefined();
 
-    expect(header).toHaveClass('h-[41px]', 'bg-background-secondary');
     expect(getComputedStyle(input!).height).toBe('24px');
-    expect(input).toHaveClass('focus-visible:bg-transparent');
+    expect(searchIcon!.getBoundingClientRect().left).toBeCloseTo(
+      folderChevron!.getBoundingClientRect().left,
+      0
+    );
+    const searchTextLeft =
+      input!.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(input!).paddingLeft);
+    expect(searchTextLeft).toBeCloseTo(folderName!.getBoundingClientRect().left, 0);
   });
 });
 

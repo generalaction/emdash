@@ -1,4 +1,5 @@
 import {
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
   DragOverlay,
@@ -28,10 +29,11 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { PaneProvider } from '@core/features/workbench/contributions/browser/tabs/pane-provider';
 import { createLayoutStorage, type MementoLayoutStorage } from '@core/primitives/mementos/browser';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
+import { isPaneSplitDropTargetId } from '@core/primitives/workbench-shell/browser/tabs/pane-drop-target';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
+import { NewConversationTabButton } from '../new-conversation-tab-button';
 import { PaneEmptyState } from '../pane-empty-state';
-import { TabBarActions } from '../tab-bar-actions';
 
 type ActiveDrag =
   | { kind: 'tab'; tabId: string }
@@ -43,6 +45,14 @@ type ActiveDrag =
 // resize. Deliberately under the drawer's old 15% resize floor, so every
 // height the previous UI could persist stays a plain restore, never a close.
 const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+
+const collisionDetection: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args);
+  const splitZones = collisions.filter((collision) =>
+    isPaneSplitDropTargetId(String(collision.id))
+  );
+  return splitZones.length > 0 ? splitZones : collisions;
+};
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
@@ -81,13 +91,14 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 
     const terminalDragData = event.active.data.current;
     if (isTerminalDrawerDragData(terminalDragData)) {
-      const paneId = resolveDropPaneId(String(event.over.id), paneLayout);
-      if (!paneId) return;
-      paneLayout.setActiveGroup(paneId);
+      const overId = String(event.over.id);
+      const destination = paneLayout.materializeDropDestination(overId);
+      if (!destination) return;
+      paneLayout.setActiveGroup(destination.paneId);
       paneLayout.open(
         'terminal',
         { terminalId: terminalDragData.terminalId },
-        { target: { paneId } }
+        { target: { paneId: destination.paneId } }
       );
       return;
     }
@@ -98,7 +109,7 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
@@ -151,7 +162,7 @@ const SplitPane = observer(function SplitPane({
   defaultSize: string;
 }) {
   const taskView = useTaskComposition();
-  const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
+  const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.canInsertPane;
   return (
     <>
       {index > 0 && <Resizable.Handle />}
@@ -166,7 +177,10 @@ const SplitPane = observer(function SplitPane({
           canSplit={canSplit}
           splitPane={() => taskView.paneLayout.splitRight()}
         >
-          <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
+          <PaneContent
+            emptyState={<PaneEmptyState />}
+            trailingSlot={<NewConversationTabButton />}
+          />
         </PaneProvider>
       </Resizable.Panel>
     </>
@@ -217,15 +231,6 @@ const SplitPaneLayout = observer(function SplitPaneLayout({
     </Resizable.Group>
   );
 });
-
-function resolveDropPaneId(
-  overId: string,
-  paneLayout: ReturnType<typeof useTaskComposition>['paneLayout']
-): string | undefined {
-  if (overId.startsWith('pane-drop-')) return overId.slice('pane-drop-'.length);
-  if (overId.startsWith('pane-content-')) return overId.slice('pane-content-'.length);
-  return paneLayout.groups.find((group) => group.pane.entries.has(overId))?.paneId;
-}
 
 function TerminalDragPreview({ label }: { label: string }) {
   return (

@@ -1,4 +1,3 @@
-import { Separator } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -45,7 +44,7 @@ export interface GenericTabItemProps {
 
 /**
  * Single generic tab chip renderer. Owns:
- * - Drag wrapper, click/keyboard interaction, active styling, pane separator
+ * - Drag wrapper, click/keyboard interaction, active underline styling
  * - Context menu wrapping
  * - Preview tooltip/italic formatting
  * - Inline rename (label → input) driven by host.renameRequest
@@ -135,13 +134,18 @@ export const GenericTabItem = observer(function GenericTabItem({
           data-tabid={tab.tabId}
           className={cn(
             'group relative flex h-full flex-col text-sm',
-            tab.isActive
-              ? 'bg-(--em-surface-selected) text-foreground-muted'
-              : 'hover:bg-(--em-surface-hover)',
-            isFocusedPane && 'text-foreground'
+            tab.isActive ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'
           )}
         >
-          <div className="flex h-full items-center pr-2 pl-3">
+          {tab.isActive && (
+            <div
+              className={cn(
+                'absolute inset-x-0 bottom-0 h-0.5',
+                isFocusedPane ? 'bg-foreground' : 'bg-foreground/35'
+              )}
+            />
+          )}
+          <div className="flex h-full items-center pr-3 pl-4">
             {preSlot}
             {isEditing ? (
               <input
@@ -183,7 +187,6 @@ export const GenericTabItem = observer(function GenericTabItem({
             />
           </div>
         </div>
-        <Separator orientation="vertical" />
       </DraggableTab>
     </TabContextMenu>
   );

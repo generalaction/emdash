@@ -60,7 +60,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
 
-  const terminalTabs = terminalTabView.tabs;
   const lifecycleScriptTabs = lifecycleScriptsMgr?.tabs ?? [];
   const terminalIdsOpenInMain = new Set<string>();
   for (const group of taskView.paneLayout.groups) {
@@ -71,6 +70,10 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     }
   }
 
+  const terminalTabs = terminalTabView.tabs.filter(
+    (terminal) => !terminalIdsOpenInMain.has(terminal.data.id)
+  );
+
   // Unified active item — spans both terminals and scripts sections.
   const activeItem = resolveTerminalPanelActiveItem({
     requestedActiveItem: taskView.terminalDrawerActiveItem,
@@ -80,28 +83,21 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   });
 
   const selectedTerminalId =
-    activeItem.kind === 'terminal'
-      ? activeItem.id || undefined
-      : (terminalTabView.activeTabId ?? terminalTabs[0]?.data.id);
+    activeItem.kind === 'terminal' ? activeItem.id || undefined : terminalTabs[0]?.data.id;
   const selectedScriptId =
     activeItem.kind === 'script'
       ? activeItem.id
       : (lifecycleScriptsMgr?.activeTabId ?? lifecycleScriptTabs[0]?.data.id);
   const activeTerminalId = mode === 'terminals' ? selectedTerminalId : undefined;
   const activeScriptId = mode === 'scripts' ? selectedScriptId : undefined;
-  const activeTerminalIsOpenInMain =
-    activeTerminalId !== undefined && terminalIdsOpenInMain.has(activeTerminalId);
 
   const activeSession =
     mode === 'terminals'
-      ? activeTerminalIsOpenInMain
-        ? null
-        : (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
+      ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
       : (lifecycleScriptTabs.find((script) => script.data.id === activeScriptId)?.session ?? null);
 
   const allSessionIds = [
     ...terminalTabs
-      .filter((t) => !terminalIdsOpenInMain.has(t.data.id))
       .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id)),
     ...lifecycleScriptTabs.map((s) => s.session.sessionId),
@@ -182,33 +178,29 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const terminalEmptyState = (
     <EmptyState
-      label={activeTerminalIsOpenInMain ? 'Terminal open in main pane' : 'No terminals yet'}
-      description={
-        activeTerminalIsOpenInMain
-          ? 'Select the terminal tab in the main pane or create another terminal.'
-          : "Add a terminal to run shell commands in this task's working directory."
-      }
+      bare
+      label="No terminals yet"
+      description="Add a terminal to run shell commands in this task's working directory."
       action={
-        activeTerminalIsOpenInMain ? undefined : (
-          <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
-            <Button
-              disabled={liveActionsDisabled}
-              size="sm"
-              variant="secondary"
-              onClick={() => void handleCreate()}
-              className="flex items-center gap-2"
-            >
-              New terminal
-              <BoundShortcut command="task.newTerminal" variant="keycaps" />
-            </Button>
-          </projectAvailabilityUi.LiveActionGuard>
-        )
+        <projectAvailabilityUi.LiveActionGuard projectId={projectId}>
+          <Button
+            disabled={liveActionsDisabled}
+            size="sm"
+            variant="secondary"
+            onClick={() => void handleCreate()}
+            className="flex items-center gap-2"
+          >
+            New terminal
+            <BoundShortcut command="task.newTerminal" variant="keycaps" />
+          </Button>
+        </projectAvailabilityUi.LiveActionGuard>
       }
     />
   );
 
   const scriptsEmptyState = (
     <EmptyState
+      bare
       label="No scripts configured"
       description="Add setup, run, or teardown scripts to your project configuration."
     />
@@ -219,7 +211,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       <div
         ref={attachPaneScope}
         tabIndex={-1}
-        className="flex h-full flex-col"
+        className="surface-paper flex h-full flex-col bg-(--em-surface)"
         onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
         onFocus={() => {
           taskView.setFocusedRegion('bottom');
@@ -239,7 +231,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           }}
           onRunScript={handleRunScript}
           onStopScript={handleStopScript}
-          terminalTabView={terminalTabView}
+          terminals={terminalTabs}
           activeTerminalId={activeTerminalId}
           shellMenuState={shellMenuState}
           onShellMenuOpen={handleShellMenuOpen}
@@ -262,6 +254,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
           unavailableState={
             <EmptyState
+              bare
               label="Terminal unavailable"
               description={liveActionDisabledReason ?? 'Live actions are unavailable.'}
             />

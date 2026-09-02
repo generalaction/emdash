@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 
-export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: ReactNode }) {
+export const TabBar = observer(function TabBar({ trailingSlot }: { trailingSlot?: ReactNode }) {
   const { paneId, pane } = usePaneContext();
 
   const resolvedTabs = pane.resolvedTabs;
@@ -24,8 +24,11 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
     // DOM focus to the active content. Child handlers run first; the rAF in
     // focusActiveContent() defers the focus call until after they settle.
     // The inline rename input stops propagation, so it keeps focus while editing.
+    // The bar owns one paper surface, matching the task sidebar panels. Tabs
+    // carry no fills — the active tab is marked by text contrast plus an
+    // underline drawn inside the strip, just above the bottom border.
     <div
-      className="task-tab-bar surface-paper flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-(--em-surface)"
+      className="task-tab-bar surface-paper flex h-[41px] shrink-0 items-center border-b border-border bg-(--em-surface)"
       onClick={() => pane.focusActiveContent()}
     >
       <div
@@ -38,9 +41,13 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
           const TabItemComponent = def.TabBarItem;
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
+        {trailingSlot && (
+          <div className="sticky right-0 z-20 flex h-full shrink-0 items-center bg-(--em-surface) px-1">
+            {trailingSlot}
+          </div>
+        )}
         <PaneDropZone paneId={paneId} />
       </div>
-      {actionsSlot}
     </div>
   );
 });

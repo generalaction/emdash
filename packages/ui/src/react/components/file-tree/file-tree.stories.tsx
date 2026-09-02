@@ -18,6 +18,7 @@ import {
   type FileTreeProps,
   type FileTreeRowState,
 } from './file-tree';
+import { FileTreeToolbar, FileTreeToolbarSearch } from './file-tree-header';
 import {
   canMoveNode,
   joinFileTreePath,
@@ -92,25 +93,23 @@ export const CustomHeader: Story = {
       <MockFileTree
         initialNodes={baseNodes}
         renderHeader={(context) => (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              borderBottom: '1px solid var(--em-border)',
-              padding: 8,
-            }}
-          >
-            <strong style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
-              Creating in {context.targetPath || 'root'}
-            </strong>
-            <Button size="xs" variant="secondary" onClick={() => context.startDraft('file')}>
-              Add file
-            </Button>
-            <Button size="xs" variant="secondary" onClick={() => context.startDraft('directory')}>
-              Add folder
-            </Button>
-          </div>
+          <FileTreeToolbar
+            search={<FileTreeToolbarSearch placeholder="Search files…" />}
+            actions={
+              <>
+                <Button size="xs" variant="secondary" onClick={() => context.startDraft('file')}>
+                  Add file
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => context.startDraft('directory')}
+                >
+                  Add folder
+                </Button>
+              </>
+            }
+          />
         )}
       />
     </StoryFrame>

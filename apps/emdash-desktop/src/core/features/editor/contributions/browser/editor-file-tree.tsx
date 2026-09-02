@@ -5,6 +5,8 @@ import type { GitChangeStatus } from '@emdash/core/runtimes/git/api';
 import {
   EmptyState,
   FileTree,
+  FileTreeToolbar,
+  FileTreeToolbarSearch,
   canMoveNode,
   dedupeDescendantPaths,
   isExpandableFileTreeNode,
@@ -19,7 +21,7 @@ import {
   type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
-import { SearchInput, toast } from '@emdash/ui/react/primitives';
+import { toast } from '@emdash/ui/react/primitives';
 import {
   ClipboardPaste,
   Circle,
@@ -926,7 +928,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     );
 
   return (
-    <div ref={attachFileTreeScope} className="flex h-full flex-col overflow-hidden">
+    <div
+      ref={attachFileTreeScope}
+      className="surface-paper flex h-full flex-col overflow-hidden bg-(--em-surface)"
+    >
       <FileTreeHeaderBar
         context={headerContext}
         searchQuery={searchQuery}
@@ -968,53 +973,53 @@ export function FileTreeHeaderBar({
   liveActionDisabledReason?: string | null;
 }) {
   return (
-    <div className="h-[41px] shrink-0 border-b border-border bg-background-secondary px-2">
-      <div className="flex h-full items-center gap-1">
-        <div className="min-w-0 flex-1">
-          <SearchInput
+    <FileTreeToolbar
+      search={
+        <FileTreeToolbarSearch
+          disabled={Boolean(liveActionDisabledReason)}
+          ref={setSearchInputRef}
+          value={searchQuery}
+          maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
+          aria-label="Search"
+          placeholder="Search"
+          onClear={() => setSearchQuery('')}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            if (searchQuery) setSearchQuery('');
+            else event.currentTarget.blur();
+          }}
+        />
+      }
+      actions={
+        <>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'New file'}
             disabled={Boolean(liveActionDisabledReason)}
-            ref={setSearchInputRef}
-            size="sm"
-            value={searchQuery}
-            maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
-            aria-label="Search"
-            placeholder="Search"
-            className="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
-            onClear={() => setSearchQuery('')}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              if (searchQuery) setSearchQuery('');
-              else event.currentTarget.blur();
-            }}
-          />
-        </div>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'New file'}
-          disabled={Boolean(liveActionDisabledReason)}
-          onClick={() => context.startDraft('file')}
-        >
-          <FilePlus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'New folder'}
-          disabled={Boolean(liveActionDisabledReason)}
-          onClick={() => context.startDraft('directory')}
-        >
-          <FolderPlus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction label="Collapse all" onClick={context.collapseAll}>
-          <CopyMinus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'Refresh'}
-          onClick={onRefresh}
-          disabled={isRefreshing || Boolean(liveActionDisabledReason)}
-        >
-          <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
-        </HeaderAction>
-      </div>
-    </div>
+            onClick={() => context.startDraft('file')}
+          >
+            <FilePlus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'New folder'}
+            disabled={Boolean(liveActionDisabledReason)}
+            onClick={() => context.startDraft('directory')}
+          >
+            <FolderPlus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction label="Collapse all" onClick={context.collapseAll}>
+            <CopyMinus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'Refresh'}
+            onClick={onRefresh}
+            disabled={isRefreshing || Boolean(liveActionDisabledReason)}
+          >
+            <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          </HeaderAction>
+        </>
+      }
+    />
   );
 }
 

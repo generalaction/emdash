@@ -1,4 +1,5 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { paneDropTargetId } from '../pane-drop-target';
 
 export function DraggableTab({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef: setDragRef } = useDraggable({ id });
@@ -30,7 +31,9 @@ function DropIndicator() {
 }
 
 export function PaneDropZone({ paneId }: { paneId: string }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `pane-drop-${paneId}` });
+  const { setNodeRef, isOver } = useDroppable({
+    id: paneDropTargetId({ kind: 'tab-strip', paneId }),
+  });
   return (
     <div ref={setNodeRef} className="relative h-full flex-1">
       {isOver && <DropIndicator />}
