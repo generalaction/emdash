@@ -52,8 +52,18 @@ export function readXtermCssVars(): ITerminalOptions['theme'] {
   };
 }
 
+function resolveOverride(override: NonNullable<ITerminalOptions['theme']>) {
+  const resolved: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(override)) {
+    const varName =
+      typeof value === 'string' ? /^var\((--[\w-]+)\)$/.exec(value.trim())?.[1] : undefined;
+    resolved[key] = varName ? cssColorToHex(cssVar(varName)) : value;
+  }
+  return resolved as ITerminalOptions['theme'];
+}
+
 export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermCssVars(), ...theme.override };
+  if (theme?.override) return { ...readXtermCssVars(), ...resolveOverride(theme.override) };
   return readXtermCssVars();
 }
 
