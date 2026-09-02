@@ -227,7 +227,6 @@ function createProcessWatchService({
       client: () => worker.ready(),
     }),
     scope,
-    graceMs: 2_500,
   });
 }
 

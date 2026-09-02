@@ -1,6 +1,6 @@
 import { createEmitter, err, ok, type Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
-import { runWithTimeout } from '@emdash/shared/scheduling';
+import { abortableWait } from '@emdash/shared/scheduling';
 import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
@@ -8,14 +8,8 @@ import { realpathOrResolve } from './paths';
 export type CreateWatchServiceOptions = {
   backend: WatchBackend;
   scope?: Scope;
-  graceMs?: number;
-  startupTimeoutMs?: number;
-  startupQueueTimeoutMs?: number;
   onError?: WatchOnError;
 };
-
-const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
-const DEFAULT_STARTUP_QUEUE_TIMEOUT_MS = 30_000;
 
 type WatchChannel = {
   events: Emitter<WatchEvent[]>;
@@ -28,12 +22,12 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
     : createScope({ label: 'fs-watch-service' });
   const consumers = new Set<Scope>();
   let disposed = false;
+  let terminalError: unknown;
 
   const channels = createResourceCache<WatchKey, WatchChannel>({
     key: watchKey,
     scope: serviceScope,
     label: 'channels',
-    idleTtlMs: options.graceMs ?? 0,
     cancelPendingOnRelease: true,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
@@ -43,39 +37,36 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
         events.clear();
         resync.clear();
       });
-      let markStarted: () => void = () => {};
-      const started = new Promise<void>((resolve) => {
-        markStarted = resolve;
-      });
-      let subscription!: Promise<void>;
-      await runWithTimeout(
-        (signal) => {
-          subscription = options.backend.subscribe(
+      await abortableWait<void>({ signal: scope.signal }, (settle) => {
+        options.backend
+          .subscribe(
             key,
             {
               events: (batch) => events.emit(batch),
               resync: () => resync.emit(),
             },
-            scope,
-            { signal, onStart: markStarted }
-          );
-          return Promise.race([started, subscription]);
-        },
-        {
-          timeoutMs: options.startupQueueTimeoutMs ?? DEFAULT_STARTUP_QUEUE_TIMEOUT_MS,
-          signal: scope.signal,
-        }
-      );
-      await runWithTimeout(() => subscription, {
-        timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
-        signal: scope.signal,
+            scope
+          )
+          .then(settle.resolve, settle.reject);
       });
       return { events, resync };
     },
   });
 
+  const backendFailureSignal = options.backend.failureSignal;
+  if (backendFailureSignal) {
+    const onBackendFailure = (): void => {
+      terminalError = backendFailureSignal.reason ?? new Error('Watch backend failed');
+      void serviceScope.dispose(terminalError);
+    };
+    backendFailureSignal.addEventListener('abort', onBackendFailure, { once: true });
+    serviceScope.add(() => backendFailureSignal.removeEventListener('abort', onBackendFailure));
+    if (backendFailureSignal.aborted) onBackendFailure();
+  }
+
   return {
     watch(root, onEvents, watchOptions = {}) {
+      if (terminalError) throw terminalError;
       if (disposed || serviceScope.disposed) throw new Error('FsWatchService disposed');
 
       const key = normalizeWatchKey(root, watchOptions.ignore);

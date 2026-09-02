@@ -1,17 +1,42 @@
-import { createConcurrencyLimiter } from '@emdash/shared/concurrency';
+import { createConcurrencyLimiter, type Scope } from '@emdash/shared/concurrency';
+import {
+  abortableWait,
+  abortReason,
+  runWithTimeout,
+  TimeoutError,
+} from '@emdash/shared/scheduling';
 import parcelWatcher from '@parcel/watcher';
-import type { WatchBackend, WatchOnError } from './backend';
+import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { NativeWatch, type ParcelSubscribeFn } from './native-watch';
 
-const DEFAULT_MAX_CONCURRENT_STARTS = 1;
+// Parcel exposes neither cancellation nor a failure signal for a subscribe call that never
+// settles. This is the single time-based failure detector for that native process boundary.
+const NATIVE_STARTUP_WATCHDOG_MS = 10_000;
 
 export type NativeWatchBackendOptions = {
   onError?: WatchOnError;
   subscribe?: ParcelSubscribeFn;
-  maxConcurrentStarts?: number;
 };
 
-export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): WatchBackend {
+export type NativeWatchBackend = WatchBackend & {
+  readonly failureSignal: AbortSignal;
+};
+
+class NativeWatchStartupTimeoutError extends Error {
+  constructor(root: string, cause: TimeoutError) {
+    super(`Native watcher startup timed out for ${root}`, { cause });
+    this.name = 'NativeWatchStartupTimeoutError';
+  }
+}
+
+class NativeWatchStartupCancelledError extends Error {
+  constructor(root: string, cause: unknown) {
+    super(`Native watcher startup was cancelled for ${root}`, { cause });
+    this.name = 'NativeWatchStartupCancelledError';
+  }
+}
+
+export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): NativeWatchBackend {
   const onError = options.onError ?? (() => {});
   const reportError = (context: string, error: unknown): void => {
     try {
@@ -21,22 +46,76 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Wat
     }
   };
   const subscribe = options.subscribe ?? parcelWatcher.subscribe;
-  const startLimiter = createConcurrencyLimiter(
-    options.maxConcurrentStarts ?? DEFAULT_MAX_CONCURRENT_STARTS
-  );
+  const startLimiter = createConcurrencyLimiter(1);
+  const failureController = new AbortController();
+  let poisoned: Error | undefined;
+
+  const poison = (error: Error): Error => {
+    if (poisoned) return poisoned;
+    poisoned = error;
+    failureController.abort(error);
+    return error;
+  };
+
+  const disposeLateSubscription = (
+    key: WatchKey,
+    pending: Promise<parcelWatcher.AsyncSubscription>
+  ): void => {
+    void pending.then(
+      (subscription) =>
+        subscription
+          .unsubscribe()
+          .catch((error) => reportError(`unsubscribe late watch ${key.root}`, error)),
+      () => {}
+    );
+  };
+
+  const startNativeSubscription = async (
+    key: WatchKey,
+    scope: Scope,
+    start: () => Promise<parcelWatcher.AsyncSubscription>
+  ): Promise<parcelWatcher.AsyncSubscription> => {
+    if (poisoned) throw poisoned;
+    if (scope.signal.aborted) throw abortReason(scope.signal, 'Native watcher startup cancelled');
+    const pending = start();
+    try {
+      return await runWithTimeout(
+        (timeoutSignal) =>
+          abortableWait<parcelWatcher.AsyncSubscription>(
+            { signal: AbortSignal.any([scope.signal, timeoutSignal]) },
+            (settle) => {
+              pending.then(settle.resolve, settle.reject);
+            }
+          ),
+        { timeoutMs: NATIVE_STARTUP_WATCHDOG_MS }
+      );
+    } catch (error) {
+      if (error instanceof TimeoutError) {
+        disposeLateSubscription(key, pending);
+        throw poison(new NativeWatchStartupTimeoutError(key.root, error));
+      }
+      if (scope.signal.aborted) {
+        disposeLateSubscription(key, pending);
+        throw poison(new NativeWatchStartupCancelledError(key.root, error));
+      }
+      throw error;
+    }
+  };
 
   return {
-    async subscribe(key, sink, scope, start) {
-      const startSignal = AbortSignal.any([scope.signal, start.signal]);
-      await startLimiter.run(startSignal, async () => {
-        start.onStart();
+    failureSignal: failureController.signal,
+    async subscribe(key, sink, scope) {
+      if (poisoned) throw poisoned;
+      await startLimiter.run(scope.signal, async () => {
+        if (poisoned) throw poisoned;
         let initialSubscribe = true;
         const scheduledSubscribe: ParcelSubscribeFn = (...args) => {
+          const start = () => subscribe(...args);
           if (initialSubscribe) {
             initialSubscribe = false;
-            return subscribe(...args);
+            return startNativeSubscription(key, scope, start);
           }
-          return startLimiter.run(scope.signal, () => subscribe(...args));
+          return startLimiter.run(scope.signal, () => startNativeSubscription(key, scope, start));
         };
         const native = new NativeWatch(
           key.root,
@@ -52,8 +131,8 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Wat
             .dispose()
             .catch((error) => reportError(`dispose watch ${key.root}`, error));
           if (ready) return disposal;
-          // A Parcel subscribe can remain pending after the channel startup timeout. Start cleanup
-          // without making scope disposal wait for that promise; NativeWatch disposes a late result.
+          // Parcel startup cannot be cancelled. A poisoned backend is replaced at the process
+          // boundary, while the guarded subscription disposes a late native result.
           void disposal;
         });
         await native.ready();
