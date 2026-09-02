@@ -27,6 +27,8 @@ export type WorkspaceConfigSummary = z.infer<typeof workspaceConfigSummarySchema
 export const personalProjectConfigSchema = z.object({
   preservePatterns: z.array(z.string()).optional(),
   scripts: emdashScriptsConfigSchema.optional(),
+  /** Host-local variables injected into every process launched for this project. */
+  env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).optional(),
   autoRunSetup: z.boolean().optional(),
   autoRunRun: z.boolean().optional(),
 });
@@ -55,8 +57,14 @@ const resolvedStringArrayProjectConfigFieldSchema = z.object({
   from: projectConfigProvenanceSchema,
 });
 
+const resolvedStringRecordProjectConfigFieldSchema = z.object({
+  value: z.record(z.string(), z.string()),
+  from: projectConfigProvenanceSchema,
+});
+
 export const resolvedProjectConfigSchema = z.object({
   preservePatterns: resolvedStringArrayProjectConfigFieldSchema,
+  env: resolvedStringRecordProjectConfigFieldSchema,
   prepare: resolvedStringProjectConfigFieldSchema.optional(),
   setup: resolvedStringProjectConfigFieldSchema.optional(),
   run: resolvedStringProjectConfigFieldSchema.optional(),
@@ -105,6 +113,10 @@ export type GetProjectConfigInput = z.infer<typeof getProjectConfigInputSchema>;
 
 const personalProjectConfigPatchSchema = z.object({
   preservePatterns: z.array(z.string()).nullable().optional(),
+  env: z
+    .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string())
+    .nullable()
+    .optional(),
   scripts: z
     .object({
       prepare: z.string().nullable().optional(),

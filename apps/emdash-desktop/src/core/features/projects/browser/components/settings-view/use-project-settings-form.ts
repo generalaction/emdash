@@ -25,6 +25,7 @@ import {
   projectSettingsDomainsToForm,
   shareableFieldFormValue,
   type FileHandlingFormState,
+  type EnvironmentFormState,
   type FormFieldPath,
   type FormSection,
   type FormState,
@@ -138,6 +139,10 @@ export function useProjectSettingsForm({
   );
   const updateFileHandling = useCallback<FormUpdate<FileHandlingFormState>>(
     (key, value) => updateSection('fileHandling', key, value),
+    [updateSection]
+  );
+  const updateEnvironment = useCallback<FormUpdate<EnvironmentFormState>>(
+    (key, value) => updateSection('environment', key, value),
     [updateSection]
   );
   const updateGitIdentity = useCallback<FormUpdate<GitIdentityFormState>>(
@@ -298,6 +303,7 @@ export function useProjectSettingsForm({
     worktreeDirectoryError: visibleWorktreeDirectoryError,
     updateLifecycle,
     updateFileHandling,
+    updateEnvironment,
     updateGitIdentity,
     updatePlacement,
     getOverrideSources,
@@ -316,6 +322,7 @@ function mergeProjectSettingsPage(
   return {
     lifecycle: host.lifecycle,
     fileHandling: host.fileHandling,
+    environment: host.environment,
     gitIdentity: page.durable.gitIdentity,
     placement: {
       ...host.placement,

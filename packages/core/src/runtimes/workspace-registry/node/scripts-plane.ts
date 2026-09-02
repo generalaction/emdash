@@ -22,6 +22,7 @@ export type WorkspaceScriptRunInput = {
   id: string;
   command: string;
   shellSetup: string;
+  env: Record<string, string>;
   cwd: string;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -93,6 +94,7 @@ export function createScriptsPlaneRunner(options: {
           ...key,
           command: input.command,
           shellSetup: input.shellSetup,
+          env: input.env,
           provenance: 'activation',
           facts,
           timeoutMs: input.timeoutMs ?? DEFAULT_SCRIPT_TIMEOUT_MS,

@@ -336,6 +336,7 @@ export class WorkspaceRegistryRuntime {
             teardown: resolved?.resolved.teardown?.value,
           },
           shellSetup: resolved?.resolved.shellSetup?.value ?? '',
+          env: { ...(resolved?.resolved.env.value ?? {}) },
           autoRunSetup: resolved?.resolved.autoRunSetup.value ?? true,
           autoRunRun: resolved?.resolved.autoRunRun.value ?? false,
         };
@@ -1290,6 +1291,7 @@ export class WorkspaceRegistryRuntime {
       facts,
       command,
       shellSetup: resolved?.resolved.shellSetup?.value ?? '',
+      env: { ...(resolved?.resolved.env.value ?? {}) },
       // Run scripts are dev-server-shaped: no timeout; everything else gets the
       // same 5-minute box activation applies.
       ...(input.script === 'run' ? {} : { timeoutMs: DEFAULT_SCRIPT_TIMEOUT_MS }),

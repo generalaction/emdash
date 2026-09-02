@@ -32,7 +32,7 @@ function manager(options: {
 
 describe('activation artifact gate', () => {
   it('honors personal auto-run toggles while leaving prepare enabled', async () => {
-    const ran: string[] = [];
+    const ran: Array<{ id: string; env: Record<string, string> }> = [];
     const activation = new WorkspaceActivationManager({
       publishActivation: () => undefined,
       setNotice: () => undefined,
@@ -43,19 +43,25 @@ describe('activation artifact gate', () => {
       resolveLifecycleConfig: async () => ({
         scripts: { prepare: 'prepare', setup: 'setup', run: 'run' },
         shellSetup: '',
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
         autoRunSetup: false,
         autoRunRun: false,
       }),
       runner: {
         run: async (input) => {
-          ran.push(input.id);
+          ran.push({ id: input.id, env: input.env });
           return { status: 'succeeded', outputTail: '' };
         },
       },
     });
 
     await activation.activate('ws', '/tmp/ws');
-    expect(ran).toEqual(['prepare']);
+    expect(ran).toEqual([
+      {
+        id: 'prepare',
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+      },
+    ]);
     await activation.deactivate('ws');
   });
 

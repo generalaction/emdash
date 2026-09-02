@@ -38,8 +38,9 @@ not mix cross-session routing with per-session state projection.
   prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
   or retained rematerialization descriptor.
 - The ACP connection source owns provider processes through `createResourceCache`.
-  Cache identity includes provider, workspace, and cwd; the process route id stays
-  provider/workspace and can host multiple ACP sessions.
+  Cache identity includes provider, cwd, and an opaque fingerprint of the requested environment;
+  the process route id stays provider/cwd plus generation and can host multiple ACP sessions with
+  the same environment.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
 - Runtime implementation code lives under `packages/core/src/runtimes/acp/node/`; the portable
@@ -187,6 +188,10 @@ with `ELECTRON_RUN_AS_NODE`. The packaged app must keep the `RunAsNode` fuse
 enabled while this fork model is used. If the app later disables that fuse for
 macOS hardening, the wire package exposes the Electron
 `utilityProcessSpawner()` seam for utility-process generations.
+
+ACP terminal callbacks execute as client-hosted sibling processes rather than operating-system
+children of the provider process. Their environment therefore starts from the provider process's
+resolved spawn environment, then applies command-specific variables from the ACP request.
 
 ## Models and Protocol Versioning
 

@@ -17,6 +17,10 @@ describe('TaskSessionLaunchContextResolver', () => {
     let tmux = false;
     let shellSetup = 'source old-profile';
     let defaultBranch = 'main';
+    let projectEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-old',
+      EMDASH_TASK_NAME: 'cannot-override',
+    };
     const identity = {
       workspaceId: 'workspace-1',
       projectId: 'project-1',
@@ -35,6 +39,7 @@ describe('TaskSessionLaunchContextResolver', () => {
       ok({
         resolved: {
           shellSetup: { value: shellSetup, from: 'team' as const },
+          env: { value: projectEnv, from: 'personal' as const },
         },
       })
     );
@@ -85,6 +90,10 @@ describe('TaskSessionLaunchContextResolver', () => {
     tmux = true;
     shellSetup = 'source new-profile';
     defaultBranch = 'trunk';
+    projectEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-new',
+      EMDASH_TASK_NAME: 'still-cannot-override',
+    };
     const second = await source.resolve();
 
     expect(first).toMatchObject({
@@ -93,6 +102,7 @@ describe('TaskSessionLaunchContextResolver', () => {
         tmux: false,
         shellSetup: 'source old-profile',
         env: {
+          CLAUDE_CONFIG_DIR: '/tmp/claude-old',
           EMDASH_TASK_NAME: 'old-task',
           EMDASH_DEFAULT_BRANCH: 'main',
         },
@@ -104,6 +114,7 @@ describe('TaskSessionLaunchContextResolver', () => {
         tmux: true,
         shellSetup: 'source new-profile',
         env: {
+          CLAUDE_CONFIG_DIR: '/tmp/claude-new',
           EMDASH_TASK_NAME: 'new-task',
           EMDASH_DEFAULT_BRANCH: 'trunk',
         },

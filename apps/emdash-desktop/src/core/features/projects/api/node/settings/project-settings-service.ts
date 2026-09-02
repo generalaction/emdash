@@ -143,6 +143,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
     const personalPatch = {
       ...patch.lifecycle?.personal,
       ...patch.fileHandling?.personal,
+      ...patch.environment?.personal,
     };
     if (Object.keys(personalPatch).length > 0) {
       if (!project?.success) return err({ type: 'error' });
@@ -375,6 +376,7 @@ function hostSettingsPatch(patch: ProjectSettingsDomainPatch): ProjectSettingsDo
   return {
     ...(patch.lifecycle ? { lifecycle: patch.lifecycle } : {}),
     ...(patch.fileHandling ? { fileHandling: patch.fileHandling } : {}),
+    ...(patch.environment ? { environment: patch.environment } : {}),
     ...(patch.placement && Object.hasOwn(patch.placement.stored, 'worktreeRoot')
       ? { placement: { stored: { worktreeRoot } } }
       : {}),

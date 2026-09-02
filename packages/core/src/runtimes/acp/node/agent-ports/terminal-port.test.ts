@@ -8,15 +8,20 @@ describe('TerminalPort', () => {
     const port = new TerminalPort({ create } as unknown as AgentTerminalManager, 'win32');
 
     await expect(
-      port.createTerminal('conversation-1', 'C:\\workspace', {
-        sessionId: 'session-1',
-        command: 'node',
-        env: [
-          { name: 'Path', value: 'C:\\base' },
-          { name: 'pAtH', value: 'C:\\override' },
-          { name: 'anthropic_api_key', value: 'secret' },
-        ],
-      })
+      port.createTerminal(
+        'conversation-1',
+        'C:\\workspace',
+        { Path: 'C:\\agent', ENV_TEST: 'inherited' },
+        {
+          sessionId: 'session-1',
+          command: 'node',
+          env: [
+            { name: 'Path', value: 'C:\\base' },
+            { name: 'pAtH', value: 'C:\\override' },
+            { name: 'anthropic_api_key', value: 'secret' },
+          ],
+        }
+      )
     ).resolves.toEqual({ terminalId: 'terminal-1' });
 
     expect(create).toHaveBeenCalledWith('conversation-1', {
@@ -24,6 +29,7 @@ describe('TerminalPort', () => {
       args: [],
       env: {
         PATH: 'C:\\override',
+        ENV_TEST: 'inherited',
         ANTHROPIC_API_KEY: 'secret',
       },
       cwd: 'C:\\workspace',

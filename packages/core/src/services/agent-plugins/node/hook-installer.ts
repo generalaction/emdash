@@ -1,4 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
+import { mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { nativePathIdentityKey } from '#primitives/path/api';
 import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
 import type { PluginScope } from '#services/agent-plugins/api/plugins/capabilities/plugins';
@@ -53,6 +54,7 @@ export class AgentHookInstaller {
   async ensureHooksInstalled(params: {
     providerId: string;
     workspacePath: string;
+    env?: Record<string, string>;
   }): Promise<boolean> {
     try {
       const installation = await this.resolveInstallation(params);
@@ -83,12 +85,23 @@ export class AgentHookInstaller {
   private async resolveInstallation(params: {
     providerId: string;
     workspacePath?: string;
+    env?: Record<string, string>;
   }): Promise<ResolvedHookInstallation | null> {
     const plugin = this.options.agentHost.get(params.providerId);
     const descriptor = plugin?.capabilities.hooks;
     if (!plugin || !descriptor || descriptor.kind === 'none') return null;
 
-    const configContext = await this.options.agentHost.configRootContext();
+    const baseConfigContext = await this.options.agentHost.configRootContext();
+    const configContext = params.env
+      ? {
+          ...baseConfigContext,
+          env: mergeAgentEnvLayers(
+            baseConfigContext.platform === 'windows' ? 'windows' : 'posix',
+            baseConfigContext.env,
+            params.env
+          ),
+        }
+      : baseConfigContext;
     if (descriptor.kind === 'config' && plugin.behavior.hooks) {
       const behavior = plugin.behavior.hooks;
       const roots =

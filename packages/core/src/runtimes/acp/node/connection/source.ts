@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Client, McpCapabilities } from '@agentclientprotocol/sdk';
 import { isErr, toSerializedError } from '@emdash/shared';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
@@ -24,6 +25,7 @@ export interface AcpConnectionContext {
   generation: number;
   providerId: string;
   cwd: string;
+  env: Readonly<Record<string, string>>;
   normalize: AcpSessionUpdateNormalizer;
 }
 
@@ -77,7 +79,14 @@ export function makeAcpConnectionKey(providerId: string, cwd: string): string {
 }
 
 export function acpConnectionCacheKey(key: AcpConnectionKey): string {
-  return makeAcpConnectionKey(key.providerId, key.cwd);
+  const envFingerprint = createHash('sha256')
+    .update(
+      JSON.stringify(
+        Object.entries(key.env ?? {}).sort(([left], [right]) => left.localeCompare(right))
+      )
+    )
+    .digest('hex');
+  return `${makeAcpConnectionKey(key.providerId, key.cwd)}:env:${envFingerprint}`;
 }
 
 export function isAcpConnectionError(error: unknown): error is AcpConnectionError {
@@ -125,6 +134,7 @@ async function provisionAcpConnection(
           generation,
           providerId: key.providerId,
           cwd: key.cwd,
+          env: spawn.data.env,
           normalize,
         }),
       onClosed: (exitCode) => deps.onClosed(routeKey, generation, exitCode),
@@ -137,6 +147,7 @@ async function provisionAcpConnection(
     generation,
     providerId: key.providerId,
     cwd: key.cwd,
+    env: spawn.data.env,
     agent: connection.data.agent,
     normalize: connection.data.normalize,
     supportsLoadSession: connection.data.supportsLoadSession,

@@ -51,6 +51,85 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
+  it('adds project environment variables to trusted ACP spawn input', async () => {
+    const attach = vi.fn(async () => ok(undefined));
+    const getProviderEnv = vi.fn(async () => ({
+      CLAUDE_CONFIG_DIR: '/provider/config',
+      PROVIDER_ONLY: 'provider',
+    }));
+    const resolveLaunchContext = vi.fn(async () =>
+      ok({
+        workspace: {
+          workspaceId: 'workspace-1',
+          projectId: target.projectId,
+          host: LOCAL_HOST_REF,
+          path: target.workspacePath,
+        },
+        tmux: false,
+        env: {
+          CLAUDE_CONFIG_DIR: '/project/config',
+          PROJECT_ONLY: 'project',
+        },
+      })
+    );
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          leftJoin: () => ({
+            where: () => ({
+              limit: async () => [
+                {
+                  projectId: target.projectId,
+                  taskId: target.taskId,
+                  providerId: target.providerId,
+                  sessionId: null,
+                  config: null,
+                  type: 'acp',
+                  workspaceId: 'workspace-1',
+                },
+              ],
+            }),
+          }),
+        }),
+      })),
+    };
+    const controller = createConversationsWireController({
+      db: db as never,
+      logger: { warn: vi.fn() } as never,
+      runtimes: { client: async () => ok({ acp: { attach } }) } as never,
+      workspaceIdentity: {
+        resolve: vi.fn(async () => ({ host: LOCAL_HOST_REF, path: target.workspacePath })),
+      },
+      getProviderEnv,
+      sessionLaunchContexts: { resolve: resolveLaunchContext },
+      telemetry: { capture: vi.fn() } as never,
+      projects: { requireAttached: vi.fn(() => ok({} as never)) },
+      taskSessions: { getTask: vi.fn() },
+      withCompensation: async ({ action }) => action(),
+      hostIsReachable: () => true,
+    });
+
+    await expect(
+      controller.call('acp.attach', { conversationId: target.conversationId })
+    ).resolves.toEqual(ok(undefined));
+
+    expect(attach).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: {
+          CLAUDE_CONFIG_DIR: '/project/config',
+          PROVIDER_ONLY: 'provider',
+          PROJECT_ONLY: 'project',
+        },
+      }),
+      {}
+    );
+    expect(resolveLaunchContext).toHaveBeenCalledWith({
+      projectId: target.projectId,
+      taskId: target.taskId,
+      workspaceId: 'workspace-1',
+    });
+  });
+
   it('attaches with the trusted descriptor and activates while loading history', async () => {
     const attach = vi.fn(async () => ok(undefined));
     const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
@@ -375,6 +454,7 @@ function setupController(options: {
       },
     } as never,
     workspaceIdentity: {} as never,
+    sessionLaunchContexts: {} as never,
     telemetry: { capture: vi.fn() } as never,
     projects: {
       requireAttached: vi.fn(() =>

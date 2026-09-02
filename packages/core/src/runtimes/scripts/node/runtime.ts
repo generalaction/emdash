@@ -151,7 +151,10 @@ export class ScriptsRuntime {
       });
       const env = buildTerminalEnv({
         baseEnv,
-        overrides: buildScriptEnv(input.workspacePath, input.facts),
+        overrides: {
+          ...(input.env ?? {}),
+          ...buildScriptEnv(input.workspacePath, input.facts),
+        },
       });
       session = await this.registry.create(
         runKey,

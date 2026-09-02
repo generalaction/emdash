@@ -111,14 +111,17 @@ export class TaskSessionLaunchContextResolver {
       workspace: identity,
       tmux: resolveSessionTmux(identity.host, tmux.value),
       shellSetup: projectConfig.data.resolved.shellSetup?.value,
-      env: getTaskEnvVars({
-        taskId: task.id,
-        taskName: task.name,
-        taskPath: identity.path,
-        projectPath: project.data.repoPath,
-        defaultBranch: effective.defaultBranch.value?.branch ?? null,
-        portSeed: identity.path,
-      }),
+      env: {
+        ...projectConfig.data.resolved.env.value,
+        ...getTaskEnvVars({
+          taskId: task.id,
+          taskName: task.name,
+          taskPath: identity.path,
+          projectPath: project.data.repoPath,
+          defaultBranch: effective.defaultBranch.value?.branch ?? null,
+          portSeed: identity.path,
+        }),
+      },
     });
   }
 }

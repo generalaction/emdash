@@ -22,10 +22,12 @@ export class TerminalPort {
   async createTerminal(
     conversationId: string,
     defaultCwd: string,
+    agentEnv: Readonly<Record<string, string>>,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
     const envRecord = mergeAgentEnvLayers(
       currentAgentEnvPlatform(this.platform),
+      agentEnv,
       params.env ? Object.fromEntries(params.env.map((e) => [e.name, e.value])) : {}
     );
     const terminalId = await this.terminals.create(conversationId, {

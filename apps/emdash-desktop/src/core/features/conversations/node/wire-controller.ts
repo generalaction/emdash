@@ -23,6 +23,7 @@ import {
   withAttachedProject,
 } from '@core/features/projects/api/node/attached-project';
 import type { ProjectAttachmentManager } from '@core/features/projects/api/node/project-attachment-manager';
+import type { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -74,6 +75,7 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
   hooks?: ConversationRuntimeHooks;
   getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>;
+  sessionLaunchContexts: Pick<TaskSessionLaunchContextResolver, 'resolve'>;
   logger: Logger;
   projects: Pick<ProjectAttachmentManager, 'requireAttached'>;
   telemetry: TelemetryService;
@@ -92,7 +94,8 @@ export function createConversationsWireController(
         conversationId,
         options.workspaceIdentity,
         options.db,
-        options.getProviderEnv
+        options.getProviderEnv,
+        options.sessionLaunchContexts
       ));
   const hooks = options.hooks ?? createDefaultRuntimeHooks(options);
   const conversationOperations = createConversationOperations({
@@ -347,7 +350,8 @@ async function resolveConversationRuntimeTarget(
   conversationId: string,
   workspaceIdentity: WorkspaceIdentityResolver,
   db: AppDb,
-  getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>
+  getProviderEnv: ((providerId: string) => Promise<Record<string, string> | undefined>) | undefined,
+  sessionLaunchContexts: Pick<TaskSessionLaunchContextResolver, 'resolve'>
 ): Promise<ConversationRuntimeTarget> {
   const [row] = await db
     .select({
@@ -383,10 +387,25 @@ async function resolveConversationRuntimeTarget(
           : undefined
       : undefined;
   const workspacePath = identity?.path;
-  // Provider process env originates solely from trusted main-process settings.
-  // The renderer only supplies a conversation id and cannot inject spawn variables.
-  const providerEnv =
-    row.providerId && getProviderEnv ? await getProviderEnv(row.providerId) : undefined;
+  // Resolve the ACP agent environment in main from provider and project/task settings. The
+  // renderer supplies only a conversation id and cannot inject spawn variables.
+  const [providerEnv, launchContext] = await Promise.all([
+    row.providerId && getProviderEnv ? getProviderEnv(row.providerId) : undefined,
+    row.type === 'acp' && workspacePath
+      ? sessionLaunchContexts.resolve({
+          projectId: row.projectId,
+          taskId: row.taskId,
+          ...(row.workspaceId ? { workspaceId: row.workspaceId } : {}),
+        })
+      : undefined,
+  ]);
+  if (launchContext && !launchContext.success) {
+    throw new Error(`Could not resolve task session launch context: ${launchContext.error.type}`);
+  }
+  const processEnv = {
+    ...(providerEnv ?? {}),
+    ...(launchContext?.success ? launchContext.data.env : {}),
+  };
   const acpInput =
     row.type === 'acp' && workspacePath && row.providerId
       ? {
@@ -399,7 +418,7 @@ async function resolveConversationRuntimeTarget(
           effort: acpConfig?.effort ?? null,
           collaborationMode: acpConfig?.collaborationMode ?? null,
           ...(initialQueue && { initialQueue }),
-          ...(providerEnv && { env: providerEnv }),
+          ...(Object.keys(processEnv).length > 0 ? { env: processEnv } : {}),
         }
       : undefined;
 
