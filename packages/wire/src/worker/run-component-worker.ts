@@ -61,10 +61,23 @@ export async function runWireComponentWorker<
   const port = options.port ?? resolveParentPort();
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const scope = createScope({ label: `component-worker:${component.id}`, logger: options.logger });
+  let exitRequested = false;
 
   const shutdown = async (code: number): Promise<void> => {
+    if (exitRequested) return;
+    exitRequested = true;
     await scope.dispose();
     exit(code);
+  };
+  const fail = (error: unknown): void => {
+    if (exitRequested) return;
+    exitRequested = true;
+    options.logger?.error('component worker reported an unrecoverable failure', {
+      componentId: component.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    void scope.dispose(error);
+    exit(1);
   };
   scope.add(
     port.onMessage((message) => {
@@ -81,7 +94,9 @@ export async function runWireComponentWorker<
       dependencies,
       config: bootstrap.config as Config,
       logger: options.logger,
+      onFatal: fail,
     }) as InternalWireComponentInstance<Defs>;
+    if (exitRequested) return;
     const stopServing = serve(
       parentPortChannelTransport(port, RUNTIME_CHANNEL),
       instance[componentControllerSymbol]
@@ -89,6 +104,8 @@ export async function runWireComponentWorker<
     scope.add(stopServing);
     port.send(WORKER_READY_SIGNAL);
   } catch (error) {
+    if (exitRequested) return;
+    exitRequested = true;
     await scope.dispose(error);
     options.logger?.error('component worker failed to start', {
       componentId: component.id,

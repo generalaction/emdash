@@ -1,5 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { Controller } from '../../api/controller';
 import { defineContract, procedure } from '../../api/define';
@@ -71,6 +71,39 @@ describe('defineWireComponent', () => {
 
     await expect(withTimeout(scope.dispose(), 100)).resolves.toBeUndefined();
     expect(disposed).toBe(true);
+  });
+
+  it('reports one fatal failure and retires the component instance', async () => {
+    const scope = createScope({ label: 'test' });
+    const onFatal = vi.fn();
+    let disposed = 0;
+    let reportFatal: ((error: unknown) => void) | undefined;
+    const component = defineWireComponent({
+      id: 'greeter',
+      contract: greetingContract,
+      requirements: {},
+      configSchema: z.object({}),
+      create: ({ fatal, instance, scope }) => {
+        reportFatal = fatal;
+        scope.add(() => {
+          disposed += 1;
+        });
+        return instance({
+          scope,
+          controller: greeterController(),
+        });
+      },
+    });
+    component.create({ scope, dependencies: {}, config: {}, onFatal });
+    const failure = new Error('component poisoned');
+
+    reportFatal?.(failure);
+    reportFatal?.(new Error('duplicate failure'));
+    await vi.waitFor(() => expect(disposed).toBe(1));
+
+    expect(onFatal).toHaveBeenCalledOnce();
+    expect(onFatal).toHaveBeenCalledWith(failure);
+    await scope.dispose();
   });
 
   it('disposes controller resources once through direct instance disposal', async () => {

@@ -29,6 +29,7 @@ export function defineWireComponent<
         options.dependencies as Record<string, unknown>
       );
       const componentScope = options.scope.child(`component:${definition.id}`);
+      let fatalReported = false;
 
       try {
         return definition.create({
@@ -37,6 +38,12 @@ export function defineWireComponent<
           config,
           logger: options.logger ?? componentScope.log,
           signal: componentScope.signal,
+          fatal: (error) => {
+            if (fatalReported || componentScope.disposed) return;
+            fatalReported = true;
+            void componentScope.dispose(error);
+            options.onFatal?.(error);
+          },
           instance: ({ scope, controller }) => {
             const instance = createInstance({
               contract: definition.contract,

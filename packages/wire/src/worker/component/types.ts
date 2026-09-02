@@ -40,6 +40,7 @@ export type WireComponentCreateOptions<Requirements extends WireComponentRequire
   dependencies: ResolvedWireComponentRequirements<Requirements>;
   config: Config;
   logger?: Logger;
+  onFatal?: (error: unknown) => void;
 };
 
 export type WireComponentCreateContext<
@@ -52,6 +53,7 @@ export type WireComponentCreateContext<
   config: Config;
   logger: Logger;
   signal: AbortSignal;
+  fatal(error: unknown): void;
   instance(options: { scope: Scope; controller: Controller }): WireComponentInstance<Defs>;
 };
 
