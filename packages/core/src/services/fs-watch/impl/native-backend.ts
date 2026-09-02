@@ -26,9 +26,10 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Wat
   );
 
   return {
-    async subscribe(key, sink, scope, onStart) {
-      await startLimiter.run(scope.signal, async () => {
-        onStart();
+    async subscribe(key, sink, scope, start) {
+      const startSignal = AbortSignal.any([scope.signal, start.signal]);
+      await startLimiter.run(startSignal, async () => {
+        start.onStart();
         let initialSubscribe = true;
         const scheduledSubscribe: ParcelSubscribeFn = (...args) => {
           if (initialSubscribe) {

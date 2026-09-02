@@ -10,10 +10,12 @@ export type CreateWatchServiceOptions = {
   scope?: Scope;
   graceMs?: number;
   startupTimeoutMs?: number;
+  startupQueueTimeoutMs?: number;
   onError?: WatchOnError;
 };
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
+const DEFAULT_STARTUP_QUEUE_TIMEOUT_MS = 30_000;
 
 type WatchChannel = {
   events: Emitter<WatchEvent[]>;
@@ -45,16 +47,25 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
       const started = new Promise<void>((resolve) => {
         markStarted = resolve;
       });
-      const subscription = options.backend.subscribe(
-        key,
-        {
-          events: (batch) => events.emit(batch),
-          resync: () => resync.emit(),
+      let subscription!: Promise<void>;
+      await runWithTimeout(
+        (signal) => {
+          subscription = options.backend.subscribe(
+            key,
+            {
+              events: (batch) => events.emit(batch),
+              resync: () => resync.emit(),
+            },
+            scope,
+            { signal, onStart: markStarted }
+          );
+          return Promise.race([started, subscription]);
         },
-        scope,
-        markStarted
+        {
+          timeoutMs: options.startupQueueTimeoutMs ?? DEFAULT_STARTUP_QUEUE_TIMEOUT_MS,
+          signal: scope.signal,
+        }
       );
-      await Promise.race([started, subscription]);
       await runWithTimeout(() => subscription, {
         timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
         signal: scope.signal,

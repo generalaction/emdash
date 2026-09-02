@@ -12,6 +12,8 @@ export type CreateNativeWatchServiceOptions = Readonly<{
   onError?: NativeWatchBackendOptions['onError'];
   subscribe?: NativeWatchBackendOptions['subscribe'];
   maxConcurrentStarts?: NativeWatchBackendOptions['maxConcurrentStarts'];
+  startupTimeoutMs?: number;
+  startupQueueTimeoutMs?: number;
 }>;
 
 export function createNativeWatchService(
@@ -25,6 +27,8 @@ export function createNativeWatchService(
     }),
     scope: options.scope,
     graceMs: options.graceMs,
+    startupTimeoutMs: options.startupTimeoutMs,
+    startupQueueTimeoutMs: options.startupQueueTimeoutMs,
     onError: options.onError,
   });
 }

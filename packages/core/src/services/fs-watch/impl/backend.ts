@@ -13,7 +13,14 @@ export type WatchSink = {
 
 export type WatchOnError = (context: string, error: unknown) => void;
 
+export type WatchBackendStart = {
+  /** Cancels only the wait for a backend-owned startup slot. */
+  signal: AbortSignal;
+  /** Marks the point at which the active startup deadline begins. */
+  onStart: () => void;
+};
+
 export interface WatchBackend {
-  subscribe(key: WatchKey, sink: WatchSink, scope: Scope, onStart: () => void): Promise<void>;
+  subscribe(key: WatchKey, sink: WatchSink, scope: Scope, start: WatchBackendStart): Promise<void>;
   dispose?(): Promise<void> | void;
 }

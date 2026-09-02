@@ -6,7 +6,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 import { requireWatchReady, type WatchEvent } from '#services/fs-watch/api';
-import type { WatchBackend, WatchKey, WatchSink } from './backend';
+import type { WatchBackend, WatchBackendStart, WatchKey, WatchSink } from './backend';
 import { nativeWatchBackend } from './native-backend';
 import { realpathOrResolve } from './paths';
 import { createWatchService } from './watch-service';
@@ -413,6 +413,66 @@ describe('createWatchService', () => {
     }
   });
 
+  it('bounds queue wait while a timed-out native startup still holds the slot', async () => {
+    vi.useFakeTimers();
+    const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-first-'));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-stuck-second-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const retrySubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const retryUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockReturnValueOnce(firstSubscription.promise)
+      .mockReturnValueOnce(retrySubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe, maxConcurrentStarts: 1 }),
+      startupTimeoutMs: 1_000,
+      startupQueueTimeoutMs: 2_000,
+    });
+
+    try {
+      const first = service.watch(firstRoot, () => {});
+      const second = service.watch(secondRoot, () => {});
+      const firstReady = first.ready();
+      let secondSettled = false;
+      const secondReady = second.ready().finally(() => {
+        secondSettled = true;
+      });
+
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(firstReady).resolves.toEqual(
+        err(expect.objectContaining({ message: 'Operation timed out after 1000ms' }))
+      );
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(secondSettled).toBe(true);
+      await expect(secondReady).resolves.toEqual(
+        err(expect.objectContaining({ message: 'Operation timed out after 2000ms' }))
+      );
+      expect(subscribe).toHaveBeenCalledOnce();
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await vi.waitFor(() => expect(firstUnsubscribe).toHaveBeenCalledOnce());
+      await first.release();
+      await second.release();
+
+      expect(subscribe).toHaveBeenCalledOnce();
+      const retry = service.watch(secondRoot, () => {});
+      const retryReady = retry.ready();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      retrySubscription.resolve({ unsubscribe: retryUnsubscribe });
+      await expect(retryReady).resolves.toEqual(ok(undefined));
+      await retry.release();
+      expect(retryUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
   it('cancels a queued native subscription when its final lease is released', async () => {
     const firstRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-first-'));
     const secondRoot = await mkdtemp(path.join(tmpdir(), 'emdash-native-cancel-second-'));
@@ -533,9 +593,9 @@ class FakeWatchBackend implements WatchBackend {
     key: WatchKey,
     sink: WatchSink,
     scope: Scope,
-    onStart: () => void
+    start: WatchBackendStart
   ): Promise<void> {
-    onStart();
+    start.onStart();
     this.subscribeCount += 1;
     const keyId = keyOf(key);
     this.sinks.set(keyId, sink);
@@ -563,9 +623,9 @@ class DeferredWatchBackend implements WatchBackend {
     _key: WatchKey,
     _sink: WatchSink,
     scope: Scope,
-    onStart: () => void
+    start: WatchBackendStart
   ): Promise<void> {
-    onStart();
+    start.onStart();
     const attempt = { ready: deferred(), disposed: false };
     this.attempts.push(attempt);
     scope.add(() => {

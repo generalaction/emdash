@@ -16,8 +16,8 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
   const onError = options.onError ?? (() => {});
 
   return {
-    async subscribe(key, sink, scope, onStart) {
-      onStart();
+    async subscribe(key, sink, scope, start) {
+      start.onStart();
       await options.ready?.();
       const client = await getClient(options.client);
       const detach = await client.events.handle(key).attach(
