@@ -78,25 +78,31 @@ export function nativeWatchBackend(options: NativeWatchBackendOptions = {}): Nat
     if (poisoned) throw poisoned;
     if (scope.signal.aborted) throw abortReason(scope.signal, 'Native watcher startup cancelled');
     const pending = start();
+    let disposalScheduled = false;
+    const scheduleDisposal = (): void => {
+      if (disposalScheduled) return;
+      disposalScheduled = true;
+      disposeLateSubscription(key, pending);
+    };
+    const supervised = runWithTimeout(() => pending, {
+      timeoutMs: NATIVE_STARTUP_WATCHDOG_MS,
+    }).catch((error: unknown) => {
+      if (!(error instanceof TimeoutError)) throw error;
+      scheduleDisposal();
+      throw poison(new NativeWatchStartupTimeoutError(key.root, error));
+    });
+    void supervised.catch(() => {});
     try {
-      return await runWithTimeout(
-        (timeoutSignal) =>
-          abortableWait<parcelWatcher.AsyncSubscription>(
-            { signal: AbortSignal.any([scope.signal, timeoutSignal]) },
-            (settle) => {
-              pending.then(settle.resolve, settle.reject);
-            }
-          ),
-        { timeoutMs: NATIVE_STARTUP_WATCHDOG_MS }
+      return await abortableWait<parcelWatcher.AsyncSubscription>(
+        { signal: scope.signal },
+        (settle) => {
+          supervised.then(settle.resolve, settle.reject);
+        }
       );
     } catch (error) {
-      if (error instanceof TimeoutError) {
-        disposeLateSubscription(key, pending);
-        throw poison(new NativeWatchStartupTimeoutError(key.root, error));
-      }
       if (scope.signal.aborted) {
-        disposeLateSubscription(key, pending);
-        throw poison(new NativeWatchStartupCancelledError(key.root, error));
+        scheduleDisposal();
+        throw new NativeWatchStartupCancelledError(key.root, error);
       }
       throw error;
     }
