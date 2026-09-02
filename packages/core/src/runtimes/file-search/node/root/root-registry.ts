@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import {
+  createConcurrencyLimiter,
   createLifecycleRegistry,
   type LifecycleRegistry,
   type Scope,
@@ -7,11 +8,13 @@ import {
 import { canonicalExclusionPatterns } from '#primitives/exclusion-policy/api';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import type {
+  FileSearchAcquireRootError,
   FileSearchRegisterRootError,
   FileSearchRootInput,
   FileSearchUnregisterRootError,
 } from '#runtimes/file-search/api';
 import {
+  exclusionPolicyConflict,
   rootNotRegistered,
   toExpectedRootOrIndexError,
   toExpectedStoreError,
@@ -21,6 +24,9 @@ import { hostAbsolutePathFromNative } from '../native-paths';
 import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-identity';
 
+/** Keeps catalog validation background work that cannot crowd out active registrations. */
+const MAX_CONCURRENT_VALIDATION_PROBES = 2;
+
 type RootStartInput = Readonly<{
   root: HostAbsolutePath;
   rootKey: string;
@@ -28,9 +34,14 @@ type RootStartInput = Readonly<{
   exclusionPatterns: readonly string[];
 }>;
 
-type RootStopContext = Readonly<{ kind: 'unregister'; root: HostAbsolutePath }>;
-
 type RootResolutionError = FileSearchRegisterRootError | ReturnType<typeof rootNotRegistered>;
+
+export type FileSearchRootLease = Readonly<{
+  root: RegisteredRoot;
+  release(): Promise<void>;
+}>;
+
+type LeaseEntry = { fingerprint: string; count: number };
 
 export type FileSearchRootUpsertResult = Readonly<{
   kind: 'created' | 'unchanged';
@@ -55,21 +66,23 @@ type FileSearchRootRegistryOptions = {
   ) => RegisteredRoot;
   /** Compile a canonical pattern list into a matcher. */
   compileExclusions(patterns: readonly string[]): FileSearchExclusions;
-  /** Patterns used when restoring persisted roots or when input has no exclusions. */
+  /** Patterns used when input has no exclusions. */
   defaultExclusionPatterns: readonly string[];
+  probeRootMissing?: (root: HostAbsolutePath) => Promise<boolean>;
   scope: Scope;
   onError?: (context: string, error: unknown) => void;
 };
 
-/** Owns durable registration and maintenance lifecycle for canonical file-search roots. */
+/** Owns leased maintenance lifecycle and durable cataloging for canonical file-search roots. */
 export class FileSearchRootRegistry {
   private readonly lifecycle: LifecycleRegistry<
     RootStartInput,
     RegisteredRoot,
     FileSearchRegisterRootError,
-    RootStopContext,
+    void,
     FileSearchUnregisterRootError
   >;
+  private readonly leases = new Map<string, LeaseEntry>();
 
   constructor(private readonly options: FileSearchRootRegistryOptions) {
     this.lifecycle = createLifecycleRegistry({
@@ -77,67 +90,105 @@ export class FileSearchRootRegistry {
       scope: options.scope,
       keyOf: (input) => input.rootKey,
       start: (input, scope) => this.startRoot(input, scope),
-      stop: (rootKey, _registration, context) => this.stopRoot(rootKey, context),
+      stop: () => ok(),
       onObserverError: ({ error }) => this.report('file-search root observer failed', error),
     });
-
-    for (const stored of options.catalog.listRoots()) this.restore(stored);
   }
 
-  async registerRoot(
+  /**
+   * Prunes catalog rows whose roots are definitively gone. Persisted rows are
+   * cold caches, not registrations: construction starts no maintenance, and
+   * this sweep only ever deletes rows — it never attaches watchers or scans.
+   *
+   * Settles when the sweep finishes and never rejects; failures are reported
+   * through `onError`. Callers that do not care about completion may void it.
+   */
+  startCatalogValidation(): Promise<void> {
+    const run = this.options.scope.run('file-search-catalog-validation', (signal) =>
+      this.validateCatalog(signal)
+    );
+    return run.value().catch((error: unknown) => {
+      if (!this.options.scope.signal.aborted) {
+        this.report('file-search catalog validation failed', error);
+      }
+    });
+  }
+
+  /**
+   * Acquires one lease on a root's active maintenance. The first lease starts
+   * maintenance, identical policies share it, and a concurrent conflicting
+   * policy is rejected with a typed error instead of silently rebuilding.
+   */
+  async acquireRoot(
     input: FileSearchRootInput
-  ): Promise<Result<void, FileSearchRegisterRootError>> {
+  ): Promise<Result<FileSearchRootLease, FileSearchAcquireRootError>> {
     const rootKey = this.options.resolver.comparisonKey(input.root);
     const exclusionPatterns = canonicalExclusionPatterns(
       input.exclusions ?? this.options.defaultExclusionPatterns
     );
     const fingerprint = JSON.stringify(exclusionPatterns);
 
-    try {
-      const result = await this.lifecycle.start({
-        root: input.root,
-        rootKey,
-        exclusionPatterns,
-      });
-      if (!result.success) return err(result.error);
+    const existing = this.leases.get(rootKey);
+    if (existing && existing.fingerprint !== fingerprint) {
+      return err(exclusionPolicyConflict(input.root));
+    }
+    const entry = existing ?? { fingerprint, count: 0 };
+    entry.count += 1;
+    this.leases.set(rootKey, entry);
+    const firstLease = entry.count === 1;
 
-      // If the ready root was built with different exclusions (e.g. restored from
-      // disk with defaults before settings loaded), rebuild it with the new patterns.
-      if (result.data.exclusionsFingerprint !== fingerprint) {
-        // Stop without deleting the catalog row (no context → stopRoot skips delete).
+    let registered: RegisteredRoot;
+    try {
+      const started = await this.lifecycle.start({ root: input.root, rootKey, exclusionPatterns });
+      if (!started.success) {
+        this.abandonLease(rootKey, entry);
+        return err(started.error);
+      }
+      registered = started.data;
+      if (firstLease && started.data.exclusionsFingerprint !== fingerprint) {
         await this.lifecycle.stop(rootKey, undefined);
-        const rebuild = await this.lifecycle.start({
+        const rebuilt = await this.lifecycle.start({
           root: input.root,
           rootKey,
           exclusionPatterns,
         });
-        if (!rebuild.success) return err(rebuild.error);
+        if (!rebuilt.success) {
+          this.abandonLease(rootKey, entry);
+          return err(rebuilt.error);
+        }
+        registered = rebuilt.data;
       }
-
-      return ok();
     } catch (error) {
+      this.abandonLease(rootKey, entry);
       await this.lifecycle.forceRemove(rootKey, error);
       throw error;
     }
+
+    return ok({ root: registered, release: this.createRelease(rootKey, entry) });
   }
 
-  async unregisterRoot(
+  /**
+   * Deletes a root's durable cache: stops any active maintenance, invalidates
+   * outstanding leases, and removes the catalog row. Not part of the ordinary
+   * activation/deactivation lifecycle — the root can be re-leased and rebuilt.
+   */
+  async evictRoot(
     input: FileSearchRootInput
   ): Promise<Result<void, FileSearchUnregisterRootError>> {
     const rootKey = this.options.resolver.comparisonKey(input.root);
-    const before = this.lifecycle.state(rootKey);
-    if (before.kind === 'disposed') throw new Error('File-search root registry is disposed');
-    if (before.kind === 'idle' || before.kind === 'start-failed') {
-      return this.removeFailedOrMissingRoot(rootKey, input.root);
+    if (this.lifecycle.state(rootKey).kind === 'disposed') {
+      throw new Error('File-search root registry is disposed');
     }
-
-    const stopped = await this.lifecycle.stop(rootKey, { kind: 'unregister', root: input.root });
-    if (!stopped.success) return stopped;
-
-    const after = this.lifecycle.state(rootKey);
-    if (after.kind === 'start-failed' || after.kind === 'starting') {
-      return this.removeFailedOrMissingRoot(rootKey, input.root);
+    this.leases.delete(rootKey);
+    await this.lifecycle.stop(rootKey, undefined);
+    try {
+      this.options.catalog.deleteRoot(rootKey);
+    } catch (error) {
+      const expected = toExpectedStoreError(input.root, error, 'Unable to evict file-search root');
+      if (expected) return err(expected);
+      throw error;
     }
+    await this.lifecycle.forceRemove(rootKey, new Error('File-search root evicted'));
     return ok();
   }
 
@@ -211,61 +262,60 @@ export class FileSearchRootRegistry {
     }
   }
 
-  private stopRoot(
-    rootKey: string,
-    context: RootStopContext | undefined
-  ): Result<void, FileSearchUnregisterRootError> {
-    if (!context) return ok();
-    try {
-      this.options.catalog.deleteRoot(rootKey);
-      return ok();
-    } catch (error) {
-      const expected = toExpectedStoreError(
-        context.root,
-        error,
-        'Unable to unregister file-search root'
-      );
-      if (expected) return err(expected);
-      throw error;
-    }
+  private abandonLease(rootKey: string, entry: LeaseEntry): void {
+    if (this.leases.get(rootKey) !== entry) return;
+    entry.count -= 1;
+    if (entry.count <= 0) this.leases.delete(rootKey);
   }
 
-  private async removeFailedOrMissingRoot(
-    rootKey: string,
-    root: HostAbsolutePath
-  ): Promise<Result<void, FileSearchUnregisterRootError>> {
-    try {
-      this.options.catalog.deleteRoot(rootKey);
-    } catch (error) {
-      const expected = toExpectedStoreError(root, error, 'Unable to unregister file-search root');
-      if (expected) return err(expected);
-      throw error;
-    }
-    await this.lifecycle.forceRemove(rootKey, new Error('File-search root unregistered'));
-    return ok();
+  private createRelease(rootKey: string, entry: LeaseEntry): () => Promise<void> {
+    let released = false;
+    return async () => {
+      if (released) return;
+      released = true;
+      if (this.leases.get(rootKey) !== entry) return;
+      entry.count -= 1;
+      if (entry.count > 0) return;
+      this.leases.delete(rootKey);
+      if (this.lifecycle.state(rootKey).kind === 'disposed') return;
+      await this.lifecycle.stop(rootKey, undefined);
+    };
   }
 
-  private restore(stored: StoredFileSearchRoot): void {
-    const root = hostAbsolutePathFromNative(stored.rootPath);
-    if (this.options.resolver.comparisonKey(root) !== stored.rootKey) {
-      throw new Error(`Corrupt file-search root identity: ${stored.rootKey}`);
-    }
-    const exclusionPatterns = canonicalExclusionPatterns(this.options.defaultExclusionPatterns);
-    void this.lifecycle
-      .start({
-        root,
-        rootKey: stored.rootKey,
-        exclusionPatterns,
-      })
-      .then(
-        (result) => {
-          if (!result.success) this.report('file-search root restoration failed', result.error);
-        },
-        (error: unknown) => {
-          this.report('file-search root restoration crashed', error);
-          void this.lifecycle.forceRemove(stored.rootKey, error);
+  private async validateCatalog(signal: AbortSignal): Promise<void> {
+    const limiter = createConcurrencyLimiter(MAX_CONCURRENT_VALIDATION_PROBES);
+    await Promise.all(
+      this.options.catalog.listRoots().map(async (stored) => {
+        try {
+          await limiter.run(signal, () => this.validateCatalogRow(stored));
+        } catch (error) {
+          // One unreadable row must not stop the sweep from reaching the rest.
+          if (this.options.scope.signal.aborted || signal.aborted) return;
+          this.report('file-search catalog validation failed', error);
         }
-      );
+      })
+    );
+  }
+
+  private async validateCatalogRow(stored: StoredFileSearchRoot): Promise<void> {
+    // Registered roots own their rows; the sweep only inspects cold ones.
+    if (this.lifecycle.state(stored.rootKey).kind !== 'idle') return;
+    const missing = await this.probeRootMissing(hostAbsolutePathFromNative(stored.rootPath));
+    if (!missing) return;
+    // Re-check after the probe: a root registered mid-probe must not be pruned.
+    if (this.lifecycle.state(stored.rootKey).kind !== 'idle') return;
+    this.options.catalog.deleteRoot(stored.rootKey);
+  }
+
+  private async probeRootMissing(root: HostAbsolutePath): Promise<boolean> {
+    if (this.options.probeRootMissing) return this.options.probeRootMissing(root);
+    const resolved = await this.options.resolver.resolve(root);
+    if (resolved.success) return false;
+    const error = resolved.error;
+    return (
+      error.type === 'root-unavailable' &&
+      (error.reason === 'not-found' || error.reason === 'not-a-directory')
+    );
   }
 
   private assertResolvedIdentity(input: RootStartInput, resolved: ResolvedFileSearchRoot): void {

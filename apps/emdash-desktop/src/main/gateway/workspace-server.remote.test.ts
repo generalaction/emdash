@@ -82,7 +82,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         throw new Error('Could not construct workspace-server ripgrep smoke-test paths');
       }
 
-      let searchRootRegistered = false;
+      let releaseSearchRoot: (() => void) | undefined;
       const contentJobs = createLiveJobReplicaCache(
         fileSearchContract.searchContent,
         resolved.data.fileSearch.searchContent
@@ -109,10 +109,10 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
             }
           )
         ).resolves.toMatchObject({ success: true });
-        await expect(
-          resolved.data.fileSearch.registerRoot({ root: smokeRoot.data })
-        ).resolves.toMatchObject({ success: true });
-        searchRootRegistered = true;
+        // Attaching to the activeRoot status state acquires the lease.
+        releaseSearchRoot = await resolved.data.fileSearch.activeRoot
+          .state({ root: smokeRoot.data }, 'status')
+          .attach(() => {});
 
         const lease = await contentJobs.start({
           root: smokeRoot.data,
@@ -126,9 +126,8 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         await lease.release();
       } finally {
         await contentJobs.dispose();
-        if (searchRootRegistered) {
-          await resolved.data.fileSearch.unregisterRoot({ root: smokeRoot.data });
-        }
+        releaseSearchRoot?.();
+        await resolved.data.fileSearch.evictRoot({ root: smokeRoot.data });
         await resolved.data.files.fs.delete({
           path: smokeRoot.data,
           recursive: true,

@@ -1,14 +1,15 @@
 import { ok } from '@emdash/shared';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
+import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it } from 'vitest';
-import { fileSearchContract } from '#runtimes/file-search/api';
+import { fileSearchContract, type ActiveRootStatus } from '#runtimes/file-search/api';
 import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { createFileSearchController } from './controller';
 import type { FileSearchRuntimeApi } from './procedures';
 
 describe('createFileSearchController', () => {
-  it('adapts root, path, and progressive content operations to the Wire contract', async () => {
+  it('adapts lease, path, content, and eviction operations to the Wire contract', async () => {
     const files = [
       {
         path: relative('index.ts'),
@@ -26,9 +27,17 @@ describe('createFileSearchController', () => {
         ],
       },
     ];
+    const activeRoots = expose(
+      fileSearchContract.activeRoot,
+      {
+        status: () =>
+          cell<ActiveRootStatus>({ phase: 'active', availability: 'searchable', watcher: 'live' }),
+      },
+      { lingerMs: 0 }
+    );
     const runtime: FileSearchRuntimeApi = {
-      registerRoot: async () => ok(),
-      unregisterRoot: async () => ok(),
+      activeRoots,
+      evictRoot: async () => ok(),
       searchPaths: async () => ok({ hits: [{ path: relative('index.ts'), kind: 'file' }] }),
       searchContent: async (_input, context) => {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -40,9 +49,10 @@ describe('createFileSearchController', () => {
     const root = absolute('/workspace');
 
     try {
-      await expect(wire.client.registerRoot({ root })).resolves.toEqual({
-        success: true,
-        data: undefined,
+      await expect(
+        wire.client.activeRoot.state({ root }, 'status').snapshot()
+      ).resolves.toMatchObject({
+        data: { phase: 'active', availability: 'searchable', watcher: 'live' },
       });
       await expect(
         wire.client.searchPaths({ root, query: 'index', kinds: ['file'] })
@@ -63,8 +73,14 @@ describe('createFileSearchController', () => {
       expect(progress).toEqual([{ files }]);
       await lease.release();
       await jobs.dispose();
+
+      await expect(wire.client.evictRoot({ root })).resolves.toEqual({
+        success: true,
+        data: undefined,
+      });
     } finally {
       wire.dispose();
+      await activeRoots.dispose();
     }
   });
 });

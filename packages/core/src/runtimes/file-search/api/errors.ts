@@ -38,9 +38,21 @@ const contentSearchUnavailableErrorSchema = z.object({
   message: z.string(),
 });
 
+const fileSearchExclusionPolicyConflictErrorSchema = z.object({
+  type: z.literal('exclusion-policy-conflict'),
+  root: hostAbsolutePathSchema,
+  message: z.string(),
+});
+
 export const fileSearchRegisterRootErrorSchema = z.discriminatedUnion('type', [
   fileSearchRootUnavailableErrorSchema,
   fileSearchIoErrorSchema,
+]);
+
+export const fileSearchAcquireRootErrorSchema = z.discriminatedUnion('type', [
+  fileSearchRootUnavailableErrorSchema,
+  fileSearchIoErrorSchema,
+  fileSearchExclusionPolicyConflictErrorSchema,
 ]);
 
 export const fileSearchUnregisterRootErrorSchema = fileSearchIoErrorSchema;
@@ -61,6 +73,7 @@ export const contentSearchErrorSchema = z.discriminatedUnion('type', [
 
 export type FileSearchRootUnavailableReason = z.infer<typeof fileSearchRootUnavailableReasonSchema>;
 export type FileSearchRegisterRootError = z.infer<typeof fileSearchRegisterRootErrorSchema>;
+export type FileSearchAcquireRootError = z.infer<typeof fileSearchAcquireRootErrorSchema>;
 export type FileSearchUnregisterRootError = z.infer<typeof fileSearchUnregisterRootErrorSchema>;
 export type PathSearchError = z.infer<typeof pathSearchErrorSchema>;
 export type ContentSearchError = z.infer<typeof contentSearchErrorSchema>;
