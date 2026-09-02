@@ -24,6 +24,7 @@ import {
   type ConversationEvent,
   type CreateConversationParams,
 } from '@core/primitives/conversations/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { getConversationsClient } from './client';
 
@@ -569,7 +570,22 @@ function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector 
       };
     },
     sendInput(data: string) {
-      void client().then((runtime) => runtime.tui.sendInput({ conversationId, data }));
+      void client()
+        .then(async (runtime) => {
+          const result = await runtime.tui.sendInput({ conversationId, data });
+          if (!result.success) {
+            log.warn('ConversationManagerStore: TUI input failed', {
+              conversationId,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          log.warn('ConversationManagerStore: failed to send TUI input', {
+            conversationId,
+            error,
+          });
+        });
     },
     resize(cols: number, rows: number) {
       void client().then((runtime) => runtime.tui.resize({ conversationId, cols, rows }));

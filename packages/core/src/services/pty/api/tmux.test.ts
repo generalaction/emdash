@@ -46,6 +46,17 @@ describe('listTmuxSessionActivity', () => {
     await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
   });
 
+  it('returns an empty map for the macOS missing-socket error', async () => {
+    const exec = vi.fn(async () => {
+      throw {
+        exitCode: 1,
+        stderr: 'error connecting to /private/tmp/tmux-501/default (No such file or directory)',
+      };
+    });
+
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+  });
+
   it('returns an empty map when tmux is not installed (spawn failure)', async () => {
     const exec = vi.fn(async () => {
       throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
