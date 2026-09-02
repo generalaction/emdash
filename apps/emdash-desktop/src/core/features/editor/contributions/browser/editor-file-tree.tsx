@@ -804,6 +804,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     ) : (
       <FileTree
         ref={treeRef}
+        surface="paper"
         rootPath={workspace.path}
         rootNodes={rootNodes}
         childrenById={childrenById}
@@ -926,7 +927,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     );
 
   return (
-    <div ref={attachFileTreeScope} className="flex h-full flex-col overflow-hidden">
+    <div
+      ref={attachFileTreeScope}
+      className="surface-paper flex h-full flex-col overflow-hidden bg-(--em-surface)"
+    >
       <FileTreeHeaderBar
         context={headerContext}
         searchQuery={searchQuery}
@@ -968,18 +972,18 @@ export function FileTreeHeaderBar({
   liveActionDisabledReason?: string | null;
 }) {
   return (
-    <div className="h-[41px] shrink-0 border-b border-border bg-background-secondary px-2">
+    <div className="h-[41px] shrink-0 bg-(--em-surface) px-2">
       <div className="flex h-full items-center gap-1">
         <div className="min-w-0 flex-1">
           <SearchInput
             disabled={Boolean(liveActionDisabledReason)}
             ref={setSearchInputRef}
             size="sm"
+            bare
             value={searchQuery}
             maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
             aria-label="Search"
             placeholder="Search"
-            className="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
             onClear={() => setSearchQuery('')}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
