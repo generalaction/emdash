@@ -272,7 +272,10 @@ describe('reference-style links and images', () => {
   });
 
   it('resolves collapsed and shortcut references', () => {
-    for (const md of ['See [x][] now.\n\n[x]: https://c.com', 'See [x] now.\n\n[x]: https://c.com']) {
+    for (const md of [
+      'See [x][] now.\n\n[x]: https://c.com',
+      'See [x] now.\n\n[x]: https://c.com',
+    ]) {
       const link = linkRun(firstProseRuns(md));
       expect(link?.text).toBe('x');
       expect(link?.href).toBe('https://c.com');
@@ -283,6 +286,14 @@ describe('reference-style links and images', () => {
     const link = linkRun(firstProseRuns('![the alt][img]\n\n[img]: https://i.com/x.png'));
     expect(link?.text).toBe('the alt');
     expect(link?.href).toBe('https://i.com/x.png');
+  });
+
+  it('uses the first definition when normalized identifiers are duplicated', () => {
+    for (const reference of ['[link][duplicate]', '![image][DUPLICATE]']) {
+      const markdown = `${reference}\n\n[duplicate]: https://first.example\n[DUPLICATE]: https://last.example`;
+      const link = linkRun(firstProseRuns(markdown));
+      expect(link?.href).toBe('https://first.example');
+    }
   });
 
   it('leaves an undefined reference as literal text', () => {

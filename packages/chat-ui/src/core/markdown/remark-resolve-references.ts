@@ -19,7 +19,10 @@ export function remarkResolveReferences() {
   return (tree: Root): void => {
     const definitions = new Map<string, Definition>();
     visit(tree, 'definition', (node) => {
-      definitions.set(node.identifier.toLowerCase(), node);
+      const identifier = node.identifier.toLowerCase();
+      if (!definitions.has(identifier)) {
+        definitions.set(identifier, node);
+      }
     });
     if (definitions.size === 0) return;
 
