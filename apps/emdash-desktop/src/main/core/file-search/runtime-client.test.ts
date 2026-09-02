@@ -199,6 +199,29 @@ describe('file-search runtime client', () => {
     expect(mocks.state).toHaveBeenLastCalledWith({ root, exclusions: ['latest'] }, 'status');
   });
 
+  it('keeps refreshed policy when a same-revision acquisition resolves late', async () => {
+    const refreshRead = deferred<readonly string[]>();
+    const acquisitionRead = deferred<readonly string[]>();
+    mocks.getSearchExclusions
+      .mockReturnValueOnce(refreshRead.promise)
+      .mockReturnValueOnce(acquisitionRead.promise);
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    // Acquisition queues its read; refresh increments the revision and reads first.
+    const acquiring = runtime.acquireRoot(root, LOCAL_HOST_REF);
+    const refreshing = runtime.refreshExclusions();
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledTimes(2));
+
+    refreshRead.resolve(['new-policy']);
+    await Promise.resolve();
+    acquisitionRead.resolve(['old-policy']);
+    await Promise.all([acquiring, refreshing]);
+
+    expect(mocks.attach).toHaveBeenCalledOnce();
+    expect(mocks.state).toHaveBeenLastCalledWith({ root, exclusions: ['new-policy'] }, 'status');
+  });
+
   it('releases the lease before evicting the durable index', async () => {
     const runtime = createRuntime();
     const root = hostPathFromNative('/repo');

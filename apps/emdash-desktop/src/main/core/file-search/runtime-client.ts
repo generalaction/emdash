@@ -153,7 +153,7 @@ export function createFileSearchRuntime(
     if (entry.desiredExclusions) return entry.desiredExclusions;
     const revision = exclusionsRevision;
     const patterns = normalizeExclusionPatterns(await options.getSearchExclusions());
-    if (!entry.desiredExclusions || entry.desiredExclusionsRevision <= revision) {
+    if (!entry.desiredExclusions || entry.desiredExclusionsRevision < revision) {
       entry.desiredExclusions = patterns;
       entry.desiredExclusionsRevision = revision;
     }
