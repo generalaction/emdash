@@ -17,10 +17,7 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import {
-  translateWorkspaceIdentity,
-  type WorkspaceIdentityTranslationError,
-} from '../../api/node/translate-workspace-identity';
+import { translateWorkspaceIdentity } from '../../api/node/translate-workspace-identity';
 import { loadWorkspaceAnnotations, type WorkspaceAnnotationIndex } from './workspace-annotations';
 
 const BACKFILL_VERSION = 2 as const;
@@ -150,7 +147,15 @@ export class WorkspaceRegistryBackfillService {
         created.data.id === row.id
           ? registry.claim(claim)
           : translateWorkspaceIdentity(this.options.db, row.id, claim, row.path);
-      if (!claimed.success) return translationFailure(row.id, claimed.error);
+      if (!claimed.success) {
+        this.options.onError?.(
+          `workspace registry backfill skipped conflict (${row.id})`,
+          new Error(
+            `Desktop could not translate legacy Workspace '${row.id}': ${JSON.stringify(claimed.error)}`
+          )
+        );
+        continue;
+      }
     }
 
     const retiredAt = new Date().toISOString();
@@ -268,15 +273,6 @@ function planFingerprint(plan: BackfillPlan): string {
     ]),
     retire: plan.retire.map((row) => row.id),
   });
-}
-
-function translationFailure(
-  workspaceId: string,
-  error: WorkspaceIdentityTranslationError
-): WorkspaceRegistryBackfillResult {
-  return terminal(
-    `Desktop could not translate legacy Workspace '${workspaceId}': ${JSON.stringify(error)}`
-  );
 }
 
 function terminal(message: string): WorkspaceRegistryBackfillResult {
