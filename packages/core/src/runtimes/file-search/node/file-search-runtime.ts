@@ -35,6 +35,7 @@ import type { FileSearchDb } from './storage/store';
 
 const DEFAULT_MAX_CONCURRENT_SCANS = 2;
 const DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES = 4;
+const DEFAULT_MAX_CONCURRENT_WATCH_STARTS = 4;
 
 export type FileSearchRuntimeOptions = Readonly<{
   handle: StoreHandle<FileSearchDb, Database.Database>;
@@ -43,6 +44,7 @@ export type FileSearchRuntimeOptions = Readonly<{
   env?: EnvSource;
   maxConcurrentScans?: number;
   maxConcurrentContentSearches?: number;
+  maxConcurrentWatchStarts?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
@@ -69,6 +71,9 @@ export class FileSearchRuntime {
       const scanLimiter = createConcurrencyLimiter(
         options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
       );
+      const watchLimiter = createConcurrencyLimiter(
+        options.maxConcurrentWatchStarts ?? DEFAULT_MAX_CONCURRENT_WATCH_STARTS
+      );
       this.contentLimiter = createConcurrencyLimiter(
         options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
       );
@@ -90,6 +95,7 @@ export class FileSearchRuntime {
             exclusionsFingerprint,
             scope,
             scanLimiter,
+            watchLimiter,
             onError,
           }),
         compileExclusions: (patterns) => new DefaultFileSearchExclusions({ patterns }),

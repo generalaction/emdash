@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PortableRelativePath } from '#primitives/path/api';
@@ -43,6 +44,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -88,6 +90,7 @@ describe('RootIndex', () => {
       }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -116,8 +119,11 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
+    // Attach before the first scan so no gap-closing rescan interferes with counts.
+    await eventually(() => expect(index.watcherHealth).toBe('live'));
     await index.reconcile();
 
     await writeFile(path.join(rootPath, 'changed.ts'), 'after');
@@ -155,8 +161,11 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
+    // Attach before the first scan so no gap-closing rescan interferes with counts.
+    await eventually(() => expect(index.watcherHealth).toBe('live'));
     await index.reconcile();
 
     scanner.failNextFullScan();
@@ -182,6 +191,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
     await index.reconcile();
@@ -207,6 +217,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -238,6 +249,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -266,6 +278,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -294,6 +307,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
 
@@ -308,33 +322,159 @@ describe('RootIndex', () => {
     expect(index.status).toEqual({ kind: 'ready' });
   });
 
-  it('fails reconciliation when watcher readiness returns a failure Result', async () => {
+  it('publishes a searchable generation when watcher attachment fails', async () => {
     const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'app.ts'), 'app');
     const store = createStore();
     const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
-    const failure = Object.assign(new Error('watch root disappeared'), { code: 'ENOENT' });
-    const scanner = new RecordingScanner();
+    const watcher = new FakeWatchService(err(new Error('watch worker overloaded')));
     const scope = createScope({ label: 'root-index-watch-failure-test' });
     const index = new RootIndex({
       root,
       store,
-      watcher: new FakeWatchService(err(failure)),
+      watcher,
+      scanner: new NodePathScanner(),
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
+      watchRetrySchedule: retrySchedules.never(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    await index.reconcile();
+
+    expect(index.status).toEqual({ kind: 'ready' });
+    expect(hits(store)).toEqual([{ path: 'app.ts', kind: 'file' }]);
+    await eventually(() => expect(index.watcherHealth).toBe('degraded'));
+    expect(watcher.releaseCount).toBe(1);
+  });
+
+  it('publishes a searchable generation while watcher readiness is still pending', async () => {
+    const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'app.ts'), 'app');
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    let watchStarts = 0;
+    const scope = createScope({ label: 'root-index-watch-pending-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher: new FakeWatchService('pending'),
+      scanner: new NodePathScanner(),
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => {
+        watchStarts += 1;
+        return operation();
+      },
+    });
+    cleanups.push(() => scope.dispose());
+
+    await index.reconcile();
+
+    expect(index.status).toEqual({ kind: 'ready' });
+    expect(hits(store)).toEqual([{ path: 'app.ts', kind: 'file' }]);
+    expect(index.watcherHealth).toBe('attaching');
+    expect(watchStarts).toBe(1);
+  });
+
+  it('recovers with a fresh handle and closes the event gap before reporting live', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const secondReady = deferred<Result<void, unknown>>();
+    const watcher = new FakeWatchService(err(new Error('transient failure')), secondReady.promise);
+    const scanner = new SecondScanPausingScanner();
+    const scope = createScope({ label: 'root-index-watch-recovery-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
       scanner,
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
+      watchRetrySchedule: retrySchedules.fixed(0, 5),
+      degradedPollMs: 60_000,
     });
     cleanups.push(() => scope.dispose());
 
-    await expect(index.reconcile()).rejects.toMatchObject({
-      name: 'RootWatchError',
-      cause: failure,
+    await index.reconcile();
+    await eventually(() => expect(index.watcherHealth).toBe('degraded'));
+    expect(watcher.releaseCount).toBe(1);
+
+    secondReady.resolve(ok(undefined));
+    await scanner.secondStarted.promise;
+    expect(index.watcherHealth).toBe('degraded');
+
+    scanner.resumeSecond.resolve();
+    await eventually(() => expect(index.watcherHealth).toBe('live'));
+    expect(watcher.watchCount).toBe(2);
+    expect(scanner.fullScans).toBe(2);
+    expect(index.status).toEqual({ kind: 'ready' });
+  });
+
+  it('does not retry watcher attachment for a definitively missing root', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const failure = Object.assign(new Error('watch root disappeared'), { code: 'ENOENT' });
+    const watcher = new FakeWatchService(err(failure), ok(undefined));
+    const scope = createScope({ label: 'root-index-watch-permanent-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner: new NodePathScanner(),
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
+      watchRetrySchedule: retrySchedules.fixed(0, 5),
+      degradedPollMs: 1,
     });
-    expect(scanner.scans).toEqual([]);
-    expect(index.status).toMatchObject({
-      kind: 'failed',
-      failure: { expected: { type: 'root-unavailable', reason: 'not-found' } },
+    cleanups.push(() => scope.dispose());
+
+    await index.reconcile();
+    await eventually(() => expect(index.watcherHealth).toBe('degraded'));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(watcher.watchCount).toBe(1);
+  });
+
+  it('keeps a degraded root fresh through bounded polling', async () => {
+    const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'early.ts'), 'early');
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const watcher = new FakeWatchService(err(new Error('watch worker overloaded')));
+    const scope = createScope({ label: 'root-index-degraded-poll-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner: new NodePathScanner(),
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
+      watchRetrySchedule: retrySchedules.never(),
+      degradedPollMs: 5,
     });
+    cleanups.push(() => scope.dispose());
+
+    await index.reconcile();
+    expect(hits(store)).toEqual([{ path: 'early.ts', kind: 'file' }]);
+
+    await writeFile(path.join(rootPath, 'late.ts'), 'late');
+    await eventually(() =>
+      expect(hits(store)).toEqual([
+        { path: 'early.ts', kind: 'file' },
+        { path: 'late.ts', kind: 'file' },
+      ])
+    );
   });
 
   it('cancels active work and ignores later watcher events after disposal', async () => {
@@ -352,6 +492,7 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
 
     const reconcile = index.reconcile();
@@ -382,8 +523,11 @@ describe('RootIndex', () => {
       exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
       scope,
       runScan: async (_signal, operation) => operation(),
+      runWatchStart: async (_signal, operation) => operation(),
     });
     cleanups.push(() => scope.dispose());
+    // Attach before the first scan so the blocking scanner only sees the recovery scan.
+    await eventually(() => expect(index.watcherHealth).toBe('live'));
     await index.reconcile();
 
     await writeFile(path.join(rootPath, 'new.ts'), 'new');
@@ -434,6 +578,28 @@ class BlockingFullScanner implements PathScanner {
     this.started.resolve();
     await this.resume.promise;
     yield* [];
+  }
+}
+
+class SecondScanPausingScanner implements PathScanner {
+  readonly secondStarted = deferred<void>();
+  readonly resumeSecond = deferred<void>();
+  fullScans = 0;
+  private readonly delegate = new NodePathScanner();
+
+  async *scan(
+    rootPath: string,
+    relativeRoot: PortableRelativePath,
+    options: PathScanOptions
+  ): AsyncIterable<PathIndexEntry> {
+    if (relativeRoot === '') {
+      this.fullScans += 1;
+      if (this.fullScans === 2) {
+        this.secondStarted.resolve();
+        await this.resumeSecond.promise;
+      }
+    }
+    yield* this.delegate.scan(rootPath, relativeRoot, options);
   }
 }
 
@@ -584,22 +750,33 @@ class PatchFailingStore implements PathIndexStore {
   }
 }
 
+type FakeReadyOutcome = Result<void, unknown> | Promise<Result<void, unknown>> | 'pending';
+
 class FakeWatchService implements IWatchService {
   private onEvents: ((events: WatchEvent[]) => void) | undefined;
   private onResync: (() => void) | undefined;
+  private readonly readyOutcomes: FakeReadyOutcome[];
+  watchCount = 0;
   releaseCount = 0;
 
-  constructor(private readonly readyResult: Result<void, unknown> = ok(undefined)) {}
+  /** Each attachment consumes the next outcome; the final outcome repeats. */
+  constructor(...readyOutcomes: FakeReadyOutcome[]) {
+    this.readyOutcomes = readyOutcomes.length > 0 ? readyOutcomes : [ok(undefined)];
+  }
 
   watch(
     _root: string,
     onEvents: (events: WatchEvent[]) => void,
     options: WatchOptions = {}
   ): WatchHandle {
+    const outcome =
+      this.readyOutcomes[Math.min(this.watchCount, this.readyOutcomes.length - 1)] ?? ok(undefined);
+    this.watchCount += 1;
     this.onEvents = onEvents;
     this.onResync = options.onResync;
     return {
-      ready: async () => this.readyResult,
+      ready: () =>
+        outcome === 'pending' ? new Promise<never>(() => {}) : Promise.resolve(outcome),
       release: async () => {
         this.releaseCount += 1;
       },
