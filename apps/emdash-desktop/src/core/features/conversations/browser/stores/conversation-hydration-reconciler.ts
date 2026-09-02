@@ -57,6 +57,13 @@ export class ConversationHydrationReconciler implements Disposable {
     }
   }
 
+  retry(conversationId: string): void {
+    if (this.disposed) return;
+    const entry = this.entries.get(conversationId);
+    if (!entry?.desired) return;
+    this.reconcile(conversationId, entry);
+  }
+
   dispose(): void {
     this.disposed = true;
     for (const [id, entry] of this.entries) {

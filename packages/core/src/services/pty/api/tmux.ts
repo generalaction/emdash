@@ -81,7 +81,9 @@ function isExpectedTmuxListFailure(error: unknown): boolean {
   if (failure.spawnFailed) return true;
   if (
     failure.exitCode === 1 &&
-    /no server running|failed to connect to server/i.test(failure.stderr)
+    /no server running|failed to connect to server|error connecting to .*\(no such file or directory\)/i.test(
+      failure.stderr
+    )
   ) {
     return true;
   }
