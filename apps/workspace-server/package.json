@@ -1,6 +1,6 @@
 {
   "name": "@emdash/workspace-server",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Emdash Workspace Server — runs as a daemon on remote machines and exposes workspace runtimes via wire",
   "license": "Apache-2.0",
