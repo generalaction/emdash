@@ -87,10 +87,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
 
   return (
     <div
-      className={cn(
-        'flex h-9 shrink-0 items-center gap-1 overflow-hidden bg-(--em-surface-paper) pr-2 text-sm',
-        className
-      )}
+      className={cn('flex h-9 shrink-0 items-center gap-1 overflow-hidden pr-2 text-sm', className)}
     >
       <div
         className="flex h-full min-w-0 flex-1 items-center overflow-x-auto"

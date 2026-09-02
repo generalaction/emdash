@@ -178,6 +178,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const terminalEmptyState = (
     <EmptyState
+      bare
       label="No terminals yet"
       description="Add a terminal to run shell commands in this task's working directory."
       action={
@@ -199,6 +200,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const scriptsEmptyState = (
     <EmptyState
+      bare
       label="No scripts configured"
       description="Add setup, run, or teardown scripts to your project configuration."
     />
@@ -209,7 +211,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       <div
         ref={attachPaneScope}
         tabIndex={-1}
-        className="flex h-full flex-col"
+        className="surface-paper flex h-full flex-col bg-(--em-surface)"
         onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
         onFocus={() => {
           taskView.setFocusedRegion('bottom');
@@ -252,6 +254,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
           unavailableState={
             <EmptyState
+              bare
               label="Terminal unavailable"
               description={liveActionDisabledReason ?? 'Live actions are unavailable.'}
             />
