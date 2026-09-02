@@ -603,10 +603,6 @@ export class SessionManager {
       record.connectionLeaseState.release = false;
       record.cell.processClosed(exitCode);
       void this.stop(record.input.conversationId, 'process-exited');
-      void this.connections.invalidate({
-        providerId: record.input.providerId,
-        cwd: record.input.cwd,
-      });
     }
   }
 

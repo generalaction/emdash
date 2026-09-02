@@ -1363,6 +1363,27 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     expect(rt.manager.inspect().retained).toContain('conv-died');
   });
 
+  it('starts a fresh env-keyed provider process after the previous process dies', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({
+      conversationId: 'conv-env-restart',
+      env: { ENV_TEST: 'this-is-a-test' },
+    });
+    await rt.launchSession(input);
+
+    h.lastChild.emitExit(42);
+    await vi.waitFor(() =>
+      expect(peek(rt.sessionLiveModels(input.conversationId)!.states.state)).toMatchObject({
+        suspended: true,
+      })
+    );
+
+    await rt.launchSession(input);
+
+    expect(h.children).toHaveLength(2);
+  });
+
   it('suspends the persisted intent when the provider process dies', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });

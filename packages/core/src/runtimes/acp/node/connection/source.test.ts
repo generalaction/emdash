@@ -152,16 +152,17 @@ describe('createAcpConnectionSource', () => {
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
     const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
-    const key = connectionKey();
+    const key = { ...connectionKey(), env: { ENV_TEST: 'this-is-a-test' } };
     const routeKey = makeAcpConnectionKey('claude', '/tmp/workspace');
 
     await acquireResourceAsResult(source, key, isAcpConnectionError);
     host.lastHandle.emitExit(7);
 
     await vi.waitFor(() => expect(onClosed).toHaveBeenCalledWith(routeKey, 1, 7));
-    await source.invalidate(key);
-    await waitForTeardown();
-    expect(source.peek(key)).toBeUndefined();
+    await vi.waitFor(() => expect(source.peek(key)).toBeUndefined());
+
+    await acquireResourceAsResult(source, key, isAcpConnectionError);
+    expect(host.allHandles).toHaveLength(2);
   });
 
   it('disposes all active pooled processes', async () => {
