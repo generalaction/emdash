@@ -1,6 +1,7 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { encodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { createFileSearchRuntime, searchFileSearchRoot } from './runtime-client';
@@ -44,7 +45,7 @@ describe('file-search runtime client', () => {
     );
   });
 
-  it('holds one status attachment per acquired root and detaches on release', async () => {
+  it('shares one status attachment until every acquisition releases it', async () => {
     const runtime = createRuntime();
     const root = hostPathFromNative('/repo');
 
@@ -53,15 +54,77 @@ describe('file-search runtime client', () => {
     expect(mocks.attach).toHaveBeenCalledOnce();
     expect(mocks.client).toHaveBeenCalledWith(LOCAL_HOST_REF);
 
-    // A second acquire for the same root is a no-op: the attachment is held.
+    // A second interest shares the attachment but owns a separate release.
     await runtime.acquireRoot(root, LOCAL_HOST_REF);
     expect(mocks.attach).toHaveBeenCalledOnce();
 
     await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).not.toHaveBeenCalled();
+
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
     expect(mocks.detach).toHaveBeenCalledOnce();
 
-    // Releasing again is a no-op.
+    // An unbalanced extra release is a no-op.
     await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).toHaveBeenCalledOnce();
+  });
+
+  it('does not attach when the last interest releases during exclusion resolution', async () => {
+    const exclusions = deferred<readonly string[]>();
+    mocks.getSearchExclusions.mockReturnValueOnce(exclusions.promise);
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    const acquiring = runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledOnce());
+    const releasing = runtime.releaseRoot(root, LOCAL_HOST_REF);
+    exclusions.resolve(['node_modules']);
+    await Promise.all([acquiring, releasing]);
+
+    expect(mocks.attach).not.toHaveBeenCalled();
+    expect(mocks.detach).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent acquisitions before exclusion resolution', async () => {
+    const exclusions = deferred<readonly string[]>();
+    mocks.getSearchExclusions.mockReturnValueOnce(exclusions.promise);
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    const first = runtime.acquireRoot(root, LOCAL_HOST_REF);
+    const second = runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledOnce());
+    exclusions.resolve(['node_modules']);
+    await Promise.all([first, second]);
+
+    expect(mocks.attach).toHaveBeenCalledOnce();
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).not.toHaveBeenCalled();
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).toHaveBeenCalledOnce();
+  });
+
+  it('does not resurrect a released root while refreshing exclusions', async () => {
+    const attached = deferred<typeof mocks.detach>();
+    mocks.getSearchExclusions
+      .mockResolvedValueOnce(['node_modules'])
+      .mockResolvedValueOnce(['dist']);
+    mocks.attach.mockReturnValueOnce(attached.promise).mockResolvedValue(mocks.detach);
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+
+    const acquiring = runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await vi.waitFor(() => expect(mocks.attach).toHaveBeenCalledOnce());
+    const refreshing = runtime.refreshExclusions();
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledTimes(2));
+    // Let refresh enter closeLease(), where it waits for the pending attachment.
+    await Promise.resolve();
+    const releasing = runtime.releaseRoot(root, LOCAL_HOST_REF);
+
+    attached.resolve(mocks.detach);
+    await Promise.all([acquiring, refreshing, releasing]);
+
+    expect(mocks.attach).toHaveBeenCalledOnce();
     expect(mocks.detach).toHaveBeenCalledOnce();
   });
 
@@ -112,15 +175,43 @@ describe('file-search runtime client', () => {
     expect(mocks.detach).not.toHaveBeenCalled();
   });
 
+  it('keeps the newest policy when exclusion refreshes resolve out of order', async () => {
+    const stale = deferred<readonly string[]>();
+    const latest = deferred<readonly string[]>();
+    const runtime = createRuntime();
+    const root = hostPathFromNative('/repo');
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    mocks.getSearchExclusions
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(latest.promise);
+
+    const first = runtime.refreshExclusions();
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledTimes(2));
+    const second = runtime.refreshExclusions();
+    await vi.waitFor(() => expect(mocks.getSearchExclusions).toHaveBeenCalledTimes(3));
+
+    latest.resolve(['latest']);
+    await second;
+    stale.resolve(['stale']);
+    await first;
+
+    expect(mocks.attach).toHaveBeenCalledTimes(2);
+    expect(mocks.state).toHaveBeenLastCalledWith({ root, exclusions: ['latest'] }, 'status');
+  });
+
   it('releases the lease before evicting the durable index', async () => {
     const runtime = createRuntime();
     const root = hostPathFromNative('/repo');
 
     await runtime.acquireRoot(root, LOCAL_HOST_REF);
+    await runtime.acquireRoot(root, LOCAL_HOST_REF);
     await runtime.evictRoot(root, LOCAL_HOST_REF);
 
     expect(mocks.detach).toHaveBeenCalledOnce();
     expect(mocks.evictRoot).toHaveBeenCalledWith({ root });
+
+    await runtime.releaseRoot(root, LOCAL_HOST_REF);
+    expect(mocks.detach).toHaveBeenCalledOnce();
   });
 
   it('searches only files and preserves canonical identity plus the relative coordinate', async () => {

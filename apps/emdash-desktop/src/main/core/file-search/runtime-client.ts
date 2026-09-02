@@ -34,63 +34,138 @@ type ActiveRootLease = {
   detach: Unsubscribe | undefined;
 };
 
+type ActiveRootEntry = {
+  readonly root: HostAbsolutePath;
+  readonly host: HostRef;
+  interests: number;
+  desiredExclusions: readonly string[] | undefined;
+  desiredExclusionsRevision: number;
+  lease: ActiveRootLease | undefined;
+  transition: Promise<void>;
+};
+
 export function createFileSearchRuntime(
   runtimes: Pick<RuntimeBroker, 'client'>,
   options: FileSearchRuntimeOptions
 ) {
-  const activeLeases = new Map<string, ActiveRootLease>();
+  const activeRoots = new Map<string, ActiveRootEntry>();
+  let exclusionsRevision = 0;
 
   const acquire = async (root: HostAbsolutePath, host: HostRef): Promise<void> => {
     const key = activeRootKey(root, host);
-    if (activeLeases.has(key)) return;
-    const lease: ActiveRootLease = {
-      root,
-      host,
-      exclusions: normalizeExclusionPatterns(await options.getSearchExclusions()),
-      closed: false,
-      pending: undefined,
-      detach: undefined,
-    };
-    activeLeases.set(key, lease);
-    lease.pending = attachLease(runtimes, lease);
-    await lease.pending;
+    let entry = activeRoots.get(key);
+    if (!entry) {
+      entry = {
+        root,
+        host,
+        interests: 0,
+        desiredExclusions: undefined,
+        desiredExclusionsRevision: -1,
+        lease: undefined,
+        transition: Promise.resolve(),
+      };
+      activeRoots.set(key, entry);
+    }
+    entry.interests += 1;
+    await enqueueReconcile(key, entry);
   };
 
   const release = async (root: HostAbsolutePath, host: HostRef): Promise<void> => {
     const key = activeRootKey(root, host);
-    const lease = activeLeases.get(key);
-    if (!lease) return;
-    activeLeases.delete(key);
-    await closeLease(lease);
+    const entry = activeRoots.get(key);
+    if (!entry) return;
+    if (entry.interests <= 0) {
+      await entry.transition;
+      return;
+    }
+    entry.interests -= 1;
+    if (entry.interests === 0 && entry.lease) entry.lease.closed = true;
+    await enqueueReconcile(key, entry);
   };
 
   return {
     acquireRoot: acquire,
     releaseRoot: release,
     evictRoot: async (root: HostAbsolutePath, host: HostRef) => {
-      await release(root, host);
+      await releaseAll(root, host);
       await evictFileSearchRoot(runtimes, root, host);
     },
     refreshExclusions: async () => {
+      const revision = ++exclusionsRevision;
       const patterns = normalizeExclusionPatterns(await options.getSearchExclusions());
-      for (const [key, lease] of [...activeLeases]) {
-        if (activeLeases.get(key) !== lease) continue;
-        if (sameExclusions(lease.exclusions, patterns)) continue;
-        await closeLease(lease);
-        const fresh: ActiveRootLease = {
-          root: lease.root,
-          host: lease.host,
-          exclusions: patterns,
-          closed: false,
-          pending: undefined,
-          detach: undefined,
-        };
-        activeLeases.set(key, fresh);
-        fresh.pending = attachLease(runtimes, fresh);
-        await fresh.pending;
-      }
+      await Promise.all(
+        [...activeRoots].map(async ([key, entry]) => {
+          if (activeRoots.get(key) !== entry || entry.interests <= 0) return;
+          if (revision < entry.desiredExclusionsRevision) return;
+          entry.desiredExclusions = patterns;
+          entry.desiredExclusionsRevision = revision;
+          await enqueueReconcile(key, entry);
+        })
+      );
     },
   };
+
+  async function releaseAll(root: HostAbsolutePath, host: HostRef): Promise<void> {
+    const key = activeRootKey(root, host);
+    const entry = activeRoots.get(key);
+    if (!entry) return;
+    entry.interests = 0;
+    if (entry.lease) entry.lease.closed = true;
+    await enqueueReconcile(key, entry);
+  }
+
+  function enqueueReconcile(key: string, entry: ActiveRootEntry): Promise<void> {
+    const reconcile = () => reconcileEntry(key, entry);
+    const transition = entry.transition.then(reconcile, reconcile);
+    entry.transition = transition;
+    return transition;
+  }
+
+  async function reconcileEntry(key: string, entry: ActiveRootEntry): Promise<void> {
+    if (entry.interests <= 0) {
+      await closeCurrentLease(entry);
+      if (entry.interests <= 0 && activeRoots.get(key) === entry) activeRoots.delete(key);
+      return;
+    }
+
+    const exclusions = await resolveDesiredExclusions(entry);
+    if (entry.interests <= 0 || activeRoots.get(key) !== entry) return;
+    if (entry.lease && sameExclusions(entry.lease.exclusions, exclusions)) return;
+
+    await closeCurrentLease(entry);
+    if (entry.interests <= 0 || activeRoots.get(key) !== entry) return;
+
+    const lease: ActiveRootLease = {
+      root: entry.root,
+      host: entry.host,
+      exclusions,
+      closed: false,
+      pending: undefined,
+      detach: undefined,
+    };
+    entry.lease = lease;
+    lease.pending = attachLease(runtimes, lease);
+    await lease.pending;
+    if (!lease.detach && entry.lease === lease) entry.lease = undefined;
+  }
+
+  async function resolveDesiredExclusions(entry: ActiveRootEntry): Promise<readonly string[]> {
+    if (entry.desiredExclusions) return entry.desiredExclusions;
+    const revision = exclusionsRevision;
+    const patterns = normalizeExclusionPatterns(await options.getSearchExclusions());
+    if (!entry.desiredExclusions || entry.desiredExclusionsRevision <= revision) {
+      entry.desiredExclusions = patterns;
+      entry.desiredExclusionsRevision = revision;
+    }
+    return entry.desiredExclusions;
+  }
+
+  async function closeCurrentLease(entry: ActiveRootEntry): Promise<void> {
+    const lease = entry.lease;
+    if (!lease) return;
+    entry.lease = undefined;
+    await closeLease(lease);
+  }
 }
 
 async function attachLease(
