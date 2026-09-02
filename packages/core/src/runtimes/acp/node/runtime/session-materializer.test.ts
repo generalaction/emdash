@@ -205,6 +205,7 @@ function materializerHarness(
     generation: 1,
     providerId: 'claude',
     cwd: '/tmp/workspace',
+    env: input.env ?? {},
     normalize: (update) => update as never,
     agent: harness.agent,
     supportsLoadSession: true,

@@ -775,6 +775,7 @@ export class TuiAgentsRuntime {
     const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
       providerId: input.providerId,
       workspacePath: input.cwd,
+      env: input.providerVars,
     });
     if (!hooksAvailable) {
       this.deps.logger.warn(

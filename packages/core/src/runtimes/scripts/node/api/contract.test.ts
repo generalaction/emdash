@@ -79,7 +79,13 @@ describe('scripts runtime contract', () => {
   });
 
   it('runs a script to success: spawn spec, run state, exit code, and tail retention', async () => {
-    const started = await start('setup', { provenance: 'manual' });
+    const started = await start('setup', {
+      provenance: 'manual',
+      env: {
+        CLAUDE_CONFIG_DIR: '/tmp/claude-project',
+        EMDASH_TASK_ID: 'cannot-override',
+      },
+    });
     expect(started.success && started.data.status).toBe('running');
 
     const spec = spawner.specs[0]!;
@@ -91,6 +97,7 @@ describe('scripts runtime contract', () => {
       EMDASH_TASK_ID: 'ws-1',
       EMDASH_TASK_NAME: 'feature-x',
       EMDASH_ROOT_PATH: '/repos/app',
+      CLAUDE_CONFIG_DIR: '/tmp/claude-project',
     });
     expect(spec.env?.USER_VALUE).toBe('kept');
     expect(spec.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();

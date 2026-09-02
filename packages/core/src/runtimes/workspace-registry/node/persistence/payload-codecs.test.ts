@@ -21,6 +21,7 @@ describe('personal project config payload codec', () => {
     const personalConfig: PersonalProjectConfig = {
       preservePatterns: [],
       scripts: { prepare: 'pnpm install', run: 'pnpm dev' },
+      env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
       autoRunSetup: false,
       autoRunRun: true,
     };
@@ -39,6 +40,22 @@ describe('personal project config payload codec', () => {
       )
     ).toEqual({
       scripts: { setup: 'setup' },
+    });
+  });
+
+  it('upgrades v1 settings without inventing environment variables', () => {
+    const v1 = JSON.stringify({
+      version: '1',
+      value: { scripts: { setup: 'setup' }, autoRunRun: true },
+    });
+
+    expect(parsePersonalProjectConfigPayload(v1)).toEqual({
+      scripts: { setup: 'setup' },
+      autoRunRun: true,
+    });
+    expect(JSON.parse(serializePersonalProjectConfigPayload({}))).toEqual({
+      version: '2',
+      value: {},
     });
   });
 });

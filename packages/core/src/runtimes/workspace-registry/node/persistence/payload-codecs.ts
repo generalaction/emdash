@@ -38,8 +38,15 @@ const storedRemovalAttempt = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceRemovalAttemptSchema }))
   .build();
 
+const personalProjectConfigV1Schema = personalProjectConfigSchema.omit({ env: true });
+
 const storedPersonalProjectConfig = defineVersionedSchema()
-  .initial('1', z.object({ version: z.literal('1'), value: personalProjectConfigSchema }))
+  .initial('1', z.object({ version: z.literal('1'), value: personalProjectConfigV1Schema }))
+  .version(
+    '2',
+    z.object({ version: z.literal('2'), value: personalProjectConfigSchema }),
+    (previous) => ({ version: '2' as const, value: previous.value })
+  )
   .build();
 
 // The pre-lifecycle shape of the `background` column (v1): fixed per-step slots with a
@@ -150,7 +157,7 @@ export function parseLifecyclePayload(payload: string): WorkspaceLifecycle {
 }
 
 export function serializePersonalProjectConfigPayload(config: PersonalProjectConfig): string {
-  return storedPersonalProjectConfig.serialize({ version: '1', value: config });
+  return storedPersonalProjectConfig.serialize({ version: '2', value: config });
 }
 
 export function parsePersonalProjectConfigPayload(payload: string): PersonalProjectConfig {

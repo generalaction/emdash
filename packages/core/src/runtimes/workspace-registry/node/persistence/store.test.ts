@@ -42,6 +42,7 @@ describe('workspace registry settings persistence', () => {
       records.updatePersonalConfig('repo-1', {
         preservePatterns: [],
         scripts: { setup: 'pnpm install' },
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
         autoRunSetup: false,
       });
 
@@ -54,10 +55,11 @@ describe('workspace registry settings persistence', () => {
         legacy_desktop_settings_migrated: number;
       };
       expect(JSON.parse(row.personal_config)).toEqual({
-        version: '1',
+        version: '2',
         value: {
           preservePatterns: [],
           scripts: { setup: 'pnpm install' },
+          env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
           autoRunSetup: false,
         },
       });
@@ -65,6 +67,7 @@ describe('workspace registry settings persistence', () => {
       expect(records.getPersonalConfig('repo-1')).toEqual({
         preservePatterns: [],
         scripts: { setup: 'pnpm install' },
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
         autoRunSetup: false,
       });
     } finally {

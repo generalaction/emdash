@@ -9,7 +9,12 @@ import {
   testPluginHost,
 } from '#runtimes/acp/node/acp-test-support';
 import type { AgentPluginHost, IAcpBehavior } from '#services/agent-plugins/api/plugins';
-import { createAcpConnectionSource, isAcpConnectionError, makeAcpConnectionKey } from './source';
+import {
+  acpConnectionCacheKey,
+  createAcpConnectionSource,
+  isAcpConnectionError,
+  makeAcpConnectionKey,
+} from './source';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   return {
@@ -54,6 +59,25 @@ describe('createAcpConnectionSource', () => {
     );
   });
 
+  it('includes an opaque, order-independent environment fingerprint in cache keys', () => {
+    const first = acpConnectionCacheKey({
+      ...connectionKey(),
+      env: { ENV_TEST: 'one', API_KEY: 'super-secret' },
+    });
+    const reordered = acpConnectionCacheKey({
+      ...connectionKey(),
+      env: { API_KEY: 'super-secret', ENV_TEST: 'one' },
+    });
+    const changed = acpConnectionCacheKey({
+      ...connectionKey(),
+      env: { ENV_TEST: 'two', API_KEY: 'super-secret' },
+    });
+
+    expect(first).toBe(reordered);
+    expect(first).not.toBe(changed);
+    expect(first).not.toContain('super-secret');
+  });
+
   it('dedupes acquisitions by provider and cwd and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
@@ -76,6 +100,25 @@ describe('createAcpConnectionSource', () => {
     expect(host.lastHandle.kill).toHaveBeenCalledWith('SIGTERM');
     await waitForTeardown();
     expect(source.peek(key)).toBeUndefined();
+  });
+
+  it('provisions a fresh agent process when its environment changes', async () => {
+    const agent = new FakeAcpAgent();
+    const host = new FakeAcpProcessHost();
+    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
+
+    await acquireResourceAsResult(
+      source,
+      { ...connectionKey(), env: { ENV_TEST: 'one' } },
+      isAcpConnectionError
+    );
+    await acquireResourceAsResult(
+      source,
+      { ...connectionKey(), env: { ENV_TEST: 'two' } },
+      isAcpConnectionError
+    );
+
+    expect(host.allHandles).toHaveLength(2);
   });
 
   it('provisions separate working directories independently', async () => {
@@ -109,16 +152,17 @@ describe('createAcpConnectionSource', () => {
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
     const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
-    const key = connectionKey();
+    const key = { ...connectionKey(), env: { ENV_TEST: 'this-is-a-test' } };
     const routeKey = makeAcpConnectionKey('claude', '/tmp/workspace');
 
     await acquireResourceAsResult(source, key, isAcpConnectionError);
     host.lastHandle.emitExit(7);
 
     await vi.waitFor(() => expect(onClosed).toHaveBeenCalledWith(routeKey, 1, 7));
-    await source.invalidate(key);
-    await waitForTeardown();
-    expect(source.peek(key)).toBeUndefined();
+    await vi.waitFor(() => expect(source.peek(key)).toBeUndefined());
+
+    await acquireResourceAsResult(source, key, isAcpConnectionError);
+    expect(host.allHandles).toHaveLength(2);
   });
 
   it('disposes all active pooled processes', async () => {

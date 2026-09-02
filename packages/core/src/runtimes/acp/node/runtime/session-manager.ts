@@ -577,7 +577,12 @@ export class SessionManager {
     connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    return this.ports.terminals.createTerminal(conversationId, connection.cwd, params);
+    return this.ports.terminals.createTerminal(
+      conversationId,
+      connection.cwd,
+      connection.env,
+      params
+    );
   }
 
   onProcessClosed(processKey: string, processGeneration: number, exitCode: number | null): void {
@@ -598,10 +603,6 @@ export class SessionManager {
       record.connectionLeaseState.release = false;
       record.cell.processClosed(exitCode);
       void this.stop(record.input.conversationId, 'process-exited');
-      void this.connections.invalidate({
-        providerId: record.input.providerId,
-        cwd: record.input.cwd,
-      });
     }
   }
 

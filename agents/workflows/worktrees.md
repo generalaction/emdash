@@ -51,6 +51,12 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 - `pushRemote`
 - `tmux`
 
+Host-local project settings are stored by the workspace registry and are not written to
+`.emdash.json`:
+
+- `env` (variables injected into new task terminals, lifecycle scripts, and TUI/ACP agent
+  processes; Emdash-owned `EMDASH_*` task metadata takes precedence)
+
 Host-level defaults (`shellSetup`, `worktreeRoot`, `tmux`) live in the host-settings
 runtime (`packages/core/src/runtimes/host-settings/`), stored as a JSON file in the
 host's emdash data directory and editable from the machines/system settings UI.
@@ -71,6 +77,9 @@ Precedence is per-project DB override, then host settings, then app defaults.
   (workspace, script), with provenance (`activation`/`manual`/`retry`), per-run timeouts,
   and a stop verb; the workspace registry observes runs and mirrors them into durable
   lifecycle steps for the Activity timeline
+- project environment variables are resolved by the workspace registry and passed explicitly to
+  every launch path; exports performed by one lifecycle shell do not mutate sibling or later
+  processes
 - `shellSetup` runs inside each PTY before the interactive shell starts; the workspace's
   `.emdash.json` value overrides the host-settings default. Lifecycle commands and `shellSetup`
   are opaque strings run together in the default shell selected by the host-owned runtime at

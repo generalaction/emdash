@@ -54,6 +54,11 @@ export type ProjectFileHandlingDomainSnapshot = {
   writeTargets: ProjectSettingsWriteTargetOption[];
 };
 
+export type ProjectEnvironmentDomainSnapshot = {
+  personal: Pick<PersonalProjectConfig, 'env'>;
+  resolved: Pick<ResolvedProjectConfig, 'env'>;
+};
+
 export type ProjectGitIdentityDomainSnapshot = {
   stored: Pick<
     StoredProjectGitSettings,
@@ -76,6 +81,7 @@ export type ProjectPlacementDomainSnapshot = {
 export type ProjectSettingsDomains = {
   lifecycle: ProjectLifecycleDomainSnapshot;
   fileHandling: ProjectFileHandlingDomainSnapshot;
+  environment: ProjectEnvironmentDomainSnapshot;
   gitIdentity: ProjectGitIdentityDomainSnapshot;
   placement: ProjectPlacementDomainSnapshot;
 };
@@ -88,6 +94,7 @@ export type ProjectDurableSettingsDomains = {
 export type ProjectHostSettingsDomains = {
   lifecycle: ProjectLifecycleDomainSnapshot;
   fileHandling: ProjectFileHandlingDomainSnapshot;
+  environment: ProjectEnvironmentDomainSnapshot;
   placement: Omit<ProjectPlacementDomainSnapshot, 'stored'>;
 };
 
@@ -112,6 +119,9 @@ export type ProjectSettingsDomainPatch = {
   };
   fileHandling?: {
     personal: Pick<PersonalProjectConfigPatch, 'preservePatterns'>;
+  };
+  environment?: {
+    personal: Pick<PersonalProjectConfigPatch, 'env'>;
   };
   gitIdentity?: {
     stored: ProjectGitIdentityStoredPatch;
@@ -142,7 +152,7 @@ export type MigrateProjectConfigResult = {
 export function projectConfigDomainsFromState(
   config: ProjectConfigState,
   writeTargets: ProjectSettingsWriteTargetOption[]
-): Pick<ProjectSettingsDomains, 'lifecycle' | 'fileHandling'> {
+): Pick<ProjectSettingsDomains, 'lifecycle' | 'fileHandling' | 'environment'> {
   const source = <T>(entry: {
     workspaceId: string;
     path: string;
@@ -170,9 +180,16 @@ export function projectConfigDomainsFromState(
     const value = repositorySource(config.sources[script]);
     if (value !== undefined) teamScripts[script] = value;
   }
-  const { preservePatterns: _personalPreservePatterns, ...lifecyclePersonal } =
-    config.personalConfig;
-  const { preservePatterns: _resolvedPreservePatterns, ...lifecycleResolved } = config.resolved;
+  const {
+    preservePatterns: _personalPreservePatterns,
+    env: _personalEnv,
+    ...lifecyclePersonal
+  } = config.personalConfig;
+  const {
+    preservePatterns: _resolvedPreservePatterns,
+    env: _resolvedEnv,
+    ...lifecycleResolved
+  } = config.resolved;
   return {
     lifecycle: {
       personal: lifecyclePersonal,
@@ -204,6 +221,14 @@ export function projectConfigDomainsFromState(
       resolved: { preservePatterns: config.resolved.preservePatterns },
       sources: config.sources.preservePatterns.map(source),
       writeTargets,
+    },
+    environment: {
+      personal: {
+        ...(config.personalConfig.env !== undefined
+          ? { env: { ...config.personalConfig.env } }
+          : {}),
+      },
+      resolved: { env: config.resolved.env },
     },
   };
 }

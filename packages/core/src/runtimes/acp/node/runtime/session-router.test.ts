@@ -83,6 +83,7 @@ function context(generation: number): AcpConnectionContext {
     generation,
     providerId: 'claude',
     cwd: '/repo',
+    env: {},
     normalize: vi.fn(),
   };
 }

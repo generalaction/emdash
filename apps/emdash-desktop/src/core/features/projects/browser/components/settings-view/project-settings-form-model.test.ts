@@ -10,6 +10,7 @@ import {
   normalizeShareableFieldValue,
   projectSettingsDomainsToForm,
   storedDefaultBranchToBranchRef,
+  type EnvironmentFormState,
   type FileHandlingFormState,
   type FormFieldPath,
   type FormState,
@@ -23,6 +24,7 @@ const origin: GitRemote = { name: 'origin', url: 'git@github.com:example/repo.gi
 type FormOverrides = {
   lifecycle?: Partial<LifecycleFormState>;
   fileHandling?: Partial<FileHandlingFormState>;
+  environment?: Partial<EnvironmentFormState>;
   gitIdentity?: Partial<GitIdentityFormState>;
   placement?: Partial<PlacementFormState>;
 };
@@ -39,6 +41,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       ...overrides.lifecycle,
     },
     fileHandling: { preservePatterns: '', ...overrides.fileHandling },
+    environment: { variables: [], ...overrides.environment },
     gitIdentity: {
       defaultBranch: null,
       baseRemote: '',
@@ -72,6 +75,12 @@ function domains(): ProjectSettingsDomains {
       sources: [],
       writeTargets: [],
     },
+    environment: {
+      personal: { env: { CLAUDE_CONFIG_DIR: '/configs/work' } },
+      resolved: {
+        env: { value: { CLAUDE_CONFIG_DIR: '/configs/work' }, from: 'personal' },
+      },
+    },
     gitIdentity: { stored: { baseRemote: 'origin' } },
     placement: {
       stored: { tmux: false },
@@ -104,6 +113,9 @@ describe('project settings form model', () => {
     expect(form.lifecycle.scriptSetup).toBe('personal setup');
     expect(form.lifecycle.scriptRun).toBe('');
     expect(form.fileHandling.preservePatterns).toBe('');
+    expect(form.environment.variables).toEqual([
+      { key: 'CLAUDE_CONFIG_DIR', value: '/configs/work' },
+    ]);
     expect(form.placement.worktreeDirectory).toBe('');
     expect(form.gitIdentity.baseRemote).toBe('');
   });
@@ -114,6 +126,10 @@ describe('project settings form model', () => {
     form.lifecycle.scriptRun = '';
     form.lifecycle.autoRunSetupScriptOnTaskCreation = undefined;
     form.fileHandling.preservePatterns = '';
+    form.environment.variables = [
+      { key: 'CLAUDE_CONFIG_DIR', value: '/configs/personal' },
+      { key: '', value: 'ignored' },
+    ];
     form.gitIdentity.baseRemote = '';
     form.placement.worktreeDirectory = '/custom/worktrees';
     const touched = new Set<FormFieldPath>([
@@ -121,6 +137,7 @@ describe('project settings form model', () => {
       'lifecycle.scriptRun',
       'lifecycle.autoRunSetupScriptOnTaskCreation',
       'fileHandling.preservePatterns',
+      'environment.variables',
       'gitIdentity.baseRemote',
       'placement.worktreeDirectory',
     ]);
@@ -133,6 +150,9 @@ describe('project settings form model', () => {
         },
       },
       fileHandling: { personal: { preservePatterns: null } },
+      environment: {
+        personal: { env: { CLAUDE_CONFIG_DIR: '/configs/personal' } },
+      },
       gitIdentity: { stored: { baseRemote: null } },
       placement: { stored: { worktreeRoot: '/custom/worktrees' } },
     });
