@@ -38,6 +38,7 @@ export type CallOptions = {
 export type AttachOptions = {
   onReattach?: () => void;
   onReattachError?: (error: WireError, context: { retrying: boolean }) => void;
+  signal?: AbortSignal;
 };
 
 export type ConnectOptions = {
@@ -76,6 +77,7 @@ type Attachment = {
   established: Promise<void>;
   establishedSettled: boolean;
   attempt: object | null;
+  attemptAbort: AbortController | null;
   attachId: string | undefined;
 };
 
@@ -513,36 +515,50 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       >;
     },
     async attach(topic, push, attachOptions = {}) {
+      if (attachOptions.signal?.aborted) {
+        throw new WireError('CANCELLED', 'Wire attach cancelled');
+      }
       const entry = getOrCreateAttachment(topic);
       entry.pushes.add(push);
       if (attachOptions.onReattach) entry.onReattach.add(attachOptions.onReattach);
       if (attachOptions.onReattachError) entry.onReattachError.add(attachOptions.onReattachError);
 
-      try {
-        await entry.established;
-      } catch (error) {
+      let detached = false;
+      const detach = (): void => {
+        if (detached) return;
+        detached = true;
         entry.pushes.delete(push);
         if (attachOptions.onReattach) entry.onReattach.delete(attachOptions.onReattach);
         if (attachOptions.onReattachError)
           entry.onReattachError.delete(attachOptions.onReattachError);
-        throw error;
-      }
 
-      return () => {
         const current = attachments.get(topic);
-        if (current !== entry) return;
-        current.pushes.delete(push);
-        if (attachOptions.onReattach) current.onReattach.delete(attachOptions.onReattach);
-        if (attachOptions.onReattachError)
-          current.onReattachError.delete(attachOptions.onReattachError);
-        if (current.pushes.size > 0) return;
+        if (current !== entry || current.pushes.size > 0) return;
         attachments.delete(topic);
+        current.attemptAbort?.abort(new WireError('CANCELLED', 'Wire attach cancelled'));
+        current.attemptAbort = null;
         try {
           transport.post({ kind: 'detach', topic });
         } catch {
           // The peer may already be disconnected; local teardown is complete.
         }
       };
+
+      try {
+        await abortableAttachment(entry.established, attachOptions.signal, detach);
+      } catch (error) {
+        detach();
+        if (attachOptions.signal?.aborted) {
+          throw new WireError('CANCELLED', 'Wire attach cancelled');
+        }
+        throw error;
+      }
+
+      if (attachOptions.signal?.aborted) {
+        detach();
+        throw new WireError('CANCELLED', 'Wire attach cancelled');
+      }
+      return detach;
     },
     onDisconnect(cb): Unsubscribe {
       if (disposed) return () => {};
@@ -553,7 +569,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       if (disposed) return;
       disposed = true;
 
-      for (const topic of attachments.keys()) {
+      for (const [topic, entry] of attachments) {
+        entry.attemptAbort?.abort(new WireError('DISCONNECTED', 'Wire connection disposed'));
         try {
           transport.post({ kind: 'detach', topic });
         } catch {
@@ -612,6 +629,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       established: Promise.resolve(),
       establishedSettled: true,
       attempt: null,
+      attemptAbort: null,
       attachId: undefined,
     };
     attachments.set(topic, created);
@@ -625,7 +643,9 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     notifyReattach: boolean
   ): Promise<void> {
     const attempt = {};
+    const attemptAbort = new AbortController();
     entry.attempt = attempt;
+    entry.attemptAbort = attemptAbort;
     entry.establishedSettled = false;
     const staleAttachId = entry.attachId;
     const id = createRequestId();
@@ -640,16 +660,21 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
         stale.reject(new WireError('DISCONNECTED', 'Wire attach superseded by reconnect'));
       }
     }
-    const established = request({ kind: 'attach', id, topic }).then(() => {});
+    const established = request(
+      { kind: 'attach', id, topic },
+      { signal: attemptAbort.signal }
+    ).then(() => {});
     established.then(
       () => {
         if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
         entry.establishedSettled = true;
+        entry.attemptAbort = null;
         if (notifyReattach) notifyReattached(entry);
       },
       (error: unknown) => {
         if (attachments.get(topic) !== entry || entry.attempt !== attempt) return;
         entry.establishedSettled = true;
+        entry.attemptAbort = null;
         const wireError = toWireError(error);
         if (notifyReattach) {
           const retrying = wireError.code === 'DISCONNECTED';
@@ -661,6 +686,36 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       }
     );
     return established;
+  }
+
+  function abortableAttachment(
+    established: Promise<void>,
+    signal: AbortSignal | undefined,
+    onAbort: () => void
+  ): Promise<void> {
+    if (!signal) return established;
+    if (signal.aborted) {
+      onAbort();
+      return Promise.reject(new WireError('CANCELLED', 'Wire attach cancelled'));
+    }
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (complete: () => void): void => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', abort);
+        complete();
+      };
+      const abort = (): void => {
+        onAbort();
+        finish(() => reject(new WireError('CANCELLED', 'Wire attach cancelled')));
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      established.then(
+        () => finish(resolve),
+        (error: unknown) => finish(() => reject(error))
+      );
+    });
   }
 
   function notifyReattached(entry: Attachment | undefined): void {

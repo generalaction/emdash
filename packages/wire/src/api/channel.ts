@@ -59,6 +59,7 @@ export type LiveAttachmentErrorContext = {
 export type LiveSubscribeOptions = {
   onGap?: () => void;
   onError?: (error: unknown, context: LiveAttachmentErrorContext) => void;
+  signal?: AbortSignal;
 };
 
 export interface LiveSource {

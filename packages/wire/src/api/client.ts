@@ -93,6 +93,7 @@ export type EventStreamSubscribeOptions<
   onEvent(event: EventStreamEvent<Def>): void;
   onGap?(): void;
   onError?: (error: WireError, context: { retrying: boolean }) => void;
+  signal?: AbortSignal;
 };
 
 export type EventStreamClientHandle<Def extends EventStreamEndpointDef = EventStreamEndpointDef> = {
@@ -312,6 +313,7 @@ export function createLiveClientHandle<T>(
           connection.attach(topic, cb, {
             onReattach: options?.onGap,
             onReattachError: options?.onError,
+            signal: options?.signal,
           }),
       };
     },

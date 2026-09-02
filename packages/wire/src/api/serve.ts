@@ -304,6 +304,7 @@ export function serve(
                 (update) => post({ kind: 'update', topic: message.topic, update }),
                 {
                   onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+                  signal,
                   onError: (error, context) => {
                     post({
                       kind: 'topic-error',
