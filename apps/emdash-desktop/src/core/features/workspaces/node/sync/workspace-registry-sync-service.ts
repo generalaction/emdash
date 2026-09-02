@@ -10,7 +10,7 @@ import type { WorkspaceHostIdentity } from '@core/features/workspaces/api/node/r
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   applyWorkspaceRegistrySnapshot,
-  WorkspaceIdentityConflictError,
+  type WorkspaceIdentityConflictError,
 } from './apply-workspace-registry-snapshot';
 
 export interface WorkspaceRegistrySyncServiceOptions {
@@ -57,32 +57,21 @@ export class WorkspaceRegistrySyncService {
     const list = records(undefined).states.list;
     const hostIdentity = hostIdentityFor(host);
     let chain = Promise.resolve();
-    let identityFailed = false;
     observe(
       list,
       (snapshot) => {
-        if (snapshot.status === 'loading' || identityFailed) return;
+        if (snapshot.status === 'loading') return;
         const parsed = workspaceRecordsSchema.parse(snapshot.value ?? {});
         chain = chain
           .then(async () => {
-            await applyWorkspaceRegistrySnapshot({
+            const applied = await applyWorkspaceRegistrySnapshot({
               db: this.options.db,
               host: hostIdentity,
               records: parsed,
             });
+            for (const conflict of applied.identityConflicts) this.reportIdentityConflict(conflict);
           })
           .catch((error) => {
-            if (error instanceof WorkspaceIdentityConflictError) {
-              identityFailed = true;
-              const fingerprint = error.fingerprint();
-              if (!this.reportedIdentityConflicts.has(fingerprint)) {
-                this.reportedIdentityConflicts.add(fingerprint);
-                this.options.onError?.('workspace registry identity invariant', error);
-              }
-              if (this.attachments.get(key) === scope) this.attachments.delete(key);
-              void scope.dispose();
-              return;
-            }
             this.options.onError?.('workspace registry snapshot sync', error);
           });
       },
@@ -98,6 +87,14 @@ export class WorkspaceRegistrySyncService {
     if (!scope) return;
     this.attachments.delete(hostRefKey(host));
     void scope.dispose();
+  }
+
+  /** Every full delivery re-skips a retained conflict; report each one once per process. */
+  private reportIdentityConflict(conflict: WorkspaceIdentityConflictError): void {
+    const fingerprint = conflict.fingerprint();
+    if (this.reportedIdentityConflicts.has(fingerprint)) return;
+    this.reportedIdentityConflicts.add(fingerprint);
+    this.options.onError?.('workspace registry identity invariant', conflict);
   }
 
   dispose(): void {

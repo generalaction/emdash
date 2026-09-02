@@ -1,4 +1,7 @@
-import type { WorkspaceRecords } from '@emdash/core/runtimes/workspace-registry/api';
+import type {
+  WorkspaceRecord,
+  WorkspaceRecords,
+} from '@emdash/core/runtimes/workspace-registry/api';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
@@ -30,6 +33,8 @@ export interface ApplyWorkspaceRegistrySnapshotResult {
   untracked: number;
   /** Tombstoned rows whose host record this delivery confirmed gone (ADR 0006). */
   purgedTombstones: number;
+  /** Records skipped because a different live desktop id owns their path. */
+  identityConflicts: WorkspaceIdentityConflictError[];
 }
 
 export class WorkspaceIdentityConflictError extends Error {
@@ -89,22 +94,26 @@ function applyWorkspaceRegistrySnapshotTx(
     tx,
     hostRows.map((row) => row.id)
   );
-  assertNoIdentityConflicts(input.host, hostRows, input.records);
-  releaseMovedPaths(tx, hostRows, input.records);
+  const identityConflicts = collectIdentityConflicts(input.host, hostRows, input.records);
+  const skipped = new Set(identityConflicts.map((conflict) => conflict.incomingId));
+  const records = Object.values(input.records).filter((record) => !skipped.has(record.id));
+  releaseMovedPaths(tx, hostRows, records);
   const counts: ApplyWorkspaceRegistrySnapshotResult = {
     adopted: 0,
     refreshed: 0,
     markedMissing: 0,
     untracked: 0,
     purgedTombstones: 0,
+    identityConflicts,
   };
 
   const tombstoned = loadTombstonedIds(
     tx,
-    Object.values(input.records).map((record) => record.id)
+    records.map((record) => record.id)
   );
-  const seen = new Set<string>();
-  for (const record of Object.values(input.records)) {
+  // A skipped record leaves its desktop row untouched, so the sweep must not see it as gone.
+  const seen = new Set<string>(skipped);
+  for (const record of records) {
     seen.add(record.id);
     // Desktop untracking is durable: a delivery never resurrects a tombstoned row.
     if (tombstoned.has(record.id)) continue;
@@ -167,11 +176,9 @@ function applyWorkspaceRegistrySnapshotTx(
 function releaseMovedPaths(
   tx: DrizzleTx,
   rows: readonly WorkspaceRow[],
-  records: WorkspaceRecords
+  records: readonly WorkspaceRecord[]
 ): void {
-  const incomingPathById = new Map(
-    Object.values(records).map((record) => [record.id, record.path])
-  );
+  const incomingPathById = new Map(records.map((record) => [record.id, record.path]));
   const movedIds = rows.flatMap((row) => {
     const incomingPath = incomingPathById.get(row.id);
     return incomingPath !== undefined &&
@@ -206,11 +213,17 @@ function loadTombstonedIds(tx: DrizzleTx, recordIds: string[]): Set<string> {
   return new Set(rows.map((row) => row.id));
 }
 
-function assertNoIdentityConflicts(
+/**
+ * A different live desktop id at an incoming record's path violates the identity
+ * invariant; the one-time backfill can leave one behind when a legacy row cannot be
+ * translated. The offending record is skipped so the rest of the snapshot still applies.
+ */
+function collectIdentityConflicts(
   host: WorkspaceHostIdentity,
   rows: readonly WorkspaceRow[],
   records: WorkspaceRecords
-): void {
+): WorkspaceIdentityConflictError[] {
+  const conflicts: WorkspaceIdentityConflictError[] = [];
   const ownerByPath = new Map<string, string>();
   const rowById = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
@@ -229,8 +242,12 @@ function assertNoIdentityConflicts(
     const pathKey = workspacePathIdentityKey(record.path);
     const conflictingId = ownerByPath.get(pathKey);
     if (conflictingId !== undefined && conflictingId !== record.id) {
-      throw new WorkspaceIdentityConflictError(host, record.path, record.id, conflictingId);
+      conflicts.push(
+        new WorkspaceIdentityConflictError(host, record.path, record.id, conflictingId)
+      );
+      continue;
     }
     ownerByPath.set(pathKey, record.id);
   }
+  return conflicts;
 }
