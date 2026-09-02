@@ -99,7 +99,6 @@ export interface FileTreeProps {
   compactChains?: boolean;
   defaultExpanded?: 'all' | 'none';
   dnd?: FileTreeDndSpec;
-  surface?: 'base' | 'paper';
   className?: string;
   renamePath?: string | null;
   onCollapseAll?: () => void;
@@ -156,7 +155,6 @@ function FileTreeInner(
     compactChains = false,
     defaultExpanded = 'none',
     dnd,
-    surface = 'base',
     className,
     renamePath,
     onCollapseAll,
@@ -280,7 +278,7 @@ function FileTreeInner(
 
   if (isLoading) {
     return (
-      <section className={cx(styles.root, className)} data-surface={surface} aria-label="File tree">
+      <section className={cx(styles.root, className)} aria-label="File tree">
         {header}
         <FileTreeState>
           <Loader2Icon aria-hidden className={styles.spinner} />
@@ -292,7 +290,7 @@ function FileTreeInner(
 
   if (error) {
     return (
-      <section className={cx(styles.root, className)} data-surface={surface} aria-label="File tree">
+      <section className={cx(styles.root, className)} aria-label="File tree">
         {header}
         <FileTreeState error>{error}</FileTreeState>
       </section>
@@ -333,7 +331,7 @@ function FileTreeInner(
   };
 
   return (
-    <section className={cx(styles.root, className)} data-surface={surface} aria-label="File tree">
+    <section className={cx(styles.root, className)} aria-label="File tree">
       {header}
       {rootMenuItems?.length ? (
         <ContextMenu.Root>

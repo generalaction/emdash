@@ -49,6 +49,8 @@ export {
 } from './file-tree/file-tree';
 export {
   FileTreeHeader,
+  FileTreeToolbar,
+  FileTreeToolbarSearch,
   type FileTreeDraftKind,
   type FileTreeHeaderContext,
 } from './file-tree/file-tree-header';

@@ -18,6 +18,7 @@ import {
   type FileTreeProps,
   type FileTreeRowState,
 } from './file-tree';
+import { FileTreeToolbar, FileTreeToolbarSearch } from './file-tree-header';
 import {
   canMoveNode,
   joinFileTreePath,
@@ -62,14 +63,6 @@ export const Interactive: Story = {
   ),
 };
 
-export const PaperSurface: Story = {
-  render: () => (
-    <StoryFrame>
-      <MockFileTree initialNodes={baseNodes} surface="paper" />
-    </StoryFrame>
-  ),
-};
-
 export const DragToMove: Story = {
   render: () => (
     <StoryFrame note="Drag files or folders onto directories. Invalid moves are rejected by the mock dnd spec.">
@@ -100,25 +93,23 @@ export const CustomHeader: Story = {
       <MockFileTree
         initialNodes={baseNodes}
         renderHeader={(context) => (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              borderBottom: '1px solid var(--em-border)',
-              padding: 8,
-            }}
-          >
-            <strong style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
-              Creating in {context.targetPath || 'root'}
-            </strong>
-            <Button size="xs" variant="secondary" onClick={() => context.startDraft('file')}>
-              Add file
-            </Button>
-            <Button size="xs" variant="secondary" onClick={() => context.startDraft('directory')}>
-              Add folder
-            </Button>
-          </div>
+          <FileTreeToolbar
+            search={<FileTreeToolbarSearch placeholder="Search files…" />}
+            actions={
+              <>
+                <Button size="xs" variant="secondary" onClick={() => context.startDraft('file')}>
+                  Add file
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => context.startDraft('directory')}
+                >
+                  Add folder
+                </Button>
+              </>
+            }
+          />
         )}
       />
     </StoryFrame>
@@ -213,7 +204,6 @@ function MockFileTree({
   initialOpenedPaths,
   enableDnd = false,
   compactChains = false,
-  surface = 'base',
   renderHeader,
 }: {
   initialNodes: readonly FileTreeNode[];
@@ -221,7 +211,6 @@ function MockFileTree({
   initialOpenedPaths?: ReadonlySet<string>;
   enableDnd?: boolean;
   compactChains?: boolean;
-  surface?: FileTreeProps['surface'];
   renderHeader?: FileTreeProps['renderHeader'];
 }) {
   const [nodes, setNodes] = React.useState(() => cloneNodes(initialNodes));
@@ -258,7 +247,6 @@ function MockFileTree({
         openedPaths={openedPaths}
         renamePath={renamePath}
         compactChains={compactChains}
-        surface={surface}
         renderHeader={renderHeader}
         onToggleExpand={(node, expanded) => {
           setExpandedPaths((current) => togglePath(current, node.path, expanded));

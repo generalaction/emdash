@@ -53,14 +53,14 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
   const hasValue = value !== undefined && value !== '';
 
   // Left padding: icon (0.875rem) + left offset (0.625rem) + gap (0.25rem) = ~1.875rem → 2rem
-  const paddingLeft = size === 'sm' ? '1.75rem' : '2rem';
+  const paddingLeft = bare ? '1.375rem' : size === 'sm' ? '1.75rem' : '2rem';
   // Right padding only reserves space for the clear button; the shortcut is treated as a
   // placeholder overlay and does not reduce the input's available text width.
   const paddingRight = onClear != null ? '1.875rem' : undefined;
 
   return (
     <div data-slot="search-input" className={styles.container} style={consumerStyle}>
-      <span className={styles.icon} aria-hidden>
+      <span className={cx(styles.icon, bare && styles.iconWithoutInset)} aria-hidden>
         <SearchIcon />
       </span>
 
