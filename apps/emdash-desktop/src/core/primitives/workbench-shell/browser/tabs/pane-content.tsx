@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { PaneDimensionProvider } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { usePaneContext } from '../tabs/pane-context';
 import { TabBar } from './tab-bar';
+import { PaneSplitDropZones } from './tab-bar/pane-split-drop-zones';
 
 const CONTENT_FOCUS_SELECTOR = 'textarea, webview, [contenteditable="true"]';
 
@@ -63,6 +64,7 @@ export const PaneContent = observer(function PaneContent({
     <div className="flex h-full flex-col overflow-hidden">
       <TabBar actionsSlot={actionsSlot} />
       <div ref={setContentRef} className="surface-paper relative min-h-0 flex-1 bg-(--em-surface)">
+        <PaneSplitDropZones paneId={paneId} />
         {/*
          * PaneDimensionProvider is placed here (below the TabBar, not around
          * the entire PaneContent) so its ResizeObserver only measures the

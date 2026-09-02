@@ -1,4 +1,5 @@
 import {
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
   DragOverlay,
@@ -29,6 +30,10 @@ import { PaneProvider } from '@core/features/workbench/contributions/browser/tab
 import { createLayoutStorage, type MementoLayoutStorage } from '@core/primitives/mementos/browser';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
+import {
+  isSplitDropId,
+  parseSplitDropId,
+} from '@core/primitives/workbench-shell/browser/tabs/split-drop-id';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
@@ -43,6 +48,12 @@ type ActiveDrag =
 // resize. Deliberately under the drawer's old 15% resize floor, so every
 // height the previous UI could persist stays a plain restore, never a close.
 const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+
+const collisionDetection: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args);
+  const splitZones = collisions.filter((collision) => isSplitDropId(String(collision.id)));
+  return splitZones.length > 0 ? splitZones : collisions;
+};
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
@@ -81,7 +92,11 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 
     const terminalDragData = event.active.data.current;
     if (isTerminalDrawerDragData(terminalDragData)) {
-      const paneId = resolveDropPaneId(String(event.over.id), paneLayout);
+      const overId = String(event.over.id);
+      const split = parseSplitDropId(overId);
+      const paneId = split
+        ? (paneLayout.insertPane(split.paneId, split.side) ?? split.paneId)
+        : resolveDropPaneId(overId, paneLayout);
       if (!paneId) return;
       paneLayout.setActiveGroup(paneId);
       paneLayout.open(
@@ -98,7 +113,7 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
