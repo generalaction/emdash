@@ -26,6 +26,20 @@ const GLOBAL_HOOK_PROVIDERS = [
 ].sort();
 
 describe('agent plugin registry', () => {
+  it('advertises Claude Fable 5.1', () => {
+    const claude = pluginRegistry.get('claude');
+
+    expect(claude).toBeDefined();
+    expect(claude?.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'claude-fable-5-1': {
+          name: 'Claude Fable 5.1',
+        },
+      },
+    });
+  });
+
   it('advertises Claude Opus 5', () => {
     const claude = pluginRegistry.get('claude');
 
