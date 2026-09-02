@@ -9,6 +9,7 @@ import type {
   TabRegistry,
 } from './core/tab-provider-registry';
 import type { PaneLayoutSnapshotMemento, TabGroupsSnapshot } from './persistence';
+import { parseSplitDropId, type SplitSide } from './split-drop-id';
 
 const MAX_PANE_COUNT = 8;
 
@@ -84,6 +85,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       isViewActive: computed,
       focusedPane: computed,
       splitRight: action,
+      insertPane: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
@@ -124,6 +126,16 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this.groups.splice(insertAt, 0, newGroup);
 
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
+  }
+
+  insertPane(relativeToPaneId: string, side: SplitSide): string | undefined {
+    if (this.groups.length >= MAX_PANE_COUNT) return undefined;
+    const index = this.groups.findIndex((g) => g.paneId === relativeToPaneId);
+    if (index === -1) return undefined;
+
+    const newGroup = this._createPane();
+    this.groups.splice(side === 'left' ? index : index + 1, 0, newGroup);
+    return newGroup.paneId;
   }
 
   closePane(paneId: string): void {
@@ -174,6 +186,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const fromGroup = this.groups.find((g) => g.pane.entries.has(draggedTabId));
     if (!fromGroup) return;
 
+    const split = parseSplitDropId(overId);
+    if (split) {
+      this._handleSplitDrop(draggedTabId, fromGroup, split.paneId, split.side);
+      return;
+    }
+
     let toPaneId: string | undefined;
     if (overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')) {
       toPaneId = overId.startsWith('pane-drop-')
@@ -198,6 +216,35 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const insertBeforeTabId =
       overId.startsWith('pane-drop-') || overId.startsWith('pane-content-') ? undefined : overId;
     this.moveTab(draggedTabId, fromGroup.paneId, toPaneId, insertBeforeTabId);
+  }
+
+  private _handleSplitDrop(
+    draggedTabId: string,
+    fromGroup: Pane<R>,
+    targetPaneId: string,
+    side: SplitSide
+  ): void {
+    const targetIndex = this.groups.findIndex((g) => g.paneId === targetPaneId);
+    if (targetIndex === -1) return;
+
+    const insertAt = side === 'left' ? targetIndex : targetIndex + 1;
+    const fromIndex = this.groups.indexOf(fromGroup);
+    if (
+      fromGroup.pane.tabOrder.length === 1 &&
+      (insertAt === fromIndex || insertAt === fromIndex + 1)
+    ) {
+      return;
+    }
+
+    const newPaneId = this.insertPane(targetPaneId, side);
+    if (newPaneId) {
+      this.moveTab(draggedTabId, fromGroup.paneId, newPaneId);
+      return;
+    }
+
+    if (targetPaneId !== fromGroup.paneId) {
+      this.moveTab(draggedTabId, fromGroup.paneId, targetPaneId);
+    }
   }
 
   setActiveGroup(paneId: string): void {

@@ -69,6 +69,7 @@ import type {
   PaneLayoutSnapshotDocument,
   PaneLayoutSnapshotMemento,
 } from '@core/primitives/workbench-shell/browser/tabs/persistence';
+import { splitDropId } from '@core/primitives/workbench-shell/browser/tabs/split-drop-id';
 
 const testCtx = {
   viewId: 'task-1',
@@ -522,6 +523,140 @@ describe('PaneLayoutStore: pane group id restart stability', () => {
     await expect(third.hydrate()).resolves.toBe(true);
     expect(third.groups.map((g) => g.paneId)).toEqual(originalIds);
     third.dispose();
+  });
+});
+
+describe('PaneLayoutStore: insertPane and drag-to-split', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browserSessionStore.clear();
+  });
+
+  it('insertPane right inserts a fresh pane after the target and returns its id', () => {
+    const layout = createLayout();
+    const firstPaneId = layout.groups[0]!.paneId;
+
+    const newPaneId = layout.insertPane(firstPaneId, 'right');
+
+    expect(newPaneId).toBeDefined();
+    expect(layout.groups.map((g) => g.paneId)).toEqual([firstPaneId, newPaneId]);
+    layout.dispose();
+  });
+
+  it('insertPane left inserts a fresh pane before the target', () => {
+    const layout = createLayout();
+    const firstPaneId = layout.groups[0]!.paneId;
+
+    const newPaneId = layout.insertPane(firstPaneId, 'left');
+
+    expect(layout.groups.map((g) => g.paneId)).toEqual([newPaneId, firstPaneId]);
+    layout.dispose();
+  });
+
+  it('insertPane returns undefined for an unknown pane', () => {
+    const layout = createLayout();
+    expect(layout.insertPane('nope', 'right')).toBeUndefined();
+    expect(layout.groups).toHaveLength(1);
+    layout.dispose();
+  });
+
+  it('insertPane returns undefined at the pane cap', () => {
+    const layout = createLayout();
+    const firstPaneId = layout.groups[0]!.paneId;
+    for (let i = 0; i < 7; i++) {
+      expect(layout.insertPane(firstPaneId, 'right')).toBeDefined();
+    }
+    expect(layout.groups).toHaveLength(8);
+
+    expect(layout.insertPane(firstPaneId, 'right')).toBeUndefined();
+    expect(layout.groups).toHaveLength(8);
+    layout.dispose();
+  });
+
+  it('dropping a tab on a right split zone creates a new pane holding that tab', () => {
+    const layout = createLayout();
+    layout.open('browser', {});
+    layout.open('browser', {});
+    const sourcePaneId = layout.groups[0]!.paneId;
+    const draggedTabId = layout.focusedPane.resolvedActiveTabId!;
+
+    layout.handleDragEnd(draggedTabId, splitDropId(sourcePaneId, 'right'));
+
+    expect(layout.groups).toHaveLength(2);
+    expect(layout.groups[0]!.paneId).toBe(sourcePaneId);
+    const newPane = layout.groups[1]!.pane;
+    expect(newPane.tabOrder).toEqual([draggedTabId]);
+    expect(newPane.resolvedActiveTabId).toBe(draggedTabId);
+    expect(layout.activePaneId).toBe(layout.groups[1]!.paneId);
+    layout.dispose();
+  });
+
+  it('dropping a tab on a left split zone creates the new pane before the target', () => {
+    const layout = createLayout();
+    layout.open('browser', {});
+    layout.open('browser', {});
+    const sourcePaneId = layout.groups[0]!.paneId;
+    const draggedTabId = layout.focusedPane.resolvedActiveTabId!;
+
+    layout.handleDragEnd(draggedTabId, splitDropId(sourcePaneId, 'left'));
+
+    expect(layout.groups).toHaveLength(2);
+    expect(layout.groups[1]!.paneId).toBe(sourcePaneId);
+    expect(layout.groups[0]!.pane.tabOrder).toEqual([draggedTabId]);
+    layout.dispose();
+  });
+
+  it("dropping a pane's only tab on an adjacent split slot is a no-op", () => {
+    const layout = createLayout();
+    layout.open('browser', {});
+    layout.open('browser', {});
+    layout.splitRight();
+    const [left, right] = layout.groups;
+    const soleTabId = right!.pane.tabOrder[0]!;
+    const paneIds = layout.groups.map((g) => g.paneId);
+
+    // All three adjacent slots would recreate the current layout.
+    layout.handleDragEnd(soleTabId, splitDropId(right!.paneId, 'left'));
+    layout.handleDragEnd(soleTabId, splitDropId(right!.paneId, 'right'));
+    layout.handleDragEnd(soleTabId, splitDropId(left!.paneId, 'right'));
+
+    expect(layout.groups.map((g) => g.paneId)).toEqual(paneIds);
+    expect(right!.pane.tabOrder).toEqual([soleTabId]);
+    layout.dispose();
+  });
+
+  it("dropping a pane's only tab on a non-adjacent split slot moves the pane", () => {
+    const layout = createLayout();
+    layout.open('browser', {});
+    layout.open('browser', {});
+    layout.splitRight();
+    const [left, right] = layout.groups;
+    const soleTabId = right!.pane.tabOrder[0]!;
+
+    layout.handleDragEnd(soleTabId, splitDropId(left!.paneId, 'left'));
+
+    // New pane inserted at index 0; the emptied source pane auto-closed.
+    expect(layout.groups).toHaveLength(2);
+    expect(layout.groups[1]!.paneId).toBe(left!.paneId);
+    expect(layout.groups[0]!.pane.tabOrder).toEqual([soleTabId]);
+    layout.dispose();
+  });
+
+  it('falls back to moving into the hovered pane at the pane cap', () => {
+    const layout = createLayout();
+    layout.open('browser', {});
+    layout.open('browser', {});
+    const sourcePaneId = layout.groups[0]!.paneId;
+    for (let i = 0; i < 7; i++) layout.insertPane(sourcePaneId, 'right');
+    expect(layout.groups).toHaveLength(8);
+    const targetPane = layout.groups[3]!;
+    const draggedTabId = layout.groups[0]!.pane.resolvedActiveTabId!;
+
+    layout.handleDragEnd(draggedTabId, splitDropId(targetPane.paneId, 'right'));
+
+    expect(layout.groups).toHaveLength(8);
+    expect(targetPane.pane.tabOrder).toEqual([draggedTabId]);
+    layout.dispose();
   });
 });
 
