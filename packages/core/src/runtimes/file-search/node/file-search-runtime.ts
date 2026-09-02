@@ -26,7 +26,7 @@ import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-search
 import { searchRootContent } from './content/root-content-search';
 import { DefaultFileSearchExclusions } from './exclusions';
 import { NodePathScanner } from './path/index/scanner';
-import { searchRootPaths } from './path/root-path-search';
+import { searchColdPaths, searchRootPaths } from './path/root-path-search';
 import { createRegisteredRoot } from './root/registered-root';
 import { NodeFileSearchRootResolver } from './root/root-identity';
 import { FileSearchRootRegistry } from './root/root-registry';
@@ -53,6 +53,7 @@ export class FileSearchRuntime {
   private readonly scope: Scope;
   private readonly roots: FileSearchRootRegistry;
   private readonly store: SqliteFileSearchStore;
+  private readonly resolver: NodeFileSearchRootResolver;
   private readonly contentLimiter: ConcurrencyLimiter;
   private readonly contentSearcher: RipgrepContentSearcher;
   private disposePromise: Promise<void> | undefined;
@@ -64,6 +65,7 @@ export class FileSearchRuntime {
       onCleanupError: (error) => onError('file-search cleanup failed', error),
     });
     this.store = new SqliteFileSearchStore(options.handle);
+    this.resolver = new NodeFileSearchRootResolver();
 
     try {
       const defaultContentExclusions = new DefaultFileSearchExclusions();
@@ -84,7 +86,7 @@ export class FileSearchRuntime {
       });
       this.roots = new FileSearchRootRegistry({
         catalog: this.store,
-        resolver: new NodeFileSearchRootResolver(),
+        resolver: this.resolver,
         createRoot: (record, scope, rootExclusions, exclusionsFingerprint) =>
           createRegisteredRoot({
             record,
@@ -119,7 +121,9 @@ export class FileSearchRuntime {
 
   async searchPaths(input: PathSearchInput): Promise<Result<PathSearchResult, PathSearchError>> {
     const root = this.roots.resolveRegisteredRoot(input.root);
-    return root.success ? searchRootPaths(root.data, input, this.store) : root;
+    if (root.success) return searchRootPaths(root.data, input, this.store);
+    if (root.error.type !== 'root-not-registered') return root;
+    return searchColdPaths(this.resolver.comparisonKey(input.root), input, this.store) ?? root;
   }
 
   searchContent(
