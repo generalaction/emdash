@@ -59,8 +59,11 @@ describe('FileTreeHeaderBar layout', () => {
 
     const input = host.querySelector<HTMLInputElement>('[aria-label="Search"]');
     const icon = input?.parentElement?.querySelector<SVGSVGElement>('svg');
+    const toolbar = host.firstElementChild;
     expect(input).not.toBeNull();
     expect(icon).not.toBeNull();
+    expect(toolbar).not.toBeNull();
+    expect(getComputedStyle(toolbar!).borderBottomStyle).toBe('solid');
 
     const inputBox = input!.getBoundingClientRect();
     const iconBox = icon!.getBoundingClientRect();

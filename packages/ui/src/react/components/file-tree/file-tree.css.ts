@@ -58,6 +58,7 @@ export const toolbar = style({
   flexShrink: 0,
   alignItems: 'center',
   gap: '0.25rem',
+  borderBottom: `1px solid ${vars.border}`,
   padding: '0 0.5rem',
   backgroundColor: vars.surface,
 });
