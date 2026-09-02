@@ -12,7 +12,7 @@ import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-drag';
-import { type TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
+import type { TerminalStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import { TerminalShellOptionLabel } from '@core/features/terminals/contributions/browser/terminal-shell-option-label';
 import {
   type LifecycleScriptStatus,
@@ -37,7 +37,8 @@ interface TerminalDrawerTabBarProps {
   onSelectScript: (id: string) => void;
   onRunScript: (id: string) => void;
   onStopScript: (id: string) => void;
-  terminalTabView: TerminalTabViewStore;
+  /** Terminals shown in the drawer — the panel filters out those open in a main pane. */
+  terminals: TerminalStore[];
   activeTerminalId: string | undefined;
   shellMenuState: TerminalShellMenuState;
   onShellMenuOpen: () => void;
@@ -68,7 +69,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   onSelectScript,
   onRunScript,
   onStopScript,
-  terminalTabView,
+  terminals,
   activeTerminalId,
   shellMenuState,
   onShellMenuOpen,
@@ -83,17 +84,16 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   className,
 }: TerminalDrawerTabBarProps) {
   const scripts = lifecycleScriptsMgr?.tabs ?? [];
-  const terminals = terminalTabView.tabs;
 
   return (
     <div
       className={cn(
-        'flex h-9 shrink-0 items-center gap-1 overflow-hidden bg-background px-2 py-2 text-sm',
+        'flex h-9 shrink-0 items-center gap-1 overflow-hidden bg-(--em-surface-paper) pr-2 text-sm',
         className
       )}
     >
       <div
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+        className="flex h-full min-w-0 flex-1 items-center overflow-x-auto"
         role="tablist"
         aria-label={mode === 'terminals' ? 'Terminals' : 'Scripts'}
       >
@@ -321,15 +321,14 @@ function DrawerItemTab({
     <div
       ref={setDragRef}
       className={cn(
-        'group relative flex h-6 max-w-48 shrink-0 items-center rounded-lg text-xs transition-colors',
-        isActive
-          ? 'bg-background-2 text-foreground'
-          : 'text-foreground-muted hover:bg-background-2 hover:text-foreground',
+        'group relative flex h-full max-w-48 shrink-0 items-center text-xs transition-colors',
+        isActive ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
         isDragging && 'opacity-50'
       )}
     >
+      {isActive && <div className="absolute inset-x-0 bottom-0 h-0.5 bg-foreground" />}
       {isEditing && onRename ? (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-3">
           <span className="shrink-0">{icon}</span>
           <InlineRenameInput
             initialValue={label}
@@ -348,7 +347,7 @@ function DrawerItemTab({
           role="tab"
           aria-selected={isActive}
           className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 px-2 outline-none',
+            'flex h-full min-w-0 flex-1 items-center gap-1.5 px-3 outline-none',
             dragData && 'cursor-grab active:cursor-grabbing'
           )}
           onClick={onSelect}
@@ -371,7 +370,7 @@ function DrawerItemTab({
         </button>
       )}
       {!isEditing && iconAction && (
-        <span className="absolute top-1/2 left-2 z-10 flex size-3 -translate-y-1/2 items-center justify-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <span className="absolute top-1/2 left-3 z-10 flex size-3 -translate-y-1/2 items-center justify-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           {iconAction}
         </span>
       )}
