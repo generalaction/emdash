@@ -136,8 +136,8 @@ export const GenericTabItem = observer(function GenericTabItem({
           className={cn(
             'group relative flex h-full flex-col text-sm',
             tab.isActive
-              ? 'bg-(--em-surface-selected) text-foreground-muted'
-              : 'hover:bg-(--em-surface-hover)',
+              ? 'bg-(--em-surface) text-foreground-muted'
+              : 'bg-(--em-surface-hover) hover:bg-(--em-surface)',
             isFocusedPane && 'text-foreground'
           )}
         >
