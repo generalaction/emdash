@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { confirmOpenExternalLink } from './open-external-link';
+import {
+  confirmOpenExternalLink,
+  openExternalLinkFromMouseEvent,
+  openLinkInEmdashBrowser,
+} from './open-external-link';
 
 const mocks = vi.hoisted(() => ({
   clipboardWriteText: vi.fn(),
@@ -137,5 +141,115 @@ describe('confirmOpenExternalLink', () => {
     await Promise.resolve();
 
     expect(mocks.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+function makeTaskView() {
+  return {
+    paneLayout: { open: vi.fn() },
+    setFocusedRegion: vi.fn(),
+  };
+}
+
+function activateTaskView() {
+  const taskView = makeTaskView();
+  mocks.navigationRef.viewId = 'task';
+  mocks.navigationRef.params = { projectId: 'project-1', taskId: 'task-1' };
+  mocks.getTaskComposition.mockReturnValue(taskView);
+  return taskView;
+}
+
+describe('openLinkInEmdashBrowser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.navigationRef.viewId = 'home';
+    mocks.navigationRef.params = {};
+    mocks.getTaskComposition.mockReturnValue(undefined);
+  });
+
+  it('opens a browser pane in the active task and focuses it', () => {
+    const taskView = activateTaskView();
+
+    expect(openLinkInEmdashBrowser('https://example.com/docs).')).toBe(true);
+
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {
+      initialUrl: 'https://example.com/docs',
+    });
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+    expect(mocks.openModal).not.toHaveBeenCalled();
+  });
+
+  it('returns false outside a task view', () => {
+    expect(openLinkInEmdashBrowser('https://example.com/docs')).toBe(false);
+    expect(mocks.openModal).not.toHaveBeenCalled();
+  });
+
+  it('returns false when the task has no composition yet', () => {
+    mocks.navigationRef.viewId = 'task';
+    mocks.navigationRef.params = { projectId: 'project-1', taskId: 'task-1' };
+    mocks.getTaskComposition.mockReturnValue(undefined);
+
+    expect(openLinkInEmdashBrowser('https://example.com/docs')).toBe(false);
+  });
+
+  it('ignores non-http links', () => {
+    const taskView = activateTaskView();
+
+    expect(openLinkInEmdashBrowser('file:///etc/passwd')).toBe(false);
+    expect(taskView.paneLayout.open).not.toHaveBeenCalled();
+  });
+});
+
+describe('openExternalLinkFromMouseEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.navigationRef.viewId = 'home';
+    mocks.navigationRef.params = {};
+    mocks.getTaskComposition.mockReturnValue(undefined);
+    mocks.openModal.mockResolvedValue({
+      success: false,
+      error: { type: 'modal_dismissed', reason: 'explicit' },
+    });
+  });
+
+  it('opens in the Emdash browser without a dialog on option-click', () => {
+    const taskView = activateTaskView();
+
+    openExternalLinkFromMouseEvent({ altKey: true }, 'https://example.com/docs');
+
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {
+      initialUrl: 'https://example.com/docs',
+    });
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+    expect(mocks.openModal).not.toHaveBeenCalled();
+  });
+
+  it('shows the dialog on a plain click even inside a task', () => {
+    const taskView = activateTaskView();
+
+    openExternalLinkFromMouseEvent({ altKey: false }, 'https://example.com/docs');
+
+    expect(taskView.paneLayout.open).not.toHaveBeenCalled();
+    expect(mocks.openModal).toHaveBeenCalledTimes(1);
+    expect(getModalArgs().url).toBe('https://example.com/docs');
+  });
+
+  it('falls back to the dialog on option-click when no task view can host a pane', () => {
+    openExternalLinkFromMouseEvent({ altKey: true }, 'https://example.com/docs');
+
+    expect(mocks.openModal).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards open errors from the dialog path', async () => {
+    const onError = vi.fn();
+    const failure = new Error('shell unavailable');
+    mocks.openModal.mockResolvedValue({ success: true, data: 'external-browser' });
+    mocks.openExternal.mockRejectedValue(failure);
+
+    openExternalLinkFromMouseEvent({ altKey: false }, 'https://example.com/docs', onError);
+
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(failure);
+    });
   });
 });
