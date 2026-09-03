@@ -86,7 +86,7 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
       className={cn('flex h-9 shrink-0 items-center gap-1 overflow-hidden pr-2 text-sm', className)}
     >
       <div
-        className="flex h-full min-w-0 flex-1 items-center overflow-x-auto"
+        className="flex h-full min-w-32 flex-1 items-center overflow-x-auto"
         role="tablist"
         aria-label="Terminals"
       >
@@ -142,7 +142,11 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
       {scripts.length > 0 && (
         <>
           <div className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-          <div className="flex h-full shrink-0 items-center" role="tablist" aria-label="Scripts">
+          <div
+            className="flex h-full min-w-0 items-center overflow-x-auto"
+            role="tablist"
+            aria-label="Scripts"
+          >
             {scripts.map((script) => (
               <DrawerItemTab
                 key={script.data.id}
