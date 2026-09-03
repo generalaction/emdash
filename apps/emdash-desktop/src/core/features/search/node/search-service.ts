@@ -86,6 +86,7 @@ export class SearchService {
     this.deps.tasks.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
+    projectEvents.on('project:renamed', (projectId, name) => this.renameProject(projectId, name));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
 
     conversationEvents.on('conversation:created', (conversation) =>
@@ -366,6 +367,16 @@ export class SearchService {
         projectId: project.id,
         error: String(e),
       });
+    }
+  }
+
+  private renameProject(projectId: string, name: string): void {
+    try {
+      this.deps.sqlite
+        .prepare(`UPDATE search_index SET title = ? WHERE item_type = 'project' AND item_id = ?`)
+        .run(name, projectId);
+    } catch (e) {
+      log.warn('SearchService: renameProject failed', { projectId, error: String(e) });
     }
   }
 

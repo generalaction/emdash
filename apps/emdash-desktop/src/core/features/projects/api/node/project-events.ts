@@ -4,6 +4,7 @@ import type { Project } from '@core/primitives/projects/api';
 
 export type ProjectCrudHooks = {
   'project:created': (project: Project) => void | Promise<void>;
+  'project:renamed': (projectId: string, name: string) => void | Promise<void>;
   'project:deleted': (projectId: string) => void | Promise<void>;
 };
 

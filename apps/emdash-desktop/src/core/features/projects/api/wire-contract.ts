@@ -188,6 +188,10 @@ export const projectsWireContract = defineContract({
     input: z.object({ projectId: z.string(), connectionId: z.string() }),
     output: z.void(),
   }),
+  renameProject: procedure({
+    input: z.object({ projectId: z.string(), name: z.string().min(1) }),
+    output: z.void(),
+  }),
   recoverAttachment: procedure({
     input: projectIdInputSchema,
     output: z.custom<Result<void, ProjectRecoveryRequestError>>(),

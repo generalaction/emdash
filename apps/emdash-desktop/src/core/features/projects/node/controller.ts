@@ -14,6 +14,7 @@ import { deleteProject, type ProjectDeletionDependencies } from './operations/de
 import { ensureDefaultRepositoriesRoot } from './operations/ensure-default-repositories-root';
 import { getProjects } from './operations/getProjects';
 import { initializeRepository } from './operations/initialize-repository';
+import { renameProject } from './operations/renameProject';
 import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
@@ -58,5 +59,6 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       countProjectsUsingGithubAccount(db, accountId),
     updateProjectConnection: (projectId: string, connectionId: string) =>
       updateProjectConnection(db, dependencies.runtimes, projects, projectId, connectionId),
+    renameProject: (projectId: string, name: string) => renameProject(db, projectId, name),
   };
 }

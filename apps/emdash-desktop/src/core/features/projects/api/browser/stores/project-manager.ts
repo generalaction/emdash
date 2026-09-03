@@ -638,6 +638,16 @@ export class ProjectManagerStore {
     }
   }
 
+  async renameProject(projectId: string, name: string): Promise<void> {
+    await (await getProjectsWireClient()).renameProject({ projectId, name });
+    const store = this.projects.get(projectId);
+    const data = store?.data;
+    if (!store || !data) return;
+    runInAction(() => {
+      store.updateData({ ...data, name });
+    });
+  }
+
   async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
     await (
       await getProjectsWireClient()

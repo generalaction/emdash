@@ -6,6 +6,7 @@ import { createController } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { projectEvents } from '@core/features/projects/api/node/project-events';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { contentSearchRuntimeContract } from '../api';
@@ -137,6 +138,51 @@ describe('SearchService runtime file search', () => {
 });
 
 describe('SearchService palette entity search', () => {
+  it('re-titles an indexed project when it is renamed', async () => {
+    const sqlite = new Database(':memory:');
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE search_index USING fts5(
+        item_type,
+        item_id UNINDEXED,
+        project_id UNINDEXED,
+        task_id UNINDEXED,
+        title,
+        keywords,
+        tokenize = 'trigram case_sensitive 0'
+      );
+      INSERT INTO search_index VALUES
+        ('project', 'project-1', NULL, NULL, 'Old project', '/repo/old');
+    `);
+    const service = createSearchService({
+      db: {} as never,
+      sqlite,
+      acquireWorkspaceRuntime: mocks.workspaceGet,
+      searchFileSearchRoot: mocks.fileSearch,
+      getSearchExclusions: mocks.getSearchExclusions,
+      tasks: { on: vi.fn() } as never,
+    });
+
+    try {
+      service.initialize();
+      const onRenamed = vi
+        .mocked(projectEvents.on)
+        .mock.calls.find(([name]) => name === 'project:renamed')?.[1] as
+        | ((projectId: string, name: string) => void)
+        | undefined;
+      expect(onRenamed).toBeDefined();
+      onRenamed?.('project-1', 'Fresh project');
+
+      await expect(
+        service.searchEntities({ kind: 'project', query: 'fresh', context: {} })
+      ).resolves.toEqual([expect.objectContaining({ id: 'project-1', title: 'Fresh project' })]);
+      await expect(
+        service.searchEntities({ kind: 'project', query: 'old project', context: {} })
+      ).resolves.toEqual([]);
+    } finally {
+      sqlite.close();
+    }
+  });
+
   it('returns kind-filtered candidates for one-character queries', async () => {
     const sqlite = new Database(':memory:');
     sqlite.exec(`
