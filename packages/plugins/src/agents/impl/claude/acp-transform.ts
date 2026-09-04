@@ -33,6 +33,10 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
   }
 
   if (update.kind !== 'tool_call' && update.kind !== 'tool_update') return update;
+  const normalizedUpdate =
+    update.kind === 'tool_update' && isCommandDescriptionEcho(update, raw)
+      ? withoutOutputText(update)
+      : update;
 
   const parentToolUseId = (
     raw._meta as { claudeCode?: { parentToolUseId?: unknown } } | null | undefined
@@ -41,7 +45,7 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
   const parentPatch =
     typeof parentToolUseId === 'string' ? { parentToolCallId: parentToolUseId } : {};
   const outputPatch =
-    update.outputText === undefined && rawOutputText(raw) !== undefined
+    normalizedUpdate.outputText === undefined && rawOutputText(raw) !== undefined
       ? { outputText: rawOutputText(raw)! }
       : {};
 
@@ -49,10 +53,10 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
     const asyncLaunch = parseAsyncLaunch(raw);
     return {
       kind: 'subagent',
-      toolCallId: update.toolCallId,
-      title: asyncLaunch?.description ?? update.title ?? 'Agent',
-      status: asyncLaunch ? 'in_progress' : update.status,
-      parentToolCallId: parentPatch.parentToolCallId ?? update.parentToolCallId,
+      toolCallId: normalizedUpdate.toolCallId,
+      title: asyncLaunch?.description ?? normalizedUpdate.title ?? 'Agent',
+      status: asyncLaunch ? 'in_progress' : normalizedUpdate.status,
+      parentToolCallId: parentPatch.parentToolCallId ?? normalizedUpdate.parentToolCallId,
       inputSummary: agentInputSummary(raw),
       ...(asyncLaunch ? { background: true } : {}),
       ...(asyncLaunch?.agentId !== undefined ? { agentId: asyncLaunch.agentId } : {}),
@@ -60,8 +64,9 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
     };
   }
 
-  if (!parentPatch.parentToolCallId && outputPatch.outputText === undefined) return update;
-  return { ...update, ...parentPatch, ...outputPatch };
+  if (!parentPatch.parentToolCallId && outputPatch.outputText === undefined)
+    return normalizedUpdate;
+  return { ...normalizedUpdate, ...parentPatch, ...outputPatch };
 }
 
 type ClaudeMeta = {
@@ -98,6 +103,49 @@ function claudeToolName(raw: SessionUpdate): string | null {
 function agentInputSummary(raw: SessionUpdate): string | undefined {
   const input = (raw as { rawInput?: { description?: unknown } }).rawInput;
   return typeof input?.description === 'string' ? input.description : undefined;
+}
+
+function isCommandDescriptionEcho(
+  update: Extract<NormalizedEvent, { kind: 'tool_update' }>,
+  raw: SessionUpdate
+): boolean {
+  if (raw.sessionUpdate !== 'tool_call_update') return false;
+  const rawUpdate = raw as unknown as {
+    title?: unknown;
+    kind?: unknown;
+    content?: unknown;
+    rawInput?: { command?: unknown; description?: unknown } | null;
+    rawOutput?: unknown;
+  };
+  const command = rawUpdate.rawInput?.command;
+  const description = rawUpdate.rawInput?.description;
+  return (
+    rawUpdate.kind === 'execute' &&
+    typeof command === 'string' &&
+    typeof description === 'string' &&
+    rawUpdate.title === command &&
+    rawUpdate.rawOutput == null &&
+    singleTextContent(rawUpdate.content) === description &&
+    update.inputSummary === description &&
+    update.outputText === description
+  );
+}
+
+function singleTextContent(content: unknown): string | undefined {
+  if (!Array.isArray(content) || content.length !== 1) return undefined;
+  const block = content[0] as { type?: unknown; content?: unknown };
+  if (block.type !== 'content' || !block.content || typeof block.content !== 'object')
+    return undefined;
+  const payload = block.content as { type?: unknown; text?: unknown };
+  return payload.type === 'text' && typeof payload.text === 'string' ? payload.text : undefined;
+}
+
+function withoutOutputText(
+  update: Extract<NormalizedEvent, { kind: 'tool_update' }>
+): Extract<NormalizedEvent, { kind: 'tool_update' }> {
+  const result = { ...update };
+  delete result.outputText;
+  return result;
 }
 
 function parseAsyncLaunch(raw: SessionUpdate): AsyncLaunch | null {

@@ -402,10 +402,10 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
-  it('adopts a description that only arrives on a later tool_call_update', () => {
-    // Claude Code's ACP adapter opens Bash calls with title "Terminal" and an
-    // empty rawInput, then sends the command + description on the next update,
-    // echoing the description as a text content block.
+  it('preserves matching description and content text for provider enrichment', () => {
+    // The baseline decoder is provider-neutral and must preserve content even
+    // when it matches a description. Provider enrichment can classify a known
+    // adapter-specific description echo without risking legitimate output.
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'what branch am I on'));
     p.push({
@@ -430,9 +430,9 @@ describe('AcpTranscriptParser', () => {
     expect(item).toMatchObject({
       command: 'git rev-parse --abbrev-ref HEAD',
       inputSummary: 'Get current branch name',
+      outputText: 'Get current branch name',
       status: 'running',
     });
-    expect(item).not.toHaveProperty('outputText');
   });
 
   it('passes through standard terminalId on execute tool updates', () => {

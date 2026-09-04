@@ -148,10 +148,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
 
     case 'tool_call_update': {
       const inputSummary = extractInputSummary(update);
-      const contentText = extractTextOutput(update.content ?? undefined);
-      // Some adapters echo the description as a content block on the update
-      // that carries the command; that is a label, not command output.
-      const outputText = contentText === inputSummary ? undefined : contentText;
+      const outputText = extractTextOutput(update.content ?? undefined);
       const terminalId = extractTerminalId(update);
       return {
         kind: 'tool_update',
