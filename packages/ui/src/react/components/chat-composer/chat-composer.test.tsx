@@ -13,6 +13,29 @@ import { ChatComposer } from './index';
 afterEach(cleanup);
 
 describe('ChatComposer', () => {
+  it('shows the selected effort beside the model and keeps the MCP trigger compact', () => {
+    const { container, getByRole } = render(
+      <ChatComposer
+        modelOptions={{ 'gpt-5.6-sol': { name: 'GPT-5.6-Sol' } }}
+        selectedModel="gpt-5.6-sol"
+        onModelChange={() => {}}
+        effortOptions={{ high: { name: 'High' } }}
+        selectedEffort="high"
+        onEffortChange={() => {}}
+        mcpServers={[
+          { name: 'Filesystem', transport: 'stdio' },
+          { name: 'GitHub', transport: 'http' },
+        ]}
+        onSubmit={() => {}}
+      />
+    );
+
+    const modelTrigger = container.querySelector('[data-slot="combobox-trigger"]');
+    expect(modelTrigger?.textContent).toBe('GPT-5.6-Sol High');
+    const mcpTrigger = getByRole('button', { name: '2 session MCP servers' });
+    expect(mcpTrigger.textContent).toBe('2');
+  });
+
   it('caps the permission-mode popup at its compact width', async () => {
     render(
       <ChatComposer

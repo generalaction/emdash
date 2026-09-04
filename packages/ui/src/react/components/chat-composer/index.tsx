@@ -1013,6 +1013,12 @@ export function ChatComposer({
                       }}
                     >
                       {selected?.name ?? 'Model…'}
+                      {selected && selectedEffortItem ? (
+                        <span className={styles.selectedModelEffort}>
+                          {' '}
+                          {selectedEffortItem.name}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 )}
@@ -1096,9 +1102,15 @@ export function ChatComposer({
             )}
             {mcpServers.length > 0 && (
               <Popover.Root>
-                <Popover.Trigger className={styles.mcpTrigger} disabled={disabled}>
+                <Popover.Trigger
+                  className={styles.mcpTrigger}
+                  disabled={disabled}
+                  aria-label={`${mcpServers.length} session MCP ${
+                    mcpServers.length === 1 ? 'server' : 'servers'
+                  }`}
+                >
                   <McpIcon size={12} />
-                  MCP {mcpServers.length}
+                  {mcpServers.length}
                 </Popover.Trigger>
                 <Popover.Content
                   align="start"
