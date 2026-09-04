@@ -26,15 +26,9 @@ import type {
   ToolNode,
   ToolStatus,
 } from '../models/turns';
-import {
-  makeDiffId,
-  makeMessageId,
-  makePlanId,
-  makeThinkingId,
-  makeToolGroupId,
-  makeToolId,
-} from './ids';
+import { makeDiffId, makeMessageId, makePlanId, makeThinkingId, makeToolId } from './ids';
 import type { NormalizedDiff, NormalizedEvent, NormalizedToolStatus } from './normalized-event';
+import { toolRunStatus, wrapToolRuns } from './tool-runs';
 
 export type FoldEvent =
   | Exclude<NormalizedEvent, { kind: 'message' | 'thinking' }>
@@ -504,51 +498,6 @@ function upsertPlanToolCall(
   return [...items, next];
 }
 
-function nodeStatus(node: ToolNode): ToolStatus {
-  return node.status;
-}
-
-function readGroupStatus(children: ToolNode[]): ToolStatus {
-  if (children.some((child) => nodeStatus(child) === 'running')) return 'running';
-  if (children.some((child) => nodeStatus(child) === 'error')) return 'error';
-  return 'done';
-}
-
-function wrapReadGroups<T extends TranscriptItem | ToolNode>(items: T[]): Array<T | ToolGroup> {
-  const result: Array<T | ToolGroup> = [];
-  for (let i = 0; i < items.length; ) {
-    const item = items[i];
-    if (item.kind !== 'read-tool-call') {
-      result.push(item);
-      i += 1;
-      continue;
-    }
-
-    const run: ToolNode[] = [item];
-    let j = i + 1;
-    while (j < items.length && items[j].kind === 'read-tool-call') {
-      run.push(items[j] as ToolNode);
-      j += 1;
-    }
-
-    if (run.length > 1) {
-      result.push({
-        kind: 'tool-group',
-        id: makeToolGroupId(run[0].id),
-        seq: run[0].seq,
-        label: `${run.length} file reads`,
-        groupKind: 'read-batch',
-        status: readGroupStatus(run),
-        children: run,
-      });
-    } else {
-      result.push(item);
-    }
-    i = j;
-  }
-  return result;
-}
-
 function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[] {
   const toolById = new Map<string, ToolCallItem>();
   const childrenByParent = new Map<string, ToolCallItem[]>();
@@ -581,7 +530,7 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     const rawChildren = childrenByParent.get(item.id);
     if (!rawChildren?.length) return stripChildren(item);
 
-    const children = wrapReadGroups(rawChildren.map(attachChildren).sort(compareSeq)) as ToolNode[];
+    const children = wrapToolRuns(rawChildren.map(attachChildren).sort(compareSeq)) as ToolNode[];
     return { ...stripChildren(item), children };
   };
 
@@ -589,7 +538,7 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     (item): TranscriptItem => (isToolCallItem(item) ? attachChildren(item) : item)
   );
 
-  return wrapReadGroups(attached.sort(compareSeq)) as TranscriptItem[];
+  return wrapToolRuns(attached.sort(compareSeq)) as TranscriptItem[];
 }
 
 function normalizeToolStructure(items: TranscriptItem[], turnId: string): TranscriptItem[] {
@@ -790,7 +739,7 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
   const finalizeNode = (item: ToolNode): ToolNode => {
     if (isToolGroup(item)) {
       const children = item.children.map(finalizeNode);
-      return { ...item, children, status: readGroupStatus(children) };
+      return { ...item, children, status: toolRunStatus(children) };
     }
 
     const children = item.children?.map(finalizeNode);
