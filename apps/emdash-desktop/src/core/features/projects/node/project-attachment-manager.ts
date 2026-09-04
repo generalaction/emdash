@@ -418,7 +418,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
         return;
       }
       entry.attempt = undefined;
-      entry.project = project;
+      entry.project = currentProject;
       entry.provider = opened.data;
       entry.providerReleased = false;
       uncommittedProvider = undefined;
@@ -553,7 +553,7 @@ function repositoryStatError(project: Project, failure: FsError | RuntimeResolve
 }
 
 function attachmentProjectIdentity(project: Project): string {
-  return [project.id, project.updatedAt, attachmentTargetIdentity(project)].join('\0');
+  return [project.id, project.baseRef ?? '', attachmentTargetIdentity(project)].join('\0');
 }
 
 function attachmentTargetIdentity(project: Project): string {

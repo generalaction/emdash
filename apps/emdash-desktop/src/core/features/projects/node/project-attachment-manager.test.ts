@@ -482,7 +482,7 @@ describe('ProjectAttachmentManager', () => {
     await scope.dispose();
   });
 
-  it('disposes a late Provider when the durable Project revision changed during attachment', async () => {
+  it('keeps a late Provider when only Project display metadata changed during attachment', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const availability = createHostAvailability({
       scope,
@@ -506,6 +506,50 @@ describe('ProjectAttachmentManager', () => {
     await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
     project = {
       ...project,
+      name: 'Renamed Project',
+      updatedAt: '2026-08-13T00:00:01.000Z',
+    };
+
+    opened.resolve(ok(provider));
+
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 1,
+      })
+    );
+    expect(provider.dispose).not.toHaveBeenCalled();
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('disposes a late Provider when the Project base ref changed during attachment', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const open = vi.fn(() => opened.promise);
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => ({ ...project }),
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+    project = {
+      ...project,
+      baseRef: 'develop',
       updatedAt: '2026-08-13T00:00:01.000Z',
     };
 
