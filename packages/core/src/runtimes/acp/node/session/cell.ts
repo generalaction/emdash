@@ -187,7 +187,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionReady' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionLoaded(meta?: {
@@ -195,7 +195,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionLoaded' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionMeta(meta: {
@@ -563,25 +563,33 @@ export class SessionCell {
     }
   }
 
-  private seedTranscriptMeta(meta?: {
-    modes?: SessionModeState | null;
-    configOptions?: readonly SessionConfigOption[] | null;
-  }): void {
-    if (!meta) return;
-    if (meta.configOptions !== undefined) {
+  private seedTranscriptMeta(
+    meta?: {
+      modes?: SessionModeState | null;
+      configOptions?: readonly SessionConfigOption[] | null;
+    },
+    catalogBoundary: 'incremental' | 'complete' = 'incremental'
+  ): void {
+    if (!meta && catalogBoundary === 'incremental') return;
+    const configOptions = meta?.configOptions;
+    const modes = meta?.modes;
+    const completesCatalog =
+      configOptions !== undefined ||
+      (catalogBoundary === 'complete' && this.configCatalogState === 'pending');
+    if (completesCatalog) {
       this.transcript.pushEvent({
         kind: 'config',
-        options: meta.configOptions ?? [],
+        options: configOptions ?? [],
       });
       this.configCatalogState = 'ready';
     }
-    if (meta.modes?.currentModeId) {
+    if (modes?.currentModeId) {
       this.transcript.pushEvent({
         kind: 'mode_selected',
-        modeId: meta.modes.currentModeId,
+        modeId: modes.currentModeId,
       });
     }
-    if (meta.configOptions !== undefined || meta.modes?.currentModeId) {
+    if (completesCatalog || modes?.currentModeId) {
       this.emitTranscriptChanged();
     }
   }

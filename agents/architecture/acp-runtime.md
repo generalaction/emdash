@@ -137,8 +137,10 @@ queues, permissions, terminals, active turns, plans, and agents.
 While a rematerialized session's provider config catalog is pending, the handle projects the
 retained catalog to avoid transiently removing its controls. A ready catalog atomically replaces
 all retained model, effort, mode, and collaboration-mode groups; explicit empty or unsupported
-groups are authoritative and must not fall back to retained values. Available commands have a
-separate readiness lifecycle and are retained independently while materialization is pending.
+groups are authoritative and must not fall back to retained values. Successful `newSession` and
+`loadSession` handshakes end the pending phase; omitted or null config options produce a ready empty
+catalog. Available commands have a separate readiness lifecycle and are retained independently
+while materialization is pending.
 
 On worker boot, every valid persisted intent is restored only as a lightweight suspended index row;
 the worker never starts a provider from disk. The first desktop `attach` hydrates a handle using a

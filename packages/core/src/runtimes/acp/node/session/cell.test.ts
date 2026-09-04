@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from './cell';
 
-function makeCell(agent = new FakeAcpAgent()) {
+function makePendingCell(agent = new FakeAcpAgent()) {
   const cell = new SessionCell({
     conversationId: 'conv-1',
     providerId: 'claude',
@@ -14,8 +14,14 @@ function makeCell(agent = new FakeAcpAgent()) {
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
   });
-  cell.applySessionReady();
   return { cell, agent };
+}
+
+function makeCell(agent = new FakeAcpAgent()) {
+  const result = makePendingCell(agent);
+  const { cell } = result;
+  cell.applySessionReady();
+  return result;
 }
 
 describe('SessionCell prompts', () => {
@@ -144,11 +150,11 @@ describe('SessionCell permissions', () => {
 
 describe('SessionCell config options', () => {
   it('distinguishes a pending config catalog from an authoritative empty catalog', () => {
-    const { cell } = makeCell();
+    const { cell } = makePendingCell();
 
     expect(cell.configCatalog).toEqual({ kind: 'pending' });
 
-    cell.applySessionMeta({ configOptions: [] });
+    cell.applySessionReady();
 
     expect(cell.configCatalog).toEqual({
       kind: 'ready',
