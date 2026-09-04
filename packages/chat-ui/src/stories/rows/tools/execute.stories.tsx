@@ -3,7 +3,7 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { ChatHost, ChatHostExpanded, ScriptedChat } from '@/stories/_harness/chat-host';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamExecute } from '@/stories/_harness/streaming/scenario';
 
@@ -97,6 +97,49 @@ export const Done: Story = {
   ),
 };
 
+/** Finished command with a provider description: folds to a single header line. */
+export const DoneCompactWithDescription: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-compact-desc',
+          inputSummary: 'Show working tree status',
+          command: 'git status',
+          outputLines: ['On branch main', 'nothing to commit, working tree clean'],
+          status: 'done',
+          startedAt: Date.now() - 900,
+          durationMs: 900,
+        },
+      ]}
+      height={120}
+    />
+  ),
+};
+
+/** Same row expanded: the header keeps the description, the body shows command and output. */
+export const DoneExpandedWithDescription: Story = {
+  render: () => (
+    <ChatHostExpanded
+      expandId="ex-expanded-desc"
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-expanded-desc',
+          inputSummary: 'Show working tree status',
+          command: 'git status',
+          outputLines: ['On branch main', 'nothing to commit, working tree clean'],
+          status: 'done',
+          startedAt: Date.now() - 900,
+          durationMs: 900,
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
 /** Duration omitted — e.g. when replaying from a stored transcript with no durationMs. */
 export const DoneNoDuration: Story = {
   render: () => (
@@ -155,7 +198,7 @@ export const LongCommand: Story = {
 
 /**
  * Multi-line command — exercises:
- *  - Collapsed cap (3 lines with fade overlay).
+ *  - Header-only collapsed state showing the first command line.
  *  - Click to expand (up to expandedMaxLines = 16, then scrollable).
  *  - Bash syntax highlighting across multiple statements.
  */

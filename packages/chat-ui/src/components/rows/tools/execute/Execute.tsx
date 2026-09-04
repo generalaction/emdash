@@ -4,14 +4,16 @@
  * Renders ACP `kind: 'execute'` tool calls as a collapsible card:
  *
  *   ┌─────────────────────────────────────┐
- *   │  Execute                          › │  ← header (CollapsibleCard primitive)
+ *   │  Install dependencies             › │  ← header: description, else command
  *   ├─────────────────────────────────────┤
- *   │  pnpm run build --filter=...        │  ← body: mono, bash-highlighted
+ *   │  $ pnpm install                     │  ← body: mono, bash-highlighted
  *   │  ...                                │    clamped to collapsedMaxLines or
  *   └─────────────────────────────────────┘    expandedMaxLines with overflow scroll
  *
  * Header + card shell are provided by CollapsibleCard.
- * Body:   collapsed = clamped height + fade overlay; expanded = scrollable.
+ * Body:   collapsed = hidden (header-only row, in every status);
+ *         expanded  = command + output, clamped to expandedMaxLines with
+ *                     overflow scroll.
  */
 
 import { useCaches } from '@components/contexts/CachesContext';

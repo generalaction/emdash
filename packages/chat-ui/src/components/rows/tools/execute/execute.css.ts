@@ -15,6 +15,18 @@ globalStyle(`${executeBody}::-webkit-scrollbar`, {
   height: 'var(--execute-scrollbar-size)',
 });
 
+// ── Header ────────────────────────────────────────────────────────────────────
+
+/** Header title when it shows the command itself (no provider description). */
+export const executeHeaderCommand = style({
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: vars.typeCodeFontSize,
+  fontFamily: vars.typeCodeFontFamily,
+});
+
 // ── Line ──────────────────────────────────────────────────────────────────────
 
 export const executeLine = style({
