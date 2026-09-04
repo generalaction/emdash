@@ -14,7 +14,6 @@ import {
   thinkingUnitDef,
 } from './thinking.def';
 import { thinkingCardVars, thinkingGroupChild, thinkingRoot } from './thinking.css';
-import { sx } from '@styles/sprinkles.css';
 
 type ThinkingGroupVars = {
   childGap: number;
@@ -122,7 +121,7 @@ function ThinkingGroupRender(props: {
 
   return (
     <div
-      class={`${sx({ color: 'fgPassive' })} ${thinkingRoot}`}
+      class={thinkingRoot}
       style={assignInlineVars(thinkingCardVars, pxTokens({ height: totalH() }))}
     >
       <ThinkingGroupHeader item={props.data} expanded={isExpanded()} height={hH()} />
@@ -143,6 +142,7 @@ export const thinkingGroupUnitDef = defineUnit<ThinkingGroupItem, ThinkingGroupV
   kind: 'thinking-group',
   margin: { top: 6, bottom: 6 },
   vars: THINKING_GROUP_VARS,
+  collapseIds: (item) => [item.id, ...item.steps.map((step) => step.id)],
 
   estimate(item, ctx, vars): number {
     const height = headerH(ctx);

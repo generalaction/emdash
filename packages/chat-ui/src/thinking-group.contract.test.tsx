@@ -118,6 +118,35 @@ describe('thinking group contract', () => {
     expect(host.textContent).toContain('First I inspected the transcript reducer');
   });
 
+  it('animates an individual child disclosure through the enclosing unit row', async () => {
+    const { header, host } = await mountThinkingGroup();
+    const clip = header.parentElement?.parentElement as HTMLElement | undefined;
+    header.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await nextPaint();
+    expect(clip?.style.height).toBe('auto');
+
+    host.querySelector<HTMLElement>('[data-collapse-id="thinking-1"]')?.click();
+    await nextPaint();
+
+    expect(clip?.style.overflow).toBe('hidden');
+    expect(clip?.style.height).not.toBe('auto');
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await nextPaint();
+    expect(clip?.style.height).toBe('auto');
+
+    host.querySelector<HTMLElement>('[data-collapse-id="thinking-1"]')?.click();
+    await nextPaint();
+    expect(clip?.style.overflow).toBe('hidden');
+    expect(host.textContent).toContain('First I inspected the transcript reducer');
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await nextPaint();
+    expect(clip?.style.height).toBe('auto');
+    expect(host.textContent).not.toContain('First I inspected the transcript reducer');
+  });
+
   it('shows the active step preview only after revealing the child rows', async () => {
     const { header, host } = await mountThinkingGroup('thinking');
 

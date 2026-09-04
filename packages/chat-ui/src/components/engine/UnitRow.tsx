@@ -179,18 +179,38 @@ export function UnitRow(props: UnitRowProps) {
   // change `logicalReserved` too, but must SNAP — otherwise the reserved height
   // animates during initial layout and the scrollbar jumps.
   //
-  // We detect a real toggle by comparing the row's expand signature to the value
-  // captured at the previous target change. `shouldAnimate` is invoked untracked
-  // exactly once per target change so lastExpandSig stays in lockstep.
+  // We detect a real toggle by comparing every disclosure id declared by the
+  // unit to the state captured at the previous target change. `shouldAnimate`
+  // is invoked untracked exactly once per target change so the snapshot stays
+  // in lockstep. Composite units can declare nested ids through collapseIds.
   // Inverted semantics throughout: `isCollapsed(id) === true` means "expanded".
-  const rowExpanded = (): boolean =>
-    props.viewState.isCollapsed(props.unit.itemId) || props.expandedId === props.unit.itemId;
+  const expansionState = (): Array<{ id: string; expanded: boolean }> => {
+    const ids = def()?.collapseIds?.(props.unit.data) ?? [props.unit.itemId];
+    return ids.map((id) => ({
+      id,
+      expanded: props.viewState.isCollapsed(id) || props.expandedId === id,
+    }));
+  };
 
-  let lastExpandSig = untrack(rowExpanded);
+  let previousExpansionState = untrack(expansionState);
+  let heldExpandedIds = new Set<string>();
   const shouldAnimate = (): boolean => {
-    const cur = rowExpanded();
-    const changed = cur !== lastExpandSig;
-    lastExpandSig = cur;
+    const current = expansionState();
+    const previous = new Map(previousExpansionState.map(({ id, expanded }) => [id, expanded]));
+    const changed = current.some(
+      ({ id, expanded }) => previous.has(id) && previous.get(id) !== expanded
+    );
+    if (changed) {
+      // Keep this set intact across follow-up measurement passes during the
+      // same tween. Those passes are not disclosure transitions and must not
+      // unmount collapsing content early.
+      heldExpandedIds = new Set(
+        current
+          .filter(({ id, expanded }) => previous.get(id) === true && !expanded)
+          .map(({ id }) => id)
+      );
+    }
+    previousExpansionState = current;
     return changed;
   };
 
@@ -269,7 +289,7 @@ export function UnitRow(props: UnitRowProps) {
   // so def.Render keeps rendering the expanded state.
   const displayViewState = {
     isCollapsed: (id: string): boolean => {
-      if (collapsing() && id === rowItemId()) {
+      if (collapsing() && heldExpandedIds.has(id)) {
         // Inverted semantics in use throughout: "collapsed" flag = "expanded"
         // So returning true = "expanded" = keep the expanded content mounted.
         return true;
@@ -288,7 +308,7 @@ export function UnitRow(props: UnitRowProps) {
     measureEpoch: props.measureEpoch,
     // While collapsing a user-message card: hold expandedId so the expanded
     // render is kept alive during the tween.
-    expandedId: collapsing() ? rowItemId() : props.expandedId,
+    expandedId: collapsing() && heldExpandedIds.has(rowItemId()) ? rowItemId() : props.expandedId,
   });
 
   // ── Animated clip ─────────────────────────────────────────────────────────
