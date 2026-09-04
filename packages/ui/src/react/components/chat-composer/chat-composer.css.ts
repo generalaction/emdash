@@ -206,10 +206,15 @@ export const permissionModeTrigger = style({
   paddingRight: '0.1875rem',
 });
 
+export const selectedModelEffort = style({
+  color: vars.foregroundMuted,
+});
+
 export const mcpTrigger = style([
   svgContainer,
   {
     display: 'inline-flex',
+    height: '1.75rem',
     alignItems: 'center',
     gap: '0.25rem',
     borderRadius: tokenVars.radiusMd,
