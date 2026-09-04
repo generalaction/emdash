@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   navigationNavigate: vi.fn(),
   taskListLoad: vi.fn(),
   taskProvision: vi.fn(),
+  renameProject: vi.fn(),
   updateProjectConnection: vi.fn(),
   updateProjectSettings: vi.fn(),
 }));
@@ -237,6 +238,7 @@ function createProjectWire() {
         error: { type: 'unused', message: 'unused' },
       }),
     },
+    renameProject: (input: unknown) => mocks.renameProject(input),
     updateProjectConnection: (input: unknown) => mocks.updateProjectConnection(input),
     updateProjectSettings: (input: unknown) => mocks.updateProjectSettings(input),
     delete: (input: unknown) => mocks.projectWireDelete(input),
@@ -304,6 +306,7 @@ describe('ProjectManagerStore project creation', () => {
     mocks.mementoSubjectRelease.mockResolvedValue(undefined);
     mocks.taskListLoad.mockResolvedValue(undefined);
     mocks.taskProvision.mockResolvedValue(undefined);
+    mocks.renameProject.mockResolvedValue(undefined);
     mocks.updateProjectConnection.mockResolvedValue(undefined);
     mocks.projectWireProgressCallbacks.length = 0;
     mocks.projectWireCancel.mockResolvedValue(undefined);
@@ -825,6 +828,38 @@ describe('ProjectManagerStore project creation', () => {
     expect(projectStore.context).toEqual({ kind: 'available', context });
     expect(context.project).toBe(record);
     expect(record.type === 'ssh' ? record.connectionId : null).toBe('ssh-2');
+  });
+
+  it('renames a project in place without replacing its store or context', async () => {
+    const project = sshProject();
+    projectListState.set({ projects: [project] });
+    const store = new ProjectManagerStore();
+    await store.load();
+    await vi.waitFor(() => expect(store.projects.get(project.id)?.context?.kind).toBe('available'));
+    const projectStore = store.projects.get(project.id)!;
+    const lifecycle = projectStore.context;
+    if (lifecycle?.kind !== 'available') throw new Error('Expected available context');
+    const record = lifecycle.context.project;
+
+    await store.renameProject(project.id, 'Renamed');
+
+    expect(mocks.renameProject).toHaveBeenCalledWith({ projectId: project.id, name: 'Renamed' });
+    expect(store.projects.get(project.id)).toBe(projectStore);
+    expect(projectStore.name).toBe('Renamed');
+    expect(projectStore.data?.name).toBe('Renamed');
+    expect(lifecycle.context.project).toBe(record);
+    expect(record.name).toBe('Renamed');
+  });
+
+  it('leaves the store untouched when the rename request fails', async () => {
+    const project = sshProject();
+    projectListState.set({ projects: [project] });
+    const store = new ProjectManagerStore();
+    await store.load();
+    mocks.renameProject.mockRejectedValueOnce(new Error('Project not found'));
+
+    await expect(store.renameProject(project.id, 'Renamed')).rejects.toThrow('Project not found');
+    expect(store.projects.get(project.id)?.name).toBe(project.name);
   });
 
   it('inspects the final clone path instead of the parent directory', async () => {

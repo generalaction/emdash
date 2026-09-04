@@ -8,6 +8,7 @@ import {
   FolderOpen,
   GithubIcon,
   Globe,
+  Pencil,
   Trash2,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -18,6 +19,7 @@ import {
 import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 
@@ -26,6 +28,7 @@ export const ProjectHeader = observer(function ProjectHeader({ projectId }: { pr
   const project = store?.data;
   const displayName = projectDisplayName(store) ?? 'this project';
   const confirmDeleteProject = useConfirmDeleteProject();
+  const openRename = useOpenModal('renameProjectModal');
   const repositoryStore = getGitRepositoryStore(projectId);
   const baseRemoteUrl = repositoryStore?.baseRemote?.url;
   const repository = parseRepositoryRef(repositoryStore?.canonicalRepositoryUrl);
@@ -97,6 +100,15 @@ export const ProjectHeader = observer(function ProjectHeader({ projectId }: { pr
               <EllipsisIcon />
             </DropdownMenu.Trigger>
             <DropdownMenu.Content align="end">
+              <DropdownMenu.Item
+                onClick={() => {
+                  void openRename({ projectId, currentName: displayName });
+                }}
+              >
+                <Pencil />
+                Rename Project
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
               <DropdownMenu.Item
                 variant="destructive"
                 onClick={() => {

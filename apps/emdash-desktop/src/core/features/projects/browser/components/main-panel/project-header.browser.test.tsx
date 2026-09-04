@@ -6,6 +6,7 @@ import { ProjectHeader } from './project-header';
 const mocks = vi.hoisted(() => ({
   confirmDeleteProject: vi.fn(),
   openExternal: vi.fn(),
+  openRenameProject: vi.fn(),
 }));
 
 const state = vi.hoisted(() => ({
@@ -29,6 +30,10 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
 
 vi.mock('@core/features/projects/contributions/browser/use-confirm-delete-project', () => ({
   useConfirmDeleteProject: () => mocks.confirmDeleteProject,
+}));
+
+vi.mock('@core/manifests/browser/modal-api', () => ({
+  useOpenModal: () => mocks.openRenameProject,
 }));
 
 vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
@@ -75,6 +80,7 @@ describe('ProjectHeader', () => {
   beforeEach(() => {
     mocks.confirmDeleteProject.mockReset();
     mocks.openExternal.mockReset();
+    mocks.openRenameProject.mockReset();
     state.project.type = 'local';
     state.project.connectionId = undefined;
     host = document.createElement('div');
@@ -116,6 +122,23 @@ describe('ProjectHeader', () => {
       projectId: 'project-1',
       projectLabel: 'Emdash',
     });
+  });
+
+  it('opens the rename modal with the current name from the actions menu', async () => {
+    await act(async () => root.render(<ProjectHeader projectId="project-1" />));
+
+    const actions = host.querySelector<HTMLButtonElement>('[aria-label="Project actions"]');
+    await act(async () => actions?.click());
+    const rename = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (item) => item.textContent === 'Rename Project'
+    );
+    expect(rename).not.toBeUndefined();
+    await act(async () => rename?.click());
+    expect(mocks.openRenameProject).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      currentName: 'Emdash',
+    });
+    expect(mocks.confirmDeleteProject).not.toHaveBeenCalled();
   });
 
   it('uses the remote Project icon and SSH Open In target', async () => {
