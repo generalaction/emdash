@@ -31,6 +31,8 @@ export type CollapsibleCardProps = {
   headerH: number;
   /** Whether the card is currently expanded. */
   expanded: boolean;
+  /** Whether body content is visible below the header. */
+  bodyVisible?: boolean;
   /**
    * When true, applies the text-shimmer animation to the header label
    * (use while the item is running / streaming).
@@ -66,6 +68,7 @@ export function CollapsibleCard(props: CollapsibleCardProps) {
         id={props.id}
         height={props.headerH}
         expanded={props.expanded}
+        bodyVisible={props.bodyVisible !== false}
         icon={props.icon}
         title={props.header}
         active={props.active}

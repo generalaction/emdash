@@ -143,9 +143,10 @@ export type ChatFileOpToolCall = {
 /**
  * An execute tool call row — ACP `kind: 'execute'` commands (e.g. Bash).
  *
- * Rendered as a single non-interactive line: "Execute `{command}` {elapsed}s".
- * While running: shimmer + live ticking timer. When done: frozen duration if
- * durationMs is present; duration omitted if data is unavailable (e.g. replay).
+ * Rendered as a collapsible card. The header shows `inputSummary` when the
+ * provider supplied one, otherwise the first command line. The body (command
+ * and output) is hidden until the user expands the row, in every status; a
+ * running row only shimmers its header.
  */
 export type ChatExecute = {
   kind: 'execute';

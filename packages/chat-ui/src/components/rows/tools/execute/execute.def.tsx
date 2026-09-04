@@ -8,7 +8,9 @@ import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
 import { ExecuteBody } from './Execute';
+import { executeHeaderTitle, executeShowsBody } from './execute-layout';
 import { executeLines, maxOutputLineWidth, type ExecuteDisplayLine } from './execute-lines';
+import { executeHeaderCommand } from './execute.css';
 
 export { executeFromItem } from './execute.presenter';
 
@@ -23,8 +25,6 @@ export type ExecuteVars = {
   scrollbarSize: number;
   /** Visual separation between command text and the horizontal scrollbar. */
   scrollbarGap: number;
-  /** Max lines shown in the collapsed (preview) state. */
-  collapsedMaxLines: number;
   /** Max lines shown / scrollable in the expanded state. */
   expandedMaxLines: number;
 };
@@ -35,24 +35,28 @@ const EXECUTE_VARS: ExecuteVars = {
   linePadX: 12,
   scrollbarSize: 8,
   scrollbarGap: 3,
-  collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
 
-/** 3 borders: top card edge + header-separator + bottom card edge. */
-function chromeY(vars: ExecuteVars): number {
-  return 3 * vars.border;
+/**
+ * Vertical chrome. With a body: top card edge + header separator + bottom card
+ * edge. Header-only: the header's own separator is clipped by the card shell,
+ * so only the two card edges count.
+ */
+function chromeY(vars: ExecuteVars, showBody: boolean): number {
+  return (showBody ? 3 : 2) * vars.border;
 }
 
 function executeBodyH(
+  item: ChatExecute,
   lines: ExecuteDisplayLine[],
   codeLineH: number,
   isExpanded: boolean,
   vars: ExecuteVars
 ): { bodyH: number; contentH: number } {
   const contentH = lines.length * codeLineH;
-  const maxLines = isExpanded ? vars.expandedMaxLines : vars.collapsedMaxLines;
-  const cap = maxLines * codeLineH;
+  if (!executeShowsBody(item, isExpanded)) return { bodyH: 0, contentH };
+  const cap = vars.expandedMaxLines * codeLineH;
   const bodyH = Math.min(contentH, cap);
   return { bodyH, contentH };
 }
@@ -115,8 +119,11 @@ function scrollbarSpace(
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
+  const showBody = executeShowsBody(item, isExpanded);
+  if (!showBody) return vars.rowH + chromeY(vars, false);
   const lines = executeLines(item);
   const { bodyH, contentH } = executeBodyH(
+    item,
     lines,
     ctx.theme.fonts.code.lineHeight,
     isExpanded,
@@ -124,7 +131,10 @@ function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): nu
   );
   const hasVerticalOverflow = isExpanded && contentH > bodyH;
   return (
-    vars.rowH + bodyH + scrollbarSpace(item, lines, ctx, vars, hasVerticalOverflow) + chromeY(vars)
+    vars.rowH +
+    bodyH +
+    scrollbarSpace(item, lines, ctx, vars, hasVerticalOverflow) +
+    chromeY(vars, true)
   );
 }
 
@@ -133,26 +143,28 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
+  const showBody = () => executeShowsBody(props.data, isExpanded());
+  const title = createMemo(() => executeHeaderTitle(props.data));
+
   const lines = createMemo(() => executeLines(props.data));
   const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
   const bodyGeometry = createMemo(() => {
     const lineH = codeLineH();
     if (!lineH) return { bodyH: 0, contentH: 0 };
-    return executeBodyH(lines(), lineH, isExpanded(), props.vars);
+    return executeBodyH(props.data, lines(), lineH, isExpanded(), props.vars);
   });
   const showScrollbar = createMemo(() => {
     const ctx = mCtx();
+    if (!ctx || !showBody()) return false;
     const geometry = bodyGeometry();
     const hasVerticalOverflow = isExpanded() && geometry.contentH > geometry.bodyH;
     const verticalScrollbarW = hasVerticalOverflow ? props.vars.scrollbarSize : 0;
-    return ctx
-      ? hasHorizontalOverflow(props.data, lines(), ctx, props.vars, verticalScrollbarW)
-      : false;
+    return hasHorizontalOverflow(props.data, lines(), ctx, props.vars, verticalScrollbarW);
   });
 
   const totalH = createMemo(() => {
     const ctx = mCtx();
-    if (!ctx) return props.vars.rowH + chromeY(props.vars);
+    if (!ctx) return props.vars.rowH + chromeY(props.vars, showBody());
     return executeUnitH(props.data, ctx, props.vars);
   });
 
@@ -163,14 +175,19 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       height={totalH()}
       headerH={props.vars.rowH}
       expanded={isExpanded()}
+      bodyVisible={showBody()}
       active={props.data.status === 'running' && !props.data.awaitingPermission}
       error={props.data.status === 'error'}
       errorTitle={props.data.error}
       awaitingPermission={props.data.awaitingPermission}
       icon={<IconTerminal />}
-      header={props.data.inputSummary || 'Execute'}
+      header={
+        <span classList={{ [executeHeaderCommand]: title().mono }} title={title().text}>
+          {title().text}
+        </span>
+      }
     >
-      <Show when={codeLineH() > 0}>
+      <Show when={showBody() && codeLineH() > 0}>
         <ExecuteBody
           item={props.data}
           lines={lines()}
@@ -193,12 +210,14 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
   vars: EXECUTE_VARS,
 
   estimate(item, ctx, vars): number {
-    // Use the collapsed line cap and current width for stable initial geometry.
-    const lines = executeLines(item);
+    const isExpanded = ctx.expanded(item.id);
+    const showBody = executeShowsBody(item, isExpanded);
+    if (!showBody) return vars.rowH + chromeY(vars, false);
     // Approximate code line height — use a fixed fallback of 20px for estimate.
+    const lines = executeLines(item);
     const approxLineH = 20;
-    const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
-    return vars.rowH + bodyH + scrollbarSpace(item, lines, ctx, vars, false) + chromeY(vars);
+    const { bodyH } = executeBodyH(item, lines, approxLineH, isExpanded, vars);
+    return vars.rowH + bodyH + scrollbarSpace(item, lines, ctx, vars, false) + chromeY(vars, true);
   },
 
   measure(item, ctx, vars): number {
