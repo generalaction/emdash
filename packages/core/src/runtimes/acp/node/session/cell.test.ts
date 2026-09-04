@@ -143,6 +143,24 @@ describe('SessionCell permissions', () => {
 });
 
 describe('SessionCell config options', () => {
+  it('distinguishes a pending config catalog from an authoritative empty catalog', () => {
+    const { cell } = makeCell();
+
+    expect(cell.configCatalog).toEqual({ kind: 'pending' });
+
+    cell.applySessionMeta({ configOptions: [] });
+
+    expect(cell.configCatalog).toEqual({
+      kind: 'ready',
+      config: {
+        modelOptions: null,
+        efforts: null,
+        modeOptions: null,
+        collaborationModeOptions: null,
+      },
+    });
+  });
+
   it('sets mode through the provider config option and seeds the response', async () => {
     const { cell, agent } = makeCell();
     cell.applySessionMeta({

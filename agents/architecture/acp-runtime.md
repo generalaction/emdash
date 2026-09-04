@@ -35,8 +35,9 @@ not mix cross-session routing with per-session state projection.
   lifecycle leak assertions.
   `SessionsListProjector` composes live handle summaries with lightweight suspended-intent rows.
 - `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
-  prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
-  or retained rematerialization descriptor.
+  prompt queue effects, turn quiescence, and whether the provider's config catalog is pending or
+  ready. It does not own the conversation-lifetime projection or retained rematerialization
+  descriptor.
 - The ACP connection source owns provider processes through `createResourceCache`.
   Cache identity includes provider, cwd, and an opaque fingerprint of the requested environment;
   the process route id stays provider/cwd plus generation and can host multiple ACP sessions with
@@ -132,6 +133,12 @@ summaries, usage, and observation time. During one runtime generation, its handl
 move between `closed`, `suspended`, `materializing`, and `active`; suspended and materializing
 projections keep controls visible and prompt submission enabled while clearing activation-local
 queues, permissions, terminals, active turns, plans, and agents.
+
+While a rematerialized session's provider config catalog is pending, the handle projects the
+retained catalog to avoid transiently removing its controls. A ready catalog atomically replaces
+all retained model, effort, mode, and collaboration-mode groups; explicit empty or unsupported
+groups are authoritative and must not fall back to retained values. Available commands have a
+separate readiness lifecycle and are retained independently while materialization is pending.
 
 On worker boot, every valid persisted intent is restored only as a lightweight suspended index row;
 the worker never starts a provider from disk. The first desktop `attach` hydrates a handle using a
