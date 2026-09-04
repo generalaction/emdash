@@ -113,6 +113,7 @@ export type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 /** A single file touched by a file-operation tool call. */
 export type FileOp = {
   path: string;
+  line?: number;
 };
 
 /**

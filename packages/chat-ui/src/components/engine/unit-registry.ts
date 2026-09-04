@@ -133,7 +133,7 @@ function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {
     case 'execute-tool-call':
       return executeFromItem(item, ctx);
     case 'read-tool-call':
-      return readFileOpFromItem(item, ctx);
+      return item.locations?.length ? readFileOpFromItem(item, ctx) : toolFromItem(item, ctx);
     case 'create-file-tool-call':
       return createFileDiffFromItem(item, ctx);
     case 'modify-file-tool-call':
