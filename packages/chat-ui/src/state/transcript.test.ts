@@ -122,9 +122,16 @@ describe('activeTurn', () => {
   it('commit cancelled records cancelled outcome', () => {
     const tx = createTranscript();
     drive(tx, { type: 'message_chunk', id: 'a1', role: 'assistant', text: 'partial' });
+    drive(tx, {
+      type: 'plan_update',
+      id: 'plan-1',
+      entries: [{ content: 'Implement fix', status: 'in_progress', priority: 'high' }],
+      streaming: true,
+    });
     tx.activeTurn.commit('cancelled');
     expect(tx.state.turnStatus).toBe('cancelled');
     expect(tx.state.committedTurns[0].outcome?.kind).toBe('cancelled');
+    expect(tx.findItemById('plan-1')).toMatchObject({ active: false, streaming: false });
   });
 });
 

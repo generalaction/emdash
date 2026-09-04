@@ -12,6 +12,7 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus, ToolNode } from '@/model';
 import { PlanList } from './Plan';
+import { planIsActive } from './plan-status';
 import { planVars, type PlanStyleVars } from './plan.css';
 
 export type PlanVars = {
@@ -42,6 +43,7 @@ export function planFromItem(
     kind: 'plan',
     id: item.id,
     entries: plan?.entries ?? [],
+    active: item.status === 'running',
     streaming: item.status === 'running',
   };
 }
@@ -114,8 +116,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
   });
 
   const autoScroll = () => !!props.data.streaming;
-  const active = () =>
-    !!props.data.streaming || props.data.entries.some((e) => e.status === 'in_progress');
+  const active = () => planIsActive(props.data);
   const done = () => props.data.entries.filter((e) => e.status === 'completed').length;
   const total = () => props.data.entries.length;
 
@@ -144,7 +145,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
         }
       >
         <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
-          <Show when={!isExpanded()} fallback={<PlanList entries={entries()} />}>
+          <Show when={!isExpanded()} fallback={<PlanList entries={entries()} active={active()} />}>
             <PreviewWindow
               height={bodyH()}
               maxH={props.vars.windowH}
@@ -152,7 +153,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
               autoScrollBottom={autoScroll()}
               contentHeight={() => listH()}
             >
-              <PlanList entries={entries()} />
+              <PlanList entries={entries()} active={active()} />
             </PreviewWindow>
           </Show>
         </div>
