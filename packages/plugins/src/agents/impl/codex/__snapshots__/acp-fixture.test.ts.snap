@@ -324,7 +324,11 @@ I think I need to form an answer after reviewing the relevant information. Using
             {
               "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_8Xe7CkBGWr56UnafQajA6tJm",
               "kind": "read-tool-call",
-              "path": "file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts'",
+              "locations": [
+                {
+                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts",
+                },
+              ],
               "seq": 3,
               "status": "done",
               "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.ts'",
@@ -333,7 +337,11 @@ I think I need to form an answer after reviewing the relevant information. Using
             {
               "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_x033kE3l2l9CKnHIIMOL1MlJ",
               "kind": "read-tool-call",
-              "path": "file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+              "locations": [
+                {
+                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+                },
+              ],
               "seq": 4,
               "status": "done",
               "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
@@ -342,7 +350,11 @@ I think I need to form an answer after reviewing the relevant information. Using
             {
               "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_cJhMBU98lbEuPzKi0p4PHRCt",
               "kind": "read-tool-call",
-              "path": "file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+              "locations": [
+                {
+                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+                },
+              ],
               "seq": 5,
               "status": "done",
               "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
@@ -366,7 +378,11 @@ I think I need to form an answer after reviewing the relevant information. Using
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:3:tool:call_EpbDQ39xyA1D5C7qfQS7LEVO",
           "kind": "read-tool-call",
-          "path": "file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
+          "locations": [
+            {
+              "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts",
+            },
+          ],
           "seq": 7,
           "status": "done",
           "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/session-machine.ts'",
@@ -419,7 +435,11 @@ I need to respond with just a plan since the user is asking for a checklist or t
             {
               "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_L8H2vFMxU8sqVLUvHG38FwYj",
               "kind": "read-tool-call",
-              "path": "file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts'",
+              "locations": [
+                {
+                  "path": "/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts",
+                },
+              ],
               "seq": 3,
               "status": "done",
               "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/packages/core/src/acp/agent-update.test.ts'",
@@ -428,7 +448,11 @@ I need to respond with just a plan since the user is asking for a checklist or t
             {
               "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_4aV1pRthSPJZGbDql5SiEfWG",
               "kind": "read-tool-call",
-              "path": "file '/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts'",
+              "locations": [
+                {
+                  "path": "/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts",
+                },
+              ],
               "seq": 4,
               "status": "done",
               "title": "Read file '/tmp/emdash-acp-fixture-1783042314643/apps/emdash-desktop/src/renderer/features/tasks/acp/acp-update-mapper.ts'",

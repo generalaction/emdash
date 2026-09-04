@@ -14,8 +14,13 @@
  *   - Returns { kind: 'ignored' } for variants not yet rendered.
  */
 
-import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk';
-import type { NormalizedDiff, NormalizedEvent, NormalizedToolStatus } from './normalized-event';
+import type { SessionUpdate, ToolCallContent, ToolCallLocation } from '@agentclientprotocol/sdk';
+import type {
+  NormalizedDiff,
+  NormalizedEvent,
+  NormalizedToolLocation,
+  NormalizedToolStatus,
+} from './normalized-event';
 
 function extractDiffs(
   content: ReadonlyArray<ToolCallContent> | null | undefined
@@ -28,6 +33,19 @@ function extractDiffs(
     }
   }
   return diffs;
+}
+
+function extractLocations(
+  locations: ReadonlyArray<ToolCallLocation> | null | undefined
+): NormalizedToolLocation[] {
+  return (locations ?? []).map((location) => ({
+    path: location.path,
+    ...(location.line !== undefined && location.line !== null ? { line: location.line } : {}),
+  }));
+}
+
+function hasOwnField<T extends object>(value: T, field: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, field);
 }
 
 function collectTextPayload(value: unknown, parts: string[]): void {
@@ -141,6 +159,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
         status: (update.status as NormalizedToolStatus | undefined) ?? null,
         parentToolCallId: null,
         diffs: extractDiffs(update.content),
+        locations: extractLocations(update.locations),
         ...(inputSummary !== undefined ? { inputSummary } : {}),
         ...(terminalId !== undefined ? { terminalId } : {}),
       };
@@ -150,14 +169,19 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
       const inputSummary = extractInputSummary(update);
       const outputText = extractTextOutput(update.content ?? undefined);
       const terminalId = extractTerminalId(update);
+      const hasContent = hasOwnField(update, 'content');
+      const hasLocations = hasOwnField(update, 'locations');
       return {
         kind: 'tool_update',
         toolCallId: update.toolCallId,
-        title: update.title ?? null,
-        toolKind: update.kind ?? null,
-        status: (update.status as NormalizedToolStatus | undefined | null) ?? null,
         parentToolCallId: null,
-        diffs: extractDiffs(update.content ?? undefined),
+        ...(hasOwnField(update, 'title') ? { title: update.title ?? null } : {}),
+        ...(hasOwnField(update, 'kind') ? { toolKind: update.kind ?? null } : {}),
+        ...(hasOwnField(update, 'status')
+          ? { status: (update.status as NormalizedToolStatus | undefined | null) ?? null }
+          : {}),
+        ...(hasContent ? { diffs: extractDiffs(update.content) } : {}),
+        ...(hasLocations ? { locations: extractLocations(update.locations) } : {}),
         ...(inputSummary !== undefined ? { inputSummary } : {}),
         ...(outputText !== undefined ? { outputText } : {}),
         ...(terminalId !== undefined ? { terminalId } : {}),

@@ -15,6 +15,7 @@ export type {
   TranscriptTurnInitiator,
   TranscriptTurnOutcome,
   ToolCallItem,
+  ToolCallLocation,
   ToolGroup,
   ToolNode,
   ToolStatus,
@@ -35,6 +36,7 @@ export type {
   EnrichHook,
   NormalizedDiff,
   NormalizedEvent,
+  NormalizedToolLocation,
   NormalizedToolStatus,
 } from './normalized-event';
 

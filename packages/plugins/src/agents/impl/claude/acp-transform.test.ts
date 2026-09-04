@@ -17,6 +17,7 @@ function makeToolCall(
     parentToolCallId: null,
     diffs: [],
     ...overrides,
+    locations: overrides.locations ?? [],
   };
 }
 
