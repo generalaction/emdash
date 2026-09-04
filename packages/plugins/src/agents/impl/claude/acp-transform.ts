@@ -55,7 +55,7 @@ export function enrichClaudeUpdate(update: NormalizedEvent, raw: SessionUpdate):
       kind: 'subagent',
       toolCallId: normalizedUpdate.toolCallId,
       title: asyncLaunch?.description ?? normalizedUpdate.title ?? 'Agent',
-      status: asyncLaunch ? 'in_progress' : normalizedUpdate.status,
+      status: asyncLaunch ? 'in_progress' : (normalizedUpdate.status ?? null),
       parentToolCallId: parentPatch.parentToolCallId ?? normalizedUpdate.parentToolCallId,
       inputSummary: agentInputSummary(raw),
       ...(asyncLaunch ? { background: true } : {}),

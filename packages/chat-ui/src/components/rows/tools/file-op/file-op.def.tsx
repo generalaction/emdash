@@ -28,7 +28,7 @@ export function readFileOpFromItem(
     op: 'read',
     status: item.status,
     awaitingPermission: ctx.pendingToolCallIds().has(item.toolCallId),
-    ops: item.path || item.resource ? [{ path: item.path ?? item.resource! }] : [],
+    ops: item.locations ?? [],
   };
 }
 

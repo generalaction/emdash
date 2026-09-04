@@ -7,10 +7,12 @@ import {
 } from './open-file-in-file-editor';
 
 const mocks = vi.hoisted(() => ({
+  getTaskComposition: vi.fn(),
   getTaskStore: vi.fn(),
   getWorkspace: vi.fn(),
   openFile: vi.fn(),
   openPath: vi.fn(),
+  requestSelection: vi.fn(),
 }));
 
 vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
@@ -20,6 +22,10 @@ vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
 
 vi.mock('@core/features/workbench/api/browser/open-file', () => ({
   openFile: mocks.openFile,
+}));
+
+vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
+  getTaskComposition: mocks.getTaskComposition,
 }));
 
 vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () => ({
@@ -42,6 +48,14 @@ describe('task file opening', () => {
       workspaceId: 'workspace-1',
       path: '/repo',
     });
+    mocks.getTaskComposition.mockReturnValue({
+      paneLayout: {
+        focusedPane: {
+          activeResourceOfKind: () => ({ requestSelection: mocks.requestSelection }),
+        },
+      },
+    });
+    mocks.openFile.mockReturnValue(true);
     mocks.openPath.mockResolvedValue({ success: true, data: undefined });
   });
 
@@ -80,6 +94,24 @@ describe('task file opening', () => {
         reveal: true,
       }
     );
+  });
+
+  it('selects the structured tool location after opening the file', async () => {
+    await openFileInAdjacentPane('project-1', 'task-1', 'src/location.ts', { line: 17 });
+
+    expect(mocks.requestSelection).toHaveBeenCalledWith({
+      lineNumber: 17,
+      startColumn: 1,
+      endColumn: 1,
+    });
+  });
+
+  it('does not request a selection when opening fails', async () => {
+    mocks.openFile.mockReturnValue(false);
+
+    await openFileInAdjacentPane('project-1', 'task-1', 'src/location.ts', { line: 17 });
+
+    expect(mocks.requestSelection).not.toHaveBeenCalled();
   });
 
   it('opens absolute paths outside the workspace through the same seam, never the OS', async () => {
