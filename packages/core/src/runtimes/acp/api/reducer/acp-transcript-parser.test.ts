@@ -388,6 +388,53 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
+  it('reads execute descriptions from rawInput on the initial tool_call', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'list packages'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'ls packages', 'execute'),
+      rawInput: { command: 'ls packages', description: 'List packages directory' },
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      command: 'ls packages',
+      inputSummary: 'List packages directory',
+    });
+  });
+
+  it('adopts a description that only arrives on a later tool_call_update', () => {
+    // Claude Code's ACP adapter opens Bash calls with title "Terminal" and an
+    // empty rawInput, then sends the command + description on the next update,
+    // echoing the description as a text content block.
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'what branch am I on'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'Terminal', 'execute'),
+      status: 'pending',
+      rawInput: {},
+    } as unknown as SessionUpdate);
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'exec-1',
+      kind: 'execute',
+      title: 'git rev-parse --abbrev-ref HEAD',
+      content: [{ type: 'content', content: { type: 'text', text: 'Get current branch name' } }],
+      rawInput: {
+        command: 'git rev-parse --abbrev-ref HEAD',
+        description: 'Get current branch name',
+      },
+    } as unknown as SessionUpdate);
+
+    const item = p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call');
+    expect(item).toMatchObject({
+      command: 'git rev-parse --abbrev-ref HEAD',
+      inputSummary: 'Get current branch name',
+      status: 'running',
+    });
+    expect(item).not.toHaveProperty('outputText');
+  });
+
   it('passes through standard terminalId on execute tool updates', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'run it'));
