@@ -25,6 +25,8 @@ export type PlanVars = {
   padY: number;
   /** Width (px) of the status-icon box to the left of each entry body. */
   iconBox: number;
+  /** Minimum height (px) of an entry, matching the status-icon box. */
+  entryMinH: number;
   /** Horizontal gap (px) between the status icon and the entry text. */
   iconGap: number;
   /** Vertical gap (px) between consecutive plan entries. */
@@ -79,7 +81,10 @@ function measureEntries(item: ChatPlan, ctx: MeasureCtx, vars: PlanVars): PlanEn
 }
 
 function listHeight(entries: PlanEntryLaid[], vars: PlanVars): number {
-  const totalEntryH = entries.reduce((sum, e) => sum + e.measured.height, 0);
+  const totalEntryH = entries.reduce(
+    (sum, entry) => sum + Math.max(entry.measured.height, vars.entryMinH),
+    0
+  );
   const gaps = entries.length > 1 ? (entries.length - 1) * vars.entryGap : 0;
   return totalEntryH + gaps + 2 * vars.padY;
 }
@@ -123,6 +128,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
     padX: props.vars.padX,
     padY: props.vars.padY,
     iconBox: props.vars.iconBox,
+    entryMinH: props.vars.entryMinH,
     iconGap: props.vars.iconGap,
     entryGap: props.vars.entryGap,
   });
@@ -148,7 +154,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
             <PreviewWindow
               height={bodyH()}
               maxH={props.vars.windowH}
-              overlay="fade-bottom"
+              overlay={listH() > bodyH() ? 'fade-bottom' : undefined}
               autoScrollBottom={autoScroll()}
               contentHeight={() => listH()}
             >
@@ -170,6 +176,7 @@ export const planUnitDef = defineUnit<ChatPlan, PlanVars>({
     padX: 8,
     padY: 6,
     iconBox: 14,
+    entryMinH: 20,
     iconGap: 8,
     entryGap: 4,
     windowH: 96,
@@ -179,7 +186,7 @@ export const planUnitDef = defineUnit<ChatPlan, PlanVars>({
     const headerH = vars.rowH;
     const isExpanded = ctx.expanded(item.id);
     const lineH = ctx.theme.fonts.body.lineHeight;
-    const entryH = 2 * lineH;
+    const entryH = Math.max(2 * lineH, vars.entryMinH);
     const gaps = item.entries.length > 1 ? (item.entries.length - 1) * vars.entryGap : 0;
     const listH = item.entries.length * entryH + gaps + 2 * vars.padY;
     const bodyH = isExpanded ? listH : Math.min(listH, vars.windowH);

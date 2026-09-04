@@ -8,6 +8,7 @@ export type PlanStyleVars = {
   padX: number;
   padY: number;
   iconBox: number;
+  entryMinH: number;
   iconGap: number;
   entryGap: number;
 };
@@ -16,6 +17,7 @@ export const planVars = createVariableThemeContract<PlanStyleVars>({
   padX: null,
   padY: null,
   iconBox: null,
+  entryMinH: null,
   iconGap: null,
   entryGap: null,
 });
