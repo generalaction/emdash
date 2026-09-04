@@ -214,7 +214,8 @@ function updateToolCallItem(
   title: string | null,
   status: NormalizedToolStatus | null,
   outputText?: string,
-  terminalId?: string
+  terminalId?: string,
+  inputSummary?: string
 ): ToolCallItem {
   const mapped = mapToolStatus(status ?? undefined);
   const nextTitle = title ?? item.title;
@@ -222,6 +223,7 @@ function updateToolCallItem(
     ...item,
     ...(mapped !== undefined ? { status: mapped } : {}),
     ...(title !== null ? { title: title } : {}),
+    ...(inputSummary !== undefined ? { inputSummary } : {}),
   };
   switch (item.kind) {
     case 'execute-tool-call':
@@ -725,7 +727,8 @@ export function foldItem(
           event.title,
           event.status,
           event.outputText,
-          event.terminalId
+          event.terminalId,
+          event.inputSummary
         );
         next = base.map((it, i) => (i === idx ? updated : it));
       } else if (hasFileOperationsForToolCall(base, event.toolCallId)) {
@@ -743,6 +746,7 @@ export function foldItem(
             toolKind: event.toolKind,
             status: event.status,
             parentToolCallId,
+            ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
             ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
             ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
           })

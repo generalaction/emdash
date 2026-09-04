@@ -107,6 +107,7 @@ export type NormalizedEvent =
       status: NormalizedToolStatus | null;
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+      inputSummary?: string;
       outputText?: string;
       terminalId?: string;
     }

@@ -75,15 +75,23 @@ function extractTerminalId(update: SessionUpdate): string | undefined {
   return undefined;
 }
 
+/**
+ * Provider-supplied one-line purpose of a tool call. Checked on the update
+ * itself and inside `rawInput` (Claude Code's Bash tool carries a
+ * `description` argument there, and only on the `tool_call_update` that also
+ * delivers the command).
+ */
 function extractInputSummary(update: SessionUpdate): string | undefined {
   const raw = update as unknown as {
     inputSummary?: unknown;
     input_summary?: unknown;
     description?: unknown;
+    rawInput?: { description?: unknown } | null;
   };
   if (typeof raw.inputSummary === 'string') return raw.inputSummary;
   if (typeof raw.input_summary === 'string') return raw.input_summary;
   if (typeof raw.description === 'string') return raw.description;
+  if (typeof raw.rawInput?.description === 'string') return raw.rawInput.description;
   return undefined;
 }
 
@@ -139,7 +147,11 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
     }
 
     case 'tool_call_update': {
-      const outputText = extractTextOutput(update.content ?? undefined);
+      const inputSummary = extractInputSummary(update);
+      const contentText = extractTextOutput(update.content ?? undefined);
+      // Some adapters echo the description as a content block on the update
+      // that carries the command; that is a label, not command output.
+      const outputText = contentText === inputSummary ? undefined : contentText;
       const terminalId = extractTerminalId(update);
       return {
         kind: 'tool_update',
@@ -149,6 +161,7 @@ export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
         status: (update.status as NormalizedToolStatus | undefined | null) ?? null,
         parentToolCallId: null,
         diffs: extractDiffs(update.content ?? undefined),
+        ...(inputSummary !== undefined ? { inputSummary } : {}),
         ...(outputText !== undefined ? { outputText } : {}),
         ...(terminalId !== undefined ? { terminalId } : {}),
       };
