@@ -701,6 +701,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [editorText, setEditorText] = useState('');
 
   // Retain the last notice so its content stays rendered while the band
   // collapses out, letting the exit transition play before unmount.
@@ -803,6 +804,10 @@ export function ChatComposer({
   };
 
   const imageAttachments = attachments.filter((a) => a.kind === 'image');
+  const canQueuePrompt =
+    isWorking &&
+    !!onSubmitWhileWorking &&
+    (editorText.trim().length > 0 || imageAttachments.length > 0);
 
   // ── Model items ─────────────────────────────────────────────────────────────
 
@@ -949,7 +954,10 @@ export function ChatComposer({
             }}
             placeholder={resolvedPlaceholder}
             disabled={disabled}
-            onChange={onInputChange}
+            onChange={(text) => {
+              setEditorText(text);
+              onInputChange?.(text);
+            }}
             onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
             onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
@@ -1137,7 +1145,7 @@ export function ChatComposer({
             )}
 
             {showSubmitButton ? (
-              isWorking ? (
+              isWorking && !canQueuePrompt ? (
                 <Button
                   variant="primary"
                   tone="destructive"
@@ -1156,8 +1164,8 @@ export function ChatComposer({
                   icon
                   className={styles.sendButtonRound}
                   onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled || !canSubmit}
-                  aria-label="Send message"
+                  disabled={disabled || (!isWorking && !canSubmit)}
+                  aria-label={isWorking ? 'Queue message' : 'Send message'}
                 >
                   <ArrowUp />
                 </Button>
