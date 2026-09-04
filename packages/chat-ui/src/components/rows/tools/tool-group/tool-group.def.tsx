@@ -82,11 +82,6 @@ function nodeHeaderH(node: ItemNode, ctx: MeasureCtx): number {
   return isSubagentItem(node.item) ? subagentHeaderH(ctx) : headerH(ctx);
 }
 
-function isActiveItem(item: ChatItem): boolean {
-  if (isSubagentItem(item)) return item.phase === 'spawning' || item.phase === 'running';
-  return (item as ChatToolCall).status === 'running';
-}
-
 function subagentGroupBottomSpacerH(item: ChatItem): number {
   return isSubagentItem(item) ? SUBAGENT_GROUP_BOTTOM_SPACER_H : 0;
 }
@@ -188,7 +183,6 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
     return toolGroupUnitH(props.data, ctx, props.vars);
   });
 
-  const isActive = () => isActiveItem(props.data.item);
   const label = () => {
     const item = props.data.item;
     if (item.kind === 'tool') return (item as ChatToolCall).name;
@@ -217,7 +211,10 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
           <CollapseHeader
             id={props.data.item.id}
             expanded={isExpanded()}
-            active={isActive()}
+            active={props.data.headerState.active}
+            awaitingPermission={props.data.headerState.awaitingPermission}
+            error={props.data.headerState.error}
+            errorTitle={props.data.headerState.errorTitle}
             height={hH()}
           >
             {label()}
