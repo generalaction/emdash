@@ -53,12 +53,23 @@ export interface AcpChatHistory {
 
 type ConfigDimension = 'model' | 'effort' | 'collaborationMode';
 
+export type SessionConfigCatalog =
+  | { kind: 'pending' }
+  | {
+      kind: 'ready';
+      config: Pick<
+        SessionConfigState,
+        'modelOptions' | 'efforts' | 'modeOptions' | 'collaborationModeOptions'
+      >;
+    };
+
 export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
   readonly rawLog: RawAcpLog;
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
+  private configCatalogState: SessionConfigCatalog['kind'] = 'pending';
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
   private readonly effectDriver: MachineEffectDriver<Effect>;
@@ -109,6 +120,15 @@ export class SessionCell {
 
   get config(): SessionConfigState {
     return this.transcript.config;
+  }
+
+  get configCatalog(): SessionConfigCatalog {
+    if (this.configCatalogState === 'pending') return { kind: 'pending' };
+    const { modelOptions, efforts, modeOptions, collaborationModeOptions } = this.config;
+    return {
+      kind: 'ready',
+      config: { modelOptions, efforts, modeOptions, collaborationModeOptions },
+    };
   }
 
   get usage(): SessionUsage | null {
@@ -167,7 +187,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionReady' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionLoaded(meta?: {
@@ -175,7 +195,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionLoaded' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionMeta(meta: {
@@ -201,6 +221,7 @@ export class SessionCell {
 
     const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.pushEvent(event);
+    if (event.kind === 'config') this.configCatalogState = 'ready';
     this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     if (idleTranscriptEvent) this.scheduleQuiesce();
     this.emitTranscriptChanged();
@@ -542,24 +563,33 @@ export class SessionCell {
     }
   }
 
-  private seedTranscriptMeta(meta?: {
-    modes?: SessionModeState | null;
-    configOptions?: readonly SessionConfigOption[] | null;
-  }): void {
-    if (!meta) return;
-    if (meta.configOptions !== undefined) {
+  private seedTranscriptMeta(
+    meta?: {
+      modes?: SessionModeState | null;
+      configOptions?: readonly SessionConfigOption[] | null;
+    },
+    catalogBoundary: 'incremental' | 'complete' = 'incremental'
+  ): void {
+    if (!meta && catalogBoundary === 'incremental') return;
+    const configOptions = meta?.configOptions;
+    const modes = meta?.modes;
+    const completesCatalog =
+      configOptions !== undefined ||
+      (catalogBoundary === 'complete' && this.configCatalogState === 'pending');
+    if (completesCatalog) {
       this.transcript.pushEvent({
         kind: 'config',
-        options: meta.configOptions ?? [],
+        options: configOptions ?? [],
       });
+      this.configCatalogState = 'ready';
     }
-    if (meta.modes?.currentModeId) {
+    if (modes?.currentModeId) {
       this.transcript.pushEvent({
         kind: 'mode_selected',
-        modeId: meta.modes.currentModeId,
+        modeId: modes.currentModeId,
       });
     }
-    if (meta.configOptions !== undefined || meta.modes?.currentModeId) {
+    if (completesCatalog || modes?.currentModeId) {
       this.emitTranscriptChanged();
     }
   }

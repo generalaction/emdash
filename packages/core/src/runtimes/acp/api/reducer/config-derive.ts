@@ -51,8 +51,8 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
  *
  * `configId` preserves the provider-owned ACP config option id, `selected` is taken from
  * `currentValue`, and `available` is the full options list.
- * Returns partial — only groups present in `options` are set; others stay null.
- * The runtime merges this partial into the existing SessionConfigState.
+ * Returns a complete catalog snapshot. Groups absent from `options` are set to null so an
+ * authoritative provider update removes capabilities that are no longer available.
  */
 export function deriveConfigGroups(
   options: ReadonlyArray<SessionConfigOption>

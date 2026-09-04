@@ -515,6 +515,27 @@ describe('AcpRuntime session manager', () => {
     });
   });
 
+  it('replaces retained capabilities when a loaded session omits config options', async () => {
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [effortConfigOption('medium')],
+    });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-omitted-config-options' });
+
+    await rt.launchSession(input);
+    const live = rt.sessionLiveModels(input.conversationId);
+    if (!live) throw new Error('expected stable live projection');
+    expect(peek(live.states.config)?.efforts?.selected).toBe('medium');
+
+    await rt.stopSession(input.conversationId);
+    h.agent.loadSession.mockResolvedValueOnce({});
+    await rt.launchSession(input);
+
+    expect(peek(live.states.config)?.efforts).toBeNull();
+  });
+
   it('keeps a newer runtime session id when attach races host-report convergence', async () => {
     const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
     h.agent.newSession.mockResolvedValueOnce({ sessionId: 'replacement' });

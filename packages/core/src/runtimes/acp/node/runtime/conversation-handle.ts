@@ -3,6 +3,7 @@ import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
 import { acpErr } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import type { SessionConfigCatalog } from '#runtimes/acp/node/session/cell';
 import {
   closedSessionState,
   emptyRetainedPresentation,
@@ -469,6 +470,7 @@ export class ConversationHandle {
     const lastKnownCapabilities = mergeCapabilities(
       this.retainedValue.lastKnownCapabilities,
       record.cell.config,
+      record.cell.configCatalog,
       this.stateValue === 'materializing'
     );
     return {
@@ -497,7 +499,8 @@ export class ConversationHandle {
       configured: this.retainedValue.configured,
       lastKnownCapabilities: mergeCapabilities(
         this.retainedValue.lastKnownCapabilities,
-        record.cell.config
+        record.cell.config,
+        record.cell.configCatalog
       ),
       lastKnownMcpServers: record.mcpServers,
       lastKnownUsage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
@@ -558,14 +561,21 @@ function sameRetainedContent(
 function mergeCapabilities(
   retained: RetainedPresentation['lastKnownCapabilities'],
   current: RetainedPresentation['lastKnownCapabilities'],
+  catalog: SessionConfigCatalog,
   preservePendingCommands = false
 ): RetainedPresentation['lastKnownCapabilities'] {
+  const capabilities =
+    catalog.kind === 'ready'
+      ? catalog.config
+      : {
+          modelOptions: current.modelOptions ?? retained.modelOptions,
+          efforts: current.efforts ?? retained.efforts,
+          modeOptions: current.modeOptions ?? retained.modeOptions,
+          collaborationModeOptions:
+            current.collaborationModeOptions ?? retained.collaborationModeOptions ?? null,
+        };
   return {
-    modelOptions: current.modelOptions ?? retained.modelOptions,
-    efforts: current.efforts ?? retained.efforts,
-    modeOptions: current.modeOptions ?? retained.modeOptions,
-    collaborationModeOptions:
-      current.collaborationModeOptions ?? retained.collaborationModeOptions ?? null,
+    ...capabilities,
     availableCommands:
       preservePendingCommands && current.availableCommands.length === 0
         ? retained.availableCommands
