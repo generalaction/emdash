@@ -26,7 +26,7 @@ export const RenameProjectModal = observer(function RenameProjectModal({
   const isValid = !isEmpty && !isUnchanged;
 
   const handleSubmit = useCallback(async () => {
-    if (!isValid) return;
+    if (!isValid || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -36,7 +36,7 @@ export const RenameProjectModal = observer(function RenameProjectModal({
       setError(e instanceof Error ? e.message : 'Failed to rename project');
       setIsSubmitting(false);
     }
-  }, [isValid, projectId, trimmedName, complete]);
+  }, [isValid, isSubmitting, projectId, trimmedName, complete]);
 
   return (
     <>
