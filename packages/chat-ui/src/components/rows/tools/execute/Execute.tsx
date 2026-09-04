@@ -7,8 +7,8 @@
  *   │  Install dependencies             › │  ← header: description, else command
  *   ├─────────────────────────────────────┤
  *   │  $ pnpm install                     │  ← body: mono, bash-highlighted
- *   │  ...                                │    clamped to collapsedMaxLines or
- *   └─────────────────────────────────────┘    expandedMaxLines with overflow scroll
+ *   │  ...                                │    capped at expandedMaxLines with
+ *   └─────────────────────────────────────┘    overflow scroll
  *
  * Header + card shell are provided by CollapsibleCard.
  * Body:   collapsed = hidden (header-only row, in every status);

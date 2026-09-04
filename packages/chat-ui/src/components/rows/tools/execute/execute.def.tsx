@@ -175,6 +175,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
       height={totalH()}
       headerH={props.vars.rowH}
       expanded={isExpanded()}
+      bodyVisible={showBody()}
       active={props.data.status === 'running' && !props.data.awaitingPermission}
       error={props.data.status === 'error'}
       errorTitle={props.data.error}
