@@ -193,7 +193,7 @@ export function UnitRow(props: UnitRowProps) {
   };
 
   let previousExpansionState = untrack(expansionState);
-  let heldExpandedIds = new Set<string>();
+  const heldExpandedIds = new Set<string>();
   const shouldAnimate = (): boolean => {
     const current = expansionState();
     const previous = new Map(previousExpansionState.map(({ id, expanded }) => [id, expanded]));
@@ -201,14 +201,13 @@ export function UnitRow(props: UnitRowProps) {
       ({ id, expanded }) => previous.has(id) && previous.get(id) !== expanded
     );
     if (changed) {
-      // Keep this set intact across follow-up measurement passes during the
-      // same tween. Those passes are not disclosure transitions and must not
-      // unmount collapsing content early.
-      heldExpandedIds = new Set(
-        current
-          .filter(({ id, expanded }) => previous.get(id) === true && !expanded)
-          .map(({ id }) => id)
-      );
+      // Accumulate closing ids while a retargeted row tween is active. An id
+      // reopening mid-flight releases only its own hold.
+      for (const { id, expanded } of current) {
+        const wasExpanded = previous.get(id);
+        if (wasExpanded === true && !expanded) heldExpandedIds.add(id);
+        if (wasExpanded === false && expanded) heldExpandedIds.delete(id);
+      }
     }
     previousExpansionState = current;
     return changed;
@@ -255,6 +254,10 @@ export function UnitRow(props: UnitRowProps) {
   const animatedReserved = () => tweenHandle.height();
   const animating = () => tweenHandle.animating();
 
+  createEffect(() => {
+    if (!animating()) heldExpandedIds.clear();
+  });
+
   // ── Deferred clip release ─────────────────────────────────────────────────
   // When the tween finishes, hold overflow:hidden + the settled height for one
   // rAF before releasing to height:auto / overflow:visible. This prevents a
@@ -284,6 +287,10 @@ export function UnitRow(props: UnitRowProps) {
 
   const rowItemId = () => props.unit.itemId;
   const collapsing = () => animating() && animatedReserved() > logicalReserved();
+  const displayExpandedId = () => {
+    if (collapsing() && heldExpandedIds.has(rowItemId())) return rowItemId();
+    return props.expandedId;
+  };
 
   // Display viewState: override isCollapsed for this row's id while collapsing
   // so def.Render keeps rendering the expanded state.
@@ -308,7 +315,7 @@ export function UnitRow(props: UnitRowProps) {
     measureEpoch: props.measureEpoch,
     // While collapsing a user-message card: hold expandedId so the expanded
     // render is kept alive during the tween.
-    expandedId: collapsing() && heldExpandedIds.has(rowItemId()) ? rowItemId() : props.expandedId,
+    expandedId: displayExpandedId(),
   });
 
   // ── Animated clip ─────────────────────────────────────────────────────────

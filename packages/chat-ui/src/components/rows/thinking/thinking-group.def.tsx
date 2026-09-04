@@ -73,10 +73,11 @@ function ThinkingGroupHeader(props: {
   const label = () => {
     const active = activeStep(props.item);
     const duration = groupDurationMs(props.item, now());
+    const durationLabel = duration === undefined ? '' : ` · ${formatDuration(duration)}`;
     if (active) {
-      return `Reasoning · step ${props.item.steps.length}${duration === undefined ? '' : ` · ${formatDuration(duration)}`}`;
+      return `Reasoning · step ${props.item.steps.length}${durationLabel}`;
     }
-    return `Reasoned in ${props.item.steps.length} steps${duration === undefined ? '' : ` · ${formatDuration(duration)}`}`;
+    return `Reasoned in ${props.item.steps.length} steps${durationLabel}`;
   };
 
   return (
