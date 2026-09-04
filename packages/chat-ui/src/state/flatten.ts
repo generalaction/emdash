@@ -42,6 +42,7 @@ import { resolveSeamGap } from '@core/spacing';
 import type { ItemSegmenter, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
 import type { ChatItem, ChatMessage, SyntheticItem, TranscriptTurn } from '@/model';
+import type { ToolHeaderState } from './tool-header-state';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ function itemIsUser(item: ChatItem): boolean {
 export type ItemNode = {
   item: ChatItem;
   children: ItemNode[];
+  headerState: ToolHeaderState;
 };
 
 // ── flattenTier ───────────────────────────────────────────────────────────────

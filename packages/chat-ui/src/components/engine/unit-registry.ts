@@ -38,6 +38,7 @@ import { workingUnitDef } from '@components/rows/working/working.def';
 import type { GroupChrome, ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/units';
 import { unit } from '@core/units';
 import type { ItemNode } from '@state/flatten';
+import { deriveToolHeaderState } from '@state/tool-header-state';
 import type {
   ChatDiff,
   ChatExecute,
@@ -116,7 +117,15 @@ function toToolGroupNode(item: ToolNode, ctx: SegmentCtx): ItemNode {
       : 'children' in item && item.children
         ? item.children.map((child: ToolNode) => toToolGroupNode(child, ctx))
         : [];
-  return { item: header, children };
+  return {
+    item: header,
+    children,
+    headerState: deriveToolHeaderState(
+      item,
+      children.map((child) => child.headerState),
+      ctx.pendingToolCallIds()
+    ),
+  };
 }
 
 function toUnitData(item: ToolNode, ctx: SegmentCtx): ToolPresentationData {

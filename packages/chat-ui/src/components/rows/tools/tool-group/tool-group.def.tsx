@@ -6,8 +6,11 @@
  *
  * Layout:
  *   ┌─ CollapseHeader/SubagentHeader ─────────────────────────────┐
- *   │ PreviewWindow (collapsed) OR ChildStack (expanded)          │
+ *   │ ChildStack (expanded only)                                  │
  *   └─────────────────────────────────────────────────────────────┘
+ *
+ * Collapsed groups are a single header line in every status; a running group
+ * only shimmers its label. Nothing opens on its own while children run.
  *
  * Children are dispatched to their native leaf UnitDef.Render with no inset.
  * Multi-level nesting is handled by recursing through `ToolGroupRender`.
@@ -16,7 +19,6 @@
 import { useTheme } from '@components/contexts/ThemeContext';
 import { HEADER_ROW_EXTRA_H, ROW_H } from '@components/engine/row-metrics';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
-import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
 import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
 import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
@@ -42,14 +44,11 @@ import { subagentChildrenOffset } from '@components/rows/tools/subagent/subagent
 // ── Vars ──────────────────────────────────────────────────────────────────────
 
 export type ToolGroupVars = {
-  /** Max height (px) of the collapsed preview window. */
-  windowH: number;
   /** Vertical gap (px) between consecutive children. */
   childGap: number;
 };
 
 const TOOL_GROUP_VARS: ToolGroupVars = {
-  windowH: 180,
   childGap: 4,
 };
 
@@ -83,15 +82,6 @@ function nodeHeaderH(node: ItemNode, ctx: MeasureCtx): number {
   return isSubagentItem(node.item) ? subagentHeaderH(ctx) : headerH(ctx);
 }
 
-function isActiveItem(item: ChatItem): boolean {
-  if (isSubagentItem(item)) return item.phase === 'spawning' || item.phase === 'running';
-  return (item as ChatToolCall).status === 'running';
-}
-
-function canShowCollapsedPreview(item: ChatItem): boolean {
-  return !isSubagentItem(item) && isActiveItem(item);
-}
-
 function subagentGroupBottomSpacerH(item: ChatItem): number {
   return isSubagentItem(item) ? SUBAGENT_GROUP_BOTTOM_SPACER_H : 0;
 }
@@ -120,13 +110,8 @@ function childrenHeight(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): n
 function toolGroupUnitH(node: ItemNode, ctx: MeasureCtx, vars: ToolGroupVars): number {
   const hH = nodeHeaderH(node, ctx);
   const isExpanded = ctx.expanded(node.item.id);
-  const showPreview = canShowCollapsedPreview(node.item);
-  const chH = childrenHeight(node, ctx, vars);
-  return (
-    hH +
-    (isExpanded ? chH : showPreview ? Math.min(chH, vars.windowH) : 0) +
-    subagentGroupBottomSpacerH(node.item)
-  );
+  const chH = isExpanded ? childrenHeight(node, ctx, vars) : 0;
+  return hH + chH + subagentGroupBottomSpacerH(node.item);
 }
 
 // ── ChildStack ────────────────────────────────────────────────────────────────
@@ -192,27 +177,18 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
       ? subagentHeaderHFromLineHeight(theme().fonts.body.lineHeight)
       : theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 
-  const chH = createMemo(() => {
-    const ctx = mCtx();
-    if (!ctx) return 0;
-    return childrenHeight(props.data, ctx, props.vars);
-  });
-
   const totalH = createMemo(() => {
     const ctx = mCtx();
     if (!ctx) return hH();
     return toolGroupUnitH(props.data, ctx, props.vars);
   });
 
-  const isActive = () => isActiveItem(props.data.item);
   const label = () => {
     const item = props.data.item;
     if (item.kind === 'tool') return (item as ChatToolCall).name;
     return item.kind;
   };
 
-  const showCollapsedPreview = () => canShowCollapsedPreview(props.data.item);
-  const previewH = () => Math.min(chH(), props.vars.windowH);
   const childStack = () => (
     <Show
       when={isSubagent()}
@@ -235,7 +211,10 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
           <CollapseHeader
             id={props.data.item.id}
             expanded={isExpanded()}
-            active={isActive()}
+            active={props.data.headerState.active}
+            awaitingPermission={props.data.headerState.awaitingPermission}
+            error={props.data.headerState.error}
+            errorTitle={props.data.headerState.errorTitle}
             height={hH()}
           >
             {label()}
@@ -249,24 +228,7 @@ function ToolGroupRender(props: { data: ItemNode; ctx: RenderCtx; vars: ToolGrou
           collapsible
         />
       </Show>
-      <Show
-        when={isExpanded()}
-        fallback={
-          <Show when={showCollapsedPreview() && chH() > 0}>
-            <PreviewWindow
-              height={previewH()}
-              maxH={props.vars.windowH}
-              overlay="fade-bottom"
-              autoScrollBottom={isActive()}
-              contentHeight={chH}
-            >
-              {childStack()}
-            </PreviewWindow>
-          </Show>
-        }
-      >
-        {childStack()}
-      </Show>
+      <Show when={isExpanded()}>{childStack()}</Show>
       <Show when={isSubagent()}>
         <div style={{ height: `${SUBAGENT_GROUP_BOTTOM_SPACER_H}px` }} />
       </Show>
@@ -281,17 +243,12 @@ export const toolGroupUnitDef = defineUnit<ItemNode, ToolGroupVars>({
   margin: { top: 2, bottom: 2 },
   vars: TOOL_GROUP_VARS,
 
-  estimate(node, ctx, vars): number {
+  estimate(node, ctx, _vars): number {
     const hH = nodeHeaderH(node, ctx);
     const isExpanded = ctx.expanded(node.item.id);
-    const showPreview = canShowCollapsedPreview(node.item);
     // Approximate: 32px per child.
-    const chH = node.children.length * ROW_H;
-    return (
-      hH +
-      (isExpanded ? chH : showPreview ? Math.min(chH, vars.windowH) : 0) +
-      subagentGroupBottomSpacerH(node.item)
-    );
+    const chH = isExpanded ? node.children.length * ROW_H : 0;
+    return hH + chH + subagentGroupBottomSpacerH(node.item);
   },
 
   measure(node, ctx, vars): number {

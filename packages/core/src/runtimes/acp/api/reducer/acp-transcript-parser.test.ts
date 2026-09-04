@@ -8,6 +8,7 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { SESSION_PLAN_ID } from '../models/plan';
+import type { TranscriptItem } from '../models/turns';
 import {
   makeDiffId,
   makeMessageId,
@@ -455,7 +456,10 @@ describe('AcpTranscriptParser', () => {
     p.push(toolCallUpdate('fetch-1', 'https://example.test', 'web-fetch'));
     p.push(toolCallUpdate('subagent-1', 'Investigate failure', 'subagent'));
 
-    const items = p.activeTurn?.items ?? [];
+    // Contiguous search/mcp/fetch calls fold into one tool-run group; look through it.
+    const items = (p.activeTurn?.items ?? []).flatMap((i): TranscriptItem[] =>
+      i.kind === 'tool-group' ? (i.children as TranscriptItem[]) : [i]
+    );
     expect(items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
       id: makeToolId(makeTurnId(CID, 0), 'search-1'),
       query: "for 'symbols'",
@@ -500,7 +504,7 @@ describe('AcpTranscriptParser', () => {
     const items = p.activeTurn?.items ?? [];
     expect(items.find((i) => i.kind === 'tool-group')).toMatchObject({
       id: makeToolGroupId(makeToolId(makeTurnId(CID, 0), 'read-1')),
-      label: '2 file reads',
+      label: 'Read 2 files',
       groupKind: 'read-batch',
       status: 'running',
       children: [
@@ -510,12 +514,28 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
-  it('does not group non-contiguous read tool calls', () => {
+  it('groups a mixed run of reads and commands into one tool-run group', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'read files'));
     p.push(toolCallUpdate('read-1', 'Read src/a.ts', 'read'));
     p.push(toolCallUpdate('exec-1', 'echo done', 'execute'));
     p.push(toolCallUpdate('read-2', 'Read src/b.ts', 'read'));
+
+    const groups = p.activeTurn?.items.filter((i) => i.kind === 'tool-group') ?? [];
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      label: 'Ran a command, read 2 files',
+      groupKind: 'tool-run',
+      children: [{ id: makeToolId(makeTurnId(CID, 0), 'read-1') }, {}, {}],
+    });
+  });
+
+  it('does not group tool calls separated by an assistant message', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read files'));
+    p.push(toolCallUpdate('exec-1', 'echo one', 'execute'));
+    p.push(assistantChunk('a1', 'Now the second one.'));
+    p.push(toolCallUpdate('exec-2', 'echo two', 'execute'));
 
     expect(p.activeTurn?.items.filter((i) => i.kind === 'tool-group')).toHaveLength(0);
   });
