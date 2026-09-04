@@ -1,14 +1,20 @@
 import { unit } from '@core/units';
 import type { ItemSegmenter, SegmentCtx, SegmentItem, UnitDef } from '@core/units';
 import { describe, expect, it } from 'vitest';
-import type { ChatItem, ChatMessage, TranscriptTurn } from '@/model';
+import type {
+  ChatItem,
+  ChatMessage,
+  ChatThinking,
+  ThinkingGroupItem,
+  TranscriptTurn,
+} from '@/model';
 import { applyTurnEvent } from '@/stories/_harness/turn-reducer';
 import { collectUserTurnUnits, flattenTier, makeUnitsView } from './flatten';
 import { createTranscript } from './transcript';
 
 const MSG_MARGIN_TOP = 8;
 
-function passthrough(kind: ChatItem['kind']): ItemSegmenter {
+function passthrough(kind: SegmentItem['kind']): ItemSegmenter {
   return {
     kind,
     segment: (item: SegmentItem) => [unit(item.kind, item, item, { key: 'self' })],
@@ -19,6 +25,7 @@ const STUB_SEGMENTERS: Record<string, ItemSegmenter> = {
   message: passthrough('message'),
   tool: passthrough('tool'),
   thinking: passthrough('thinking'),
+  'thinking-group': passthrough('thinking-group'),
   'file-op': passthrough('file-op'),
   execute: passthrough('execute'),
   diff: passthrough('diff'),
@@ -32,6 +39,18 @@ function userMsg(id: string, seq = 0, text = 'hello'): ChatMessage {
 
 function tool(id: string, seq = 0): ChatItem {
   return { kind: 'tool', id, seq, name: 'bash', status: 'done' } as ChatItem;
+}
+
+function thinking(id: string, seq = 0, status: 'thinking' | 'done' = 'done'): ChatThinking {
+  return {
+    kind: 'thinking',
+    id,
+    seq,
+    status,
+    text: `Reasoning ${id}`,
+    startedAt: 0,
+    ...(status === 'done' ? { durationMs: 1000 } : {}),
+  };
 }
 
 function turn(id: string, seq: number, ...items: ChatItem[]): TranscriptTurn {
@@ -60,6 +79,7 @@ const STUB_UNIT_DEFS: StubUnitDefs = {
   message: { margin: { top: 8, bottom: 8 } },
   tool: { margin: { top: 2, bottom: 2 } },
   thinking: { margin: { top: 6, bottom: 6 } },
+  'thinking-group': { margin: { top: 6, bottom: 6 } },
   'file-op': { margin: { top: 2, bottom: 2 } },
   execute: { margin: { top: 2, bottom: 2 } },
   diff: { margin: { top: 2, bottom: 6 } },
@@ -128,6 +148,67 @@ describe('flatten — basic', () => {
     tx.history.seed([turn('t1', 0, item)]);
     const view = flattenAll(tx);
     expect(view.at(0)?.data).toBe(tx.state.committedTurns[0].items[0]);
+  });
+});
+
+describe('flatten — adjacent thinking groups', () => {
+  it('wraps two or more adjacent thinking items in one presentation group', () => {
+    const tx = createTranscript();
+    tx.history.seed([turn('t1', 0, userMsg('u', 0), thinking('th-1', 1), thinking('th-2', 2))]);
+
+    const view = flattenAll(tx);
+    expect(view.length).toBe(2);
+    expect(view.at(1)).toMatchObject({
+      kind: 'thinking-group',
+      itemId: 'th-1:thinking-group',
+      id: 'th-1:thinking-group#self',
+    });
+    const group = view.at(1)?.data as ThinkingGroupItem | undefined;
+    expect(group?.steps.map((step) => step.id)).toEqual(['th-1', 'th-2']);
+  });
+
+  it('keeps one thinking item as the existing thinking row', () => {
+    const tx = createTranscript();
+    tx.history.seed([turn('t1', 0, thinking('th-1'))]);
+
+    expect(flattenAll(tx).at(0)).toMatchObject({
+      kind: 'thinking',
+      itemId: 'th-1',
+      id: 'th-1#self',
+    });
+  });
+
+  it('does not group thinking across another visible item or a turn boundary', () => {
+    const tx = createTranscript();
+    tx.history.seed([
+      turn('t1', 0, thinking('th-1', 0), tool('tool-1', 1), thinking('th-2', 2)),
+      turn('t2', 1, thinking('th-3', 0)),
+    ]);
+
+    const view = flattenAll(tx);
+    expect(Array.from({ length: view.length }, (_, i) => view.at(i)?.kind)).toEqual([
+      'thinking',
+      'tool',
+      'thinking',
+      'thinking',
+    ]);
+  });
+
+  it('keeps the group id stable while more adjacent steps arrive', () => {
+    const first = flattenTier(
+      [turn('t1', 0, thinking('th-1', 0), thinking('th-2', 1, 'thinking'))],
+      { ...segCtx, active: true },
+      STUB_SEGMENTERS
+    );
+    const grown = flattenTier(
+      [turn('t1', 0, thinking('th-1', 0), thinking('th-2', 1), thinking('th-3', 2, 'thinking'))],
+      { ...segCtx, active: true },
+      STUB_SEGMENTERS
+    );
+
+    expect(first[0].id).toBe('th-1:thinking-group#self');
+    expect(grown[0].id).toBe(first[0].id);
+    expect((grown[0].data as ThinkingGroupItem).steps).toHaveLength(3);
   });
 });
 

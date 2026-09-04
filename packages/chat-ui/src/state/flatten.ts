@@ -41,7 +41,14 @@
 import { resolveSeamGap } from '@core/spacing';
 import type { ItemSegmenter, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
-import type { ChatItem, ChatMessage, SyntheticItem, TranscriptTurn } from '@/model';
+import type {
+  ChatItem,
+  ChatMessage,
+  ChatThinking,
+  SyntheticItem,
+  ThinkingGroupItem,
+  TranscriptTurn,
+} from '@/model';
 import type { ToolHeaderState } from './tool-header-state';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,6 +56,14 @@ import type { ToolHeaderState } from './tool-header-state';
 /** Returns true when the item is a user-role message (boundary seam sentinel). */
 function itemIsUser(item: ChatItem): boolean {
   return item.kind === 'message' && (item as ChatMessage).role === 'user';
+}
+
+function thinkingGroup(steps: readonly ChatThinking[]): ThinkingGroupItem {
+  return {
+    kind: 'thinking-group',
+    id: `${steps[0].id}:thinking-group`,
+    steps,
+  };
 }
 
 // ── ItemNode ──────────────────────────────────────────────────────────────────
@@ -115,8 +130,19 @@ export function flattenTier(
 
   for (const turn of turns) {
     const items = turn.items as readonly ChatItem[];
-    for (const item of items) {
-      processItem(item);
+    for (let i = 0; i < items.length; ) {
+      const item = items[i];
+      if (item.kind !== 'thinking') {
+        processItem(item);
+        i += 1;
+        continue;
+      }
+
+      let end = i + 1;
+      while (end < items.length && items[end].kind === 'thinking') end += 1;
+      const steps = items.slice(i, end) as ChatThinking[];
+      processItem(steps.length === 1 ? item : thinkingGroup(steps));
+      i = end;
     }
 
     if (ctx.active && shouldShowWorking(items)) {

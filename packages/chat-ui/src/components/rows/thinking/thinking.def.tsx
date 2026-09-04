@@ -22,7 +22,7 @@ export type ThinkingVars = {
   windowH: number;
 };
 
-const THINKING_VARS: ThinkingVars = {
+export const THINKING_VARS: ThinkingVars = {
   padY: 8,
   windowH: 72,
 };
@@ -82,7 +82,7 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   );
 }
 
-function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars): number {
+export function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars): number {
   const headerH = thinkingHeaderH(ctx);
   const isExpanded = ctx.expanded(item.id);
 
@@ -95,7 +95,11 @@ function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars
   return headerH + body.height;
 }
 
-function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: ThinkingVars }) {
+export function ThinkingUnitRender(props: {
+  data: ChatThinking;
+  ctx: RenderCtx;
+  vars: ThinkingVars;
+}) {
   const theme = useTheme();
   const mCtx = () => props.ctx.measureCtx?.();
   // Inverted semantics: stored "collapsed" bool = "expanded".

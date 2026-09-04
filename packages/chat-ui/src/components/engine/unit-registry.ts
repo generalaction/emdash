@@ -18,6 +18,7 @@
 import { messageFromItem, messageUnitDef } from '@components/rows/message/message.def';
 import { planFromItem, planUnitDef } from '@components/rows/plan/plan.def';
 import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
+import { thinkingGroupUnitDef } from '@components/rows/thinking/thinking-group.def';
 import { thinkingUnitDef } from '@components/rows/thinking/thinking.def';
 import {
   createFileDiffFromItem,
@@ -49,6 +50,7 @@ import type {
   ChatSubagentToolCall,
   ChatToolCall,
   SyntheticItem,
+  ThinkingGroupItem,
   ToolNode,
 } from '@/model';
 import { ROW_INSET_X } from './row-metrics';
@@ -180,6 +182,11 @@ function toolNodeSegment(kind: ToolNode['kind']): ItemSegmenter {
 export const SEGMENTERS: Record<string, ItemSegmenter> = {
   message: messageSegmenter,
   thinking: nativePassthrough<ChatItem>('thinking', (item) => item, COMPOSITE_CHROME),
+  'thinking-group': nativePassthrough<ThinkingGroupItem>(
+    'thinking-group',
+    (item) => item,
+    COMPOSITE_CHROME
+  ),
   tool: nativePassthrough<ChatItem>('tool', (item) => item, COMPOSITE_CHROME),
   'file-op': nativePassthrough<ChatItem>('file-op', (item) => item, COMPOSITE_CHROME),
   execute: nativePassthrough<ChatItem>('execute', (item) => item, COMPOSITE_CHROME),
@@ -222,6 +229,7 @@ export const UNIT_REGISTRY: Record<string, RegistryUnitDef> = {
   diff: diffUnitDef as unknown as RegistryUnitDef,
   plan: planUnitDef as unknown as RegistryUnitDef,
   thinking: thinkingUnitDef as unknown as RegistryUnitDef,
+  'thinking-group': thinkingGroupUnitDef as unknown as RegistryUnitDef,
   'file-op': fileOpUnitDef as unknown as RegistryUnitDef,
   subagent: subagentUnitDef as unknown as RegistryUnitDef,
   tool: toolUnitDef as unknown as RegistryUnitDef,
