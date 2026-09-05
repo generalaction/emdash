@@ -102,6 +102,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
 
     const registry = createWorkspaceRegistry(fixture.db);
@@ -147,6 +148,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
   });
 
@@ -227,6 +229,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
     expect(registry.getLive('wt-1')).toMatchObject({
       observedGit: { branch: 'feature/x', diffStats: { added: 12, deleted: 3 } },
@@ -342,6 +345,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 1,
       untracked: 1,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
     expect(registry.getLive('wt-linked')).toMatchObject({
       observedStatus: 'missing',
@@ -381,6 +385,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
     expect(registry.getLive('wt-doomed')?.deletionTombstone).toMatchObject({
       targetRecordId: 'wt-doomed',
@@ -398,6 +403,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 1,
+      identityConflicts: [],
     });
     expect(registry.getLive('wt-doomed')).toBeUndefined();
   });
@@ -432,11 +438,12 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       markedMissing: 0,
       untracked: 0,
       purgedTombstones: 0,
+      identityConflicts: [],
     });
     expect(registry.getLive('wt-remote')).toMatchObject({ observedStatus: 'present' });
   });
 
-  it('rejects an id/path collision before adopting, refreshing, or sweeping anything', async () => {
+  it('skips an id/path collision and applies the rest of the snapshot', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
     registry.recordCreationIntent({
       id: 'desktop-id',
@@ -454,38 +461,43 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       path: '/work/old',
       observedStatus: 'present',
     });
+    const records = {
+      'host-id': hostRecord({ id: 'host-id', kind: 'repository', path: '/repo', parentId: null }),
+      other: hostRecord({ id: 'other', kind: 'repository', path: '/other', parentId: null }),
+    };
 
-    const application = applyWorkspaceRegistrySnapshot({
+    const result = await applyWorkspaceRegistrySnapshot({
       db: fixture.db,
       host: LOCAL_HOST,
-      records: {
-        'host-id': hostRecord({
-          id: 'host-id',
-          kind: 'repository',
-          path: '/repo',
-          parentId: null,
-        }),
-      },
+      records,
     });
 
-    await expect(application).rejects.toMatchObject({
-      name: 'WorkspaceIdentityConflictError',
-      path: '/repo',
-      incomingId: 'host-id',
-      conflictingId: 'desktop-id',
-    });
+    expect(result).toMatchObject({ adopted: 1, refreshed: 0, markedMissing: 0, untracked: 2 });
+    expect(result.identityConflicts).toMatchObject([
+      {
+        name: 'WorkspaceIdentityConflictError',
+        path: '/repo',
+        incomingId: 'host-id',
+        conflictingId: 'desktop-id',
+      },
+    ]);
+    expect(result.identityConflicts[0]).toBeInstanceOf(WorkspaceIdentityConflictError);
     expect(registry.getLive('host-id')).toBeUndefined();
-    expect(registry.getLive('desktop-id')).toMatchObject({
-      path: '/repo',
-      observedStatus: 'present',
+    expect(registry.getLive('other')).toMatchObject({ path: '/other' });
+    // The unannotated conflicting row follows the mirror, so the next delivery converges.
+    expect(registry.getLive('desktop-id')).toBeUndefined();
+    expect(registry.getLive('would-be-swept')).toBeUndefined();
+
+    const next = await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records,
     });
-    expect(registry.getLive('would-be-swept')).toMatchObject({
-      path: '/work/old',
-      observedStatus: 'present',
-    });
+    expect(next).toMatchObject({ adopted: 1, refreshed: 1, identityConflicts: [] });
+    expect(registry.getLive('host-id')).toMatchObject({ path: '/repo' });
   });
 
-  it('rejects a Windows casing collision before changing the mirror', async () => {
+  it('skips a Windows casing collision and keeps the annotated desktop row', async () => {
     const registry = createWorkspaceRegistry(fixture.db);
     registry.recordCreationIntent({
       id: 'desktop-id',
@@ -494,42 +506,48 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       location: 'local',
       path: 'C:\\Repo',
       observedStatus: 'present',
+      config: { version: '2', git: { kind: 'none' }, workspace: { kind: 'new-worktree' } },
     });
 
-    await expect(
-      applyWorkspaceRegistrySnapshot({
-        db: fixture.db,
-        host: LOCAL_HOST,
-        records: {
-          'host-id': hostRecord({
-            id: 'host-id',
-            kind: 'repository',
-            path: 'c:\\REPO',
-            parentId: null,
-          }),
-        },
-      })
-    ).rejects.toMatchObject({
-      name: 'WorkspaceIdentityConflictError',
-      incomingId: 'host-id',
-      conflictingId: 'desktop-id',
+    const result = await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {
+        'host-id': hostRecord({
+          id: 'host-id',
+          kind: 'repository',
+          path: 'c:\\REPO',
+          parentId: null,
+        }),
+      },
     });
-    expect(registry.getLive('desktop-id')?.path).toBe('C:\\Repo');
+
+    expect(result).toMatchObject({ adopted: 0, markedMissing: 1, untracked: 0 });
+    expect(result.identityConflicts).toMatchObject([
+      { incomingId: 'host-id', conflictingId: 'desktop-id' },
+    ]);
+    expect(registry.getLive('desktop-id')).toMatchObject({
+      path: 'C:\\Repo',
+      observedStatus: 'missing',
+    });
     expect(registry.getLive('host-id')).toBeUndefined();
   });
 
-  it('rejects duplicate Host path ownership even when neither id exists locally', async () => {
-    await expect(
-      applyWorkspaceRegistrySnapshot({
-        db: fixture.db,
-        host: LOCAL_HOST,
-        records: {
-          first: hostRecord({ id: 'first', path: '/same' }),
-          second: hostRecord({ id: 'second', path: '/same' }),
-        },
-      })
-    ).rejects.toBeInstanceOf(WorkspaceIdentityConflictError);
-    expect(createWorkspaceRegistry(fixture.db).getLive('first')).toBeUndefined();
+  it('skips duplicate Host path ownership even when neither id exists locally', async () => {
+    const result = await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {
+        first: hostRecord({ id: 'first', path: '/same' }),
+        second: hostRecord({ id: 'second', path: '/same' }),
+      },
+    });
+
+    expect(result).toMatchObject({ adopted: 1 });
+    expect(result.identityConflicts).toMatchObject([
+      { path: '/same', incomingId: 'second', conflictingId: 'first' },
+    ]);
+    expect(createWorkspaceRegistry(fixture.db).getLive('first')).toMatchObject({ path: '/same' });
     expect(createWorkspaceRegistry(fixture.db).getLive('second')).toBeUndefined();
   });
 

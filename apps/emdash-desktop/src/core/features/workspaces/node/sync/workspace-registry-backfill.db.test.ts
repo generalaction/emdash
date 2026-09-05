@@ -163,19 +163,28 @@ describe('WorkspaceRegistryBackfillService', () => {
     expect(fixture.db.select().from(tasks).get()?.workspaceId).toBe('canonical-repo');
   });
 
-  it('does not partially move bindings when the canonical desktop row conflicts', async () => {
+  it('skips a conflicting canonical desktop row without blocking the Host attachment', async () => {
     seedRow('legacy-repo', { kind: 'repository', path: '/repo' });
     seedRow('canonical-repo', { kind: 'repository', path: '/other' });
     seedProject('project', 'legacy-repo');
     seedProject('other-project', 'canonical-repo');
     hostByPath.set('/repo', hostRecord('canonical-repo', '/repo'));
 
-    await expect(run()).resolves.toMatchObject({ status: 'terminal-failure' });
+    await expect(run()).resolves.toEqual({ status: 'complete' });
 
     const registry = createWorkspaceRegistry(fixture.db);
     expect(registry.getLive('legacy-repo')).toMatchObject({ path: '/repo' });
     expect(registry.getLive('canonical-repo')).toMatchObject({ path: '/other' });
     expect(fixture.db.select().from(projects).get()?.repositoryWorkspaceId).toBe('legacy-repo');
+    expect(hostByPath.get('/other')).toMatchObject({ id: 'canonical-repo' });
+    // Claiming canonical-repo changes the plan once, so the fixed point takes two passes.
+    expect(errors).toEqual(
+      Array(2).fill('workspace registry backfill skipped conflict (legacy-repo)')
+    );
+
+    createWorkspace.mockClear();
+    await expect(run()).resolves.toEqual({ status: 'complete' });
+    expect(createWorkspace).not.toHaveBeenCalled();
   });
 
   it('preserves parent closure and registers parents before their worktrees', async () => {
