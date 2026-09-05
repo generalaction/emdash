@@ -116,7 +116,10 @@ export const AGENT_ENV_VARS = [
   'RLM_MAX_DEPTH',
   'VIBE_HOME',
   'XAI_API_KEY',
+  'XDG_CACHE_HOME',
   'XDG_CONFIG_HOME',
+  'XDG_DATA_HOME',
+  'XDG_STATE_HOME',
   'ZAI_API_KEY',
 ] as const;
 

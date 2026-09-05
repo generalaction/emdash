@@ -92,6 +92,24 @@ describe('buildAllowlistedAgentEnv', () => {
     expect(env.ANTHROPIC_API_KEY).toBe('included');
   });
 
+  it('forwards all persistent XDG base-directory variables', () => {
+    const env = buildAllowlistedAgentEnv({
+      XDG_CACHE_HOME: '/home/ada/.cache',
+      XDG_CONFIG_HOME: '/home/ada/.config',
+      XDG_DATA_HOME: '/home/ada/.local/share',
+      XDG_STATE_HOME: '/home/ada/.local/state',
+      XDG_UNSAFE_HOME: '/home/ada/.unsafe',
+    });
+
+    expect(env).toMatchObject({
+      XDG_CACHE_HOME: '/home/ada/.cache',
+      XDG_CONFIG_HOME: '/home/ada/.config',
+      XDG_DATA_HOME: '/home/ada/.local/share',
+      XDG_STATE_HOME: '/home/ada/.local/state',
+    });
+    expect(env.XDG_UNSAFE_HOME).toBeUndefined();
+  });
+
   it('forwards supported Prime configuration without leaking internal daemon state', () => {
     const env = buildAllowlistedAgentEnv({
       HOME: '/home/ada',
