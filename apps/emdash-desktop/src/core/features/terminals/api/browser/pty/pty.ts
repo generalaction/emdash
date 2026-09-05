@@ -5,7 +5,7 @@ import {
   isPrimaryMouseButton,
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
-import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
+import { openExternalLinkFromMouseEvent } from '@core/features/workbench/api/browser/open-external-link';
 import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';
@@ -127,9 +127,10 @@ export class FrontendPty {
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
-        activate: (_event: MouseEvent, text: string) => {
-          if (!isPrimaryMouseButton(_event)) return;
-          confirmOpenExternalLink(text, (error) => {
+        activate: (event: MouseEvent, text: string) => {
+          if (!isPrimaryMouseButton(event)) return;
+          this.suppressAltClickCursorMove(event);
+          openExternalLinkFromMouseEvent(event, text, (error) => {
             log.warn('FrontendPty: failed to open external link', { text, error });
           });
         },
@@ -143,7 +144,8 @@ export class FrontendPty {
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       if (!isPrimaryMouseButton(event)) return;
       event.preventDefault();
-      confirmOpenExternalLink(uri);
+      this.suppressAltClickCursorMove(event);
+      openExternalLinkFromMouseEvent(event, uri);
     });
 
     this.terminal.loadAddon(webLinksAddon);
@@ -255,6 +257,20 @@ export class FrontendPty {
    */
   unmount(): void {
     ensureXtermHost().appendChild(this.ownedContainer);
+  }
+
+  /**
+   * xterm's SelectionService handles the same mouseup after a link activates and, with
+   * ⌥ held, sends cursor-movement keys to the PTY (`altClickMovesCursor`). An ⌥-click that
+   * opened a link should not also move the shell cursor, so the option is switched off for
+   * the remainder of this event dispatch only.
+   */
+  private suppressAltClickCursorMove(event: MouseEvent): void {
+    if (!event.altKey || !this.terminal.options.altClickMovesCursor) return;
+    this.terminal.options.altClickMovesCursor = false;
+    setTimeout(() => {
+      this.terminal.options.altClickMovesCursor = true;
+    }, 0);
   }
 
   /**
