@@ -16,8 +16,15 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
   return `/bin/sh -c ${JSON.stringify(script)}`;
 }
 
+/**
+ * Session names show up in tmux status bars (#2706), so UUID-backed session ids
+ * (`uuid:uuid:uuid`) pack into their raw 48 bytes instead of base64url-ing the
+ * 110-character text. Anything else keeps the legacy utf8 encoding, and decoding
+ * still accepts names created by older builds.
+ */
 export function makeTmuxSessionName(sessionId: string): string {
-  const encoded = Buffer.from(sessionId, 'utf8').toString('base64url');
+  const packed = packUuidSessionId(sessionId);
+  const encoded = (packed ?? Buffer.from(sessionId, 'utf8')).toString('base64url');
   return `${TMUX_SESSION_PREFIX}${encoded}`;
 }
 
@@ -25,13 +32,47 @@ export function decodeTmuxSessionName(sessionName: string): string | null {
   if (!sessionName.startsWith(TMUX_SESSION_PREFIX)) return null;
   const encoded = sessionName.slice(TMUX_SESSION_PREFIX.length);
   if (!encoded) return null;
+  let bytes: Buffer;
   try {
-    const sessionId = Buffer.from(encoded, 'base64url').toString('utf8');
-    if (makeTmuxSessionName(sessionId) !== sessionName) return null;
-    return sessionId;
+    bytes = Buffer.from(encoded, 'base64url');
   } catch {
     return null;
   }
+  // The round-trip guard disambiguates packed from legacy encodings: a candidate
+  // is accepted when this name is any of its valid encodings.
+  const candidates = [unpackUuidSessionId(bytes), bytes.toString('utf8')];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const encodings = [Buffer.from(candidate, 'utf8'), packUuidSessionId(candidate)].filter(
+      (buffer) => buffer !== null
+    );
+    if (encodings.some((buffer) => buffer.toString('base64url') === encoded)) return candidate;
+  }
+  return null;
+}
+
+const UUID_TEXT_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function packUuidSessionId(sessionId: string): Buffer | null {
+  const parts = sessionId.split(':');
+  if (parts.length !== 3 || !parts.every((part) => UUID_TEXT_PATTERN.test(part))) return null;
+  return Buffer.concat(parts.map((part) => Buffer.from(part.replace(/-/g, ''), 'hex')));
+}
+
+function unpackUuidSessionId(bytes: Buffer): string | null {
+  if (bytes.length !== 48) return null;
+  const hex = bytes.toString('hex');
+  return [0, 32, 64].map((offset) => formatUuidText(hex.slice(offset, offset + 32))).join(':');
+}
+
+function formatUuidText(hex: string): string {
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
 }
 
 export async function listTmuxSessionActivity(
