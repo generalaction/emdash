@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type EmdashScriptsConfig } from '#primitives/emdash-config/api';
@@ -101,6 +102,8 @@ export class WorkspaceActivationManager {
   private readonly logger: Logger;
   private readonly teardownTimeoutMs: number;
   private readonly active = new Map<string, ActiveState>();
+  /** Workspaces whose removal teardown already settled (at most once per id). */
+  private readonly removalTeardowns = new Set<string>();
 
   constructor(options: WorkspaceActivationManagerOptions) {
     this.options = options;
@@ -221,6 +224,48 @@ export class WorkspaceActivationManager {
     return { teardownFailure };
   }
 
+  /**
+   * The removal verbs' deactivation: the plain activation teardown when an activation
+   * exists, otherwise a one-time orphan teardown so deleting a workspace that was never
+   * activated in this run (archived task, never opened, daemon restart) still settles
+   * its `.emdash.json` teardown before its artifacts are destroyed (#2886). A missing
+   * workspace path has nothing left to settle.
+   */
+  async deactivateForRemoval(
+    id: string,
+    workspacePath: string
+  ): Promise<WorkspaceDeactivationResult> {
+    if (this.active.has(id)) {
+      const result = await this.deactivate(id);
+      // The activation's one teardown settled (success or not): consume the id so a
+      // failed-teardown retry proceeds past it instead of re-running the orphan path.
+      this.removalTeardowns.add(id);
+      return result;
+    }
+    if (this.removalTeardowns.has(id)) return { teardownFailure: null };
+    if (!(await isDirectory(workspacePath))) return { teardownFailure: null };
+
+    const policy = await this.resolveLifecycleConfig(id, workspacePath);
+    const teardown = policy.scripts.teardown;
+    if (!teardown) return { teardownFailure: null };
+
+    const outcome = await this.runner.run({
+      id: 'teardown',
+      command: teardown,
+      shellSetup: policy.shellSetup,
+      cwd: workspacePath,
+      timeoutMs: this.teardownTimeoutMs,
+    });
+    // Consumed even on failure: like a spent activation, the retry proceeds past it.
+    this.removalTeardowns.add(id);
+    if (outcome.status === 'succeeded') {
+      this.options.clearNotice(id, 'teardown');
+      return { teardownFailure: null };
+    }
+    this.options.setNotice(id, 'teardown', outcome.message);
+    return { teardownFailure: { message: outcome.message } };
+  }
+
   /** Abandons all activations without teardown; used on runtime disposal only. */
   dispose(): void {
     for (const state of this.active.values()) {
@@ -321,4 +366,12 @@ async function readWorkspaceScripts(
 ): Promise<EmdashScriptsConfig> {
   // Lenient by design: an unparseable .emdash.json must never block activation.
   return (await readWorkspaceConfig(workspacePath)).config.scripts ?? {};
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await fs.stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
 }
