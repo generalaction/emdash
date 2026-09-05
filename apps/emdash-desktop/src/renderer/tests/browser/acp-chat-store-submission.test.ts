@@ -1,4 +1,5 @@
 import type { HistoryPage, SessionState } from '@emdash/core/runtimes/acp/api/client';
+import { observable, runInAction } from 'mobx';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import {
@@ -6,6 +7,10 @@ import {
   type AcpPromptAttachment,
 } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
+import type {
+  ProjectHostAccess,
+  ProjectHostAccessState,
+} from '@core/features/projects/api/browser/stores/project-context';
 
 type DraftState = {
   version: '1';
@@ -150,6 +155,99 @@ describe('AcpChatStore prompt submission', () => {
 
     await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledWith({ text: 'hello' }));
     expect(store.draftText).toBe('');
+  });
+
+  it('reconciles a prompt when authoritative history arrives without live turn updates', async () => {
+    let finishPrompt!: () => void;
+    const sendPrompt = vi.fn(
+      () =>
+        new Promise<{ success: true; data: { queued: false } }>((resolve) => {
+          finishPrompt = () => resolve({ success: true, data: { queued: false } });
+        })
+    );
+    const live = fakeLiveSession(idleState(), historyPage('before'), { sendPrompt });
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    historySeed.mockClear();
+
+    store.submitPrompt('survived disconnect');
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
+    expect(chatSessionTestState.pendingPrompt).toMatchObject({ text: 'survived disconnect' });
+
+    live.loadHistory.mockResolvedValueOnce({
+      success: true,
+      data: historyPageWithPrompt('completed', 1, 'survived disconnect'),
+    });
+    finishPrompt();
+
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(chatSessionTestState.pendingPrompt).toBeNull());
+    expect(historySeed).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'completed', seq: 1 }),
+    ]);
+    store.dispose();
+  });
+
+  it('does not reconcile against an identical prompt from earlier history', async () => {
+    const text = 'continue';
+    const priorHistory = historyPageWithPrompt('prior', 0, text);
+    const live = fakeLiveSession(idleState(), priorHistory);
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory.mockResolvedValueOnce({ success: true, data: priorHistory });
+
+    store.submitPrompt(text);
+
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
+    expect(chatSessionTestState.pendingPrompt).toMatchObject({ text });
+    store.dispose();
+  });
+
+  it('keeps a later identical prompt until its own turn is committed', async () => {
+    const text = 'continue';
+    let finishFirst!: () => void;
+    const sendPrompt = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ success: true; data: { queued: false } }>((resolve) => {
+            finishFirst = () => resolve({ success: true, data: { queued: false } });
+          })
+      )
+      .mockResolvedValueOnce({ success: true, data: { queued: true } });
+    const initialHistory = historyPage('before');
+    const firstHistory = {
+      turns: [...initialHistory.turns, ...historyPageWithPrompt('first', 1, text).turns],
+      nextCursor: null,
+    };
+    const completeHistory = {
+      turns: [...firstHistory.turns, ...historyPageWithPrompt('second', 2, text).turns],
+      nextCursor: null,
+    };
+    const live = fakeLiveSession(idleState(), initialHistory, { sendPrompt });
+    const store = await bootstrapWithSession(live.session);
+    live.loadHistory.mockClear();
+    live.loadHistory
+      .mockResolvedValueOnce({ success: true, data: initialHistory })
+      .mockResolvedValueOnce({ success: true, data: firstHistory })
+      .mockResolvedValueOnce({ success: true, data: completeHistory });
+
+    store.submitPrompt(text);
+    const firstId = chatSessionTestState.pendingPrompt?.id;
+    store.submitPrompt(text);
+    const secondId = chatSessionTestState.pendingPrompt?.id;
+
+    expect(secondId).not.toBe(firstId);
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
+    finishFirst();
+    await vi.waitFor(() => expect(historySeed).toHaveBeenLastCalledWith(firstHistory.turns));
+    expect(chatSessionTestState.pendingPrompt?.id).toBe(secondId);
+    expect(store.messageCount).toBe(2);
+
+    connectSessionOptions?.onTurnCommitted?.();
+    await vi.waitFor(() => expect(historySeed).toHaveBeenLastCalledWith(completeHistory.turns));
+    expect(chatSessionTestState.pendingPrompt).toBeNull();
+    store.dispose();
   });
 
   it('restores the persisted draft when the live session is unavailable', async () => {
@@ -552,6 +650,41 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it('refreshes authoritative history when Host availability returns', async () => {
+    const hostState = observable.box<ProjectHostAccessState>({
+      kind: 'ready',
+      hostGeneration: 1,
+    });
+    const hostAccess = {
+      get state() {
+        return hostState.get();
+      },
+      get liveAction() {
+        const state = hostState.get();
+        return state.kind === 'ready'
+          ? ({ kind: 'enabled' } as const)
+          : ({ kind: 'disabled', state } as const);
+      },
+    } as ProjectHostAccess;
+    const live = fakeLiveSession(idleState(), historyPage('before'));
+    vi.spyOn(AcpLiveSession, 'create').mockResolvedValueOnce(live.session);
+    const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', hostAccess);
+    store.bootstrap();
+    await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+    live.loadHistory.mockClear();
+    historySeed.mockClear();
+    live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('recovered') });
+
+    runInAction(() =>
+      hostState.set({ kind: 'degraded', situation: 'offline', recovery: 'automatic' })
+    );
+    runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
+
+    await vi.waitFor(() => expect(live.loadHistory).toHaveBeenCalledTimes(1));
+    expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'recovered' })]);
+    store.dispose();
+  });
+
   it('keeps rendered history when a suspension-driven refresh is unavailable', async () => {
     const live = fakeLiveSession(idleState(), historyPage('rendered'));
     const store = await bootstrapWithSession(live.session);
@@ -686,6 +819,20 @@ function historyPage(turnId: string): HistoryPage {
   };
 }
 
+function historyPageWithPrompt(turnId: string, seq: number, text: string): HistoryPage {
+  return {
+    turns: [
+      {
+        id: turnId,
+        seq,
+        initiator: 'user',
+        items: [{ kind: 'message', id: `${turnId}-user`, seq: 0, role: 'user', text }],
+      },
+    ],
+    nextCursor: null,
+  };
+}
+
 function unavailableHistory(): HistoryPage {
   return { turns: [], nextCursor: null, unavailable: true };
 }
@@ -699,6 +846,7 @@ function createStore(
   store.session = {
     sessionState: { current: () => state },
     sendPrompt,
+    loadHistory: vi.fn(async () => ({ success: true, data: unavailableHistory() })),
     dispose: vi.fn(),
     ...sessionOverrides,
   } as never;

@@ -111,6 +111,7 @@ export class AcpChatStore {
   private readonly _disposeHostReaction: () => void;
   private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
   private _submissionSequence = 0;
+  private _optimisticPrompts: Array<{ id: string; text: string; baselineSeq: number }> = [];
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
   private _disposed = false;
@@ -174,15 +175,13 @@ export class AcpChatStore {
     this._disposeHostReaction = reaction(
       () => this.hostAccess?.state.kind,
       (kind) => {
-        if (
-          kind === 'ready' &&
-          this._bootstrapped &&
-          !this.historyLoading &&
-          this.loadError?.kind === 'unavailable'
-        ) {
+        if (kind !== 'ready' || !this._bootstrapped || this.historyLoading) return;
+        if (this.loadError?.kind === 'unavailable') {
           this.historyLoading = true;
           this.loadError = null;
           void this._runBootstrap();
+        } else if (!this.loadError) {
+          this._requestHistoryRefresh();
         }
       }
     );
@@ -414,7 +413,13 @@ export class AcpChatStore {
     this.draftText = '';
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
-      optimisticId = `optimistic:user:${Date.now()}`;
+      const turns = this.chatState.transcript.state.committedTurns;
+      optimisticId = `optimistic:user:${submissionSequence}`;
+      this._optimisticPrompts.push({
+        id: optimisticId,
+        text,
+        baselineSeq: turns.at(-1)?.seq ?? -1,
+      });
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -427,9 +432,18 @@ export class AcpChatStore {
     }
 
     void this._submitPrompt(text, promptAttachments, hiddenContext).then((accepted) => {
-      if (accepted) return;
+      if (accepted) {
+        if (optimisticId) this._requestHistoryRefresh();
+        return;
+      }
       runInAction(() => {
-        if (this._disposed || submissionSequence !== this._submissionSequence) return;
+        if (this._disposed) return;
+        if (optimisticId) {
+          this._optimisticPrompts = this._optimisticPrompts.filter(
+            (prompt) => prompt.id !== optimisticId
+          );
+        }
+        if (submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
           this.chatState.session.setPendingPrompt(null);
           this._syncMessageCount();
@@ -888,9 +902,30 @@ export class AcpChatStore {
       if (this.chatState.transcript.state.activeTurnSnapshot !== null) return;
       runInAction(() => {
         const pendingPrompt = this.chatState.session.state.pendingPrompt;
+        const committedPromptIds = new Set<string>();
+        let afterSeq = -1;
+        for (const prompt of this._optimisticPrompts) {
+          const turn = history.data.turns.find(
+            (candidate) =>
+              candidate.seq > Math.max(prompt.baselineSeq, afterSeq) &&
+              candidate.initiator === 'user' &&
+              candidate.items.some(
+                (item) =>
+                  item.kind === 'message' && item.role === 'user' && item.text === prompt.text
+              )
+          );
+          if (!turn) break;
+          committedPromptIds.add(prompt.id);
+          afterSeq = turn.seq;
+        }
         this.chatState.transcript.history.seed(history.data.turns);
-        if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
+        if (pendingPrompt && committedPromptIds.has(pendingPrompt.id)) {
+          this.chatState.session.setPendingPrompt(null);
+        } else if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
           this.chatState.session.setPendingPrompt(pendingPrompt);
+        }
+        if (committedPromptIds.size === this._optimisticPrompts.length) {
+          this._optimisticPrompts = [];
         }
         this._syncMessageCount();
       });
