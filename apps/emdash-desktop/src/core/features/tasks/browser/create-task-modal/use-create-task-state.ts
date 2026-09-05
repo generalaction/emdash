@@ -1,11 +1,13 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
 import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { DEFAULT_WORKSPACE_PRESET } from '@core/primitives/project-settings/api';
 import type { PullRequest } from '@core/services/pull-requests/api';
 import { getIssueTaskName } from './issue-task-name';
 
@@ -108,6 +110,13 @@ export function useCreateTaskState(
     resetKey: projectId,
   });
 
+  // Reading the durable page inside this observer render triggers the demand
+  // load; undefined until it arrives (or when the project is unavailable).
+  const durableSettings = projectId ? getProjectSettingsStore(projectId)?.durableDomains : null;
+  const defaultWorkspacePreset = durableSettings
+    ? (durableSettings.placement.stored.defaultWorkspacePreset ?? DEFAULT_WORKSPACE_PRESET)
+    : undefined;
+
   const workspaceConfig = useWorkspaceConfig({
     projectId,
     defaultBranch,
@@ -120,6 +129,7 @@ export function useCreateTaskState(
     linkedIssue: linkedType === 'issue' ? linkedIssue : null,
     createBranchAndWorktreeDefault: createBranchAndWorktree,
     resetKey: projectId,
+    defaultWorkspacePreset,
     initial: initialWorkspaceId
       ? {
           mode: 'existing',

@@ -9,6 +9,7 @@ describe('DesktopProjectSettingsAuthority', () => {
         worktreeRoot: '/tmp/worktrees',
         baseRemote: 'origin',
         tmux: true,
+        defaultWorkspacePreset: 'repo-root',
       }),
       shareableProjectSettingsJson: '{}',
       legacyConfigMigratedAt: null,
@@ -26,14 +27,20 @@ describe('DesktopProjectSettingsAuthority', () => {
       success: true,
       data: {
         gitIdentity: { stored: { baseRemote: 'origin' } },
-        placement: { stored: { worktreeRoot: '/tmp/worktrees', tmux: true } },
+        placement: {
+          stored: {
+            worktreeRoot: '/tmp/worktrees',
+            tmux: true,
+            defaultWorkspacePreset: 'repo-root',
+          },
+        },
       },
     });
 
     await expect(
       authority.patch('project-1', {
         gitIdentity: { stored: { pushRemote: 'fork', baseRemote: null } },
-        placement: { stored: { tmux: false } },
+        placement: { stored: { tmux: false, defaultWorkspacePreset: null } },
       })
     ).resolves.toEqual({ success: true, data: undefined });
 
@@ -43,6 +50,7 @@ describe('DesktopProjectSettingsAuthority', () => {
       tmux: false,
     });
     expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('baseRemote');
+    expect(JSON.parse(row.baseProjectSettingsJson)).not.toHaveProperty('defaultWorkspacePreset');
   });
 
   it('does not preserve migration-only lifecycle settings during a durable patch', async () => {

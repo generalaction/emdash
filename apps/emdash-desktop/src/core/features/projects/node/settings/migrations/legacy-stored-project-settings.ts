@@ -7,6 +7,7 @@ import z from 'zod';
 import {
   baseProjectSettingsSchema,
   defaultBranchSettingSchema,
+  defaultWorkspacePresetSettingSchema,
   storedDefaultBranchSchema,
   storedGithubAccountSchema,
   type StoredBaseProjectSettings,
@@ -29,6 +30,7 @@ export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend(
   worktreeRoot: z.string().trim().optional(),
   githubAccount: storedGithubAccountSchema.optional(),
   tmuxDefaultMigrated: z.literal(true).optional(),
+  defaultWorkspacePreset: defaultWorkspacePresetSettingSchema.optional(),
 });
 
 export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;

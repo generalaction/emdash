@@ -12,6 +12,9 @@ import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { compactUndefined, readJson } from './project-settings-json';
 import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
 
+/** Placement fields the desktop DB owns outright (worktreeRoot goes through the host provider). */
+export const DURABLE_PLACEMENT_FIELDS = ['tmux', 'defaultWorkspacePreset'] as const;
+
 export interface DurableProjectSettingsAuthority {
   read(
     projectId: string
@@ -60,10 +63,14 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
           else next[field] = value as never;
         }
       }
-      const tmux = patch.placement?.stored.tmux;
-      if (patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')) {
-        if (tmux === null || tmux === undefined) delete next.tmux;
-        else next.tmux = tmux;
+      const placement = patch.placement?.stored;
+      if (placement) {
+        for (const field of DURABLE_PLACEMENT_FIELDS) {
+          if (!Object.hasOwn(placement, field)) continue;
+          const value = placement[field];
+          if (value === null || value === undefined) delete next[field];
+          else next[field] = value as never;
+        }
       }
 
       if (!row) {
@@ -104,13 +111,14 @@ export function createDesktopProjectSettingsAuthority(
 }
 
 function durableDomains(stored: StoredBaseProjectSettings): ProjectDurableSettingsDomains {
-  const { worktreeRoot, tmux, ...gitIdentity } = stored;
+  const { worktreeRoot, tmux, defaultWorkspacePreset, ...gitIdentity } = stored;
   return {
     gitIdentity: { stored: gitIdentity },
     placement: {
       stored: {
         ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
         ...(tmux !== undefined ? { tmux } : {}),
+        ...(defaultWorkspacePreset !== undefined ? { defaultWorkspacePreset } : {}),
       },
     },
   };
