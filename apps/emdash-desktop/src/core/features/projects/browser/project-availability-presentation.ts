@@ -93,6 +93,15 @@ export function classifyProjectAvailability({
         progress: true,
         actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
       };
+    case 'checking':
+      return {
+        severity: 'info',
+        announcement: 'polite',
+        title: 'Checking connection',
+        detail: 'The Project stays open while the current connection is validated.',
+        progress: true,
+        actions: [],
+      };
     case 'provisioning':
     case 'handshaking':
       return {

@@ -28,7 +28,7 @@ describe('desktop runtime broker remote sessions', () => {
     await firstResult.data.files.getHomeDir(undefined);
     expect(runtimeClient.files.getHomeDir).toHaveBeenCalledOnce();
     expect(client).toHaveBeenCalledTimes(2);
-    expect(client).toHaveBeenCalledWith('ssh-1');
+    expect(client).toHaveBeenCalledWith('ssh-1', { waitForReady: false });
   });
 
   it('reports unavailable when a remote runtime connection fails', async () => {

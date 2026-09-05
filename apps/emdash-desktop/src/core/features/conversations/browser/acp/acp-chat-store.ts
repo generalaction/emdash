@@ -171,9 +171,33 @@ export class AcpChatStore {
       exportTranscript: action,
       retry: action,
     });
+    const initialHost = this.hostAccess?.state;
+    let lastHostGeneration = initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
     this._disposeHostReaction = reaction(
-      () => this.hostAccess?.state.kind,
-      (kind) => {
+      () => this.hostAccess?.state,
+      (state) => {
+        const kind = state?.kind;
+        if (state?.kind === 'ready') {
+          const changed = state.hostGeneration !== lastHostGeneration;
+          lastHostGeneration = state.hostGeneration;
+          const session = this.session;
+          if (changed && session) {
+            void session
+              .revalidate()
+              .then(() => {
+                if (this._disposed || this.session !== session || !session.usable) return;
+                runInAction(() => {
+                  this.loadError = null;
+                });
+              })
+              .catch((error) => {
+                if (this._disposed || this.session !== session) return;
+                runInAction(() => {
+                  this.loadError = toLoadError(error);
+                });
+              });
+          }
+        }
         if (
           kind === 'ready' &&
           this._bootstrapped &&
@@ -316,7 +340,8 @@ export class AcpChatStore {
 
   get affordances(): AgentAffordances {
     const state = this.session?.sessionState.current();
-    const liveActionsEnabled = this.hostAccess?.liveAction.kind !== 'disabled';
+    const liveActionsEnabled =
+      this.hostAccess?.liveAction.kind !== 'disabled' && (this.session?.usable ?? false);
     const isResuming = state?.lifecycle === 'starting' || state?.lifecycle === 'replaying';
     return {
       isWorking: state?.isGenerating ?? false,
@@ -685,7 +710,7 @@ export class AcpChatStore {
   ): Promise<boolean> {
     if (this.hostAccess?.liveAction.kind === 'disabled') return false;
     const session = this.session;
-    if (!session) {
+    if (!session || !session.usable) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));
       return false;
     }

@@ -131,7 +131,8 @@ describe('SshConnectionManager', () => {
     secondConnect.catch(() => {});
 
     releaseFirstResolver();
-    await expect(firstConnect).rejects.toThrow('was disconnected before connecting');
+    await expect(firstConnect).rejects.toThrow('SSH connection closed before ready');
+    await new Promise((resolve) => setImmediate(resolve));
     expect(createClientCalls).toEqual([]);
     expect(cleanupCalls).toEqual(['cleanup-1']);
 
@@ -271,7 +272,8 @@ describe('SshConnectionManager', () => {
     await manager.disconnectAll();
     releaseResolver();
 
-    await expect(connectPromise).rejects.toThrow('was disconnected before connecting');
+    await expect(connectPromise).rejects.toThrow('SSH connection closed before ready');
+    await new Promise((resolve) => setImmediate(resolve));
     expect(cleanupCalls).toEqual(['cleanup']);
     expect(createClientCalls).toEqual([]);
   });
@@ -321,10 +323,12 @@ describe('SshConnectionManager', () => {
       clients[0]!.emit('close');
 
       expect(events.filter((event) => event === 'disconnected')).toHaveLength(1);
-      expect(events).toContain('reconnecting');
-      expect(manager.getConnectionState('ssh-1')).toBe('reconnecting');
+      expect(events).not.toContain('reconnecting');
+      expect(manager.getConnectionState('ssh-1')).toBe('disconnected');
 
       await vi.advanceTimersByTimeAsync(1_000);
+      expect(resolveCalls).toBe(1);
+      await manager.createConnection('ssh-1', resolve);
 
       expect(resolveCalls).toBe(2);
       expect(cleanupCalls).toEqual(['cleanup-1']);
@@ -506,7 +510,10 @@ describe('SshConnectionManager', () => {
       client.emit('close');
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(events).toContain('reconnect-failed');
+      await expect(manager.createConnection('ssh-1', resolve)).rejects.toBeInstanceOf(SshAuthError);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(resolveCalls).toBe(2);
+      expect(events).not.toContain('reconnecting');
       expect(manager.getConnectionState('ssh-1')).toBe('disconnected');
     } finally {
       vi.useRealTimers();

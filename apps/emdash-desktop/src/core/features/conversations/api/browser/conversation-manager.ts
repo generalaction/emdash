@@ -523,7 +523,10 @@ export class ConversationManagerStore implements Disposable {
     const connector =
       conversation.type === 'acp'
         ? createNoopConnector()
-        : createTuiAgentsConnector(conversation.id);
+        : createTuiAgentsConnector(conversation.id, () => {
+            const state = this.hostAccess?.state;
+            return !state ? 0 : state.kind === 'ready' ? state.hostGeneration : undefined;
+          });
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,
@@ -550,7 +553,10 @@ function createNoopConnector(): FrontendPtyConnector {
   };
 }
 
-function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector {
+function createTuiAgentsConnector(
+  conversationId: string,
+  generation: () => number | undefined
+): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
   let clientPromise: ReturnType<typeof getConversationsClient> | null = null;
   const client = () => {
@@ -570,8 +576,11 @@ function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector 
       };
     },
     sendInput(data: string) {
+      const sentGeneration = generation();
+      if (sentGeneration === undefined) return;
       void client()
         .then(async (runtime) => {
+          if (generation() !== sentGeneration) return;
           const result = await runtime.tui.sendInput({ conversationId, data });
           if (!result.success) {
             log.warn('ConversationManagerStore: TUI input failed', {

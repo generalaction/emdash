@@ -240,8 +240,17 @@ _Avoid_: Machine (outside UI labels), "remote" as a noun
 **Host availability**:
 The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
 only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
-owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
+owns recovery and suspension after user Disconnect. ADR 0008 establishes one per-Host connection
+supervisor with bounded attempts, continuing transient retries, and generation-bound liveness
+evidence. Remote availability is a projection of that supervisor; local worker readiness remains
+separate.
 _Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
+
+**Host connection supervisor**:
+The owner of one remote Host's connection intent, demand, validation, and recovery
+(ADR 0008). Its availability is independent of retained logical
+attachment identity. SSH and Wire adapters perform bounded operations under its policy.
+_Avoid_: Independent SSH, Wire, and Host retry loops for the same Host
 
 **Desktop Secret Authority**:
 The desktop-owned authority over user Secret references, storage backends, Host grants,

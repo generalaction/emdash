@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { app } from 'electron';
+import { app, powerMonitor } from 'electron';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { IS_CANARY } from '@core/primitives/app-identity/api/app-identity';
 import type { SshService } from '@core/primitives/ssh/api';
@@ -28,12 +28,11 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     logger: log,
     telemetry: telemetryService,
   });
-  void reconnectIntendedSshConnections(database.db, ssh.ssh);
   const hostSettings = await database.appSettings.get('remoteMachine');
   const clientId = await getDesktopClientId();
   const hosts = createHostService({
     scope: appScope,
-    ssh: { manager: ssh.manager, connect: ssh.ssh },
+    ssh: { manager: ssh.manager, control: ssh.control },
     machineEvents: ssh.machines,
     installBaseUrl: hostSettings.installBaseUrl,
     releaseChannel: IS_CANARY ? 'canary' : 'stable',
@@ -41,6 +40,16 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     client: { id: clientId, appVersion: app.getVersion() },
     logger: log,
   });
+  ssh.bindLifecycle(hosts.lifecycle);
+  const resume = () => hosts.wake('resume');
+  const suspend = () => hosts.wake('suspend');
+  powerMonitor.on('resume', resume);
+  powerMonitor.on('suspend', suspend);
+  appScope.add(() => {
+    powerMonitor.off('resume', resume);
+    powerMonitor.off('suspend', suspend);
+  });
+  void reconnectIntendedSshConnections(database.db, ssh.ssh);
   return { ssh, hosts };
 }
 

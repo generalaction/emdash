@@ -1,5 +1,6 @@
 import { computed, makeObservable } from 'mobx';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
+import { getProjectHostAccess } from '@core/features/projects/api/browser/stores/project-selectors';
 import { type WorkspaceScopedStoreContext } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { workspaceStoreContributions } from '@core/manifests/browser/workspace-scoped-stores';
 import {
@@ -11,6 +12,7 @@ import type { ConnectionState } from '@core/primitives/ssh/api';
 
 export class WorkspaceStore {
   readonly workspaceId: string;
+  private readonly projectId: string;
   readonly path: string;
   readonly sshConnectionId: string | undefined;
   private readonly stores: ScopedStoreHost<WorkspaceScopedStoreContext>;
@@ -28,6 +30,7 @@ export class WorkspaceStore {
   }: WorkspaceScopedStoreContext) {
     makeObservable(this, { connectionState: computed });
     this.workspaceId = workspaceId;
+    this.projectId = projectId;
     this.path = path;
     this.sshConnectionId = sshConnectionId;
     this.stores = new ScopedStoreHost(
@@ -38,7 +41,11 @@ export class WorkspaceStore {
 
   get connectionState(): ConnectionState | null {
     if (!this.sshConnectionId) return null;
-    return getMachinesStore().stateFor(this.sshConnectionId);
+    const access = getProjectHostAccess(this.projectId)?.state;
+    if (access?.kind === 'ready') return 'connected';
+    return access?.kind === 'degraded' && access.recovery === 'automatic'
+      ? 'reconnecting'
+      : 'disconnected';
   }
 
   reconnect(): void {

@@ -22,10 +22,7 @@ describe('Hosts Wire availability', () => {
     const serverStates = expose(hostsContract.serverStates, { runtime: cell({}) });
     const service = { stateModel: { host: serverStates } } as HostService;
     const disconnect = vi.fn(async () => {
-      expect(availability.stateFor(host)).toEqual({
-        kind: 'suspended',
-        reason: 'user-disconnected',
-      });
+      availability.suspend(host);
     });
     const wire = createTestWire(
       hostsContract,

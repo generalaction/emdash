@@ -10,7 +10,7 @@ import {
 import type { SshWorkspaceServerTarget } from '../../../api/targets';
 import type { HostStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
-import type { WireConnectionManager } from '../connect/wire-connection-manager';
+import type { WorkspaceServerDialer } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 import { sshWorkspaceServerTarget } from '../targets';
@@ -45,7 +45,7 @@ type WorkspaceServerProvisionerDeps = {
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
   model: HostStateModel;
-  wire: Pick<WireConnectionManager, 'dialOnce'>;
+  wire: Pick<WorkspaceServerDialer, 'dialOnce'>;
   devAutoUpdate?: boolean;
   logger?: { warn(message: string, metadata?: Record<string, unknown>): void };
   clock?: Clock;
@@ -68,7 +68,7 @@ const daemonReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 
 export class WorkspaceServerProvisioner {
   private readonly runs = new Map<string, EnsureRun>();
   private readonly targets = new Map<string, SshWorkspaceServerTarget>();
-  private readonly dialOnce: WireConnectionManager['dialOnce'];
+  private readonly dialOnce: WorkspaceServerDialer['dialOnce'];
   private readonly clock: Clock;
 
   constructor(private readonly deps: WorkspaceServerProvisionerDeps) {
@@ -163,10 +163,7 @@ export class WorkspaceServerProvisioner {
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
-          await this.install(connectionId, layout, signal);
-          await this.restart(connectionId, layout, signal);
-          this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
-          return target;
+          throw protocolError(outcome.error);
         case 'unreachable':
           break;
       }

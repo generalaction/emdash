@@ -1,106 +1,58 @@
-import {
-  LOCAL_HOST_REF,
-  hostRef,
-  hostRefEquals,
-  sshConnectionIdOf,
-  type HostRef,
-} from '@emdash/core/primitives/host/api';
-import {
-  runtimeHostNotConfigured,
-  type RuntimeResolveError,
-} from '@emdash/core/primitives/runtime-resolution/api';
+import { hostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
-import type { ConnectionState } from '@core/primitives/ssh/api';
-import type {
-  SshConnectionManager,
-  SshConnectionManagerListener,
-} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import {
   createHostAvailability,
   type HostAvailabilityService,
-  type HostReadinessContext,
 } from '@core/services/hosts/node/availability';
 import type { HostService } from '@core/services/hosts/node/host-service';
 import { translateHostPreparationError } from '@core/services/hosts/node/runtime-resolution';
 
 export type CreateDesktopHostAvailabilityOptions = {
   scope: Scope;
-  hosts: HostService;
-  runtimes: Pick<RuntimeBroker, 'rebind'>;
-  connectSsh(connectionId: string): Promise<ConnectionState>;
-  sshEvents: Pick<SshConnectionManager, 'on' | 'off'>;
+  hosts: Pick<
+    HostService,
+    'connection' | 'availability' | 'demand' | 'wake' | 'onReady' | 'onInvalidate'
+  >;
+  runtimes: Pick<RuntimeBroker, 'rebind' | 'forget'>;
   localReady(): Promise<void>;
 };
 
+/** Remote availability is projected directly; only local workers use the local readiness adapter. */
 export function createDesktopHostAvailability(
   options: CreateDesktopHostAvailabilityOptions
 ): HostAvailabilityService {
   const availability = createHostAvailability({
     scope: options.scope,
+    remote: (id) => options.hosts.connection(id),
+    remoteState: (id) => options.hosts.availability(id),
+    remoteDemand: (id, mode, owner) => options.hosts.demand(id, mode, owner),
+    wakeRemote: (cause) => options.hosts.wake(cause),
     readiness: {
-      prepare: (host, context) => prepareDesktopHost(host, context, options),
+      prepare: async (host, context) => {
+        try {
+          await waitWithSignal(options.localReady(), context.signal);
+          return ok();
+        } catch (error) {
+          return err(translateHostPreparationError(host, 'handshaking', error));
+        }
+      },
     },
   });
   options.scope.add(
-    options.hosts.onInvalidate(({ connectionId }) => {
-      availability.markUnavailable(hostRef('remote', connectionId));
+    options.hosts.onReady((id, attachment) => {
+      options.runtimes.rebind(hostRef('remote', id), {
+        client: attachment.client,
+        connection: attachment.connection,
+      });
     })
   );
-  const handleSshEvent: SshConnectionManagerListener = (event) => {
-    if (event.type !== 'connected' && event.type !== 'reconnected') return;
-    availability.wake(hostRef('remote', event.connectionId), 'ssh-edge');
-  };
-  options.sshEvents.on('connection-event', handleSshEvent);
-  options.scope.add(() => {
-    options.sshEvents.off('connection-event', handleSshEvent);
-  });
+  options.scope.add(
+    options.hosts.onInvalidate(({ connectionId }) => {
+      options.runtimes.forget(hostRef('remote', connectionId));
+    })
+  );
   return availability;
-}
-
-async function prepareDesktopHost(
-  host: HostRef,
-  context: HostReadinessContext,
-  options: CreateDesktopHostAvailabilityOptions
-): Promise<Result<void, RuntimeResolveError>> {
-  if (hostRefEquals(host, LOCAL_HOST_REF)) {
-    try {
-      await waitWithSignal(options.localReady(), context.signal);
-      return ok();
-    } catch (error) {
-      return err(translateHostPreparationError(host, 'handshaking', error));
-    }
-  }
-
-  const connectionId = sshConnectionIdOf(host);
-  if (!connectionId) {
-    return err(runtimeHostNotConfigured(host, 'Host runtime is not configured'));
-  }
-
-  let phase: 'connecting' | 'provisioning' | 'handshaking' = 'connecting';
-  try {
-    if (context.cause === 'connect' || context.cause === 'retry') {
-      const connectionState = await waitWithSignal(
-        options.connectSsh(connectionId),
-        context.signal
-      );
-      if (connectionState !== 'connected') throw new Error('Host connection is not available');
-    }
-    const connection = await options.hosts.client(connectionId, {
-      signal: context.signal,
-      onPhase(nextPhase) {
-        phase = nextPhase;
-        context.setPhase(nextPhase);
-      },
-    });
-    options.runtimes.rebind(host, {
-      client: connection.client,
-      connection: connection.connection,
-    });
-    return ok();
-  } catch (error) {
-    return err(translateHostPreparationError(host, phase, error));
-  }
 }

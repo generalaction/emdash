@@ -209,6 +209,8 @@ export class FrontendPty {
    * ready once the connector has replayed its snapshot.
    */
   async connect(): Promise<void> {
+    this.offData?.();
+    this.offData = null;
     this.offData = await this.connector.connect(this.terminal);
   }
 

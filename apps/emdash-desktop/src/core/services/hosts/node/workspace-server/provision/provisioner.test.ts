@@ -72,7 +72,7 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
-  it('reinstalls and restarts when the handshake requires a server upgrade', async () => {
+  it('requires an explicit server upgrade without restarting sessions', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(
       new WorkspaceServerProtocolError({
@@ -83,10 +83,12 @@ describe('WorkspaceServerProvisioner', () => {
       })
     );
 
-    await fixture.provisioner.ensure('ssh-1');
+    await expect(fixture.provisioner.ensure('ssh-1')).rejects.toMatchObject({
+      code: 'protocol-incompatible',
+    });
 
-    expect(fixture.installer.install).toHaveBeenCalledOnce();
-    expect(fixture.daemon.restart).toHaveBeenCalledOnce();
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
     await fixture.dispose();
   });

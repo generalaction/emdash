@@ -17,7 +17,7 @@ export const hostAvailabilityStateSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('preparing'),
-    phase: z.enum(['connecting', 'provisioning', 'handshaking']),
+    phase: z.enum(['connecting', 'provisioning', 'handshaking', 'checking']),
     attempt: z.number().int().positive(),
   }),
   z.object({

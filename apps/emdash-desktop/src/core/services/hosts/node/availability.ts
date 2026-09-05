@@ -1,4 +1,4 @@
-import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import { formatHostRef, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   runtimeHostUnavailable,
   type RuntimeResolveError,
@@ -28,6 +28,7 @@ import {
   type HostWakeCause,
   type RecoveryCause,
 } from '../api/availability';
+import type { HostConnection } from '../api/node/host-connection';
 
 export type HostReadinessContext = {
   readonly signal: AbortSignal;
@@ -40,6 +41,10 @@ export type HostReadinessAdapter = {
 };
 
 export type CreateHostAvailabilityOptions = {
+  remote?(connectionId: string): HostConnection;
+  remoteState?(connectionId: string): Readable<HostAvailabilityState>;
+  remoteDemand?(connectionId: string, mode: HostDemandMode, owner: Scope): HostDemandLease;
+  wakeRemote?(cause: BrowserHostWakeCause): void;
   scope: Scope;
   readiness: HostReadinessAdapter;
   clock?: Clock;
@@ -89,10 +94,18 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   state(host: HostRef): Readable<HostAvailabilityState> {
+    const id = sshConnectionIdOf(host);
+    if (id && this.options.remoteState) return this.options.remoteState(id);
+    const remote = this.remote(host);
+    if (remote) return remote.availability;
     return this.stateCell(host);
   }
 
   stateFor(host: HostRef): HostAvailabilityState {
+    const id = sshConnectionIdOf(host);
+    if (id && this.options.remoteState) return peek(this.options.remoteState(id));
+    const remote = this.remote(host);
+    if (remote) return peek(remote.availability);
     const state = this.states.get(formatHostRef(host));
     return state ? peek(state) : { kind: 'unavailable', recovery: 'eligible' };
   }
@@ -116,6 +129,10 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   demand(host: HostRef, mode: HostDemandMode, owner: Scope): HostDemandLease {
+    const id = sshConnectionIdOf(host);
+    if (id && this.options.remoteDemand) return this.options.remoteDemand(id, mode, owner);
+    const remote = this.remote(host);
+    if (remote) return remote.demand(mode, owner);
     if (owner.disposed) return inactiveDemandLease(mode);
     const key = formatHostRef(host);
     let entry = this.demands.get(key);
@@ -144,6 +161,11 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   wake(host: HostRef, cause: HostWakeCause): void {
+    const remote = this.remote(host);
+    if (remote) {
+      remote.revalidate(cause === 'ssh-edge' ? 'online' : cause);
+      return;
+    }
     const key = formatHostRef(host);
     const demand = this.demands.get(key);
     if (!demand || !hasActiveDemand(demand)) return;
@@ -159,6 +181,7 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   wakeDemanded(cause: BrowserHostWakeCause): void {
+    this.options.wakeRemote?.(cause);
     for (const demand of this.demands.values()) {
       this.wake(demand.host, cause);
     }
@@ -168,6 +191,10 @@ export class HostAvailabilityService implements HostAvailability {
     host: HostRef,
     cause: RecoveryCause
   ): Promise<Result<HostReady, RuntimeResolveError>> {
+    const remote = this.remote(host);
+    if (remote) {
+      return remote.ensureReady(cause);
+    }
     const ready = this.requireReady(host);
     if (ready.success) return Promise.resolve(ready);
 
@@ -209,6 +236,11 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   suspend(host: HostRef): void {
+    const remote = this.remote(host);
+    if (remote) {
+      void remote.disconnect().catch(() => {});
+      return;
+    }
     const key = formatHostRef(host);
     const active = this.runs.get(key);
     if (active) {
@@ -223,6 +255,11 @@ export class HostAvailabilityService implements HostAvailability {
   }
 
   invalidate(host: HostRef, issue?: RuntimeResolveError): void {
+    const remote = this.remote(host);
+    if (remote) {
+      remote.revalidate('online');
+      return;
+    }
     const state = this.stateFor(host);
     if (state.kind === 'suspended') return;
     const key = formatHostRef(host);
@@ -249,7 +286,17 @@ export class HostAvailabilityService implements HostAvailability {
 
   /** Temporary alias for pre-availability gateway callers. */
   markUnavailable(host: HostRef, issue?: RuntimeResolveError): void {
+    const remote = this.remote(host);
+    if (remote) {
+      remote.revalidate('online');
+      return;
+    }
     this.invalidate(host, issue);
+  }
+
+  private remote(host: HostRef): HostConnection | undefined {
+    const id = sshConnectionIdOf(host);
+    return id ? this.options.remote?.(id) : undefined;
   }
 
   private async performRun(

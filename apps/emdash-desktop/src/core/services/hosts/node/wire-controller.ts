@@ -15,10 +15,15 @@ export function createHostsWireController(
     disconnect: async ({ host }) => {
       const connectionId = sshConnectionIdOf(host);
       if (!connectionId) throw new Error('Local Host does not support SSH Disconnect');
-      availability.suspend(host);
       await ssh.disconnect(connectionId);
     },
-    requestReady: ({ host, cause }) => availability.requestReady(host, cause),
+    requestReady: async ({ host, cause }) => {
+      const id = sshConnectionIdOf(host);
+      if (id) {
+        const result = await service.connection(id).requestConnect();
+        if (!result.success) throw result.error;
+      } else availability.requestReady(host, cause);
+    },
     wake: ({ cause }) => availability.wakeDemanded(cause),
     serverStates: service.stateModel.host,
     refreshServerState: ({ connectionId, force }) =>

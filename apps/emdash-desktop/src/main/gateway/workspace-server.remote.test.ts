@@ -48,7 +48,22 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       scope,
       ssh: {
         manager,
-        connect: { ensureConnected: connect },
+        control: {
+          readIntent: async () => true,
+          writeIntent: async () => {},
+          establish: (id, signal) =>
+            manager.createConnection(
+              id,
+              async () => ({ config: connectConfig, cleanup() {}, debugLogs: [] }),
+              { signal }
+            ),
+          reset: (id) => manager.resetConnection(id),
+          probe: async (id, signal) => {
+            const proxy = manager.getProxy(id);
+            if (!proxy) throw new Error('SSH is disconnected');
+            await proxy.execScript('true', { signal, timeoutMs: 5_000 });
+          },
+        },
       },
       machineEvents: { on: () => () => {} },
       installBaseUrl,
@@ -64,6 +79,8 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       const bootstrapProxy = manager.getProxy(connectionId);
       if (!bootstrapProxy) throw new Error('Docker SSH proxy did not connect');
       await resetManagedRoot(bootstrapProxy, layout);
+      hosts.demand(connectionId, 'automatic', scope);
+      await hosts.client(connectionId);
 
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);

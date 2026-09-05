@@ -4,6 +4,7 @@ import {
   sshConnectionIdOf,
   type HostRef,
 } from '@emdash/core/primitives/host/api';
+import { isRuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import {
   RuntimeBroker,
   runtimeHostNotConfigured,
@@ -37,13 +38,14 @@ async function resolveDesktopRuntimeClient(
     const connectionId = sshConnectionIdOf(host);
     if (connectionId) {
       try {
-        const connection = await hosts.client(connectionId);
+        const connection = await hosts.client(connectionId, { waitForReady: false });
         return ok(
           connection.connection
             ? { client: connection.client, connection: connection.connection }
             : connection.client
         );
       } catch (error) {
+        if (isRuntimeResolveError(error)) return err(error);
         if (
           error instanceof WorkspaceServerProvisionError ||
           error instanceof WorkspaceServerProtocolError

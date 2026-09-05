@@ -5,15 +5,23 @@ The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a 
 The desktop client and managed installation flow live in
 `apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`. For an SSH host, the runtime
 broker asks `HostService` (`core/services/hosts/`) for a runtime client. It coordinates the
-existing `SshConnectionManager`, workspace-server provisioning, and `WireConnectionManager`.
-`WireConnectionManager` owns dial/initialize, reconnecting transports, and one pinned Wire client
-per target until lifecycle invalidation or shutdown. The broker only resolves clients and does not
-own connection lifetime. Ordinary SSH disconnects preserve the pinned connection; terminal Wire
-failures, exhausted SSH reconnects, and machine edits invalidate it.
+per-Host `HostConnectionSupervisor` (ADR 0008), bounded SSH adapters, and workspace-server
+provisioning. The supervisor owns intent, demand, health checks, and retry scheduling. It installs
+initialized candidates into a stable replaceable Wire transport. Provisioning uses a one-shot
+`WorkspaceServerDialer`; neither it nor the SSH manager schedules connection recovery. The broker
+only resolves clients. Ordinary outages preserve logical identity; machine identity edits dispose it.
+
+The public `HostConnection` port exposes read-only availability and typed readiness commands.
+Availability is a kernel-derived projection, with a stable per-Host source that follows identity
+replacement. Readiness waits require existing explicit runtime intent or scope-owned automatic
+demand; they never acquire implicit demand. Health deadlines do not slide when serving those waits.
+Explicit server operations capture the supervisor's operation scope before queueing, so Disconnect
+or identity replacement cancels both queued and active work. Failed/timed-out operations expose
+manual recovery; successful Stop remains paused until an explicit runtime action.
 
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
-`run/`. When the daemon is absent or negotiation reports `upgrade-server`, the desktop downloads
+`run/`. When the daemon is absent or the user explicitly requests an update, the desktop downloads
 the channel pointer for its protocol major, then downloads and executes that version's immutable
 `apps/workspace-server/install.sh` on the remote with the selected version pinned. Canary desktops
 fall back to the stable pointer when no canary pointer exists. The script detects Linux architecture
@@ -127,10 +135,12 @@ is the only pre-initialization exception because daemon lifecycle probes use it 
 absent daemon from an incompatible one. Because the daemon is independently lived, `initialize`
 must be re-called on every reconnect: the daemon may have changed versions between connections.
 
-The reconnecting desktop transport treats `connectOnce` as a readiness barrier. A candidate stream
-is not installed, queued messages are not flushed, and live topics are not reattached until the
-candidate's `initialize` call succeeds. A protocol incompatibility is permanent for that client
-version and stops the reconnect loop; ordinary I/O failures remain retryable.
+The Host supervisor treats initialization as a readiness barrier. A candidate stream is not
+installed and live topics are not reattached until its `initialize` call succeeds. Remote calls
+are not held for later delivery while disconnected. A protocol incompatibility blocks automatic
+recovery and requires an explicit update; ordinary I/O failures retry with capped jittered backoff.
+Resume/focus/online and periodic correlated Wire health checks validate existing evidence instead
+of trusting a retained client object. Healthy SSH alone does not establish runtime usability.
 
 ### Request (client → server)
 

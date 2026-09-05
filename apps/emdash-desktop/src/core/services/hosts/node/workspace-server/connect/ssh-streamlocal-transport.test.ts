@@ -30,7 +30,8 @@ describe('openSshWorkspaceServerTransport', () => {
 
     expect(ensureProxy).toHaveBeenCalledWith('ssh-1');
     expect(forwardOutStreamLocal).toHaveBeenCalledWith(
-      '/home/devuser/.emdash/workspace-server/run/workspace.sock'
+      '/home/devuser/.emdash/workspace-server/run/workspace.sock',
+      undefined
     );
     expect(destroy).toHaveBeenCalledOnce();
   });

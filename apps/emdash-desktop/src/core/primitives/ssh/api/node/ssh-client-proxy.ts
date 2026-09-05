@@ -36,7 +36,10 @@ export interface SshClientProxy {
   readonly isConnected: boolean;
 
   /** Opens an OpenSSH streamlocal channel through the current live connection. */
-  forwardOutStreamLocal(socketPath: string): Promise<ClientChannel>;
+  forwardOutStreamLocal(
+    socketPath: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number }
+  ): Promise<ClientChannel>;
 
   /** Runs a structured command through the current live connection with bounded resources. */
   exec(command: Command, options?: SshExecOptions): Promise<SshExecResult>;

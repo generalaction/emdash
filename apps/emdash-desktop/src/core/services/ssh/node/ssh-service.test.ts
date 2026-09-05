@@ -307,6 +307,9 @@ describe('SshService.testConnection', () => {
       connect() {
         queueMicrotask(() => this.emit('error', new Error('auth failed')));
       }
+      destroy() {
+        this.emit('close');
+      }
     }
     const errorManager = new SshConnectionManager({
       createClient: () => new ErrorClient() as unknown as Client,

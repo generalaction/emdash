@@ -1,8 +1,8 @@
-import { UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
+import { Pill, UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Button, SplitButton } from '@emdash/ui/react/primitives';
 import { DownloadIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react';
-import type { HostServerState } from '@core/services/hosts/api';
+import type { HostAvailabilityState, HostServerState } from '@core/services/hosts/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
 type WorkspaceServerActions = {
@@ -19,11 +19,13 @@ export function WorkspaceRuntimeRow({
   loading,
   state,
   actions,
+  availability,
 }: {
   connected: boolean;
   loading: boolean;
   state: HostServerState | undefined;
   actions: WorkspaceServerActions;
+  availability?: HostAvailabilityState;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -31,9 +33,16 @@ export function WorkspaceRuntimeRow({
         label={
           <span className="flex items-center gap-2">
             Workspace Runtime
-            {connected && !loading && state && (
-              <WorkspaceServerBadge status={state.status} error={state.error} />
-            )}
+            {connected &&
+              !loading &&
+              state &&
+              (state.status === 'healthy' && availability?.kind !== 'ready' ? (
+                <Pill variant="neutral">
+                  {availability?.kind === 'preparing' ? 'Checking' : 'Unverified'}
+                </Pill>
+              ) : (
+                <WorkspaceServerBadge status={state.status} error={state.error} />
+              ))}
           </span>
         }
         description={

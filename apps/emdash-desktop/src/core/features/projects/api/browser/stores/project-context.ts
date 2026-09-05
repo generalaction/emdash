@@ -36,6 +36,7 @@ export type ProjectHostAccessState =
         | 'connecting'
         | 'provisioning'
         | 'handshaking'
+        | 'checking'
         | 'attaching'
         | 'recovering'
         | 'attention'

@@ -106,10 +106,13 @@ class RebindableConnection implements Connection {
     input: unknown,
     options?: Parameters<Connection['call']>[2]
   ): Promise<unknown> {
+    if (this.disposed)
+      return Promise.reject(new WireError('DISCONNECTED', 'Runtime identity disposed'));
     return this.current.call(path, input, options);
   }
 
   openBlobConsumer(channel: string): ReturnType<Connection['openBlobConsumer']> {
+    if (this.disposed) throw new WireError('DISCONNECTED', 'Runtime identity disposed');
     return this.current.openBlobConsumer(channel);
   }
 
@@ -117,10 +120,13 @@ class RebindableConnection implements Connection {
     channel: string,
     source: BlobSource
   ): ReturnType<Connection['openBlobProducer']> {
+    if (this.disposed) throw new WireError('DISCONNECTED', 'Runtime identity disposed');
     return this.current.openBlobProducer(channel, source);
   }
 
   snapshot(topic: string): Promise<LiveSnapshot<unknown>> {
+    if (this.disposed)
+      return Promise.reject(new WireError('DISCONNECTED', 'Runtime identity disposed'));
     return this.current.snapshot(topic);
   }
 

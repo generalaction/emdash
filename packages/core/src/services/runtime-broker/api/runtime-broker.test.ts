@@ -10,6 +10,20 @@ import {
 } from './runtime-broker';
 
 describe('RuntimeBroker', () => {
+  it('does not revive a forgotten identity from an in-flight resolution', async () => {
+    const host = hostRef('remote', 'remote-1');
+    const pending = deferred<RuntimeSessionResolution>();
+    const broker = new RuntimeBroker({ resolve: () => pending.promise });
+    const resolving = broker.client(host);
+    broker.forget(host);
+    broker.rebind(host, {} as HostRuntimesClient);
+    pending.resolve(ok({} as HostRuntimesClient));
+    await expect(resolving).resolves.toMatchObject({
+      success: false,
+      error: { type: 'host-identity-lost' },
+    });
+    broker.dispose();
+  });
   it('delegates direct client resolution without changing client identity', async () => {
     const client = {} as HostRuntimesClient;
     const resolve = vi.fn(() => ok(client));

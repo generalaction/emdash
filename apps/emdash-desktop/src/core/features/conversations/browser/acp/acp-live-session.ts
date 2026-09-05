@@ -90,6 +90,13 @@ export class AcpLiveSession {
     { replica: ReplicaLog; output: AcpTerminalOutput }
   >();
   private disposed = false;
+  private readonly usableState = observable.box(false);
+  private validation = 0;
+  private readonly refreshStates: () => Promise<void>;
+
+  get usable(): boolean {
+    return this.usableState.get();
+  }
 
   private constructor(
     readonly conversationId: string,
@@ -101,6 +108,9 @@ export class AcpLiveSession {
       lingerMs: 15_000,
     });
     const member = sessionRemote(key);
+    this.refreshStates = async () => {
+      await Promise.all(Object.values(member.states).map((state) => state.refresh()));
+    };
     this.sessionState = remoteValueState(member.states.state, sessionStateSchema, this.scope);
     this.config = remoteValueState(member.states.config, sessionConfigStateSchema, this.scope);
     this.usage = remoteValueState(member.states.usage, sessionUsageSchema.nullable(), this.scope);
@@ -145,10 +155,29 @@ export class AcpLiveSession {
         ]),
         'Timed out connecting ACP live models'
       );
+      runInAction(() => session.usableState.set(true));
       return session;
     } catch (error) {
       session.dispose();
       throw error;
+    }
+  }
+
+  async revalidate(): Promise<void> {
+    const validation = ++this.validation;
+    runInAction(() => this.usableState.set(false));
+    try {
+      const result = await withTimeout(
+        (signal) => this.client.attach({ conversationId: this.conversationId }, { signal }),
+        'Timed out reattaching ACP session'
+      );
+      if (validation !== this.validation || this.disposed) return;
+      if (!result.success) throw new AcpStartError(result.error);
+      await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session');
+      if (!this.disposed && validation === this.validation)
+        runInAction(() => this.usableState.set(true));
+    } catch (error) {
+      if (!this.disposed && validation === this.validation) throw error;
     }
   }
 
@@ -233,6 +262,8 @@ export class AcpLiveSession {
 
   dispose(): void {
     this.disposed = true;
+    this.validation += 1;
+    runInAction(() => this.usableState.set(false));
     void this.scope.dispose();
     for (const { replica } of this.terminalLogs.values()) {
       void replica.dispose();

@@ -51,8 +51,11 @@ export class SshClientProxy implements SshClientProxyContract {
   }
 
   /** Opens an OpenSSH streamlocal channel through the current live connection. */
-  forwardOutStreamLocal(socketPath: string): Promise<ClientChannel> {
-    return forwardOutStreamLocalOnClient(this.client, socketPath);
+  forwardOutStreamLocal(
+    socketPath: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number }
+  ): Promise<ClientChannel> {
+    return forwardOutStreamLocalOnClient(this.client, socketPath, options);
   }
 
   /** Runs a structured command through the current live connection with bounded resources. */
