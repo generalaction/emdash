@@ -1,7 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { secret } from '@emdash/shared';
-import type { BaseAgent, ParsedKey, SignCallback } from 'ssh2';
-import { utils } from 'ssh2';
+import ssh2, { type BaseAgent, type ParsedKey, type SignCallback, utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
@@ -295,6 +294,7 @@ describe('resolveSshConnectConfig', () => {
     expect(result.config.agent).toEqual(
       expect.objectContaining({ kind: 'identity-filtered-agent' })
     );
+    expect(result.config.agent).toBeInstanceOf(ssh2.BaseAgent);
     const agent = result.config.agent as BaseAgent;
     const identities = await new Promise<unknown[]>((resolve, reject) => {
       agent.getIdentities((error, keys) => {
