@@ -205,7 +205,7 @@ export function usePtyPaneResize(
     const added = sessionIds.filter((id) => !prev.includes(id));
     sessionsRef.current = sessionIds;
     const dims = controllerDimsBoxRef.current!.get();
-    if (dims && added.length > 0 && hasCalibratedRef.current) {
+    if (dims && added.length > 0) {
       for (const id of added) {
         const frontendPty = getFrontendPty(id);
         frontendPty?.resizeBackend(dims.cols, dims.rows);
