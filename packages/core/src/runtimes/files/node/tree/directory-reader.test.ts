@@ -20,9 +20,12 @@ describe('TreeDirectoryReader', () => {
     await mkdir(path.join(root, 'z-directory'));
     await writeFile(path.join(root, 'a.txt'), 'a');
     await writeFile(path.join(outside, 'outside.txt'), 'outside');
+    await mkdir(path.join(outside, 'outside-dir'));
+    await writeFile(path.join(outside, 'outside-dir', 'nested.txt'), 'nested');
     try {
       await symlink('z-directory', path.join(root, 'linked-directory'), 'dir');
       await symlink(path.join(outside, 'outside.txt'), path.join(root, 'outside-file'), 'file');
+      await symlink(path.join(outside, 'outside-dir'), path.join(root, 'outside-dir'), 'dir');
       await symlink('missing', path.join(root, 'missing-link'), 'file');
     } catch {
       return;
@@ -35,6 +38,7 @@ describe('TreeDirectoryReader', () => {
     if (!result.success) return;
     expect(result.data.map((entry) => entry.name)).toEqual([
       'linked-directory',
+      'outside-dir',
       'z-directory',
       'a.txt',
       'missing-link',
@@ -47,6 +51,19 @@ describe('TreeDirectoryReader', () => {
     expect(result.data.find((entry) => entry.name === 'outside-file')).toMatchObject({
       symlinkTargetKind: 'outside-root',
     });
+    const outsideDir = result.data.find((entry) => entry.name === 'outside-dir');
+    expect(outsideDir).toMatchObject({
+      kind: 'symlink',
+      symlinkTargetKind: 'directory',
+    });
+    expect(outsideDir && isExpandableFileEntry(outsideDir)).toBe(true);
+    const nested = await new TreeDirectoryReader(new RootPathPolicy(root)).readChildren(
+      relativePath('outside-dir')
+    );
+    expect(nested.success).toBe(true);
+    if (nested.success) {
+      expect(nested.data.map((entry) => entry.name)).toEqual(['nested.txt']);
+    }
     expect(result.data.find((entry) => entry.name === 'missing-link')).toMatchObject({
       symlinkTargetKind: 'missing',
     });

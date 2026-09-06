@@ -25,11 +25,30 @@ export class TreeDirectoryReader {
 
   async readChildren(directoryPath: PortableRelativePath): Promise<Result<FileEntry[], FsError>> {
     const resolved = await this.paths.resolveFollowed(directoryPath);
-    if (!resolved.success) return resolved;
+    let listingRoot: string | undefined;
+    if (resolved.success) {
+      listingRoot = resolved.data.realPath;
+    } else if (resolved.error.type === 'invalid-path') {
+      const entry = this.paths.resolveEntry(directoryPath);
+      if (entry.success) {
+        try {
+          const metadata = await lstat(entry.data.absolutePath);
+          if (metadata.isSymbolicLink() || metadata.isDirectory()) {
+            listingRoot = entry.data.absolutePath;
+          }
+        } catch {
+          return resolved;
+        }
+      }
+    }
+    if (!listingRoot) {
+      if (resolved.success) return err({ type: 'not-found', path: directoryPath });
+      return resolved;
+    }
 
     let dirents;
     try {
-      dirents = await readdir(resolved.data.realPath, { withFileTypes: true });
+      dirents = await readdir(listingRoot, { withFileTypes: true });
     } catch (error) {
       return err(toFsError(error, directoryPath));
     }
@@ -41,7 +60,7 @@ export class TreeDirectoryReader {
       if (this.exclusions?.excludes(childPath.data)) continue;
       const classified = await this.readEntry(
         childPath.data,
-        path.join(resolved.data.realPath, dirent.name)
+        path.join(listingRoot, dirent.name)
       );
       if (classified.success) entries.push(classified.data);
       else if (classified.error.type !== 'not-found') return classified;
@@ -106,10 +125,10 @@ async function classifySymlink(
 
   try {
     const canonical = await realpath(absolutePath);
-    if (!containsPath(rootPath, canonical)) return { target, kind: 'outside-root' };
     const metadata = await stat(absolutePath);
     const statMetadata = { mtimeMs: Number(metadata.mtimeMs), size: Number(metadata.size) };
     if (metadata.isDirectory()) return { target, kind: 'directory', stat: statMetadata };
+    if (!containsPath(rootPath, canonical)) return { target, kind: 'outside-root' };
     if (metadata.isFile()) return { target, kind: 'file', stat: statMetadata };
     return { target, kind: 'other', stat: statMetadata };
   } catch (error) {
