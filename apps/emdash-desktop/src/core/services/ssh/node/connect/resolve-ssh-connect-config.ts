@@ -83,15 +83,17 @@ export async function resolveSshConnectConfig(
   const deps = { ...defaultDeps(), ...depsOverride };
   const base = baseConfigForInput(input);
   const alias = base.sshConfigAlias;
-  const resolved = alias ? await deps.resolveSshConfig(alias) : undefined;
+  const resolved = alias
+    ? await deps.resolveSshConfig(alias)
+    : await deps.resolveSshConfig(base.host).catch(() => undefined);
   const shouldResolveHostForAgent = !alias && base.authType === 'agent';
   const agentResolved = shouldResolveHostForAgent
     ? await resolveManualAgentSshConfig(base.host, deps)
     : resolved;
 
-  const host = resolved?.hostname || base.host;
-  const port = resolved?.port ?? base.port;
-  const username = resolved?.user || base.username;
+  const host = (alias ? resolved?.hostname || base.host : base.host).trim();
+  const port = alias ? (resolved?.port ?? base.port) : base.port;
+  const username = alias ? resolved?.user || base.username : base.username;
   const authResult = await buildAuthConfig(input, base, agentResolved, deps);
 
   const config: ConnectConfig = {
@@ -116,7 +118,7 @@ export async function resolveSshConnectConfig(
   let debugLogs: string[] = [];
   let cleanup = () => {};
   const tokens: ProxyTokens = { host, port, username, originalHost: alias ?? base.host };
-  const proxyCommand = alias ? resolved?.proxyCommand : undefined;
+  const proxyCommand = resolved?.proxyCommand;
   const proxyJump = resolved?.proxyJump ?? (!alias ? base.proxyJump : undefined);
 
   let transport: Omit<TransportResult, 'process'> | undefined;

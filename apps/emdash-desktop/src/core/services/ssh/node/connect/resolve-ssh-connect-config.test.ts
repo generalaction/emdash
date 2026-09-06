@@ -29,18 +29,9 @@ function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
     readFile: async () => 'PRIVATE KEY',
     getPassword: async () => secret('stored-password'),
     getPassphrase: async () => null,
-    resolveSshConfig: async () => ({
-      hostname: 'resolved.internal',
-      user: 'resolved-user',
-      port: 2201,
-      identityFile: [],
-      identityAgent: '/tmp/resolved-agent.sock',
-      identityAgentDisabled: false,
-      identitiesOnly: false,
-      proxyCommand: undefined,
-      proxyJump: undefined,
-      forwardAgent: false,
-    }),
+    resolveSshConfig: async () => {
+      throw new Error('no ssh config');
+    },
     findSshConfigByHostName: async () => undefined,
     spawnProxyCommand: () => ({
       sock: new PassThrough(),
@@ -193,6 +184,44 @@ describe('resolveSshConnectConfig', () => {
     });
     expect(jumps).toEqual(['bastion->manual.example.com:22']);
     expect(result.debugLogs).toEqual(['jump debug']);
+  });
+
+  it('uses ssh -G ProxyCommand for a typed hostname with no alias', async () => {
+    const spawned: string[] = [];
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: baseConfig({ authType: 'agent', host: 'work-host.internal.example' }),
+      },
+      deps({
+        resolveSshConfig: async (alias) => ({
+          hostname: alias,
+          user: '',
+          port: 22,
+          identityFile: [],
+          identityAgent: undefined,
+          identityAgentDisabled: false,
+          identitiesOnly: false,
+          proxyCommand: 'cloudflared access ssh --hostname %h',
+          proxyJump: undefined,
+          forwardAgent: false,
+        }),
+        env: { SSH_AUTH_SOCK: '/tmp/default-agent.sock' },
+        spawnProxyCommand: (command, tokens) => {
+          spawned.push(`${command} ${tokens.originalHost}`);
+          return {
+            sock: new PassThrough(),
+            cleanup: () => {},
+            debugLogs: ['system-config'],
+          };
+        },
+      })
+    );
+
+    expect(result.config.host).toBe('work-host.internal.example');
+    expect(result.config.sock).toBeDefined();
+    expect(spawned).toEqual(['cloudflared access ssh --hostname %h work-host.internal.example']);
+    expect(result.debugLogs).toEqual(['system-config']);
   });
 
   it('honors alias-resolved IdentityAgent none and SSH_AUTH_SOCK values', async () => {
@@ -494,8 +523,8 @@ describe('resolveSshConnectConfig', () => {
             identityAgent: '/tmp/legacy-agent.sock',
             identityAgentDisabled: false,
             identitiesOnly: false,
-            proxyCommand: 'should-not-run',
-            proxyJump: 'should-not-run',
+            proxyCommand: undefined,
+            proxyJump: undefined,
             forwardAgent: false,
           };
         },
@@ -508,7 +537,7 @@ describe('resolveSshConnectConfig', () => {
       })
     );
 
-    expect(resolvedAliases).toEqual(['legacy-host']);
+    expect(resolvedAliases).toEqual(['legacy-host', 'legacy-host']);
     expect(result.config).toMatchObject({
       host: 'legacy-host',
       port: 22,
@@ -574,7 +603,7 @@ describe('resolveSshConnectConfig', () => {
       })
     );
 
-    expect(resolvedAliases).toEqual(['dev.internal']);
+    expect(resolvedAliases).toEqual(['dev.internal', 'dev.internal']);
     expect(result.config).toMatchObject({
       host: 'dev.internal',
       username: 'alice',
