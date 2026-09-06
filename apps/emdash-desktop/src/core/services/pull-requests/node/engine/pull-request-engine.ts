@@ -374,7 +374,7 @@ export class PullRequestEngine {
       return ok(
         nodes.some((node) =>
           node.__typename === 'CheckRun'
-            ? ['IN_PROGRESS', 'QUEUED', 'WAITING', 'PENDING'].includes(node.status)
+            ? ['IN_PROGRESS', 'QUEUED', 'WAITING', 'PENDING', 'REQUESTED'].includes(node.status)
             : node.state === 'PENDING'
         )
       );
