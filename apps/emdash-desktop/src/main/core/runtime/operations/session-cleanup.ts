@@ -3,7 +3,7 @@ import {
   sshConnectionIdOf,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { tmuxSessionNamesFor } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -101,9 +101,9 @@ export async function resolveLifecycleSessionTargets(
     }
     for (const row of [...acpRows, ...tuiRows, ...terminalRows]) {
       if (row.projectId === null || row.taskId === null) continue;
-      targets.tmuxSessionNames.add(
-        makeTmuxSessionName(makePtySessionId(row.projectId, row.taskId, row.id))
-      );
+      for (const name of tmuxSessionNamesFor(makePtySessionId(row.projectId, row.taskId, row.id))) {
+        targets.tmuxSessionNames.add(name);
+      }
     }
   }
 

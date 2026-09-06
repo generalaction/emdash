@@ -37,6 +37,7 @@ export {
   killTmuxSession,
   listTmuxSessionActivity,
   makeTmuxSessionName,
+  tmuxSessionNamesFor,
   parseTmuxSessionActivity,
   TMUX_SESSION_PREFIX,
 } from './tmux';

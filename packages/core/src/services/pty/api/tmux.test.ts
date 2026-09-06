@@ -7,7 +7,31 @@ import type { IExecutionContext } from '#primitives/exec/api';
 import { createBoundExec } from '#services/exec/api/bound-exec';
 // oxlint-disable-next-line emdash/core-module-boundaries -- tests distinguish wrapped execution errors from raw execFile errors at the same primitive boundary
 import { ExecError } from '#services/exec/api/types';
-import { listTmuxSessionActivity, parseTmuxSessionActivity } from './tmux';
+import {
+  decodeTmuxSessionName,
+  listTmuxSessionActivity,
+  makeTmuxSessionName,
+  parseTmuxSessionActivity,
+  TMUX_SESSION_PREFIX,
+  tmuxSessionNamesFor,
+} from './tmux';
+
+describe('makeTmuxSessionName', () => {
+  it('uses a short hashed session name and still decodes the previous encoding', () => {
+    const sessionId = 'project:task:leaf';
+    const name = makeTmuxSessionName(sessionId);
+    expect(name.startsWith(TMUX_SESSION_PREFIX)).toBe(true);
+    expect(name.length).toBeLessThan(TMUX_SESSION_PREFIX.length + 20);
+    expect(decodeTmuxSessionName(name)).toBeNull();
+
+    const names = tmuxSessionNamesFor(sessionId);
+    expect(names).toContain(name);
+    expect(names).toHaveLength(2);
+    const legacy = names.find((candidate) => candidate !== name);
+    expect(legacy).toBeDefined();
+    expect(decodeTmuxSessionName(legacy!)).toBe(sessionId);
+  });
+});
 
 describe('parseTmuxSessionActivity', () => {
   it('parses session activity timestamps as milliseconds', () => {

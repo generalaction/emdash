@@ -35,6 +35,7 @@ import {
   buildTerminalEnv,
   killTmuxSession,
   makeTmuxSessionName,
+  tmuxSessionNamesFor,
   resolveLocalPtySpawn,
   PtyRegistry,
   type PtySession,
@@ -386,7 +387,7 @@ export class TerminalsRuntime {
     const config = this.interactiveConfigs.get(sessionKey);
     if (!config?.spec.tmux || process.platform === 'win32') return;
     await this.withExecutionContext((exec) =>
-      killTmuxSession(exec, makeTmuxSessionName(sessionKey))
+      Promise.all(tmuxSessionNamesFor(sessionKey).map((name) => killTmuxSession(exec, name)))
     );
   }
 

@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { IExecutionContext } from '#primitives/exec/api';
 
 export const TMUX_SESSION_PREFIX = 'emdash-';
 const TMUX_HISTORY_LIMIT = 100_000;
+const TMUX_SESSION_HASH_LENGTH = 16;
 
 export function buildTmuxShellLine(sessionName: string, commandLine: string): string {
   const quotedName = JSON.stringify(sessionName);
@@ -16,9 +18,20 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
   return `/bin/sh -c ${JSON.stringify(script)}`;
 }
 
+function encodeTmuxSessionIdV1(sessionId: string): string {
+  return `${TMUX_SESSION_PREFIX}${Buffer.from(sessionId, 'utf8').toString('base64url')}`;
+}
+
 export function makeTmuxSessionName(sessionId: string): string {
-  const encoded = Buffer.from(sessionId, 'utf8').toString('base64url');
-  return `${TMUX_SESSION_PREFIX}${encoded}`;
+  const digest = createHash('sha256')
+    .update(sessionId)
+    .digest('base64url')
+    .slice(0, TMUX_SESSION_HASH_LENGTH);
+  return `${TMUX_SESSION_PREFIX}${digest}`;
+}
+
+export function tmuxSessionNamesFor(sessionId: string): string[] {
+  return [...new Set([makeTmuxSessionName(sessionId), encodeTmuxSessionIdV1(sessionId)])];
 }
 
 export function decodeTmuxSessionName(sessionName: string): string | null {
@@ -27,7 +40,7 @@ export function decodeTmuxSessionName(sessionName: string): string | null {
   if (!encoded) return null;
   try {
     const sessionId = Buffer.from(encoded, 'base64url').toString('utf8');
-    if (makeTmuxSessionName(sessionId) !== sessionName) return null;
+    if (encodeTmuxSessionIdV1(sessionId) !== sessionName) return null;
     return sessionId;
   } catch {
     return null;
