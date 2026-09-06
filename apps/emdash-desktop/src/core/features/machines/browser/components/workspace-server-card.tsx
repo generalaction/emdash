@@ -27,6 +27,10 @@ export function WorkspaceRuntimeRow({
   actions: WorkspaceServerActions;
   availability?: HostAvailabilityState;
 }) {
+  const reconnecting =
+    availability?.kind === 'preparing'
+      ? availability.phase !== 'provisioning'
+      : availability?.kind === 'unavailable' && availability.recovery === 'waiting';
   return (
     <div className="flex flex-col gap-3">
       <SettingsRow
@@ -36,7 +40,9 @@ export function WorkspaceRuntimeRow({
             {connected &&
               !loading &&
               state &&
-              (state.status === 'healthy' && availability?.kind !== 'ready' ? (
+              (reconnecting ? (
+                <Pill variant="neutral">Reconnecting</Pill>
+              ) : state.status === 'healthy' && availability?.kind !== 'ready' ? (
                 <Pill variant="neutral">
                   {availability?.kind === 'preparing' ? 'Checking' : 'Unverified'}
                 </Pill>
@@ -46,7 +52,11 @@ export function WorkspaceRuntimeRow({
           </span>
         }
         description={
-          <WorkspaceRuntimeDetails connected={connected} loading={loading} state={state} />
+          reconnecting ? (
+            'Restoring workspace access. Last observed runtime details remain available.'
+          ) : (
+            <WorkspaceRuntimeDetails connected={connected} loading={loading} state={state} />
+          )
         }
         control={
           connected && !loading && state ? (

@@ -141,7 +141,15 @@ health deadline.
 
 Resume immediately makes pre-sleep evidence uncertain and supersedes unfinished pre-sleep
 attempts. Probe an established attachment before replacing it. Focus/online hints are
-coalesced and throttled; neither bypasses stopped/blocked policy. Detect long scheduling gaps
+coalesced and throttled; neither bypasses stopped/blocked policy. Validate retained SSH and Wire
+evidence concurrently so dead SSH does not consume
+another channel-open deadline before replacement. An online hint expedites a scheduled backoff
+without cancelling useful in-flight work. ACP attachment retries belong to the retained chat
+session and continue after transient failure even within the same Host generation; only successful
+attachment plus snapshot refresh records that generation as recovered. Cancellation fences late
+attachment responses. The Project content tree remains mounted across availability transitions,
+with a compact connection footer below the workspace instead of a banner above its tabs.
+Detect long scheduling gaps
 as additional uncertainty; do not rely on paused timers replaying missed health intervals.
 Use elapsed time for deadlines, and explicit resume/gap handling for evidence freshness.
 
