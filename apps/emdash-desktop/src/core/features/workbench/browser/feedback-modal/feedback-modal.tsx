@@ -13,11 +13,12 @@ import React, { useCallback, useState } from 'react';
 import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { useModalController } from '@core/manifests/browser/modal-api';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import { getHostClient, openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useAttachments } from '@core/primitives/react-hooks/browser/use-attachments';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { EMDASH_ISSUES_NEW_URL } from '@core/primitives/urls/api/urls';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -138,6 +139,15 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
         <div className="flex flex-col gap-1">
           <Dialog.Title>Feedback</Dialog.Title>
           {blurb ? <Dialog.Description className="text-xs">{blurb}</Dialog.Description> : null}
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground w-fit text-xs underline-offset-2 hover:underline"
+            onClick={() => {
+              void openExternal(EMDASH_ISSUES_NEW_URL);
+            }}
+          >
+            file a github issue instead
+          </button>
         </div>
       </Dialog.Header>
       <Dialog.Body>
