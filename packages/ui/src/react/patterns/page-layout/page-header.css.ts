@@ -1,6 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 type CSSExtra = { [key: string]: string };
 
@@ -9,7 +8,6 @@ type CSSExtra = { [key: string]: string };
 export const header = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1.5rem',
 });
 
 export const headerSticky = style({
@@ -29,24 +27,13 @@ export const titleBlock = style({
   ...({ WebkitAppRegion: 'drag' } as CSSExtra),
 });
 
-export const title = style({
-  fontSize: '1.25rem',
-  lineHeight: '1.75rem',
-  fontWeight: 600,
-  color: vars.foreground,
-});
-
-export const description = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
-});
-
 // ── Actions slot ──────────────────────────────────────────────────────────────
 
 export const actions = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '1rem',
+  marginTop: '2rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
@@ -56,5 +43,5 @@ export const separator = style({
   height: '1px',
   backgroundColor: vars.border,
   flexShrink: 0,
-  marginTop: '0.25rem',
+  marginTop: '1.75rem',
 });

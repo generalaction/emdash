@@ -1,17 +1,32 @@
-import { applyPatches, enablePatches, produceWithPatches, setAutoFreeze, type Patch } from 'immer';
+import { enablePatches, Immer, type Patch } from 'immer';
 
-// Enable Immer's RFC-6902 patch recording — required by both produceWithPatches
-// (server side) and applyPatches (client side). Global Immer singleton setting;
-// must run before either function is called in any bundle.
-enablePatches();
+const configuredImmer = createConfiguredImmer();
 
-// Auto-freeze is a dev-only correctness tripwire: it turns out-of-band mutations
-// of structurally-shared state into an immediate TypeError rather than a silent
-// drift. Disabled in prod because Object.freeze is O(N) and the invariant
-// (current is only ever replaced, never mutated in place) is enforced by design.
-setAutoFreeze(readNodeEnv() !== 'production');
+// These exports must come from the configured instance. Besides containing the
+// configuration in Wire, this makes patch initialization a data dependency of
+// every consumer instead of a discardable module-evaluation side effect.
+const applyPatches: typeof import('immer').applyPatches =
+  configuredImmer.applyPatches.bind(configuredImmer);
+const produce: typeof import('immer').produce = configuredImmer.produce;
+const produceWithPatches: typeof import('immer').produceWithPatches =
+  configuredImmer.produceWithPatches;
 
-export { applyPatches, produceWithPatches, type Patch };
+export { applyPatches, produce, produceWithPatches, type Patch };
+
+// Structural declaration keeps this browser-reachable file free of node
+// ambient types; the typeof guard already handles environments without it.
+declare const process: { env: Record<string, string | undefined> } | undefined;
+
+function createConfiguredImmer(): Immer {
+  // Immer registers its RFC-6902 patch plugin at module scope. Run that
+  // registration while constructing the instance whose methods we export.
+  enablePatches();
+
+  // Auto-freeze is a dev-only correctness tripwire: it turns out-of-band
+  // mutations into an immediate TypeError. It is disabled in production
+  // because Object.freeze is O(N).
+  return new Immer({ autoFreeze: readNodeEnv() !== 'production' });
+}
 
 function readNodeEnv(): string | undefined {
   return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;

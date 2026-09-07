@@ -4,119 +4,22 @@ import { defineConfig } from 'vitest/config';
 
 const alias = {
   '@': resolve(__dirname, 'src'),
+  '@core': resolve(__dirname, 'src/core'),
   '@root': resolve(__dirname, '.'),
-  '@shared': resolve(__dirname, 'src/shared'),
   '@renderer': resolve(__dirname, 'src/renderer'),
   '@main': resolve(__dirname, 'src/main'),
   '@tooling': resolve(__dirname, 'tooling'),
-  '@emdash/core/acp/client': resolve(__dirname, '../../packages/core/src/acp/client.ts'),
-  '@emdash/core/acp': resolve(__dirname, '../../packages/core/src/acp/index.ts'),
-  '@emdash/core/agents/agent-env': resolve(
-    __dirname,
-    '../../packages/core/src/agents/agent-env.ts'
-  ),
-  '@emdash/core/agents/spawn-context': resolve(
-    __dirname,
-    '../../packages/core/src/agents/spawn-context.ts'
-  ),
-  '@emdash/core/agents/plugins/helpers': resolve(
-    __dirname,
-    '../../packages/core/src/agents/plugins/helpers/index.ts'
-  ),
-  '@emdash/core/agents/plugins': resolve(
-    __dirname,
-    '../../packages/core/src/agents/plugins/index.ts'
-  ),
-  '@emdash/core/deps/runtime': resolve(
-    __dirname,
-    '../../packages/core/src/host-dependencies/runtime/index.ts'
-  ),
-  '@emdash/core/exec': resolve(__dirname, '../../packages/core/src/exec/index.ts'),
-  '@emdash/core/lib': resolve(__dirname, '../../packages/core/src/lib/index.ts'),
-  '@emdash/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
-  '@emdash/core/pty/node': resolve(__dirname, '../../packages/core/src/pty/node/index.ts'),
-  '@emdash/core/pty': resolve(__dirname, '../../packages/core/src/pty/index.ts'),
-  '@emdash/core/services/fs-watch/api': resolve(
-    __dirname,
-    '../../packages/core/src/services/fs-watch/api/index.ts'
-  ),
-  '@emdash/core/services/fs-watch/worker': resolve(
-    __dirname,
-    '../../packages/core/src/services/fs-watch/worker/index.ts'
-  ),
-  '@emdash/core/skills': resolve(__dirname, '../../packages/core/src/skills/index.ts'),
-  '@emdash/core/workspace-server/agent-config': resolve(
-    __dirname,
-    '../../packages/core/src/workspace-server/agent-config/index.ts'
-  ),
-  '@emdash/core/workspace-server': resolve(
-    __dirname,
-    '../../packages/core/src/workspace-server/index.ts'
-  ),
-  '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
-  '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
-  '@emdash/runtime/agent-config/node': resolve(
-    __dirname,
-    '../../packages/runtime/src/agent-config/node/index.ts'
-  ),
-  '@emdash/runtime/agent-config': resolve(
-    __dirname,
-    '../../packages/runtime/src/agent-config/index.ts'
-  ),
-  '@emdash/runtime/acp-agents/node': resolve(
-    __dirname,
-    '../../packages/runtime/src/acp-agents/node/index.ts'
-  ),
-  '@emdash/runtime/acp-agents': resolve(
-    __dirname,
-    '../../packages/runtime/src/acp-agents/index.ts'
-  ),
-  '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
-  '@emdash/shared/logger/context-node': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context-node.ts'
-  ),
-  '@emdash/shared/logger/context': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context.ts'
-  ),
-  '@emdash/shared/logger/node': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/node/index.ts'
-  ),
-  '@emdash/shared/logger/pino': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/pino/index.ts'
-  ),
-  '@emdash/shared/logger/transport': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/transport/index.ts'
-  ),
-  '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
-  '@emdash/shared/markdown': resolve(__dirname, '../../packages/shared/src/markdown/index.ts'),
-  '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
-  '@emdash/shared/result': resolve(__dirname, '../../packages/shared/src/result/index.ts'),
-  '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
-  '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
-  '@emdash/wire/process/node': resolve(__dirname, '../../packages/wire/src/process/node/index.ts'),
-  '@emdash/wire/process': resolve(__dirname, '../../packages/wire/src/process/index.ts'),
-  '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
-  '@emdash/wire/util/process-runtime': resolve(
-    __dirname,
-    '../../packages/wire/src/util/process-runtime/index.ts'
-  ),
-  '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
-  '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
-  '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };
 
-// For fixture and migration Vitest projects, redirect better-sqlite3 to an
-// isolated copy installed under tooling/node-deps/ (compiled for system Node).
-// The root node_modules/better-sqlite3 stays Electron-compiled at all times,
-// so no rebuild dance is needed when switching between app dev and DB tests.
-const toolingAlias = {
+const skipBrowserProjects = Boolean(process.env.CI || process.env.EMDASH_TEST_SKIP_BROWSER);
+
+// Node-environment Vitest projects run without Electron. Redirect better-sqlite3 to
+// the isolated system-Node build and make Electron unavailable unless a test injects it.
+// The root native dependencies stay Electron-compiled for app development.
+const systemNodeAlias = {
   ...alias,
   'better-sqlite3': resolve(__dirname, 'tooling/node-deps/node_modules/better-sqlite3'),
+  electron: resolve(__dirname, 'tooling/vitest/electron-system-node.ts'),
 };
 
 export default defineConfig({
@@ -127,13 +30,19 @@ export default defineConfig({
         // All existing tests that run in a Node.js environment.
         // Migration tests are excluded — run them via `pnpm run test:migrations`.
         // DB integration tests (*.db.test.ts) are excluded — run under the main-db project.
+        // Uses systemNodeAlias so native dependencies resolve to their system-Node
+        // test implementations without requiring an installed Electron runtime.
         extends: true,
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'node',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['src/**/*.test.ts'],
           exclude: [
             '**/_*/**',
+            '**/*.db.test.ts',
+            '**/*.browser.test.ts',
             'src/renderer/tests/browser/**',
             'src/main/db/tests/migrations/**',
             'src/main/db/legacy-port/**/*.test.ts',
@@ -143,61 +52,83 @@ export default defineConfig({
       },
       {
         // Main-process integration tests that need a real SQLite connection.
-        // Uses toolingAlias so better-sqlite3 resolves to the system-Node build.
+        // Uses systemNodeAlias so native dependencies resolve to their system-Node
+        // test implementations without requiring an installed Electron runtime.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'main-db',
           environment: 'node',
-          include: ['src/main/core/**/*.db.test.ts', 'src/main/db/legacy-port/**/*.test.ts'],
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
+          include: [
+            'src/core/features/**/*.db.test.ts',
+            'src/core/services/**/*.db.test.ts',
+            'src/main/core/**/*.db.test.ts',
+            'src/main/db/legacy-port/**/*.test.ts',
+            'src/main/host/**/*.db.test.ts',
+            'src/services/**/*.db.test.ts',
+          ],
         },
       },
       {
         // Fixture generator — run explicitly via `pnpm run db:fixtures`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'fixtures',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['tooling/generate-fixtures.ts'],
         },
       },
       {
         // Migration tests — run explicitly via `pnpm run test:migrations`.
-        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
-        resolve: { alias: toolingAlias },
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'migrations',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['src/main/db/tests/migrations/**/*.test.ts'],
         },
       },
       {
         // Release script unit tests (artifacts, version helpers).
         extends: true,
+        resolve: { alias: systemNodeAlias },
         test: {
           name: 'scripts',
           environment: 'node',
           include: ['scripts/**/*.test.ts'],
         },
       },
-      {
-        // Renderer terminal tests that need a real browser environment
-        // (real CSS layout, ResizeObserver, requestAnimationFrame, WebGL).
-        extends: true,
-        test: {
-          name: 'browser',
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            instances: [{ browser: 'chromium' }],
-          },
-          include: ['src/renderer/tests/browser/**/*.test.{ts,tsx}'],
-        },
-      },
+      // CI omits the browser project until Playwright provisioning is proven
+      // stable there. EMDASH_TEST_SKIP_BROWSER provides the same escape hatch
+      // for local runs.
+      ...(skipBrowserProjects
+        ? []
+        : [
+            {
+              // Renderer tests that need a real browser environment (real CSS
+              // layout, ResizeObserver, requestAnimationFrame, WebGL), plus
+              // slice-isolation tests colocated with core slices as
+              // *.browser.test.{ts,tsx}.
+              extends: true as const,
+              test: {
+                name: 'browser',
+                browser: {
+                  enabled: true,
+                  provider: playwright(),
+                  headless: true,
+                  instances: [{ browser: 'chromium' }],
+                },
+                include: [
+                  'src/renderer/tests/browser/**/*.test.{ts,tsx}',
+                  'src/core/**/*.browser.test.{ts,tsx}',
+                ],
+              },
+            },
+          ]),
     ],
   },
 });

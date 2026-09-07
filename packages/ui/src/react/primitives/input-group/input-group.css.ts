@@ -102,7 +102,7 @@ const inputGroupAddonBase = style([
     paddingTop: '0.375rem',
     paddingBottom: '0.375rem',
     fontSize: tokenVars.textSm,
-    fontWeight: 500,
+    fontWeight: 400,
     color: vars.foregroundMuted,
     userSelect: 'none',
     selectors: {

@@ -1,14 +1,24 @@
 import type { Logger } from '@emdash/shared/logger';
-import type { WireInstrumentation } from '../../observability';
-import { LiveFollower, type LiveFollowerApplyResult, type LiveMaterializer } from '../follower';
-import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { Clock } from '@emdash/shared/scheduling';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
+import type { WireInstrumentation } from '../../api/instrumentation';
+import {
+  LiveFollower,
+  type LiveFollowerApplyResult,
+  type LiveMaterializer,
+  type LiveResyncFailurePolicy,
+} from '../follower';
+import type { LiveLogDelta } from '../protocol';
 
 export type LiveLogClientDeps = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveLogSnapshotData>>;
   onReset: (data: LiveLogSnapshotData) => void;
   onAppend: (chunk: string) => void;
+  /** Required policy deciding what happens when a resync refetch fails. */
+  onResyncFailed: LiveResyncFailurePolicy;
   instrumentation?: WireInstrumentation;
   logger?: Logger;
+  clock?: Clock;
   topic?: string;
 };
 
@@ -32,6 +42,11 @@ export class LiveLogClient {
     return this.follower.isReady();
   }
 
+  /** True while a resync is needed or in flight, including after a give-up. */
+  get stale(): boolean {
+    return this.follower.stale;
+  }
+
   seed(snapshot: LiveSnapshot<LiveLogSnapshotData>): void {
     this.follower.seed(snapshot);
   }
@@ -40,8 +55,19 @@ export class LiveLogClient {
     this.follower.applyUpdate(update);
   }
 
+  /** Resolves only once the follower is fresh; see `LiveFollower.refresh`. */
   refresh(): Promise<void> {
     return this.follower.refresh();
+  }
+
+  /** Triggers a resync without exposing a promise; failures follow the policy. */
+  invalidate(): void {
+    this.follower.invalidate();
+  }
+
+  /** Stops any resync retry loop and rejects pending refresh promises. */
+  dispose(): void {
+    this.follower.dispose();
   }
 }
 

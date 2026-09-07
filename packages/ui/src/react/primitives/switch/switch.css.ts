@@ -1,13 +1,14 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
+import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
 
-export const switchRoot = style({
+// Pre-created base so the thumb and hidden-input selectors can reference it.
+const switchBase = style({
   display: 'inline-flex',
   position: 'relative',
   flexShrink: 0,
   cursor: 'pointer',
-  width: '2rem',
-  height: '1.125rem',
   borderRadius: '9999px',
   border: '1px solid transparent',
   outline: 'none',
@@ -28,6 +29,19 @@ export const switchRoot = style({
   },
 });
 
+export const switchRoot = recipe({
+  base: switchBase,
+  variants: {
+    size: {
+      base: { width: '2rem', height: '1.125rem' },
+      sm: { width: '1.5rem', height: '0.875rem' },
+    },
+  },
+  defaultVariants: { size: 'base' },
+});
+
+export type SwitchVariants = NonNullable<RecipeVariants<typeof switchRoot>>;
+
 export const switchThumb = style({
   position: 'absolute',
   top: '50%',
@@ -40,14 +54,21 @@ export const switchThumb = style({
   transition: 'left 150ms',
   pointerEvents: 'none',
   selectors: {
-    [`${switchRoot}[data-checked] &`]: {
+    [`${switchBase}[data-checked] &`]: {
       left: 'calc(100% - 0.125rem - 0.75rem)',
+    },
+    [`${switchBase}[data-size="sm"] &`]: {
+      width: '0.625rem',
+      height: '0.625rem',
+    },
+    [`${switchBase}[data-size="sm"][data-checked] &`]: {
+      left: 'calc(100% - 0.125rem - 0.625rem)',
     },
   },
 });
 
 // Ensure the hidden input doesn't affect layout
-globalStyle(`${switchRoot} input[type="checkbox"]`, {
+globalStyle(`${switchBase} input[type="checkbox"]`, {
   position: 'absolute',
   width: 1,
   height: 1,

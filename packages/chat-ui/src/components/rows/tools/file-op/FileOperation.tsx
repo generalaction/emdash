@@ -4,7 +4,7 @@ import { IconError, IconShieldAlert } from '@components/primitives/icons';
 import { basename } from '@lib/path';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
-import type { ChatFileOpToolCall, FileOpKind } from '@/model';
+import type { ChatFileOpToolCall, FileOp, FileOpKind } from '@/model';
 import {
   chevronSm,
   fileOpErrorIcon,
@@ -54,8 +54,13 @@ export function FileOpRow(props: FileOpRowProps) {
   const commands = useCommands();
   const verb = () => VERB[props.item.op];
 
-  const openFile = (path: string) => {
-    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  const openFile = (op: FileOp) => {
+    commands().onOpenFile?.({
+      path: op.path,
+      ...(op.line !== undefined ? { line: op.line } : {}),
+      itemId: props.item.id,
+      source: 'file-op',
+    });
   };
 
   return (
@@ -78,7 +83,7 @@ export function FileOpRow(props: FileOpRowProps) {
             verb={verb()}
             path={op().path}
             lineH={props.lineH}
-            onClick={() => openFile(op().path)}
+            onClick={() => openFile(op())}
           />
         )}
       </Show>
@@ -140,8 +145,13 @@ export function FileOpList(props: FileOpListProps) {
   const commands = useCommands();
   const verb = () => VERB[props.item.op];
 
-  const openFile = (path: string) => {
-    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  const openFile = (op: FileOp) => {
+    commands().onOpenFile?.({
+      path: op.path,
+      ...(op.line !== undefined ? { line: op.line } : {}),
+      itemId: props.item.id,
+      source: 'file-op',
+    });
   };
 
   return (
@@ -157,7 +167,7 @@ export function FileOpList(props: FileOpListProps) {
             verb={verb()}
             path={op.path}
             lineH={props.lineH}
-            onClick={() => openFile(op.path)}
+            onClick={() => openFile(op)}
           />
         )}
       </For>
@@ -218,8 +228,13 @@ export function FileOperation(props: FileOperationProps) {
   const verb = () => VERB[props.item.op];
   const expanded = () => !!props.collapsed;
 
-  const openFile = (path: string) => {
-    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  const openFile = (op: FileOp) => {
+    commands().onOpenFile?.({
+      path: op.path,
+      ...(op.line !== undefined ? { line: op.line } : {}),
+      itemId: props.item.id,
+      source: 'file-op',
+    });
   };
 
   return (
@@ -238,12 +253,7 @@ export function FileOperation(props: FileOperationProps) {
           }
         >
           {(op) => (
-            <FileRowItem
-              verb={verb()}
-              path={op().path}
-              lineH={16}
-              onClick={() => openFile(op().path)}
-            />
+            <FileRowItem verb={verb()} path={op().path} lineH={16} onClick={() => openFile(op())} />
           )}
         </Show>
       }
@@ -265,12 +275,7 @@ export function FileOperation(props: FileOperationProps) {
         <Show when={expanded()}>
           <For each={props.item.ops}>
             {(op) => (
-              <FileRowItem
-                verb={verb()}
-                path={op.path}
-                lineH={16}
-                onClick={() => openFile(op.path)}
-              />
+              <FileRowItem verb={verb()} path={op.path} lineH={16} onClick={() => openFile(op)} />
             )}
           </For>
         </Show>

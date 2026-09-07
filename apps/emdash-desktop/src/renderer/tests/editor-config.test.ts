@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/lib/monaco/editorConfig';
+import { DIFF_EDITOR_BASE_OPTIONS } from '@core/features/editor/browser/monaco/editorConfig';
 
 describe('DIFF_EDITOR_BASE_OPTIONS', () => {
   it('keeps unchanged diff regions visible for large text selection', () => {

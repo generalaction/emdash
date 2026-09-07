@@ -1,24 +1,21 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import '@styles/layers.css';
+import { label as pillLabel } from '../pill/pill.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
-
-// ── Card shell ────────────────────────────────────────────────────────────────
 
 export const card = style({
   display: 'grid',
   gap: '0.75rem',
 });
 
-// ── Row: title+desc left, controls right ─────────────────────────────────────
-
 export const row = style({
   display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'flex-start',
-  gap: '0.5rem 1rem',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '0.75rem',
+  width: '100%',
   borderRadius: tokenVars.radiusLg,
-  border: `1px solid ${vars.border}`,
-  padding: '1rem',
 });
 
 export const rowBody = style({
@@ -33,16 +30,15 @@ export const rowTitle = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
-  fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontSize: tokenVars.textBase,
+  fontWeight: 400,
   color: vars.foreground,
 });
 
 export const rowDescription = style({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.25rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokenVars.textSm,
   color: vars.foregroundMuted,
 });
 
@@ -53,8 +49,6 @@ export const rowControls = style({
   alignItems: 'center',
   gap: '0.5rem',
 });
-
-// ── Version badge ─────────────────────────────────────────────────────────────
 
 export const versionBadge = style({
   display: 'inline-flex',
@@ -69,8 +63,6 @@ export const versionBadge = style({
   color: vars.foregroundMuted,
   whiteSpace: 'nowrap',
 });
-
-// ── Status message variants ───────────────────────────────────────────────────
 
 export const statusSuccess = style({
   color: vars.foregroundSuccess,
@@ -103,11 +95,9 @@ export const iconSpin = style({
   animationIterationCount: 'infinite',
 });
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-
 export const progressTrack = style({
   height: '0.375rem',
-  width: '100%',
+  width: '4.5rem',
   overflow: 'hidden',
   borderRadius: '999px',
   backgroundColor: vars.background2,
@@ -116,6 +106,22 @@ export const progressTrack = style({
 export const progressFill = style({
   height: '100%',
   borderRadius: '999px',
-  backgroundColor: vars.selection,
+  backgroundColor: vars.foreground,
   transition: 'width 300ms ease-out',
+});
+
+export const errorPill = style({
+  '@layer': {
+    recipes: {
+      maxWidth: '12rem',
+      overflow: 'hidden',
+    },
+  },
+});
+
+globalStyle(`${errorPill} .${pillLabel}`, {
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  minWidth: 0,
 });

@@ -21,7 +21,7 @@ export const pill = style({
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
   boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   verticalAlign: 'baseline',

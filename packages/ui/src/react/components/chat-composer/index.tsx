@@ -1,10 +1,21 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
+import {
+  ArrowUp,
+  ChevronRight,
+  CircleAlert,
+  ListTodo,
+  Paperclip,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
+import { Popover } from '@/react/primitives/popover';
+import { Select } from '@/react/primitives/select';
 import { ComboboxPopover } from '../combobox-popover';
+import { McpIcon } from '../mcp-icon/mcp-icon';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -20,7 +31,7 @@ import type { ComposerPermissionRequest } from './permission-band';
 import { QueuedPromptsBand } from './queued-prompts-band';
 import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
-import './composer-contract.css';
+import { composerThemeScope } from './composer-contract.css';
 
 export type { MentionItem, CommandItem };
 export type {
@@ -146,6 +157,17 @@ export interface ComposerPermissionModeOption {
   description?: string;
 }
 
+/** Minimal collaboration-mode descriptor, such as Codex Default / Plan. */
+export interface ComposerCollaborationModeOption {
+  name: string;
+  description?: string;
+}
+
+export interface ComposerMcpServer {
+  name: string;
+  transport: string;
+}
+
 // ── Agent option types ────────────────────────────────────────────────────────
 
 /** Minimal agent descriptor the composer needs to render the agent selector. */
@@ -173,6 +195,8 @@ export interface ChatComposerProps {
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
   showSubmitButton?: boolean;
+  /** Host-owned serialized editor value. Omit to keep the editor internally managed. */
+  value?: string;
   /** Override the idle editor placeholder. Disabled/working placeholders still take precedence. */
   placeholder?: string;
 
@@ -196,6 +220,11 @@ export interface ChatComposerProps {
   permissionModeOptions?: Record<string, ComposerPermissionModeOption> | null;
   selectedPermissionMode?: string;
   onPermissionModeChange?: (modeId: string) => void;
+
+  collaborationModeOptions?: Record<string, ComposerCollaborationModeOption> | null;
+  selectedCollaborationMode?: string;
+  onCollaborationModeChange?: (modeId: string) => void;
+  mcpServers?: ComposerMcpServer[];
 
   onSubmit: (text: string) => void;
   /** Called whenever the editor serialized plain text changes. */
@@ -435,7 +464,7 @@ function ComposerAgentSelector({
     return (
       <Button
         variant="ghost"
-        size="sm"
+        size="xs"
         icon
         disabled
         aria-label={triggerLabel}
@@ -469,7 +498,8 @@ function ComposerAgentSelector({
       >
         {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
       </Combobox.Trigger>
-      <Combobox.Content style={{ minWidth: '11.25rem' }}>
+      {/* Portaled out of the composer root — must carry the theme-bridge scope. */}
+      <Combobox.Content className={composerThemeScope} style={{ minWidth: '11.25rem' }}>
         <Combobox.Input showTrigger={false} placeholder="Search agents…" />
         <Combobox.List>
           {groups.map((group) =>
@@ -518,6 +548,105 @@ function ComposerAgentSelector({
   );
 }
 
+interface ComposerModeItem {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface ComposerModeSelectProps {
+  items: ComposerModeItem[];
+  selectedId?: string;
+  onChange?: (id: string) => void;
+  disabled: boolean;
+  isFirst: boolean;
+  ariaLabel: string;
+  placeholder: string;
+  icon: React.ReactNode;
+}
+
+function ComposerModeSelect({
+  items,
+  selectedId,
+  onChange,
+  disabled,
+  isFirst,
+  ariaLabel,
+  placeholder,
+  icon,
+}: ComposerModeSelectProps) {
+  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
+
+  return (
+    <Select.Root
+      value={selectedId}
+      onValueChange={(id) => {
+        if (id) onChange?.(id);
+      }}
+      disabled={disabled}
+    >
+      <Select.Trigger
+        aria-label={ariaLabel}
+        className={isFirst ? styles.permissionModeTrigger : undefined}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
+            fontSize: 'var(--em-text-xs)',
+            lineHeight: 1.25,
+          }}
+        >
+          {icon}
+          {selected?.name ?? placeholder}
+        </span>
+      </Select.Trigger>
+      <Select.Content
+        align="start"
+        width="trigger"
+        className={composerThemeScope}
+        style={{
+          width: 'min(18rem, var(--available-width, 18rem))',
+          minWidth: 0,
+          maxWidth: '18rem',
+        }}
+      >
+        {items.map((item) => (
+          <Select.Item key={item.id} value={item.id}>
+            <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: 'var(--em-text-sm)',
+                }}
+              >
+                {item.name}
+              </span>
+              {item.description && (
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 'var(--em-text-xs)',
+                    color: 'var(--em-foreground-muted)',
+                  }}
+                >
+                  {item.description}
+                </span>
+              )}
+            </span>
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ChatComposer({
@@ -525,6 +654,7 @@ export function ChatComposer({
   isWorking = false,
   canSubmit = true,
   showSubmitButton = true,
+  value,
   placeholder,
   agentOptions,
   selectedAgent,
@@ -539,6 +669,10 @@ export function ChatComposer({
   permissionModeOptions,
   selectedPermissionMode,
   onPermissionModeChange,
+  collaborationModeOptions,
+  selectedCollaborationMode,
+  onCollaborationModeChange,
+  mcpServers = [],
   onSubmit,
   onInputChange,
   onMentionInsert,
@@ -570,6 +704,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [editorText, setEditorText] = useState('');
 
   // Retain the last notice so its content stays rendered while the band
   // collapses out, letting the exit transition play before unmount.
@@ -672,6 +807,10 @@ export function ChatComposer({
   };
 
   const imageAttachments = attachments.filter((a) => a.kind === 'image');
+  const canQueuePrompt =
+    isWorking &&
+    !!onSubmitWhileWorking &&
+    (editorText.trim().length > 0 || imageAttachments.length > 0);
 
   // ── Model items ─────────────────────────────────────────────────────────────
 
@@ -706,16 +845,15 @@ export function ChatComposer({
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
-  interface PermissionModeItem {
-    id: string;
-    name: string;
-    description?: string;
-  }
-
-  const permissionModeItems: PermissionModeItem[] = permissionModeOptions
+  const permissionModeItems: ComposerModeItem[] = permissionModeOptions
     ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
-  const permissionModeIsFirst = modelItems.length === 0 && !agentOptions?.length;
+  const collaborationModeItems: ComposerModeItem[] = collaborationModeOptions
+    ? Object.entries(collaborationModeOptions).map(([id, opt]) => ({ id, ...opt }))
+    : [];
+  const collaborationModeIsFirst = modelItems.length === 0 && !agentOptions?.length;
+  const permissionModeIsFirst =
+    collaborationModeItems.length === 0 && modelItems.length === 0 && !agentOptions?.length;
 
   const canShowQueuedPrompts =
     queuedPrompts.length > 0 &&
@@ -733,7 +871,7 @@ export function ChatComposer({
       : (placeholder ?? 'Send a message, tag @files or use /commands');
 
   return (
-    <div className={cx(styles.composerRoot, className)}>
+    <div className={cx(styles.composerRoot, composerThemeScope, className)}>
       {canShowQueuedPrompts && (
         <QueuedPromptsBand
           prompts={queuedPrompts}
@@ -817,9 +955,13 @@ export function ChatComposer({
                 }
               }
             }}
+            value={value}
             placeholder={resolvedPlaceholder}
             disabled={disabled}
-            onChange={onInputChange}
+            onChange={(text) => {
+              setEditorText(text);
+              onInputChange?.(text);
+            }}
             onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
             onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
@@ -827,6 +969,7 @@ export function ChatComposer({
             queryMentions={queryMentions}
             queryCommands={queryCommands}
             onCommand={onCommand}
+            popupClassName={composerThemeScope}
           />
         </div>
 
@@ -852,6 +995,7 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search models…"
+                contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
                 triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
@@ -881,6 +1025,12 @@ export function ChatComposer({
                       }}
                     >
                       {selected?.name ?? 'Model…'}
+                      {selected && selectedEffortItem ? (
+                        <span className={styles.selectedModelEffort}>
+                          {' '}
+                          {selectedEffortItem.name}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 )}
@@ -913,7 +1063,12 @@ export function ChatComposer({
                               />
                             </span>
                           </DropdownMenu.Trigger>
-                          <DropdownMenu.Content side="right" align="start" sideOffset={4}>
+                          <DropdownMenu.Content
+                            className={composerThemeScope}
+                            side="right"
+                            align="start"
+                            sideOffset={4}
+                          >
                             <DropdownMenu.RadioGroup
                               value={selectedEffort}
                               onValueChange={(v) => onEffortChange?.(String(v))}
@@ -931,60 +1086,59 @@ export function ChatComposer({
                 }
               />
             )}
-            {permissionModeItems.length > 0 && (
-              <ComboboxPopover<PermissionModeItem>
-                items={permissionModeItems}
-                value={selectedPermissionMode ?? null}
-                onValueChange={(id) => onPermissionModeChange?.(id)}
-                itemToKey={(item) => item.id}
-                itemToLabel={(item) => item.name}
+            {collaborationModeItems.length > 0 && (
+              <ComposerModeSelect
+                items={collaborationModeItems}
+                selectedId={selectedCollaborationMode}
+                onChange={onCollaborationModeChange}
                 disabled={disabled}
-                searchPlaceholder="Search"
-                className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
-                contentStyle={{ minWidth: '18rem' }}
-                renderTrigger={(selected) => (
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
-                      fontSize: 'var(--em-text-xs)',
-                      lineHeight: 1.25,
-                    }}
-                  >
-                    <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
-                    {selected?.name ?? 'Permissions…'}
-                  </span>
-                )}
-                renderItem={(item) => (
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 'var(--em-text-sm)',
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                    {item.description && (
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontSize: 'var(--em-text-xs)',
-                          color: 'var(--em-foreground-muted)',
-                        }}
-                      >
-                        {item.description}
-                      </span>
-                    )}
-                  </div>
-                )}
+                isFirst={collaborationModeIsFirst}
+                ariaLabel="Collaboration mode"
+                placeholder="Collaboration…"
+                icon={<ListTodo style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />}
               />
+            )}
+            {permissionModeItems.length > 0 && (
+              <ComposerModeSelect
+                items={permissionModeItems}
+                selectedId={selectedPermissionMode}
+                onChange={onPermissionModeChange}
+                disabled={disabled}
+                isFirst={permissionModeIsFirst}
+                ariaLabel="Permission mode"
+                placeholder="Permissions…"
+                icon={
+                  <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                }
+              />
+            )}
+            {mcpServers.length > 0 && (
+              <Popover.Root>
+                <Popover.Trigger
+                  className={styles.mcpTrigger}
+                  disabled={disabled}
+                  aria-label={`${mcpServers.length} session MCP ${
+                    mcpServers.length === 1 ? 'server' : 'servers'
+                  }`}
+                >
+                  <McpIcon size={12} />
+                  {mcpServers.length}
+                </Popover.Trigger>
+                <Popover.Content
+                  align="start"
+                  className={cx(styles.mcpPopoverContent, composerThemeScope)}
+                  aria-label="Session MCP servers"
+                >
+                  <div className={styles.mcpList}>
+                    {mcpServers.map((server) => (
+                      <div key={`${server.transport}:${server.name}`} className={styles.mcpRow}>
+                        <span className={styles.mcpName}>{server.name}</span>
+                        <span className={styles.mcpBadge}>{server.transport}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Popover.Content>
+              </Popover.Root>
             )}
           </div>
 
@@ -996,7 +1150,7 @@ export function ChatComposer({
             {onAttach && (
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 icon
                 onClick={onAttach}
                 disabled={disabled}
@@ -1007,11 +1161,11 @@ export function ChatComposer({
             )}
 
             {showSubmitButton ? (
-              isWorking ? (
+              isWorking && !canQueuePrompt ? (
                 <Button
                   variant="primary"
                   tone="destructive"
-                  size="sm"
+                  size="xs"
                   icon
                   className={styles.sendButtonRound}
                   onClick={onStop}
@@ -1022,12 +1176,12 @@ export function ChatComposer({
               ) : (
                 <Button
                   variant="primary"
-                  size="sm"
+                  size="xs"
                   icon
                   className={styles.sendButtonRound}
                   onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled || !canSubmit}
-                  aria-label="Send message"
+                  disabled={disabled || (!isWorking && !canSubmit)}
+                  aria-label={isWorking ? 'Queue message' : 'Send message'}
                 >
                   <ArrowUp />
                 </Button>

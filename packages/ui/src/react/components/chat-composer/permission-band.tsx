@@ -16,6 +16,7 @@ import { cx } from '@styles/utilities/cx';
 import { ShieldAlertIcon } from 'lucide-react';
 import * as React from 'react';
 import { SplitButton, type SplitButtonOption } from '@/react/primitives/split-button';
+import { composerThemeScope } from './composer-contract.css';
 import * as styles from './permission-band.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -98,15 +99,17 @@ export function PermissionBand({
         )}
       </span>
 
-      {/* Split button */}
+      {/* Split button — its option menu portals out of the composer root and
+          must carry the theme-bridge scope. */}
       <SplitButton
         options={splitOptions}
         selectedId={selectedId}
         onSelectedChange={setSelectedId}
         onAction={onResolve}
-        size="sm"
+        size="xs"
         variant="secondary"
         className={styles.bandAction}
+        menuClassName={composerThemeScope}
       />
     </div>
   );

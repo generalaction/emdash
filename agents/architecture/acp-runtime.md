@@ -7,22 +7,48 @@ not mix cross-session routing with per-session state projection.
 ## Ownership
 
 - `AcpRuntime` is the composition root. It wires the ACP API contract to shared
-  ports, the managed connection source, and the session manager.
-- `SessionManager` owns cross-session lifecycle: session creation, routing ACP
-  `sessionId`s to conversation cells, process cleanup, and the sessions-list live
-  model.
-- `SessionCell` owns one conversation: the state machine, transcript reducer,
-  per-session live models, permission broker, prompt queue effects, and turn
-  quiescence.
-- The ACP connection source owns provider processes through `createManagedSource`.
-  Processes are keyed by provider and workspace and can host multiple ACP sessions.
+  ports, the resource-cached connection source, and the session manager.
+- `SessionManager` is the conversation directory and cross-conversation coordinator. It owns the
+  handle map, suspended-intent index, process-close fan-out, lifecycle-chassis wiring, and the
+  composition of the router, materializer, and list projector. Activity tracking, idle sweeping,
+  intent persistence, lifecycle reports, and eviction sequencing remain delegated to the shared
+  session-lifecycle chassis (`packages/core/src/services/session-lifecycle/`). Its explicit
+  `inspect()` seam exposes identifier-only lifecycle snapshots for deterministic ownership and leak
+  assertions without revealing the directory maps.
+- `ConversationHandle` is the aggregate root for one conversation. It owns the wake descriptor,
+  desired configuration, retained presentation snapshot, conversation-lifetime projection,
+  explicit lifecycle state and epoch, current `SessionRecord`, activation snapshot construction,
+  and its single-key `LifecycleCell`. Descriptor and retained-presentation changes write through one
+  intent-persistence seam, while killed/disposed state and the epoch invalidate stale asynchronous
+  materialization and command work before directory removal.
+- `LifecycleCell` provides coalesced starts, leases, interrupt-before-drain teardown, and bounded
+  draining for one handle. The multi-key `LifecycleRegistry` remains available to other runtimes.
+- `SessionMaterializer` is stateless. It acquires a connection, loads or creates the provider
+  session, creates the record's machine-state binding, applies retained configuration and mode, and
+  returns a `SessionRecord` for the handle to adopt. Provisional loading registration and replay
+  setup share one cleanup path so failures cannot leave routing residue.
+- `SessionRouter` owns ACP `sessionId` routing and one scoped provisional load route per process
+  generation. The materializer serializes `loadSession` handshakes for each generation, so a
+  provider that reports a rebound session ID still resolves unambiguously. Unknown or stale updates
+  outside that scope are dropped rather than retained across activations; generation invalidation
+  drops provisional and registered routes. Its maps stay private; identifier-only queries support
+  lifecycle leak assertions.
+  `SessionsListProjector` composes live handle summaries with lightweight suspended-intent rows.
+- `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
+  prompt queue effects, turn quiescence, and whether the provider's config catalog is pending or
+  ready. It does not own the conversation-lifetime projection or retained rematerialization
+  descriptor.
+- The ACP connection source owns provider processes through `createResourceCache`.
+  Cache identity includes provider, cwd, and an opaque fingerprint of the requested environment;
+  the process route id stays provider/cwd plus generation and can host multiple ACP sessions with
+  the same environment.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
-- Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps
-  the contract, models, reducer vocabulary, errors, and transport ports.
-- Node host adapters live behind explicit Node-only subpaths:
-  `@emdash/runtime/acp-agents/node` for the ACP child-process bootstrap and attachment
-  store, and `@emdash/core/pty/node` for the lazy `node-pty` spawner.
+- Runtime implementation code lives under `packages/core/src/runtimes/acp/node/`; the portable
+  contract and client models stay under `packages/core/src/runtimes/acp/api/`.
+- The Node surface exports `createAcpComponent()`. App-owned worker entries call
+  `runWireComponentWorker(createAcpComponent(...))`; `@emdash/core` does not export
+  process bootstrap helpers.
 
 ```mermaid
 flowchart TD
@@ -33,12 +59,21 @@ flowchart TD
   end
   subgraph runtime [Runtime]
     root[AcpRuntime]
-    manager[SessionManager]
+    manager[SessionManager Directory]
+    router[SessionRouter]
+    materializer[SessionMaterializer]
+    intentIndex[Suspended Intent Index]
+    listProjector[SessionsListProjector]
   end
-  subgraph session [Session Cell]
+  subgraph conversation [Conversation Aggregate]
+    handle[ConversationHandle]
+    lifecycle[LifecycleCell]
+    projection[Conversation Projection]
+  end
+  subgraph session [Live Activation]
+    record[SessionRecord]
     machine[SessionMachine]
     reducer[Transcript Reducer]
-    state[Per-session LiveModels]
   end
   subgraph connection [Connection]
     source[ConnectionSource]
@@ -46,62 +81,145 @@ flowchart TD
   end
   agent[ACP Agent]
 
-  commands --> root --> manager --> machine
-  machine --> source --> agent
-  agent --> ports --> reducer
-  reducer --> state --> liveModels
-  manager --> liveModels
+  commands --> root --> manager --> handle
+  manager --> intentIndex --> listProjector --> liveModels
+  handle --> lifecycle --> materializer --> source --> agent
+  materializer --> record --> machine
+  agent --> ports --> router --> record
+  record --> reducer --> handle --> projection --> liveModels
+  handle --> listProjector
   reducer --> queries
 ```
 
 ## Command and Read Paths
 
 Commands enter through the API and are routed by `AcpRuntime` to the
-`SessionManager`. Lifecycle commands such as starting and stopping sessions are
-handled by the manager because there is no cell before a session exists. Session
-commands are routed to an existing `SessionCell`, where the pure
+`SessionManager`. The manager locates or lazily creates a `ConversationHandle`; wake commands ask
+the handle's lifecycle cell to ensure an activation and acquire the appropriate lease. Session
+commands then reach the `SessionCell`, where the pure
 `SessionMachine` decides whether the command is valid and emits effects for the
 cell to interpret.
 
 Provider updates move in the opposite direction. The connection handler receives
 ACP callbacks, normalizes raw `SessionUpdate`s through the provider's enrich
-hook, and asks the `SessionManager` to route the event to a cell. The cell folds
-the event through the reducer and publishes changed slices through live models.
+hook, and asks the `SessionRouter` to resolve the owning conversation. The cell folds the event
+through the reducer; its handle republishes the resulting activation snapshot through the
+conversation-keyed projection.
 
-Provider `sessionId` persistence is owned by the host that consumes the ACP API.
-The runtime returns the session id from `startSession` and `resumeSession`; desktop
-persists that returned value at the client boundary instead of using a child-to-host
-callback.
+The public API describes user intent instead of exposing lifecycle choreography. Desktop resolves
+the authoritative conversation configuration and fresh provider environment, then `attach` creates
+or refreshes the handle and publishes its retained projection without spawning a provider.
+`loadHistory` and `sendPrompt` ensure an activation internally and coalesce through the handle's
+lifecycle cell. `setOption` updates one of the provider's model, mode, or effort dimensions without
+waking a suspended session. Headless callers that need creation and activation as one atomic
+operation use `launch`; there is no public `ensureActivation`, `start`, or `resume` procedure.
 
-`editCurrentPrompt` and `exportACPTranscript` are intentionally contract-only
-placeholders for now. Workspace-server stubs should keep typechecking against
-the contract, but core does not serve implementations until those workflows are
-designed.
+`sendPrompt` (protocol 8) waits for activation and attachment validation, then acknowledges
+once the live session accepts the prompt for dispatch or queuing. Its host-owned operation retains
+the activation lease until execution finishes; a desktop disconnect does not cancel that work.
+Startup/authentication failures are returned before acceptance. Provider failures after acceptance
+are published through the existing session and transcript state. Callers that need completion
+observe that state; the send acknowledgement no longer means the turn has finished.
+
+The desktop subscribes before submission and refreshes snapshots after reattachment. A client
+prompt id follows the existing queue and synthesized user transcript message so a lost acknowledgement
+can be reconciled without matching text. Wire marks failures known to occur before posting as
+"not-sent", including held-call overflow and cancellation or disposal before posting. This evidence
+survives gateway forwarding, allowing the desktop to report rejection and restore the draft.
+Failures without that evidence remain uncertain and do not restore or resubmit the prompt.
+This is not a durable outbox:
+provider-replayed history may lack the correlation id after a worker restart, leaving delivery
+explicitly uncertain. No receipt journal or new persistence authority is introduced.
+The changed acknowledgement semantics require protocol major 8. Older clients or servers must
+upgrade through the existing protocol-incompatibility flow; there is no legacy sending fallback.
+
+The handle persists an explicitly allowlisted, versioned intent containing provider/session
+identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot. Provider
+environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never persisted.
+The runtime reports provider session identity and resume outcomes through the host conversation
+index. Interactive callers therefore never persist lifecycle response data themselves.
+
+Parsed transcript and raw ACP log exports are live-activation reads. They never wake a suspended
+conversation because the raw log is activation-local and a post-wake export would describe the
+replay rather than the evicted process.
+
+## Suspension and Rematerialization
+
+The public identity is always `conversationId`; provider process activations are internal. A
+retained conversation keeps its wake descriptor and presentation after its live `SessionCell` is
+evicted. The presentation separates desired configuration from last-known provider catalogs, MCP
+summaries, usage, and observation time. During one runtime generation, its handle and projection
+move between `closed`, `suspended`, `materializing`, and `active`; suspended and materializing
+projections keep controls visible and prompt submission enabled while clearing activation-local
+queues, permissions, terminals, active turns, plans, and agents.
+
+While a rematerialized session's provider config catalog is pending, the handle projects the
+retained catalog to avoid transiently removing its controls. A ready catalog atomically replaces
+all retained model, effort, mode, and collaboration-mode groups; explicit empty or unsupported
+groups are authoritative and must not fall back to retained values. Successful `newSession` and
+`loadSession` handshakes end the pending phase; omitted or null config options produce a ready empty
+catalog. Available commands have a separate readiness lifecycle and are retained independently
+while materialization is pending.
+
+On worker boot, every valid persisted intent is restored only as a lightweight suspended index row;
+the worker never starts a provider from disk. The first desktop `attach` hydrates a handle using a
+trusted fresh descriptor and publishes the retained presentation. Terminating an index-only entry
+deletes its intent without starting a provider. Legacy or over-broad intents are parsed through a
+restricted migration and rewritten in the safe schema.
+
+`loadHistory`, `sendPrompt`, and the headless `launch` operation materialize a suspended activation.
+Mode, model, and effort changes update desired state and persist without waking when suspended or
+materializing; the latest revision is applied after load and before the first queued prompt. Other
+reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
+one. If a provider cannot replay history, `loadHistory` returns a successful page marked
+`unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
+one.
+
+Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
+while materializing joins that activation and dispatches once after the latest desired configuration
+has been applied. Active mode and config changes use shorter leases. Eviction, termination, and runtime
+disposal abort pending materialization and interrupt the cell and provider session before waiting
+for leases, then continue after a bounded drain timeout if a provider does not settle. Process-close
+callbacks carry a connection generation so a stale process cannot suspend sessions on its
+replacement.
 
 ## Process Hosting
 
-Desktop-local ACP and workspace-server ACP both use plain Node child processes via
-`spawnWorker()`. The child process entry calls
-`bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
-`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
-`LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
-runtime process's plugin registry, execution context, plugin filesystem, env, home
-directory, host dependency manager, and spawn-context cache; ACP-specific
-resources such as process handles, ACP ports, terminal management, attachment
-storage, and session cells stay inside the ACP runtime. Each host owns a worker
-manifest that maps the ACP worker id to the emitted child-process entry path for
-that host's build.
+Desktop-local ACP and workspace-server ACP both register logical workers through
+`WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
+process entry calls `runWireComponentWorker(createAcpComponent(...))`, which constructs
+`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`, and
+`LocalAttachmentStore`. Host executable resolution comes from the injected
+`HostDependencies` resolver contract; ACP does not construct a dependency manager or keep a
+runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
+terminal management, attachment storage, and session cells stay inside the ACP runtime. Each host
+owns a worker manifest that maps the ACP worker id to the emitted child-process entry path for that
+host's build.
+
+Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Runtime
+attachment cleanup must therefore use explicit attachment deletion or whole-conversation deletion;
+absence from transcript history does not prove that stored bytes are orphaned.
+
+Desktop composes the ACP client and renderer exposure in
+`apps/emdash-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed
+by typed desktop Wire controllers and by headless runtime services; renderer clients receive the
+smaller conversations contract. `WireWorkerHost` itself does not own client decoration, startup
+policy, or renderer exposure.
 
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
-`workspace-server`) rather than imported by `@emdash/runtime`; this keeps runtime
+`workspace-server`) rather than imported by `@emdash/core/runtimes`; this keeps runtime
 from depending back on `@emdash/plugins` while still letting plugin resolution be
 owned by the runtime composition root.
 
 Desktop relies on Electron's `child_process.fork` behavior, which runs children
 with `ELECTRON_RUN_AS_NODE`. The packaged app must keep the `RunAsNode` fuse
 enabled while this fork model is used. If the app later disables that fuse for
-macOS hardening, the wire package still has the `utilityProcessHost` seam for an
-Electron utility-process implementation.
+macOS hardening, the wire package exposes the Electron
+`utilityProcessSpawner()` seam for utility-process generations.
+
+ACP terminal callbacks execute as client-hosted sibling processes rather than operating-system
+children of the provider process. Their environment therefore starts from the provider process's
+resolved spawn environment, then applies command-specific variables from the ACP request.
 
 ## Models and Protocol Versioning
 

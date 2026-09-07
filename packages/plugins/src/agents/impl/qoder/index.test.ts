@@ -1,5 +1,8 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildNestedEntry,
+  makeStdinHookCommand,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { QODER_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -56,15 +59,15 @@ describe('qoder provider', () => {
     });
   });
 
-  it('declares workspace config hooks', () => {
+  it('declares global config hooks', () => {
     expect(provider.capabilities.hooks).toEqual({
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'],
     });
   });
 
-  it('installs Qoder lifecycle hooks in project-local settings', async () => {
+  it('installs Qoder lifecycle hooks in global settings', async () => {
     const files = new Map<string, string>();
     const fs = createMemoryFs(files);
 

@@ -4,14 +4,16 @@
  * Renders ACP `kind: 'execute'` tool calls as a collapsible card:
  *
  *   ┌─────────────────────────────────────┐
- *   │  Execute                          › │  ← header (CollapsibleCard primitive)
+ *   │  Install dependencies             › │  ← header: description, else command
  *   ├─────────────────────────────────────┤
- *   │  pnpm run build --filter=...        │  ← body: mono, bash-highlighted
- *   │  ...                                │    clamped to collapsedMaxLines or
- *   └─────────────────────────────────────┘    expandedMaxLines with overflow scroll
+ *   │  $ pnpm install                     │  ← body: mono, bash-highlighted
+ *   │  ...                                │    capped at expandedMaxLines with
+ *   └─────────────────────────────────────┘    overflow scroll
  *
  * Header + card shell are provided by CollapsibleCard.
- * Body:   collapsed = clamped height + fade overlay; expanded = scrollable.
+ * Body:   collapsed = hidden (header-only row, in every status);
+ *         expanded  = command + output, clamped to expandedMaxLines with
+ *                     overflow scroll.
  */
 
 import { useCaches } from '@components/contexts/CachesContext';
@@ -19,15 +21,17 @@ import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-tokens';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { executeBody, executeLine, executeOutputLine, executeSpacerLine } from './execute.css';
+import type { ExecuteDisplayLine } from './execute-lines';
+import {
+  executeBody,
+  executeLine,
+  executeOutputLine,
+  executeSpacerLine,
+  executeTruncatedLine,
+} from './execute.css';
 import { fadeOverlayBottom } from '@styles/effects.css';
 
 // ── ExecuteBody ───────────────────────────────────────────────────────────────
-
-export type ExecuteDisplayLine = {
-  kind: 'command' | 'spacer' | 'output';
-  text: string;
-};
 
 export type ExecuteBodyProps = {
   item: ChatExecute;
@@ -118,6 +122,7 @@ export function ExecuteBody(props: ExecuteBodyProps) {
             classList={{
               [executeOutputLine]: line.kind === 'output',
               [executeSpacerLine]: line.kind === 'spacer',
+              [executeTruncatedLine]: line.kind === 'truncated',
             }}
             style={{
               height: `${props.codeLineH}px`,

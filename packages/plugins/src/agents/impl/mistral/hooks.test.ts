@@ -1,53 +1,39 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
-import { MISTRAL_CONFIG_PATH, MISTRAL_HOOKS_PATH, buildMistralHookConfig } from './hooks';
+import { MISTRAL_HOOKS_PATH, buildMistralHookConfig } from './hooks';
 
 function createMemoryFs(initial: Record<string, string> = {}): PluginFs {
   const files = new Map(Object.entries(initial));
-
   return {
-    async read(path) {
-      return files.get(path) ?? null;
-    },
-    async write(path, content) {
+    read: async (path) => files.get(path) ?? null,
+    write: async (path, content) => {
       files.set(path, content);
     },
-    async delete(path) {
+    delete: async (path) => {
       files.delete(path);
     },
-    async exists(path) {
-      return files.has(path);
-    },
-    async list(path) {
-      return [...files.keys()].filter((file) => file.startsWith(path));
-    },
+    exists: async (path) => files.has(path),
+    list: async (path) => [...files.keys()].filter((file) => file.startsWith(path)),
   };
 }
 
 describe('buildMistralHookConfig', () => {
-  it('removes the experimental hooks flag when deleting hooks', async () => {
-    const fs = createMemoryFs({
-      [MISTRAL_CONFIG_PATH]: 'enable_experimental_hooks = true\nmodel = "mistral-large"\n',
-      [MISTRAL_HOOKS_PATH]: `[[hooks]]
-name = "emdash-post-agent-turn"
-type = "post_agent_turn"
-command = "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook"
-`,
-    });
+  it('writes the supported global hooks file without an experimental flag', async () => {
+    const fs = createMemoryFs();
     const hooks = buildMistralHookConfig();
 
-    await hooks.deleteHooks(fs);
-
-    await expect(fs.read(MISTRAL_CONFIG_PATH)).resolves.toBe('model = "mistral-large"\n');
+    await expect(hooks.writeHooks(fs, [])).resolves.toEqual([MISTRAL_HOOKS_PATH]);
+    await expect(fs.read(MISTRAL_HOOKS_PATH)).resolves.toContain('emdash-post-agent-turn');
   });
 
-  it('fails before writing hooks when config.toml is invalid', async () => {
-    const fs = createMemoryFs({ [MISTRAL_CONFIG_PATH]: 'invalid = [' });
+  it('honors VIBE_HOME when resolving its config root', () => {
     const hooks = buildMistralHookConfig();
-
-    await expect(hooks.writeHooks(fs, [])).rejects.toThrow(
-      `Failed to parse ${MISTRAL_CONFIG_PATH}`
-    );
-    await expect(fs.exists(MISTRAL_HOOKS_PATH)).resolves.toBe(false);
+    expect(
+      hooks.resolveConfigRoots({
+        env: { VIBE_HOME: '/custom/vibe' },
+        homeDir: '/home/test',
+        platform: 'linux',
+      })
+    ).toEqual(['/custom/vibe']);
   });
 });

@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
 import { generateMockTranscript } from '@/mock-transcript';
+import type { ChatPlanEntry, TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -26,6 +27,37 @@ async function waitFor<T>(fn: () => T | null, frames = 10): Promise<T | null> {
     await nextPaint();
   }
   return null;
+}
+
+async function mountPlan(entries: ChatPlanEntry[]) {
+  const ctx = createChatContext({ theme: DEFAULT_THEME });
+  const state = createChatState(ctx);
+  const plan = { kind: 'plan' as const, id: 'plan-fade-contract', entries };
+  state.transcript.history.seed([
+    {
+      id: 'plan-turn',
+      seq: 0,
+      initiator: 'agent',
+      // ChatPlan is a renderer-owned compatibility item accepted by the transcript flattener.
+      items: [plan] as unknown as TranscriptTurn['items'],
+    },
+  ]);
+
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:300px;';
+  document.body.appendChild(host);
+  const view = createChatView({ context: ctx, state, parent: host });
+  await nextPaint();
+
+  return {
+    host,
+    dispose: () => {
+      view.dispose();
+      ctx.dispose();
+      state.dispose();
+      document.body.removeChild(host);
+    },
+  };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -112,6 +144,42 @@ describe('createChatView', () => {
     ctx.dispose();
     state.dispose();
     document.body.removeChild(host);
+  });
+});
+
+describe('plan preview fade', () => {
+  it('only shows the bottom fade when rendered entries overflow the preview', async () => {
+    const fitting = await mountPlan([
+      { content: 'Review the repository', status: 'completed', priority: 'high' },
+      { content: 'Summarize the architecture', status: 'in_progress', priority: 'medium' },
+      { content: 'Document requirements', status: 'pending', priority: 'medium' },
+    ]);
+
+    try {
+      const scroll = fitting.host.querySelector('[data-preview-scroll]');
+      expect(scroll).not.toBeNull();
+      expect(scroll!.scrollHeight).toBeLessThanOrEqual(scroll!.clientHeight);
+      expect(fitting.host.querySelector('[data-preview-overlay="fade-bottom"]')).toBeNull();
+    } finally {
+      fitting.dispose();
+    }
+
+    const overflowing = await mountPlan(
+      Array.from({ length: 5 }, () => ({
+        content: '',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+      }))
+    );
+
+    try {
+      const scroll = overflowing.host.querySelector('[data-preview-scroll]');
+      expect(scroll).not.toBeNull();
+      expect(scroll!.scrollHeight).toBeGreaterThan(scroll!.clientHeight);
+      expect(overflowing.host.querySelector('[data-preview-overlay="fade-bottom"]')).not.toBeNull();
+    } finally {
+      overflowing.dispose();
+    }
   });
 });
 

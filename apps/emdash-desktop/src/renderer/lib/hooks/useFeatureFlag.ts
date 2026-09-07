@@ -5,7 +5,7 @@ import { useFeatureFlags } from '@renderer/lib/providers/feature-flag-override-c
  * Returns false while flags are loading or when telemetry is not configured.
  *
  * In dev builds, FLAG_<name> env vars (hyphens → underscores) in .env.local
- * take precedence. Example: FLAG_workspace_provider=true enables "workspace-provider".
+ * take precedence. Example: FLAG_my_feature=true enables "my-feature".
  * These are read by the main process at runtime and passed over IPC — they are
  * never baked into the renderer bundle.
  */

@@ -10,31 +10,35 @@ import { toolRoot, toolVars } from './tool.css';
 export function toolFromItem(item: ToolNode, ctx: SegmentCtx): ChatToolCall {
   const base = 'toolCallId' in item ? item : null;
   const name =
-    item.kind === 'search-tool-call'
-      ? 'Search'
-      : item.kind === 'mcp-tool-call'
-        ? 'MCP'
-        : item.kind === 'web-fetch-tool-call'
-          ? 'Fetch'
-          : item.kind === 'spawn-subagent-tool-call'
-            ? 'Subagent'
-            : item.kind === 'unknown-tool-call'
-              ? item.name
-              : item.kind === 'tool-group'
-                ? item.label
-                : 'Tool';
+    item.kind === 'read-tool-call'
+      ? item.title
+      : item.kind === 'search-tool-call'
+        ? 'Search'
+        : item.kind === 'mcp-tool-call'
+          ? 'MCP'
+          : item.kind === 'web-fetch-tool-call'
+            ? 'Fetch'
+            : item.kind === 'spawn-subagent-tool-call'
+              ? 'Subagent'
+              : item.kind === 'unknown-tool-call'
+                ? item.name
+                : item.kind === 'tool-group'
+                  ? item.label
+                  : 'Tool';
   const inputSummary =
-    item.kind === 'search-tool-call'
-      ? `${item.query}${item.matchCount !== undefined ? ` (${item.matchCount} matches)` : ''}`
-      : item.kind === 'mcp-tool-call'
-        ? [item.server, item.tool].filter(Boolean).join('.')
-        : item.kind === 'web-fetch-tool-call'
-          ? (item.pageTitle ?? item.url)
-          : item.kind === 'spawn-subagent-tool-call'
-            ? `${item.name}${item.background ? ' (background)' : ''}`
-            : item.kind === 'unknown-tool-call'
-              ? (item.toolKind ?? undefined)
-              : base?.inputSummary;
+    item.kind === 'read-tool-call'
+      ? undefined
+      : item.kind === 'search-tool-call'
+        ? `${item.query}${item.matchCount !== undefined ? ` (${item.matchCount} matches)` : ''}`
+        : item.kind === 'mcp-tool-call'
+          ? [item.server, item.tool].filter(Boolean).join('.')
+          : item.kind === 'web-fetch-tool-call'
+            ? (item.pageTitle ?? item.url)
+            : item.kind === 'spawn-subagent-tool-call'
+              ? `${item.name}${item.background ? ' (background)' : ''}`
+              : item.kind === 'unknown-tool-call'
+                ? (item.toolKind ?? undefined)
+                : base?.inputSummary;
   return {
     kind: 'tool',
     id: item.id,

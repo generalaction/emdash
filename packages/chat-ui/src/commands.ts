@@ -41,6 +41,7 @@ export type ChatCommands = {
    */
   onOpenFile?: (arg: {
     path: string;
+    line?: number;
     itemId: string;
     source: 'diff' | 'file-op' | 'resource-link' | 'prose-link';
   }) => void;

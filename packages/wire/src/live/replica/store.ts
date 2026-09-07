@@ -1,6 +1,6 @@
 import type { z } from 'zod';
+import type { LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { LiveFollowerApplyResult, LiveMaterializer } from '../follower';
-import type { LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from '../state/immer-setup';
 
 export interface StateStore<T> {
@@ -57,6 +57,10 @@ export function createStateMaterializer<T>(
     },
   };
 }
+
+// Structural declaration keeps this browser-reachable file free of node
+// ambient types; the typeof guard already handles environments without it.
+declare const process: { env: Record<string, string | undefined> } | undefined;
 
 function readNodeEnv(): string | undefined {
   return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;

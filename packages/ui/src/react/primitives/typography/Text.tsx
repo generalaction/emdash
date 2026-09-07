@@ -18,7 +18,7 @@ export type TextProps<C extends React.ElementType = 'span'> = PropsWithAs<
  *
  * Defaults to <span>. Override the element with `as`:
  *   <Text as="p" variant="body">…</Text>
- *   <Text as="label" variant="bodyBold" tone="muted">…</Text>
+ *   <Text as="label" variant="body" tone="muted">…</Text>
  *   <Text as="code" variant="inlineCode">…</Text>
  */
 export function Text<C extends React.ElementType = 'span'>({

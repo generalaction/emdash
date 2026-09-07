@@ -2,7 +2,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import { isWireMessage, type WireMessage, type WireTransport } from '../protocol';
 
 type ReadableLike = {
-  on(event: 'data', cb: (chunk: Buffer | string) => void): unknown;
+  on(event: 'data', cb: (chunk: Uint8Array | string) => void): unknown;
   on(event: 'close' | 'end' | 'error', cb: () => void): unknown;
 };
 
@@ -164,7 +164,7 @@ function concat(left: Bytes, right: Bytes): Bytes {
   return out;
 }
 
-function normalizeChunk(chunk: Buffer | string): Bytes {
+function normalizeChunk(chunk: Uint8Array | string): Bytes {
   return typeof chunk === 'string' ? new Uint8Array(encodeText(chunk)) : new Uint8Array(chunk);
 }
 

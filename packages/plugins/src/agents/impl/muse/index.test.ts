@@ -4,15 +4,19 @@ import { provider } from './index';
 describe('Muse Code provider', () => {
   it('uses the official installer on supported platforms', () => {
     const dependency = provider.capabilities.hostDependency;
+    const { installCommands } = dependency;
+
+    expect(installCommands).toBeDefined();
+    if (!installCommands) throw new Error('Muse install commands are required');
 
     expect(dependency.binaryNames).toEqual(['muse']);
-    expect(dependency.installCommands.macos?.[0]).toMatchObject({
+    expect(installCommands.macos?.[0]).toMatchObject({
       method: 'curl',
       command: 'curl -fsSL https://dev.meta.ai/install.sh | bash',
       recommended: true,
     });
-    expect(dependency.installCommands.linux).toEqual(dependency.installCommands.macos);
-    expect(dependency.installCommands.windows).toBeUndefined();
+    expect(installCommands.linux).toEqual(installCommands.macos);
+    expect(installCommands.windows).toBeUndefined();
   });
 
   it('starts the interactive TUI and enables unattended mode when requested', () => {

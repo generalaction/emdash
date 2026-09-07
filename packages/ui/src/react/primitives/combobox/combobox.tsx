@@ -88,6 +88,7 @@ function ComboboxContent({
   sideOffset = 6,
   align = 'start',
   alignOffset = 0,
+  width = 'trigger',
   anchor,
   collisionAvoidance,
   finalFocus = false,
@@ -96,7 +97,9 @@ function ComboboxContent({
   Pick<
     ComboboxPrimitive.Positioner.Props,
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'anchor' | 'collisionAvoidance'
-  >) {
+  > & {
+    width?: 'trigger' | 'content' | 'content-at-least-trigger';
+  }) {
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -111,6 +114,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           data-chips={!!anchor}
+          data-width={width}
           finalFocus={finalFocus}
           className={cx('surface-elevated', styles.comboboxContent, className)}
           {...props}
@@ -143,11 +147,17 @@ function ComboboxItem({
   className,
   children,
   showCheck = true,
+  hoverableWhenDisabled = false,
   ...props
-}: ComboboxPrimitive.Item.Props & { showCheck?: boolean }) {
+}: ComboboxPrimitive.Item.Props & {
+  showCheck?: boolean;
+  /** Keep a disabled item pointer-accessible for hover-only secondary UI. */
+  hoverableWhenDisabled?: boolean;
+}) {
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
+      data-hoverable-when-disabled={hoverableWhenDisabled || undefined}
       className={cx(styles.comboboxItem, className)}
       {...props}
     >
@@ -231,7 +241,7 @@ function ComboboxChip({
       {children}
       {showRemove && (
         <ComboboxPrimitive.ChipRemove
-          render={<Button variant="ghost" size="sm" icon />}
+          render={<Button variant="ghost" size="xs" icon />}
           className={styles.comboboxChipRemove}
           data-slot="combobox-chip-remove"
         >

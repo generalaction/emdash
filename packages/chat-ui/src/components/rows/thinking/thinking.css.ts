@@ -15,3 +15,5 @@ export const thinkingCardVars = createVariableThemeContract<ThinkingStyleVars>({
 // (e.g. during a mid-tween frame or a stale virtualizer size) degrades to
 // clipped content rather than spilling over the following row.
 export const thinkingRoot = style({ height: thinkingCardVars.height, overflow: 'hidden' });
+
+export const thinkingGroupChild = style({ marginTop: '6px' });

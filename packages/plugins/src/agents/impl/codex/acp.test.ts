@@ -1,6 +1,6 @@
 import { Readable, Writable } from 'node:stream';
 import type { Agent } from '@agentclientprotocol/sdk';
-import type { AcpClientFactory } from '@emdash/core/agents/plugins';
+import type { AcpClientFactory } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
 

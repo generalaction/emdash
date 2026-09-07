@@ -19,6 +19,11 @@ const focusRing = {
   boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
 } as const;
 
+const secondaryBackground = `color-mix(in srgb, ${vars.foreground} 6%, transparent)`;
+const secondaryBackgroundHover = `color-mix(in srgb, ${vars.foreground} 9%, transparent)`;
+const secondaryBackgroundSelected = `color-mix(in srgb, ${vars.foreground} 12%, transparent)`;
+const primaryButtonBackgroundPressed = `color-mix(in srgb, black 10%, ${vars.primaryButtonBackground})`;
+
 // Pre-create base style so we can attach globalStyle child selectors
 const controlBase = style({
   display: 'inline-flex',
@@ -43,8 +48,8 @@ const controlBase = style({
 globalStyle(`${controlBase} svg`, { pointerEvents: 'none', flexShrink: 0 });
 globalStyle(`${controlBase} svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
 
-// Pre-create sm size style for its svg override
-const smSizeBase = style({
+// Pre-create xs size style for its svg override
+const xsSizeBase = style({
   height: '1.5rem',
   gap: '0.25rem',
   paddingLeft: '0.5rem',
@@ -52,7 +57,7 @@ const smSizeBase = style({
   fontSize: tokenVars.textXs,
   borderRadius: tokenVars.radiusMd,
 });
-globalStyle(`${smSizeBase} svg:not([class*='size-'])`, { width: '0.75rem', height: '0.75rem' });
+globalStyle(`${xsSizeBase} svg:not([class*='size-'])`, { width: '0.75rem', height: '0.75rem' });
 
 export const controlVariants = recipe({
   base: controlBase,
@@ -93,45 +98,55 @@ export const controlVariants = recipe({
         borderColor: vars.primaryButtonBorder,
         selectors: {
           '&:hover': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&:active': { backgroundColor: primaryButtonBackgroundPressed },
           '&[aria-expanded="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&[aria-pressed="true"]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[aria-selected="true"]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[data-pressed]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[data-selected]': { backgroundColor: primaryButtonBackgroundPressed },
           '&[data-popup-open]': { backgroundColor: vars.primaryButtonBackgroundHover },
-          '&[data-active="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&[data-active="true"]': { backgroundColor: primaryButtonBackgroundPressed },
         },
       },
       secondary: {
-        backgroundColor: vars.surfaceBaseEmphasis,
+        backgroundColor: secondaryBackground,
         color: vars.foregroundMuted,
+        borderColor: vars.border,
         selectors: {
           '&:hover': {
-            backgroundColor: vars.surfaceBaseEmphasisHover,
+            backgroundColor: secondaryBackgroundHover,
+            color: vars.foregroundMuted,
+          },
+          '&:active': {
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[aria-expanded="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[aria-pressed="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[aria-selected="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-pressed]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-selected]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-popup-open]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-active="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
         },
@@ -146,6 +161,7 @@ export const controlVariants = recipe({
       success: {},
     },
 
+    // Four-step control scale: xs 24px / sm 28px / base 32px / lg 40px.
     size: {
       base: {
         height: '2rem',
@@ -153,7 +169,20 @@ export const controlVariants = recipe({
         paddingLeft: '0.625rem',
         paddingRight: '0.625rem',
       },
-      sm: smSizeBase,
+      xs: xsSizeBase,
+      sm: {
+        height: '1.75rem',
+        gap: '0.25rem',
+        paddingLeft: '0.625rem',
+        paddingRight: '0.625rem',
+        borderRadius: tokenVars.radiusMd,
+      },
+      lg: {
+        height: '2.5rem',
+        gap: '0.375rem',
+        paddingLeft: '0.625rem',
+        paddingRight: '0.625rem',
+      },
       link: {
         height: 'auto',
         gap: '0.25rem',
@@ -171,6 +200,10 @@ export const controlVariants = recipe({
     },
 
     icon: {
+      true: {},
+      false: {},
+    },
+    kbd: {
       true: {},
       false: {},
     },
@@ -273,10 +306,11 @@ export const controlVariants = recipe({
       variants: { variant: 'primary', tone: 'destructive' },
       style: {
         backgroundColor: vars.backgroundDestructive,
-        borderColor: vars.borderDestructive,
         color: vars.foregroundDestructive,
+        borderColor: vars.borderDestructive,
         selectors: {
           '&:hover': { backgroundColor: vars.surfaceDestructiveHover },
+          '&:active': { backgroundColor: vars.surfaceDestructiveSelected },
           '&[data-active="true"]': { backgroundColor: vars.surfaceDestructiveSelected },
           '&[data-pressed]': { backgroundColor: vars.surfaceDestructiveSelected },
           '&:focus-visible': {
@@ -291,10 +325,39 @@ export const controlVariants = recipe({
       variants: { icon: true, size: 'base' },
       style: { width: '2rem', height: '2rem', paddingLeft: 0, paddingRight: 0 },
     },
-    // icon + sm → 1.5rem square
+    // icon + xs → 1.5rem square
+    {
+      variants: { icon: true, size: 'xs' },
+      style: { width: '1.5rem', height: '1.5rem', paddingLeft: 0, paddingRight: 0 },
+    },
+    // icon + sm → 1.75rem square
     {
       variants: { icon: true, size: 'sm' },
-      style: { width: '1.5rem', height: '1.5rem', paddingLeft: 0, paddingRight: 0 },
+      style: { width: '1.75rem', height: '1.75rem', paddingLeft: 0, paddingRight: 0 },
+    },
+    // icon + lg → 2.5rem square
+    {
+      variants: { icon: true, size: 'lg' },
+      style: { width: '2.5rem', height: '2.5rem', paddingLeft: 0, paddingRight: 0 },
+    },
+    // kbd + base → align the trailing shortcut and keep the text-to-kbd gap
+    // equal to the right padding so the Kbd sits in a balanced right-side slot.
+    {
+      variants: { kbd: true, size: 'base' },
+      style: { gap: tokenVars.space2, paddingRight: tokenVars.space1_5 },
+    },
+    {
+      variants: { kbd: true, size: 'lg' },
+      style: { gap: tokenVars.space2, paddingRight: tokenVars.space1_5 },
+    },
+    // kbd + xs / sm → smaller right-side slot for the smaller buttons.
+    {
+      variants: { kbd: true, size: 'xs' },
+      style: { gap: '6px', paddingRight: '2.5px' },
+    },
+    {
+      variants: { kbd: true, size: 'sm' },
+      style: { gap: '6px', paddingRight: tokenVars.space1 },
     },
   ],
 
@@ -303,6 +366,7 @@ export const controlVariants = recipe({
     tone: 'neutral',
     size: 'base',
     icon: false,
+    kbd: false,
   },
 });
 

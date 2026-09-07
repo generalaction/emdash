@@ -1,0 +1,221 @@
+import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
+import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
+import {
+  useGitHubAccounts,
+  useRemoveGitHubAccount,
+  useSetDefaultGitHubAccount,
+} from '@core/features/github/api/browser/useGithubAccounts';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import {
+  GitHubCredentialSourceBadge,
+  GitHubDefaultAccountBadge,
+} from '@core/features/projects/contributions/browser/github-account-select';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
+
+export function GitHubAccountsSection() {
+  const { data: accounts = [], isLoading } = useGitHubAccounts();
+  const sortedAccounts = sortGitHubAccountsByDefault(accounts);
+  const openConnectGitHub = useOpenModal('githubConnectModal');
+
+  return (
+    <section className="space-y-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-foreground">GitHub</p>
+        </div>
+        <Tooltip.Provider delay={150}>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon
+                onClick={() => void openConnectGitHub({})}
+                aria-label="Add GitHub account"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side="top">Add GitHub account</Tooltip.Content>
+          </Tooltip.Root>
+        </Tooltip.Provider>
+      </div>
+
+      {isLoading ? (
+        <div className="text-muted-foreground flex items-center gap-2 py-3 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading GitHub accounts...
+        </div>
+      ) : sortedAccounts.length === 0 ? (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border/70 p-3">
+          <div className="bg-muted/50 flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
+            <Github className="text-muted-foreground h-4 w-4" />
+          </div>
+          <p className="text-muted-foreground min-w-0 flex-1 text-sm">
+            No GitHub accounts are connected.
+          </p>
+        </div>
+      ) : (
+        <GitHubAccountRows accounts={sortedAccounts} />
+      )}
+    </section>
+  );
+}
+
+export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary[] }) {
+  const setDefaultMutation = useSetDefaultGitHubAccount();
+  const removeMutation = useRemoveGitHubAccount();
+  const openConfirmRemove = useOpenModal('confirmActionModal');
+  const { toast } = useToast();
+
+  const setDefaultAccount = async (account: GitHubAccountSummary) => {
+    const result = await setDefaultMutation.mutateAsync(account.accountId);
+    if (!result.success) {
+      toast.error('Unable to update default account', { description: result.error });
+      return;
+    }
+    toast('Default GitHub account updated', {
+      description: `New projects will use @${account.login} by default.`,
+    });
+  };
+
+  const removeAccount = async (account: GitHubAccountSummary) => {
+    const result = await removeMutation.mutateAsync(account.accountId);
+    if (!result.success) {
+      toast.error('Unable to remove GitHub account', { description: result.error });
+      return;
+    }
+    toast('GitHub account removed', { description: `Removed @${account.login}.` });
+  };
+
+  const confirmRemove = async (account: GitHubAccountSummary) => {
+    let description = 'This removes the saved GitHub token from Emdash.';
+    try {
+      const count = await (
+        await getProjectsWireClient()
+      ).countProjectsUsingGithubAccount({ accountId: account.accountId });
+      if (count > 0) {
+        const projectLabel = count === 1 ? '1 project' : `${count} projects`;
+        description = `This account is used by ${projectLabel}. Removing it will disable GitHub features for those projects until another GitHub account is assigned.`;
+      }
+    } catch {}
+
+    const outcome = await openConfirmRemove({
+      title: `Remove @${account.login}?`,
+      description,
+      confirmLabel: 'Remove',
+    });
+    if (outcome.success) void removeAccount(account);
+  };
+
+  return (
+    <Tooltip.Provider delay={150}>
+      <div className="space-y-2">
+        {accounts.map((account) => (
+          <GitHubAccountRow
+            key={account.accountId}
+            account={account}
+            setDefaultPending={setDefaultMutation.isPending}
+            removePending={removeMutation.isPending}
+            onSetDefault={() => void setDefaultAccount(account)}
+            onRemove={() => void confirmRemove(account)}
+          />
+        ))}
+      </div>
+    </Tooltip.Provider>
+  );
+}
+
+function GitHubAccountRow({
+  account,
+  setDefaultPending,
+  removePending,
+  onSetDefault,
+  onRemove,
+}: {
+  account: GitHubAccountSummary;
+  setDefaultPending: boolean;
+  removePending: boolean;
+  onSetDefault: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/60 p-3">
+      {account.avatarUrl ? (
+        <img
+          src={account.avatarUrl}
+          alt={account.login}
+          className="h-9 w-9 shrink-0 rounded-full border border-border/60"
+        />
+      ) : (
+        <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60">
+          <Github className="text-muted-foreground h-4 w-4" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <p className="truncate text-sm font-medium text-foreground">@{account.login}</p>
+          {account.isDefault && <DefaultGitHubAccountBadge login={account.login} />}
+          <GitHubCredentialSourceBadge source={account.credentialSource} />
+        </div>
+        <p className="text-muted-foreground truncate text-xs">{account.host}</p>
+      </div>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon
+            disabled={setDefaultPending}
+            onClick={account.isDefault ? undefined : onSetDefault}
+            aria-label={
+              account.isDefault
+                ? `@${account.login} is the default GitHub account`
+                : `Set @${account.login} as default GitHub account`
+            }
+          >
+            {account.isDefault ? (
+              <CircleCheck className="text-foreground" />
+            ) : (
+              <Circle className="text-foreground-muted" />
+            )}
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top">
+          {account.isDefault ? 'Default account' : 'Set as default'}
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon
+            disabled={removePending}
+            onClick={onRemove}
+            aria-label={`Remove @${account.login}`}
+          >
+            <X />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top">Remove account</Tooltip.Content>
+      </Tooltip.Root>
+    </div>
+  );
+}
+
+export function DefaultGitHubAccountBadge({ login }: { login: string }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger className="inline-flex h-4.5 items-center leading-none">
+        <GitHubDefaultAccountBadge />
+      </Tooltip.Trigger>
+      <Tooltip.Content side="top">New projects will use @{login} by default.</Tooltip.Content>
+    </Tooltip.Root>
+  );
+}

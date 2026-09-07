@@ -1,22 +1,24 @@
-import { reaction, runInAction } from 'mobx';
+import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { type ViewId, type WrapParams } from '@renderer/app/view-registry';
-import { appState } from '@renderer/lib/stores/app-state';
-import { viewEvents } from '@renderer/lib/stores/navigation-store';
-import { focusTracker } from '@renderer/utils/focus-tracker';
-import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import type { FocusView } from '@core/primitives/telemetry/api/telemetry';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import {
+  clearTelemetryTaskScope,
+  setTelemetryTaskScope,
+} from '@core/primitives/telemetry/browser/telemetry-scope';
+import type { ViewRef } from '@core/primitives/views/api';
 
-type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
-
-function syncTelemetryScope(currentViewId: ViewId, viewParamsStore: ViewParamsStore): void {
-  if (currentViewId !== 'task') {
+function syncTelemetryScope(ref: ViewRef): void {
+  if (ref.viewId !== 'task') {
     clearTelemetryTaskScope();
     return;
   }
 
-  const taskParams = viewParamsStore.task;
+  const taskParams = ref.params as { projectId?: unknown; taskId?: unknown };
   if (
     taskParams &&
     typeof taskParams.projectId === 'string' &&
@@ -34,32 +36,20 @@ export const WorkspaceViewProvider = observer(function WorkspaceViewProvider({
 }: {
   children: ReactNode;
 }) {
-  const currentViewId = appState.navigation.currentViewId;
-
   useEffect(() => {
-    const initialViewId = appState.navigation.currentViewId;
-    focusTracker.initialize({ view: initialViewId });
-    syncTelemetryScope(initialViewId, appState.navigation.viewParamsStore as ViewParamsStore);
-    captureTelemetry(viewEvents[initialViewId], { from_view: null });
+    const initialViewId = getNavigation().currentViewId;
+    focusTracker.initialize({ view: initialViewId as FocusView });
+    syncTelemetryScope(getNavigation().currentRef);
+    const event = viewCatalog.byId(initialViewId)?.telemetryEvent;
+    if (event) captureTelemetry(event, { from_view: null });
   }, []);
 
   useEffect(() => {
     return reaction(
-      () => ({
-        viewId: appState.navigation.currentViewId,
-        params: appState.navigation.viewParamsStore,
-      }),
-      ({ viewId, params }) => {
-        syncTelemetryScope(viewId as ViewId, params as ViewParamsStore);
-      }
+      () => getNavigation().currentRef,
+      (ref) => syncTelemetryScope(ref)
     );
   }, []);
-
-  useEffect(() => {
-    runInAction(() => {
-      appState.navigation.isNavigating = false;
-    });
-  }, [currentViewId]);
 
   return <>{children}</>;
 });

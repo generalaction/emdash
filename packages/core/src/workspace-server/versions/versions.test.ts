@@ -79,6 +79,37 @@ describe('negotiateProtocol', () => {
       const result = negotiateProtocol(PROTOCOL_VERSION);
       expect(result.compatible).toBe(true);
     });
+
+    it('rejects the previous protocol major with upgrade-client', () => {
+      expect(PROTOCOL_VERSION).toBe('8.0.0');
+      expect(negotiateProtocol('7.1.0')).toEqual({
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '7.1.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
+      });
+    });
+
+    it('rejects pre-1.0 clients against the default with upgrade-client', () => {
+      const result = negotiateProtocol('0.9.0');
+      expect(result).toEqual({
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '0.9.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
+      });
+    });
+
+    it('requires older major clients to upgrade for breaking contract changes', () => {
+      const result = negotiateProtocol('0.1.0');
+
+      expect(result).toEqual({
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '0.1.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
+      });
+    });
   });
 });
 

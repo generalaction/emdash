@@ -10,7 +10,7 @@ export const tableBlockDef = defineBlock<TableBlock, TableLeafLayout>({
   margin: () => ({ top: 8, bottom: 8 }),
 
   measure(block: TableBlock, ctx: MeasureCtx): Measured<TableLeafLayout> {
-    const laid = layoutTable(block, 0, ctx.width);
+    const laid = layoutTable(block, 0, ctx.width, ctx.theme.fonts);
     const layout: TableLeafLayout = { ...laid, raw: block };
     return { height: laid.height, width: laid.contentWidth, layout };
   },

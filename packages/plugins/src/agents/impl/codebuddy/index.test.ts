@@ -1,4 +1,4 @@
-import type { CommandContext, PluginFs } from '@emdash/core/agents/plugins';
+import type { CommandContext, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
@@ -33,13 +33,9 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 describe('codebuddy provider', () => {
   it('registers the documented npm package, binary aliases, and capabilities', () => {
     expect(provider.capabilities.hostDependency.binaryNames).toEqual(['codebuddy', 'cbc']);
-    expect(provider.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
-      'npm install -g @tencent-ai/codebuddy-code'
+    expect(provider.capabilities.hostDependency.installDocs).toBe(
+      'https://www.codebuddy.ai/docs/cli/quickstart'
     );
-    expect(provider.capabilities.hostDependency.updates).toMatchObject({
-      kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@tencent-ai/codebuddy-code' },
-    });
     expect(provider.capabilities.acp.kind).toBe('supported');
     expect(provider.capabilities.autoApprove.kind).toBe('supported');
     expect(provider.capabilities.mcp).toEqual({

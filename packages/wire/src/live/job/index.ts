@@ -6,9 +6,9 @@ export {
 } from './client';
 export {
   LIVE_JOB_TERMINAL_RETAIN_MS,
-  LiveJob,
+  LiveJobSource,
   type LiveJobContext,
   type LiveJobHandler,
   type LiveJobListEntry,
-  type LiveJobOptions,
-} from './server';
+  type LiveJobSourceOptions,
+} from './source';

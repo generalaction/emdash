@@ -1,6 +1,12 @@
 import semver from 'semver';
 
-export const PROTOCOL_VERSION = '2.0.0';
+export const PROTOCOL_VERSION = '8.0.0';
+
+export function protocolMajor(version: string = PROTOCOL_VERSION): number {
+  const parsed = semver.parse(version);
+  if (!parsed) throw new Error(`Invalid protocol version '${version}'`);
+  return parsed.major;
+}
 
 export type ProtocolNegotiation =
   | { compatible: true; agreedVersion: string; agreedMinor: number }

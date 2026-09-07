@@ -1,12 +1,11 @@
 import { count } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { app } from 'electron';
-import { db } from '@main/db/client';
-import * as schema from '@main/db/schema';
-import { projects, tasks } from '@main/db/schema';
+import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
+import * as schema from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
-import type { LegacyImportSource } from '@shared/legacy-port';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { openLegacyReadOnly } from './legacy-source/open-readonly';
 import {
   hasBetaDatabaseFile,
@@ -17,15 +16,15 @@ import {
 import { createDefaultLegacyPortStateStore, runLegacyPort } from './service';
 import { createLegacyPortPreview } from './source-analysis';
 
-export const legacyPortController = createRPCController({
+export const legacyPortOperations = {
   checkStatus: async () => {
     const userDataPath = app.getPath('userData');
     const hasLegacyDb = hasLegacyDatabaseFile(userDataPath);
     const hasBetaDb = hasBetaDatabaseFile(userDataPath);
     const stateStore = await createDefaultLegacyPortStateStore();
     const portStatus = await stateStore.getStatus();
-    const [{ value: projectCount }] = await db.select({ value: count() }).from(projects);
-    const [{ value: taskCount }] = await db.select({ value: count() }).from(tasks);
+    const [{ value: projectCount }] = await getAppDb().select({ value: count() }).from(projects);
+    const [{ value: taskCount }] = await getAppDb().select({ value: count() }).from(tasks);
     const hasExistingData = projectCount > 0 || taskCount > 0;
     return {
       hasLegacyDb,
@@ -48,7 +47,7 @@ export const legacyPortController = createRPCController({
       legacyDb = hasLegacyDb ? openLegacyReadOnly(legacyPath) : null;
       betaSqlite = hasBetaDb ? openLegacyReadOnly(betaPath) : null;
       return await createLegacyPortPreview({
-        appDb: db,
+        appDb: getAppDb(),
         betaDb: betaSqlite ? drizzle(betaSqlite, { schema }) : null,
         legacyDb,
         hasLegacyDb,
@@ -59,7 +58,7 @@ export const legacyPortController = createRPCController({
         error: error instanceof Error ? error.message : String(error),
       });
       return await createLegacyPortPreview({
-        appDb: db,
+        appDb: getAppDb(),
         betaDb: null,
         legacyDb: null,
         hasLegacyDb,
@@ -92,4 +91,4 @@ export const legacyPortController = createRPCController({
       };
     }
   },
-});
+};

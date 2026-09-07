@@ -6,8 +6,10 @@ import { Button } from '@/react/primitives/button';
 import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
+  ComposerCollaborationModeOption,
   ComposerEffortOption,
   ComposerModelOption,
+  ComposerMcpServer,
   ComposerNotice,
   ComposerNoticeVariant,
   ComposerPermissionModeOption,
@@ -214,8 +216,13 @@ const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
     name: 'Accept edits',
     description: 'Auto-allow file edits, prompt for shell commands.',
   },
-  plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
+  readOnly: { name: 'Read only', description: 'Allow inspection without writing files.' },
   bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
+};
+
+const MOCK_COLLABORATION_MODES: Record<string, ComposerCollaborationModeOption> = {
+  default: { name: 'Default', description: 'Work directly on the task.' },
+  plan: { name: 'Plan', description: 'Create a plan before making changes.' },
 };
 
 // ── Mock permission requests ──────────────────────────────────────────────────
@@ -266,7 +273,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-deep-path',
     title:
-      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/conversations/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/core/features/conversations/browser/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
     options: [
       { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
       {
@@ -322,6 +329,12 @@ const MOCK_HIGH_CONTEXT_USAGE: ContextUsage = {
   cost: { amount: 1.36, currency: 'USD' },
 };
 
+const MOCK_MCP_SERVERS: ComposerMcpServer[] = [
+  { name: 'filesystem', transport: 'stdio' },
+  { name: 'docs', transport: 'http' },
+  { name: 'linear', transport: 'sse' },
+];
+
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -335,6 +348,7 @@ interface PlaygroundArgs {
   noticeTitle: string;
   noticeMessage: string;
   showPermissionModeSelector: boolean;
+  showCollaborationModeSelector: boolean;
   showPermissionRequest: boolean;
   showQueuedPrompts: boolean;
 }
@@ -353,6 +367,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeTitle,
     noticeMessage,
     showPermissionModeSelector,
+    showCollaborationModeSelector,
     showPermissionRequest,
     showQueuedPrompts,
   } = args;
@@ -361,6 +376,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
   const [selectedPermissionMode, setSelectedPermissionMode] = useState('default');
+  const [selectedCollaborationMode, setSelectedCollaborationMode] = useState('default');
   const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>([]);
 
@@ -390,7 +406,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
       <Box marginBottom="3" display="flex" alignItems="center" gap="3">
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           tone="destructive"
           disabled={!noticeVisible}
@@ -424,6 +440,9 @@ function ComposerPlayground(args: PlaygroundArgs) {
         permissionModeOptions={showPermissionModeSelector ? MOCK_PERMISSION_MODES : null}
         selectedPermissionMode={selectedPermissionMode}
         onPermissionModeChange={setSelectedPermissionMode}
+        collaborationModeOptions={showCollaborationModeSelector ? MOCK_COLLABORATION_MODES : null}
+        selectedCollaborationMode={selectedCollaborationMode}
+        onCollaborationModeChange={setSelectedCollaborationMode}
         permissionRequest={permissionQueue[0] ?? null}
         permissionQueueCount={permissionQueue.length}
         onResolvePermission={() => setPermissionQueue((q) => q.slice(1))}
@@ -498,6 +517,10 @@ const meta: Meta<PlaygroundArgs> = {
       control: 'boolean',
       description: 'Render the approval-policy (Permissions…) selector in the toolbar.',
     },
+    showCollaborationModeSelector: {
+      control: 'boolean',
+      description: 'Render the workflow (Default / Plan) selector in the toolbar.',
+    },
     showPermissionRequest: {
       control: 'boolean',
       description:
@@ -522,6 +545,7 @@ const meta: Meta<PlaygroundArgs> = {
     noticeMessage:
       'The agent hit the maximum number of turn requests. Send a new message to continue.',
     showPermissionModeSelector: true,
+    showCollaborationModeSelector: true,
     showPermissionRequest: false,
     showQueuedPrompts: false,
   },
@@ -533,6 +557,24 @@ type Story = StoryObj<PlaygroundArgs>;
 
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
+
+export const WithMcpServers: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        canSubmit
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        mcpServers={MOCK_MCP_SERVERS}
+        mentionProvider={mockMentionProvider}
+        queryCommands={queryCommands}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
 
 function QueuedPromptsDemo() {
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);

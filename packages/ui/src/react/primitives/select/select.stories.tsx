@@ -103,3 +103,19 @@ export const WithDisabledItem: Story = {
     </Box>
   ),
 };
+
+export const ContentSizing: Story = {
+  render: () => (
+    <Box className={s.w48}>
+      <Select.Root defaultValue="short">
+        <Select.Trigger>
+          <Select.Value />
+        </Select.Trigger>
+        <Select.Content width="content-at-least-trigger">
+          <Select.Item value="short">Short</Select.Item>
+          <Select.Item value="long">A much longer option that expands the popup</Select.Item>
+        </Select.Content>
+      </Select.Root>
+    </Box>
+  ),
+};

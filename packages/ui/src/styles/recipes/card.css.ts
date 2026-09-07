@@ -13,7 +13,7 @@
  *   padding     — none | sm | md | lg (default: md)
  *   radius      — sm | md | lg (default: md)
  *   interactive — true | false: hover/selected state (default: false)
- *   level       — sunken | base | elevated | paper (default: base)
+ *   level       — sunken | base | elevated | elevated-emphasis | paper (default: base)
  *   status      — destructive | warning | info | success (optional)
  *
  * Status rooms are level-aware: when both `level` and `status` are set on the
@@ -21,11 +21,13 @@
  * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
-import { SURFACE_STATUSES } from '@theme/core/contract/roles';
+import { SURFACE_STATUSES } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
+// Relative import: the dts emitter rewrites aliased imports to a dangling
+// relative path, silently degrading the exported types.
+import { vars } from '../../theme/core/contract/contract.css';
 import { tokenVars } from '../../theme/tokens.css';
-import { vars } from '@theme/core/contract/contract.css';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 const vv = vars as unknown as Record<string, string>;
@@ -46,7 +48,7 @@ export const card = recipe({
   base: {
     backgroundColor: vars.surface,
     color: vars.foreground,
-    border: `1px solid ${vars.surfaceBorder}`,
+    border: `1px solid ${vars.border}`,
     overflow: 'hidden',
   },
 
@@ -85,6 +87,18 @@ export const card = recipe({
           ...statusRebindings('elevated'),
         },
       },
+      'elevated-emphasis': {
+        vars: {
+          [vars.surface]: vars.surfaceElevatedEmphasis,
+          [vars.surfaceHover]: vars.surfaceElevatedEmphasisHover,
+          [vars.surfaceSelected]: vars.surfaceElevatedEmphasisSelected,
+          // Top of the elevation ladder — nested emphasis clamps here.
+          [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
+          [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
+          [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
+          ...statusRebindings('elevated-emphasis'),
+        },
+      },
       paper: {
         vars: {
           [vars.surface]: vars.surfacePaper,
@@ -100,6 +114,7 @@ export const card = recipe({
 
     status: {
       destructive: {
+        borderColor: vars.surfaceBorder,
         vars: {
           [vars.surface]: vars.surfaceDestructive,
           [vars.surfaceForeground]: vars.surfaceDestructiveForeground,
@@ -109,6 +124,7 @@ export const card = recipe({
         },
       },
       warning: {
+        borderColor: vars.surfaceBorder,
         vars: {
           [vars.surface]: vars.surfaceWarning,
           [vars.surfaceForeground]: vars.surfaceWarningForeground,
@@ -118,6 +134,7 @@ export const card = recipe({
         },
       },
       info: {
+        borderColor: vars.surfaceBorder,
         vars: {
           [vars.surface]: vars.surfaceInfo,
           [vars.surfaceForeground]: vars.surfaceInfoForeground,
@@ -127,6 +144,7 @@ export const card = recipe({
         },
       },
       success: {
+        borderColor: vars.surfaceBorder,
         vars: {
           [vars.surface]: vars.surfaceSuccess,
           [vars.surfaceForeground]: vars.surfaceSuccessForeground,

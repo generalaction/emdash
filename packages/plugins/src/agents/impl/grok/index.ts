@@ -1,5 +1,11 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, grokMcpAdapter } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildStandardCommand,
+  grokMcpAdapter,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
@@ -40,6 +46,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
         linux: [
@@ -54,6 +61,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
         windows: [
@@ -69,6 +77,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
       },

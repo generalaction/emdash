@@ -22,10 +22,10 @@ recent progress entries, but they do not carry `progressCount`.
 
 ## Server
 
-`LiveJob<I, P, R, E>` accepts a handler that returns `Result<R, E>`:
+`LiveJobSource<I, P, R, E>` accepts a handler that returns `Result<R, E>`:
 
 ```ts
-const jobs = new LiveJob<Input, Progress, Result, ErrorState>(
+const jobs = new LiveJobSource<Input, Progress, Result, ErrorState>(
   async (input, ctx) => {
     ctx.progress({ step: 'checkout' });
     await build(input, ctx.signal);
@@ -63,8 +63,8 @@ serialized `cause`.
 
 `source(jobId)` returns a read-only live source for that job. `snapshot(jobId)` and
 `getState(jobId)` are convenience accessors. `cancel(id)` aborts a running job.
-`dispose()` aborts running jobs, clears eviction timers, and removes all job
-state.
+`dispose()` is async: it aborts running jobs, waits for cooperative handlers to
+settle, clears eviction timers, and removes all job state.
 
 Terminal job state is retained for `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes) so
 late clients can reattach by id. This retention is process-local, not durable.
@@ -86,7 +86,7 @@ await contractClient.build.cancel(jobId);
 detach();
 ```
 
-Use `createLiveJobReplica()` when a consumer wants a `result` promise, progress
+Use `createLiveJobReplicaCache()` when a consumer wants a `result` promise, progress
 callbacks, ref-counted attachment, and terminal-state retention. If the job fails,
 `ReplicaJob.result` rejects with `LiveJobFailedError`; if it is cancelled, it
 rejects with `LiveJobCancelledError`. Progress emitted by a seed is suppressed so
@@ -124,11 +124,11 @@ const controller = createController(api, {
 ```
 
 The typed client exposes a live job client handle. Use it directly for
-low-level forwarding, or wrap it in `createLiveJobReplica()` when a consumer wants
+low-level forwarding, or wrap it in `createLiveJobReplicaCache()` when a consumer wants
 ref-counted local state:
 
 ```ts
-const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 30_000 });
+const jobs = createLiveJobReplicaCache(api.build, contractClient.build, { lingerMs: 30_000 });
 const lease = await jobs.start({ target: 'desktop' });
 const handle = await lease.ready();
 
@@ -145,13 +145,17 @@ await jobs.dispose();
 ```
 
 `ReplicaJob` exposes `jobId`, `ready`, `result`, `getState()`,
-`onProgress(cb)`, and `cancel()`. The `LiveJobReplica` manager owns ref counting,
+`onProgress(cb)`, and `cancel()`. The `LiveJobReplicaCache` manager owns ref counting,
 subscription sharing, and terminal-state retention.
+
+`LiveJobSource` accepts a `Clock` for deterministic start/finish timestamps and
+terminal retention eviction. Server disposal is awaitable: it cancels active job
+runs, waits for cooperative handlers to settle, and disposes retention timers
+before returning.
 
 Cancellation at the procedure/wire level is documented in
 [serving](../api/serving.md#cancellation). Job cancellation is domain-level:
 `ReplicaJob.cancel()` calls the generated `<path>.cancel` procedure, which calls
-`LiveJob.cancel(jobId)`.
+`LiveJobSource.cancel(jobId)`.
 
-See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts)
-and [../../examples/live-job/client.ts](../../examples/live-job/client.ts).
+See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts).

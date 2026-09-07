@@ -1,11 +1,13 @@
-import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
+  configRoots,
   defaultHookEventParser,
+  envConfigRoot,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const QWEN_HOOKS_PATH = '.qwen/settings.json';
+export const QWEN_HOOKS_PATH = 'settings.json';
 
 /**
  * Qwen's permission-request hook fires as a notification with
@@ -32,6 +34,7 @@ export function buildQwenHookConfig() {
       { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
       { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
     ]),
+    resolveConfigRoots: configRoots(envConfigRoot('QWEN_HOME', '.qwen')),
     parseHookEvent: parseQwenHookEvent,
   };
 }

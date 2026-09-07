@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { compose, deduplicate } from '@emdash/shared/requests';
 import {
   createController,
   client,
@@ -7,8 +7,8 @@ import {
   memoryTransportPair,
   procedure,
   serve,
-} from '../../src/index';
-import { deduplicateRequests } from '../../src/util';
+} from '@emdash/wire/rpc';
+import { z } from 'zod';
 
 const api = defineContract({
   expensiveStats: procedure({
@@ -21,12 +21,15 @@ async function main(): Promise<void> {
   let executions = 0;
   const pair = memoryTransportPair();
   const controller = createController(api, {
-    expensiveStats: deduplicateRequests(async (input) => {
-      executions += 1;
-      const execution = executions;
-      await sleep(10);
-      return { ...input, executions: execution };
-    }),
+    expensiveStats: compose(
+      async (input, _meta) => {
+        executions += 1;
+        const execution = executions;
+        await sleep(10);
+        return { ...input, executions: execution };
+      },
+      [deduplicate()]
+    ),
   });
   serve(pair.right, controller);
 

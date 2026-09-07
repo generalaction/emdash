@@ -1,15 +1,19 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
   opencodeMcpAdapter,
-} from '@emdash/core/agents/plugins/helpers';
+  xdgConfigRoot,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { opencodeAuthStatus } from './auth';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
-const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
+const OPENCODE_PLUGIN_PATH = 'plugins/emdash-notifications.js';
 const validateSessionId = (id: string) => id.startsWith('ses');
 import { icon } from './icon';
 
@@ -52,7 +56,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'opencode', package: 'opencode-ai' }),
@@ -63,7 +67,7 @@ export const plugin = definePlugin(
     },
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'argv',
@@ -105,6 +109,7 @@ export const provider = registerPluginBehavior(plugin, {
   sessions: { validateSessionId },
   mcp: opencodeMcpAdapter(),
   plugins: createFileDropPlugin({
+    resolveConfigRoot: xdgConfigRoot('opencode', { overrideEnvVar: 'OPENCODE_CONFIG_DIR' }),
     relativePath: OPENCODE_PLUGIN_PATH,
     content: OPENCODE_PLUGIN_CONTENT,
   }),

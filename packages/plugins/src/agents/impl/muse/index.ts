@@ -1,5 +1,8 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { icon } from './icon';
 
 const installCommand = 'curl -fsSL https://dev.meta.ai/install.sh | bash';
@@ -49,7 +52,7 @@ export const plugin = definePlugin(
       },
     },
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'stateless',
