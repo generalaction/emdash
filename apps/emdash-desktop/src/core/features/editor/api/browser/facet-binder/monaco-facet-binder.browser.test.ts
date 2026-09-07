@@ -224,6 +224,35 @@ describe('MonacoFacetBinder handles', () => {
     expect(editor.getOption(monaco.editor.EditorOption.readOnly)).toBe(false);
   });
 
+  it('updates read-only state in attached editors and preserves the buffer and undo stack', async () => {
+    const binder = newBinder();
+    const ref = fileRef('repo', 'permissions.txt');
+    const handle = await createHandle(binder, descriptor(ref, BUFFER, 'text'));
+    const uri = encodeFacetUri(ref, BUFFER);
+    const editor = createEditor();
+    const otherEditor = createEditor();
+    binder.attach(editor, uri);
+    binder.attach(otherEditor, uri);
+    editor.setPosition({ lineNumber: 1, column: 5 });
+    editor.trigger('keyboard', 'type', { text: '!' });
+    const model = editor.getModel()!;
+
+    handle.setReadOnly(true);
+    expect(editor.getOption(monaco.editor.EditorOption.readOnly)).toBe(true);
+    expect(otherEditor.getOption(monaco.editor.EditorOption.readOnly)).toBe(true);
+    binder.detach(otherEditor, uri);
+    binder.attach(otherEditor, uri);
+    expect(otherEditor.getOption(monaco.editor.EditorOption.readOnly)).toBe(true);
+    expect(handle.getText()).toBe('text!');
+
+    handle.setReadOnly(false);
+    expect(editor.getOption(monaco.editor.EditorOption.readOnly)).toBe(false);
+    expect(otherEditor.getOption(monaco.editor.EditorOption.readOnly)).toBe(false);
+    expect(editor.getModel()).toBe(model);
+    await model.undo();
+    expect(handle.getText()).toBe('text');
+  });
+
   it('applies setText to read-only facets (store-driven updates)', async () => {
     const binder = newBinder();
     const ref = fileRef('repo', 'mirror.txt');

@@ -51,6 +51,7 @@ export type ContentStatus =
 
 export type SaveFileError =
   | { type: 'not-open' }
+  | { type: 'readonly' }
   | { type: 'no-etag' }
   | { type: 'conflict' }
   | { type: 'write-failed'; message: string };
@@ -69,6 +70,7 @@ export interface OpenFileEntry {
   readonly dirty: boolean;
   readonly conflicted: boolean;
   readonly saving: boolean;
+  readonly readOnly: boolean;
   handleFor(facet: Facet): FacetHandle | undefined;
   /** Per-ref readiness of a git snapshot facet (spec §6). */
   gitStatus(ref: GitRef): ContentStatus | undefined;
@@ -120,6 +122,7 @@ class OpenFileEntryImpl implements OpenFileEntry {
   dirty = false;
   conflicted = false;
   saving = false;
+  readOnly = false;
 
   readonly facetHandles = observable.map<string, FacetHandle>([], { deep: false });
   readonly gitStatuses = observable.map<string, ContentStatus>([], { deep: false });
@@ -151,6 +154,7 @@ class OpenFileEntryImpl implements OpenFileEntry {
       dirty: observable,
       conflicted: observable,
       saving: observable,
+      readOnly: observable,
     });
   }
 
@@ -313,6 +317,7 @@ export class OpenFileStore {
   ): Promise<Result<void, SaveFileError>> {
     const impl = this.entries.get(entry.key);
     if (!impl || impl !== entry) return err({ type: 'not-open' as const });
+    if (impl.readOnly) return err({ type: 'readonly' as const });
     const slot = impl.slots.get(BUFFER_SLOT);
     const handle = slot?.handle;
     const binding = impl.diskSource;
@@ -697,12 +702,15 @@ export class OpenFileStore {
         entry.lastDiskText = content.content;
         entry.lastDiskEtag = content.etag;
         entry.everReady = true;
+        entry.readOnly = content.readonly;
+        entry.handleFor({ kind: 'buffer' })?.setReadOnly(content.readonly);
         this.setStatus(entry, READY);
         this.ensureDiskFacetHandles(entry);
         this.applyDiskText(entry);
         return;
       }
       case 'binary':
+        entry.readOnly = content.readonly;
         this.transitionError(entry, 'binary');
         return;
       case 'too-large':
@@ -803,7 +811,7 @@ export class OpenFileStore {
       uri: entry.uri,
       facet: slot.facet,
       initialText,
-      readonly: slot.facet.kind !== 'buffer',
+      readonly: slot.facet.kind !== 'buffer' || entry.readOnly,
     };
     void this.withBinder()
       .then((binder) => binder.createHandle(descriptor))
@@ -814,6 +822,7 @@ export class OpenFileStore {
         }
         slot.pendingHandle = false;
         slot.handle = handle;
+        handle.setReadOnly(slot.facet.kind !== 'buffer' || entry.readOnly);
         runInAction(() => {
           entry.facetHandles.set(slotKey, handle);
         });

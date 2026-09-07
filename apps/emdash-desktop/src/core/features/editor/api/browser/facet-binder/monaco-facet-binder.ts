@@ -7,7 +7,7 @@ import type {
   FacetHandleBinder,
 } from '@core/features/editor/api/browser/open-file-store/facet-handle';
 import { log } from '@core/primitives/logging/browser/logger';
-import { decodeFacetUri, encodeFacetUri } from './facet-uri';
+import { encodeFacetUri } from './facet-uri';
 
 /**
  * The Monaco-side projection of OpenFileStore (spec §7): implements
@@ -23,8 +23,12 @@ import { decodeFacetUri, encodeFacetUri } from './facet-uri';
  * wedging the stack.
  */
 export class MonacoFacetBinder implements FacetHandleBinder {
+  private monaco: typeof monaco | undefined;
   /** Live models keyed by facet URI string; refs count live handles. */
-  private readonly models = new Map<string, { model: monaco.editor.ITextModel; refs: number }>();
+  private readonly models = new Map<
+    string,
+    { model: monaco.editor.ITextModel; refs: number; readonly: boolean }
+  >();
   /** Cursor/scroll/folding state per facet URI, saved between attaches. */
   private readonly viewStates = new Map<string, monaco.editor.ICodeEditorViewState>();
   /** Diff-editor view states keyed by `${originalUri}::${modifiedUri}`. */
@@ -43,6 +47,7 @@ export class MonacoFacetBinder implements FacetHandleBinder {
     }
     const uri = encodeFacetUri(decoded.data, descriptor.facet);
     const m = await this.loadMonaco();
+    this.monaco = m;
 
     let entry = this.models.get(uri);
     if (entry) {
@@ -65,10 +70,10 @@ export class MonacoFacetBinder implements FacetHandleBinder {
           monacoUri
         );
       }
-      entry = { model, refs: 1 };
+      entry = { model, refs: 1, readonly: descriptor.readonly };
       this.models.set(uri, entry);
     }
-    return new MonacoFacetHandle(this, uri, entry.model, descriptor.readonly);
+    return new MonacoFacetHandle(this, uri, entry.model, descriptor.facet.kind !== 'buffer');
   }
 
   // ---------------------------------------------------------------------------
@@ -78,6 +83,15 @@ export class MonacoFacetBinder implements FacetHandleBinder {
   /** The live ITextModel at a codec-produced facet URI, if any. */
   modelFor(uri: string): monaco.editor.ITextModel | undefined {
     return this.models.get(uri)?.model;
+  }
+
+  setReadOnly(uri: string, readOnly: boolean): void {
+    const entry = this.models.get(uri);
+    if (!entry || entry.readonly === readOnly) return;
+    entry.readonly = readOnly;
+    for (const editor of this.monaco?.editor.getEditors() ?? []) {
+      if (editor.getModel() === entry.model) editor.updateOptions({ readOnly });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -95,10 +109,7 @@ export class MonacoFacetBinder implements FacetHandleBinder {
     const entry = this.models.get(uri);
     if (!entry) return;
     editor.setModel(entry.model);
-    const decoded = decodeFacetUri(uri);
-    if (decoded.success) {
-      editor.updateOptions({ readOnly: decoded.data.facet.kind !== 'buffer' });
-    }
+    editor.updateOptions({ readOnly: entry.readonly });
     const viewState = this.viewStates.get(uri);
     if (viewState) editor.restoreViewState(viewState);
   }
@@ -199,6 +210,11 @@ class MonacoFacetHandle implements FacetHandle {
 
   getText(): string {
     return this.model.getValue();
+  }
+
+  setReadOnly(readOnly: boolean): void {
+    if (this.disposed) return;
+    this.binder.setReadOnly(this.uri, this.readonlyFacet || readOnly);
   }
 
   setText(text: string): void {
