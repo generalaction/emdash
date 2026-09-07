@@ -5,6 +5,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'amp',
   'auggie',
   'claude',
+  'codebuddy',
   'codex',
   'commandcode',
   'copilot',
