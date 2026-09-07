@@ -186,7 +186,6 @@ describe('TuiConversationProvider', () => {
           EMDASH_TASK_NAME: 'old-name',
         }),
         shellSetup: 'source old-profile',
-        tmuxSessionName: undefined,
       })
     );
     expect(start).toHaveBeenNthCalledWith(
@@ -197,7 +196,7 @@ describe('TuiConversationProvider', () => {
           EMDASH_TASK_NAME: 'new-name',
         }),
         shellSetup: 'source new-profile',
-        tmuxSessionName: expect.stringMatching(/^emdash-/),
+        tmux: { identity: expect.stringMatching(/:/) },
       })
     );
   });

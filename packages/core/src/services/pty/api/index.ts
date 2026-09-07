@@ -33,12 +33,24 @@ export { PtySession } from './pty-session';
 export type { PtySessionOptions } from './pty-session';
 export {
   buildTmuxShellLine,
-  decodeTmuxSessionName,
   killTmuxSession,
-  listTmuxSessionActivity,
+  listTmuxSessions,
+  type TmuxSessionInventoryEntry,
+} from './tmux-commands';
+export {
+  decodeLegacyTmuxSessionName,
+  LEGACY_TMUX_SESSION_PREFIX,
+  makeLegacyTmuxSessionName,
   makeTmuxSessionName,
+  TMUX_IDENTITY_OPTION,
+} from './tmux-identity';
+export {
+  findTmuxSessionNamesByIdentity,
+  listTmuxSessionActivity,
   parseTmuxSessionActivity,
-  TMUX_SESSION_PREFIX,
+  resolveTmuxSession,
+  tmuxIdentityActivityKey,
+  type ResolvedTmuxSession,
 } from './tmux';
 export { buildTerminalEnv } from './terminal-env';
 export type { PtyDimensions, PtyExitInfo, PtyProcess, PtySpawner, PtySpawnSpec } from './types';

@@ -299,7 +299,7 @@ function startDesktopWorkersWithHost(
     },
     config: {
       databasePath: join(app.getPath('userData'), 'pull-requests.db'),
-      incrementalIntervalMs: 5 * 60_000,
+      incrementalIntervalMs: 60_000,
     },
   });
   const terminalsWorker = host.create(

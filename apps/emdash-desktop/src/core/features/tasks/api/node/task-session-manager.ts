@@ -1,6 +1,5 @@
 import { hostRefKey, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -131,11 +130,14 @@ async function cleanupDetachedSessions(
     return;
   }
   const { conversationIds, terminalIds } = await getTaskSessionLeafIds(db, projectId, taskId);
-  const sessionNames = [...conversationIds, ...terminalIds].map((leafId) =>
-    makeTmuxSessionName(makePtySessionId(projectId, taskId, leafId))
+  const sessionIdentities = [...conversationIds, ...terminalIds].map((leafId) =>
+    makePtySessionId(projectId, taskId, leafId)
   );
-  if (sessionNames.length > 0) {
-    await runtime.data.terminals.killTmuxSessions({ sessionNames });
+  if (sessionIdentities.length > 0) {
+    await runtime.data.terminals.killTmuxSessions({
+      sessionIdentities,
+      workspaceLabel: runtimeWorkspace.path.segments.at(-1) ?? 'workspace',
+    });
   }
 }
 

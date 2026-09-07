@@ -3,7 +3,6 @@ import {
   sshConnectionIdOf,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -19,7 +18,7 @@ export type LifecycleSessionTargets = {
   acpConversationIds: string[];
   tuiConversationIds: string[];
   terminalSessionIds: string[];
-  tmuxSessionNames: string[];
+  tmuxSessionIdentities: string[];
 };
 
 /** The task being deleted plus the host its sessions live on — all this module needs. */
@@ -62,7 +61,7 @@ export async function resolveLifecycleSessionTargets(
     acpConversationIds: new Set(),
     tuiConversationIds: new Set(),
     terminalSessionIds: new Set(),
-    tmuxSessionNames: new Set(),
+    tmuxSessionIdentities: new Set(),
   };
   const taskIds = operation.taskId ? [operation.taskId] : [];
   if (taskIds.length > 0) {
@@ -101,9 +100,8 @@ export async function resolveLifecycleSessionTargets(
     }
     for (const row of [...acpRows, ...tuiRows, ...terminalRows]) {
       if (row.projectId === null || row.taskId === null) continue;
-      targets.tmuxSessionNames.add(
-        makeTmuxSessionName(makePtySessionId(row.projectId, row.taskId, row.id))
-      );
+      const identity = makePtySessionId(row.projectId, row.taskId, row.id);
+      targets.tmuxSessionIdentities.add(identity);
     }
   }
 
@@ -157,10 +155,17 @@ export async function killLifecycleTerminalSessions(
     }
   }
 
-  if (!operation.projectId || targets.tmuxSessionNames.length === 0) return;
+  if (!operation.projectId || targets.tmuxSessionIdentities.length === 0) return;
   const projectTerminals = dependencies.getProjectTerminals(operation.projectId);
   if (!projectTerminals) return;
-  await projectTerminals.killTmuxSessions({ sessionNames: targets.tmuxSessionNames });
+  await projectTerminals.killTmuxSessions({
+    sessionIdentities: targets.tmuxSessionIdentities,
+    workspaceLabel: context.workspacePath ? workspaceLabel(context.workspacePath) : undefined,
+  });
+}
+
+function workspaceLabel(path: string): string {
+  return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? 'workspace';
 }
 
 function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
@@ -168,7 +173,7 @@ function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
     acpConversationIds: [...targets.acpConversationIds],
     tuiConversationIds: [...targets.tuiConversationIds],
     terminalSessionIds: [...targets.terminalSessionIds],
-    tmuxSessionNames: [...targets.tmuxSessionNames],
+    tmuxSessionIdentities: [...targets.tmuxSessionIdentities],
   };
 }
 
