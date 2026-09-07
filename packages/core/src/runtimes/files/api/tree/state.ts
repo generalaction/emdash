@@ -23,6 +23,7 @@ export const fileEntrySchema = z.object({
   mtimeMs: z.number().optional(),
   symlinkTarget: z.string().nullable().optional(),
   symlinkTargetKind: symlinkTargetKindSchema.optional(),
+  symlinkTargetOutsideRoot: z.boolean().optional(),
 });
 
 export const fileTreeModelSchema = z
@@ -59,7 +60,7 @@ export const fileTreeModelSchema = z
         context.addIssue({
           code: 'custom',
           path: ['entries', entryPath, 'childrenLoaded'],
-          message: 'Only directories and in-root directory symlinks can load children',
+          message: 'Only directories and directory symlinks can load children',
         });
       }
       if (entry.kind === 'symlink' && entry.symlinkTargetKind === undefined) {
@@ -74,6 +75,13 @@ export const fileTreeModelSchema = z
           code: 'custom',
           path: ['entries', entryPath, 'symlinkTargetKind'],
           message: 'Only symlink entries can describe a symlink target kind',
+        });
+      }
+      if (entry.kind !== 'symlink' && entry.symlinkTargetOutsideRoot !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['entries', entryPath, 'symlinkTargetOutsideRoot'],
+          message: 'Only symlink entries can describe target containment',
         });
       }
       if (new Set(entry.children).size !== entry.children.length) {

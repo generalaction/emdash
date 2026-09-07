@@ -26,7 +26,7 @@ export type DiffSideModel =
 export interface StickyDiffEditorProps {
   /** The old/original (left) side; null while leases are being acquired. */
   original: DiffSideModel | null;
-  /** The new/modified (right) side; editable when it is a buffer facet. */
+  /** The new/modified (right) side; editable when it is a writable buffer facet. */
   modified: DiffSideModel | null;
   /** Checkout-relative path, used by the save-conflict dialog. */
   filePath: string;
@@ -230,19 +230,19 @@ export function StickyDiffEditor({
       const modModel = modResolved.type === 'model' ? modResolved.model : emptyModel('modified');
       if (!origModel || !modModel) return;
 
+      const editable =
+        modified.kind === 'facet' &&
+        modified.facet.kind === 'buffer' &&
+        !modified.entry.readOnly &&
+        modResolved.type === 'model';
+      editor.updateOptions({ readOnly: !editable });
+
       const attached = editor.getModel();
       if (attached?.original === origModel && attached?.modified === modModel) return;
       if (attached) editor.setModel(null);
 
       editor.setModel({ original: origModel, modified: modModel });
       attachedUrisRef.current = { original: sideUri(original), modified: sideUri(modified) };
-      // Edits are only meaningful on a live buffer facet; empty stand-ins and
-      // git snapshots stay read-only.
-      const editable =
-        modified.kind === 'facet' &&
-        modified.facet.kind === 'buffer' &&
-        modResolved.type === 'model';
-      editor.updateOptions({ readOnly: !editable });
       editor.layout();
       // Restore scroll/cursor for the incoming side pair.
       installMonacoFacetBinder().restoreDiffViewState(sideUri(original), sideUri(modified), editor);

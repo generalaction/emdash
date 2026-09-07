@@ -77,6 +77,7 @@ export class TreeDirectoryReader {
           kind: 'symlink',
           symlinkTarget: target.target,
           symlinkTargetKind: target.kind,
+          symlinkTargetOutsideRoot: target.outsideRoot,
           ...(target.stat && target.kind === 'file' ? { etag: etagForStat(target.stat) } : {}),
         });
       }
@@ -95,6 +96,7 @@ async function classifySymlink(
 ): Promise<{
   target: string | null;
   kind: SymlinkTargetKind;
+  outsideRoot: boolean;
   stat?: { mtimeMs: number; size: number };
 }> {
   let target: string | null = null;
@@ -105,17 +107,20 @@ async function classifySymlink(
   }
 
   try {
-    const canonical = await realpath(absolutePath);
-    if (!containsPath(rootPath, canonical)) return { target, kind: 'outside-root' };
     const metadata = await stat(absolutePath);
+    const canonical = await realpath(absolutePath);
     const statMetadata = { mtimeMs: Number(metadata.mtimeMs), size: Number(metadata.size) };
-    if (metadata.isDirectory()) return { target, kind: 'directory', stat: statMetadata };
-    if (metadata.isFile()) return { target, kind: 'file', stat: statMetadata };
-    return { target, kind: 'other', stat: statMetadata };
+    const outsideRoot = !containsPath(rootPath, canonical);
+    if (metadata.isDirectory()) {
+      return { target, kind: 'directory', outsideRoot, stat: statMetadata };
+    }
+    if (metadata.isFile()) return { target, kind: 'file', outsideRoot, stat: statMetadata };
+    return { target, kind: 'other', outsideRoot, stat: statMetadata };
   } catch (error) {
     return {
       target,
       kind: (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'other',
+      outsideRoot: false,
     };
   }
 }

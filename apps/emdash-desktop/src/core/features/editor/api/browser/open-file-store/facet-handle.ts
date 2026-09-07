@@ -28,6 +28,8 @@ export interface FacetHandle {
    * own programmatic writes from user edits.
    */
   setText(text: string): void;
+  /** Update editor editability without replacing the model or its undo history. */
+  setReadOnly(readOnly: boolean): void;
   /** Subscribe to text changes. Returns an unsubscribe function. */
   onDidChange(listener: () => void): () => void;
   dispose(): void;
@@ -44,7 +46,7 @@ export type FacetDescriptor = Readonly<{
   facet: Facet;
   /** Text the handle must start with (disk content, or the buffer seed). */
   initialText: string;
-  /** True for disk-mirror and git-snapshot facets; false for the buffer. */
+  /** True for snapshots and buffers that filesystem permissions make read-only. */
   readonly: boolean;
 }>;
 

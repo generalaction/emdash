@@ -18,10 +18,7 @@ import { monacoBootstrap } from '../monaco/monaco-bootstrap';
 import { addMonacoKeyboardShortcuts, configureMonacoEditor } from '../monaco/monaco-config';
 import { registerActiveCodeEditor } from '../renderers/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '../renderers/utils';
-import {
-  activeFilePath as getActiveFilePath,
-  activeFileResource as getActiveFileResource,
-} from './pane-selectors';
+import { activeFileResource as getActiveFileResource } from './pane-selectors';
 
 const BUFFER = { kind: 'buffer' } as const;
 
@@ -55,15 +52,15 @@ export const EditorProvider = observer(function EditorProvider({
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const editorScopeImplementation = {
     'editor.save': () => ({
-      availability: () =>
-        liveActionDisabledReason
-          ? disabled(liveActionDisabledReason)
-          : getActiveFilePath(paneTabManager)
-            ? enabled
-            : hidden,
+      availability: () => {
+        if (liveActionDisabledReason) return disabled(liveActionDisabledReason);
+        const resource = getActiveFileResource(paneTabManager);
+        if (!resource) return hidden;
+        return resource.readOnly ? disabled('File is read-only') : enabled;
+      },
       execute: () => {
-        const path = getActiveFilePath(paneTabManager);
-        if (path) void editorView.saveFile(path);
+        const resource = getActiveFileResource(paneTabManager);
+        if (resource && !resource.readOnly) void editorView.saveFile(resource.path);
       },
     }),
     'editor.saveAll': () => ({
@@ -126,8 +123,8 @@ export const EditorProvider = observer(function EditorProvider({
 
     addMonacoKeyboardShortcuts(editor, m, {
       onSave: () => {
-        const path = getActiveFilePath(paneTabManager);
-        if (path) void editorView.saveFile(path);
+        const resource = getActiveFileResource(paneTabManager);
+        if (resource && !resource.readOnly) void editorView.saveFile(resource.path);
       },
       onSaveAll: () => {
         void editorView.saveAllFiles();
