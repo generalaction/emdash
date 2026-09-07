@@ -120,7 +120,7 @@ describe('deleteTask', () => {
         acpConversationIds: [] as string[],
         tuiConversationIds: [] as string[],
         terminalSessionIds: [] as string[],
-        tmuxSessionNames: [] as string[],
+        tmuxSessionIdentities: [] as string[],
       })),
       killAcp: vi.fn(async () => {}),
       killTerminals: vi.fn(async () => {}),

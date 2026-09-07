@@ -16,6 +16,7 @@ import type {
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import type { IExecutionContext } from '#services/exec/api';
+import { makeLegacyTmuxSessionName, makeTmuxSessionName } from '#services/pty/api';
 import { FakePtySpawner } from '#services/pty/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import {
@@ -369,7 +370,7 @@ describe('TuiAgentsRuntime', () => {
     await runtime.startSession(
       startInput({
         shellSetup: 'source ~/.profile',
-        tmuxSessionName: 'emdash-test',
+        tmux: { identity: 'project:task:conversation-1' },
       })
     );
 
@@ -379,8 +380,31 @@ describe('TuiAgentsRuntime', () => {
     expect(invocation.executable).toBe('/bin/bash');
     expect(invocation.argv[0]).toBe('-lc');
     expect(invocation.argv[1]).toContain('tmux -u attach-session');
-    expect(invocation.argv[1]).toContain('emdash-test');
-    expect(invocation.argv[1]).toContain("source ~/.profile && agent run 'hello world'");
+    expect(invocation.argv[1]).toMatch(/workspace-[a-f0-9]{10}/u);
+    expect(invocation.argv[1]).toContain('source ~/.profile && agent run');
+    expect(invocation.argv[1]).toContain('hello world');
+  });
+
+  it('resolves a readable metadata-backed tmux session from its stable identity', async () => {
+    const { runtime, spawner, exec } = createRuntime();
+
+    await runtime.startSession(
+      startInput({
+        cwd: '/workspace/Fix login',
+        tmux: { identity: 'project:task:conversation-1' },
+      })
+    );
+
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind).toBe('argv');
+    if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
+    expect(invocation.argv[1]).toMatch(/fix-login-[a-f0-9]{10}/u);
+    expect(invocation.argv[1]).toContain('@emdash_identity');
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
+    ]);
   });
 
   it('resolves the Windows default shell, applies setup, and removes tmux intent', async () => {
@@ -390,7 +414,7 @@ describe('TuiAgentsRuntime', () => {
       startInput({
         cwd: 'C:\\workspace',
         shellSetup: 'set READY=1',
-        tmuxSessionName: 'must-not-run',
+        tmux: { identity: 'must-not-run' },
       })
     );
 
@@ -471,22 +495,30 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('stops and deletes sessions while cleaning up tmux', async () => {
-    const { runtime, spawner, exec } = createRuntime();
+    const identity = 'project:task:conversation-1';
+    const sessionName = makeTmuxSessionName(identity, 'workspace');
+    const encodedIdentity = Buffer.from(JSON.stringify({ version: 1, identity }), 'utf8').toString(
+      'base64url'
+    );
+    const exec = vi.fn(async () => ({
+      stdout: `${sessionName}\t42\tv1:${encodedIdentity}\n`,
+      stderr: '',
+    }));
+    const { runtime, spawner } = createRuntime({ exec: { exec } });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity } }));
     await runtime.stopSession('conversation-1');
 
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => {
-      expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-test']);
+      expect(exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', `=${sessionName}`]);
     });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity } }));
     await runtime.deleteSession('conversation-1');
-
-    await vi.waitFor(() => {
-      expect(exec.exec).toHaveBeenCalledTimes(2);
-    });
+    await vi.waitFor(() =>
+      expect(exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', `=${sessionName}`])
+    );
   });
 
   it('falls back to a fresh session when resume exits immediately', async () => {
@@ -547,7 +579,7 @@ describe('TuiAgentsRuntime', () => {
     const clock = createManualClock(1_000_000);
     const exec = vi.fn(() =>
       Promise.resolve({
-        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\n`,
+        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\t\n`,
         stderr: '',
       })
     );
@@ -557,14 +589,20 @@ describe('TuiAgentsRuntime', () => {
       exec: { exec },
     });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    const identity = 'project:task:conversation-1';
+    const readableName = makeTmuxSessionName(identity, 'workspace');
+    exec.mockResolvedValue({
+      stdout: `${readableName}\t${Math.floor(clock.now() / 1000)}\t\n`,
+      stderr: '',
+    });
+    await runtime.startSession(startInput({ tmux: { identity } }));
 
     await clock.advanceBy(1_200);
 
     expect(exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
     ]);
     expect(spawner.processes[0]!.killCount).toBe(0);
     expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
@@ -573,18 +611,20 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('reconciles active intents only when their tmux session exists', async () => {
+    const identity = 'project:task:conversation-1';
+    const legacyName = makeLegacyTmuxSessionName(identity);
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
       sessionId: 'provider-session',
-      payload: startInput({
-        sessionId: 'provider-session',
-        tmuxSessionName: 'emdash-test',
-      }),
+      payload: {
+        ...startInput({ sessionId: 'provider-session' }),
+        tmuxSessionName: legacyName,
+      },
     });
     const exec = vi.fn(() =>
       Promise.resolve({
-        stdout: 'emdash-test\t42\n',
+        stdout: `${legacyName}\t42\t\n`,
         stderr: '',
       })
     );
@@ -605,7 +645,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
-      payload: startInput({ tmuxSessionName: 'emdash-missing' }),
+      payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('missing') },
     });
     const { runtime } = createRuntime({ intents });
 
@@ -660,7 +700,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
-      payload: startInput({ tmuxSessionName: 'emdash-test' }),
+      payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('legacy') },
     });
     const exec = vi.fn(() => Promise.reject(new Error('tmux unavailable')));
     const { runtime, spawner } = createRuntime({ intents, exec: { exec } });
@@ -678,7 +718,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     const { runtime, spawner } = createRuntime({ intents });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity: 'project:task:conversation-1' } }));
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
 
     await runtime.killSession('conversation-1');

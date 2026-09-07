@@ -18,6 +18,7 @@ import type {
   TerminalShellResolver,
 } from '#primitives/terminal-shell/api';
 import type { TerminalSessionState } from '#runtimes/terminals/api';
+import { makeLegacyTmuxSessionName, makeTmuxSessionName } from '#services/pty/api';
 import { FakePtySpawner } from '#services/pty/testing';
 import {
   expectNoSessionResidue,
@@ -360,7 +361,7 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
-  it('killTmuxSessions calls killTmuxSession for each session name', async () => {
+  it('killTmuxSessions falls back to each legacy name when metadata is absent', async () => {
     const exec = fakeExec();
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
@@ -372,19 +373,85 @@ describe('TerminalsRuntime', () => {
     });
 
     const result = await runtime.killTmuxSessions({
-      sessionNames: ['emdash-session1', 'emdash-session2'],
+      sessionIdentities: ['session1', 'session2'],
     });
 
     expect(result).toEqual({ success: true, data: undefined });
-    expect(exec.exec).toHaveBeenCalledTimes(2);
-    expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-session1']);
-    expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-session2']);
+    expect(exec.exec).toHaveBeenCalledTimes(3);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeLegacyTmuxSessionName('session1')}`,
+    ]);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeLegacyTmuxSessionName('session2')}`,
+    ]);
+    await scope.dispose();
+  });
+
+  it('killTmuxSessions discovers a renamed session by identity metadata', async () => {
+    const identity = 'project:task:terminal';
+    const encodedIdentity = Buffer.from(JSON.stringify({ version: 1, identity }), 'utf8').toString(
+      'base64url'
+    );
+    const exec = fakeExec();
+    exec.exec.mockResolvedValueOnce({
+      stdout: `manually-renamed\t42\tv1:${encodedIdentity}\n`,
+      stderr: '',
+    });
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      scope,
+    });
+
+    const result = await runtime.killTmuxSessions({ sessionIdentities: [identity] });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(exec.exec).toHaveBeenLastCalledWith('tmux', ['kill-session', '-t', '=manually-renamed']);
+    await scope.dispose();
+  });
+
+  it('killTmuxSessions tries readable and legacy names when metadata is unavailable', async () => {
+    const exec = fakeExec();
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      scope,
+    });
+    const identity = 'project:task:terminal';
+
+    const result = await runtime.killTmuxSessions({
+      sessionIdentities: [identity],
+      workspaceLabel: 'Fix login',
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeTmuxSessionName(identity, 'Fix login')}`,
+    ]);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeLegacyTmuxSessionName(identity)}`,
+    ]);
     await scope.dispose();
   });
 
   it('killTmuxSessions succeeds even when sessions are missing', async () => {
     const exec = fakeExec();
-    exec.exec.mockRejectedValue(new Error('no session'));
+    exec.exec.mockResolvedValueOnce({ stdout: '', stderr: '' });
+    exec.exec.mockRejectedValueOnce(new Error('no session'));
     const spawner = new FakePtySpawner();
     const scope = createScope({ label: 'test-terminals' });
     const runtime = new TerminalsRuntime({
@@ -395,7 +462,7 @@ describe('TerminalsRuntime', () => {
     });
 
     const result = await runtime.killTmuxSessions({
-      sessionNames: ['emdash-missing'],
+      sessionIdentities: ['missing'],
     });
 
     expect(result).toEqual({ success: true, data: undefined });
@@ -408,10 +475,39 @@ describe('TerminalsRuntime', () => {
     const runtime = new TerminalsRuntime({ spawner, userEnv: async () => testUserEnv(), scope });
 
     const result = await runtime.killTmuxSessions({
-      sessionNames: ['emdash-session1'],
+      sessionIdentities: ['session1'],
     });
 
     expect(result).toEqual({ success: true, data: undefined });
+    await scope.dispose();
+  });
+
+  it('starts tmux terminals with a readable name and stable identity metadata', async () => {
+    const exec = fakeExec();
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals-readable-tmux' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      scope,
+    });
+
+    await runtime.start({
+      key: { workspace: testWorkspace(), id: 'terminal-1' },
+      spec: { cwd: '/repo/Fix login', env: {}, tmux: true },
+    });
+
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind).toBe('argv');
+    if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
+    expect(invocation.argv[1]).toMatch(/fix-login-[a-f0-9]{10}/u);
+    expect(invocation.argv[1]).toContain('@emdash_identity');
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
+    ]);
     await scope.dispose();
   });
 
