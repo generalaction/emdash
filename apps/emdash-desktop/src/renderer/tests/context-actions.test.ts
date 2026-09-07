@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
   buildLinkedIssueContextAction,
   buildPromptLibraryContextActions,
   buildTaskContextActions,
-} from '@renderer/features/tasks/context-bar/context-actions';
-import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
-import type { LinkedIssue } from '@shared/core/linked-issue';
-import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
+} from '@core/features/tasks/browser/context-bar/context-actions';
+import {
+  getDraftCommentTargetKey,
+  type DraftCommentTarget,
+} from '@core/primitives/line-comments/api';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 function makeIssue(overrides: Partial<LinkedIssue> = {}): LinkedIssue {
   return {

@@ -6,7 +6,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.canary.ts';
+} from './src/core/primitives/app-identity/api/app-identity.canary.ts';
 
 const config: Configuration = {
   appId: APP_ID,
@@ -35,6 +35,7 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: false,
   files: ['out/**/*', 'node_modules/**/*', 'drizzle/**/*'],
   asarUnpack: [
+    'out/main/adapters/**',
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
     'node_modules/@parcel/watcher/**',

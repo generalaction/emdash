@@ -1,16 +1,22 @@
-import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
-import type { WireInstrumentation } from '../../observability';
-import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
-import { LiveStateClient } from '../state';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
+import type { WireInstrumentation } from '../../api/instrumentation';
+import type { LiveResyncFailurePolicy } from '../follower';
+import type { LiveJobState } from '../protocol';
+import { LiveStateClient, type LiveChangeMeta } from '../state';
 
 export type LiveJobClientDeps<P, R, E> = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveJobState<P, R, E>>>;
+  /** Required policy deciding what happens when a resync refetch fails. */
+  onResyncFailed: LiveResyncFailurePolicy;
   onState?: (state: LiveJobState<P, R, E>) => void;
   instrumentation?: WireInstrumentation;
   logger?: Logger;
   topic?: string;
+  clock?: Clock;
 };
 
 export class LiveJobFailedError<E> extends Error {
@@ -34,11 +40,14 @@ export class LiveJobCancelledError extends Error {
 export class LiveJobClient<P, R, E> {
   readonly result: Promise<R>;
 
-  private readonly progressEmitter = new Emitter<P>();
+  private readonly progressEmitter = createEmitter<P>();
   private readonly model: LiveStateClient<LiveJobState<P, R, E>>;
+  private readonly waiterRejecters = new Set<(error: Error) => void>();
   private lastProgressCount = 0;
-  private suppressProgress = false;
+  private hasSeeded = false;
   private settled = false;
+  private disposed = false;
+  private readonly clock: Clock;
   private resolveResult!: (result: R) => void;
   private rejectResult!: (err: unknown) => void;
 
@@ -46,6 +55,7 @@ export class LiveJobClient<P, R, E> {
     stateSchema: z.ZodType<LiveJobState<P, R, E>>,
     private readonly deps: LiveJobClientDeps<P, R, E>
   ) {
+    this.clock = deps.clock ?? systemClock;
     this.result = new Promise<R>((resolve, reject) => {
       this.resolveResult = resolve;
       this.rejectResult = reject;
@@ -53,11 +63,13 @@ export class LiveJobClient<P, R, E> {
     this.model = new LiveStateClient<LiveJobState<P, R, E>>(
       stateSchema,
       deps.refetchSnapshot,
-      (state) => this.handleState(state),
+      (state, meta) => this.handleState(state, meta),
       {
+        onResyncFailed: deps.onResyncFailed,
         instrumentation: deps.instrumentation,
         logger: deps.logger,
         topic: deps.topic,
+        clock: deps.clock,
       }
     );
   }
@@ -75,25 +87,21 @@ export class LiveJobClient<P, R, E> {
   }
 
   seed(snapshot: LiveSnapshot<LiveJobState<P, R, E>>): void {
-    this.suppressProgress = true;
-    try {
-      this.model.seed(snapshot);
-    } finally {
-      this.suppressProgress = false;
-    }
+    this.model.seed(snapshot);
   }
 
   applyUpdate(update: LiveUpdate): void {
     this.model.applyUpdate(update);
   }
 
-  async refresh(): Promise<void> {
-    this.suppressProgress = true;
-    try {
-      await this.model.refresh();
-    } finally {
-      this.suppressProgress = false;
-    }
+  /** Resolves only once the follower is fresh; see `LiveFollower.refresh`. */
+  refresh(): Promise<void> {
+    return this.model.refresh();
+  }
+
+  /** Triggers a resync without exposing a promise; failures follow the policy. */
+  invalidate(): void {
+    this.model.invalidate();
   }
 
   onProgress(cb: (progress: P) => void): Unsubscribe {
@@ -101,65 +109,97 @@ export class LiveJobClient<P, R, E> {
   }
 
   waitForTerminal(timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(this.disposedError());
     if (this.settled) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const timer =
-        timeoutMs > 0
-          ? setTimeout(() => {
-              cleanup();
-              reject(new Error('Timed out waiting for live job to finish'));
-            }, timeoutMs)
-          : undefined;
-      const cleanup = this.onStateChange((state) => {
-        if (state.status === 'running') return;
-        if (timer) clearTimeout(timer);
-        cleanup();
-        resolve();
-      });
-    });
+    return this.waitForState(
+      (state) => state.status !== 'running',
+      timeoutMs,
+      'Timed out waiting for live job to finish'
+    );
   }
 
   waitForProgressCount(count: number, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(this.disposedError());
     if (this.progressCountSatisfies(count)) return Promise.resolve();
+    return this.waitForState(
+      () => this.progressCountSatisfies(count),
+      timeoutMs,
+      `Timed out waiting for live job progress count ${count}`
+    );
+  }
+
+  /** Rejects all pending waiters with a disposed error and stops resyncing. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const reject of [...this.waiterRejecters]) reject(this.disposedError());
+    this.waiterRejecters.clear();
+    this.progressEmitter.clear();
+    this.stateEmitter.clear();
+    this.model.dispose();
+  }
+
+  private waitForState(
+    satisfied: (state: LiveJobState<P, R, E>) => boolean,
+    timeoutMs: number,
+    timeoutMessage: string
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer =
         timeoutMs > 0
-          ? setTimeout(() => {
-              cleanup();
-              reject(new Error(`Timed out waiting for live job progress count ${count}`));
-            }, timeoutMs)
+          ? this.clock.schedule(
+              timeoutMs,
+              () => {
+                cleanup();
+                reject(new Error(timeoutMessage));
+              },
+              { unref: true }
+            )
           : undefined;
-      const cleanup = this.onStateChange(() => {
-        if (!this.progressCountSatisfies(count)) return;
-        if (timer) clearTimeout(timer);
+      const unsubscribe = this.onStateChange((state) => {
+        if (!satisfied(state)) return;
         cleanup();
         resolve();
       });
+      const rejecter = (error: Error): void => {
+        cleanup();
+        reject(error);
+      };
+      this.waiterRejecters.add(rejecter);
+      const cleanup = (): void => {
+        timer?.dispose();
+        unsubscribe();
+        this.waiterRejecters.delete(rejecter);
+      };
     });
   }
 
-  dispose(): void {
-    this.progressEmitter.clear();
-    this.stateEmitter.clear();
-  }
-
-  private handleState(state: LiveJobState<P, R, E>): void {
+  private handleState(state: LiveJobState<P, R, E>, meta: LiveChangeMeta): void {
     this.deps.onState?.(state);
     this.stateEmitter.emit(state);
 
     if (state.status === 'running') {
-      this.emitNewProgress(state);
+      this.emitNewProgress(state, meta);
       return;
     }
 
     this.settle(state);
   }
 
-  private emitNewProgress(state: Extract<LiveJobState<P, R, E>, { status: 'running' }>): void {
-    if (this.suppressProgress) {
+  private emitNewProgress(
+    state: Extract<LiveJobState<P, R, E>, { status: 'running' }>,
+    meta: LiveChangeMeta
+  ): void {
+    // The first seed restates retained progress the caller never subscribed
+    // for; record the count without emitting. Later seeds (resyncs) fall
+    // through so progress missed during a gap is caught up — the count-based
+    // range below already prevents re-emitting anything seen before.
+    if (meta.kind === 'seed' && !this.hasSeeded) {
+      this.hasSeeded = true;
       this.lastProgressCount = state.progressCount;
       return;
     }
+    if (meta.kind === 'seed') this.hasSeeded = true;
 
     if (state.progressCount <= this.lastProgressCount) return;
 
@@ -187,7 +227,7 @@ export class LiveJobClient<P, R, E> {
     }
   }
 
-  private readonly stateEmitter = new Emitter<LiveJobState<P, R, E>>();
+  private readonly stateEmitter = createEmitter<LiveJobState<P, R, E>>();
 
   private onStateChange(cb: (state: LiveJobState<P, R, E>) => void): Unsubscribe {
     return this.stateEmitter.subscribe(cb);
@@ -196,5 +236,9 @@ export class LiveJobClient<P, R, E> {
   private progressCountSatisfies(count: number): boolean {
     const state = this.getState();
     return state?.status === 'running' && state.progressCount >= count;
+  }
+
+  private disposedError(): Error {
+    return new Error('LiveJobClient disposed');
   }
 }

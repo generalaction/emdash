@@ -1,6 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import type { AgentCommand, CommandContext } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import type { AgentCommand, CommandContext } from '@emdash/core/services/agent-plugins/api/plugins';
+import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { addKimiHooksToConfigText, buildKimiHookConfig } from './hooks';
 
@@ -76,7 +79,7 @@ export const plugin = definePlugin(
       },
     },
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'resumable',

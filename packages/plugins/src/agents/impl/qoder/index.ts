@@ -1,5 +1,11 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildStandardCommand,
+  npmDependency,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildQoderHookConfig } from './hooks';
 import { icon } from './icon';
@@ -21,7 +27,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'],
     },
     hostDependency: npmDependency({

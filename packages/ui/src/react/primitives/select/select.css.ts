@@ -32,8 +32,7 @@ export const selectContent = style({
   isolation: 'isolate',
   zIndex: 50,
   maxHeight: 'var(--available-height)',
-  width: 'var(--anchor-width)',
-  minWidth: '9rem',
+  maxWidth: 'var(--available-width)',
   transformOrigin: 'var(--transform-origin)',
   overflowX: 'hidden',
   overflowY: 'auto',
@@ -41,9 +40,21 @@ export const selectContent = style({
   backgroundColor: vars.surface,
   color: vars.foreground,
   padding: '2px',
-  boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+  boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   outline: 'none',
   selectors: {
+    '&[data-width="trigger"]': {
+      width: 'var(--anchor-width)',
+      minWidth: 'var(--anchor-width)',
+    },
+    '&[data-width="content"]': {
+      width: 'max-content',
+      minWidth: '9rem',
+    },
+    '&[data-width="content-at-least-trigger"]': {
+      width: 'max-content',
+      minWidth: 'max(9rem, var(--anchor-width))',
+    },
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
     '&[data-open][data-side="bottom"]': { animation: `${kfPopupInSlideFromTop} 100ms both` },
     '&[data-open][data-side="top"]': { animation: `${kfPopupInSlideFromBottom} 100ms both` },

@@ -1,3 +1,4 @@
+import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   LiveModelKey,
   LiveModelMutations,
@@ -6,10 +7,8 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { LiveMutationResult } from '../mutations';
-import type { LiveSource } from '../protocol';
 
-export type GroupMutationEnvelope<
+export type LiveModelMutationEnvelope<
   Group extends LiveModelDef,
   Name extends keyof LiveModelMutations<Group>,
 > = {
@@ -24,10 +23,10 @@ export type LiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {
   resolveState<Name extends Extract<keyof Group['states'], string>>(
     key: LiveModelKey<Group>,
     name: Name
-  ): LiveSource | null | undefined;
+  ): LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
   runMutation<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
     name: Name,
-    envelope: GroupMutationEnvelope<Group, Name>
+    envelope: LiveModelMutationEnvelope<Group, Name>
   ): Promise<
     LiveMutationResult<
       MutationData<LiveModelMutations<Group>[Name]>,

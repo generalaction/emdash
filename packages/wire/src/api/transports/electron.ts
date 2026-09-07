@@ -47,6 +47,7 @@ export type MessageChannelFactory = () => {
 
 export type ExposeWireOptions = {
   channel?: string;
+  beforeOpen?: (event: IpcMainInvokeEventLike) => void | Promise<void>;
 };
 
 type WindowPortRecord = {
@@ -58,14 +59,15 @@ export function exposeWireToWindows(
   deps: { ipcMain: IpcMainLike; createMessageChannel: MessageChannelFactory },
   controller: Controller,
   options: ExposeWireOptions = {}
-): Unsubscribe {
+): () => Promise<void> {
   const channel = options.channel ?? 'wire';
   const connectChannel = `${channel}:connect`;
   const portChannel = `${channel}:port`;
   const hub = createWireSessionHub(controller);
   const ports = new Map<number, WindowPortRecord>();
 
-  deps.ipcMain.handle(connectChannel, (event) => {
+  deps.ipcMain.handle(connectChannel, async (event) => {
+    await options.beforeOpen?.(event);
     const { port1, port2 } = deps.createMessageChannel();
     const existing = ports.get(event.sender.id);
     existing?.port.close?.();
@@ -86,11 +88,11 @@ export function exposeWireToWindows(
     return undefined;
   });
 
-  return () => {
+  return async () => {
     deps.ipcMain.removeHandler?.(connectChannel);
-    hub.dispose();
     for (const record of ports.values()) record.disposeMapCleanup();
     ports.clear();
+    await hub.dispose();
   };
 }
 

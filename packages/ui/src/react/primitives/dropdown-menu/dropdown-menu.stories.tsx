@@ -134,3 +134,17 @@ export const WithSubMenu: Story = {
     </DropdownMenu.Root>
   ),
 };
+
+export const TriggerWidth: Story = {
+  render: () => (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        <Button variant="ghost">Wide trigger menu</Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content width="trigger">
+        <DropdownMenu.Item>Matches trigger width</DropdownMenu.Item>
+        <DropdownMenu.Item>Second action</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  ),
+};

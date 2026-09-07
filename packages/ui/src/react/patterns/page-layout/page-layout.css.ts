@@ -67,8 +67,13 @@ export const sidebarWrapper = style({
   position: 'sticky',
   top: 0,
   alignSelf: 'start',
+  boxSizing: 'border-box',
+  display: 'flex',
+  minHeight: '100vh',
+  maxHeight: '100vh',
+  flexDirection: 'column',
   paddingTop: '2.5rem',
-  paddingBottom: '2.5rem',
+  paddingBottom: '0.75rem',
 });
 
 // ── Content container recipe ──────────────────────────────────────────────────

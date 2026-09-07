@@ -13,7 +13,7 @@ Paths are relative to `apps/emdash-desktop/`.
 
 - functional React components and hooks
 - app shell and the modal/view registries under `src/renderer/app/`
-- feature UI under `src/renderer/features/<feature>/`
+- feature UI under `src/core/features/<feature>/browser/`
 - shared infrastructure under `src/renderer/lib/` (IPC client, modal and layout
   systems, commands, PTY frontend, providers, hooks, stores, UI primitives)
 

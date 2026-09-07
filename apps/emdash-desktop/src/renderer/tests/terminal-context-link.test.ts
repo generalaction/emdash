@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTerminalLinkAtBufferCell } from '@renderer/lib/pty/terminal-context-link';
+import { getTerminalLinkAtBufferCell } from '@core/features/terminals/browser/pty/terminal-context-link';
 
 type MockCell = {
   chars: string;

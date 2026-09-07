@@ -2,7 +2,7 @@ import { exec, execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app } from 'electron';
-import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
+import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 
 const UNKNOWN_VERSION = 'unknown';
 

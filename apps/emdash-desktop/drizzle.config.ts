@@ -11,7 +11,7 @@ function resolveDbUrl(): string {
 }
 
 export default defineConfig({
-  schema: './src/main/db/schema.ts',
+  schema: './src/core/services/app-db/node/schema.ts',
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {

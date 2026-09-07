@@ -72,6 +72,9 @@ Download handles are single-consumption: choose `chunks()`, `bytes()`, or `file(
 
 - Bytes are sent as `blob-chunk` frames and never inside `call`/`result` values.
 - Producers send only after the consumer grants credit with `blob-pull`.
+- Consumers keep a bounded local chunk mailbox aligned with the maximum granted
+  credit. Overflow is treated as a protocol failure; blob chunks are never
+  dropped.
 - `blob-end` is the only successful EOF signal; disconnect before it is an error.
 - `blob-close` cancels a channel and disposes the producer source.
 - Frames for unknown channels are ignored so close/chunk races are harmless.

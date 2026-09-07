@@ -1,15 +1,29 @@
 /**
  * Electron-agnostic file transport.
  * Provides a serialized append queue with log rotation, but has no Electron
- * imports. The app-level file-logger.ts wires in the actual log path and
- * configures the redact hook.
+ * imports. The app-level file-logger.ts wires in the actual log path.
  *
- * Node-only — import from '@emdash/shared/logger/transport'.
+ * Redaction contract — secure by default:
+ * - Every written line passes through `redactAll` (vendor tokens, PEM blocks,
+ *   JWTs, PII patterns) unless the caller opts out. Both write paths — direct
+ *   `write()` and the pino destination — honor the same hook.
+ * - `redact: false` is the loud, explicit opt-out that writes raw lines
+ *   (tests, debug transports).
+ * - A `redact` function replaces the default entirely; it is not layered on
+ *   top of `redactAll`.
+ *
+ * The string scan is the documented, best-effort defense for message *text*.
+ * Secret-adjacent values belong in structured log fields, where all three
+ * defense layers apply (`Secret` replacement, key-path redaction, and this
+ * string scan); message text is prose.
+ *
+ * Node-only — reach it through '@emdash/shared/logger/node'.
  */
 
 import { appendFile, mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type pinoLib from 'pino';
+import { redactAll } from '../redact';
 
 export interface FileTransportOptions {
   /**
@@ -23,10 +37,11 @@ export interface FileTransportOptions {
   /** Number of rotated copies to retain. Default: 5. */
   retainedFiles?: number;
   /**
-   * Hook applied to each serialized JSON line before writing.
-   * Use to apply string-based redaction as a last defense layer.
+   * String-based redaction applied to each serialized line before writing.
+   * Omitted → `redactAll` (the secure default). `false` → raw lines (explicit
+   * opt-out). A function → replaces the default.
    */
-  redact?: (line: string) => string;
+  redact?: false | ((line: string) => string);
 }
 
 export interface FileTransport {
@@ -41,6 +56,7 @@ export interface FileTransport {
 export function createFileTransport(opts: FileTransportOptions): FileTransport {
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024;
   const retainedFiles = opts.retainedFiles ?? 5;
+  const redact = opts.redact === false ? (line: string) => line : (opts.redact ?? redactAll);
   let dirReady = false;
   let pendingWrite: Promise<void> = Promise.resolve();
 
@@ -66,8 +82,8 @@ export function createFileTransport(opts: FileTransportOptions): FileTransport {
   }
 
   function write(line: string): void {
-    const maybeRedacted = opts.redact ? opts.redact(line) : line;
-    const normalized = maybeRedacted.endsWith('\n') ? maybeRedacted : `${maybeRedacted}\n`;
+    const redacted = redact(line);
+    const normalized = redacted.endsWith('\n') ? redacted : `${redacted}\n`;
     enqueue(normalized);
   }
 
@@ -78,8 +94,8 @@ export function createFileTransport(opts: FileTransportOptions): FileTransport {
   function asDestination(): pinoLib.DestinationStream {
     return {
       write(msg: string): boolean {
-        const maybeRedacted = opts.redact ? opts.redact(msg) : msg;
-        const normalized = maybeRedacted.endsWith('\n') ? maybeRedacted : `${maybeRedacted}\n`;
+        const redacted = redact(msg);
+        const normalized = redacted.endsWith('\n') ? redacted : `${redacted}\n`;
         enqueue(normalized);
         return true;
       },

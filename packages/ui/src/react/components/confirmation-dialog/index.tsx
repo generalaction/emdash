@@ -13,8 +13,10 @@
  */
 
 import * as React from 'react';
-import { Button } from '@/react/primitives/button';
-import { Dialog, type DialogSize } from '@/react/primitives/dialog';
+// Relative imports: the dts emitter rewrites aliased imports to a dangling
+// relative path, silently degrading the prop types.
+import { Button } from '../../primitives/button';
+import { Dialog, type DialogSize } from '../../primitives/dialog';
 import * as styles from './confirmation-dialog.css';
 
 export interface ConfirmationDialogProps {

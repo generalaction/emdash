@@ -4,7 +4,8 @@ Replicas are consumer-instantiated materialization wrappers around client handle
 `client()`. The typed client itself never stores live state. A consumer chooses
 one of four shapes:
 
-- Own state: `LiveState`, `LiveLog`, `LiveJob`, or `LiveModelHost`.
+- Own state: `LiveStateSource`, `LiveLogSource`, `LiveJobSource`, or an
+  `expose()` provider over kernel state.
 - Stream directly: use a client `snapshot()`/`attach()` handle with no local store,
   for example PTY output written straight into xterm.
 - Forward: pass client handles or subtrees to `createController()` so a hop stays stateless.
@@ -22,19 +23,19 @@ await replica.dispose();
 
 `acquire()` increments the ref count for that key. The first lease opens the
 upstream subscription, concurrent leases share it, and the last release starts
-the optional `retentionMs` timer. `peek(key)` returns a warm instance while it is
+the optional `lingerMs` timer. `peek(key)` returns a warm instance while it is
 retained.
 
 ## Model Replicas
 
 Live models are exposed only through `liveModel()`. A
-`LiveModelReplica` follows a live model client handle and yields a `ReplicaInstance`:
+`LiveModelReplicaCache` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
-const conversations = createLiveModelReplica(api.conversation, contractClient.conversation, {
-  retentionMs: 30_000,
+const conversations = createLiveModelReplicaCache(api.conversation, contractClient.conversation, {
+  lingerMs: 30_000,
   stores: {
     state: () => createImmutableMobxStore(),
   },
@@ -64,16 +65,23 @@ Mutation helpers return `{ result, settled }`. On success, the replica translate
 upstream cursors to local cursors before returning them to downstream clients, so
 both local UI and served clients settle against the same local state.
 
+A cursor-translation timeout never fails a committed mutation. If the replica
+cannot observe the mutation's upstream cursor in time, the mutation still
+resolves successfully and the result data carries `settled: false` (client-side
+metadata; the wire shape of `LiveMutationResult` is unchanged). Instrumentation
+records the timeout via `cursorTranslationTimeout`, and the `settled` promise
+stays best-effort as before.
+
 ## Log Replicas
 
-Use a `LiveLogReplica` when a process needs a local retained text buffer or wants
+Use a `LiveLogReplicaCache` when a process needs a local retained text buffer or wants
 to serve log output downstream:
 
 ```ts
-import { createMobxLogStore } from '@emdash/wire/util/mobx';
+import { createMobxLogStore } from '@emdash/wire/mobx';
 
-const outputs = createLiveLogReplica(api.ptyOutput, contractClient.ptyOutput, {
-  retentionMs: 10_000,
+const outputs = createLiveLogReplicaCache(api.ptyOutput, contractClient.ptyOutput, {
+  lingerMs: 10_000,
   maxBufferBytes: 1024 * 1024,
   store: () => createMobxLogStore(),
 });
@@ -84,7 +92,7 @@ output.onAppend((chunk) => index(chunk));
 console.log(output.text());
 ```
 
-Without a custom sink, the log replica keeps an eager internal `LiveLog` buffer
+Without a custom sink, the log replica keeps an eager internal `LiveLogSource` buffer
 that is readable through `text()` and can serve downstream clients. With a custom
 sink, the sink owns storage: readable `LogStore`s expose `text()`, while
 write-only `LogSink`s (for example xterm scrollback) support reset/append without
@@ -102,15 +110,15 @@ const detach = await output.attach((update) => {
 
 ## Job Replicas
 
-`LiveJobReplica` wraps a live job client handle. It forwards `start()` and `cancel()`,
+`LiveJobReplicaCache` wraps a live job client handle. It forwards `start()` and `cancel()`,
 materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
-const jobs = createLiveJobReplica(api.build, contractClient.build, {
-  retentionMs: 30_000,
+const jobs = createLiveJobReplicaCache(api.build, contractClient.build, {
+  lingerMs: 30_000,
   store: () => createImmutableMobxStore(),
 });
 
@@ -127,9 +135,9 @@ console.log((await late.ready()).getState());
 
 When a job reaches `succeeded`, `failed`, or `cancelled`, the replica detaches
 from the upstream live topic but retains the local terminal state while leases or
-`retentionMs` keep it warm.
+`lingerMs` keep it warm.
 The job replica also supports a pluggable reset/current `JobStore`, so
-`getState()` can be observable. The internal `LiveState` used for downstream
+`getState()` can be observable. The internal `LiveStateSource` used for downstream
 serving is created only if `snapshot()` or `subscribe()` is requested.
 
 ## Serving Replicas
@@ -140,9 +148,9 @@ Replicas can be passed directly into `createController()`:
 const upstream = client(api, connect(sshTransport));
 
 const controller = createController(api, {
-  conversation: createLiveModelReplica(api.conversation, upstream.conversation),
+  conversation: createLiveModelReplicaCache(api.conversation, upstream.conversation),
   ptyOutput: upstream.ptyOutput, // forward bytes without buffering
-  build: createLiveJobReplica(api.build, upstream.build),
+  build: createLiveJobReplicaCache(api.build, upstream.build),
 });
 ```
 

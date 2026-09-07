@@ -1,13 +1,13 @@
-import { Emitter } from '@emdash/shared';
-import { createManagedSource, createScope, type Scope } from '@emdash/wire/util';
-import type { IWatchService, WatchEvent } from '../api';
+import { createEmitter, err, ok, type Emitter } from '@emdash/shared';
+import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
+import { abortableWait } from '@emdash/shared/scheduling';
+import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
 
 export type CreateWatchServiceOptions = {
   backend: WatchBackend;
   scope?: Scope;
-  graceMs?: number;
   onError?: WatchOnError;
 };
 
@@ -22,34 +22,51 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
     : createScope({ label: 'fs-watch-service' });
   const consumers = new Set<Scope>();
   let disposed = false;
+  let terminalError: unknown;
 
-  const channels = createManagedSource<WatchKey, WatchChannel>({
+  const channels = createResourceCache<WatchKey, WatchChannel>({
     key: watchKey,
     scope: serviceScope,
     label: 'channels',
-    graceMs: options.graceMs ?? 0,
+    cancelPendingOnRelease: true,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
-      const events = new Emitter<WatchEvent[]>();
-      const resync = new Emitter<void>();
+      const events = createEmitter<WatchEvent[]>();
+      const resync = createEmitter<void>();
       scope.add(() => {
         events.clear();
         resync.clear();
       });
-      await options.backend.subscribe(
-        key,
-        {
-          events: (batch) => events.emit(batch),
-          resync: () => resync.emit(),
-        },
-        scope
-      );
+      await abortableWait<void>({ signal: scope.signal }, (settle) => {
+        options.backend
+          .subscribe(
+            key,
+            {
+              events: (batch) => events.emit(batch),
+              resync: () => resync.emit(),
+            },
+            scope
+          )
+          .then(settle.resolve, settle.reject);
+      });
       return { events, resync };
     },
   });
 
+  const backendFailureSignal = options.backend.failureSignal;
+  if (backendFailureSignal) {
+    const onBackendFailure = (): void => {
+      terminalError = backendFailureSignal.reason ?? new Error('Watch backend failed');
+      void serviceScope.dispose(terminalError);
+    };
+    backendFailureSignal.addEventListener('abort', onBackendFailure, { once: true });
+    serviceScope.add(() => backendFailureSignal.removeEventListener('abort', onBackendFailure));
+    if (backendFailureSignal.aborted) onBackendFailure();
+  }
+
   return {
     watch(root, onEvents, watchOptions = {}) {
+      if (terminalError) throw terminalError;
       if (disposed || serviceScope.disposed) throw new Error('FsWatchService disposed');
 
       const key = normalizeWatchKey(root, watchOptions.ignore);
@@ -61,16 +78,29 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
       });
 
       let released = false;
-      const ready = lease.ready().then((channel) => {
-        if (released || consumerScope.disposed) return;
-        consumerScope.add(
-          channel.events.subscribe(
-            withDebounce(onEvents, watchOptions.debounceMs ?? 0, consumerScope)
-          )
-        );
-        if (watchOptions.onResync)
-          consumerScope.add(channel.resync.subscribe(watchOptions.onResync));
-      });
+      const ready = lease.ready().then(
+        (channel) => {
+          if (released || consumerScope.disposed) return ok(undefined);
+          consumerScope.add(
+            channel.events.subscribe(
+              withDebounce(onEvents, watchOptions.debounceMs ?? 0, consumerScope)
+            )
+          );
+          if (watchOptions.onResync)
+            consumerScope.add(channel.resync.subscribe(watchOptions.onResync));
+          return ok(undefined);
+        },
+        (error: unknown) => {
+          if (!released && !consumerScope.disposed) {
+            try {
+              watchOptions.onError?.(error);
+            } catch {
+              // Failure observers are best-effort and must not break the ready Result channel.
+            }
+          }
+          return err(error);
+        }
+      );
 
       return {
         ready: () => ready,

@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { ensureImportedTaskWorkspaces } from '../../task-workspace-backfill';
 import { portConversations } from './conversations';
@@ -37,14 +37,15 @@ function createAppDb(): {
     CREATE TABLE projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
-      ssh_connection_id TEXT,
       repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
+
+    CREATE UNIQUE INDEX idx_projects_repository_workspace_id ON projects(repository_workspace_id)
+      WHERE repository_workspace_id IS NOT NULL AND deleted_at IS NULL;
 
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
@@ -60,48 +61,66 @@ function createAppDb(): {
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       is_pinned INTEGER NOT NULL DEFAULT 0,
-      workspace_provider TEXT,
       workspace_id TEXT,
-      workspace_provider_data TEXT,
-      workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
-      automation_run_id TEXT
+      automation_run_id TEXT,
+      deleted_at TEXT
     );
 
     CREATE TABLE workspaces (
       id TEXT PRIMARY KEY,
-      key TEXT,
       type TEXT NOT NULL,
-      data TEXT,
-      path TEXT,
-      lines_added INTEGER,
-      lines_deleted INTEGER,
       kind TEXT,
       location TEXT,
       ssh_connection_id TEXT,
+      parent_id TEXT,
+      path TEXT,
       config TEXT,
-      branch_name TEXT,
+      origin TEXT,
+      observed_status TEXT,
+      observed_git TEXT,
+      last_create_outcome TEXT,
+      last_removal_attempt TEXT,
+      script_outcomes TEXT,
+      runtime_overlay TEXT,
+      last_activated_at INTEGER,
+      observed_at INTEGER,
+      deletion_tombstone TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      untracked_at TEXT
     );
 
-    CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_local_path ON workspaces(path)
+      WHERE location = 'local' AND untracked_at IS NULL AND path IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_remote_path ON workspaces(ssh_connection_id, path)
+      WHERE location = 'remote' AND untracked_at IS NULL AND path IS NOT NULL;
 
     CREATE TABLE conversations (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+      is_initial_conversation INTEGER,
+      agent_status_seen INTEGER DEFAULT 1,
+      agent_status TEXT,
       title TEXT NOT NULL,
       provider TEXT,
+      type TEXT,
       config TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      last_interacted_at TEXT,
-      is_initial_conversation INTEGER,
-      session_id TEXT,
-      agent_status TEXT,
-      agent_status_seen INTEGER DEFAULT 1,
-      type TEXT
+      cwd TEXT,
+      workspace_path TEXT,
+      provider_session_id TEXT,
+      id_regime TEXT,
+      last_session_activity_at TEXT,
+      observed_status TEXT,
+      last_observed_at TEXT,
+      origin TEXT DEFAULT 'registered' NOT NULL,
+      location TEXT,
+      ssh_connection_id TEXT,
+      deletion_tombstone TEXT,
+      untracked_at TEXT
     );
   `);
 
@@ -207,21 +226,22 @@ describe('legacy-port table passes', () => {
       .run('ssh-beta', 'prod', 'example.com', 22, 'alice');
 
     appSqlite
-      .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
-      )
-      .run('proj-beta-local', 'Beta Local', '/work/repo', 'local', 'main');
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, path) VALUES (?, ?, ?, ?, ?)`)
+      .run('workspace-beta-root', 'local', 'repository', 'local', '/work/repo');
 
     appSqlite
       .prepare(
-        `INSERT INTO workspaces (id, type, kind, location, branch_name, config) VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO projects (id, name, base_ref, repository_workspace_id) VALUES (?, ?, ?, ?)`
       )
+      .run('proj-beta-local', 'Beta Local', 'main', 'workspace-beta-root');
+
+    appSqlite
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, config) VALUES (?, ?, ?, ?, ?)`)
       .run(
         'workspace-beta-existing',
         'local',
         'worktree',
         'local',
-        'feature/shared',
         JSON.stringify({
           version: '2',
           git: { kind: 'use-branch', branchName: 'feature/shared' },
@@ -372,14 +392,13 @@ describe('legacy-port table passes', () => {
 
     const importedWorkspace = appSqlite
       .prepare(
-        `SELECT kind, location, type, ssh_connection_id, branch_name, config FROM workspaces WHERE id = ?`
+        `SELECT kind, location, type, ssh_connection_id, config FROM workspaces WHERE id = ?`
       )
       .get(insertedTask.workspace_id) as {
       kind: string;
       location: string;
       type: string;
       ssh_connection_id: string;
-      branch_name: string;
       config: string;
     };
 
@@ -388,7 +407,6 @@ describe('legacy-port table passes', () => {
       location: 'remote',
       type: 'project-ssh',
       ssh_connection_id: 'ssh-beta',
-      branch_name: 'feature/new-legacy',
     });
     expect(JSON.parse(importedWorkspace.config)).toEqual({
       version: '2',
@@ -399,9 +417,26 @@ describe('legacy-port table passes', () => {
     expect(conversationsSummary.considered).toBe(2);
     expect(conversationsSummary.skippedDedup).toBe(1);
 
+    // Imported rows carry the registry shape (spec §10.5): links as annotations plus
+    // observation seeds identifying them as local PTY records, tracked and live.
     const conversations = appSqlite
-      .prepare(`SELECT id, task_id, project_id, title FROM conversations ORDER BY id ASC`)
-      .all() as Array<{ id: string; task_id: string; project_id: string; title: string }>;
+      .prepare(
+        `SELECT id, task_id, project_id, title, type, id_regime, location, ssh_connection_id,
+                origin, untracked_at
+         FROM conversations ORDER BY id ASC`
+      )
+      .all() as Array<{
+      id: string;
+      task_id: string;
+      project_id: string;
+      title: string;
+      type: string | null;
+      id_regime: string | null;
+      location: string | null;
+      ssh_connection_id: string | null;
+      origin: string;
+      untracked_at: string | null;
+    }>;
 
     expect(conversations).toEqual([
       {
@@ -409,6 +444,12 @@ describe('legacy-port table passes', () => {
         task_id: insertedTaskId!,
         project_id: mappedSshProjectId!,
         title: 'New conversation',
+        type: 'pty',
+        id_regime: 'emdash-chosen',
+        location: 'local',
+        ssh_connection_id: null,
+        origin: 'registered',
+        untracked_at: null,
       },
     ]);
   });
@@ -636,10 +677,13 @@ describe('legacy-port table passes', () => {
     );
 
     appSqlite
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, path) VALUES (?, ?, ?, ?, ?)`)
+      .run('workspace-existing-root', 'local', 'repository', 'local', '/existing/repo');
+    appSqlite
       .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO projects (id, name, base_ref, repository_workspace_id) VALUES (?, ?, ?, ?)`
       )
-      .run('proj-existing', 'Existing Project', '/existing/repo', 'local', 'main');
+      .run('proj-existing', 'Existing Project', 'main', 'workspace-existing-root');
     appSqlite
       .prepare(
         `INSERT INTO tasks (id, project_id, name, status, source_branch, task_branch) VALUES (?, ?, ?, ?, ?, ?)`
@@ -819,22 +863,16 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-chat', 'task-legacy-tmux', 'Legacy Claude Chat', 'claude');
 
     const calls: Array<{ command: string; args?: string[] }> = [];
-    const tmuxExec = {
-      root: undefined,
-      supportsLocalSpawn: false,
-      exec: async (command: string, args: string[] = []) => {
-        calls.push({ command, args });
-        if (
-          command === 'tmux' &&
-          args?.[0] === 'has-session' &&
-          args[2] !== 'emdash-claude-chat-conv-legacy-chat'
-        ) {
-          throw new Error('missing');
-        }
-        return { stdout: '', stderr: '' };
-      },
-      execStreaming: async () => {},
-      dispose: () => {},
+    const tmuxExec = async (command: string, args: string[] = []) => {
+      calls.push({ command, args });
+      if (
+        command === 'tmux' &&
+        args?.[0] === 'has-session' &&
+        args[2] !== 'emdash-claude-chat-conv-legacy-chat'
+      ) {
+        throw new Error('missing');
+      }
+      return { stdout: '', stderr: '' };
     };
 
     const remap = createRemapTables();

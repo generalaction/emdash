@@ -1,28 +1,15 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import { extname, resolve, sep } from 'node:path';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import { parsePortableRelativePath, type HostFileRef } from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
+import { err, ok, type Result } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { getMainWindow } from '@main/app/window';
-import { db } from '@main/db/client';
-import { sshConnections } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
-import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
-import {
-  buildRemoteEditorUrl,
-  buildRemoteSshCommand,
-  buildRemoteTerminalExecArgs,
-} from '@main/utils/remoteOpenIn';
-import {
-  appPasteChannel,
-  appRedoChannel,
-  appUndoChannel,
-  terminalContextMenuActionChannel,
-  type TerminalContextMenuAction,
-} from '@shared/events/appEvents';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
   getResolvedLabel,
@@ -30,7 +17,18 @@ import {
   type OpenInAppId,
   type PlatformConfig,
   type PlatformKey,
-} from '@shared/openInApps';
+} from '@core/primitives/open-in-apps/api/open-in-apps';
+import { sshConnections } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
+import type { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
+import {
+  buildRemoteEditorUrl,
+  buildRemoteSshCommand,
+  buildRemoteTerminalExecArgs,
+} from '@main/host/remoteOpenIn';
+import { getMainWindow } from '@main/host/window';
+import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
+import { log } from '@main/lib/logger';
 import {
   checkCommand,
   checkMacApp,
@@ -60,55 +58,50 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
   '.webm': 'audio/webm',
 };
 
-function expandAbsoluteOrTildePath(rawPath: string): string {
-  if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
-  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
-  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
-  return expanded;
-}
-
-async function resolveHomeJailedPath(rawPath: string): Promise<string> {
-  const expanded = expandAbsoluteOrTildePath(rawPath);
-  const realPath = await realpath(expanded);
-  const realHome = await realpath(homedir());
-  const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
-  if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
-    throw new Error('Path must be inside the user home directory');
-  }
-  return realPath;
-}
-
 type RemoteTerminalLaunchAttempt = {
   file: string;
   args: string[];
 };
 
-class AppService implements IInitializable, IDisposable {
+type TerminalContextMenuEvent = {
+  type: 'terminal-context-menu-action';
+  requestId: string;
+  action: 'paste' | 'select-all' | 'clear';
+};
+
+type WorkspaceRuntimeAcquirer = ReturnType<typeof createDesktopWorkspaceRuntimeAcquirer>;
+
+type ShowWorkspaceItemInFolderError =
+  | FsError
+  | {
+      type: 'not_found';
+      entity: 'workspace';
+      workspaceId: string;
+      message: string;
+    }
+  | {
+      type: 'unsupported_host';
+      host: HostRef;
+      message: string;
+    };
+
+class AppService implements Disposable {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
-  private _unsubscribes: Array<() => void> = [];
+  private emitHostEvent: (event: TerminalContextMenuEvent) => void = () => {};
+  private acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer | undefined;
 
-  initialize(): void {
+  initialize(options: {
+    acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer;
+    emitHostEvent(event: TerminalContextMenuEvent): void;
+  }): void {
+    this.acquireWorkspaceRuntime = options.acquireWorkspaceRuntime;
+    this.emitHostEvent = options.emitHostEvent;
     void this.getCachedAppVersion();
-
-    this._unsubscribes = [
-      events.on(appUndoChannel, () => {
-        getMainWindow()?.webContents.undo();
-      }),
-      events.on(appRedoChannel, () => {
-        getMainWindow()?.webContents.redo();
-      }),
-      events.on(appPasteChannel, () => {
-        getMainWindow()?.webContents.paste();
-      }),
-    ];
   }
 
-  dispose(): void {
-    for (const unsub of this._unsubscribes) unsub();
-    this._unsubscribes = [];
-  }
+  dispose(): void {}
 
   getCachedAppVersion(): Promise<string> {
     if (this.cachedAppVersion) return Promise.resolve(this.cachedAppVersion);
@@ -217,30 +210,56 @@ class AppService implements IInitializable, IDisposable {
     await shell.openExternal(url);
   }
 
-  async openPath(rawPath: string): Promise<void> {
-    const realPath = await resolveHomeJailedPath(rawPath);
+  async openPath(ref: HostFileRef): Promise<void> {
+    if (ref.host.type !== 'local') {
+      throw new Error('Default applications are only available for local files');
+    }
+    const realPath = await realpath(nativePathFromHost(ref.path));
     const errorMessage = await shell.openPath(realPath);
     if (errorMessage) throw new Error(errorMessage);
   }
 
-  async showItemInFolder(rawPath: string): Promise<void> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    shell.showItemInFolder(realPath);
-  }
-
-  /**
-   * Restricted to the user home directory: terminal output drives these reads,
-   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
-   * Symlinks are resolved before the home-jail check so they can't escape.
-   */
-  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    const stats = await stat(realPath);
-    if (stats.size > maxBytes) {
-      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
+  async showWorkspaceItemInFolder(args: {
+    workspaceId: string;
+    relativePath: string;
+  }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
+    const acquireWorkspaceRuntime = this.acquireWorkspaceRuntime;
+    if (!acquireWorkspaceRuntime) throw new Error('App service has not been initialized');
+    const workspace = await acquireWorkspaceRuntime(args.workspaceId);
+    if (!workspace) {
+      return err({
+        type: 'not_found',
+        entity: 'workspace',
+        workspaceId: args.workspaceId,
+        message: `Workspace not found: ${args.workspaceId}`,
+      });
     }
-    const buffer = await readFile(realPath);
-    return { content: buffer.toString('utf8') };
+    if (workspace.identity.host.type !== 'local') {
+      return err({
+        type: 'unsupported_host',
+        host: workspace.identity.host,
+        message: 'Show in file manager is only available for local workspaces',
+      });
+    }
+
+    const relativePath = parsePortableRelativePath(args.relativePath, {
+      unicodeNormalization: 'preserve',
+    });
+    if (!relativePath.success) {
+      return err({
+        type: 'invalid-path',
+        path: args.relativePath,
+        message: relativePath.error.message,
+      });
+    }
+
+    const resolved = await workspace.files.client.fs.realPath({
+      path: resolveRelativePath(workspace.files.root, relativePath.data),
+    });
+    if (!resolved.success) return resolved;
+
+    shell.showItemInFolder(nativePathFromHost(resolved.data.path));
+    return ok();
   }
 
   clipboardWriteText(text: string): void {
@@ -262,8 +281,12 @@ class AppService implements IInitializable, IDisposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: TerminalContextMenuAction) => {
-      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
+    const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
+      this.emitHostEvent({
+        type: 'terminal-context-menu-action',
+        requestId: args.requestId,
+        action,
+      });
     };
     const template: Electron.MenuItemConstructorOptions[] = [
       {
@@ -371,7 +394,7 @@ class AppService implements IInitializable, IDisposable {
   }): Promise<void> {
     const { appId, appConfig, label, target, platform, sshConnectionId } = args;
 
-    const [connection] = await db
+    const [connection] = await getAppDb()
       .select()
       .from(sshConnections)
       .where(eq(sshConnections.id, sshConnectionId))

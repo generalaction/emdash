@@ -44,7 +44,7 @@ export const WithCloseButton: Story = {
         <Popover.Header>
           <Popover.Title>Settings</Popover.Title>
           <Popover.Close>
-            <Button variant="ghost" size="sm" icon>
+            <Button variant="ghost" size="xs" icon>
               ×
             </Button>
           </Popover.Close>
@@ -63,7 +63,7 @@ export const Aligned: Story = {
       {(['start', 'center', 'end'] as const).map((align) => (
         <Popover.Root key={align}>
           <Popover.Trigger>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="xs">
               {align}
             </Button>
           </Popover.Trigger>

@@ -1,15 +1,5 @@
-import { basename, extname } from 'node:path';
 import { defineConfig } from 'tsdown';
-import workspaceWorkers from './src/worker-manifest.json' with { type: 'json' };
-
-function workspaceWorkerBuildInputs(): Record<string, string> {
-  return Object.fromEntries(
-    Object.values(workspaceWorkers).map((worker) => [
-      basename(worker.file, extname(worker.file)),
-      worker.entry,
-    ])
-  );
-}
+import { workspaceWorkerBuildInputs } from './src/gateway/worker-manifest.js';
 
 export default defineConfig({
   entry: {
@@ -17,10 +7,15 @@ export default defineConfig({
     ...workspaceWorkerBuildInputs(),
   },
   format: ['esm'],
+  outputOptions: {
+    codeSplitting: true,
+  },
   dts: false,
   sourcemap: true,
   clean: true,
   deps: {
-    neverBundle: ['node-pty', 'zod'],
+    alwaysBundle: [/.*/],
+    neverBundle: ['node-pty', 'better-sqlite3', '@parcel/watcher'],
+    onlyBundle: false,
   },
 });

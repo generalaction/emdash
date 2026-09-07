@@ -1,12 +1,18 @@
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
 import type {
   LegacyImportSource,
   LegacyPortPreview,
   LegacyProjectConflict,
   SourceProjectInfo,
-} from '@shared/legacy-port';
+} from '@core/primitives/legacy-port/api/legacy-port';
+import {
+  projectRemotes,
+  projects,
+  sshConnections,
+  tasks,
+  workspaces,
+} from '@core/services/app-db/node/schema';
 import {
   legacyTableExists,
   readLegacyRows,
@@ -31,8 +37,8 @@ export type LegacyProjectSelection = {
 type AppProjectRow = {
   id: string;
   name: string;
-  path: string;
-  workspaceProvider: string;
+  path: string | null;
+  location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   host: string | null;
   port: number | null;
@@ -189,21 +195,24 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
     .select({
       id: projects.id,
       name: projects.name,
-      path: projects.path,
-      workspaceProvider: projects.workspaceProvider,
-      sshConnectionId: projects.sshConnectionId,
+      path: workspaces.path,
+      location: workspaces.location,
+      sshConnectionId: workspaces.sshConnectionId,
       host: sshConnections.host,
       port: sshConnections.port,
       username: sshConnections.username,
       updatedAt: projects.updatedAt,
     })
     .from(projects)
-    .leftJoin(sshConnections, eq(projects.sshConnectionId, sshConnections.id))
+    .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
+    .leftJoin(sshConnections, eq(workspaces.sshConnectionId, sshConnections.id))
     .execute()) as AppProjectRow[];
 
   const result: SourceProjectInfo[] = [];
   for (const row of rows) {
-    if (row.workspaceProvider === 'ssh' && row.sshConnectionId && row.host && row.username) {
+    // Projects without a repository path have no identity to conflict on.
+    if (!row.path) continue;
+    if (row.location === 'remote' && row.sshConnectionId && row.host && row.username) {
       const fingerprint = makeSshFingerprint(row.host, normalizePort(row.port), row.username);
       result.push({
         id: row.id,

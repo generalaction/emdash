@@ -129,6 +129,98 @@ export const DoneCollapsed: Story = {
   ),
 };
 
+export const GroupedCollapsed: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'thinking',
+          id: 'th-group-1',
+          status: 'done',
+          text: 'First I traced the provider updates into the transcript reducer.',
+          startedAt: Date.now() - 41000,
+          durationMs: 9000,
+        },
+        {
+          kind: 'thinking',
+          id: 'th-group-2',
+          status: 'done',
+          text: 'Then I checked how synthesized segment IDs close around tool updates.',
+          startedAt: Date.now() - 30000,
+          durationMs: 10000,
+        },
+        {
+          kind: 'thinking',
+          id: 'th-group-3',
+          status: 'done',
+          text: 'Finally I chose a presentation-only group so the source transcript stays exact.',
+          startedAt: Date.now() - 18000,
+          durationMs: 18000,
+        },
+      ]}
+      height={100}
+    />
+  ),
+};
+
+export const GroupedExpanded: Story = {
+  render: () => {
+    const items: ChatItem[] = [
+      {
+        kind: 'thinking',
+        id: 'th-group-expanded-1',
+        status: 'done',
+        text: 'First I traced the **provider updates** into the transcript reducer.',
+        startedAt: Date.now() - 26000,
+        durationMs: 8000,
+      },
+      {
+        kind: 'thinking',
+        id: 'th-group-expanded-2',
+        status: 'done',
+        text: 'Then I verified that each reasoning segment retains its own stable ID and text.',
+        startedAt: Date.now() - 16000,
+        durationMs: 7000,
+      },
+      {
+        kind: 'thinking',
+        id: 'th-group-expanded-3',
+        status: 'done',
+        text: 'The renderer can now expose one disclosure control without flattening those semantics.',
+        startedAt: Date.now() - 7000,
+        durationMs: 7000,
+      },
+    ];
+    const script: ScriptStep[] = [
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.history.seed([
+            {
+              id: 'thinking-group-turn',
+              seq: 0,
+              initiator: 'agent',
+              items: items as TranscriptTurn['items'],
+              outcome: { kind: 'done' },
+            },
+          ]);
+        },
+      },
+      { kind: 'wait', ms: 100 },
+      {
+        kind: 'call',
+        fn: () => {
+          const btn = document.querySelector(
+            '[data-collapse-id="th-group-expanded-1:thinking-group"]'
+          ) as HTMLElement;
+          btn?.click();
+        },
+      },
+    ];
+    return <ScriptedChat script={script} height={360} />;
+  },
+};
+
 export const DoneExpanded: Story = {
   render: () => {
     const script: ScriptStep[] = [

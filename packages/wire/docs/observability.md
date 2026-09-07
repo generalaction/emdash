@@ -21,7 +21,7 @@ await runWithLogger(logger.child({ requestId: 'r1' }), async () => {
 Node entry points can install the `AsyncLocalStorage` store:
 
 ```ts
-import { installAsyncLogContext } from '@emdash/shared/logger/context-node';
+import { installAsyncLogContext } from '@emdash/shared/logger/node';
 
 installAsyncLogContext();
 ```
@@ -32,11 +32,17 @@ logger and scoped synchronous blocks, but it does not preserve context across
 
 ## Instrumentation Hooks
 
-Use `WireInstrumentation` for typed events that can be adapted to logs, metrics,
-or tracing:
+Use `WireInstrumentation` (exported from `@emdash/wire/rpc`) for typed events
+that can be adapted to logs, metrics, or tracing. The seam is threaded through
+the public options of `serve()`, `connect()`, replicas, and `expose()`:
 
 ```ts
-const instrumentation = loggerInstrumentation(logger);
+import type { WireInstrumentation } from '@emdash/wire/rpc';
+
+const instrumentation: WireInstrumentation = {
+  callEnd: (event) => logger.debug('call finished', event),
+  resyncFailed: (event) => logger.warn('resync failed', event),
+};
 
 serve(transport, controller, { logger, instrumentation });
 const connection = connect(clientTransport, { instrumentation });
@@ -48,59 +54,16 @@ Hooks currently cover:
 - procedure start/end, cancellation, and duration.
 - snapshot timing and errors.
 - live topic attach/detach.
-- live model/log resync reasons.
+- live model/log resync reasons and resync failures.
+- replica cursor-translation timeouts.
 - mutation dedupe hits.
-- dropped `BatchedLiveState` batches.
 - scope cleanup errors.
 - transport connect/disconnect events.
 
-Helpers:
-
-- `noopInstrumentation`: empty hooks object.
-- `mergeInstrumentation(...parts)`: fan out events to several hook sets.
-- `loggerInstrumentation(logger, options?)`: map hooks to structured log lines.
-- `summarizePayload(value, options?)`: prepare, redact, stringify, and truncate a
-  payload summary for debug logs.
-
-`loggerInstrumentation(logger, { payloads: true })` includes redacted, truncated
-payload summaries at debug level.
-
-## Server Logging Middleware
-
-Use `withLogging()` to decorate a `Controller` with semantic request logs:
-
-```ts
-const loggedController = withLogging(controller, logger, {
-  level: 'debug',
-  payloads: true,
-});
-
-serve(transport, loggedController, { logger });
-```
-
-This logs the endpoint path, duration, outcome, and optional redacted input and
-result payloads. It composes with `createController()` because it preserves the
-`Controller` shape.
+There are no bundled logger adapters: adapt the typed events to your logging or
+metrics stack at the application edge.
 
 Serving and client options are documented in [API serving](./api/serving.md).
-
-## Protocol Debug Logging
-
-Use `loggingTransport()` when you need a full wire-message firehose:
-
-```ts
-serve(
-  loggingTransport(serverTransport, logger.child({ side: 'server' }), {
-    payloads: true,
-  }),
-  withLogging(controller, logger, { level: 'debug', payloads: true })
-);
-```
-
-This logs every sent and received protocol message: `call`, `result`, `snapshot`,
-`attach`, `detach`, `update`, and `cancel`. Payload logging should be used for
-local debugging because even redacted summaries can be noisy.
-
 Transport construction is documented in [API transports](./api/transports.md).
 
 ## Scope Logging
@@ -115,19 +78,12 @@ const sessionScope = runtimeScope.child('session:abc');
 sessionScope.log.info('session started');
 ```
 
-Cleanup errors are reported through the scope logger by default. Use
-`describeScope(scope)` for a lightweight label tree when debugging retained
-resources.
+Cleanup errors and failed runs are reported through the scope logger by default.
+Use `describeScope(scope)` for a lightweight label tree when debugging retained
+resources or stuck async work. Scope descriptions include active run labels,
+start times, and cancellation state. When the scope is created with a custom
+`Clock`, those start times come from that clock, which keeps lifecycle diagnostics
+deterministic in tests.
 
-Scope lifecycle behavior is documented in [runtime lifecycle](./runtime/lifecycle.md).
-
-## Example
-
-Run the logging example:
-
-```bash
-pnpm --filter @emdash/wire run example:logging
-```
-
-It wires together `withLogging()`, `loggingTransport()`, `loggerInstrumentation()`,
-redacted debug payloads, and a forced live-client resync.
+Scope lifecycle behavior is documented in [runtime lifecycle](./runtime/lifecycle.md)
+and [structured concurrency](./runtime/structured-concurrency.md).

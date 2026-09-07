@@ -6,7 +6,7 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './sheet.css';
 
-export type SheetSide = 'right' | 'left';
+export type SheetSide = 'right' | 'left' | 'top' | 'bottom';
 
 // ── Root parts ────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ function SheetHeader({
           render={
             <Button
               variant="ghost"
-              size="sm"
+              size="xs"
               icon
               aria-label="Close"
               className={styles.closeButtonOverride}

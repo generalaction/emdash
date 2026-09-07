@@ -42,7 +42,8 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 | --- | --- |
 | macOS | `brew install --cask emdash` · [Apple Silicon](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg) · [Intel](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg) |
 | Windows | [Installer](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi) · [Portable](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe) |
-| Linux | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage) · [Debian package](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb) |
+| Linux x64 | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage) · [DEB](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb) · [RPM](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.rpm) |
+| Linux ARM64 | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.AppImage) · [DEB](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.deb) · [RPM](https://github.com/generalaction/emdash/releases/latest/download/emdash-aarch64.rpm) |
 
 See the [latest release](https://github.com/generalaction/emdash/releases/latest) for
 all desktop builds.
@@ -53,6 +54,10 @@ Emdash detects installed provider CLIs automatically. It supports agents like Cl
 Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
 Copilot.
 
+For agents with lifecycle-hook support, Emdash installs marker-tagged entries in the agent's
+user-level config. These hooks let Emdash track status, notifications, and resumable sessions, and
+silently do nothing when the agent runs outside an Emdash session.
+
 See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
 
@@ -62,9 +67,7 @@ Connect to remote machines with SSH/SFTP and run the same parallel workflow on r
 codebases. Emdash supports SSH agent, key, and password authentication, with credentials
 stored in your OS keychain.
 
-See [Remote Projects](https://emdash.sh/docs/remote-projects) and
-[Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure)
-for setup details.
+See [Remote Projects](https://emdash.sh/docs/remote-projects) for setup details.
 
 ## Privacy
 

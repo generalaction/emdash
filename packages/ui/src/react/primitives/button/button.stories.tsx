@@ -1,17 +1,20 @@
 import { Box } from '@react/primitives/box';
-import { Button } from '@react/primitives/button';
+import { Button, type ButtonVariant } from '@react/primitives/button';
+import { Kbd, KbdGroup } from '@react/primitives/kbd';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
+
+const buttonVariants: ButtonVariant[] = ['primary', 'destructive', 'secondary', 'ghost', 'link'];
 
 const meta: Meta<typeof Button> = {
   title: 'Primitives/Button',
   component: Button,
   parameters: { layout: 'centered' },
   argTypes: {
-    variant: { control: 'select', options: ['ghost', 'primary'] },
-    tone: { control: 'select', options: ['neutral', 'destructive'] },
-    size: { control: 'select', options: ['base', 'sm', 'link'] },
+    variant: { control: 'select', options: buttonVariants },
+    tone: { table: { disable: true } },
+    size: { control: 'select', options: ['xs', 'sm', 'base', 'lg'] },
     icon: { control: 'boolean' },
     disabled: { control: 'boolean' },
   },
@@ -21,40 +24,52 @@ export default meta;
 type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {
-  args: { children: 'Button', variant: 'ghost' },
+  args: { children: 'Button', variant: 'primary' },
 };
 
-/** All variants × tones. */
+/** Public button variants. */
 export const VariantMatrix: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3">
-      {(['ghost', 'primary'] as const).map((variant) => (
-        <Box key={variant} display="flex" flexWrap="wrap" alignItems="center" gap="2">
-          {(['neutral', 'destructive'] as const).map((tone) => (
-            <Button key={tone} variant={variant} tone={tone}>
-              {variant} / {tone}
-            </Button>
-          ))}
-        </Box>
+    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+      {buttonVariants.map((variant) => (
+        <Button key={variant} variant={variant}>
+          {variant}
+        </Button>
       ))}
     </Box>
   ),
 };
 
-/** Base (32 px) and SM (24 px) sizes, plus Link. */
+/** The four-step size scale — XS (24 px), SM (28 px), Base (32 px), LG (40 px) — plus link. */
 export const Sizes: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3">
       <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
-        <Button size="base">Base</Button>
-        <Button size="sm">Small</Button>
-        <Button size="link">Link</Button>
+        <Button variant="primary" size="xs">
+          Extra small
+        </Button>
+        <Button variant="primary" size="sm">
+          Small
+        </Button>
+        <Button variant="primary" size="base">
+          Base
+        </Button>
+        <Button variant="primary" size="lg">
+          Large
+        </Button>
+        <Button variant="link">Link</Button>
       </Box>
       <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
-        <Button size="base" icon>
+        <Button size="xs" icon>
           <SearchIcon />
         </Button>
         <Button size="sm" icon>
+          <SearchIcon />
+        </Button>
+        <Button size="base" icon>
+          <SearchIcon />
+        </Button>
+        <Button size="lg" icon>
           <SearchIcon />
         </Button>
       </Box>
@@ -66,16 +81,16 @@ export const Sizes: Story = {
 export const IconButtons: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
-      <Button icon>
+      <Button icon variant="ghost">
         <PlusIcon />
       </Button>
       <Button icon variant="primary">
         <PlusIcon />
       </Button>
-      <Button icon size="sm">
+      <Button icon variant="secondary" size="xs">
         <SearchIcon />
       </Button>
-      <Button icon tone="destructive">
+      <Button icon variant="destructive">
         <TrashIcon />
       </Button>
     </Box>
@@ -86,13 +101,11 @@ export const IconButtons: Story = {
 export const Disabled: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
-      <Button disabled>Ghost</Button>
-      <Button variant="primary" disabled>
-        Primary
-      </Button>
-      <Button tone="destructive" disabled>
-        Destructive
-      </Button>
+      {buttonVariants.map((variant) => (
+        <Button key={variant} variant={variant} disabled>
+          {variant}
+        </Button>
+      ))}
     </Box>
   ),
 };
@@ -126,15 +139,77 @@ export const AcrossSurfaces: Story = {
             >
               {level}
             </span>
-            <Button>Ghost</Button>
             <Button variant="primary">Primary</Button>
-            <Button tone="destructive">Destructive</Button>
+            <Button variant="destructive">Destructive</Button>
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="link">Link</Button>
             <Button icon>
               <SearchIcon />
             </Button>
           </Box>
         )
       )}
+    </Box>
+  ),
+};
+
+/** Buttons with trailing keyboard shortcuts, across variants and sizes. */
+export const WithShortcuts: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="3" alignItems="flex-start">
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        {buttonVariants.map((variant) => (
+          <Button key={variant} variant={variant} kbd={<Kbd>K</Kbd>}>
+            {variant[0].toUpperCase() + variant.slice(1)}
+          </Button>
+        ))}
+      </Box>
+
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        {buttonVariants.map((variant) => (
+          <Button
+            key={variant}
+            variant={variant}
+            size="xs"
+            kbd={
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>K</Kbd>
+              </KbdGroup>
+            }
+          >
+            {variant[0].toUpperCase() + variant.slice(1)}
+          </Button>
+        ))}
+      </Box>
+
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        <Button
+          variant="primary"
+          kbd={
+            <KbdGroup>
+              <Kbd>⌘</Kbd>
+              <Kbd>⇧</Kbd>
+              <Kbd>P</Kbd>
+            </KbdGroup>
+          }
+        >
+          Command palette
+        </Button>
+        <Button
+          variant="secondary"
+          size="xs"
+          kbd={
+            <KbdGroup>
+              <Kbd>⌘</Kbd>
+              <Kbd>S</Kbd>
+            </KbdGroup>
+          }
+        >
+          Save
+        </Button>
+      </Box>
     </Box>
   ),
 };

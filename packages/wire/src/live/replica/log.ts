@@ -1,12 +1,13 @@
-import { Emitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
-import type { WireInstrumentation } from '../../observability';
-import { createManagedSource } from '../../util/managed-source';
-import { LiveLog, LiveLogClient, type LiveLogOptions } from '../log';
-import { stableStringify } from '../mutations';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
-import { managedLiveSource } from './source';
+import type { WireInstrumentation } from '../../api/instrumentation';
+import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
+import { LiveLogSource, LiveLogClient, type LiveLogSourceOptions } from '../log';
+import { createReplicaResourceCache } from './retention';
+import { resourceCachedLiveSource } from './source';
 
 export interface LogSink {
   reset(data: LiveLogSnapshotData): void;
@@ -17,17 +18,19 @@ export interface LogStore extends LogSink {
   text(): string;
 }
 
-export type ReplicaLogOptions = LiveLogOptions & {
+export type ReplicaLogOptions = LiveLogSourceOptions & {
   instrumentation?: WireInstrumentation;
+  /** Resync failure policy; production replicas retry until success or dispose. */
+  onResyncFailed?: LiveResyncFailurePolicy;
   store?: LogSink;
 };
 
 export class ReplicaLog implements LiveSource {
   readonly ready: Promise<void>;
 
-  private local: LiveLog | undefined;
+  private local: LiveLogSource | undefined;
   private readonly client: LiveLogClient;
-  private readonly appendEmitter = new Emitter<string>();
+  private readonly appendEmitter = createEmitter<string>();
   private readonly detachPromise: Promise<Unsubscribe>;
   private writtenOffset = 0;
   private disposed = false;
@@ -36,17 +39,18 @@ export class ReplicaLog implements LiveSource {
     private readonly handle: ReturnType<LiveLogClientHandle['handle']>,
     private readonly options: ReplicaLogOptions = {}
   ) {
-    if (!options.store) this.local = new LiveLog(options);
+    if (!options.store) this.local = new LiveLogSource(options);
     this.client = new LiveLogClient({
       refetchSnapshot: () => handle.snapshot(),
       onReset: (data) => this.reset(data),
       onAppend: (chunk) => this.append(chunk),
+      onResyncFailed: options.onResyncFailed ?? resyncRetry(),
       instrumentation: options.instrumentation,
       topic: handle.topic,
     });
     this.ready = handle.snapshot().then((snapshot) => this.client.seed(snapshot));
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
-      onReattach: () => void this.client.refresh(),
+      onReattach: () => this.client.invalidate(),
     });
   }
 
@@ -73,6 +77,7 @@ export class ReplicaLog implements LiveSource {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.client.dispose();
     this.appendEmitter.clear();
     (await this.detachPromise)();
   }
@@ -90,13 +95,13 @@ export class ReplicaLog implements LiveSource {
     this.appendEmitter.emit(chunk);
   }
 
-  private localSource(): LiveLog {
+  private localSource(): LiveLogSource {
     if (!this.local) {
       const readable = asReadableLogStore(this.options.store);
       const text = readable?.text() ?? '';
       const bytes = byteLength(text);
       const baseOffset = this.writtenOffset >= bytes ? this.writtenOffset - bytes : 0;
-      this.local = new LiveLog(this.options);
+      this.local = new LiveLogSource(this.options);
       this.local.reseed({
         baseOffset,
         text,
@@ -107,13 +112,13 @@ export class ReplicaLog implements LiveSource {
   }
 }
 
-export type LiveLogReplicaOptions = Omit<ReplicaLogOptions, 'store'> & {
-  retentionMs?: number;
+export type LiveLogReplicaCacheOptions = Omit<ReplicaLogOptions, 'store'> & {
+  lingerMs?: number;
   store?: () => LogSink;
 };
 
-export type LiveLogReplica<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
-  readonly kind: 'liveLogReplica';
+export type LiveLogReplicaCache<Def extends LiveLogEndpointDef = LiveLogEndpointDef> = {
+  readonly kind: 'liveLogReplicaCache';
   readonly def: Def;
   acquire(key: LiveLogKey<Def>): PendingLease<ReplicaLog>;
   peek(key: LiveLogKey<Def>): ReplicaLog | undefined;
@@ -121,14 +126,14 @@ export type LiveLogReplica<Def extends LiveLogEndpointDef = LiveLogEndpointDef> 
   dispose(): Promise<void>;
 };
 
-export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
+export function createLiveLogReplicaCache<Def extends LiveLogEndpointDef>(
   def: Def,
   log: LiveLogClientHandle<Def>,
-  options: LiveLogReplicaOptions = {}
-): LiveLogReplica<Def> {
-  const source = createManagedSource<LiveLogKey<Def>, ReplicaLog>({
+  options: LiveLogReplicaCacheOptions = {}
+): LiveLogReplicaCache<Def> {
+  const source = createReplicaResourceCache<LiveLogKey<Def>, ReplicaLog>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    lingerMs: options.lingerMs,
     async create(key, scope) {
       const { store, ...replicaOptions } = options;
       const replica = new ReplicaLog(log.handle(key), { ...replicaOptions, store: store?.() });
@@ -139,7 +144,7 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
   });
 
   return {
-    kind: 'liveLogReplica',
+    kind: 'liveLogReplicaCache',
     def,
     acquire(key) {
       return source.acquire(key);
@@ -148,7 +153,7 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
       return source.peek(key);
     },
     resolve(key) {
-      return managedLiveSource(source, key, (replica) => replica);
+      return resourceCachedLiveSource(source, key, (replica) => replica);
     },
     dispose() {
       return source.dispose();
@@ -168,10 +173,10 @@ function byteLength(text: string): number {
   return encoder.encode(text).byteLength;
 }
 
-export function isLiveLogReplica(value: unknown): value is LiveLogReplica {
+export function isLiveLogReplicaCache(value: unknown): value is LiveLogReplicaCache {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as { kind?: unknown }).kind === 'liveLogReplica'
+    (value as { kind?: unknown }).kind === 'liveLogReplicaCache'
   );
 }

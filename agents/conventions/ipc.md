@@ -1,43 +1,63 @@
 # IPC Conventions
 
-## RPC Pattern
+## Wire Pattern
 
-The primary IPC mechanism is a typed RPC system:
+All renderer-main application traffic uses `@emdash/wire`:
 
-- **Controllers**: `src/main/core/*/controller.ts` — define handler functions using `createRPCController`.
-- **Router**: `src/main/rpc.ts` — assembles all controllers into a typed router using `createRPCRouter`.
-- **Registration**: `registerRPCRouter(router, ipcMain)` in `src/main/index.ts` — auto-registers `namespace.method` channels.
-- **Client**: `src/renderer/lib/ipc.ts` — creates a proxy-based typed client using `createRPCClient<RpcRouter>`.
+- **Contracts**: `src/core/features/<domain>/api/` using `defineContract`.
+- **Controllers**: `src/core/features/<domain>/node/` using `createController`.
+- **Manifest**: `src/core/manifests/shared/desktop-wire-contract.ts`.
+- **Gateway**: `src/main/gateway/desktop-wire.ts`.
+- **Connection seam**: `src/core/primitives/wire/browser/connection.ts` — the renderer bootstrap
+  seeds the connection once (`seedWireConnection`, via
+  `src/renderer/lib/runtime/seed-desktop-wire.ts`); core code never acquires a connection itself.
+- **Clients**: each slice exports a typed domain client from its `api/`, built on `domainClient`
+  and the slice's exported domain constant.
 
 ```ts
-// Main — src/main/core/example/controller.ts
-import { createRPCController } from '@shared/ipc/rpc';
-export const exampleController = createRPCController({
-  async doSomething(id: string) {
-    return await service.doSomething(id);
-  },
+// Contract (api/contract.ts)
+export const exampleDomain = 'example' as const;
+export const exampleContract = defineContract({
+  doSomething: procedure({
+    input: z.object({ id: z.string() }),
+    output: z.custom<Result>(),
+  }),
 });
 
-// Renderer — call via typed client
-import { rpc } from '@renderer/lib/ipc';
-const result = await rpc.example.doSomething('123');
+// Domain client (api/client.ts)
+export type ExampleClient = ContractClient<typeof exampleContract>;
+export function getExampleClient(): Promise<ExampleClient> {
+  return domainClient<ExampleClient>(exampleDomain, exampleContract);
+}
+
+// Consumer
+const client = await getExampleClient();
+const result = await client.doSomething({ id: '123' });
 ```
 
 ## Preload Bridge
 
-The preload bridge in `src/preload/index.ts` is intentionally tiny. It exposes only
-`invoke` (for the RPC client), `eventSend`/`eventOn` (for the typed event emitter), and
-`getPathForFile` on `window.electronAPI`. Add direct `window.electronAPI` surface only
-when a browser/Electron primitive cannot fit the RPC/event path.
+The preload bridge in `src/entry/preload.ts` exposes only `requestWirePort` and
+`getPathForFile` on `window.electronAPI`. Add renderer-main operations to a Wire contract instead
+of extending the bridge.
 
-## Event System
+## Events And State
 
-Typed events use `createEventEmitter` from `src/shared/ipc/events.ts`. Event type definitions live in `src/shared/events/`.
+- Request/response operations use `procedure`.
+- Notifications use `eventStream`.
+- Resource-backed notifications whose attach acknowledgment must mean ready use
+  `resourcedStream`; never encode readiness as a one-shot no-retention event. See the
+  [Wire event-stream attachment law](../../packages/wire/docs/README.md#event-stream-attachment-law).
+- Broadcast state uses a Wire live model.
+- Long-running cancellable work uses a Wire live job.
+- Persisted renderer state uses mementos.
 
 ## Rules
 
-- Prefer the RPC pattern for new IPC methods — add a handler to the appropriate controller.
-- Keep the preload bridge small; do not add manual IPC channels casually.
-- Keep the RPC router type (`RpcRouter`) importable by the renderer for type inference.
-- Prefer existing service boundaries over adding logic directly inside controllers.
-- Update tests when controller shape or IPC wiring changes.
+- Keep contracts in the owning slice's `api/` surface and implementations in `node/`.
+- Reach the wire through the owning slice's domain client; the aggregate client in
+  `src/renderer/lib/runtime/desktop-wire-client.ts` is renderer-internal only.
+- Register contracts and controllers through the desktop Wire manifest and gateway.
+- Keep provider-specific adaptation at plugin or slice edges.
+- Never import a `node/` surface from browser code.
+- Test contracts, controllers, event hosts, and browser stores at their owning boundary.

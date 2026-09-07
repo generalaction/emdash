@@ -1,36 +1,27 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
-import { buildPullRequestConversationItems } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
-import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
+import { CommentsList } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/comments-list';
+import { buildPullRequestConversationItems } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
+import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
 
-vi.mock('@renderer/lib/hooks/useTheme', () => ({
+vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    navigation: {
-      currentViewId: 'home',
-      viewParamsStore: {},
-    },
-  },
+vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
+  getNavigation: () => ({
+    currentViewId: 'home',
+    currentRef: { viewId: 'home', params: {}, key: 'home' },
+  }),
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
-  events: {
-    on: vi.fn(() => () => {}),
-  },
-  rpc: {
-    app: {
-      openExternal: vi.fn(),
-    },
-  },
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
+  openExternal: vi.fn(),
 }));
 
 function makeComment(
@@ -115,9 +106,7 @@ describe('CommentsList', () => {
     expect(html).toContain('src="https://github.com/user/image.png"');
     expect(html).toContain('alt="Image"');
     expect(html).toContain('aria-label="Expand image"');
-    expect(html).toContain('max-w-full');
-    expect(html).toContain('max-h-80');
-    expect(html).toContain('object-contain');
+    expect(html).toContain('width="944"');
   });
 
   it('renders comments by creation time rather than update time', () => {

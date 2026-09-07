@@ -1,3 +1,96 @@
+export {
+  CollectionToolbar,
+  type CollectionToolbarGroupProps,
+  type CollectionToolbarRootProps,
+  type CollectionToolbarSearchProps,
+  type CollectionToolbarSeparatorProps,
+  type CollectionToolbarSpacerProps,
+} from './collection-toolbar';
+
+export { EntityHeader, type EntityHeaderProps } from './entity-header';
+
+export { CreateTaskModal } from './create-task-modal/create-task-modal';
+export { CreateTaskPrompt } from './create-task-modal/create-task-prompt';
+export type {
+  CreateTaskAgentOption,
+  CreateTaskAnnouncements,
+  CreateTaskAvailability,
+  CreateTaskBlocker,
+  CreateTaskBlockerTarget,
+  CreateTaskBranchNameState,
+  CreateTaskBranchOption,
+  CreateTaskCapabilityToggle,
+  CreateTaskChoice,
+  CreateTaskCreateState,
+  CreateTaskEffortOption,
+  CreateTaskExistingWorkspaceOption,
+  CreateTaskInterfaceState,
+  CreateTaskIssueOption,
+  CreateTaskIssueProviderOption,
+  CreateTaskLiveMessage,
+  CreateTaskModalIntent,
+  CreateTaskModalProps,
+  CreateTaskModalState,
+  CreateTaskModelOption,
+  CreateTaskNonEmpty,
+  CreateTaskOptionAvailability,
+  CreateTaskOptionsState,
+  CreateTaskOrigin,
+  CreateTaskOriginKind,
+  CreateTaskOriginSelection,
+  CreateTaskOriginState,
+  CreateTaskOverlay,
+  CreateTaskProjectOption,
+  CreateTaskProjectState,
+  CreateTaskPromptContentState,
+  CreateTaskPromptEditability,
+  CreateTaskPromptHandle,
+  CreateTaskPromptIntent,
+  CreateTaskPromptProps,
+  CreateTaskPromptResource,
+  CreateTaskPromptState,
+  CreateTaskPullRequestOption,
+  CreateTaskReadyWorkspaceDetail,
+  CreateTaskResourceInsertion,
+  CreateTaskResourceOffer,
+  CreateTaskResourceStatus,
+  CreateTaskRunState,
+  CreateTaskSavedPromptOption,
+  CreateTaskSearchChoice,
+  CreateTaskSelection,
+  CreateTaskSetupPreview,
+  CreateTaskSetupStep,
+  CreateTaskTextRange,
+  CreateTaskValidation,
+  CreateTaskWorkspaceDestination,
+  CreateTaskWorkspaceDetailState,
+  CreateTaskWorkspaceFocusTarget,
+  CreateTaskWorkspacePreset,
+  CreateTaskWorkspacePresetAvailability,
+  CreateTaskWorkspaceResolution,
+  CreateTaskWorkspaceState,
+} from './create-task-modal/create-task-modal.types';
+
+export {
+  getPillTabId,
+  PillTabs,
+  type PillTab,
+  type PillTabsLabelVisibility,
+  type PillTabsProps,
+} from './pill-tabs';
+
+export {
+  CollectionView,
+  CollectionViewCell,
+  SortSelect,
+  type CollectionViewCellProps,
+  type CollectionViewColumn,
+  type CollectionViewDensity,
+  type CollectionViewHandle,
+  type CollectionViewProps,
+  type SortSelectProps,
+} from './collection-view';
+
 export { ListView } from './list-view';
 export type {
   ListViewSection,
@@ -21,6 +114,7 @@ export {
   byField,
   chainComparators,
   useClientListFilter,
+  useQueryListSource,
   defineSearch,
   defineFilter,
   defineSort,
@@ -32,6 +126,8 @@ export type {
   Comparator,
   TextMatcherOptions,
   ClientListFilterOptions,
+  ExternalListSource,
+  QueryResultLike,
   ListViewSpec,
   ListSource,
   SearchSpec,
@@ -61,12 +157,28 @@ export type {
   SortKeyOf,
 } from './list-view';
 
+export { TreeView, buildVisibleTreeRows, isChainExpanded, isTreeBranch } from './tree-view';
+export type {
+  BuildVisibleTreeRowsOptions,
+  TreeNode,
+  TreeRow,
+  TreeViewHandle,
+  TreeViewProps,
+} from './tree-view';
+
 export { PageLayout } from './page-layout';
 export type {
   PageLayoutProps,
   PageSidebarProps,
   PageContentProps,
   PageNavItem,
+  PageNavDivider,
+  PageNavSection,
+  PageSidebarMenuItem,
   PageSidebarMenuProps,
   PageHeaderProps,
 } from './page-layout';
+
+export { SettingsCard, type SettingsCardProps } from './settings';
+export { SettingsRow, type SettingsRowProps } from './settings';
+export { SettingsSection, type SettingsSectionProps } from './settings';

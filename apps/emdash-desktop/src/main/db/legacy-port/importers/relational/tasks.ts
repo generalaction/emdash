@@ -1,5 +1,5 @@
-import { toStoredBranch } from '@main/core/tasks/stored-branch';
-import { tasks } from '@main/db/schema';
+import { tasks } from '@core/services/app-db/node/schema';
+import { toStoredBranch } from '@core/services/app-db/node/stored-branch';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toInteger, toIsoTimestamp, toTrimmedString } from './helpers';
 import { insertWithRegeneratedId } from './insert';

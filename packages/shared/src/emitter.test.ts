@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { Emitter } from './emitter';
+import { describe, expect, it, vi } from 'vitest';
+import { createEmitter } from './emitter';
 
 describe('Emitter', () => {
   it('delivers values to all subscribers and supports unsubscribe', () => {
-    const emitter = new Emitter<number>();
+    const emitter = createEmitter<number>();
     const first: number[] = [];
     const second: number[] = [];
 
@@ -21,7 +21,7 @@ describe('Emitter', () => {
   });
 
   it('tolerates unsubscribe during emit', () => {
-    const emitter = new Emitter<string>();
+    const emitter = createEmitter<string>();
     const seen: string[] = [];
     const unsubscribe = emitter.subscribe(() => {
       unsubscribe();
@@ -36,7 +36,7 @@ describe('Emitter', () => {
   });
 
   it('clears all subscribers', () => {
-    const emitter = new Emitter<number>();
+    const emitter = createEmitter<number>();
     const seen: number[] = [];
     emitter.subscribe((value) => seen.push(value));
 
@@ -45,5 +45,51 @@ describe('Emitter', () => {
 
     expect(seen).toEqual([]);
     expect(emitter.size).toBe(0);
+  });
+
+  it('isolates subscriber failures and continues delivery', () => {
+    const error = new Error('boom');
+    const onSubscriberError = vi.fn();
+    const emitter = createEmitter<number>({ onSubscriberError });
+    const seen: number[] = [];
+    emitter.subscribe(() => {
+      throw error;
+    });
+    emitter.subscribe((value) => seen.push(value));
+
+    expect(() => emitter.emit(1)).not.toThrow();
+
+    expect(seen).toEqual([1]);
+    expect(onSubscriberError).toHaveBeenCalledWith({ error });
+  });
+
+  it('does not expose emitted values to the subscriber error reporter', () => {
+    const onSubscriberError = vi.fn();
+    const emitter = createEmitter<{ secret: string }>({ onSubscriberError });
+    emitter.subscribe(() => {
+      throw new Error('boom');
+    });
+
+    emitter.emit({ secret: 'do-not-report' });
+
+    expect(onSubscriberError).toHaveBeenCalledTimes(1);
+    expect(onSubscriberError.mock.calls[0]?.[0]).not.toHaveProperty('value');
+  });
+
+  it('isolates subscriber error reporter failures', () => {
+    const emitter = createEmitter<number>({
+      onSubscriberError() {
+        throw new Error('report failed');
+      },
+    });
+    const seen: number[] = [];
+    emitter.subscribe(() => {
+      throw new Error('boom');
+    });
+    emitter.subscribe((value) => seen.push(value));
+
+    expect(() => emitter.emit(1)).not.toThrow();
+
+    expect(seen).toEqual([1]);
   });
 });

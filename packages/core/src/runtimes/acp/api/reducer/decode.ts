@@ -1,0 +1,246 @@
+/**
+ * Baseline ACP SessionUpdate decoder.
+ *
+ * Converts raw ACP SDK SessionUpdate notifications into the parser's internal
+ * NormalizedEvent vocabulary. This is the parser-owned equivalent of the
+ * legacy toAgentUpdate in agent-update.ts — it is stateless, pure, and
+ * handles all ACP-specific decoding:
+ *
+ *   - Extracts text from content blocks for message and thinking variants.
+ *   - Extracts diff blocks from ToolCallContent arrays.
+ *   - Passes status and kind through unchanged (no UI-level remapping here).
+ *   - Preserves missing message ids for the stateful reducer to segment.
+ *   - Sets parentToolCallId to null (providers enrich via EnrichHook).
+ *   - Returns { kind: 'ignored' } for variants not yet rendered.
+ */
+
+import type { SessionUpdate, ToolCallContent, ToolCallLocation } from '@agentclientprotocol/sdk';
+import type {
+  NormalizedDiff,
+  NormalizedEvent,
+  NormalizedToolLocation,
+  NormalizedToolStatus,
+} from './normalized-event';
+
+function extractDiffs(
+  content: ReadonlyArray<ToolCallContent> | null | undefined
+): NormalizedDiff[] {
+  if (!content) return [];
+  const diffs: NormalizedDiff[] = [];
+  for (const block of content) {
+    if (block.type === 'diff') {
+      diffs.push({ path: block.path, oldText: block.oldText ?? null, newText: block.newText });
+    }
+  }
+  return diffs;
+}
+
+function extractLocations(
+  locations: ReadonlyArray<ToolCallLocation> | null | undefined
+): NormalizedToolLocation[] {
+  return (locations ?? []).map((location) => ({
+    path: location.path,
+    ...(location.line !== undefined && location.line !== null ? { line: location.line } : {}),
+  }));
+}
+
+function hasOwnField<T extends object>(value: T, field: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, field);
+}
+
+function collectTextPayload(value: unknown, parts: string[]): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextPayload(item, parts);
+    return;
+  }
+
+  const raw = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (raw.type === 'text' && typeof raw.text === 'string') {
+    parts.push(raw.text);
+    return;
+  }
+  collectTextPayload(raw.content, parts);
+}
+
+function stripSingleCodeFence(text: string): string {
+  const trimmed = text.trim();
+  const match = /^```[^\n]*\n([\s\S]*?)\n```$/.exec(trimmed);
+  return match ? match[1] : text;
+}
+
+function extractTextOutput(
+  content: ReadonlyArray<ToolCallContent> | null | undefined
+): string | undefined {
+  if (!content) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    const raw = block as { type?: unknown; content?: unknown; text?: unknown };
+    if (raw.type === 'content') {
+      collectTextPayload(raw.content, parts);
+    } else if (raw.type === 'text' && typeof raw.text === 'string') {
+      parts.push(raw.text);
+    }
+  }
+  const text = parts.join('\n');
+  return text ? stripSingleCodeFence(text) : undefined;
+}
+
+function extractTerminalId(update: SessionUpdate): string | undefined {
+  const raw = update as unknown as { terminalId?: unknown; terminal_id?: unknown };
+  if (typeof raw.terminalId === 'string') return raw.terminalId;
+  if (typeof raw.terminal_id === 'string') return raw.terminal_id;
+  return undefined;
+}
+
+/**
+ * Provider-supplied one-line purpose of a tool call. Checked on the update
+ * itself and inside `rawInput` (Claude Code's Bash tool carries a
+ * `description` argument there, and only on the `tool_call_update` that also
+ * delivers the command).
+ */
+function extractInputSummary(update: SessionUpdate): string | undefined {
+  const raw = update as unknown as {
+    inputSummary?: unknown;
+    input_summary?: unknown;
+    description?: unknown;
+    rawInput?: { description?: unknown } | null;
+  };
+  if (typeof raw.inputSummary === 'string') return raw.inputSummary;
+  if (typeof raw.input_summary === 'string') return raw.input_summary;
+  if (typeof raw.description === 'string') return raw.description;
+  if (typeof raw.rawInput?.description === 'string') return raw.rawInput.description;
+  return undefined;
+}
+
+/**
+ * Decode a raw ACP SessionUpdate into a NormalizedEvent.
+ * Stateless — does not depend on turn or session context.
+ */
+export function decodeSessionUpdate(update: SessionUpdate): NormalizedEvent {
+  switch (update.sessionUpdate) {
+    case 'user_message_chunk': {
+      if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
+      return {
+        kind: 'message',
+        role: 'user',
+        messageId: update.messageId ?? null,
+        text: update.content.text,
+      };
+    }
+
+    case 'agent_message_chunk': {
+      if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
+      return {
+        kind: 'message',
+        role: 'assistant',
+        messageId: update.messageId ?? null,
+        text: update.content.text,
+      };
+    }
+
+    case 'agent_thought_chunk': {
+      if (update.content.type !== 'text' || !update.content.text) return { kind: 'ignored' };
+      return {
+        kind: 'thinking',
+        messageId: update.messageId ?? null,
+        text: update.content.text,
+      };
+    }
+
+    case 'tool_call': {
+      const terminalId = extractTerminalId(update);
+      const inputSummary = extractInputSummary(update);
+      return {
+        kind: 'tool_call',
+        toolCallId: update.toolCallId,
+        title: update.title,
+        toolKind: update.kind ?? null,
+        status: (update.status as NormalizedToolStatus | undefined) ?? null,
+        parentToolCallId: null,
+        diffs: extractDiffs(update.content),
+        locations: extractLocations(update.locations),
+        ...(inputSummary !== undefined ? { inputSummary } : {}),
+        ...(terminalId !== undefined ? { terminalId } : {}),
+      };
+    }
+
+    case 'tool_call_update': {
+      const inputSummary = extractInputSummary(update);
+      const outputText = extractTextOutput(update.content ?? undefined);
+      const terminalId = extractTerminalId(update);
+      const hasContent = hasOwnField(update, 'content');
+      const hasLocations = hasOwnField(update, 'locations');
+      return {
+        kind: 'tool_update',
+        toolCallId: update.toolCallId,
+        parentToolCallId: null,
+        ...(hasOwnField(update, 'title') ? { title: update.title ?? null } : {}),
+        ...(hasOwnField(update, 'kind') ? { toolKind: update.kind ?? null } : {}),
+        ...(hasOwnField(update, 'status')
+          ? { status: (update.status as NormalizedToolStatus | undefined | null) ?? null }
+          : {}),
+        ...(hasContent ? { diffs: extractDiffs(update.content) } : {}),
+        ...(hasLocations ? { locations: extractLocations(update.locations) } : {}),
+        ...(inputSummary !== undefined ? { inputSummary } : {}),
+        ...(outputText !== undefined ? { outputText } : {}),
+        ...(terminalId !== undefined ? { terminalId } : {}),
+      };
+    }
+
+    case 'plan': {
+      return {
+        kind: 'plan',
+        entries: update.entries.map((e) => ({
+          content: e.content,
+          status: e.status,
+          priority: e.priority,
+        })),
+      };
+    }
+
+    case 'config_option_update': {
+      const raw = update as unknown as { configOptions?: unknown };
+      const options = Array.isArray(raw.configOptions) ? raw.configOptions : [];
+      return { kind: 'config', options };
+    }
+
+    case 'current_mode_update': {
+      const raw = update as unknown as { currentModeId?: string };
+      if (!raw.currentModeId) return { kind: 'ignored' };
+      return { kind: 'mode_selected', modeId: raw.currentModeId };
+    }
+
+    case 'available_commands_update': {
+      const raw = update as unknown as { availableCommands?: unknown };
+      const commands = Array.isArray(raw.availableCommands) ? raw.availableCommands : [];
+      return { kind: 'commands', commands };
+    }
+
+    case 'usage_update': {
+      const raw = update as unknown as {
+        used?: number;
+        size?: number;
+        cost?: { amount?: number; currency?: string } | null;
+      };
+      const contextUsed = raw.used ?? 0;
+      const contextSize = raw.size ?? 0;
+      const cost =
+        raw.cost && typeof raw.cost.amount === 'number' && raw.cost.currency
+          ? { amount: raw.cost.amount, currency: raw.cost.currency }
+          : null;
+      return { kind: 'usage', usage: { contextUsed, contextSize, cost } };
+    }
+
+    case 'session_info_update': {
+      const raw = update as unknown as { title?: string };
+      if (!raw.title) return { kind: 'ignored' };
+      return { kind: 'title', title: raw.title };
+    }
+
+    // plan_update and plan_removed are UNSTABLE/ID-based ACP variants gated
+    // behind PlanCapabilities — not emitted by Claude. Ignored for now.
+    default:
+      return { kind: 'ignored' };
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * ToolGroup stories — hierarchical tool calls rendered as collapsible composite rows.
  *
- * Running collapsed groups show a child preview. Settled collapsed groups are
+ * Collapsed groups are a single header line in every status; running groups shimmer. They stay
  * header-only until expanded. No visual inset between levels.
  */
 
@@ -74,16 +74,30 @@ function toolGroupNode(
   seq: number,
   label: string,
   children: ToolNode[],
-  status: ToolStatus = 'done'
+  status: ToolStatus = 'done',
+  groupKind: 'read-batch' | 'tool-run' = 'read-batch'
 ): ToolNode {
   return {
     kind: 'tool-group',
     id,
     seq,
     label,
-    groupKind: 'read-batch',
+    groupKind,
     status,
     children,
+  };
+}
+
+function mcpNode(id: string, seq: number, tool: string, status: ToolStatus = 'done'): ToolNode {
+  return {
+    kind: 'mcp-tool-call',
+    id,
+    seq,
+    toolCallId: id,
+    title: tool,
+    tool,
+    server: 'chrome-devtools',
+    status,
   };
 }
 
@@ -245,6 +259,35 @@ export const Streaming: Story = {
           fn: (api) => api.activeTurn.commit('done'),
         },
       ]}
+    />
+  ),
+};
+
+/**
+ * A run of contiguous commands and MCP calls folded by the reducer into one
+ * "Ran 2 commands, used a tool" line. Children keep their own row renderers.
+ */
+export const ToolRunMixed: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        turn(
+          { kind: 'message', id: 'u-run', seq: 0, role: 'user', text: 'Check the page and commit' },
+          toolGroupNode(
+            'run-1:group',
+            1,
+            'Ran 2 commands, used a tool',
+            [
+              executeNode('run-1', 1, 'git status'),
+              mcpNode('run-2', 2, 'navigate_page'),
+              executeNode('run-3', 3, 'git commit -m "wip"'),
+            ],
+            'done',
+            'tool-run'
+          )
+        ),
+      ]}
+      height={160}
     />
   ),
 };

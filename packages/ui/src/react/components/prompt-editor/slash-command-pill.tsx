@@ -28,7 +28,7 @@ export function SlashCommandPill({ node, deleteNode }: NodeViewProps) {
       >
         {/* Slash prefix area — relative so the ✕ overlay is positioned inside it */}
         <span className={styles.pillIconArea} aria-hidden="true">
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, lineHeight: 1 }}>/</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 400, lineHeight: 1 }}>/</span>
           {/* Hover-x: overlaid over the prefix on pill-hover */}
           <button
             type="button"

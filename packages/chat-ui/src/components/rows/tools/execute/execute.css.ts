@@ -15,6 +15,18 @@ globalStyle(`${executeBody}::-webkit-scrollbar`, {
   height: 'var(--execute-scrollbar-size)',
 });
 
+// ── Header ────────────────────────────────────────────────────────────────────
+
+/** Header title when it shows the command itself (no provider description). */
+export const executeHeaderCommand = style({
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: vars.typeCodeFontSize,
+  fontFamily: vars.typeCodeFontFamily,
+});
+
 // ── Line ──────────────────────────────────────────────────────────────────────
 
 export const executeLine = style({
@@ -32,6 +44,12 @@ export const executeOutputLine = style({
 });
 
 export const executeSpacerLine = style({
+  userSelect: 'none',
+});
+
+export const executeTruncatedLine = style({
+  color: vars.fgPassive,
+  fontStyle: 'italic',
   userSelect: 'none',
 });
 
