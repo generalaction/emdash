@@ -1,4 +1,13 @@
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ok } from '@emdash/shared';
@@ -266,6 +275,58 @@ describe('files runtime absolute-path content', () => {
       await dispose();
     }
   });
+
+  it.each(['directory', 'file'] as const)(
+    'reads and edits an external %s symlink',
+    async (kind) => {
+      const workspace = await makeDir();
+      const outside = await makeDir();
+      const outsideFile = path.join(outside, 'target.txt');
+      await writeFile(outsideFile, 'outside\n');
+      try {
+        await symlink(
+          kind === 'directory' ? outside : outsideFile,
+          path.join(workspace, 'linked'),
+          kind === 'directory' ? 'dir' : 'file'
+        );
+      } catch {
+        return;
+      }
+      const { connection, dispose } = await makeRuntime();
+      const key = {
+        path: runtimeRoot(
+          path.join(workspace, 'linked', ...(kind === 'directory' ? ['target.txt'] : []))
+        ),
+      };
+
+      try {
+        const snapshot = await connection.api.content.state(key, 'content').snapshot();
+        expect(snapshot.data).toMatchObject({
+          kind: 'text',
+          content: 'outside\n',
+          readonly: false,
+        });
+        if (snapshot.data.kind !== 'text') throw new Error('Expected text content');
+
+        await expect(
+          connection.api.content.mutate('write', {
+            key,
+            input: {
+              content: 'changed\n',
+              precondition: { kind: 'etag', etag: snapshot.data.etag },
+            },
+          })
+        ).resolves.toMatchObject({ success: true });
+        await expect(readFile(outsideFile, 'utf8')).resolves.toBe('changed\n');
+        await expect(connection.api.fs.readText(key)).resolves.toMatchObject({
+          success: true,
+          data: { content: 'changed\n' },
+        });
+      } finally {
+        await dispose();
+      }
+    }
+  );
 
   it('rejects the filesystem root itself as an absolute file key', async () => {
     const { connection, dispose } = await makeRuntime();
