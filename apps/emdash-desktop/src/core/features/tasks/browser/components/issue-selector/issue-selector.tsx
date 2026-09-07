@@ -182,7 +182,7 @@ export const IssueSelector = observer(function IssueSelector({
   );
 
   const leftAddon = issueProvider ? (
-    connectedProviderCount > 1 ? (
+    connectedProviderCount > 1 || issueProviderOrder.length > 1 ? (
       <Select.Root
         value={issueProvider}
         onValueChange={(v) => v && handleSelectIssueProvider(v as LinkedIssue['provider'])}
