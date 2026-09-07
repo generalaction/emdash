@@ -195,6 +195,8 @@ export interface ChatComposerProps {
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
   showSubmitButton?: boolean;
+  /** Host-owned serialized editor value. Omit to keep the editor internally managed. */
+  value?: string;
   /** Override the idle editor placeholder. Disabled/working placeholders still take precedence. */
   placeholder?: string;
 
@@ -652,6 +654,7 @@ export function ChatComposer({
   isWorking = false,
   canSubmit = true,
   showSubmitButton = true,
+  value,
   placeholder,
   agentOptions,
   selectedAgent,
@@ -952,6 +955,7 @@ export function ChatComposer({
                 }
               }
             }}
+            value={value}
             placeholder={resolvedPlaceholder}
             disabled={disabled}
             onChange={(text) => {
