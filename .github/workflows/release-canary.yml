@@ -49,8 +49,9 @@ jobs:
     with:
       channel: canary
       release_id: ${{ needs.prepare-release.outputs.release_id }}
-      posthog_key: ${{ vars.POSTHOG_PROJECT_API_KEY }}
-      posthog_host: ${{ vars.POSTHOG_HOST }}
+    secrets:
+      POSTHOG_PROJECT_API_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+      POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
 
   release-win:
     needs: [prepare-release]
@@ -62,8 +63,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
-          posthog-key: ${{ vars.POSTHOG_PROJECT_API_KEY }}
-          posthog-host: ${{ vars.POSTHOG_HOST }}
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
           build-variant: canary
           windows-native: 'true'
       - name: Export Python path for native modules
@@ -133,8 +134,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
-          posthog-key: ${{ vars.POSTHOG_PROJECT_API_KEY }}
-          posthog-host: ${{ vars.POSTHOG_HOST }}
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
           build-variant: canary
 
       - name: Import Apple signing certificate
