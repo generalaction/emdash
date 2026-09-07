@@ -628,8 +628,12 @@ const ComposerForStore = observer(function ComposerForStore({
           attachments={attachments}
           onAttachmentsChange={handleAttachmentsChange}
           onAttach={store.liveActionsEnabled ? handleAttach : undefined}
-          onImageFilesDropped={(files) => void addImageFiles(files)}
-          onFilesDropped={(files) => void handleFilesDropped(files)}
+          onImageFilesDropped={
+            store.liveActionsEnabled ? (files) => void addImageFiles(files) : undefined
+          }
+          onFilesDropped={
+            store.liveActionsEnabled ? (files) => void handleFilesDropped(files) : undefined
+          }
           onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
         />
       </div>
