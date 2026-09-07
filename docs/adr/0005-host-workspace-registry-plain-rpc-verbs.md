@@ -39,16 +39,35 @@ The shipped desktop-owned Workspace shape requires one production cutover before
 That backfill classifies legacy rows, preserves dependency closure, registers existing paths
 parent-first, accepts Host-returned canonical ids, and atomically translates Project, Task,
 child-parent, and config bindings. The first released Host registry starts empty, so the ordinary
-single-desktop cutover preserves every legacy id; translation exists for a Host that already learned
-the path during that cutover, including another desktop or scanner adoption. A legacy row whose path
+single-desktop cutover preserves the proposed id for each distinct directory. Legacy path aliases
+(including Windows separator/case variants), another desktop, or scanner adoption can resolve to
+an already registered id. A legacy row whose path
 is absent or already missing stays
 desktop-side; normal Observe missing/untrack rules apply after cutover. The cutover never manufactures
 a Host record without an artifact to inspect. A versioned per-Host completion marker is written only
-at a stable fixed point; failures gate snapshot and reconcile attachment. One internal path-based
-UUID translation seam serves exactly two explicit workflows: the production backfill and repository
-initialization when the Host resolves the Project path to another canonical record. It moves every
-desktop binding transactionally and remains outside the general Registry API; Claim and Observe
-never call it.
+at a stable fixed point; failures gate snapshot and reconcile attachment.
+
+Backfill version 3 resolves all preserved rows on their owning Host before making desktop claims.
+It groups them by Host-returned UUID, then consolidates the entire resolved plan in one desktop
+transaction. Obsolete aliases release their paths before canonical records are claimed. Task,
+Project, child-parent, and embedded workspace-config references move to the canonical ids. The same
+path on different Hosts remains distinct. Pending deletion tombstones and genuine id reuse at a
+different directory are not duplicate-path repairs.
+
+When a group contains multiple active Projects, the Project already bound to the canonical UUID
+wins; otherwise the oldest Project wins, with id as the tie-breaker. Tasks, conversations, terminals,
+automations, and notification links move to that Project without changing their ids. Its explicit
+settings win, absent fields are filled in stable Project order, script commands merge by verb, and
+arrays and structured choices remain whole values. Workspace provenance prefers the canonical row's
+config, then the oldest non-null source config. Original workspace rows (including raw config),
+Projects, and settings are retained in versioned `workspace-registry-backfill-recovery:*` KV entries;
+obsolete rows are untracked/soft-deleted without executing normal deletion or touching disk. Changed
+automation definitions advance their revision so subsequent deployment accepts the repaired definition.
+The transaction and Host registration are retryable; version-2 completion markers are reprocessed.
+
+This consolidation is migration-only. Repository initialization retains its separate, strict
+old-id-to-canonical-id translation seam. Neither general Registry Claim nor snapshot Observe merges
+identities or skips collisions.
 
 ## Why plain RPCs
 
