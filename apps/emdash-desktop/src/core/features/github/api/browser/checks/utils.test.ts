@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CheckRun } from './types';
-import { computeCheckBucket, sortCheckRunsByLatest } from './utils';
+import { computeCheckBucket, formatCheckDuration, sortCheckRunsByLatest } from './utils';
 
 function makeCheck(overrides: Partial<CheckRun> = {}): CheckRun {
   return {
@@ -31,6 +31,14 @@ describe('computeCheckBucket', () => {
     expect(
       computeCheckBucket(makeCheck({ status: 'COMPLETED', conclusion: 'STARTUP_FAILURE' }))
     ).toBe('fail');
+  });
+});
+
+describe('formatCheckDuration', () => {
+  it('shows seconds when the run is under a minute', () => {
+    expect(
+      formatCheckDuration('2026-07-18T09:00:00.000Z', '2026-07-18T09:00:12.000Z')
+    ).toBe('12s');
   });
 });
 
