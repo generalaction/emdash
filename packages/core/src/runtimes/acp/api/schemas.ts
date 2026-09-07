@@ -25,6 +25,8 @@ export const promptPlacementSchema = z.enum(['auto', 'queue']);
 export type PromptPlacement = z.infer<typeof promptPlacementSchema>;
 export const sendPromptCommandSchema = z.object({
   conversationId: z.string(),
+  /** Correlates session acceptance with the queue and transcript. */
+  promptId: z.string().uuid(),
   prompt: promptInputSchema,
   /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
   placement: promptPlacementSchema.optional(),

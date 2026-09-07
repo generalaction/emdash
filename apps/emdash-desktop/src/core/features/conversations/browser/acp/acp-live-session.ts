@@ -76,6 +76,16 @@ export class AcpStartError extends Error {
   }
 }
 
+export class AcpPromptDeliveryUnknownError extends Error {
+  constructor(
+    readonly promptId: string,
+    cause: unknown
+  ) {
+    super('The connection interrupted confirmation of prompt delivery', { cause });
+    this.name = 'AcpPromptDeliveryUnknownError';
+  }
+}
+
 export class AcpLiveSession {
   readonly sessionState: RemoteValueState<SessionState>;
   readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
@@ -201,14 +211,19 @@ export class AcpLiveSession {
     return { success: true, data: result.data.log };
   }
 
-  sendPrompt(
+  async sendPrompt(
     prompt: PromptInput,
     placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt(
-      { conversationId: this.conversationId, prompt, placement },
-      { timeoutMs: 0 }
-    );
+    const promptId = crypto.randomUUID();
+    try {
+      return await this.client.sendPrompt(
+        { conversationId: this.conversationId, promptId, prompt, placement },
+        { timeoutMs: 0 }
+      );
+    } catch (error) {
+      throw new AcpPromptDeliveryUnknownError(promptId, error);
+    }
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {

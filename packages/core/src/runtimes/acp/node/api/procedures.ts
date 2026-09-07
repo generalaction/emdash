@@ -39,16 +39,18 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     terminate(input: { conversationId: string }): Promise<Result<void, AcpTerminateError>> {
       return runtime.terminateSession(input.conversationId);
     },
-    async sendPrompt(input: {
+    sendPrompt(input: {
       conversationId: string;
+      promptId: string;
       prompt: PromptInput;
       placement?: PromptPlacement;
     }): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-      const result = await runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
-      if (!result.success && isAcpWakeFailure(result.error)) {
-        return acpErr.promptFailed(wakeFailureCause(result.error));
-      }
-      return result as Result<{ queued: boolean }, AcpSendPromptError>;
+      return runtime.sendPrompt(
+        input.conversationId,
+        input.prompt,
+        input.placement,
+        input.promptId
+      );
     },
     editQueuedPrompt(input: {
       conversationId: string;

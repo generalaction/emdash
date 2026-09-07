@@ -42,7 +42,7 @@ import {
   type SessionMachineContext,
 } from '#runtimes/acp/node/machine/machine';
 import { createMachineEffectDriver, type MachineEffectDriver } from '../machine/primitive';
-import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
+import type { PromptAcceptance, SessionCellDeps, SessionPromptResult } from './cell-deps';
 import { PermissionBroker } from './permission-broker';
 import { RawAcpLog, type RawAcpEvent } from './raw-log';
 
@@ -227,24 +227,33 @@ export class SessionCell {
     this.emitTranscriptChanged();
   }
 
-  async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
+  async prompt(
+    input: PromptInput,
+    acceptance?: PromptAcceptance
+  ): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
     const now = Date.now();
-    const result = await this.sendPromptInternal({
-      id: crypto.randomUUID(),
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const result = await this.sendPromptInternal(
+      {
+        id: acceptance?.id ?? crypto.randomUUID(),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      },
+      acceptance
+    );
     return result;
   }
 
-  queuePrompt(input: PromptInput): Result<void, InvalidStateError> {
+  queuePrompt(
+    input: PromptInput,
+    id: string = crypto.randomUUID()
+  ): Result<void, InvalidStateError> {
     const now = Date.now();
     const result = this.dispatchFor<InvalidStateError>(
       {
         type: 'QueuePrompt',
         prompt: {
-          id: crypto.randomUUID(),
+          id,
           ...input,
           createdAt: now,
           updatedAt: now,
@@ -491,7 +500,8 @@ export class SessionCell {
   }
 
   private async sendPromptInternal(
-    prompt: QueuedPrompt
+    prompt: QueuedPrompt,
+    acceptance?: PromptAcceptance
   ): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
     const decision = this.dispatchFor<AcpSendPromptError>({ type: 'Prompt', prompt }, [
       'invalid_state',
@@ -500,13 +510,17 @@ export class SessionCell {
     const started = decision.data.some(
       (effect) => effect.type === 'agentEvent' && effect.phase === 'start'
     );
-    if (!started) return ok({ queued: true });
+    if (!started) {
+      acceptance?.onAccepted({ queued: true });
+      return ok({ queued: true });
+    }
 
     const messageId = `${this.conversationId}-${this.machine.nextTurnIndex}-user`;
     this.transcript.pushEvent({
       kind: 'message',
       role: 'user',
       messageId,
+      promptId: prompt.id,
       text: prompt.text,
       ...(prompt.attachments?.length
         ? {
@@ -521,11 +535,13 @@ export class SessionCell {
     this.emitTranscriptChanged();
 
     try {
-      const resolvedAttachments = await Promise.all(
-        (prompt.attachments ?? []).map((attachment) =>
-          this.deps.resolveAttachment(this.deps.conversationId, attachment)
-        )
-      );
+      const resolvedAttachments =
+        acceptance?.resolvedAttachments ??
+        (await Promise.all(
+          (prompt.attachments ?? []).map((attachment) =>
+            this.deps.resolveAttachment(this.deps.conversationId, attachment)
+          )
+        ));
       const promptRequest = {
         sessionId: this.acpSessionId,
         prompt: [
@@ -543,6 +559,7 @@ export class SessionCell {
         sessionId: this.acpSessionId,
         content: promptRequest.prompt,
       });
+      acceptance?.onAccepted({ queued: false });
       const response = await this.deps.agent.prompt(promptRequest);
       this.rawLog.record({
         kind: 'prompt_result',
