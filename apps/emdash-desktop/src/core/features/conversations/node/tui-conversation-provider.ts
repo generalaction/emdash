@@ -181,13 +181,12 @@ function resolveAgentSession(
   mode: 'start' | 'resume'
 ): { sessionId: string; isResuming: boolean } {
   const isResuming = mode === 'resume';
+  const nativeSessionId = conversation.sessionId;
+  const hasNativeSessionId = Boolean(nativeSessionId) && nativeSessionId !== conversation.id;
   if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
-    const nativeSessionId = conversation.sessionId;
-    if (nativeSessionId && nativeSessionId !== conversation.id) {
-      return { sessionId: nativeSessionId, isResuming: true };
-    }
+    if (hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming: true };
     return { sessionId: conversation.id, isResuming: false };
   }
-
+  if (isResuming && hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming };
   return { sessionId: conversation.id, isResuming };
 }
