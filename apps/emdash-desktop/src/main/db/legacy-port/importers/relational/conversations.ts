@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { makeLegacyTmuxSessionName } from '@emdash/core/services/pty/api';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -182,7 +182,7 @@ function legacyPtyLookupKey(providerId: string, suffix: string): string {
   return `${providerId}:${suffix}`;
 }
 
-function makeLegacyTmuxSessionName(legacyPtyId: string): string {
+function makeV0TmuxSessionName(legacyPtyId: string): string {
   return `emdash-${legacyPtyId.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
 }
 
@@ -323,27 +323,27 @@ async function renameLegacyTmuxSession(params: {
   const { tmuxExec, legacyPtyId, mappedProjectId, mappedTaskId, conversationId } = params;
   if (!tmuxExec || !legacyPtyId) return;
 
-  const oldName = makeLegacyTmuxSessionName(legacyPtyId);
-  const newName = makeTmuxSessionName(
+  const oldName = makeV0TmuxSessionName(legacyPtyId);
+  const newName = makeLegacyTmuxSessionName(
     makePtySessionId(mappedProjectId, mappedTaskId, conversationId)
   );
   if (oldName === newName) return;
 
   try {
-    await tmuxExec('tmux', ['has-session', '-t', oldName]);
+    await tmuxExec('tmux', ['has-session', '-t', `=${oldName}`]);
   } catch {
     return;
   }
 
   try {
-    await tmuxExec('tmux', ['has-session', '-t', newName]);
+    await tmuxExec('tmux', ['has-session', '-t', `=${newName}`]);
     return;
   } catch {
     // Expected when the v1 session name has not been created yet.
   }
 
   try {
-    await tmuxExec('tmux', ['rename-session', '-t', oldName, newName]);
+    await tmuxExec('tmux', ['rename-session', '-t', `=${oldName}`, newName]);
   } catch (error) {
     log.debug('legacy-port: conversations: failed to rename legacy tmux session', {
       legacyPtyId,
