@@ -404,7 +404,9 @@ export class PullRequestService {
         .listRegisteredRepositories()
         .map(
           async ({ repositoryUrl }) =>
-            await this.syncWithPriority(repositoryUrl, requestPriorities.background)
+            await this.startSync(repositoryUrl, (signal) =>
+              this.engine.sync(repositoryUrl, signal, requestPriorities.background)
+            )
         )
     );
   }
