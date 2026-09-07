@@ -1,11 +1,17 @@
-import type { CanonicalHookEvent, HookRegistration, PluginFs } from '@emdash/core/agents/plugins';
+import type {
+  CanonicalHookEvent,
+  HookRegistration,
+  PluginFs,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
+  configRoots,
   defaultHookEventParser,
+  homeConfigRoot,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const CODEBUDDY_SETTINGS_PATH = '.codebuddy/settings.local.json';
+export const CODEBUDDY_SETTINGS_PATH = 'settings.json';
 
 function validateCodeBuddySettings(content: string | null): void {
   if (content === null) return;
@@ -69,6 +75,7 @@ export function buildCodeBuddyHookConfig() {
 
   return {
     ...hooks,
+    resolveConfigRoots: configRoots(homeConfigRoot('.codebuddy')),
     async writeHooks(fs: PluginFs, registrations: HookRegistration[]): Promise<string[]> {
       return hooks.writeHooks(createStrictCodeBuddySettingsFs(fs), registrations);
     },

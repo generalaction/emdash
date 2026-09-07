@@ -1,5 +1,8 @@
 import type { CommandContext, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
+import {
+  buildNestedEntry,
+  makeStdinHookCommand,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { CODEBUDDY_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -42,7 +45,7 @@ describe('codebuddy provider', () => {
     expect(provider.capabilities.autoApprove.kind).toBe('supported');
     expect(provider.capabilities.hooks).toEqual({
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use-failure'],
     });
     expect(provider.capabilities.mcp).toEqual({
@@ -134,7 +137,17 @@ describe('codebuddy provider', () => {
     });
   });
 
-  it('installs lifecycle hooks in CodeBuddy project-local settings', async () => {
+  it('resolves CodeBuddy hooks to the user-global config directory', () => {
+    expect(
+      provider.behavior.hooks!.resolveConfigRoots({
+        env: {},
+        homeDir: '/home/test',
+        platform: 'linux',
+      })
+    ).toEqual(['/home/test/.codebuddy']);
+  });
+
+  it('installs lifecycle hooks in CodeBuddy global settings', async () => {
     const files = new Map<string, string>([
       [
         CODEBUDDY_SETTINGS_PATH,
