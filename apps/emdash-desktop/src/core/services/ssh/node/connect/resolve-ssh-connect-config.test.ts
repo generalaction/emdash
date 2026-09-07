@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { secret } from '@emdash/shared';
-import type { BaseAgent, ParsedKey, SignCallback } from 'ssh2';
-import { utils } from 'ssh2';
+import type { ParsedKey, SignCallback } from 'ssh2';
+import { BaseAgent, utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
@@ -318,6 +318,35 @@ describe('resolveSshConnectConfig', () => {
         });
       })
     ).resolves.toBeInstanceOf(PassThrough);
+  });
+
+  it('produces an agent ssh2 accepts: IdentityFilteredAgent must pass the instanceof check', async () => {
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+      },
+      deps({
+        readFile: async () =>
+          'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key',
+        resolveSshConfig: async () => ({
+          hostname: 'dev.internal',
+          user: 'alice',
+          port: 22,
+          identityFile: ['~/.ssh/corp_ed25519'],
+          identityAgent: '/tmp/auth-agent.sock',
+          identityAgentDisabled: false,
+          identitiesOnly: true,
+          proxyCommand: undefined,
+          proxyJump: undefined,
+          forwardAgent: false,
+        }),
+      })
+    );
+
+    // ssh2's client config validation keeps a custom agent only when
+    // isAgent(val) holds, and isAgent is `val instanceof BaseAgent`.
+    expect(result.config.agent).toBeInstanceOf(BaseAgent);
   });
 
   it('does not expose agent getStream when the wrapped agent does not support it', async () => {
