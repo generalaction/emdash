@@ -1,6 +1,6 @@
-import type { Conversation } from '@core/primitives/conversations/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Conversation } from '@core/primitives/conversations/api';
 import {
   TuiConversationProvider,
   type TuiConversationProviderOptions,
