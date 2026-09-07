@@ -121,7 +121,11 @@ Startup/authentication failures are returned before acceptance. Provider failure
 are published through the existing session and transcript state. Callers that need completion
 observe that state; the send acknowledgement no longer means the turn has finished.
 
-The desktop subscribes before submission and refreshes snapshots after reattachment. A client
+The desktop subscribes before submission and refreshes both live snapshots and committed history
+after reattachment, even when no active turn was observed before the outage. History reads are
+fenced to the current attachment and retried after transient failure; a newly active turn defers
+history replacement until its completion. The optimistic row shares the submission's client prompt
+id, so history clears only the corresponding row and preserves newer submissions. A client
 prompt id follows the existing queue and synthesized user transcript message so a lost acknowledgement
 can be reconciled without matching text. Wire marks failures known to occur before posting as
 "not-sent", including held-call overflow and cancellation or disposal before posting. This evidence

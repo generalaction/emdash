@@ -417,10 +417,14 @@ describe('AcpChatStore prompt submission', () => {
 
     resolveContext('resolved context');
     await vi.waitFor(() =>
-      expect(sendPrompt).toHaveBeenCalledWith({
-        text: 'hello',
-        hiddenContext: 'resolved context',
-      })
+      expect(sendPrompt).toHaveBeenCalledWith(
+        {
+          text: 'hello',
+          hiddenContext: 'resolved context',
+        },
+        undefined,
+        expect.any(String)
+      )
     );
   });
 
@@ -431,7 +435,9 @@ describe('AcpChatStore prompt submission', () => {
 
     store.submitPrompt('hello', [], Promise.reject(new Error('context unavailable')));
 
-    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledWith({ text: 'hello' }));
+    await vi.waitFor(() =>
+      expect(sendPrompt).toHaveBeenCalledWith({ text: 'hello' }, undefined, expect.any(String))
+    );
     expect(store.draftText).toBe('');
   });
 
@@ -550,10 +556,14 @@ describe('AcpChatStore prompt submission', () => {
     expect(store.draftText).toBe('');
     expect(store.draftAttachments).toEqual([]);
     await vi.waitFor(() =>
-      expect(sendPrompt).toHaveBeenCalledWith({
-        text: 'hello',
-        attachments: [attachment.ref],
-      })
+      expect(sendPrompt).toHaveBeenCalledWith(
+        {
+          text: 'hello',
+          attachments: [attachment.ref],
+        },
+        undefined,
+        expect.any(String)
+      )
     );
   });
 

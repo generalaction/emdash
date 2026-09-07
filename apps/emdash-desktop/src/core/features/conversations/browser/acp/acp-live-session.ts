@@ -214,9 +214,9 @@ export class AcpLiveSession {
 
   async sendPrompt(
     prompt: PromptInput,
-    placement?: PromptPlacement
+    placement?: PromptPlacement,
+    promptId: string = crypto.randomUUID()
   ): Promise<Result<{ queued: boolean }, unknown>> {
-    const promptId = crypto.randomUUID();
     try {
       return await this.client.sendPrompt(
         { conversationId: this.conversationId, promptId, prompt, placement },
