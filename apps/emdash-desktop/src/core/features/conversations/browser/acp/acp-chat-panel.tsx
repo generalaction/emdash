@@ -214,12 +214,6 @@ const ComposerForStore = observer(function ComposerForStore({
     editorApiRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    const editor = editorApiRef.current;
-    if (!editor || editor.getText() === store.draftText) return;
-    editor.setText(store.draftText);
-  }, [store, store.draftText]);
-
   const buildHiddenIssueContext = useCallback(
     (value: string) =>
       buildIssueMentionHiddenContext(value, async (target) => {
@@ -581,6 +575,7 @@ const ComposerForStore = observer(function ComposerForStore({
         <ChatComposer
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
+          value={store.draftText}
           onSubmit={handleSubmit}
           onInputChange={(text) => store.setDraftText(text)}
           onSubmitWhileWorking={a.canSubmit ? handleSubmit : undefined}
