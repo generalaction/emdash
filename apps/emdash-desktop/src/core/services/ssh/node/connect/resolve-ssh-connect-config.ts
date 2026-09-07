@@ -17,6 +17,7 @@ import {
 } from '../transport/transports';
 import { buildAuthConfig, resolveManualAgentSshConfig } from './ssh-connect-auth';
 import { applyForwardAgent } from './ssh-connect-forward-agent';
+import { createKnownHostsVerifier } from './known-hosts';
 
 const { createAgent } = ssh2;
 
@@ -107,6 +108,7 @@ export async function resolveSshConnectConfig(
     keepaliveInterval: resolved?.serverAliveInterval ? resolved.serverAliveInterval * 1000 : 60_000,
     keepaliveCountMax: resolved?.serverAliveCountMax ?? 3,
     ...authResult.config,
+    hostVerifier: createKnownHostsVerifier(host),
     strictVendor: false,
   };
 
