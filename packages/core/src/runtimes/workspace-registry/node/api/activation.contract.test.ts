@@ -243,6 +243,32 @@ describe('workspace registry activation lifecycle', () => {
     );
   });
 
+  it('runs teardown after a runtime restart when lastActivatedAt is still set', async () => {
+    const workspacePath = await makeWorkspace('cold-teardown', {
+      teardown: 'echo teardown >> teardown-log',
+    });
+
+    const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-cold-teardown' });
+    expect(activated.success).toBe(true);
+
+    wire.dispose();
+    runtime.dispose();
+    runtime = createRegistryRuntime();
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
+
+    const deactivated = await wire.client.deactivateWorkspace({ workspaceId: 'ws-cold-teardown' });
+    expect(deactivated.success).toBe(true);
+    await expect(fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).resolves.toBe(
+      'teardown\n'
+    );
+
+    const again = await wire.client.deactivateWorkspace({ workspaceId: 'ws-cold-teardown' });
+    expect(again.success).toBe(true);
+    await expect(fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).resolves.toBe(
+      'teardown\n'
+    );
+  });
+
   it('a hanging teardown is cut off at the time-box and deactivation still succeeds', async () => {
     await makeWorkspace('hanging', { teardown: 'sleep 30' });
     const activated = await wire.client.activateWorkspace({ workspaceId: 'ws-hanging' });

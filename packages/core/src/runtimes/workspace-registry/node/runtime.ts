@@ -306,7 +306,11 @@ export class WorkspaceRegistryRuntime {
         this.enqueue(async () => {
           const record = this.store.get(id);
           if (!record) return;
-          const updated: DurableWorkspaceRecord = { ...record, lastActivatedAt: at, updatedAt: at };
+          const updated: DurableWorkspaceRecord = {
+            ...record,
+            lastActivatedAt: at,
+            updatedAt: this.clock.now(),
+          };
           this.store.update(updated);
           this.publish(updated);
         }),
@@ -902,7 +906,10 @@ export class WorkspaceRegistryRuntime {
   ): Promise<WorkspaceDeactivationResult> {
     // Stop and await script-plane runs first. Killing their terminal sessions first
     // can make an intentional Stop look like a failed process exit.
-    const deactivation = await this.activationManager.deactivate(record.id);
+    const deactivation = await this.activationManager.deactivate(record.id, {
+      path: record.path,
+      lastActivatedAt: record.lastActivatedAt,
+    });
     try {
       await this.killSessions(record.path);
     } catch (error) {
