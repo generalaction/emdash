@@ -638,6 +638,52 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it.each(['retry', 'host-recovery'] as const)(
+    'reloads failed bootstrap history through %s even with a retained session',
+    async (trigger) => {
+      const hostState = observable.box<ProjectHostAccessState>({
+        kind: 'ready',
+        hostGeneration: 1,
+      });
+      const failed = fakeLiveSession(idleState(), historyPage('initial'), {
+        revalidate: vi.fn(async () => {}),
+      });
+      failed.loadHistory.mockRejectedValueOnce(new Error('History unavailable'));
+      const recovered = fakeLiveSession(idleState(), historyPage('recovered'));
+      const create = vi
+        .spyOn(AcpLiveSession, 'create')
+        .mockResolvedValueOnce(failed.session)
+        .mockResolvedValueOnce(recovered.session);
+      const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', {
+        get state() {
+          return hostState.get();
+        },
+        liveAction: { kind: 'enabled' },
+      } as never);
+      try {
+        store.bootstrap();
+        await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+        expect(store.session).toBe(failed.session);
+        expect(store.loadError?.message).toBe('History unavailable');
+        expect(historySeed).not.toHaveBeenCalled();
+
+        if (trigger === 'retry') store.retry();
+        else runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
+
+        await vi.waitFor(() =>
+          expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'recovered' })])
+        );
+        expect(failed.session.dispose).toHaveBeenCalledOnce();
+        expect(recovered.loadHistory).toHaveBeenCalledWith(undefined, 100);
+        expect(store.historyLoading).toBe(false);
+        expect(store.loadError).toBeNull();
+      } finally {
+        store.dispose();
+        create.mockRestore();
+      }
+    }
+  );
+
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
     const store = await bootstrapWithSession(live.session);

@@ -117,6 +117,7 @@ export class AcpChatStore {
   private _disposed = false;
   private _attachmentRecovery: Scope | null = null;
   private _attachedHostGeneration: number | undefined;
+  private _bootstrapFailed = false;
 
   constructor(
     readonly conversationId: string,
@@ -365,7 +366,7 @@ export class AcpChatStore {
       void this.hostAccess.recover();
       return;
     }
-    if (this.session) {
+    if (this.session && !this._bootstrapFailed) {
       const state = this.hostAccess?.state;
       this._recoverAttachment(
         this.session,
@@ -374,6 +375,8 @@ export class AcpChatStore {
       return;
     }
     if (this.historyLoading || !this.loadError) return;
+    void this._attachmentRecovery?.dispose();
+    this._attachmentRecovery = null;
     this.historyLoading = true;
     this.loadError = null;
     void this._runBootstrap();
@@ -672,6 +675,7 @@ export class AcpChatStore {
         }
         this.historyLoading = false;
         this.loadError = null;
+        this._bootstrapFailed = false;
         this._syncMessageCount();
       });
       void this._rehydrateDraftAttachmentPreviews();
@@ -684,6 +688,7 @@ export class AcpChatStore {
       });
       runInAction(() => {
         if (clientSession && this.session !== clientSession) clientSession.dispose();
+        this._bootstrapFailed = true;
         this.historyLoading = false;
         this.loadError =
           this.hostAccess?.liveAction.kind === 'disabled'
@@ -712,7 +717,9 @@ export class AcpChatStore {
             if (scope.signal.aborted || this.session !== session || !session.usable) return;
             this._attachedHostGeneration = generation;
             runInAction(() => {
-              this.loadError = null;
+              // Reattachment alone cannot recover a failed history/bootstrap load.
+              if (this._bootstrapFailed) this.retry();
+              else this.loadError = null;
             });
             return;
           } catch (error) {
