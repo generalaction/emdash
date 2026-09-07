@@ -8,7 +8,7 @@ import {
   Tooltip,
 } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
-import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
+import { ExternalLink, ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
@@ -18,6 +18,7 @@ import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-butt
 import { defineModal } from '@core/primitives/modals/react';
 import { useAttachments } from '@core/primitives/react-hooks/browser/use-attachments';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { EMDASH_ISSUES_NEW_URL } from '@core/primitives/urls/api/urls';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -216,6 +217,16 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
                 </Tooltip.Root>
               </Tooltip.Provider>
             </div>
+
+            <a
+              href={EMDASH_ISSUES_NEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <span>Open Github Issue instead</span>
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
 
             <input
               ref={fileInputRef}
