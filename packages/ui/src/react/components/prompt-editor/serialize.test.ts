@@ -98,6 +98,11 @@ describe('serializeDoc', () => {
     expect(serializeDoc(doc)).toBe('/review this');
   });
 
+  it('strips a leading slash from slash command names', () => {
+    const doc = makeDoc(paragraph(slashCommandNode('/settings')));
+    expect(serializeDoc(doc)).toBe('/settings');
+  });
+
   it('serializes a hard break as \\n within a paragraph', () => {
     const doc = makeDoc(paragraph(textNode('line1'), hardBreakNode(), textNode('line2')));
     expect(serializeDoc(doc)).toBe('line1\nline2');
