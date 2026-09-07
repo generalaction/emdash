@@ -222,7 +222,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
               href={EMDASH_ISSUES_NEW_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground inline-flex items-center gap-1 text-xs hover:text-foreground"
             >
               <span>Open Github Issue instead</span>
               <ExternalLink className="size-3" aria-hidden="true" />
