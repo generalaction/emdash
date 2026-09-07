@@ -1,9 +1,14 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { WireError } from '@emdash/wire/rpc';
 import { cell, flushStateTurn } from '@emdash/wire/state';
 import { reaction } from 'mobx';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AcpLiveSession, remoteValueState } from './acp-live-session';
+import {
+  AcpLiveSession,
+  AcpPromptDeliveryUnknownError,
+  remoteValueState,
+} from './acp-live-session';
 
 describe('remoteValueState', () => {
   it('invalidates MobX reactions when the Wire state changes', async () => {
@@ -32,7 +37,27 @@ describe('remoteValueState', () => {
 });
 
 describe('AcpLiveSession.sendPrompt', () => {
-  it('disables the Wire deadline for the turn-long prompt call', async () => {
+  it.each(['DISCONNECTED', 'TIMEOUT', 'CANCELLED', 'SERIALIZATION'] as const)(
+    'uses delivery evidence rather than the %s code to distinguish rejection from uncertainty',
+    async (code) => {
+      for (const delivery of ['not-sent', undefined] as const) {
+        const error = new WireError(code, 'request failed', { delivery });
+        const sendPrompt = vi.fn().mockRejectedValue(error);
+        const session = Object.assign(Object.create(AcpLiveSession.prototype), {
+          conversationId: 'conversation-1',
+          client: { sendPrompt },
+        }) as AcpLiveSession;
+        const failure = await session
+          .sendPrompt({ text: 'hello' })
+          .catch((caught: unknown) => caught);
+        if (delivery) expect(failure).toBe(error);
+        else expect(failure).toBeInstanceOf(AcpPromptDeliveryUnknownError);
+        expect(sendPrompt).toHaveBeenCalledOnce();
+      }
+    }
+  );
+
+  it('requests session acceptance with a prompt correlation id and allows activation to finish', async () => {
     const sendPrompt = vi.fn(async () => ({ success: true, data: { queued: false } }));
     const session = Object.assign(Object.create(AcpLiveSession.prototype), {
       conversationId: 'conversation-1',
@@ -44,11 +69,24 @@ describe('AcpLiveSession.sendPrompt', () => {
     expect(sendPrompt).toHaveBeenCalledWith(
       {
         conversationId: 'conversation-1',
+        promptId: expect.any(String),
         prompt: { text: 'hello' },
         placement: undefined,
       },
       { timeoutMs: 0 }
     );
+  });
+
+  it('preserves the submitted id when delivery confirmation is lost', async () => {
+    const sendPrompt = vi.fn().mockRejectedValue(new Error('disconnected'));
+    const session = Object.assign(Object.create(AcpLiveSession.prototype), {
+      conversationId: 'conversation-1',
+      client: { sendPrompt },
+    }) as AcpLiveSession;
+    const failure = await session.sendPrompt({ text: 'hello' }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AcpPromptDeliveryUnknownError);
+    expect(failure).toMatchObject({ promptId: sendPrompt.mock.calls[0][0].promptId });
+    expect(sendPrompt).toHaveBeenCalledOnce();
   });
 });
 

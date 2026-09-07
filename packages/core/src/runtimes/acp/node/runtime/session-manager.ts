@@ -293,8 +293,30 @@ export class SessionManager {
     return ok(record);
   }
 
-  async prompt(
-    input: SendPromptInput
+  sendPrompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return new Promise((resolve, reject) => {
+      void this.runPrompt(input, (accepted) => resolve(ok(accepted))).then(
+        (result) => {
+          if (result.success) resolve(result);
+          else {
+            const error = result.error;
+            resolve(err(isAcpWakeFailure(error) ? error.error : error));
+          }
+        },
+        (error: unknown) => {
+          this.deps.logger.error('ACP prompt execution failed', {
+            conversationId: input.conversationId,
+            error,
+          });
+          reject(error);
+        }
+      );
+    });
+  }
+
+  private async runPrompt(
+    input: SendPromptInput,
+    onAccepted: (result: { queued: boolean }) => void
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
     const entry = this.retained.get(input.conversationId);
     if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
@@ -305,17 +327,38 @@ export class SessionManager {
     if (!acquired.success) return this.mapWakeError(acquired.error);
     const lease = acquired.data;
     try {
+      let acceptance;
+      if (
+        !input.prompt.text.trim() &&
+        !input.prompt.hiddenContext?.trim() &&
+        !input.prompt.attachments?.length
+      )
+        return acpErr.invalidState('A prompt needs text or an attachment');
+      try {
+        acceptance = {
+          id: input.promptId,
+          onAccepted,
+          resolvedAttachments: await Promise.all(
+            (input.prompt.attachments ?? []).map((attachment) =>
+              this.deps.resolveAttachment(input.conversationId, attachment)
+            )
+          ),
+        };
+      } catch (error) {
+        return acpErr.promptFailed(toSerializedError(error));
+      }
       if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
       this.lifecycle.recordInput(input.conversationId);
       if (input.placement === 'queue') {
         const state = lease.value.cell.sessionState;
         if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
-          const queued = lease.value.cell.queuePrompt(input.prompt);
+          const queued = lease.value.cell.queuePrompt(input.prompt, input.promptId);
           if (!queued.success) return queued;
+          onAccepted({ queued: true });
           return ok({ queued: true });
         }
       }
-      return await lease.value.cell.prompt(input.prompt);
+      return await lease.value.cell.prompt(input.prompt, acceptance);
     } finally {
       await lease.release();
     }

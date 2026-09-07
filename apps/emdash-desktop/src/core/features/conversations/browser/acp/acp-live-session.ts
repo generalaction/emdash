@@ -17,6 +17,7 @@ import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
+import { WireError } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
@@ -73,6 +74,16 @@ export class AcpStartError extends Error {
 
   get errorType(): (AcpRuntimeError | RuntimeResolveError | ProjectAttachmentError)['type'] {
     return this.runtimeError.type;
+  }
+}
+
+export class AcpPromptDeliveryUnknownError extends Error {
+  constructor(
+    readonly promptId: string,
+    cause: unknown
+  ) {
+    super('The connection interrupted confirmation of prompt delivery', { cause });
+    this.name = 'AcpPromptDeliveryUnknownError';
   }
 }
 
@@ -201,14 +212,20 @@ export class AcpLiveSession {
     return { success: true, data: result.data.log };
   }
 
-  sendPrompt(
+  async sendPrompt(
     prompt: PromptInput,
     placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt(
-      { conversationId: this.conversationId, prompt, placement },
-      { timeoutMs: 0 }
-    );
+    const promptId = crypto.randomUUID();
+    try {
+      return await this.client.sendPrompt(
+        { conversationId: this.conversationId, promptId, prompt, placement },
+        { timeoutMs: 0 }
+      );
+    } catch (error) {
+      if (error instanceof WireError && error.delivery === 'not-sent') throw error;
+      throw new AcpPromptDeliveryUnknownError(promptId, error);
+    }
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {

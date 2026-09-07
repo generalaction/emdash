@@ -361,7 +361,7 @@ describe('AcpRuntime session manager', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { kind: 'wake-failed', error: { type: 'new_session_failed' } },
+      error: { type: 'new_session_failed' },
     });
     expect(peek(live.states.state)).toMatchObject({ suspended: true, canSubmit: true });
     expect(peek(rt.sessionsListLiveModel().states.list)[input.conversationId]).toMatchObject({

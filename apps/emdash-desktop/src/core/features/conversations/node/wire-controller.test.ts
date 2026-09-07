@@ -6,7 +6,7 @@ import {
 } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import type { LiveSource } from '@emdash/wire/rpc';
-import { encodeTopic, isDownloadFileOpenResult, type WireFile } from '@emdash/wire/rpc';
+import { encodeTopic, isDownloadFileOpenResult, WireError, type WireFile } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
@@ -198,13 +198,14 @@ describe('createConversationsWireController', () => {
     ]);
   });
 
-  it('disables the worker Wire deadline for the turn-long ACP prompt call', async () => {
+  it('allows activation to finish before acknowledging prompt acceptance', async () => {
     const sendPrompt = vi.fn(async () => ok({ queued: false }));
     const controller = setupController({
       client: { acp: { sendPrompt } },
     });
     const input = {
       conversationId: target.conversationId,
+      promptId: crypto.randomUUID(),
       prompt: { text: 'hello' },
     };
 
@@ -212,6 +213,21 @@ describe('createConversationsWireController', () => {
 
     expect(sendPrompt).toHaveBeenCalledWith(input, { timeoutMs: 0 });
   });
+
+  it.each(['UNKNOWN_PROCEDURE', 'DISCONNECTED', 'TIMEOUT'] as const)(
+    'does not resend a prompt after %s',
+    async (code) => {
+      const sendPrompt = vi.fn().mockRejectedValue(new WireError(code, 'submission failed'));
+      const controller = setupController({ client: { acp: { sendPrompt } } });
+      const input = {
+        conversationId: target.conversationId,
+        promptId: crypto.randomUUID(),
+        prompt: { text: 'hello' },
+      };
+      await expect(controller.call('acp.sendPrompt', input)).rejects.toMatchObject({ code });
+      expect(sendPrompt).toHaveBeenCalledOnce();
+    }
+  );
 
   it('records submitted TUI input only after a successful carriage return', async () => {
     const sendInput = vi.fn(async () => ok(undefined));
@@ -404,6 +420,7 @@ describe('createConversationsWireController', () => {
     await expect(
       controller.call('acp.sendPrompt', {
         conversationId: target.conversationId,
+        promptId: '00000000-0000-4000-8000-000000000001',
         prompt: { text: 'hello' },
       })
     ).resolves.toEqual(err(attachmentError));

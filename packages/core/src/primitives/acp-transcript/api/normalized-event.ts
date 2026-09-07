@@ -38,6 +38,7 @@ export type NormalizedToolStatus = 'pending' | 'in_progress' | 'completed' | 'fa
 export type NormalizedEvent =
   | {
       kind: 'message';
+      promptId?: string;
       role: 'user' | 'assistant';
       messageId: string | null;
       text: string;

@@ -639,6 +639,7 @@ export function foldItem(
         seq: nextSeq(base),
         role: event.role,
         text: event.text,
+        ...(event.promptId ? { promptId: event.promptId } : {}),
         ...(event.attachments?.length ? { attachments: event.attachments } : {}),
       };
       return normalizeToolStructure([...base, newMsg], turnId);

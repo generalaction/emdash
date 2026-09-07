@@ -5,6 +5,7 @@ import { automationsViewDef } from '@core/features/automations/contributions/vie
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
 import {
   isCurrentView,
   useNavigate,
@@ -95,7 +96,10 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
-        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+        <div
+          className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3"
+          style={{ height: WORKBENCH_BOTTOM_BAR_HEIGHT_PX }}
+        >
           <button
             type="button"
             className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"

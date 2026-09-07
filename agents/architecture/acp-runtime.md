@@ -114,6 +114,25 @@ lifecycle cell. `setOption` updates one of the provider's model, mode, or effort
 waking a suspended session. Headless callers that need creation and activation as one atomic
 operation use `launch`; there is no public `ensureActivation`, `start`, or `resume` procedure.
 
+`sendPrompt` (protocol 8) waits for activation and attachment validation, then acknowledges
+once the live session accepts the prompt for dispatch or queuing. Its host-owned operation retains
+the activation lease until execution finishes; a desktop disconnect does not cancel that work.
+Startup/authentication failures are returned before acceptance. Provider failures after acceptance
+are published through the existing session and transcript state. Callers that need completion
+observe that state; the send acknowledgement no longer means the turn has finished.
+
+The desktop subscribes before submission and refreshes snapshots after reattachment. A client
+prompt id follows the existing queue and synthesized user transcript message so a lost acknowledgement
+can be reconciled without matching text. Wire marks failures known to occur before posting as
+"not-sent", including held-call overflow and cancellation or disposal before posting. This evidence
+survives gateway forwarding, allowing the desktop to report rejection and restore the draft.
+Failures without that evidence remain uncertain and do not restore or resubmit the prompt.
+This is not a durable outbox:
+provider-replayed history may lack the correlation id after a worker restart, leaving delivery
+explicitly uncertain. No receipt journal or new persistence authority is introduced.
+The changed acknowledgement semantics require protocol major 8. Older clients or servers must
+upgrade through the existing protocol-incompatibility flow; there is no legacy sending fallback.
+
 The handle persists an explicitly allowlisted, versioned intent containing provider/session
 identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot. Provider
 environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never persisted.

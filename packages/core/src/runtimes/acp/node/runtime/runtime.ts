@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLogSource } from '@emdash/wire/live';
@@ -96,9 +97,10 @@ export class AcpRuntime {
   sendPrompt(
     conversationId: string,
     prompt: PromptInput,
-    placement?: PromptPlacement
-  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
-    return this.manager.prompt({ conversationId, prompt, placement });
+    placement?: PromptPlacement,
+    promptId: string = randomUUID()
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return this.manager.sendPrompt({ conversationId, prompt, placement, promptId });
   }
 
   editQueuedPrompt(

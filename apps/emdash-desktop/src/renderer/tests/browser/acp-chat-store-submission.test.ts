@@ -1,12 +1,26 @@
 import type { HistoryPage, SessionState } from '@emdash/core/runtimes/acp/api/client';
+import { deferred } from '@emdash/shared/testing';
+import { toast } from '@emdash/ui/react/primitives';
+import {
+  client,
+  connect,
+  createController,
+  createWireSessionHub,
+  defineContract,
+  memoryTransportPair,
+} from '@emdash/wire/rpc';
 import { observable, runInAction } from 'mobx';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import {
   AcpChatStore,
   type AcpPromptAttachment,
 } from '@core/features/conversations/browser/acp/acp-chat-store';
-import { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
+import {
+  AcpLiveSession,
+  AcpPromptDeliveryUnknownError,
+} from '@core/features/conversations/browser/acp/acp-live-session';
 import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 
 type DraftState = {
@@ -79,6 +93,50 @@ const connectSession = vi.fn(
 );
 
 describe('AcpChatStore prompt submission', () => {
+  it.each(['disconnected', 'disposed', 'buffer-full'] as const)(
+    'restores the draft and clears the optimistic prompt after a %s pre-delivery failure',
+    async (reason) => {
+      const pair = memoryTransportPair();
+      const post = vi.fn(pair.left.post);
+      const connection = connect(
+        {
+          ...pair.left,
+          post,
+          ...(reason === 'buffer-full' ? { onReconnect: () => () => {} } : {}),
+        },
+        { maxHeldCalls: 0 }
+      );
+      if (reason === 'disposed') connection.dispose();
+      else pair.disconnect();
+      const acp = client(
+        defineContract({ sendPrompt: conversationsContract.acp.sendPrompt }),
+        connection
+      );
+      const sendPrompt = vi.fn((prompt) =>
+        AcpLiveSession.prototype.sendPrompt.call(
+          { client: acp, conversationId: 'conversation-1' } as never,
+          prompt
+        )
+      );
+      const store = createStore(idleState(), sendPrompt);
+      const errorToast = vi.spyOn(toast, 'error');
+      try {
+        store.setDraftText('keep this prompt');
+        store.submitPrompt('keep this prompt');
+        await vi.waitFor(() => expect(errorToast).toHaveBeenCalledOnce());
+        expect(store.draftText).toBe('keep this prompt');
+        expect(chatSessionTestState.pendingPrompt).toBeNull();
+        expect(store.unconfirmedPromptIds).toEqual([]);
+        expect(sendPrompt).toHaveBeenCalledOnce();
+        if (reason !== 'disconnected') expect(post).not.toHaveBeenCalled();
+      } finally {
+        store.dispose();
+        connection.dispose();
+        errorToast.mockRestore();
+      }
+    }
+  );
+
   it.each(['host-check', 'timer', 'retry'] as const)(
     'recovers a timed-out attachment through %s without a new host generation',
     async (trigger) => {
@@ -136,6 +194,68 @@ describe('AcpChatStore prompt submission', () => {
     }
   );
 
+  it.each(['active', 'queued', 'history', 'unrelated'] as const)(
+    'reconciles a lost acknowledgement using %s state without restoring the draft',
+    async (source) => {
+      const promptId = crypto.randomUUID();
+      const sendPrompt = vi
+        .fn()
+        .mockRejectedValue(new AcpPromptDeliveryUnknownError(promptId, new Error('disconnected')));
+      const activeTurn = new FakeRemote<HistoryPage['turns'][number] | null>(null);
+      const live = fakeLiveSession(
+        idleState(),
+        { turns: [], nextCursor: null },
+        { sendPrompt, activeTurn }
+      );
+      const store = await bootstrapWithSession(live.session);
+      const errorToast = vi.spyOn(toast, 'error');
+      try {
+        store.submitPrompt('continue');
+        await vi.waitFor(() => expect(store.unconfirmedPromptIds).toEqual([promptId]));
+        expect(store.draftText).toBe('');
+        expect(errorToast).not.toHaveBeenCalled();
+        store.setDraftText('a new draft');
+        const turn: HistoryPage['turns'][number] = {
+          id: 'turn',
+          seq: 0,
+          initiator: 'user',
+          items: [
+            {
+              kind: 'message',
+              id: 'message',
+              seq: 0,
+              role: 'user',
+              text: 'continue',
+              promptId: source === 'unrelated' ? crypto.randomUUID() : promptId,
+            },
+          ],
+        };
+        if (source === 'queued') {
+          live.sessionState.set({
+            ...idleState(),
+            queuedPrompts: [{ id: promptId, text: 'continue', createdAt: 0, updatedAt: 0 }],
+          });
+        } else if (source === 'history') {
+          live.loadHistory.mockResolvedValue({
+            success: true,
+            data: { turns: [turn], nextCursor: null },
+          });
+          connectSessionOptions?.onTurnCommitted?.();
+        } else {
+          activeTurn.set(turn);
+        }
+        await vi.waitFor(() =>
+          expect(store.unconfirmedPromptIds).toEqual(source === 'unrelated' ? [promptId] : [])
+        );
+        expect(store.draftText).toBe('a new draft');
+        expect(sendPrompt).toHaveBeenCalledOnce();
+      } finally {
+        store.dispose();
+        errorToast.mockRestore();
+      }
+    }
+  );
+
   it('routes retry to host recovery while access is disabled', () => {
     const recover = vi.fn(async () => ({ success: true }));
     const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', {
@@ -175,6 +295,68 @@ describe('AcpChatStore prompt submission', () => {
       expect(store.affordances.canSubmit).toBe(false);
     } finally {
       store.dispose();
+    }
+  });
+
+  it('does not report send failure or restore a remotely accepted prompt when the Wire reply is lost', async () => {
+    const gate = deferred<void>();
+    const received: string[] = [];
+    const contract = defineContract({ sendPrompt: conversationsContract.acp.sendPrompt });
+    const hub = createWireSessionHub(
+      createController(
+        contract,
+        {
+          sendPrompt: async ({ prompt, promptId }) => {
+            received.push(prompt.text);
+            transcriptTestState.activeTurnSnapshot = {
+              id: 'remote-turn',
+              seq: 0,
+              initiator: 'user',
+              items: [
+                { kind: 'message', id: 'user', seq: 0, role: 'user', text: prompt.text, promptId },
+              ],
+            };
+            await gate.promise;
+            return { success: true as const, data: { queued: false } };
+          },
+        },
+        { validate: 'full' }
+      )
+    );
+    const pair = memoryTransportPair();
+    hub.open('desktop', pair.right);
+    const connection = connect(pair.left);
+    const acp = client(contract, connection);
+    const sendPrompt = vi.fn((prompt) =>
+      AcpLiveSession.prototype.sendPrompt.call(
+        { client: acp, conversationId: 'conversation-1' } as never,
+        prompt
+      )
+    );
+    const store = createStore(idleState(), sendPrompt, {
+      activeTurn: { current: () => transcriptTestState.activeTurnSnapshot },
+    });
+    const errorToast = vi.spyOn(toast, 'error');
+    try {
+      store.submitPrompt('continue');
+      await vi.waitFor(() => expect(received).toEqual(['continue']));
+      pair.disconnect();
+      await vi.waitFor(() =>
+        expect(sendPrompt.mock.results[0]?.value).rejects.toBeInstanceOf(
+          AcpPromptDeliveryUnknownError
+        )
+      );
+      await Promise.resolve();
+      expect(store.draftText).toBe('');
+      expect(store.unconfirmedPromptIds).toEqual([]);
+      expect(errorToast).not.toHaveBeenCalled();
+      expect(received).toEqual(['continue']);
+    } finally {
+      gate.resolve();
+      store.dispose();
+      connection.dispose();
+      await hub.dispose();
+      errorToast.mockRestore();
     }
   });
 
