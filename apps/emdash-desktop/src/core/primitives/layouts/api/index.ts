@@ -6,4 +6,4 @@ export {
   type SlotKind,
   type SlotSpec,
 } from './define-layout';
-export { workbenchLayout } from './workbench-layout';
+export { WORKBENCH_BOTTOM_BAR_HEIGHT_PX, workbenchLayout } from './workbench-layout';

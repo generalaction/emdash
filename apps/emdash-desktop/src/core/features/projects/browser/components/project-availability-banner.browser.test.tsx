@@ -272,12 +272,20 @@ describe('ProjectAvailabilityBanner', () => {
     expect(host.querySelector('button')?.getAttribute('aria-disabled')).toBe('false');
   });
 
-  it('renders no banner or reserved space when Host access is ready', async () => {
-    await render(sshProject, { kind: 'ready', hostGeneration: 2 });
+  it.each([localProject, sshProject])(
+    'renders no banner or reserved space when $type Host access is ready',
+    async (project) => {
+      await render(
+        project,
+        { kind: 'ready', hostGeneration: 2 },
+        <main data-testid="project-content">Project content</main>
+      );
 
-    expect(host.querySelector('[role="status"]')).toBeNull();
-    expect(host.textContent).toBe('');
-  });
+      expect(host.querySelector('[role="status"]')).toBeNull();
+      expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
+      expect(host.textContent).toBe('Project content');
+    }
+  );
 
   it('preserves the mounted content and draft across readiness and retry phases', async () => {
     const mount = vi.fn();
@@ -291,16 +299,19 @@ describe('ProjectAvailabilityBanner', () => {
     }
     await render(sshProject, { kind: 'ready', hostGeneration: 1 }, <Content />);
     const input = host.querySelector('input');
-    const footer = host.querySelector('[data-testid="project-connection-status"]');
+    expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
     for (const situation of ['checking', 'handshaking', 'recovering', 'handshaking'] as const) {
       await render(sshProject, { kind: 'degraded', situation, recovery: 'automatic' }, <Content />);
       expect(host.querySelector('input')).toBe(input);
       expect(input?.value).toBe('unfinished prompt');
       expect(host.querySelector('[role="status"]')?.textContent).toContain('Reconnecting to Orion');
-      expect(host.querySelector('[data-testid="project-connection-status"]')).toBe(footer);
+      expect(
+        host.querySelector<HTMLElement>('[data-testid="project-connection-status"]')?.offsetHeight
+      ).toBe(40);
     }
     await render(sshProject, { kind: 'ready', hostGeneration: 2 }, <Content />);
     expect(host.querySelector('input')).toBe(input);
+    expect(host.querySelector('[data-testid="project-connection-status"]')).toBeNull();
     expect(mount).toHaveBeenCalledOnce();
     expect(unmount).not.toHaveBeenCalled();
   });
