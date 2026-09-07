@@ -49,7 +49,12 @@ import {
   type MementoHandle,
   type SubjectSpace,
 } from '@core/primitives/mementos/browser';
-import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
+import {
+  AcpLiveSession,
+  AcpPromptDeliveryUnknownError,
+  AcpStartError,
+  asValueSource,
+} from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
 export interface AgentAffordances {
@@ -102,6 +107,7 @@ export class AcpChatStore {
   messageCount = 0;
   draftText = '';
   draftAttachments: AcpPromptAttachment[] = [];
+  unconfirmedPromptIds: string[] = [];
 
   private _view: ChatView | null = null;
   private _bootstrapped = false;
@@ -143,6 +149,7 @@ export class AcpChatStore {
       messageCount: observable,
       draftText: observable,
       draftAttachments: observable.shallow,
+      unconfirmedPromptIds: observable.shallow,
       model: computed,
       modelOptions: computed,
       permissionMode: computed,
@@ -463,8 +470,8 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this._submitPrompt(text, promptAttachments, hiddenContext).then((accepted) => {
-      if (accepted) return;
+    void this._submitPrompt(text, promptAttachments, hiddenContext).then((outcome) => {
+      if (outcome !== 'rejected') return;
       runInAction(() => {
         if (this._disposed || submissionSequence !== this._submissionSequence) return;
         if (optimisticId && this.chatState.session.state.pendingPrompt?.id === optimisticId) {
@@ -768,12 +775,12 @@ export class AcpChatStore {
     text: string,
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
-  ): Promise<boolean> {
-    if (this.hostAccess?.liveAction.kind === 'disabled') return false;
+  ): Promise<'accepted' | 'rejected' | 'unknown'> {
+    if (this.hostAccess?.liveAction.kind === 'disabled') return 'rejected';
     const session = this.session;
     if (!session || !session.usable) {
       this._toastError('Failed to send message', new Error('ACP session is not connected'));
-      return false;
+      return 'rejected';
     }
 
     let resolvedHiddenContext: string | undefined;
@@ -794,12 +801,20 @@ export class AcpChatStore {
       });
       if (!result.success) {
         this._toastError('Failed to send message', result.error);
-        return false;
+        return 'rejected';
       }
-      return true;
+      return 'accepted';
     } catch (error) {
+      if (error instanceof AcpPromptDeliveryUnknownError) {
+        if (this._disposed) return 'unknown';
+        runInAction(() => {
+          this.unconfirmedPromptIds = [...this.unconfirmedPromptIds, error.promptId];
+          this._syncMessageCount();
+        });
+        return 'unknown';
+      }
       this._toastError('Failed to send message', error);
-      return false;
+      return 'rejected';
     }
   }
 
@@ -990,6 +1005,18 @@ export class AcpChatStore {
 
   private _syncMessageCount(): void {
     const state = this.chatState.transcript.state;
+    if (this.unconfirmedPromptIds.length > 0 && this.session) {
+      const accepted = new Set(
+        this.session.sessionState.current().queuedPrompts.map((prompt) => prompt.id)
+      );
+      const active = this.session.activeTurn.current();
+      for (const turn of [...state.committedTurns, ...(active ? [active] : [])]) {
+        for (const item of turn.items) {
+          if (item.kind === 'message' && item.promptId) accepted.add(item.promptId);
+        }
+      }
+      this.unconfirmedPromptIds = this.unconfirmedPromptIds.filter((id) => !accepted.has(id));
+    }
     const committedCount = state.committedTurns.reduce(
       (count, turn) => count + turn.items.length,
       0
