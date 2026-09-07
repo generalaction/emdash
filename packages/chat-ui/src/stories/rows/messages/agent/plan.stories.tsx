@@ -150,6 +150,54 @@ export const SinglePending: Story = {
   ),
 };
 
+const ENTRIES_FIT: ChatPlanEntry[] = [
+  {
+    content: 'Repository structure and central documentation reviewed',
+    status: 'completed',
+    priority: 'high',
+  },
+  {
+    content: 'Architecture, apps, and packages summarized',
+    status: 'in_progress',
+    priority: 'medium',
+  },
+  {
+    content: 'Development and operational requirements documented',
+    status: 'pending',
+    priority: 'medium',
+  },
+];
+
+const ENTRIES_OVERFLOW: ChatPlanEntry[] = [
+  ...ENTRIES_FIT,
+  { content: 'Update automated tests', status: 'pending', priority: 'medium' },
+  { content: 'Prepare the implementation handoff', status: 'pending', priority: 'medium' },
+];
+
+/** Compare a fully visible three-item plan with a five-item plan that continues below. */
+export const FadeComparison: Story = {
+  render: () => (
+    <div style={{ display: 'flex', gap: '24px' }}>
+      <div>
+        <p style={{ margin: '0 0 8px', 'font-weight': 600 }}>3 To-dos — no fade</p>
+        <ChatHost
+          width={600}
+          height={180}
+          items={[{ kind: 'plan', id: 'plan-fits-without-fade', entries: ENTRIES_FIT }]}
+        />
+      </div>
+      <div>
+        <p style={{ margin: '0 0 8px', 'font-weight': 600 }}>5 To-dos — overflow fade</p>
+        <ChatHost
+          width={600}
+          height={180}
+          items={[{ kind: 'plan', id: 'plan-overflows-with-fade', entries: ENTRIES_OVERFLOW }]}
+        />
+      </div>
+    </div>
+  ),
+};
+
 export const Streaming: Story = {
   render: () => (
     <ScriptedChat
