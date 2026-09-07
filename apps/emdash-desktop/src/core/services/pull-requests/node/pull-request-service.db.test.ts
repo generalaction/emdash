@@ -142,7 +142,7 @@ describe('PullRequestService lifecycle', () => {
     await scope.dispose();
   });
 
-  it('starts sync on registration and skips fresh incremental syncs', async () => {
+  it('starts sync on registration and always performs an explicitly requested sync', async () => {
     const scope = createScope({ label: 'pull-request-staleness-test' });
     const handle = await pullRequestSqliteStore.openTemp();
     scope.add(() => handle.close());
@@ -169,7 +169,17 @@ describe('PullRequestService lifecycle', () => {
       requestPriorities.background
     );
     await expect(service.sync(repositoryUrl)).resolves.toEqual(ok());
-    expect(sync).toHaveBeenCalledTimes(1);
+    expect(sync).toHaveBeenCalledTimes(2);
+    expect(sync).toHaveBeenLastCalledWith(
+      repositoryUrl,
+      expect.any(AbortSignal),
+      requestPriorities.task
+    );
+
+    await expect(
+      service['syncWithPriority'](repositoryUrl, requestPriorities.background)
+    ).resolves.toEqual(ok());
+    expect(sync).toHaveBeenCalledTimes(2);
 
     await expect(service.forceFullSync(repositoryUrl)).resolves.toEqual(ok());
     expect(forceFullSync).toHaveBeenCalledTimes(1);
@@ -179,6 +189,92 @@ describe('PullRequestService lifecycle', () => {
       requestPriorities.task
     );
     await scope.dispose();
+  });
+
+  it('does not let single-PR or check state postpone repository inventory syncs', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const scope = createScope({ label: 'pull-request-freshness-ownership-test' });
+      const handle = await pullRequestSqliteStore.openTemp();
+      scope.add(() => handle.close());
+      const store = new PullRequestStore(handle);
+      const sync = vi.fn(async () => ok());
+      const engine = { sync } as unknown as PullRequestEngine;
+      const { logger } = createStubLogger();
+      const service = new PullRequestService({
+        store,
+        githubAuth: fakeGitHubAuth(),
+        scope,
+        logger,
+        engine,
+        minSyncIntervalMs: 60_000,
+      });
+      const repositoryUrl = 'https://github.com/emdash/emdash';
+
+      expect(service.registerRepository(repositoryUrl)).toEqual(ok());
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(service['syncRuns'].size).toBe(0));
+      const lastRepositorySync = service['lastSuccessfulRepositorySyncs'].get(repositoryUrl)!;
+
+      vi.setSystemTime(lastRepositorySync + 59_000);
+      service['setSyncState'](repositoryUrl, {
+        phase: 'idle',
+        kind: 'single',
+        lastSyncedAt: Date.now(),
+      });
+      vi.setSystemTime(lastRepositorySync + 60_000);
+      await service['syncWithPriority'](repositoryUrl, requestPriorities.background);
+
+      expect(sync).toHaveBeenCalledTimes(2);
+      await scope.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retains the last successful repository freshness after a failed explicit refresh', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const scope = createScope({ label: 'pull-request-failed-refresh-test' });
+      const handle = await pullRequestSqliteStore.openTemp();
+      scope.add(() => handle.close());
+      const store = new PullRequestStore(handle);
+      const sync = vi
+        .fn()
+        .mockResolvedValueOnce(ok())
+        .mockResolvedValueOnce(err({ type: 'sync_failed', message: 'GitHub unavailable' }));
+      const { logger } = createStubLogger();
+      const service = new PullRequestService({
+        store,
+        githubAuth: fakeGitHubAuth(),
+        scope,
+        logger,
+        engine: { sync } as unknown as PullRequestEngine,
+        minSyncIntervalMs: 60_000,
+      });
+      const repositoryUrl = 'https://github.com/emdash/emdash';
+
+      expect(service.registerRepository(repositoryUrl)).toEqual(ok());
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(service['syncRuns'].size).toBe(0));
+      const lastRepositorySync = service['lastSuccessfulRepositorySyncs'].get(repositoryUrl)!;
+
+      vi.setSystemTime(lastRepositorySync + 10_000);
+      await expect(service.sync(repositoryUrl)).resolves.toEqual(
+        err({ type: 'sync_failed', message: 'GitHub unavailable' })
+      );
+      await vi.waitFor(() => expect(service['syncRuns'].size).toBe(0));
+
+      vi.setSystemTime(lastRepositorySync + 20_000);
+      await service['syncWithPriority'](repositoryUrl, requestPriorities.background);
+
+      expect(sync).toHaveBeenCalledTimes(2);
+      await scope.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('validates canonical PR URLs against the cache scoped to one repository', async () => {
