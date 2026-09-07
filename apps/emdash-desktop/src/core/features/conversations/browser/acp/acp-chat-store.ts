@@ -9,6 +9,7 @@ import type {
   SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { systemClock } from '@emdash/shared/scheduling';
 import type {
   CommandItem,
   ComposerCollaborationModeOption,
@@ -114,6 +115,9 @@ export class AcpChatStore {
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
   private _disposed = false;
+  private _attachmentRecovery: Scope | null = null;
+  private _attachedHostGeneration: number | undefined;
+  private _bootstrapFailed = false;
 
   constructor(
     readonly conversationId: string,
@@ -172,34 +176,25 @@ export class AcpChatStore {
       retry: action,
     });
     const initialHost = this.hostAccess?.state;
-    let lastHostGeneration = initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
+    this._attachedHostGeneration =
+      initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
     this._disposeHostReaction = reaction(
       () => this.hostAccess?.state,
       (state) => {
         const kind = state?.kind;
         if (state?.kind === 'ready') {
-          const changed = state.hostGeneration !== lastHostGeneration;
-          lastHostGeneration = state.hostGeneration;
+          const changed = state.hostGeneration !== this._attachedHostGeneration;
           const session = this.session;
-          if (changed && session) {
-            void session
-              .revalidate()
-              .then(() => {
-                if (this._disposed || this.session !== session || !session.usable) return;
-                runInAction(() => {
-                  this.loadError = null;
-                });
-              })
-              .catch((error) => {
-                if (this._disposed || this.session !== session) return;
-                runInAction(() => {
-                  this.loadError = toLoadError(error);
-                });
-              });
+          if (session && (changed || !session.usable)) {
+            this._recoverAttachment(session, state.hostGeneration);
           }
+        } else {
+          void this._attachmentRecovery?.dispose();
+          this._attachmentRecovery = null;
         }
         if (
           kind === 'ready' &&
+          !this.session &&
           this._bootstrapped &&
           !this.historyLoading &&
           this.loadError?.kind === 'unavailable'
@@ -340,8 +335,7 @@ export class AcpChatStore {
 
   get affordances(): AgentAffordances {
     const state = this.session?.sessionState.current();
-    const liveActionsEnabled =
-      this.hostAccess?.liveAction.kind !== 'disabled' && (this.session?.usable ?? false);
+    const liveActionsEnabled = this.liveActionsEnabled;
     const isResuming = state?.lifecycle === 'starting' || state?.lifecycle === 'replaying';
     return {
       isWorking: state?.isGenerating ?? false,
@@ -351,6 +345,10 @@ export class AcpChatStore {
       canSubmit: liveActionsEnabled && (state?.canSubmit ?? false),
       canCancel: liveActionsEnabled && (state?.canCancel ?? false),
     };
+  }
+
+  get liveActionsEnabled(): boolean {
+    return this.hostAccess?.liveAction.kind !== 'disabled' && (this.session?.usable ?? false);
   }
 
   get isEmpty(): boolean {
@@ -364,7 +362,21 @@ export class AcpChatStore {
   }
 
   retry(): void {
+    if (this.hostAccess?.liveAction.kind === 'disabled') {
+      void this.hostAccess.recover();
+      return;
+    }
+    if (this.session && !this._bootstrapFailed) {
+      const state = this.hostAccess?.state;
+      this._recoverAttachment(
+        this.session,
+        state?.kind === 'ready' ? state.hostGeneration : undefined
+      );
+      return;
+    }
     if (this.historyLoading || !this.loadError) return;
+    void this._attachmentRecovery?.dispose();
+    this._attachmentRecovery = null;
     this.historyLoading = true;
     this.loadError = null;
     void this._runBootstrap();
@@ -489,6 +501,7 @@ export class AcpChatStore {
   }
 
   stop(): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.cancelTurn()
       .then((result) => {
@@ -498,6 +511,7 @@ export class AcpChatStore {
   }
 
   setModel(model: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.setOption('model', model)
       .then((result) => {
@@ -511,6 +525,7 @@ export class AcpChatStore {
   }
 
   setMode(modeId: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.setOption('mode', modeId)
       .then((result) => {
@@ -524,6 +539,7 @@ export class AcpChatStore {
   }
 
   setCollaborationMode(modeId: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.setOption('collaborationMode', modeId)
       .then((result) => {
@@ -537,6 +553,7 @@ export class AcpChatStore {
   }
 
   setEffort(effort: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.setOption('effort', effort)
       .then((result) => {
@@ -550,12 +567,14 @@ export class AcpChatStore {
   }
 
   resolvePermission(optionId: string): void {
+    if (!this.liveActionsEnabled) return;
     const request = this.permissionQueue[0];
     if (!request) return;
     void this.session?.resolvePermission(request.requestId, optionId);
   }
 
   editQueuedPrompt(id: string, text: string): void {
+    if (!this.liveActionsEnabled) return;
     const existing = this._queuedPromptModels().find((prompt) => prompt.id === id);
     if (!existing) return;
     const input: PromptInput = {
@@ -572,6 +591,7 @@ export class AcpChatStore {
   }
 
   deleteQueuedPrompt(id: string): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.deleteQueuedPrompt(id)
       .then((result) => {
@@ -581,6 +601,7 @@ export class AcpChatStore {
   }
 
   reorderQueuedPrompts(ids: string[]): void {
+    if (!this.liveActionsEnabled) return;
     void this.session
       ?.changeQueuePromptOrder(ids)
       .then((result) => {
@@ -590,6 +611,7 @@ export class AcpChatStore {
   }
 
   sendQueuedPromptNow(id: string): void {
+    if (!this.liveActionsEnabled) return;
     void this._sendQueuedPromptNow(id);
   }
 
@@ -653,6 +675,7 @@ export class AcpChatStore {
         }
         this.historyLoading = false;
         this.loadError = null;
+        this._bootstrapFailed = false;
         this._syncMessageCount();
       });
       void this._rehydrateDraftAttachmentPreviews();
@@ -665,6 +688,7 @@ export class AcpChatStore {
       });
       runInAction(() => {
         if (clientSession && this.session !== clientSession) clientSession.dispose();
+        this._bootstrapFailed = true;
         this.historyLoading = false;
         this.loadError =
           this.hostAccess?.liveAction.kind === 'disabled'
@@ -678,6 +702,43 @@ export class AcpChatStore {
         void this._refreshAuthStatus(providerId);
       }
     }
+  }
+
+  private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
+    void this._attachmentRecovery?.dispose();
+    const scope = this._scope.child('attachment-recovery');
+    this._attachmentRecovery = scope;
+    void scope
+      .run('reattach', async () => {
+        let attempt = 0;
+        while (!scope.signal.aborted && this.session === session) {
+          try {
+            await session.revalidate(scope.signal);
+            if (scope.signal.aborted || this.session !== session || !session.usable) return;
+            this._attachedHostGeneration = generation;
+            runInAction(() => {
+              // Reattachment alone cannot recover a failed history/bootstrap load.
+              if (this._bootstrapFailed) this.retry();
+              else this.loadError = null;
+            });
+            return;
+          } catch (error) {
+            if (scope.signal.aborted || this.session !== session) return;
+            const loadError = toLoadError(error);
+            runInAction(() => {
+              this.loadError = loadError;
+            });
+            if (loadError.kind === 'auth_required') return;
+          }
+          await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
+            signal: scope.signal,
+          });
+        }
+      })
+      .exit.finally(() => {
+        if (this._attachmentRecovery === scope) this._attachmentRecovery = null;
+        void scope.dispose();
+      });
   }
 
   private async _refreshAuthStatus(providerId: string): Promise<void> {

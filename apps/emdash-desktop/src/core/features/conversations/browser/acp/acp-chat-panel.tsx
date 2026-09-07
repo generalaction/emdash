@@ -569,16 +569,7 @@ const ComposerForStore = observer(function ComposerForStore({
   return createPortal(
     <>
       <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
-      {disabledReason && (
-        <div
-          className="mx-3 mb-1 rounded-md border bg-background/95 px-2 py-1 text-center text-xs text-foreground-muted"
-          tabIndex={0}
-          role="note"
-        >
-          {disabledReason}
-        </div>
-      )}
-      {store.loadError && (
+      {!disabledReason && store.loadError && (
         <div className="border-destructive/30 bg-destructive/5 mx-3 mb-1 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
           <span className="truncate text-foreground-muted">{store.loadError.message}</span>
           <Button variant="secondary" size="sm" onClick={() => store.retry()}>
@@ -586,14 +577,14 @@ const ComposerForStore = observer(function ComposerForStore({
           </Button>
         </div>
       )}
-      <div inert={disabledReason ? true : undefined}>
+      <div>
         <ChatComposer
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
           onSubmit={handleSubmit}
           onInputChange={(text) => store.setDraftText(text)}
-          onSubmitWhileWorking={handleSubmit}
-          onStop={a.isWorking ? handleStop : undefined}
+          onSubmitWhileWorking={a.canSubmit ? handleSubmit : undefined}
+          onStop={a.canCancel ? handleStop : undefined}
           permissionRequest={permissionRequest}
           permissionQueueCount={store.permissionQueue.length}
           onResolvePermission={handleResolvePermission}
@@ -605,16 +596,18 @@ const ComposerForStore = observer(function ComposerForStore({
           editorApiRef={editorApiRef}
           modelOptions={store.modelOptions}
           selectedModel={store.model ?? undefined}
-          onModelChange={handleModelChange}
+          onModelChange={store.liveActionsEnabled ? handleModelChange : undefined}
           effortOptions={store.effortOptions}
           selectedEffort={store.effort ?? undefined}
-          onEffortChange={handleEffortChange}
+          onEffortChange={store.liveActionsEnabled ? handleEffortChange : undefined}
           permissionModeOptions={store.permissionModeOptions}
           selectedPermissionMode={store.permissionMode ?? undefined}
-          onPermissionModeChange={handleModeChange}
+          onPermissionModeChange={store.liveActionsEnabled ? handleModeChange : undefined}
           collaborationModeOptions={store.collaborationModeOptions}
           selectedCollaborationMode={store.collaborationMode ?? undefined}
-          onCollaborationModeChange={handleCollaborationModeChange}
+          onCollaborationModeChange={
+            store.liveActionsEnabled ? handleCollaborationModeChange : undefined
+          }
           mcpServers={store.mcpServers}
           agentOptions={agentOptions}
           selectedAgent={providerId ?? undefined}
@@ -634,9 +627,13 @@ const ComposerForStore = observer(function ComposerForStore({
           queryCommands={querySlashItems}
           attachments={attachments}
           onAttachmentsChange={handleAttachmentsChange}
-          onAttach={handleAttach}
-          onImageFilesDropped={(files) => void addImageFiles(files)}
-          onFilesDropped={(files) => void handleFilesDropped(files)}
+          onAttach={store.liveActionsEnabled ? handleAttach : undefined}
+          onImageFilesDropped={
+            store.liveActionsEnabled ? (files) => void addImageFiles(files) : undefined
+          }
+          onFilesDropped={
+            store.liveActionsEnabled ? (files) => void handleFilesDropped(files) : undefined
+          }
           onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
         />
       </div>

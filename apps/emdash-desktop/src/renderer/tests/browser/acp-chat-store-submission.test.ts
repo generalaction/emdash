@@ -1,4 +1,5 @@
 import type { HistoryPage, SessionState } from '@emdash/core/runtimes/acp/api/client';
+import { observable, runInAction } from 'mobx';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import {
@@ -6,6 +7,7 @@ import {
   type AcpPromptAttachment,
 } from '@core/features/conversations/browser/acp/acp-chat-store';
 import { AcpLiveSession } from '@core/features/conversations/browser/acp/acp-live-session';
+import type { ProjectHostAccessState } from '@core/features/projects/api/browser/stores/project-context';
 
 type DraftState = {
   version: '1';
@@ -77,6 +79,105 @@ const connectSession = vi.fn(
 );
 
 describe('AcpChatStore prompt submission', () => {
+  it.each(['host-check', 'timer', 'retry'] as const)(
+    'recovers a timed-out attachment through %s without a new host generation',
+    async (trigger) => {
+      const hostState = observable.box<ProjectHostAccessState>({
+        kind: 'ready',
+        hostGeneration: 1,
+      });
+      const host = {
+        get state() {
+          return hostState.get();
+        },
+        get liveAction() {
+          return hostState.get().kind === 'ready'
+            ? { kind: 'enabled' }
+            : { kind: 'disabled', state: hostState.get() };
+        },
+      };
+      const usable = observable.box(true);
+      const revalidate = vi.fn<() => Promise<void>>(async () => {
+        runInAction(() => usable.set(false));
+        throw new Error('Timed out reattaching ACP session');
+      });
+      const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', host as never);
+      store.session = {
+        sessionState: { current: idleState },
+        get usable() {
+          return usable.get();
+        },
+        revalidate,
+        dispose: vi.fn(),
+      } as never;
+      try {
+        runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
+        await vi.waitFor(() =>
+          expect(store.loadError?.message).toBe('Timed out reattaching ACP session')
+        );
+        expect(store.affordances.canSubmit).toBe(false);
+        revalidate.mockImplementation(async () => {
+          runInAction(() => usable.set(true));
+        });
+        if (trigger === 'host-check') {
+          runInAction(() =>
+            hostState.set({ kind: 'degraded', situation: 'checking', recovery: 'automatic' })
+          );
+          runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
+        } else if (trigger === 'retry') {
+          store.retry();
+        }
+        await vi.waitFor(() => expect(store.affordances.canSubmit).toBe(true), { timeout: 3_000 });
+        expect(revalidate).toHaveBeenCalledTimes(2);
+        expect(store.loadError).toBeNull();
+      } finally {
+        store.dispose();
+      }
+    }
+  );
+
+  it('routes retry to host recovery while access is disabled', () => {
+    const recover = vi.fn(async () => ({ success: true }));
+    const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', {
+      state: { kind: 'degraded', situation: 'recovering', recovery: 'automatic' },
+      liveAction: { kind: 'disabled' },
+      recover,
+    } as never);
+    try {
+      store.retry();
+      expect(recover).toHaveBeenCalledOnce();
+      expect(store.session).toBeNull();
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it('keeps drafting local while rejecting remote actions on an unusable session', () => {
+    const remoteAction = vi.fn();
+    const store = createStore(idleState(), remoteAction, {
+      usable: false,
+      setOption: remoteAction,
+      cancelTurn: remoteAction,
+      deleteQueuedPrompt: remoteAction,
+      changeQueuePromptOrder: remoteAction,
+    });
+    try {
+      store.setDraftText('keep writing offline');
+      store.setModel('model');
+      store.setMode('mode');
+      store.setEffort('high');
+      store.setCollaborationMode('plan');
+      store.stop();
+      store.deleteQueuedPrompt('queued');
+      store.reorderQueuedPrompts(['queued']);
+      expect(remoteAction).not.toHaveBeenCalled();
+      expect(store.draftText).toBe('keep writing offline');
+      expect(store.affordances.canSubmit).toBe(false);
+    } finally {
+      store.dispose();
+    }
+  });
+
   beforeAll(() => {
     installChatUiRuntime({
       createChatContext: () => ({}) as never,
@@ -537,6 +638,52 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it.each(['retry', 'host-recovery'] as const)(
+    'reloads failed bootstrap history through %s even with a retained session',
+    async (trigger) => {
+      const hostState = observable.box<ProjectHostAccessState>({
+        kind: 'ready',
+        hostGeneration: 1,
+      });
+      const failed = fakeLiveSession(idleState(), historyPage('initial'), {
+        revalidate: vi.fn(async () => {}),
+      });
+      failed.loadHistory.mockRejectedValueOnce(new Error('History unavailable'));
+      const recovered = fakeLiveSession(idleState(), historyPage('recovered'));
+      const create = vi
+        .spyOn(AcpLiveSession, 'create')
+        .mockResolvedValueOnce(failed.session)
+        .mockResolvedValueOnce(recovered.session);
+      const store = new AcpChatStore('conversation-1', 'project-1', 'task-1', {
+        get state() {
+          return hostState.get();
+        },
+        liveAction: { kind: 'enabled' },
+      } as never);
+      try {
+        store.bootstrap();
+        await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+        expect(store.session).toBe(failed.session);
+        expect(store.loadError?.message).toBe('History unavailable');
+        expect(historySeed).not.toHaveBeenCalled();
+
+        if (trigger === 'retry') store.retry();
+        else runInAction(() => hostState.set({ kind: 'ready', hostGeneration: 2 }));
+
+        await vi.waitFor(() =>
+          expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'recovered' })])
+        );
+        expect(failed.session.dispose).toHaveBeenCalledOnce();
+        expect(recovered.loadHistory).toHaveBeenCalledWith(undefined, 100);
+        expect(store.historyLoading).toBe(false);
+        expect(store.loadError).toBeNull();
+      } finally {
+        store.dispose();
+        create.mockRestore();
+      }
+    }
+  );
+
   it('keeps the ordinary active-turn completion history refresh', async () => {
     const live = fakeLiveSession(idleState(), historyPage('initial'));
     const store = await bootstrapWithSession(live.session);
@@ -664,6 +811,7 @@ function fakeLiveSession(
     mcpServers: new FakeRemote([]),
     loadHistory,
     terminalOutput: vi.fn(),
+    usable: true,
     sendPrompt: vi.fn(async () => ({ success: true, data: { queued: false } })),
     dispose: vi.fn(),
     ...overrides,
@@ -697,6 +845,7 @@ function createStore(
 ) {
   const store = new AcpChatStore('conversation-1', 'project-1', 'task-1');
   store.session = {
+    usable: true,
     sessionState: { current: () => state },
     sendPrompt,
     dispose: vi.fn(),

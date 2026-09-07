@@ -163,18 +163,20 @@ export class AcpLiveSession {
     }
   }
 
-  async revalidate(): Promise<void> {
+  async revalidate(signal: AbortSignal = this.scope.signal): Promise<void> {
     const validation = ++this.validation;
     runInAction(() => this.usableState.set(false));
     try {
       const result = await withTimeout(
         (signal) => this.client.attach({ conversationId: this.conversationId }, { signal }),
-        'Timed out reattaching ACP session'
+        'Timed out reattaching ACP session',
+        10_000,
+        signal
       );
       if (validation !== this.validation || this.disposed) return;
       if (!result.success) throw new AcpStartError(result.error);
-      await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session');
-      if (!this.disposed && validation === this.validation)
+      await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session', 10_000, signal);
+      if (!this.disposed && !signal.aborted && validation === this.validation)
         runInAction(() => this.usableState.set(true));
     } catch (error) {
       if (!this.disposed && validation === this.validation) throw error;
@@ -322,10 +324,12 @@ function readableError(error: unknown): Error {
 function withTimeout<T>(
   work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
   message: string,
-  ms = 10_000
+  ms = 10_000,
+  signal?: AbortSignal
 ): Promise<T> {
   return runWithTimeout((signal) => (typeof work === 'function' ? work(signal) : work), {
     timeoutMs: ms,
+    signal,
   }).catch((error: unknown) => {
     if (error instanceof TimeoutError) throw new Error(message);
     throw error;

@@ -284,7 +284,11 @@ export class HostConnectionSupervisor {
       this.publish({ kind: 'idle' });
     }
     if (this.active) {
-      if (cause !== 'retry' || state.kind !== 'recovering' || state.nextAttemptAt === undefined)
+      if (
+        (cause !== 'retry' && cause !== 'online') ||
+        state.kind !== 'recovering' ||
+        state.nextAttemptAt === undefined
+      )
         return;
       this.cancel();
     }
@@ -305,6 +309,18 @@ export class HostConnectionSupervisor {
     const epoch = this.epoch;
     void attemptScope
       .run('validate', async () => {
+        // Validate SSH alongside the retained Wire channel. A sleeping laptop can leave
+        // both objects apparently connected; serial deadlines needlessly delay recovery.
+        const sshHealthy = wireProbe
+          ? runWithTimeout((signal) => this.options.ssh.probe(signal), {
+              signal: attemptScope.signal,
+              clock: this.clock,
+              timeoutMs: this.options.healthTimeoutMs ?? 5_000,
+            }).then(
+              () => true,
+              () => false
+            )
+          : undefined;
         const validation = wireProbe
           ? this.runtimeConnection.probe(attemptScope.signal)
           : runWithTimeout((signal) => this.options.ssh.probe(signal), {
@@ -325,11 +341,12 @@ export class HostConnectionSupervisor {
             );
             this.resolveWaiters();
           },
-          () => {
+          async () => {
+            const resetPhysical = !wireProbe || (await sshHealthy) === false;
             if (!this.isCurrent(attemptScope, epoch)) return;
             this.publish({ kind: 'recovering', phase: 'handshaking', attempt: 1 });
             this.runtimeConnection.detach();
-            if (!wireProbe) this.resetSsh();
+            if (resetPhysical) this.resetSsh();
           }
         );
       })

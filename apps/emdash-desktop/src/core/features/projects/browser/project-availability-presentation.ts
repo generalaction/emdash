@@ -78,6 +78,25 @@ export function classifyProjectAvailability({
   if (state.kind === 'ready') return null;
   const machineName = host.kind === 'ssh' ? host.machineName?.trim() || 'Machine' : undefined;
 
+  // A retry attempt and its backoff belong to the same recovery episode. Do not
+  // alternate startup claims and outage warnings as its internal phase changes.
+  if (
+    host.kind === 'ssh' &&
+    state.recovery === 'automatic' &&
+    ['checking', 'connecting', 'provisioning', 'handshaking', 'recovering'].includes(
+      state.situation
+    )
+  ) {
+    return {
+      severity: 'info',
+      announcement: 'polite',
+      title: `Reconnecting to ${machineName}`,
+      detail: 'Your work stays open. Live features resume when the connection returns.',
+      progress: true,
+      actions: [action('retry', 'Retry now'), action('diagnostics', 'Open Machines')],
+    };
+  }
+
   switch (state.situation) {
     case 'suspended':
       return offlinePresentation(host, machineName);
@@ -111,7 +130,7 @@ export function classifyProjectAvailability({
         detail:
           host.kind === 'local'
             ? 'The Project stays open while local services start.'
-            : 'SSH is connected. The workspace server is starting.',
+            : 'Preparing workspace access. Your work stays open.',
         progress: true,
         actions: host.kind === 'ssh' ? [action('diagnostics', 'Open Machines')] : [],
       };

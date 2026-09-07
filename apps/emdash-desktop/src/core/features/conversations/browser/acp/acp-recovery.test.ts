@@ -27,6 +27,78 @@ const contract = defineContract({
 });
 
 describe('ACP attachment recovery over replaceable Wire', () => {
+  it.each(['cancel', 'dispose'] as const)(
+    'does not restore usability after %s during attachment',
+    async (action) => {
+      const transport = replaceableTransport();
+      const connection = connect(transport, { maxHeldCalls: 0 });
+      getClient.mockResolvedValue(client(contract, connection));
+      const first = peer('old');
+      const gate = deferred<void>();
+      const replacement = peer('new', gate.promise);
+      transport.install(first.transport);
+      const session = await AcpLiveSession.create('conversation');
+      try {
+        transport.detach();
+        transport.install(replacement.transport);
+        const controller = new AbortController();
+        const recovery = session.revalidate(action === 'cancel' ? controller.signal : undefined);
+        const settled = recovery.catch(() => {});
+        if (action === 'cancel') controller.abort();
+        else session.dispose();
+        await settled;
+        gate.resolve();
+        await Promise.resolve();
+        expect(session.usable).toBe(false);
+      } finally {
+        gate.resolve();
+        session.dispose();
+        connection.dispose();
+        transport.close();
+        await first.dispose();
+        await replacement.dispose();
+      }
+    }
+  );
+  it('requires a successful reattach before restoring usability after a timeout', async () => {
+    vi.useFakeTimers();
+    const transport = replaceableTransport();
+    const connection = connect(transport, { maxHeldCalls: 0 });
+    const rpc = client(contract, connection);
+    getClient.mockResolvedValue(rpc);
+    const first = peer('old');
+    const gate = deferred<void>();
+    const replacement = peer('new', gate.promise);
+    transport.install(first.transport);
+    const session = await AcpLiveSession.create('conversation');
+    try {
+      transport.detach();
+      transport.install(replacement.transport);
+      const recovery = expect(session.revalidate()).rejects.toThrow(
+        'Timed out reattaching ACP session'
+      );
+      await vi.advanceTimersByTimeAsync(10_000);
+      await recovery;
+      expect(session.usable).toBe(false);
+      gate.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(rpc.acp.attach({ conversationId: 'conversation' })).resolves.toEqual(ok());
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(session.config.current().modelOptions?.selected).toBe('new');
+      expect(session.usable).toBe(false);
+      await session.revalidate();
+      expect(session.usable).toBe(true);
+    } finally {
+      gate.resolve();
+      session.dispose();
+      transport.close();
+      connection.dispose();
+      await first.dispose();
+      await replacement.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it('retains the logical session while reattaching and refreshing daemon-owned state', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
