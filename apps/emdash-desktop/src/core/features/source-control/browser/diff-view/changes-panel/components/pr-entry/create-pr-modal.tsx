@@ -162,10 +162,6 @@ export const CreatePrModal = observer(function CreatePrModal({
       });
 
       if (result.success) {
-        await client.syncSingle({
-          repositoryUrl: targetRepositoryUrl,
-          number: result.data.number,
-        });
         complete();
       } else {
         setError(pullRequestErrorMessage(result.error));
