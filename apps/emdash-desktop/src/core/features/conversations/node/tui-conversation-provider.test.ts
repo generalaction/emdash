@@ -1,6 +1,6 @@
+import type { Conversation } from '@core/primitives/conversations/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Conversation } from '@core/primitives/conversations/api';
 import {
   TuiConversationProvider,
   type TuiConversationProviderOptions,
@@ -82,6 +82,33 @@ describe('TuiConversationProvider', () => {
       expect(resume).not.toHaveBeenCalled();
     }
   );
+
+  it('resumes claude with a hook-captured session id that differs from the conversation id', async () => {
+    const provider = createProvider();
+
+    await provider.ensureSession({
+      conversation: conversation({ providerId: 'claude', sessionId: 'native-session' }),
+      mode: 'resume',
+    });
+
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'claude', sessionId: 'native-session' })
+    );
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('resumes claude with the conversation id when no other session id was captured', async () => {
+    const provider = createProvider();
+
+    await provider.ensureSession({
+      conversation: conversation({ providerId: 'claude', sessionId: 'conversation-1' }),
+      mode: 'resume',
+    });
+
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'claude', sessionId: 'conversation-1' })
+    );
+  });
 
   it.each([
     { label: 'local', host: { type: 'local', id: 'local' } as const },

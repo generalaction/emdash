@@ -82,7 +82,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'config',
       scope: 'global',
-      supportedEvents: ['start', 'notification', 'stop'],
+      supportedEvents: ['start', 'notification', 'stop', 'session'],
     },
     hostDependency: {
       id: 'claude',

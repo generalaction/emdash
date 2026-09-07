@@ -53,6 +53,10 @@ export class TuiAgentStates {
       return;
     }
 
+    if (event.providerSessionId) {
+      this.setProviderSessionId(conversationId, event.providerSessionId);
+    }
+
     if (event.type === 'start') {
       this.setStatus(conversationId, {
         providerId,

@@ -1,8 +1,3 @@
-import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
-import type { HostRef } from '@emdash/core/primitives/host/api';
-import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
-import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type {
   ConversationProvider,
@@ -15,6 +10,11 @@ import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
+import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { and, eq } from 'drizzle-orm';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -182,13 +182,12 @@ function resolveAgentSession(
   mode: 'start' | 'resume'
 ): { sessionId: string; isResuming: boolean } {
   const isResuming = mode === 'resume';
+  const nativeSessionId = conversation.sessionId;
+  const hasNativeSessionId = Boolean(nativeSessionId) && nativeSessionId !== conversation.id;
   if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
-    const nativeSessionId = conversation.sessionId;
-    if (nativeSessionId && nativeSessionId !== conversation.id) {
-      return { sessionId: nativeSessionId, isResuming: true };
-    }
+    if (hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming: true };
     return { sessionId: conversation.id, isResuming: false };
   }
-
+  if (isResuming && hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming };
   return { sessionId: conversation.id, isResuming };
 }
