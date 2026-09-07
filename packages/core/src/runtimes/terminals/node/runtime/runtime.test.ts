@@ -410,10 +410,23 @@ describe('TerminalsRuntime', () => {
       scope,
     });
 
-    const result = await runtime.killTmuxSessions({ sessionIdentities: [identity] });
+    const result = await runtime.killTmuxSessions({
+      sessionIdentities: [identity],
+      workspaceLabel: 'workspace',
+    });
 
     expect(result).toEqual({ success: true, data: undefined });
-    expect(exec.exec).toHaveBeenLastCalledWith('tmux', ['kill-session', '-t', '=manually-renamed']);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', '=manually-renamed']);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeTmuxSessionName(identity, 'workspace')}`,
+    ]);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeLegacyTmuxSessionName(identity)}`,
+    ]);
     await scope.dispose();
   });
 
@@ -445,6 +458,41 @@ describe('TerminalsRuntime', () => {
       '-t',
       `=${makeLegacyTmuxSessionName(identity)}`,
     ]);
+    await scope.dispose();
+  });
+
+  it('killTmuxSessions uses deterministic names when identity discovery fails', async () => {
+    const exec = fakeExec();
+    exec.exec.mockRejectedValueOnce(new Error('inventory failed'));
+    const logger = { ...noopLogger, warn: vi.fn() };
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      userEnv: async () => testUserEnv(),
+      exec,
+      logger,
+      scope,
+    });
+    const identity = 'project:task:terminal';
+
+    const result = await runtime.killTmuxSessions({
+      sessionIdentities: [identity],
+      workspaceLabel: 'workspace',
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeTmuxSessionName(identity, 'workspace')}`,
+    ]);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      `=${makeLegacyTmuxSessionName(identity)}`,
+    ]);
+    expect(logger.warn).toHaveBeenCalledOnce();
     await scope.dispose();
   });
 

@@ -287,18 +287,20 @@ export class TerminalsRuntime {
   ): Promise<Result<void, TerminalRuntimeError>> {
     if (process.platform === 'win32') return ok(undefined);
     await this.withExecutionContext(async (exec) => {
-      const discovered = await findTmuxSessionNamesByIdentity(exec, input.sessionIdentities);
       const names = new Set<string>();
       for (const identity of input.sessionIdentities) {
-        const discoveredName = discovered.get(identity);
-        if (discoveredName) {
-          names.add(discoveredName);
-          continue;
-        }
         if (input.workspaceLabel) {
           names.add(makeTmuxSessionName(identity, input.workspaceLabel));
         }
         names.add(makeLegacyTmuxSessionName(identity));
+      }
+      try {
+        const discovered = await findTmuxSessionNamesByIdentity(exec, input.sessionIdentities);
+        for (const name of discovered.values()) names.add(name);
+      } catch (error) {
+        this.logger.warn('terminals: failed to discover tmux sessions; using deterministic names', {
+          error: String(error),
+        });
       }
       for (const name of names) await killTmuxSession(exec, name);
     });
