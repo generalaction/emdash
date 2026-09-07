@@ -10,6 +10,50 @@ import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
 
 describe('PullRequestService lifecycle', () => {
+  it('polls every minute even when the previous sync completes after its timer tick', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const scope = createScope();
+    try {
+      const handle = await pullRequestSqliteStore.openTemp();
+      scope.add(() => handle.close());
+      const store = new PullRequestStore(handle);
+      const repositoryUrl = 'https://github.com/emdash/emdash';
+      const sync = vi.fn(async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+        return ok();
+      });
+      const { logger } = createStubLogger();
+      const service = new PullRequestService({
+        scope,
+        store,
+        logger,
+        githubAuth: fakeGitHubAuth(),
+        engine: { sync } as unknown as PullRequestEngine,
+        incrementalIntervalMs: 60_000,
+      });
+      service.registerRepository(repositoryUrl);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(sync).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(59_000);
+      expect(sync).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sync).toHaveBeenCalledTimes(3);
+      expect(sync).toHaveBeenLastCalledWith(
+        repositoryUrl,
+        expect.any(AbortSignal),
+        requestPriorities.background
+      );
+      await vi.advanceTimersByTimeAsync(1_000);
+      await scope.dispose();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sync).toHaveBeenCalledTimes(3);
+    } finally {
+      await scope.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it('cancels and settles scoped syncs before closing the database', async () => {
     const scope = createScope({ label: 'pull-request-service-test' });
     const handle = await pullRequestSqliteStore.openTemp();
