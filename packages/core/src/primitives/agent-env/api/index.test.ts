@@ -92,6 +92,24 @@ describe('buildAllowlistedAgentEnv', () => {
     expect(env.PATH).toBe('/bin');
     expect(env.ANTHROPIC_API_KEY).toBe('included');
     expect(env.META_API_KEY).toBe('meta-secret');
+    expect(env.LINEAR_API_KEY).toBeUndefined();
+  });
+
+  it('passes through common MCP credentials and extra allowlisted keys', () => {
+    const env = buildAllowlistedAgentEnv(
+      {
+        LINEAR_API_KEY: 'lin',
+        SUPABASE_ACCESS_TOKEN: 'sb',
+        CUSTOM_MCP_TOKEN: 'custom',
+        UNSAFE_SECRET: 'nope',
+      },
+      { platform: 'posix', additionalKeys: ['CUSTOM_MCP_TOKEN'] }
+    );
+
+    expect(env.LINEAR_API_KEY).toBe('lin');
+    expect(env.SUPABASE_ACCESS_TOKEN).toBe('sb');
+    expect(env.CUSTOM_MCP_TOKEN).toBe('custom');
+    expect(env).not.toHaveProperty('UNSAFE_SECRET');
   });
 
   it('forwards all persistent XDG base-directory variables', () => {
