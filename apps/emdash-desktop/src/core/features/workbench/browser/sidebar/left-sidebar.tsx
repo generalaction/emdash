@@ -5,7 +5,7 @@ import { automationsViewDef } from '@core/features/automations/contributions/vie
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api';
+import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
 import {
   isCurrentView,
   useNavigate,

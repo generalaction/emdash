@@ -6,7 +6,7 @@ import {
   classifyProjectAvailability,
   type ProjectAvailabilityAction,
 } from '@core/features/projects/browser/project-availability-presentation';
-import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api';
+import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
 import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -69,7 +69,7 @@ export function ProjectAvailabilityBanner({
       aria-atomic="true"
       className={cn(
         'flex shrink-0 items-center gap-3',
-        compact ? 'px-3' : 'rounded-lg border px-4 py-3',
+        compact ? 'h-full w-full px-3' : 'rounded-lg border px-4 py-3',
         presentation.severity === 'error' || presentation.severity === 'warning'
           ? 'border-foreground-warning/30 bg-background-warning text-foreground'
           : 'border-border bg-background-1 text-foreground'
@@ -157,7 +157,7 @@ export function ProjectAvailabilityFrame({
       <div className="min-h-0 flex-1">{children}</div>
       {state.kind !== 'ready' ? (
         <div
-          className="shrink-0 border-t border-border"
+          className="flex shrink-0 items-center border-t border-border"
           data-testid="project-connection-status"
           style={{ height: WORKBENCH_BOTTOM_BAR_HEIGHT_PX }}
         >
