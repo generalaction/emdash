@@ -23,8 +23,9 @@ export type WorkspaceIdentityTranslationError =
 
 /**
  * Applies an explicitly authorized old-id -> Host-canonical-id transition. Its only
- * callers are the one-time production backfill and Project repository initialization after
- * createWorkspace resolves the Project path to a different canonical record.
+ * caller is Project repository initialization after createWorkspace resolves the
+ * Project path to a different canonical record. Production backfill uses its own
+ * group consolidation to repair multiple legacy aliases atomically.
  *
  * The old mirror row must still match the caller's expected Host and path. All desktop
  * bindings move in one transaction; the obsolete row remains untracked as history and

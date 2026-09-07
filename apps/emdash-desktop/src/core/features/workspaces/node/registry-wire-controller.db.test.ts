@@ -360,7 +360,6 @@ describe('createWorkspaceRegistryWireController', () => {
         markedMissing: 0,
         untracked: 0,
         purgedTombstones: 0,
-        identityConflicts: [],
       });
       expect(registry.getLive('wt-1')).toBeUndefined();
     });

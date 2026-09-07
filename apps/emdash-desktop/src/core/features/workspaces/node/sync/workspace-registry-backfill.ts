@@ -7,7 +7,6 @@ import {
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { and, eq, isNull } from 'drizzle-orm';
 import {
-  createWorkspaceRegistry,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
   type WorkspaceHostIdentity,
@@ -17,10 +16,13 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { WorkspaceRegistryRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import { translateWorkspaceIdentity } from '../../api/node/translate-workspace-identity';
+import {
+  consolidateWorkspaceBackfill,
+  type ResolvedLegacyWorkspace,
+} from './consolidate-workspace-backfill';
 import { loadWorkspaceAnnotations, type WorkspaceAnnotationIndex } from './workspace-annotations';
 
-const BACKFILL_VERSION = 2 as const;
+const BACKFILL_VERSION = 3 as const;
 const MAX_FIXED_POINT_PASSES = 5;
 
 type BackfillCompletion = { version: typeof BACKFILL_VERSION; completedAt: number };
@@ -47,9 +49,10 @@ type BackfillPlan = {
  * The sole production cutover from shipped desktop-owned Workspace state to the Host
  * registry. This module may translate legacy ids by path; normal Claim and snapshot
  * Observe deliberately may not. On the ordinary first-client cutover the Host starts
- * empty and preserves every proposed legacy id. A different canonical id is possible
- * only when this Host has already learned the path during the same cutover (for example
- * from another desktop or scanner adoption). Completion gates snapshot attachment.
+ * empty and preserves the proposed id for each distinct directory. Legacy aliases,
+ * another desktop, or scanner adoption can resolve to an already registered id.
+ * The complete Host-resolved plan is consolidated atomically before Claim/Observe;
+ * completion gates snapshot attachment.
  */
 export class WorkspaceRegistryBackfillService {
   private readonly flags: AppDbKeyValueStore<BackfillFlags>;
@@ -69,11 +72,10 @@ export class WorkspaceRegistryBackfillService {
     }
 
     try {
-      const hostIdentity = hostIdentityFor(host);
       for (let pass = 0; pass < MAX_FIXED_POINT_PASSES; pass += 1) {
         const before = this.loadPlan(host);
         const fingerprint = planFingerprint(before);
-        const result = await this.applyPlan(hostIdentity, client.data.workspaceRegistry, before);
+        const result = await this.applyPlan(host, client.data.workspaceRegistry, before);
         if (result.status !== 'complete') {
           this.report(host, result);
           return result;
@@ -106,11 +108,17 @@ export class WorkspaceRegistryBackfillService {
   }
 
   private async applyPlan(
-    host: WorkspaceHostIdentity,
+    host: HostRef,
     runtime: Pick<WorkspaceRegistryRuntimeClient, 'createWorkspace'>,
     plan: BackfillPlan
   ): Promise<WorkspaceRegistryBackfillResult> {
-    const registry = createWorkspaceRegistry(this.options.db);
+    const resolved: ResolvedLegacyWorkspace[] = [];
+    const pendingDeletion = [...plan.preserve, ...plan.retire].find(
+      (row) => row.deletionTombstone !== null
+    );
+    if (pendingDeletion) {
+      return terminal(`Legacy Workspace '${pendingDeletion.id}' has a pending deletion Tombstone`);
+    }
 
     for (const row of plan.preserve) {
       if (row.path === null) {
@@ -120,10 +128,6 @@ export class WorkspaceRegistryBackfillService {
         );
         continue;
       }
-      if (row.deletionTombstone !== null) {
-        return terminal(`Legacy Workspace '${row.id}' has a pending deletion Tombstone`);
-      }
-
       const created = await runtime.createWorkspace({ workspaceId: row.id, path: row.path });
       if (!created.success && created.error.type === 'path-not-found') {
         this.options.onError?.(
@@ -138,31 +142,21 @@ export class WorkspaceRegistryBackfillService {
         );
       }
 
-      const claim = {
-        host,
-        record: created.data,
-        ...(row.config !== null ? { config: row.config } : {}),
-      };
-      const claimed =
-        created.data.id === row.id
-          ? registry.claim(claim)
-          : translateWorkspaceIdentity(this.options.db, row.id, claim, row.path);
-      if (!claimed.success) {
-        this.options.onError?.(
-          `workspace registry backfill skipped conflict (${row.id})`,
-          new Error(
-            `Desktop could not translate legacy Workspace '${row.id}': ${JSON.stringify(claimed.error)}`
-          )
-        );
-        continue;
-      }
+      resolved.push({ source: row, record: created.data });
     }
 
-    const retiredAt = new Date().toISOString();
-    registry.untrack(
-      plan.retire.map((row) => row.id),
-      retiredAt
-    );
+    if (planFingerprint(this.loadPlan(host)) !== planFingerprint(plan)) {
+      return {
+        status: 'retry-needed',
+        message: 'Workspace state changed during Host registration',
+      };
+    }
+    consolidateWorkspaceBackfill(this.options.db, hostIdentityFor(host), resolved, plan.retire);
+    if (resolved.some(({ source, record }) => source.id !== record.id)) {
+      appDbPokes.projects.poke({});
+      appDbPokes.tasks.poke({});
+      appDbPokes.conversations.poke({});
+    }
     return { status: 'complete' };
   }
 
