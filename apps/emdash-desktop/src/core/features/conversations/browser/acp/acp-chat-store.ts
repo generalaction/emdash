@@ -120,6 +120,7 @@ export class AcpChatStore {
   private _submissionSequence = 0;
   private _historyRefreshRequested = false;
   private _historyRefreshTask: Promise<void> | null = null;
+  private _historyEpoch = 0;
   private _disposed = false;
   private _attachmentRecovery: Scope | null = null;
   private _attachedHostGeneration: number | undefined;
@@ -454,11 +455,12 @@ export class AcpChatStore {
     if (this.hostAccess?.liveAction.kind === 'disabled') return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     const submissionSequence = ++this._submissionSequence;
+    const promptId = crypto.randomUUID();
     let optimisticId: string | undefined;
     this.draftText = '';
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
-      optimisticId = `optimistic:user:${Date.now()}`;
+      optimisticId = promptId;
       this.chatState.session.setPendingPrompt({
         id: optimisticId,
         text,
@@ -470,7 +472,7 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this._submitPrompt(text, promptAttachments, hiddenContext).then((outcome) => {
+    void this._submitPrompt(promptId, text, promptAttachments, hiddenContext).then((outcome) => {
       if (outcome !== 'rejected') return;
       runInAction(() => {
         if (this._disposed || submissionSequence !== this._submissionSequence) return;
@@ -712,6 +714,7 @@ export class AcpChatStore {
   }
 
   private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
+    this._historyEpoch++;
     void this._attachmentRecovery?.dispose();
     const scope = this._scope.child('attachment-recovery');
     this._attachmentRecovery = scope;
@@ -726,7 +729,10 @@ export class AcpChatStore {
             runInAction(() => {
               // Reattachment alone cannot recover a failed history/bootstrap load.
               if (this._bootstrapFailed) this.retry();
-              else this.loadError = null;
+              else {
+                this.loadError = null;
+                this._requestHistoryRefresh();
+              }
             });
             return;
           } catch (error) {
@@ -772,6 +778,7 @@ export class AcpChatStore {
   }
 
   private async _submitPrompt(
+    promptId: string,
     text: string,
     attachments: StoredPromptAttachment[],
     hiddenContext?: string | Promise<string | undefined>
@@ -794,11 +801,15 @@ export class AcpChatStore {
     }
 
     try {
-      const result = await session.sendPrompt({
-        text,
-        ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
-        ...(attachments.length > 0 ? { attachments } : {}),
-      });
+      const result = await session.sendPrompt(
+        {
+          text,
+          ...(resolvedHiddenContext ? { hiddenContext: resolvedHiddenContext } : {}),
+          ...(attachments.length > 0 ? { attachments } : {}),
+        },
+        undefined,
+        promptId
+      );
       if (!result.success) {
         this._toastError('Failed to send message', result.error);
         return 'rejected';
@@ -964,10 +975,21 @@ export class AcpChatStore {
 
     const task = Promise.resolve()
       .then(async () => {
+        let attempt = 0;
         while (this._historyRefreshRequested && !this._disposed) {
           this._historyRefreshRequested = false;
-          await this._refreshHistory();
+          if (await this._refreshHistory()) {
+            attempt = 0;
+          } else {
+            this._historyRefreshRequested = true;
+            await systemClock.sleep(Math.min(1_000 * 2 ** attempt++, 15_000), {
+              signal: this._scope.signal,
+            });
+          }
         }
+      })
+      .catch((error: unknown) => {
+        if (!this._disposed) getMementoClient().reportError(error);
       })
       .finally(() => {
         if (this._historyRefreshTask === task) this._historyRefreshTask = null;
@@ -976,30 +998,38 @@ export class AcpChatStore {
     this._historyRefreshTask = task;
   }
 
-  private async _refreshHistory(): Promise<void> {
+  private async _refreshHistory(): Promise<boolean> {
     const session = this.session;
-    if (!session) return;
+    const epoch = this._historyEpoch;
+    if (!session || !session.usable || this.hostAccess?.liveAction.kind === 'disabled') return true;
 
     try {
       const history = await session.loadHistory(undefined, 100);
-      if (!history.success || history.data.unavailable || this.session !== session) return;
+      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
+      if (!history.success) throw new AcpStartError(history.error);
+      if (history.data.unavailable) return true;
       // A waking prompt may begin between replay completion and this response. Do not let a
       // replay-history seed reset the newly active turn; its normal completion refresh will seed
       // the authoritative history instead.
-      if (this.chatState.transcript.state.activeTurnSnapshot !== null) return;
+      if (this.chatState.transcript.state.activeTurnSnapshot !== null) return true;
       runInAction(() => {
         const pendingPrompt = this.chatState.session.state.pendingPrompt;
         this.chatState.transcript.history.seed(history.data.turns);
-        if (pendingPrompt && this.chatState.session.state.pendingPrompt === null) {
-          this.chatState.session.setPendingPrompt(pendingPrompt);
+        if (pendingPrompt) {
+          const committed = history.data.turns.some((turn) =>
+            turn.items.some((item) => item.kind === 'message' && item.promptId === pendingPrompt.id)
+          );
+          this.chatState.session.setPendingPrompt(committed ? null : pendingPrompt);
         }
         this._syncMessageCount();
       });
+      return true;
     } catch (error) {
       log.warn('Failed to refresh ACP history', {
         conversationId: this.conversationId,
         error,
       });
+      return error instanceof AcpStartError && error.errorType === 'auth_required';
     }
   }
 
