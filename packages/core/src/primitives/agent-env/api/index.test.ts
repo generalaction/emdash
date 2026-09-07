@@ -84,12 +84,14 @@ describe('buildAllowlistedAgentEnv', () => {
         PATH: '/bin',
         anthropic_api_key: 'excluded',
         ANTHROPIC_API_KEY: 'included',
+        META_API_KEY: 'meta-secret',
       },
       { platform: 'posix' }
     );
 
     expect(env.PATH).toBe('/bin');
     expect(env.ANTHROPIC_API_KEY).toBe('included');
+    expect(env.META_API_KEY).toBe('meta-secret');
   });
 
   it('forwards all persistent XDG base-directory variables', () => {
