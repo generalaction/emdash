@@ -127,7 +127,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       if (message.ok) {
         pendingCall.resolve(message.value);
       } else {
-        pendingCall.reject(new WireError(message.code, message.message, { cause: message.cause }));
+        pendingCall.reject(
+          new WireError(message.code, message.message, {
+            cause: message.cause,
+            delivery: message.delivery,
+          })
+        );
       }
       return;
     }
@@ -234,7 +239,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     connected = false;
     for (const pendingCall of pending.values()) {
       pendingCall.cleanup();
-      pendingCall.reject(terminalFailureError());
+      pendingCall.reject(terminalFailureError(pendingCall.posted));
     }
     pending.clear();
     heldCallIds.length = 0;
@@ -260,11 +265,11 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
     return new Promise((resolve, reject) => {
       if (disposed) {
-        reject(new WireError('DISCONNECTED', 'Wire connection disposed'));
+        reject(new WireError('DISCONNECTED', 'Wire connection disposed', { delivery: 'not-sent' }));
         return;
       }
       if (terminal) {
-        reject(terminalFailureError());
+        reject(terminalFailureError(false));
         return;
       }
       if (options.signal?.aborted) {
@@ -280,7 +285,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
             errorMessage: 'Wire call cancelled',
           });
         }
-        reject(new WireError('CANCELLED', 'Wire call cancelled'));
+        reject(new WireError('CANCELLED', 'Wire call cancelled', { delivery: 'not-sent' }));
         return;
       }
 
@@ -309,7 +314,11 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
             errorMessage: 'Wire call cancelled',
           });
         }
-        reject(new WireError('CANCELLED', 'Wire call cancelled'));
+        reject(
+          new WireError('CANCELLED', 'Wire call cancelled', {
+            delivery: wasPosted ? undefined : 'not-sent',
+          })
+        );
       };
       const removeAbortListener = (): void => options.signal?.removeEventListener('abort', onAbort);
       options.signal?.addEventListener('abort', onAbort, { once: true });
@@ -383,7 +392,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     pendingCall.reject(
       new WireError(
         'TIMEOUT',
-        `Wire ${describeRequest(pendingCall.message)} timed out after ${deadlineMs}ms`
+        `Wire ${describeRequest(pendingCall.message)} timed out after ${deadlineMs}ms`,
+        { delivery: wasPosted ? undefined : 'not-sent' }
       )
     );
   }
@@ -393,7 +403,9 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       pending.delete(pendingCall.message.id);
       pendingCall.cleanup();
       pendingCall.reject(
-        new WireError('DISCONNECTED', 'Wire held-call buffer is full while disconnected')
+        new WireError('DISCONNECTED', 'Wire held-call buffer is full while disconnected', {
+          delivery: 'not-sent',
+        })
       );
       return;
     }
@@ -445,9 +457,10 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     return flushed;
   }
 
-  function terminalFailureError(): WireError {
+  function terminalFailureError(posted = true): WireError {
     return new WireError('DISCONNECTED', 'Wire transport failed permanently', {
       cause: terminalCause,
+      delivery: posted ? undefined : 'not-sent',
     });
   }
 
@@ -581,7 +594,11 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
 
       for (const pendingCall of pending.values()) {
         pendingCall.cleanup();
-        pendingCall.reject(new WireError('DISCONNECTED', 'Wire connection disposed'));
+        pendingCall.reject(
+          new WireError('DISCONNECTED', 'Wire connection disposed', {
+            delivery: pendingCall.posted ? undefined : 'not-sent',
+          })
+        );
       }
       pending.clear();
 
@@ -777,12 +794,13 @@ function createPostError(message: WireMessage, error: unknown): WireError {
       : formatStructuredCloneFailure(message, 'message');
     return new WireError('SERIALIZATION', `${callContext} could not be serialized: ${diagnostic}`, {
       cause: error,
+      delivery: 'not-sent',
     });
   }
   return new WireError(
     'DISCONNECTED',
     error instanceof Error ? error.message : 'Wire transport disconnected',
-    { cause: error }
+    { cause: error, delivery: 'not-sent' }
   );
 }
 

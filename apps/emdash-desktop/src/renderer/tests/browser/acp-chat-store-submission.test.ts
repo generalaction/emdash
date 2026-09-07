@@ -93,6 +93,50 @@ const connectSession = vi.fn(
 );
 
 describe('AcpChatStore prompt submission', () => {
+  it.each(['disconnected', 'disposed', 'buffer-full'] as const)(
+    'restores the draft and clears the optimistic prompt after a %s pre-delivery failure',
+    async (reason) => {
+      const pair = memoryTransportPair();
+      const post = vi.fn(pair.left.post);
+      const connection = connect(
+        {
+          ...pair.left,
+          post,
+          ...(reason === 'buffer-full' ? { onReconnect: () => () => {} } : {}),
+        },
+        { maxHeldCalls: 0 }
+      );
+      if (reason === 'disposed') connection.dispose();
+      else pair.disconnect();
+      const acp = client(
+        defineContract({ sendPrompt: conversationsContract.acp.sendPrompt }),
+        connection
+      );
+      const sendPrompt = vi.fn((prompt) =>
+        AcpLiveSession.prototype.sendPrompt.call(
+          { client: acp, conversationId: 'conversation-1' } as never,
+          prompt
+        )
+      );
+      const store = createStore(idleState(), sendPrompt);
+      const errorToast = vi.spyOn(toast, 'error');
+      try {
+        store.setDraftText('keep this prompt');
+        store.submitPrompt('keep this prompt');
+        await vi.waitFor(() => expect(errorToast).toHaveBeenCalledOnce());
+        expect(store.draftText).toBe('keep this prompt');
+        expect(chatSessionTestState.pendingPrompt).toBeNull();
+        expect(store.unconfirmedPromptIds).toEqual([]);
+        expect(sendPrompt).toHaveBeenCalledOnce();
+        if (reason !== 'disconnected') expect(post).not.toHaveBeenCalled();
+      } finally {
+        store.dispose();
+        connection.dispose();
+        errorToast.mockRestore();
+      }
+    }
+  );
+
   it.each(['host-check', 'timer', 'retry'] as const)(
     'recovers a timed-out attachment through %s without a new host generation',
     async (trigger) => {

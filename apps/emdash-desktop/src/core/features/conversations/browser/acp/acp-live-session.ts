@@ -17,6 +17,7 @@ import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
+import { WireError } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
@@ -222,6 +223,7 @@ export class AcpLiveSession {
         { timeoutMs: 0 }
       );
     } catch (error) {
+      if (error instanceof WireError && error.delivery === 'not-sent') throw error;
       throw new AcpPromptDeliveryUnknownError(promptId, error);
     }
   }
