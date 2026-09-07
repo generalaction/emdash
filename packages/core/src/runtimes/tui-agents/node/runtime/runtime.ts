@@ -986,6 +986,17 @@ export class TuiAgentsRuntime {
       if (!active || active !== session || active.pty || !latest || latest.intent === 'stopped') {
         return;
       }
+      const sessionId = this.currentProviderSessionId(
+        config.input.conversationId,
+        latest.input.sessionId
+      );
+      if (sessionId) {
+        this.configs.set(config.input.conversationId, {
+          ...latest,
+          input: { ...latest.input, sessionId },
+          intent: 'resume',
+        });
+      }
       void this.launchCurrentConfig(config.input.conversationId);
     }, RESPAWN_DELAY_MS);
     return true;

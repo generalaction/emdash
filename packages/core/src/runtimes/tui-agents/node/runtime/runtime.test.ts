@@ -111,6 +111,57 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
+  it.each(['fresh', 'resume'] as const)(
+    'recovers a %s launch using the session id captured after switching sessions',
+    async (mode) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const clock = createManualClock();
+      const reports = createRecordingConversationLifecycleReporter();
+      const { runtime, spawner, agentHost } = createRuntime({
+        clock,
+        conversationReports: reports,
+      });
+      try {
+        if (mode === 'resume') {
+          await runtime.resumeSession(startInput({ sessionId: 'original-session' }));
+        } else {
+          await runtime.startSession(startInput());
+        }
+        runtime['agentStates'].applyCanonicalEvent('conversation-1', 'test', {
+          kind: 'status',
+          type: 'start',
+          providerSessionId: 'switched-session',
+        });
+        expect(reports.providerIds).toEqual([
+          { conversationId: 'conversation-1', providerSessionId: 'switched-session' },
+        ]);
+
+        // Crash outside the early-resume fallback window.
+        await clock.advanceBy(4_000);
+        spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(spawner.processes).toHaveLength(2);
+        expect(agentHost.buildPromptCommand).toHaveBeenLastCalledWith(
+          'test',
+          expect.objectContaining({
+            isResuming: true,
+            providerSessionId: 'switched-session',
+            initialPrompt: undefined,
+          })
+        );
+        expect(reports.started.at(-1)).toEqual({
+          conversationId: 'conversation-1',
+          providerSessionId: 'switched-session',
+          resumeOutcome: 'loaded',
+        });
+      } finally {
+        await runtime.dispose();
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it('retains stopped output when replacement spawning fails', async () => {
     const { runtime, spawner } = createRuntime();
     await runtime.startSession(startInput());
