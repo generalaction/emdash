@@ -583,7 +583,7 @@ const ComposerForStore = observer(function ComposerForStore({
           canSubmit={a.canSubmit}
           onSubmit={handleSubmit}
           onInputChange={(text) => store.setDraftText(text)}
-          onSubmitWhileWorking={a.canSubmit ? handleSubmit : undefined}
+          onSubmitWhileWorking={store.liveActionsEnabled ? handleSubmit : undefined}
           onStop={a.canCancel ? handleStop : undefined}
           permissionRequest={permissionRequest}
           permissionQueueCount={store.permissionQueue.length}
