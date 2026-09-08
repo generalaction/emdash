@@ -11,6 +11,7 @@ import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/compo
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 import { PrUrlCopyButton } from '@root/src/core/services/pull-requests/browser/components/pr-url-copy-button';
+import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { PrCheckoutDriftLine } from './checkout-drift-line';
 import { PrChecksList } from './checks-list';
 import { CommitRangeCommitsList } from './commits-list';
@@ -55,6 +56,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [bypassRequirements, setBypassRequirements] = useState(false);
   const [isUpdatingCheckout, setIsUpdatingCheckout] = useState(false);
+  const { checks } = useSyncCheckRuns(pr);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -164,7 +166,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
           {tab === 'commits' && <CommitRangeCommitsList range={commitRangeForPullRequest(pr)} />}
-          {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} />}
+          {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} checks={checks} />}
         </div>
       </div>
       {pr.status === 'open' && (
