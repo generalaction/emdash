@@ -39,15 +39,15 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 ## A Poem for Parallel Exploration
 
 ```
-Multiple agents, branching in time,
-Each in their worktree, solving with rhyme,
-Isolated paths through the code they explore,
-Ideas colliding, unlocking the door.
+Multiple paths wind through the forest deep,
+Each trail diverging where the wild things creep,
+Isolated journeys through the woods they roam,
+Discoveries blooming far away from home.
 
-What works survives, what fails you discard,
-Parallel futures less difficult, less hard,
-Merge the best solutions, leave problems behind,
-A symphony of agents, collaborative mind.
+What thrives persists, what withers falls away,
+Parallel futures guide us day by day,
+Merge the best pathways where the sunlight flows,
+A symphony of nature where the river goes.
 ```
 
 ## Installation
