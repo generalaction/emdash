@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { Dialog } from '@emdash/ui/react/primitives';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

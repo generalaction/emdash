@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { darkTheme } from '../themes/dark.theme';
 import { lightTheme } from '../themes/light.theme';
 import { nsName } from './contract/namespace';
-import { SURFACE_LEVELS, SURFACE_STATUSES, STATUS_LEVEL_SCOPES } from './contract/roles';
+import { SURFACE_LEVELS, SURFACE_TONES, TONE_SCOPES } from './contract/roles';
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template';
 import type { ResolvedTheme } from './define-theme';
 
@@ -158,8 +158,8 @@ describe('Theme generation', () => {
       });
     }
 
-    // Dark mode is a clean monotonic ladder (sunken darkest → elevated-emphasis lightest)
-    it('dark: surface L values are strictly increasing (sunken → elevated-emphasis)', () => {
+    // Dark mode is a clean monotonic ladder (sunken darkest → overlay lightest)
+    it('dark: surface L values are strictly increasing (sunken → overlay)', () => {
       const levels = surfaceLs(darkTheme);
       for (let i = 1; i < levels.length; i++) {
         expect(levels[i].l).toBeGreaterThan(levels[i - 1].l);
@@ -176,9 +176,9 @@ describe('Theme generation', () => {
       expect(byLevel['elevated']).toBe(Math.max(...all));
     });
 
-    it('light: elevated-emphasis is not darker than base', () => {
+    it('light: overlay is not darker than base', () => {
       const byLevel = Object.fromEntries(surfaceLs(lightTheme).map((x) => [x.level, x.l]));
-      expect(byLevel['elevated-emphasis']).toBeGreaterThanOrEqual(byLevel['base']);
+      expect(byLevel['overlay']).toBeGreaterThanOrEqual(byLevel['base']);
     });
 
     for (const theme of [lightTheme, darkTheme]) {
@@ -231,13 +231,13 @@ describe('Theme generation', () => {
     });
   });
 
-  // 8. Status surface vars resolve and are in P3 gamut (base + per-level scopes)
-  describe('Status surfaces', () => {
+  // 8. Surface Tone vars resolve and are in P3 gamut (base + contextual scopes)
+  describe('Surface Tones', () => {
     const STATUS_VARIANTS = ['', '-hover', '-selected', '-border', '-foreground'] as const;
 
     for (const theme of [lightTheme, darkTheme]) {
       it(`${theme.id}: base status vars resolve to non-empty color strings`, () => {
-        for (const status of SURFACE_STATUSES) {
+        for (const status of SURFACE_TONES) {
           for (const variant of STATUS_VARIANTS) {
             const key = nsName(`surface-${status}${variant}`);
             const cssVal = theme.cssVars[key];
@@ -247,8 +247,8 @@ describe('Theme generation', () => {
         }
       });
 
-      it(`${theme.id}: base status surface colors are in P3 gamut`, () => {
-        for (const status of SURFACE_STATUSES) {
+      it(`${theme.id}: base Surface Tone colors are in P3 gamut`, () => {
+        for (const status of SURFACE_TONES) {
           for (const variant of STATUS_VARIANTS) {
             const key = nsName(`surface-${status}${variant}`);
             const cssVal = theme.cssVars[key];
@@ -260,8 +260,8 @@ describe('Theme generation', () => {
       });
 
       it(`${theme.id}: per-scope status vars resolve to non-empty color strings`, () => {
-        for (const status of SURFACE_STATUSES) {
-          for (const scope of STATUS_LEVEL_SCOPES) {
+        for (const status of SURFACE_TONES) {
+          for (const scope of TONE_SCOPES) {
             for (const variant of STATUS_VARIANTS) {
               const key = nsName(`surface-${status}-${scope}${variant}`);
               const cssVal = theme.cssVars[key];
@@ -272,9 +272,9 @@ describe('Theme generation', () => {
         }
       });
 
-      it(`${theme.id}: per-scope status surface colors are in P3 gamut`, () => {
-        for (const status of SURFACE_STATUSES) {
-          for (const scope of STATUS_LEVEL_SCOPES) {
+      it(`${theme.id}: per-scope Surface Tone colors are in P3 gamut`, () => {
+        for (const status of SURFACE_TONES) {
+          for (const scope of TONE_SCOPES) {
             for (const variant of STATUS_VARIANTS) {
               const key = nsName(`surface-${status}-${scope}${variant}`);
               const cssVal = theme.cssVars[key];
@@ -287,9 +287,9 @@ describe('Theme generation', () => {
       });
     }
 
-    // Elevation-tracking regression: status rooms must follow the canvas lightness direction.
-    it('dark: elevated status room is lighter than base status room', () => {
-      for (const status of SURFACE_STATUSES) {
+    // Elevation-tracking regression: Tones must follow the canvas lightness direction.
+    it('dark: elevated Surface Tone is lighter than base Tone', () => {
+      for (const status of SURFACE_TONES) {
         const base = darkTheme.cssVars[nsName(`surface-${status}`)];
         const elevated = darkTheme.cssVars[nsName(`surface-${status}-elevated`)];
         expect(base).toBeTruthy();
@@ -303,8 +303,8 @@ describe('Theme generation', () => {
       }
     });
 
-    it('light: elevated status room is lighter than base status room', () => {
-      for (const status of SURFACE_STATUSES) {
+    it('light: elevated Surface Tone is lighter than base Tone', () => {
+      for (const status of SURFACE_TONES) {
         const base = lightTheme.cssVars[nsName(`surface-${status}`)];
         const elevated = lightTheme.cssVars[nsName(`surface-${status}-elevated`)];
         expect(base).toBeTruthy();

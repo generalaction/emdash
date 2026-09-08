@@ -1,50 +1,26 @@
 /**
- * surface.css.ts — Vanilla Extract recipe for surface-level containers.
+ * Establishes a Surface's inherited visual context and paints its root.
  *
- * Applies the surface cascade vars to an element so it reads from the correct
- * level in the elevation hierarchy. Wraps the same scope-class semantics as
- * surfaces.css.ts but makes them composable with VE recipe().
+ * Select at least one orthogonal axis:
+ * - `level`: absolute elevation (`sunken`, `base`, `raised`, `elevated`, `overlay`)
+ * - `role`: semantic purpose independent of elevation (`paper`)
+ * - `tone`: neutral-status intent within the selected context
+ * - `emphasis`: the surrounding Surface's context-relative emphasis
  *
- * Usage:
- *   import { surface } from '@emdash/ui/styles/recipes/surface';
- *   <div className={surface({ level: 'elevated', interactive: true })} />
- *
- * Variants:
- *   level       — sunken | base | elevated | paper (default: base)
- *   status      — destructive | warning | info | success (default: none)
- *   interactive — true | false: adds hover/selected cursor + transition
- *
- * Status rooms are level-aware: when both `level` and `status` are set on the
- * same element, the level variant rebinds the effective --surface-<status>*
- * cascade vars to the canvas-matched tints generated at theme build time.
+ * Omitted axes inherit. The returned class belongs on the rendered region that
+ * owns the Surface; use `className` separately for caller-owned layout.
  */
 
-import { SURFACE_STATUSES } from '@emdash/theme';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-// Relative import: the dts emitter rewrites aliased imports to a dangling
-// relative path, silently degrading the exported types.
-import { vars } from '../../theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { recipe } from '@styles/index';
+import { surfaceToneBindings, surfaceToneContext } from './surface-tone-context';
 
-const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
-const vv = vars as unknown as Record<string, string>;
+const inputColor = `color-mix(in srgb, ${tokens.surface.current.background} 94%, ${tokens.foreground.default})`;
 
-function statusRebindings(scope: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const status of SURFACE_STATUSES) {
-    for (const sub of ['', '-hover', '-selected', '-border', '-foreground']) {
-      const effectiveKey = toCamel(`surface-${status}${sub}`);
-      const scopeKey = toCamel(`surface-${status}-${scope}${sub}`);
-      result[vv[effectiveKey]] = vv[scopeKey];
-    }
-  }
-  return result;
-}
-
-export const surface = recipe({
+export const surfaceRecipe = recipe({
   base: {
-    backgroundColor: vars.surface,
-    color: vars.foreground,
+    backgroundColor: tokens.surface.current.background,
+    color: tokens.surface.current.foreground,
   },
 
   variants: {
@@ -52,108 +28,149 @@ export const surface = recipe({
       // Sunken — recessed, below the base plane (sidebars, trays)
       sunken: {
         vars: {
-          [vars.surface]: vars.surfaceSunken,
-          [vars.surfaceHover]: vars.surfaceSunkenHover,
-          [vars.surfaceSelected]: vars.surfaceSunkenSelected,
-          [vars.surfaceEmphasis]: vars.surfaceBase,
-          [vars.surfaceEmphasisHover]: vars.surfaceBaseHover,
-          [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
-          ...statusRebindings('sunken'),
+          [tokens.surface.current.background]: tokens.surface.level.sunken.background,
+          [tokens.surface.current.hover]: tokens.surface.level.sunken.hover,
+          [tokens.surface.current.selected]: tokens.surface.level.sunken.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.base.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.base.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.base.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.sunken,
         },
       },
       // Base — default surface level (content areas, cards on sunken canvas)
       base: {
         vars: {
-          [vars.surface]: vars.surfaceBase,
-          [vars.surfaceHover]: vars.surfaceBaseHover,
-          [vars.surfaceSelected]: vars.surfaceBaseSelected,
-          [vars.surfaceEmphasis]: vars.surfaceBaseEmphasis,
-          [vars.surfaceEmphasisHover]: vars.surfaceBaseEmphasisHover,
-          [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
-          // base is the default — no status rebindings needed
+          [tokens.surface.current.background]: tokens.surface.level.base.background,
+          [tokens.surface.current.hover]: tokens.surface.level.base.hover,
+          [tokens.surface.current.selected]: tokens.surface.level.base.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.raised.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.raised.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.raised.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.base,
+        },
+      },
+      // Raised — context-relative emphasis above the base plane
+      raised: {
+        vars: {
+          [tokens.surface.current.background]: tokens.surface.level.raised.background,
+          [tokens.surface.current.hover]: tokens.surface.level.raised.hover,
+          [tokens.surface.current.selected]: tokens.surface.level.raised.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.elevated.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.elevated.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.elevated.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.raised,
         },
       },
       // Elevated — raised above base (popovers, dialogs, dropdowns)
       elevated: {
         vars: {
-          [vars.surface]: vars.surfaceElevated,
-          [vars.surfaceHover]: vars.surfaceElevatedHover,
-          [vars.surfaceSelected]: vars.surfaceElevatedSelected,
-          [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
-          [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
-          [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
-          ...statusRebindings('elevated'),
+          [tokens.surface.current.background]: tokens.surface.level.elevated.background,
+          [tokens.surface.current.hover]: tokens.surface.level.elevated.hover,
+          [tokens.surface.current.selected]: tokens.surface.level.elevated.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.overlay.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.overlay.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.overlay.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.elevated,
         },
       },
-      // Paper — maximum elevation (tooltip-level, floating panels)
-      paper: {
+      // Overlay — top of the elevation ladder, clamped to itself
+      overlay: {
         vars: {
-          [vars.surface]: vars.surfacePaper,
-          [vars.surfaceHover]: vars.surfacePaperHover,
-          [vars.surfaceSelected]: vars.surfacePaperSelected,
-          [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
-          [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
-          [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
-          ...statusRebindings('paper'),
+          [tokens.surface.current.background]: tokens.surface.level.overlay.background,
+          [tokens.surface.current.hover]: tokens.surface.level.overlay.hover,
+          [tokens.surface.current.selected]: tokens.surface.level.overlay.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.overlay.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.overlay.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.overlay.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.overlay,
         },
       },
     },
 
-    status: {
+    role: {
+      paper: {
+        vars: {
+          [tokens.surface.current.background]: tokens.surface.role.paper.background,
+          [tokens.surface.current.hover]: tokens.surface.role.paper.hover,
+          [tokens.surface.current.selected]: tokens.surface.role.paper.selected,
+          [tokens.surface.current.emphasis]: tokens.surface.level.raised.background,
+          [tokens.surface.current.emphasisHover]: tokens.surface.level.raised.hover,
+          [tokens.surface.current.emphasisSelected]: tokens.surface.level.raised.selected,
+          [tokens.surface.current.input]: inputColor,
+          ...surfaceToneBindings.paper,
+        },
+      },
+    },
+
+    tone: {
       destructive: {
         vars: {
-          [vars.surface]: vars.surfaceDestructive,
-          [vars.surfaceForeground]: vars.surfaceDestructiveForeground,
-          [vars.surfaceBorder]: vars.surfaceDestructiveBorder,
-          [vars.surfaceHover]: vars.surfaceDestructiveHover,
-          [vars.surfaceSelected]: vars.surfaceDestructiveSelected,
+          [tokens.surface.current.background]: surfaceToneContext.destructive.background,
+          [tokens.surface.current.foreground]: surfaceToneContext.destructive.foreground,
+          [tokens.surface.current.border]: surfaceToneContext.destructive.border,
+          [tokens.surface.current.hover]: surfaceToneContext.destructive.hover,
+          [tokens.surface.current.selected]: surfaceToneContext.destructive.selected,
+          [tokens.surface.current.emphasis]: surfaceToneContext.destructive.selected,
+          [tokens.surface.current.emphasisHover]: surfaceToneContext.destructive.selected,
+          [tokens.surface.current.emphasisSelected]: surfaceToneContext.destructive.selected,
+          [tokens.surface.current.input]: inputColor,
         },
       },
       warning: {
         vars: {
-          [vars.surface]: vars.surfaceWarning,
-          [vars.surfaceForeground]: vars.surfaceWarningForeground,
-          [vars.surfaceBorder]: vars.surfaceWarningBorder,
-          [vars.surfaceHover]: vars.surfaceWarningHover,
-          [vars.surfaceSelected]: vars.surfaceWarningSelected,
+          [tokens.surface.current.background]: surfaceToneContext.warning.background,
+          [tokens.surface.current.foreground]: surfaceToneContext.warning.foreground,
+          [tokens.surface.current.border]: surfaceToneContext.warning.border,
+          [tokens.surface.current.hover]: surfaceToneContext.warning.hover,
+          [tokens.surface.current.selected]: surfaceToneContext.warning.selected,
+          [tokens.surface.current.emphasis]: surfaceToneContext.warning.selected,
+          [tokens.surface.current.emphasisHover]: surfaceToneContext.warning.selected,
+          [tokens.surface.current.emphasisSelected]: surfaceToneContext.warning.selected,
+          [tokens.surface.current.input]: inputColor,
         },
       },
       info: {
         vars: {
-          [vars.surface]: vars.surfaceInfo,
-          [vars.surfaceForeground]: vars.surfaceInfoForeground,
-          [vars.surfaceBorder]: vars.surfaceInfoBorder,
-          [vars.surfaceHover]: vars.surfaceInfoHover,
-          [vars.surfaceSelected]: vars.surfaceInfoSelected,
+          [tokens.surface.current.background]: surfaceToneContext.info.background,
+          [tokens.surface.current.foreground]: surfaceToneContext.info.foreground,
+          [tokens.surface.current.border]: surfaceToneContext.info.border,
+          [tokens.surface.current.hover]: surfaceToneContext.info.hover,
+          [tokens.surface.current.selected]: surfaceToneContext.info.selected,
+          [tokens.surface.current.emphasis]: surfaceToneContext.info.selected,
+          [tokens.surface.current.emphasisHover]: surfaceToneContext.info.selected,
+          [tokens.surface.current.emphasisSelected]: surfaceToneContext.info.selected,
+          [tokens.surface.current.input]: inputColor,
         },
       },
       success: {
         vars: {
-          [vars.surface]: vars.surfaceSuccess,
-          [vars.surfaceForeground]: vars.surfaceSuccessForeground,
-          [vars.surfaceBorder]: vars.surfaceSuccessBorder,
-          [vars.surfaceHover]: vars.surfaceSuccessHover,
-          [vars.surfaceSelected]: vars.surfaceSuccessSelected,
+          [tokens.surface.current.background]: surfaceToneContext.success.background,
+          [tokens.surface.current.foreground]: surfaceToneContext.success.foreground,
+          [tokens.surface.current.border]: surfaceToneContext.success.border,
+          [tokens.surface.current.hover]: surfaceToneContext.success.hover,
+          [tokens.surface.current.selected]: surfaceToneContext.success.selected,
+          [tokens.surface.current.emphasis]: surfaceToneContext.success.selected,
+          [tokens.surface.current.emphasisHover]: surfaceToneContext.success.selected,
+          [tokens.surface.current.emphasisSelected]: surfaceToneContext.success.selected,
+          [tokens.surface.current.input]: inputColor,
         },
       },
     },
 
-    interactive: {
+    emphasis: {
       true: {
-        cursor: 'pointer',
-        transition: 'background-color 150ms, color 150ms',
-        selectors: {
-          '&:hover': { backgroundColor: vars.surfaceHover },
-          '&[data-selected]': { backgroundColor: vars.surfaceSelected },
-          '&[aria-selected="true"]': { backgroundColor: vars.surfaceSelected },
+        vars: {
+          [tokens.surface.current.background]: tokens.surface.current.emphasis,
+          [tokens.surface.current.hover]: tokens.surface.current.emphasisHover,
+          [tokens.surface.current.selected]: tokens.surface.current.emphasisSelected,
+          [tokens.surface.current.input]: inputColor,
         },
       },
     },
-  },
-
-  defaultVariants: {
-    level: 'base',
   },
 });
-
-export type SurfaceVariants = RecipeVariants<typeof surface>;

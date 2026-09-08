@@ -1,6 +1,7 @@
-import { keyframes, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
+import { kfRotateTo } from '@styles/effects/animations.css';
 
 const columns = '1rem minmax(0, 1fr) 5rem 7rem 7.5rem';
 
@@ -9,9 +10,9 @@ export const root = style({
   minWidth: 0,
   flexDirection: 'column',
   overflow: 'hidden',
-  borderRadius: tokenVars.radiusLg,
-  border: `1px solid ${vars.border}`,
-  backgroundColor: vars.surfaceBase,
+  borderRadius: tokens.radius.lg,
+  border: `1px solid ${tokens.border.default}`,
+  backgroundColor: tokens.surface.level.base.background,
 });
 
 export const header = style({
@@ -19,7 +20,7 @@ export const header = style({
   minWidth: 0,
   alignItems: 'center',
   gap: '0.5rem',
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   padding: '0.5rem',
 });
 
@@ -36,8 +37,8 @@ export const currentFolder = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: tokenVars.textSm,
-  color: vars.foreground,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
 });
 
 export const searchSlot = style({
@@ -59,10 +60,10 @@ export const columnHeader = style({
   gridTemplateColumns: columns,
   alignItems: 'center',
   gap: '0.625rem',
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   padding: '0.375rem 0.75rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 export const row = style({
@@ -72,10 +73,10 @@ export const row = style({
   alignItems: 'center',
   gap: '0.625rem',
   border: 0,
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   backgroundColor: 'transparent',
   padding: '0.5625rem 0.75rem',
-  color: vars.foreground,
+  color: tokens.foreground.default,
   font: 'inherit',
   textAlign: 'left',
   outline: 'none',
@@ -84,16 +85,16 @@ export const row = style({
       cursor: 'default',
     },
     '&:not(:disabled):hover': {
-      backgroundColor: vars.surfaceHover,
+      backgroundColor: tokens.surface.current.hover,
     },
     '&:not(:disabled):focus-visible': {
-      boxShadow: `inset 0 0 0 1px ${vars.borderFocus}`,
+      boxShadow: `inset 0 0 0 1px ${tokens.border.focus}`,
     },
     '&[data-selected]': {
-      backgroundColor: vars.surfaceSelected,
+      backgroundColor: tokens.surface.current.selected,
     },
     '&[data-disabled]': {
-      color: vars.foregroundPassive,
+      color: tokens.foreground.passive,
       opacity: 0.72,
     },
   },
@@ -105,9 +106,9 @@ export const draftRow = style({
   gridTemplateColumns: columns,
   alignItems: 'center',
   gap: '0.625rem',
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   padding: '0.5625rem 0.75rem',
-  backgroundColor: vars.surfaceSelected,
+  backgroundColor: tokens.surface.current.selected,
 });
 
 export const draftInput = style({
@@ -116,21 +117,22 @@ export const draftInput = style({
   border: 0,
   background: 'transparent',
   padding: 0,
-  color: vars.foreground,
+  color: tokens.foreground.default,
   font: 'inherit',
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   outline: 'none',
   selectors: {
     '&::placeholder': {
-      color: vars.foregroundPassive,
+      color: tokens.foreground.passive,
     },
   },
 });
 
 export const rowIcon = style({
-  width: '1rem',
-  height: '1rem',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
+  vars: {
+    [iconSizeVar]: '1rem',
+  },
 });
 
 export const rowName = style({
@@ -138,13 +140,13 @@ export const rowName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
 });
 
 export const rowMeta = style({
   flexShrink: 0,
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
   fontVariantNumeric: 'tabular-nums',
 });
 
@@ -159,27 +161,24 @@ export const state = style({
   justifyContent: 'center',
   gap: '0.5rem',
   padding: '1rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
 });
 
 export const stateError = style({
-  color: vars.foregroundDestructive,
-});
-
-const spin = keyframes({
-  to: { transform: 'rotate(360deg)' },
+  color: tokens.palette.red.step11,
 });
 
 export const spinner = style({
-  width: '1rem',
-  height: '1rem',
-  animation: `${spin} 1s linear infinite`,
+  animation: `${kfRotateTo} 1s linear infinite`,
+  vars: {
+    [iconSizeVar]: '1rem',
+  },
 });
 
 export const footer = style({
   minWidth: 0,
-  borderTop: `1px solid ${vars.border}`,
+  borderTop: `1px solid ${tokens.border.default}`,
   padding: '0.5rem 0.75rem',
 });
 

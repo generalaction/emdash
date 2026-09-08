@@ -1,14 +1,7 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import {
-  kfPopupIn,
-  kfPopupOut,
-  kfPopupInSlideFromTop,
-  kfPopupInSlideFromBottom,
-  kfPopupInSlideFromLeft,
-  kfPopupInSlideFromRight,
-} from '@styles/effects/animations.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { popup } from '@styles/recipes/popup';
+import { popupVars } from '@styles/recipes/popup-contract';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -27,80 +20,43 @@ export const selectValue = style({
   textAlign: 'left',
 });
 
-export const selectContent = style({
-  position: 'relative',
-  isolation: 'isolate',
-  zIndex: 50,
-  maxHeight: 'var(--available-height)',
-  maxWidth: 'var(--available-width)',
-  transformOrigin: 'var(--transform-origin)',
-  overflowX: 'hidden',
-  overflowY: 'auto',
-  borderRadius: tokenVars.radiusMd,
-  backgroundColor: vars.surface,
-  color: vars.foreground,
-  padding: '2px',
-  boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
-  outline: 'none',
-  selectors: {
-    '&[data-width="trigger"]': {
-      width: 'var(--anchor-width)',
-      minWidth: 'var(--anchor-width)',
+export const selectContent = style([
+  popup({ shadow: 'md' }),
+  {
+    position: 'relative',
+    isolation: 'isolate',
+    maxHeight: popupVars.availableHeight,
+    maxWidth: popupVars.availableWidth,
+    overflowX: 'hidden',
+    overflowY: 'auto',
+    padding: '2px',
+    selectors: {
+      '&[data-width="trigger"]': {
+        width: popupVars.anchorWidth,
+        minWidth: popupVars.anchorWidth,
+      },
+      '&[data-width="content"]': {
+        width: 'max-content',
+        minWidth: '9rem',
+      },
+      '&[data-width="content-at-least-trigger"]': {
+        width: 'max-content',
+        minWidth: `max(9rem, ${popupVars.anchorWidth})`,
+      },
+      // When aligned with trigger, skip the popup animation
+      '&[data-align-trigger="true"]': { animation: 'none' },
     },
-    '&[data-width="content"]': {
-      width: 'max-content',
-      minWidth: '9rem',
-    },
-    '&[data-width="content-at-least-trigger"]': {
-      width: 'max-content',
-      minWidth: 'max(9rem, var(--anchor-width))',
-    },
-    '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
-    '&[data-open][data-side="bottom"]': { animation: `${kfPopupInSlideFromTop} 100ms both` },
-    '&[data-open][data-side="top"]': { animation: `${kfPopupInSlideFromBottom} 100ms both` },
-    '&[data-open][data-side="right"]': { animation: `${kfPopupInSlideFromLeft} 100ms both` },
-    '&[data-open][data-side="inline-end"]': { animation: `${kfPopupInSlideFromLeft} 100ms both` },
-    '&[data-open][data-side="left"]': { animation: `${kfPopupInSlideFromRight} 100ms both` },
-    '&[data-open][data-side="inline-start"]': {
-      animation: `${kfPopupInSlideFromRight} 100ms both`,
-    },
-    // When aligned with trigger, skip the popup animation
-    '&[data-align-trigger="true"]': { animation: 'none' },
-    '&[data-closed]': { animation: `${kfPopupOut} 100ms both` },
   },
-});
+]);
 
 export const selectLabel = style({
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
-
-export const selectItem = style({
-  position: 'relative',
-  display: 'flex',
-  width: '100%',
-  cursor: 'default',
-  alignItems: 'center',
-  gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
-  paddingTop: '0.375rem',
-  paddingBottom: '0.375rem',
-  paddingRight: '2rem',
-  paddingLeft: '0.5rem',
-  fontSize: tokenVars.textSm,
-  outline: 'none',
-  userSelect: 'none',
-  selectors: {
-    '&:focus': { backgroundColor: vars.surfaceHover, color: vars.foreground },
-    '&[data-disabled]': { pointerEvents: 'none', opacity: 0.5 },
-  },
-});
-globalStyle(`${selectItem} svg`, { pointerEvents: 'none', flexShrink: 0 });
-globalStyle(`${selectItem} svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
 
 export const selectItemText = style({
   display: 'flex',
@@ -130,7 +86,7 @@ export const selectSeparator = style({
   marginTop: '0.25rem',
   marginBottom: '0.25rem',
   height: '1px',
-  backgroundColor: vars.border,
+  backgroundColor: tokens.border.default,
 });
 
 export const scrollButton = style({
@@ -140,17 +96,7 @@ export const scrollButton = style({
   cursor: 'default',
   alignItems: 'center',
   justifyContent: 'center',
-  backgroundColor: vars.surface,
+  backgroundColor: tokens.surface.current.background,
   paddingTop: '0.25rem',
   paddingBottom: '0.25rem',
-});
-globalStyle(`${scrollButton} svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
-
-export const triggerInvalidOverride = style({
-  selectors: {
-    '&[aria-invalid="true"]': {
-      borderColor: vars.borderDestructive,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderDestructive} 20%, transparent)`,
-    },
-  },
 });

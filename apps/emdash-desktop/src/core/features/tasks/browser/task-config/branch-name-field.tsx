@@ -23,11 +23,10 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
       ) : (
         <>
           <Input
-            bare
             value={branchName}
             onChange={(e) => setBranchName(e.target.value)}
             placeholder="branch-name"
-            className="px-0"
+            className="border-0 bg-transparent px-0 shadow-none"
           />
           {branchAlreadyExists && (
             <p className="text-muted-foreground mt-1 text-xs">

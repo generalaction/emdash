@@ -1,5 +1,8 @@
+import { tokens } from '@emdash/theme';
 import { Button } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { AlertCircle, Trash2, X } from 'lucide-react';
 import { ListPopoverCard } from './list-popover-card';
 
@@ -35,13 +38,22 @@ export const SelectionBar: Story = {
       <span style={{ whiteSpace: 'nowrap', color: 'var(--em-foreground-muted)' }}>3 selected</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <Button variant="destructive" size="sm">
-          <Trash2 size={14} />
+          <Icon source={Trash2} />
           Delete
         </Button>
         <Button variant="ghost" size="xs" icon aria-label="Clear selection">
-          <X size={14} />
+          <Icon source={X} />
         </Button>
       </div>
+    </ListPopoverCard>
+  ),
+};
+
+/** Static caller override on the documented painted-card root. */
+export const SxOverride: Story = {
+  render: () => (
+    <ListPopoverCard className={sx({ p: tokens.space.step3 })}>
+      Caller-owned selection controls
     </ListPopoverCard>
   ),
 };
@@ -49,7 +61,7 @@ export const SelectionBar: Story = {
 export const Destructive: Story = {
   render: () => (
     <ListPopoverCard status="destructive">
-      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+      <Icon source={AlertCircle} size="sm" />
       <span style={{ fontWeight: 500, flexShrink: 0 }}>Sync failed</span>
       <span
         style={{

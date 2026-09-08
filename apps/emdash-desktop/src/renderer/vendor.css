@@ -1,0 +1,5 @@
+@import '@xterm/xterm/css/xterm.css' layer(emdash.vendor);
+@import '@fontsource-variable/inter/index.css' layer(emdash.vendor);
+@import 'devicon/devicon.min.css' layer(emdash.vendor);
+@import 'katex/dist/katex.min.css' layer(emdash.vendor);
+@import '@emdash/chat-ui/style.css' layer(emdash.vendor);

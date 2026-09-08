@@ -9,6 +9,26 @@ export { defineTheme } from './define-theme';
 export type { ThemeInput, ResolvedTheme, HueSeed } from './define-theme';
 export { defineDensity } from './define-density';
 export type { DensityInput, ResolvedDensity } from './define-density';
+export {
+  compileBaseTokenValues,
+  compileProfile,
+  defineColorScheme,
+  defineDensityProfile,
+  defineTypographyProfile,
+} from './compiler';
+export type {
+  ColorSchemeDefinition,
+  ColorTokenPath,
+  CompiledProfile,
+  DensityProfileDefinition,
+  DensityTokenPath,
+  ProfileDefinition,
+  TokenPath,
+  TypographyProfileDefinition,
+  TypographyTokenPath,
+} from './compiler';
+export { tokens } from './tokens';
+export type { TokenReference, Tokens } from './tokens';
 
 export type {
   ScaleName,
@@ -21,7 +41,7 @@ export type {
   SurfaceLevelName,
   SurfaceRoleName,
   SurfaceScopeName,
-  SurfaceStatusName,
+  SurfaceToneName,
   ShadowName,
   SyntaxRole,
   Step,
@@ -35,9 +55,9 @@ export {
   SURFACE_LEVELS,
   SURFACE_ROLES,
   SURFACE_SCOPES,
-  SURFACE_STATUSES,
-  STATUS_SCALE,
-  STATUS_LEVEL_SCOPES,
+  SURFACE_TONES,
+  TONE_SCALE,
+  TONE_SCOPES,
 } from './contract/roles';
 
 export { nsName, nsVar, TOKEN_NAMESPACE } from './contract/namespace';

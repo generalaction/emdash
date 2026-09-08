@@ -1,29 +1,17 @@
-import { Box } from '@react/primitives/box';
-import { ThemeProvider } from '@react/primitives/theme-provider';
+import { StoryThemeScope } from '@react/story-theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { Surface } from '@/react/primitives/surface/surface';
 import { ScrollFade } from './scroll-fade';
 import * as s from '@react/story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
-
-const SURFACE_LEVELS = [
-  'sunken',
-  'base',
-  'base-emphasis',
-  'elevated',
-  'elevated-emphasis',
-] as const;
-
+const SURFACE_LEVELS = ['sunken', 'base', 'raised', 'elevated', 'overlay'] as const;
 const meta: Meta<typeof ScrollFade> = {
   title: 'Primitives/ScrollFade',
   component: ScrollFade,
   parameters: { layout: 'padded' },
 };
-
 export default meta;
 type Story = StoryObj<typeof ScrollFade>;
-
 function Paragraph({ n = 1 }: { n?: number }) {
   return (
     <>
@@ -36,7 +24,6 @@ function Paragraph({ n = 1 }: { n?: number }) {
     </>
   );
 }
-
 /** Vertical fade — content overflows, the top fade appears as you scroll down. */
 export const VerticalOverflow: Story = {
   render: () => (
@@ -53,13 +40,19 @@ export const VerticalOverflow: Story = {
         s.w80
       )}
     >
-      <Box display="flex" flexDirection="column" gap="3" padding="4">
+      <div
+        className={sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+          padding: '4',
+        })}
+      >
         <Paragraph n={8} />
-      </Box>
+      </div>
     </ScrollFade>
   ),
 };
-
 /** No overflow — the top fade should not appear when content fits. */
 export const VerticalNoOverflow: Story = {
   render: () => (
@@ -76,13 +69,19 @@ export const VerticalNoOverflow: Story = {
         s.w80
       )}
     >
-      <Box display="flex" flexDirection="column" gap="3" padding="4">
+      <div
+        className={sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+          padding: '4',
+        })}
+      >
         <Paragraph n={2} />
-      </Box>
+      </div>
     </ScrollFade>
   ),
 };
-
 /**
  * Non-surface background — the mask approach is color-agnostic, so no
  * --fade-color override is needed. The fade just works regardless of the
@@ -90,7 +89,13 @@ export const VerticalNoOverflow: Story = {
  */
 export const NonSurfaceBackground: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4',
+      })}
+    >
       <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
         Code-block-style container: mask-based fades work on any background color.
       </p>
@@ -113,15 +118,25 @@ export const NonSurfaceBackground: Story = {
           ).join('\n')}
         </pre>
       </ScrollFade>
-    </Box>
+    </div>
   ),
 };
-
 /** Custom fade size — larger gradient for a more dramatic effect. */
 export const CustomSize: Story = {
   render: () => (
-    <Box display="flex" gap="6">
-      <Box display="flex" flexDirection="column" gap="1">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '6',
+      })}
+    >
+      <div
+        className={sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1',
+        })}
+      >
         <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>size=12 (subtle)</p>
         <ScrollFade
           size={12}
@@ -137,12 +152,25 @@ export const CustomSize: Story = {
             s.w52
           )}
         >
-          <Box display="flex" flexDirection="column" gap="3" padding="4">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3',
+              padding: '4',
+            })}
+          >
             <Paragraph n={8} />
-          </Box>
+          </div>
         </ScrollFade>
-      </Box>
-      <Box display="flex" flexDirection="column" gap="1">
+      </div>
+      <div
+        className={sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1',
+        })}
+      >
         <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>size=48 (dramatic)</p>
         <ScrollFade
           size={48}
@@ -158,19 +186,31 @@ export const CustomSize: Story = {
             s.w52
           )}
         >
-          <Box display="flex" flexDirection="column" gap="3" padding="4">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3',
+              padding: '4',
+            })}
+          >
             <Paragraph n={8} />
-          </Box>
+          </div>
         </ScrollFade>
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
-
 /** All surface elevations side-by-side — the mask-based fade is color-agnostic and works on every surface. */
 export const AllSurfaces: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '4',
+      })}
+    >
       {SURFACE_LEVELS.map((level) => (
         <Surface key={level} level={level} className={cx(sx({ rounded: 'lg', padding: '4' }))}>
           <p className={cx(sx({ marginBottom: '2', fontSize: 'xs', color: 'foregroundMuted' }))}>
@@ -189,22 +229,35 @@ export const AllSurfaces: Story = {
               s.w44
             )}
           >
-            <Box display="flex" flexDirection="column" gap="3" padding="3">
+            <div
+              className={sx({
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '3',
+                padding: '3',
+              })}
+            >
               <Paragraph n={8} />
-            </Box>
+            </div>
           </ScrollFade>
         </Surface>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 /** Light and dark side-by-side — the mask-based top fade works identically in both modes. */
 export const BothModes: Story = {
   render: () => (
-    <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
-      <ThemeProvider
-        defaultTheme="light"
+    <div
+      className={cx(
+        s.minHScreen,
+        sx({
+          display: 'flex',
+        })
+      )}
+    >
+      <StoryThemeScope
+        colorScheme="light"
         className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
       >
         <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', color: 'foreground' }))}>
@@ -223,14 +276,21 @@ export const BothModes: Story = {
             s.w80
           )}
         >
-          <Box display="flex" flexDirection="column" gap="3" padding="4">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3',
+              padding: '4',
+            })}
+          >
             <Paragraph n={8} />
-          </Box>
+          </div>
         </ScrollFade>
-      </ThemeProvider>
-      <ThemeProvider
-        defaultTheme="dark"
-        className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
+      </StoryThemeScope>
+      <StoryThemeScope
+        colorScheme="dark"
+        className={cx(s.borderLeft, sx({ flex: '1', background: 'background', padding: '8' }))}
       >
         <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', color: 'foreground' }))}>
           Dark mode
@@ -248,11 +308,18 @@ export const BothModes: Story = {
             s.w80
           )}
         >
-          <Box display="flex" flexDirection="column" gap="3" padding="4">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3',
+              padding: '4',
+            })}
+          >
             <Paragraph n={8} />
-          </Box>
+          </div>
         </ScrollFade>
-      </ThemeProvider>
-    </Box>
+      </StoryThemeScope>
+    </div>
   ),
 };

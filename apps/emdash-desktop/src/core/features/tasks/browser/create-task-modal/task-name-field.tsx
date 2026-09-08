@@ -12,11 +12,10 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
     <Field.Root className="flex flex-col gap-1">
       <Field.Label>Task name</Field.Label>
       <Input
-        bare
         autoFocus
         value={taskName}
         placeholder={placeholder || 'Task name...'}
-        className="px-0 text-lg!"
+        className="border-0 bg-transparent px-0 text-lg! shadow-none"
         onChange={(e) => handleTaskNameChange(e.target.value)}
       />
       {showSlugHint && (

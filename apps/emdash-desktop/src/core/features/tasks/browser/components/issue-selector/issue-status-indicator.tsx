@@ -1,4 +1,7 @@
+import { tasksHostStylesContribution } from '@core/features/tasks/contributions/host-styles';
 import { cn } from '@core/primitives/styling/browser/cn';
+
+const { workflowStatus } = tasksHostStylesContribution.exports;
 
 export type IssueStatus =
   | 'todo'
@@ -26,7 +29,7 @@ export function IssueStatusIndicator({
           fill="currentColor"
           strokeWidth="1.5"
           viewBox="0 0 512 512"
-          className={cn('size-3 fill-status-done hover:fill-status-done-hover shrink-0', className)}
+          className={cn('size-3 shrink-0', workflowStatus({ status: 'done' }), className)}
           height="1em"
           width="1em"
         >
@@ -40,10 +43,7 @@ export function IssueStatusIndicator({
           fill="currentColor"
           strokeWidth="1.5"
           viewBox="0 0 512 512"
-          className={cn(
-            'size-3 fill-status-canceled hover:fill-status-canceled-hover shrink-0',
-            className
-          )}
+          className={cn('size-3 shrink-0', workflowStatus({ status: 'cancelled' }), className)}
           height="1em"
           width="1em"
           xmlns="http://www.w3.org/2000/svg"
@@ -56,10 +56,7 @@ export function IssueStatusIndicator({
         <svg
           viewBox="0 0 16 16"
           fill="currentColor"
-          className={cn(
-            'size-3 text-status-in-progress hover:text-status-in-progress-hover shrink-0',
-            className
-          )}
+          className={cn('size-3 shrink-0', workflowStatus({ status: 'in-progress' }), className)}
           strokeWidth="1.5"
         >
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="none"></circle>
@@ -71,10 +68,7 @@ export function IssueStatusIndicator({
         <svg
           viewBox="0 0 16 16"
           fill="currentColor"
-          className={cn(
-            'size-3 text-status-in-review hover:text-status-in-review-hover shrink-0',
-            className
-          )}
+          className={cn('size-3 shrink-0', workflowStatus({ status: 'in-review' }), className)}
           strokeWidth="1.5"
         >
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="none"></circle>
@@ -151,6 +145,17 @@ export function IssueStatusIndicator({
             fill="lch(66% 80 48)"
             d="M7 14C10.866 14 14 10.866 14 7C14 3.13403 10.866 0 7 0C3.134 0 0 3.13403 0 7C0 10.866 3.134 14 7 14ZM8.0126 9.50781V7.98224H5.9874V9.50787C5.9874 9.92908 5.4767 10.1549 5.14897 9.8786L2.17419 7.37073C1.94194 7.17493 1.94194 6.82513 2.17419 6.62933L5.14897 4.12146C5.4767 3.84515 5.9874 4.07098 5.9874 4.49219V6.01764H8.0126V4.49213C8.0126 4.07092 8.5233 3.84509 8.85103 4.1214L11.8258 6.62927C12.0581 6.82507 12.0581 7.17487 11.8258 7.37067L8.85103 9.87854C8.5233 10.1548 8.0126 9.92902 8.0126 9.50781Z"
           ></path>
+        </svg>
+      );
+    case 'todo':
+      return (
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          className={cn('size-3 shrink-0', workflowStatus({ status: 'todo' }), className)}
+          strokeWidth="1.5"
+        >
+          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
         </svg>
       );
     default:

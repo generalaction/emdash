@@ -2,7 +2,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileContentSearchResults } from './file-content-search';
-import '@emdash/ui/style.css';
 
 const mocks = vi.hoisted(() => ({
   result: {

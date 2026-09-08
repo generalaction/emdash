@@ -13,7 +13,7 @@
  *
  * Visual styles (overflow, border-color, header bg, truncation) use Tailwind.
  * Geometry-coupled rules (cell padding, font-size, line-height) remain in
- * table.module.css because they define TABLE_ROW_H = 32, which the layout
+ * table.css.ts because they define TABLE_ROW_H = 32, which the layout
  * engine and a parity test both enforce.
  */
 
@@ -21,7 +21,7 @@ import { BlockFrame } from '@components/engine/block-frame';
 import type { TableLaidOut } from '@core/layout/layout-types';
 import { For } from 'solid-js';
 import { tableScroll, tdCell, tdCellLastRow, thCell } from './table-visual.css';
-import { pchatTable } from './table.css';
+import { pchatTable, tableCell, tableHeaderCell } from './table.css';
 
 export type TableProps = {
   block: TableLaidOut;
@@ -42,7 +42,7 @@ export function Table(props: TableProps) {
             <tr>
               <For each={props.block.header}>
                 {(cell) => (
-                  <th class={thCell} title={cell}>
+                  <th class={`${tableCell} ${tableHeaderCell} ${thCell}`} title={cell}>
                     {cell}
                   </th>
                 )}
@@ -56,7 +56,7 @@ export function Table(props: TableProps) {
                   <For each={row}>
                     {(cell) => (
                       <td
-                        class={`${tdCell}${i() === props.block.rows.length - 1 ? ` ${tdCellLastRow}` : ''}`}
+                        class={`${tableCell} ${tdCell}${i() === props.block.rows.length - 1 ? ` ${tdCellLastRow}` : ''}`}
                         title={cell}
                       >
                         {cell}

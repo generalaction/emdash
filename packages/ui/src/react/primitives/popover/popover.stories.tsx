@@ -1,18 +1,13 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { Popover } from '.';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const meta: Meta = {
   title: 'Primitives/Popover',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Default: Story = {
   render: () => (
     <Popover.Root>
@@ -33,7 +28,6 @@ export const Default: Story = {
     </Popover.Root>
   ),
 };
-
 export const WithCloseButton: Story = {
   render: () => (
     <Popover.Root>
@@ -56,10 +50,14 @@ export const WithCloseButton: Story = {
     </Popover.Root>
   ),
 };
-
 export const Aligned: Story = {
   render: () => (
-    <Box display="flex" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '4',
+      })}
+    >
       {(['start', 'center', 'end'] as const).map((align) => (
         <Popover.Root key={align}>
           <Popover.Trigger>
@@ -72,6 +70,25 @@ export const Aligned: Story = {
           </Popover.Content>
         </Popover.Root>
       ))}
-    </Box>
+    </div>
+  ),
+};
+/** Exercises Base UI collision-side attributes consumed by the popup Recipe. */
+export const CollisionPositioned: Story = {
+  render: () => (
+    <Popover.Root defaultOpen>
+      <Popover.Trigger>
+        <Button variant="ghost">Collision anchor</Button>
+      </Popover.Trigger>
+      <Popover.Content
+        side="bottom"
+        align="end"
+        collisionAvoidance={{ side: 'flip', align: 'shift', fallbackAxisSide: 'end' }}
+      >
+        <p className={cx(sx({ fontSize: 'sm' }))}>
+          Flip or shift this popup when the preferred side collides.
+        </p>
+      </Popover.Content>
+    </Popover.Root>
   ),
 };

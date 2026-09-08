@@ -6,9 +6,11 @@ import type {
   TranscriptTurn,
 } from '@emdash/chat-ui';
 import { createChatContext, createChatState, generateMockTranscript } from '@emdash/chat-ui';
+import { tokens } from '@emdash/theme';
 import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,10 +26,9 @@ import type {
 import type { ComposerPermissionRequest } from '../components/chat-composer/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
-import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
+import { Icon } from '../primitives/icon';
 import * as s from '../story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
 
 const RED_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
@@ -304,15 +305,19 @@ function LiveChatPanel({
   );
 
   return (
-    <Box
-      surface="paper"
-      position="relative"
-      height="full"
-      overflow="hidden"
-      rounded="xl"
-      borderWidth="1"
-      borderStyle="solid"
-      borderColor="border"
+    <div
+      className={cx(
+        surface({ role: 'paper' }),
+        sx({
+          position: 'relative',
+          height: 'full',
+          overflow: 'hidden',
+          borderRadius: tokens.radius.xl,
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+        })
+      )}
     >
       {/* ChatTranscript fills the box; composer slot is rendered inside by Solid. */}
       <ChatTranscript
@@ -347,7 +352,7 @@ function LiveChatPanel({
             onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}
             className={cx(sx({ rounded: 'full' }), s.shadowMd)}
           >
-            <ArrowDown />
+            <Icon source={ArrowDown} />
           </Button>
         </div>
       )}
@@ -363,7 +368,6 @@ function LiveChatPanel({
               s.maxW2xl,
               sx({ paddingBottom: '2' })
             )}
-            style={{ '--composer-bg': 'var(--em-surface-paper)' } as React.CSSProperties}
           >
             <ChatComposer
               onSubmit={handleSubmit}
@@ -392,7 +396,7 @@ function LiveChatPanel({
         src={viewer?.src}
         alt={viewer?.alt}
       />
-    </Box>
+    </div>
   );
 }
 
@@ -404,43 +408,50 @@ export default meta;
 
 type Story = StoryObj;
 
+const storyFrameClass = sx({
+  display: 'flex',
+  alignItems: 'stretch',
+  p: tokens.space.step6,
+});
+const storyContentClass = sx({ flex: '1' });
+
 export const Live: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
 export const MaxTurnRequests: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel notice={stopReasonNotice('max_turn_requests')} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
 export const Refusal: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel notice={stopReasonNotice('refusal')} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
 export const MaxTokens: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel notice={stopReasonNotice('max_tokens')} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
@@ -457,28 +468,28 @@ const MOCK_PERMISSION: ComposerPermissionRequest = {
 
 export const PermissionSingle: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={1} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
 export const PermissionQueued: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={2} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
 export const PermissionExecute: Story = {
   render: () => (
-    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
-      <Box flex="1">
+    <div className={cx(s.hScreen, storyFrameClass)}>
+      <div className={storyContentClass}>
         <LiveChatPanel
           permissionRequest={{
             requestId: 'req-exec',
@@ -490,7 +501,7 @@ export const PermissionExecute: Story = {
           }}
           permissionQueueCount={1}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };

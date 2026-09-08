@@ -151,7 +151,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                             </span>
                           ) : null}
                         </span>
-                        {item.supportsAcp && <Pill variant="info">Chat UI</Pill>}
+                        {item.supportsAcp && <Pill tone="info">Chat UI</Pill>}
                       </Combobox.Item>
                     );
                   }}

@@ -1,5 +1,5 @@
-import type { IconName } from '@emdash/ui/react/primitives';
-import type { ComponentType, ReactNode } from 'react';
+import type { PageNavItem } from '@emdash/ui/react/patterns';
+import type { ComponentType } from 'react';
 
 export interface SettingsPageProps {
   openDetail: (detailId: string) => void;
@@ -31,7 +31,7 @@ export interface SettingsPageDetailContribution {
 export interface SettingsPageContribution<TId extends string = string> {
   id: TId;
   label: string;
-  icon?: IconName | ReactNode;
+  icon?: PageNavItem['icon'];
   component: ComponentType<SettingsPageProps>;
   detail?: SettingsPageDetailContribution;
 }

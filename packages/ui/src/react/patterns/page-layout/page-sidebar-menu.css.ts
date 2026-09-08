@@ -1,8 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
 
 type CSSExtra = { [key: string]: string };
 
@@ -17,6 +14,10 @@ export const wrapper = style({
   flexDirection: 'column',
   paddingTop: '2.5rem',
   paddingBottom: '0.75rem',
+});
+
+export const dragRegion = style({
+  ...({ WebkitAppRegion: 'drag' } as CSSExtra),
 });
 
 export const header = style({
@@ -47,8 +48,8 @@ export const footer = style({
 
 export const emptyMessage = style({
   padding: '0.5rem 0.75rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundPassive,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.passive,
 });
 
 export const navItem = recipe({
@@ -57,45 +58,54 @@ export const navItem = recipe({
     width: '100%',
     alignItems: 'center',
     gap: '0.5rem',
-    borderRadius: tokenVars.radiusMd,
+    borderRadius: tokens.radius.md,
     border: 'none',
     backgroundColor: 'transparent',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     height: '32px',
-    fontSize: tokenVars.textSm,
+    fontSize: tokens.typography.size.sm,
     fontWeight: 400,
-    color: vars.foregroundMuted,
+    color: tokens.foreground.muted,
     cursor: 'pointer',
     transition: 'background-color 150ms, box-shadow 150ms, color 150ms',
     textAlign: 'left',
     selectors: {
-      '&:hover': {
-        backgroundColor: vars.background1,
-        color: vars.foreground,
+      '&:hover:not(:disabled)': {
+        backgroundColor: tokens.palette.neutral.step2,
+        color: tokens.foreground.default,
+      },
+      '&:focus-visible': {
+        outline: `2px solid ${tokens.border.focus}`,
+        outlineOffset: '-2px',
       },
     },
   },
   variants: {
-    active: {
+    selected: {
       true: {
-        backgroundColor: vars.background3,
-        color: vars.foreground,
+        backgroundColor: tokens.palette.neutral.step4,
+        color: tokens.foreground.default,
         selectors: {
-          '&:hover': {
-            backgroundColor: vars.background3,
-            color: vars.foreground,
+          '&:hover:not(:disabled)': {
+            backgroundColor: tokens.palette.neutral.step4,
+            color: tokens.foreground.default,
           },
         },
       },
     },
+    disabled: {
+      true: {
+        cursor: 'not-allowed',
+        opacity: 0.5,
+      },
+    },
   },
   defaultVariants: {
-    active: false,
+    selected: false,
+    disabled: false,
   },
 });
-
-export type NavItemVariants = NonNullable<RecipeVariants<typeof navItem>>;
 
 // ── Icon + external-link icon ─────────────────────────────────────────────────
 
@@ -113,13 +123,13 @@ export const navItemLabel = style({
 
 export const badge = style({
   marginLeft: 'auto',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundPassive,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.passive,
   fontVariantNumeric: 'tabular-nums',
 });
 
 export const externalIcon = style({
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   marginLeft: 'auto',
 });
 
@@ -135,7 +145,7 @@ export const divider = style({
       display: 'block',
       width: '100%',
       height: '1px',
-      backgroundColor: vars.border,
+      backgroundColor: tokens.border.default,
     },
   },
 });
@@ -146,9 +156,9 @@ export const sectionLabel = style({
   paddingRight: '0.75rem',
   paddingBottom: '0.75rem',
   paddingLeft: '0.75rem',
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   fontWeight: 400,
   lineHeight: 1,
   letterSpacing: '-0.015em',
-  color: vars.foregroundPassive,
+  color: tokens.foreground.passive,
 });

@@ -1,15 +1,12 @@
 import {
-  THEME_MANIFEST,
-  ThemeProvider as UiThemeProvider,
-  type ThemeId,
-} from '@emdash/ui/react/primitives';
-import {
-  createContext,
-  useEffect,
-  useLayoutEffect,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+  COLOR_SCHEME_MANIFEST,
+  DENSITY_MANIFEST,
+  TYPOGRAPHY_MANIFEST,
+  type ColorSchemeId,
+} from '@emdash/theme/profiles';
+import { resolveTheme, type Theme as ResolvedTheme } from '@emdash/theme/runtime';
+import { ThemeProvider as ControlledThemeProvider } from '@emdash/ui/react/theme-runtime';
+import { createContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type { Theme } from '@core/primitives/app-settings/api';
 import {
   THEME_CLASS_DARK,
@@ -28,14 +25,28 @@ function getSystemTheme(): EffectiveTheme {
     : THEME_CLASS_LIGHT;
 }
 
-/**
- * Map the app's effective theme class to the @emdash/ui theme id, via the
- * manifest selectors so a rename fails loudly instead of drifting.
- */
-function uiThemeId(effective: EffectiveTheme): ThemeId {
-  const entry = THEME_MANIFEST.find((e) => e.selector === `.${effective}`);
-  if (!entry) throw new Error(`No @emdash/theme entry for selector ".${effective}"`);
-  return entry.id as ThemeId;
+function colorSchemeId(effectiveTheme: EffectiveTheme): ColorSchemeId {
+  const entry = COLOR_SCHEME_MANIFEST.find(
+    (colorScheme) => colorScheme.selector === `.${effectiveTheme}`
+  );
+  if (!entry) {
+    throw new Error(`No Color scheme profile for selector ".${effectiveTheme}"`);
+  }
+  return entry.id;
+}
+
+/** Resolves the complete desktop Theme through the public profile manifests. */
+export function resolveDesktopTheme(effectiveTheme: EffectiveTheme): ResolvedTheme {
+  const density = DENSITY_MANIFEST[0];
+  const typography = TYPOGRAPHY_MANIFEST[0];
+  if (!density || !typography) {
+    throw new Error('Desktop Theme requires at least one Density and Typography profile');
+  }
+  return resolveTheme({
+    colorScheme: colorSchemeId(effectiveTheme),
+    density: density.id,
+    typography: typography.id,
+  });
 }
 
 function subscribeToSystemTheme(onChange: () => void) {
@@ -44,11 +55,12 @@ function subscribeToSystemTheme(onChange: () => void) {
   return () => mq.removeEventListener('change', onChange);
 }
 
-function applyTheme(effective: EffectiveTheme) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.classList.remove(...THEME_CLASSES);
-  root.classList.add(effective);
+function getPrepaintTheme(): EffectiveTheme | null {
+  if (typeof document === 'undefined') return null;
+  return (
+    THEME_CLASSES.find((className) => document.documentElement.classList.contains(className)) ??
+    null
+  );
 }
 
 export interface ThemeContextType {
@@ -56,6 +68,7 @@ export interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   effectiveTheme: EffectiveTheme;
+  resolvedTheme: ResolvedTheme;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -76,12 +89,9 @@ export function ThemeProvider({
   onThemeApplied,
 }: ThemeProviderProps) {
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
-  const effectiveTheme: EffectiveTheme = theme ?? systemTheme;
-
-  useLayoutEffect(() => {
-    if (isLoading) return;
-    applyTheme(effectiveTheme);
-  }, [effectiveTheme, isLoading]);
+  const effectiveTheme: EffectiveTheme =
+    (isLoading ? getPrepaintTheme() : null) ?? theme ?? systemTheme;
+  const resolvedTheme = useMemo(() => resolveDesktopTheme(effectiveTheme), [effectiveTheme]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -106,13 +116,10 @@ export function ThemeProvider({
   }, [effectiveTheme, isLoading, onThemeApplied]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme }}>
-      {/* Context-only @emdash/ui provider: the app's applyTheme above stays the
-          sole DOM class writer; this makes @emdash/ui's useTheme() (needed by
-          theme-aware components like markdown/shiki) work app-wide. */}
-      <UiThemeProvider target="none" theme={uiThemeId(effectiveTheme)}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme, resolvedTheme }}>
+      <ControlledThemeProvider target="document" theme={resolvedTheme}>
         {children}
-      </UiThemeProvider>
+      </ControlledThemeProvider>
     </ThemeContext.Provider>
   );
 }

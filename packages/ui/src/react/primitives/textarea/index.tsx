@@ -1,21 +1,32 @@
-import { inputVariants } from '@styles/recipes/input';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { fieldControl } from '@styles/recipes/field-control';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { InputVariantProps } from '../../../styles/recipes/input';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
 import { textareaOverride } from './textarea.css';
 
-export interface TextareaProps extends React.ComponentProps<'textarea'> {
-  /** Match the visual size token from inputVariants (height constraint is dropped for auto-grow). */
-  size?: InputVariantProps['size'];
+export interface TextareaProps extends Omit<React.ComponentProps<'textarea'>, 'size'> {
+  /**
+   * Applies caller-owned classes to the rendered textarea root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Shared text-entry size. @default 'base' */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
 }
 
-function Textarea({ className, size = 'base', ...props }: TextareaProps) {
+/**
+ * Multiline text-entry control using the public field-control styling
+ * contract. `className` is applied to the rendered textarea root.
+ */
+function Textarea({ className, size = 'base', tone = 'neutral', ...props }: TextareaProps) {
   return (
     <textarea
       data-slot="textarea"
-      className={cx(inputVariants({ size }), textareaOverride, className)}
+      data-size={size}
+      data-tone={tone}
+      className={cx(fieldControl({ size, tone }), textareaOverride, className)}
       {...props}
     />
   );

@@ -1,4 +1,6 @@
+import { cx } from '@styles/index';
 import { Dialog } from '@/react/primitives/dialog';
+import { generatedDiagramAdapter } from './generated-diagram.adapter.css';
 import * as styles from './mermaid-viewer-dialog.css';
 
 export interface MermaidViewerDialogProps {
@@ -19,7 +21,11 @@ export function MermaidViewerDialog({ open, onOpenChange, svg, title }: MermaidV
         </Dialog.Header>
         <div className={styles.diagramContainer}>
           {svg ? (
-            <div className={styles.diagram} dangerouslySetInnerHTML={{ __html: svg }} />
+            <div
+              className={cx(generatedDiagramAdapter, styles.diagram)}
+              data-foreign-adapter="generated-diagram"
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
           ) : (
             <p className={styles.unavailable}>Couldn&apos;t render diagram.</p>
           )}

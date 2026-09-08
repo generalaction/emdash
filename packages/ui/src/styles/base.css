@@ -1,25 +1,22 @@
 /*
- * base.css — global element defaults, opt-in.
+ * base.css — global element defaults included in the aggregate stylesheet.
  *
  * Applies design-system colour tokens to body, scrollbars, and selection.
  * Intentionally avoids app-specific layout rules (height/overflow on html/body,
  * #root constraints, xterm/Monaco/diff integrations) — those belong in the
  * consuming app's own stylesheet.
  *
- * This file is NOT included in dist/style.css so it doesn't fight the host
- * app's body/token CSS. Import it explicitly when you want these defaults:
- *
- *   import '@emdash/ui/styles/global-base.css';   // library consumers
- *   import '../src/styles/base.css';               // Storybook
+ * Hosts load these defaults through `@emdash/ui/styles.css` and place their
+ * own app-specific document rules later in `emdash.host`.
  */
 
-@layer base {
+@layer emdash.base {
   * {
     border-color: var(--em-border);
   }
 
   body {
-    background-color: var(--em-background);
+    background-color: var(--em-surface);
     color: var(--em-foreground);
   }
 

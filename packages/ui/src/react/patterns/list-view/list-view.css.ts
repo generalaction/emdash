@@ -1,5 +1,5 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 /** Root: flex column that fills available height. */
 export const root = style({
@@ -20,7 +20,7 @@ export const toolbar = style({
   flexShrink: 0,
   flexDirection: 'column',
   gap: '0.5rem',
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   paddingBottom: '0.5rem',
 });
 
@@ -56,4 +56,7 @@ export const footer = style({
   zIndex: 10,
   pointerEvents: 'none',
 });
-globalStyle(`${footer} > *`, { pointerEvents: 'auto' });
+
+export const footerContent = style({
+  pointerEvents: 'auto',
+});

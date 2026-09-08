@@ -1,9 +1,10 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon } from 'lucide-react';
 import * as React from 'react';
 import { resolveFileIconClass } from '../../lib/file-icons';
 import { TreeView, type TreeNode, type TreeRow } from '../../patterns/tree-view';
-import * as rowStyles from '../tree-rows';
+import { Icon, IconSlot } from '../../primitives/icon';
+import { Devicon } from '../devicon/devicon';
 import { highlightSegments, type SearchResultRange } from './highlight';
 import * as styles from './search-results-tree.css';
 
@@ -34,6 +35,7 @@ export interface SearchResultsTreeProps {
     options: { preview: boolean }
   ): void;
   renderFileIcon?: (file: SearchResultFile) => React.ReactNode;
+  /** Applied to the rendered search-results tree root. */
   className?: string;
   ariaLabel?: string;
 }
@@ -42,6 +44,12 @@ type SearchRowData =
   | { kind: 'file'; file: SearchResultFile }
   | { kind: 'match'; file: SearchResultFile; match: SearchResultMatch };
 
+/**
+ * Virtualized search-result collection with caller-owned file icons.
+ *
+ * This component owns row focus, file expansion, match activation, and text
+ * overflow. `className` is applied to the rendered `role="tree"` root.
+ */
 export function SearchResultsTree({
   files,
   onOpenMatch,
@@ -132,7 +140,7 @@ function renderRow({
       <button
         type="button"
         data-search-result
-        className={rowStyles.row}
+        className={styles.row}
         style={rowIndentStyle(row.depth)}
         onClick={() => toggleFile(file.path)}
         onKeyDown={(event) => {
@@ -143,15 +151,19 @@ function renderRow({
         aria-expanded={!collapsed}
         title={file.path}
       >
-        <span className={rowStyles.chevron} aria-hidden>
-          {collapsed ? <ChevronRightIcon size={14} /> : <ChevronDownIcon size={14} />}
+        <span className={styles.chevron} aria-hidden>
+          {collapsed ? (
+            <Icon source={ChevronRightIcon} size="sm" />
+          ) : (
+            <Icon source={ChevronDownIcon} size="sm" />
+          )}
         </span>
-        <span className={styles.fileIcon} aria-hidden>
+        <IconSlot className={styles.fileIcon} size="sm">
           {renderFileIcon ? renderFileIcon(file) : defaultFileIcon(file)}
-        </span>
-        <span className={rowStyles.label}>
-          <span className={cx(rowStyles.name, styles.fileName)}>{file.name}</span>
-          {file.directory ? <span className={rowStyles.secondary}>{file.directory}</span> : null}
+        </IconSlot>
+        <span className={styles.label}>
+          <span className={cx(styles.name, styles.fileName)}>{file.name}</span>
+          {file.directory ? <span className={styles.secondary}>{file.directory}</span> : null}
         </span>
         <span className={styles.count}>{file.occurrenceCount}</span>
       </button>
@@ -163,7 +175,7 @@ function renderRow({
     <button
       type="button"
       data-search-result
-      className={cx(rowStyles.row, styles.matchRow)}
+      className={cx(styles.row, styles.matchRow)}
       style={rowIndentStyle(row.depth)}
       onClick={() => onOpenMatch(file, match, { preview: true })}
       onDoubleClick={() => onOpenMatch(file, match, { preview: false })}
@@ -207,12 +219,12 @@ function matchId(path: string, match: SearchResultMatch): string {
 
 function rowIndentStyle(depth: number): React.CSSProperties {
   return {
-    '--file-tree-row-indent': `${depth * 12 + 4}px`,
+    '--_search-result-row-indent': `${depth * 12 + 4}px`,
   } as React.CSSProperties;
 }
 
 function defaultFileIcon(file: SearchResultFile): React.ReactNode {
   const iconClass = resolveFileIconClass(file.name);
-  if (iconClass) return <i className={cx(styles.devicon, iconClass)} />;
-  return <FileIcon size={12} />;
+  if (iconClass) return <Devicon iconClass={iconClass} size={12} />;
+  return <Icon source={FileIcon} size="xs" />;
 }

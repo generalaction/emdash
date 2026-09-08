@@ -1,28 +1,24 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { kfPopupIn } from '@styles/effects/animations.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { popup } from '@styles/recipes/popup';
 
-export const popupRoot = style({
-  zIndex: 50,
-  minWidth: '220px',
-  maxWidth: '340px',
-  overflow: 'hidden',
-  borderRadius: tokenVars.radiusMd,
-  backgroundColor: vars.surface,
-  color: vars.foreground,
-  boxShadow: `${vars.shadowSm}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
-  animation: `${kfPopupIn} 100ms both`,
-});
+export const popupRoot = style([
+  popup({ motion: 'enter' }),
+  {
+    minWidth: '220px',
+    maxWidth: '340px',
+    overflow: 'hidden',
+  },
+]);
 
 export const popupHeader = style({
-  borderBottom: `1px solid ${vars.border}`,
+  borderBottom: `1px solid ${tokens.border.default}`,
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 export const popupList = style({
@@ -33,26 +29,18 @@ export const popupList = style({
   padding: '0.25rem',
 });
 
-export const popupItem = style({
-  position: 'relative',
-  display: 'flex',
-  width: '100%',
-  cursor: 'default',
-  userSelect: 'none',
-  alignItems: 'center',
-  gap: '0.5rem',
-  borderRadius: tokenVars.radiusSm,
+export const popupEmpty = style({
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   paddingLeft: '0.5rem',
-  paddingRight: '2rem',
-  fontSize: tokenVars.textSm,
-  outline: 'none',
+  paddingRight: '0.5rem',
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
+  textAlign: 'center',
 });
 
 export const popupItemStacked = style({
   alignItems: 'flex-start',
-  paddingRight: '0.5rem',
 });
 
 export const popupItemTextStack = style({
@@ -63,31 +51,14 @@ export const popupItemTextStack = style({
   gap: '0.125rem',
 });
 
-export const popupItemDefault = style({
-  color: vars.foreground,
-  textAlign: 'center',
-});
-
 export const popupSectionHeader = style({
   paddingTop: '0.5rem',
   paddingBottom: '0.25rem',
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
   fontWeight: 400,
-  color: vars.foregroundMuted,
-});
-
-export const popupItemHighlighted = style({
-  backgroundColor: vars.surfaceHover,
-  color: vars.foreground,
-});
-
-export const popupItemHover = style({
-  color: vars.foreground,
-  selectors: {
-    '&:hover': { backgroundColor: vars.surfaceHover },
-  },
+  color: tokens.foreground.muted,
 });
 
 export const popupItemIcon = style({
@@ -96,7 +67,6 @@ export const popupItemIcon = style({
   alignItems: 'center',
   fontSize: '1em',
 });
-globalStyle(`${popupItemIcon} svg`, { width: '1rem', height: '1rem' });
 
 export const popupItemLabel = style({
   // Keep the primary label visible before allowing the description/path to take space.
@@ -120,8 +90,8 @@ export const popupItemDescription = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 export const popupDismiss = style({
@@ -131,7 +101,7 @@ export const popupDismiss = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: tokens.radius.sm,
   opacity: 0.5,
   selectors: {
     '&:hover': { opacity: 1 },

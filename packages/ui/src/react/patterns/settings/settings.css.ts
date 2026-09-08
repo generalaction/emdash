@@ -1,8 +1,15 @@
-import { style } from '@vanilla-extract/css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const card = style({
   display: 'flex',
+  overflow: 'hidden',
   flexDirection: 'column',
+  border: `1px solid ${tokens.surface.current.border}`,
+  borderRadius: tokens.radius.lg,
+  backgroundColor: tokens.surface.current.background,
+  padding: '1rem',
+  color: tokens.foreground.default,
 });
 
 export const body = style({

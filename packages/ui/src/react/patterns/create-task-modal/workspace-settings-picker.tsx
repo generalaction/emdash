@@ -1,6 +1,7 @@
 import { ChevronDown, Settings2 } from 'lucide-react';
 import type { RefObject } from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { Popover } from '../../primitives/popover';
 import { Tabs } from '../../primitives/tabs/tabs';
 import type {
@@ -76,9 +77,9 @@ export function WorkspaceSettingsPicker({
           />
         }
       >
-        <Settings2 />
+        <Icon source={Settings2} />
         <span className={styles.selectorText}>{workspaceLabel(state)}</span>
-        <ChevronDown />
+        <Icon source={ChevronDown} />
       </Popover.Trigger>
       {state.kind === 'inspectable' && (
         <Popover.Content align="end" className={styles.workspacePopup}>

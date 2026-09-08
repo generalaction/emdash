@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlertCircleIcon } from 'lucide-react';
-import * as React from 'react';
 import { StatusIcon } from './status-icon';
 
 const meta: Meta<typeof StatusIcon> = {
@@ -24,7 +23,7 @@ export const Large: Story = { args: { severity: 'error', size: 'lg' } };
 export const CustomIcon: Story = {
   args: {
     severity: 'warning',
-    icon: <AlertCircleIcon style={{ width: '0.875rem', height: '0.875rem' }} />,
+    icon: AlertCircleIcon,
   },
 };
 

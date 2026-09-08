@@ -1,7 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
 
 // ── Drag-region helpers ───────────────────────────────────────────────────────
 
@@ -103,10 +101,8 @@ export const content = recipe({
   },
 });
 
-export type ContentVariants = NonNullable<RecipeVariants<typeof content>>;
-
 // ── Background fill (used by sticky header and root) ─────────────────────────
 
 export const bgFill = style({
-  backgroundColor: vars.background,
+  backgroundColor: tokens.palette.neutral.step1,
 });

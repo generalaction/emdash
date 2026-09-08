@@ -1,6 +1,6 @@
 import { SeparatedList } from '@react/primitives/separated-list';
 import { Heading } from '@react/primitives/typography/Heading';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import { SettingsCard } from './settings-card';
 import * as styles from './settings.css';

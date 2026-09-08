@@ -1,4 +1,6 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import * as React from 'react';
 import {
   SearchResultsTree,
@@ -19,6 +21,19 @@ export const Default: Story = {
   render: () => (
     <StoryFrame note="Click file rows to collapse matches. Click a match to preview; double-click to open permanently.">
       <SearchResultsDemo files={baseResults} />
+    </StoryFrame>
+  ),
+};
+
+/** Caller-owned static padding through the documented search-tree root className seam. */
+export const SxOverride: Story = {
+  render: () => (
+    <StoryFrame>
+      <SearchResultsTree
+        files={baseResults}
+        onOpenMatch={() => undefined}
+        className={sx({ p: tokens.space.step2 })}
+      />
     </StoryFrame>
   ),
 };

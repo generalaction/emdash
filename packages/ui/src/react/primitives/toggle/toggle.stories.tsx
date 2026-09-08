@@ -1,94 +1,102 @@
-import { Box } from '@react/primitives/box';
+import { Icon } from '@react/primitives/icon';
 import { Toggle, ToggleGroup } from '@react/primitives/toggle';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx, cx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
-
 const meta: Meta = {
   title: 'Primitives/Toggle',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Standalone: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
       <Toggle aria-label="Bold">
-        <BoldIcon />
+        <Icon source={BoldIcon} />
       </Toggle>
       <Toggle aria-label="Italic">
-        <ItalicIcon />
+        <Icon source={ItalicIcon} />
       </Toggle>
       <Toggle size="xs" aria-label="Bold xs">
-        <BoldIcon />
+        <Icon source={BoldIcon} />
       </Toggle>
-    </Box>
+    </div>
   ),
 };
-
 export const Group: Story = {
   render: () => (
     <ToggleGroup.Root>
       <ToggleGroup.Item value="left" aria-label="Align left">
-        <AlignLeftIcon />
+        <Icon source={AlignLeftIcon} />
       </ToggleGroup.Item>
       <ToggleGroup.Item value="center" aria-label="Align center">
-        <AlignCenterIcon />
+        <Icon source={AlignCenterIcon} />
       </ToggleGroup.Item>
       <ToggleGroup.Item value="right" aria-label="Align right">
-        <AlignRightIcon />
+        <Icon source={AlignRightIcon} />
       </ToggleGroup.Item>
     </ToggleGroup.Root>
   ),
 };
-
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box
-      background="surfaceSunken"
-      display="flex"
-      flexDirection="column"
-      gap="4"
-      rounded="xl"
-      padding="4"
+    <div
+      className={sx({
+        background: 'surfaceSunken',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4',
+        rounded: 'xl',
+        padding: '4',
+      })}
     >
-      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
-        (level) => (
-          <Box
-            key={level}
-            surface={level}
-            display="flex"
-            flexWrap="wrap"
-            alignItems="center"
-            gap="2"
-            rounded="lg"
-            padding="3"
+      {(['sunken', 'base', 'raised', 'elevated', 'overlay'] as const).map((level) => (
+        <div
+          key={level}
+          className={cx(
+            surface({ level }),
+            sx({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '2',
+              rounded: 'lg',
+              padding: '3',
+            })
+          )}
+        >
+          <span
+            className={s.w36}
+            style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
           >
-            <span
-              className={s.w36}
-              style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
-            >
-              {level}
-            </span>
-            <Toggle pressed aria-label="Bold pressed">
-              <BoldIcon />
-            </Toggle>
-            <Toggle aria-label="Italic">
-              <ItalicIcon />
-            </Toggle>
-            <ToggleGroup.Root>
-              <ToggleGroup.Item value="left" aria-label="Left">
-                <AlignLeftIcon />
-              </ToggleGroup.Item>
-              <ToggleGroup.Item value="center" aria-label="Center">
-                <AlignCenterIcon />
-              </ToggleGroup.Item>
-            </ToggleGroup.Root>
-          </Box>
-        )
-      )}
-    </Box>
+            {level}
+          </span>
+          <Toggle pressed aria-label="Bold pressed">
+            <Icon source={BoldIcon} />
+          </Toggle>
+          <Toggle aria-label="Italic">
+            <Icon source={ItalicIcon} />
+          </Toggle>
+          <ToggleGroup.Root>
+            <ToggleGroup.Item value="left" aria-label="Left">
+              <Icon source={AlignLeftIcon} />
+            </ToggleGroup.Item>
+            <ToggleGroup.Item value="center" aria-label="Center">
+              <Icon source={AlignCenterIcon} />
+            </ToggleGroup.Item>
+          </ToggleGroup.Root>
+        </div>
+      ))}
+    </div>
   ),
 };

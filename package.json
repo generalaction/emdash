@@ -6,7 +6,7 @@
     "dev": "nx run-many -t dev --all --parallel=10",
     "build": "nx run-many -t build --all",
     "test": "node tooling/scripts/test.mjs",
-    "lint": "nx run-many -t lint --all && node tooling/oxlint/scripts/check-allowlists.mjs",
+    "lint": "nx run-many -t lint --all && node tooling/oxlint/scripts/check-allowlists.mjs && node tooling/oxlint/scripts/check-styling-ratchets.mjs && node --test tooling/styling-convergence/*.test.mjs && node tooling/styling-convergence/check-convergence.mjs",
     "format": "nx run-many -t format --all",
     "format:check": "nx run-many -t format:check --all",
     "typecheck": "nx run-many -t typecheck --all",

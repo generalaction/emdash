@@ -7,6 +7,7 @@ import type {
   PromptEditorRef,
 } from '../../components/prompt-editor/types';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { Spinner } from '../../primitives/spinner';
 import type {
   CreateTaskPromptIntent,
@@ -89,7 +90,7 @@ function ResourceActions({
             })
           }
         >
-          <RotateCw />
+          <Icon source={RotateCw} />
         </Button>
       )}
       <Button
@@ -103,7 +104,7 @@ function ResourceActions({
           })
         }
       >
-        <X />
+        <Icon source={X} />
       </Button>
     </>
   );
@@ -238,7 +239,11 @@ export const CreateTaskPrompt = forwardRef<CreateTaskPromptHandle, CreateTaskPro
                   className={styles.fileMention}
                   data-status={resource.status.kind}
                 >
-                  {resource.status.kind === 'pending' ? <Spinner size="sm" /> : <File />}
+                  {resource.status.kind === 'pending' ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <Icon source={File} />
+                  )}
                   <span className={styles.resourceName}>{resource.name}</span>
                   {resourceMessage(resource) && (
                     <span className={error ? styles.resourceError : undefined}>
@@ -313,7 +318,7 @@ export const CreateTaskPrompt = forwardRef<CreateTaskPromptHandle, CreateTaskPro
                   size="xs"
                   onClick={() => onIntent({ type: 'prompt.saved-prompts-retry-requested' })}
                 >
-                  <RotateCw />
+                  <Icon source={RotateCw} />
                   Retry
                 </Button>
               )}
@@ -346,7 +351,11 @@ export const CreateTaskPrompt = forwardRef<CreateTaskPromptHandle, CreateTaskPro
                     </button>
                   ) : (
                     <span className={styles.imagePlaceholder}>
-                      {resource.status.kind === 'pending' ? <Spinner size="sm" /> : <ImageIcon />}
+                      {resource.status.kind === 'pending' ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <Icon source={ImageIcon} />
+                      )}
                     </span>
                   )}
                   <span className={styles.resourceName} title={resource.name}>

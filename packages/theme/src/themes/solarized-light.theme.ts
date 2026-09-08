@@ -70,9 +70,9 @@ export const solarizedLightTheme = defineTheme({
   surfaceLightness: {
     sunken: 0.915, //               below base2 — recessed wells
     base: 0.945,
-    'base-emphasis': 0.962,
+    raised: 0.962,
     elevated: 0.974, //             base3 — cream panels
-    'elevated-emphasis': 0.955,
+    overlay: 0.955,
     paper: 0.974, //                base3 — primary content background
   },
 

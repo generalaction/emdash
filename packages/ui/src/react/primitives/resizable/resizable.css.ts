@@ -1,5 +1,5 @@
-import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { recipe } from '@styles/index';
 
 /**
  * Resize handle: a hairline separator whose interactive hit area is widened
@@ -59,7 +59,7 @@ export const handle = recipe({
     variant: {
       /** Always-visible 1px line in the border color. */
       hairline: {
-        backgroundColor: vars.border,
+        backgroundColor: tokens.border.default,
       },
       /** Invisible until hovered; used where the layout draws its own divider. */
       ghost: {
@@ -69,7 +69,7 @@ export const handle = recipe({
         transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
         selectors: {
           '&:hover': {
-            backgroundColor: `color-mix(in srgb, ${vars.border} 80%, transparent)`,
+            backgroundColor: `color-mix(in srgb, ${tokens.border.default} 80%, transparent)`,
           },
         },
       },

@@ -1,8 +1,7 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/effects/animations.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+import { popup } from '@styles/recipes/popup';
+import { kfFadeIn, kfFadeOut } from '@styles/effects/animations.css';
 
 export const overlay = style({
   position: 'fixed',
@@ -27,26 +26,19 @@ export const positioner = style({
 });
 
 export const content = recipe({
-  base: {
-    pointerEvents: 'auto',
-    zIndex: 50,
-    display: 'flex',
-    maxHeight: '100%',
-    width: '100%',
-    maxWidth: '100%',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    borderRadius: tokenVars.radiusXl,
-    backgroundColor: vars.surface,
-    fontSize: tokenVars.textSm,
-    color: vars.foreground,
-    boxShadow: `${vars.shadowOverlay}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
-    outline: 'none',
-    selectors: {
-      '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
-      '&[data-closed]': { animation: `${kfPopupOut} 100ms both` },
+  base: [
+    popup({ motion: 'scale', radius: 'xl', shadow: 'overlay' }),
+    {
+      pointerEvents: 'auto',
+      display: 'flex',
+      maxHeight: '100%',
+      width: '100%',
+      maxWidth: '100%',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      fontSize: tokens.typography.size.sm,
     },
-  },
+  ],
   variants: {
     size: {
       xs: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '20rem' } } },
@@ -82,9 +74,9 @@ export const footer = style({
   flexShrink: 0,
   flexDirection: 'column-reverse',
   gap: '0.5rem',
-  borderTop: `1px solid ${vars.border}`,
+  borderTop: `1px solid ${tokens.border.default}`,
   padding: '0.75rem',
-  backgroundColor: vars.surfaceEmphasis,
+  backgroundColor: tokens.surface.current.emphasis,
   '@media': {
     '(min-width: 640px)': {
       flexDirection: 'row',
@@ -94,21 +86,23 @@ export const footer = style({
 });
 
 export const title = style({
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   letterSpacing: '-0.015em',
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const description = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
 });
-globalStyle(`${description} a`, {
+
+export const descriptionLink = style({
   textDecoration: 'underline',
   textUnderlineOffset: '3px',
-});
-globalStyle(`${description} a:hover`, {
-  color: vars.foreground,
+  color: 'inherit',
+  selectors: {
+    '&:hover': { color: tokens.foreground.default },
+  },
 });
 
 export const body = style({
@@ -128,8 +122,8 @@ export const closeButtonOverride = style({
   marginTop: '-0.25rem',
   marginRight: '-0.25rem',
   flexShrink: 0,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   selectors: {
-    '&:hover': { color: vars.foreground },
+    '&:hover': { color: tokens.foreground.default },
   },
 });

@@ -3,10 +3,13 @@ import { Checkbox } from '@emdash/ui/react/primitives';
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { splitPath } from '@core/features/tasks/api/browser/utils';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { displayPathForChange } from './changes-tree-utils';
+
+const { diffLine, vcsState } = sourceControlHostStylesContribution.exports;
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;
@@ -114,10 +117,10 @@ function DiffLineStats({ additions, deletions }: { additions: number; deletions:
   return (
     <span className="flex shrink-0 items-center gap-1 text-xs leading-none tabular-nums">
       {additions > 0 && (
-        <span className="text-foreground-diff-added">+{formatDiffLineCount(additions)}</span>
+        <span className={diffLine({ kind: 'added' })}>+{formatDiffLineCount(additions)}</span>
       )}
       {deletions > 0 && (
-        <span className="text-foreground-diff-deleted">-{formatDiffLineCount(deletions)}</span>
+        <span className={diffLine({ kind: 'deleted' })}>-{formatDiffLineCount(deletions)}</span>
       )}
     </span>
   );
@@ -132,15 +135,15 @@ export function GitChangeStatusIcon({
 }) {
   switch (status) {
     case 'added':
-      return <SquarePlus className={cn('size-4 text-foreground-diff-added', className)} />;
+      return <SquarePlus className={cn('size-4', diffLine({ kind: 'added' }), className)} />;
     case 'modified':
-      return <SquareDot className={cn('size-4 text-foreground-diff-modified', className)} />;
+      return <SquareDot className={cn('size-4', diffLine({ kind: 'modified' }), className)} />;
     case 'deleted':
-      return <SquareMinus className={cn('size-4 text-foreground-diff-deleted', className)} />;
+      return <SquareMinus className={cn('size-4', diffLine({ kind: 'deleted' }), className)} />;
     case 'renamed':
       return <SquareArrowRight className={cn('size-4 text-foreground-muted', className)} />;
     case 'conflicted':
-      return <SquareX className={cn('size-4 text-foreground-conflict', className)} />;
+      return <SquareX className={cn('size-4', vcsState({ state: 'conflicted' }), className)} />;
     default:
       return null;
   }

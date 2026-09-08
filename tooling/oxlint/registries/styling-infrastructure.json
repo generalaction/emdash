@@ -1,0 +1,13 @@
+{
+  "modules": [
+    "packages/ui/src/styles/adapter.ts",
+    "packages/ui/src/styles/authoring/layer-rule.ts",
+    "packages/ui/src/styles/authoring/layers.css.ts",
+    "packages/ui/src/styles/authoring/recipe.ts",
+    "packages/ui/src/styles/authoring/sx.css.ts",
+    "packages/ui/src/styles/effects/animations.css.ts",
+    "packages/ui/src/styles/host.ts",
+    "packages/ui/src/styles/index.ts",
+    "packages/ui/src/styles/reset.css.ts"
+  ]
+}

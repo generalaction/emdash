@@ -1,109 +1,91 @@
-import { keyframes, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-// Side-effect import so the @layer order declaration is emitted before these
-// rules; otherwise `recipes` gets registered first and loses to app layers.
-import '@styles/layers.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+import { kfPillDotPulse } from '@styles/effects/animations.css';
 
-const dotPulse = keyframes({
-  '0%, 100%': {
-    opacity: 1,
+export const root = recipe({
+  base: {
+    display: 'inline-flex',
+    minWidth: 0,
+    alignItems: 'center',
+    gap: '0.375rem',
+    padding: '0.125rem 0.75rem',
+    borderRadius: '9999px',
+    fontSize: tokens.typography.size.xs,
+    fontWeight: 500,
+    lineHeight: tokens.typography.lineHeight.xs,
+    whiteSpace: 'nowrap',
   },
-  '50%': {
-    opacity: 0.4,
+  variants: {
+    tone: {
+      neutral: {
+        color: tokens.foreground.muted,
+        backgroundColor: `color-mix(in srgb, ${tokens.foreground.muted} 10%, transparent)`,
+      },
+      success: {
+        color: tokens.feedback.success.foreground,
+        backgroundColor: `color-mix(in srgb, ${tokens.feedback.success.foreground} 12%, transparent)`,
+      },
+      warning: {
+        color: tokens.feedback.warning.foreground,
+        backgroundColor: `color-mix(in srgb, ${tokens.feedback.warning.foreground} 12%, transparent)`,
+      },
+      error: {
+        color: tokens.feedback.error.foreground,
+        backgroundColor: `color-mix(in srgb, ${tokens.feedback.error.foreground} 12%, transparent)`,
+      },
+      info: {
+        color: tokens.feedback.info.foreground,
+        backgroundColor: `color-mix(in srgb, ${tokens.feedback.info.foreground} 12%, transparent)`,
+      },
+    },
+    truncate: {
+      true: {
+        maxWidth: '100%',
+        overflow: 'hidden',
+      },
+    },
+  },
+  defaultVariants: {
+    tone: 'neutral',
+    truncate: false,
   },
 });
 
-export const root = style({
-  '@layer': {
-    recipes: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.375rem',
-      padding: '0.125rem 0.75rem',
-      borderRadius: '9999px',
-      fontSize: 'var(--em-text-xs)',
-      fontWeight: 500,
-      lineHeight: 'var(--em-text-xs--line-height)',
-      whiteSpace: 'nowrap',
+export const label = recipe({
+  base: {
+    minWidth: 0,
+    color: 'currentColor',
+  },
+  variants: {
+    truncate: {
+      true: {
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      },
     },
   },
-});
-
-export const label = style({
-  '@layer': {
-    recipes: {
-      color: 'currentColor',
-    },
+  defaultVariants: {
+    truncate: false,
   },
 });
 
 export const dot = style({
-  '@layer': {
-    recipes: {
-      width: '0.375rem',
-      height: '0.375rem',
-      borderRadius: '50%',
-      backgroundColor: 'currentColor',
-      flexShrink: 0,
-    },
-  },
+  width: '0.375rem',
+  height: '0.375rem',
+  borderRadius: '50%',
+  backgroundColor: 'currentColor',
+  flexShrink: 0,
 });
 
 export const pulsingDot = style({
-  '@layer': {
-    recipes: {
-      animationName: dotPulse,
-      animationDuration: '1.5s',
-      animationTimingFunction: 'ease-in-out',
-      animationIterationCount: 'infinite',
-      '@media': {
-        '(prefers-reduced-motion: reduce)': {
-          animationName: 'none',
-        },
-      },
+  animationName: kfPillDotPulse,
+  animationDuration: '1.5s',
+  animationTimingFunction: 'ease-in-out',
+  animationIterationCount: 'infinite',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animationName: 'none',
     },
   },
 });
-
-export const variant = {
-  neutral: style({
-    '@layer': {
-      recipes: {
-        color: vars.foregroundMuted,
-        backgroundColor: `color-mix(in srgb, ${vars.foregroundMuted} 10%, transparent)`,
-      },
-    },
-  }),
-  success: style({
-    '@layer': {
-      recipes: {
-        color: vars.foregroundSuccess,
-        backgroundColor: `color-mix(in srgb, ${vars.foregroundSuccess} 12%, transparent)`,
-      },
-    },
-  }),
-  warning: style({
-    '@layer': {
-      recipes: {
-        color: vars.foregroundWarning,
-        backgroundColor: `color-mix(in srgb, ${vars.foregroundWarning} 12%, transparent)`,
-      },
-    },
-  }),
-  error: style({
-    '@layer': {
-      recipes: {
-        color: vars.foregroundError,
-        backgroundColor: `color-mix(in srgb, ${vars.foregroundError} 12%, transparent)`,
-      },
-    },
-  }),
-  info: style({
-    '@layer': {
-      recipes: {
-        color: vars.foregroundInfo,
-        backgroundColor: `color-mix(in srgb, ${vars.foregroundInfo} 12%, transparent)`,
-      },
-    },
-  }),
-};

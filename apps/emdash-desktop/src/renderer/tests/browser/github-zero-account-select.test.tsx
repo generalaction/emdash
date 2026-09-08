@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { Select } from '@emdash/ui/react/primitives';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

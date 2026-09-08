@@ -43,7 +43,9 @@ describe('CreateTaskModal', () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole('combobox', { name: /project: emdash/i }));
 
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Search Project' })).not.toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Search Project' })).not.toBeNull()
+    );
   });
 
   it('initially focuses an editable Prompt', async () => {

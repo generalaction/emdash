@@ -11,18 +11,12 @@
  */
 
 import { DropdownMenu } from '@react/primitives/dropdown-menu';
-import { controlVariants } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { control } from '@styles/recipes/control';
 import { ChevronDownIcon } from 'lucide-react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
-import {
-  Button,
-  resolveButtonControlVariant,
-  type ButtonProps,
-  type ButtonVariant,
-} from '../button';
+import type { ControlTone } from '../../../styles/recipes/control';
+import { Button, resolveButtonControl, type ButtonProps, type ButtonVariant } from '../button';
+import { Icon, IconSlot } from '../icon';
 import * as styles from './split-button.css';
 
 export type SplitButtonOptionTone = 'neutral' | 'accept' | 'reject';
@@ -64,13 +58,17 @@ export interface SplitButtonProps {
   /** Disables both segments and swaps the face label for `loadingLabel`. */
   loading?: boolean;
   loadingLabel?: string;
-  /** Leading node rendered before the face label (e.g. an icon). */
+  /** Decorative leading content rendered in an authoritative-size icon slot. */
   icon?: React.ReactNode;
   size?: ButtonProps['size'];
   variant?: ButtonVariant;
-  tone?: ControlVariantProps['tone'];
+  tone?: ControlTone;
   /** Stretch to the container width; the face grows and truncates. */
   fullWidth?: boolean;
+  /**
+   * Applies caller-owned classes to the rendered SplitButton group root. Use
+   * `sx()` for finite static layout overrides.
+   */
   className?: string;
   /**
    * Extra class for the portaled option menu. The menu mounts under <body>,
@@ -101,7 +99,7 @@ export function SplitButton({
 }: SplitButtonProps) {
   const selectedOption =
     (selectedId ? options.find((o) => o.id === selectedId) : undefined) ?? options[0];
-  const controlVariant = resolveButtonControlVariant({ variant, tone, size });
+  const controlOptions = resolveButtonControl({ variant, tone, size });
   const hasFilledSegment =
     variant === 'primary' || variant === 'destructive' || variant === 'secondary';
   const isDisabled = disabled || loading;
@@ -113,7 +111,10 @@ export function SplitButton({
   };
 
   return (
-    <div className={cx(styles.splitButtonRoot, fullWidth && styles.splitButtonRootFull, className)}>
+    <div
+      data-slot="split-button"
+      className={cx(styles.splitButtonRoot, fullWidth && styles.splitButtonRootFull, className)}
+    >
       {/* Primary face — fires the currently selected option */}
       <Button
         variant={variant}
@@ -126,7 +127,7 @@ export function SplitButton({
           if (selectedOption) onAction(selectedOption.id);
         }}
       >
-        {icon}
+        {icon && <IconSlot>{icon}</IconSlot>}
         <span className={styles.splitButtonLabel}>{faceLabel ?? ''}</span>
       </Button>
 
@@ -135,13 +136,18 @@ export function SplitButton({
         <DropdownMenu.Trigger
           disabled={isDisabled}
           aria-label="More options"
+          data-slot="split-button-trigger"
+          data-emphasis={controlOptions.emphasis}
+          data-size={controlOptions.size}
+          data-tone={controlOptions.tone}
+          data-icon-only=""
           className={cx(
-            controlVariants({ ...controlVariant, icon: true }),
+            control({ ...controlOptions, iconOnly: true }),
             styles.splitButtonChevronFace,
             hasFilledSegment && styles.chevronBorderLeft
           )}
         >
-          <ChevronDownIcon />
+          <Icon source={ChevronDownIcon} />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content className={menuClassName} align="end" sideOffset={4}>
           {options.map((option) => (

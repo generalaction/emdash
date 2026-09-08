@@ -1,5 +1,7 @@
 import { resolve } from 'node:path';
+import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { playwright } from '@vitest/browser-playwright';
+import type { PluginOption } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 const alias = {
@@ -23,6 +25,10 @@ const systemNodeAlias = {
 };
 
 export default defineConfig({
+  optimizeDeps: {
+    include: ['react/jsx-dev-runtime'],
+  },
+  plugins: [vanillaExtractPlugin() as unknown as PluginOption],
   resolve: { alias },
   test: {
     projects: [
@@ -116,6 +122,7 @@ export default defineConfig({
               extends: true as const,
               test: {
                 name: 'browser',
+                setupFiles: [resolve(__dirname, 'tooling/vitest/setup-browser-styles.ts')],
                 browser: {
                   enabled: true,
                   provider: playwright(),

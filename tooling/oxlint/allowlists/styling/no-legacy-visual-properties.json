@@ -1,0 +1,50 @@
+{
+  "violations": [],
+  "exceptions": [
+    {
+      "id": "packages/ui/src/react/primitives/collapsible/collapsible.css.ts::unprefixed-custom-property:--collapsible-panel-height:1",
+      "reason": "External constraint: Base UI writes --collapsible-panel-height on generated Collapsible panel DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/base-ui-runtime-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/react/primitives/toast/toast.css.ts::unprefixed-custom-property:--border-radius:1",
+      "reason": "External constraint: Sonner reads --border-radius from its generated toaster DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/sonner-theme-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/react/primitives/toast/toast.css.ts::unprefixed-custom-property:--normal-bg:1",
+      "reason": "External constraint: Sonner reads --normal-bg from its generated toaster DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/sonner-theme-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/react/primitives/toast/toast.css.ts::unprefixed-custom-property:--normal-border:1",
+      "reason": "External constraint: Sonner reads --normal-border from its generated toaster DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/sonner-theme-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/react/primitives/toast/toast.css.ts::unprefixed-custom-property:--normal-text:1",
+      "reason": "External constraint: Sonner reads --normal-text from its generated toaster DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/sonner-theme-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/styles/recipes/popup.css.ts::unprefixed-custom-property:--anchor-width:1",
+      "reason": "External constraint: Base UI writes --anchor-width on generated popup positioner DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/base-ui-runtime-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/styles/recipes/popup.css.ts::unprefixed-custom-property:--available-height:1",
+      "reason": "External constraint: Base UI writes --available-height on generated popup positioner DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/base-ui-runtime-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/styles/recipes/popup.css.ts::unprefixed-custom-property:--available-width:1",
+      "reason": "External constraint: Base UI writes --available-width on generated popup positioner DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/base-ui-runtime-vars.css.ts"
+    },
+    {
+      "id": "packages/ui/src/styles/recipes/popup.css.ts::unprefixed-custom-property:--transform-origin:1",
+      "reason": "External constraint: Base UI writes --transform-origin on generated popup positioner DOM.",
+      "fixture": "tooling/oxlint/fixtures/permanent-exceptions/no-legacy-visual-properties/base-ui-runtime-vars.css.ts"
+    }
+  ]
+}

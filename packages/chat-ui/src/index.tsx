@@ -21,8 +21,6 @@
  *   ctx.dispose();
  */
 
-import './styles/global.css';
-
 // ── Core API ──────────────────────────────────────────────────────────────────
 
 export { createChatContext } from './chat-context';

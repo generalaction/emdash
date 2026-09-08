@@ -1,6 +1,5 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const diagramContainer = style({
   minHeight: 0,
@@ -14,14 +13,7 @@ export const diagram = style({
   minWidth: 0,
 });
 
-globalStyle(`${diagram} svg`, {
-  display: 'block',
-  maxWidth: '100%',
-  height: 'auto',
-  margin: '0 auto',
-});
-
 export const unavailable = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
 });

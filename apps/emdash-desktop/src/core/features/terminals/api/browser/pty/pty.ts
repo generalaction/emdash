@@ -5,10 +5,10 @@ import {
   isPrimaryMouseButton,
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { readXtermTheme } from '@core/features/terminals/browser/pty/xterm-theme';
 import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
-import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
 import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 
@@ -40,21 +40,9 @@ export type FrontendPtyConnector = {
   resize?(cols: number, rows: number): void;
 };
 
-export function readXtermCssVars(): ITerminalOptions['theme'] {
-  const color = (name: string) => cssColorToHex(cssVar(name));
-  return {
-    background: color('--xterm-bg'),
-    foreground: color('--xterm-fg'),
-    cursor: color('--xterm-cursor'),
-    cursorAccent: color('--xterm-cursor-accent'),
-    selectionBackground: color('--xterm-selection-bg'),
-    selectionForeground: color('--xterm-selection-fg'),
-  };
-}
-
 export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermCssVars(), ...theme.override };
-  return readXtermCssVars();
+  if (theme?.override) return { ...readXtermTheme(), ...theme.override };
+  return readXtermTheme();
 }
 
 // ── FrontendPty ───────────────────────────────────────────────────────────────
@@ -186,7 +174,8 @@ export class FrontendPty {
     const element = this.terminal.element;
     if (!element) return;
     element.style.paddingBottom = `${theme?.paddingBottom ?? TERMINAL_PADDING_PX}px`;
-    element.style.backgroundColor = theme?.override?.background ?? 'var(--xterm-bg)';
+    element.style.backgroundColor =
+      theme?.override?.background ?? this.terminal.options.theme?.background ?? '';
   }
 
   clear(): void {

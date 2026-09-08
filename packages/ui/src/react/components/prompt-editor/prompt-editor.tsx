@@ -13,7 +13,7 @@
  * `queryMentions` for new integrations.
  */
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import type { JSONContent } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { EditorContent, useEditor } from '@tiptap/react';
@@ -28,6 +28,8 @@ import {
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
 } from '../../primitives/combobox/combobox-popup';
+import { Icon } from '../../primitives/icon';
+import { Devicon } from '../devicon/devicon';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
@@ -44,13 +46,11 @@ import * as styles from './prompt-editor.css';
 
 // ── Icon helpers for the popup ────────────────────────────────────────────────
 
-const ICON_SIZE_MD = { width: '0.875rem', height: '0.875rem' };
-
 const KIND_POPUP_ICONS: Record<MentionKind, React.ReactNode> = {
-  file: <File style={ICON_SIZE_MD} />,
-  issue: <CircleDot style={ICON_SIZE_MD} />,
-  symbol: <Braces style={ICON_SIZE_MD} />,
-  custom: <AtSign style={ICON_SIZE_MD} />,
+  file: <Icon source={File} size="sm" />,
+  issue: <Icon source={CircleDot} size="sm" />,
+  symbol: <Icon source={Braces} size="sm" />,
+  custom: <Icon source={AtSign} size="sm" />,
 };
 
 function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
@@ -58,11 +58,7 @@ function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
   if (!icon) {
     if (item.kind === 'file') {
       const cls = fileIconClass(item.label);
-      icon = cls ? (
-        <i className={cls} style={{ fontSize: '13px', lineHeight: 1 }} />
-      ) : (
-        KIND_POPUP_ICONS.file
-      );
+      icon = cls ? <Devicon iconClass={cls} size={13} /> : KIND_POPUP_ICONS.file;
     } else {
       icon = KIND_POPUP_ICONS[item.kind] ?? KIND_POPUP_ICONS.custom;
     }

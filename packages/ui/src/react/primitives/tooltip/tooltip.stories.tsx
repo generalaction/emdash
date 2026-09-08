@@ -1,17 +1,14 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import { Kbd, KbdGroup } from '@react/primitives/kbd';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { Tooltip } from '.';
-
 const meta: Meta = {
   title: 'Primitives/Tooltip',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Default: Story = {
   render: () => (
     <Tooltip.Root>
@@ -20,10 +17,14 @@ export const Default: Story = {
     </Tooltip.Root>
   ),
 };
-
 export const Placements: Story = {
   render: () => (
-    <Box display="flex" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '4',
+      })}
+    >
       {(['top', 'bottom', 'left', 'right'] as const).map((side) => (
         <Tooltip.Root key={side}>
           <Tooltip.Trigger
@@ -36,13 +37,17 @@ export const Placements: Story = {
           <Tooltip.Content side={side}>Placed on {side}</Tooltip.Content>
         </Tooltip.Root>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 export const Aligned: Story = {
   render: () => (
-    <Box display="flex" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '4',
+      })}
+    >
       {(['start', 'center', 'end'] as const).map((align) => (
         <Tooltip.Root key={align}>
           <Tooltip.Trigger
@@ -57,10 +62,9 @@ export const Aligned: Story = {
           </Tooltip.Content>
         </Tooltip.Root>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 export const WithoutArrow: Story = {
   render: () => (
     <Tooltip.Root>
@@ -69,7 +73,6 @@ export const WithoutArrow: Story = {
     </Tooltip.Root>
   ),
 };
-
 export const WithShortcut: Story = {
   render: () => (
     <Tooltip.Root>
@@ -84,11 +87,15 @@ export const WithShortcut: Story = {
     </Tooltip.Root>
   ),
 };
-
 export const WithProviderDelay: Story = {
   render: () => (
     <Tooltip.Provider delay={600}>
-      <Box display="flex" gap="4">
+      <div
+        className={sx({
+          display: 'flex',
+          gap: '4',
+        })}
+      >
         {['One', 'Two', 'Three'].map((label) => (
           <Tooltip.Root key={label}>
             <Tooltip.Trigger
@@ -101,11 +108,10 @@ export const WithProviderDelay: Story = {
             <Tooltip.Content>Tooltip {label}: opens after 600ms, then instantly</Tooltip.Content>
           </Tooltip.Root>
         ))}
-      </Box>
+      </div>
     </Tooltip.Provider>
   ),
 };
-
 export const LongContent: Story = {
   render: () => (
     <Tooltip.Root>

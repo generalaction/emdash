@@ -23,6 +23,8 @@ export interface SortSelectProps<K extends string> {
  *   return <CollectionToolbar actions={<SortSelect sort={sort} />} ... />;
  * });
  * ```
+ *
+ * `className` is applied to the rendered Select trigger root.
  */
 export function SortSelect<K extends string>({
   sort,

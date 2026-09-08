@@ -1,34 +1,53 @@
-import { controlVariants } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { control } from '@styles/recipes/control';
+import { fieldControl } from '@styles/recipes/field-control';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
+import type { ControlSize, ControlTone } from '../../../styles/recipes/control';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
+import { Icon } from '../icon';
 import {
   triggerButtonChevron,
   triggerButtonExtra,
-  triggerInputLayoutBase,
-  triggerInputLayoutSm,
+  triggerButtonInputExtra,
+  triggerButtonValue,
 } from './trigger-button.css';
-import { fieldShellBase } from '@styles/recipes/field-shell.css';
 
-export interface TriggerButtonProps
-  extends
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
-    Pick<ControlVariantProps, 'size' | 'tone'> {
+interface TriggerButtonBaseProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  'className'
+> {
+  /**
+   * Applies caller-owned classes to the rendered button root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
   /**
    * Show a trailing chevron icon (for selects, comboboxes, dropdowns).
    * @default true
    */
   showChevron?: boolean;
-  /**
-   * Visual appearance of the trigger.
-   * - `control` (default): ghost button style — transparent background, no border.
-   * - `input`: matches Input/Textarea — border, `surfaceInput` background, focus ring.
-   */
-  appearance?: 'control' | 'input';
 }
+
+export type TriggerButtonProps = TriggerButtonBaseProps &
+  (
+    | {
+        /** Uses the shared interactive-control contract. @default 'control' */
+        appearance?: 'control';
+        /** Shared four-step control size. @default 'base' */
+        size?: ControlSize;
+        /** Semantic status intent. @default 'neutral' */
+        tone?: ControlTone;
+      }
+    | {
+        /** Uses the shared field-control contract for form-oriented triggers. */
+        appearance: 'input';
+        /** Shared text-entry size. @default 'base' */
+        size?: FieldControlSize;
+        /** Semantic field status intent. @default 'neutral' */
+        tone?: FieldControlTone;
+      }
+  );
 
 /**
  * TriggerButton — a ghost control that opens an overlay and reads as "active"
@@ -36,11 +55,11 @@ export interface TriggerButtonProps
  *
  * Used as the trigger face for Select, Combobox, DropdownMenu, and Popover.
  * When wired via base-ui's `render` prop, the primitive sets `aria-expanded`
- * and/or `data-popup-open` automatically, which the controlVariants recipe
+ * and/or `data-popup-open` automatically, which the public control Recipe
  * maps to bg-surface-selected (active state) with no extra rules.
  *
- * Pass `appearance="input"` in form contexts so the trigger visually matches
- * Input and Textarea controls (same border, background, focus ring, invalid ring).
+ * Pass `appearance="input"` in form contexts to use `fieldControl()`. In both
+ * appearances, `className` is applied to the rendered button root.
  */
 const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
   function TriggerButton(
@@ -58,18 +77,37 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
     const buttonClass =
       appearance === 'input'
         ? cx(
-            fieldShellBase,
-            triggerInputLayoutBase,
-            size === 'xs' && triggerInputLayoutSm,
+            fieldControl({
+              size: size as FieldControlSize,
+              tone: tone as FieldControlTone,
+            }),
+            triggerButtonInputExtra,
             className
           )
-        : cx(controlVariants({ variant: 'ghost', tone, size }), triggerButtonExtra, className);
+        : cx(control({ emphasis: 'low', tone, size }), triggerButtonExtra, className);
 
     return (
-      <button ref={ref} type="button" data-slot="trigger-button" className={buttonClass} {...props}>
-        {children}
+      <button
+        ref={ref}
+        type="button"
+        data-slot="trigger-button"
+        {...props}
+        data-appearance={appearance}
+        data-emphasis={appearance === 'control' ? 'low' : undefined}
+        data-size={size}
+        data-tone={tone}
+        className={buttonClass}
+      >
+        <span data-slot="trigger-button-value" className={triggerButtonValue}>
+          {children}
+        </span>
         {showChevron && (
-          <ChevronDownIcon size={14} strokeWidth={1} className={triggerButtonChevron} aria-hidden />
+          <Icon
+            source={ChevronDownIcon}
+            size="sm"
+            strokeWidth={1}
+            className={triggerButtonChevron}
+          />
         )}
       </button>
     );

@@ -1,4 +1,5 @@
 import { Separator } from '@emdash/ui/react/primitives';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -194,7 +195,12 @@ export const GenericTabItem = observer(function GenericTabItem({
  */
 export function GenericTabDragPreview({ preSlot, label }: { preSlot?: ReactNode; label: string }) {
   return (
-    <div className="surface-paper flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-(--em-surface) px-2 py-1 text-sm opacity-80 shadow-lg">
+    <div
+      className={cn(
+        surface({ role: 'paper' }),
+        'flex cursor-grabbing items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm opacity-80 shadow-lg'
+      )}
+    >
       {preSlot}
       <span className="max-w-[200px] truncate">{label}</span>
     </div>

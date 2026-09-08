@@ -1,8 +1,9 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Button } from '@react/primitives/button';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon } from '../icon';
 import * as styles from './dialog.css';
 
 export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
@@ -37,6 +38,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
 
 // ── Content shell ─────────────────────────────────────────────────────────────
 
+/** Modal popup. `className` is applied to the rendered dialog content root. */
 function DialogContent({
   className,
   children,
@@ -50,7 +52,7 @@ function DialogContent({
       <div className={styles.positioner}>
         <DialogPrimitive.Popup
           data-slot="dialog-content"
-          className={cx('surface-elevated', styles.content({ size }), className)}
+          className={cx(styles.content({ size }), className)}
           onKeyDownCapture={(event) => {
             // The global `app.confirm` keybinding (modifier+Enter) already drives
             // confirm buttons inside dialogs; swallow the browser default so the
@@ -92,7 +94,7 @@ function DialogHeader({
             />
           }
         >
-          <XIcon style={{ width: '1rem', height: '1rem' }} />
+          <Icon source={XIcon} />
         </DialogPrimitive.Close>
       )}
     </div>
@@ -177,6 +179,29 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
   );
 }
 
+/** Styled anchor slot for links rendered inside `Dialog.Description`. */
+function DialogDescriptionLink({ className, ...props }: React.ComponentProps<'a'>) {
+  return <a className={cx(styles.descriptionLink, className)} {...props} />;
+}
+
+/**
+ * Modal overlay parts with an owned popup Surface and interaction states.
+ *
+ * Put caller layout on `Dialog.Content`'s documented root `className`; use
+ * `Header`, `Body`, and `Footer` as structural slots rather than reaching
+ * through private selectors.
+ *
+ * @example
+ * ```tsx
+ * <Dialog.Root>
+ *   <Dialog.Trigger render={<Button>Open</Button>} />
+ *   <Dialog.Content className={sx({ width: 'full' })}>
+ *     <Dialog.Header><Dialog.Title>Title</Dialog.Title></Dialog.Header>
+ *     <Dialog.Body>Content</Dialog.Body>
+ *   </Dialog.Content>
+ * </Dialog.Root>
+ * ```
+ */
 export const Dialog = {
   Root: DialogRoot,
   Trigger: DialogTrigger,
@@ -189,4 +214,5 @@ export const Dialog = {
   Footer: DialogFooter,
   Title: DialogTitle,
   Description: DialogDescription,
+  DescriptionLink: DialogDescriptionLink,
 };

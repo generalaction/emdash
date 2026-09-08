@@ -1,5 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+import { popup } from '@styles/recipes/popup';
 import {
   kfFadeIn,
   kfFadeOut,
@@ -12,8 +13,6 @@ import {
   kfSlideOutToTop,
   kfSlideOutToBottom,
 } from '@styles/effects/animations.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const backdrop = style({
   position: 'fixed',
@@ -27,18 +26,16 @@ export const backdrop = style({
 });
 
 export const sheetContent = recipe({
-  base: {
-    position: 'fixed',
-    zIndex: 50,
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    fontSize: tokenVars.textSm,
-    color: vars.foreground,
-    backgroundColor: vars.surface,
-    boxShadow: `${vars.shadowLg}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
-    outline: 'none',
-  },
+  base: [
+    popup({ level: 'base', motion: 'none', radius: 'none', shadow: 'lg' }),
+    {
+      position: 'fixed',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      fontSize: tokens.typography.size.sm,
+    },
+  ],
   variants: {
     side: {
       right: {
@@ -113,9 +110,9 @@ export const sheetHeaderInner = style({
 });
 
 export const sheetTitle = style({
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   letterSpacing: '-0.015em',
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const sheetFooter = style({
@@ -123,9 +120,9 @@ export const sheetFooter = style({
   flexShrink: 0,
   flexDirection: 'column-reverse',
   gap: '0.5rem',
-  borderTop: `1px solid ${vars.border}`,
+  borderTop: `1px solid ${tokens.border.default}`,
   padding: '0.75rem',
-  backgroundColor: vars.surfaceBaseEmphasis,
+  backgroundColor: tokens.surface.level.raised.background,
   '@media': {
     '(min-width: 640px)': {
       flexDirection: 'row',
@@ -151,8 +148,8 @@ export const closeButtonOverride = style({
   marginTop: '-0.25rem',
   marginRight: '-0.25rem',
   flexShrink: 0,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   selectors: {
-    '&:hover': { color: vars.foreground },
+    '&:hover': { color: tokens.foreground.default },
   },
 });

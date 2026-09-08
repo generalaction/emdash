@@ -6,8 +6,7 @@
  * and writes the output files.
  *
  * Emits:
- *   theme/__generated__/theme.css           — @layer tokens { :root defaults + per-.em<id> + .density-<id> vars }
- *   theme/__generated__/semantic.css        — @layer tokens { per-theme semantic vars (imported separately) }
+ *   theme/__generated__/styles.css          — canonical Color/Density/Typography Token Values
  *   theme/__generated__/shiki-themes.gen.ts — single var-based Shiki theme (emSyntaxTheme)
  */
 
@@ -19,11 +18,13 @@ import { darkTheme } from '../../themes/dark.theme';
 import { lightTheme } from '../../themes/light.theme';
 import { solarizedDarkTheme } from '../../themes/solarized-dark.theme';
 import { solarizedLightTheme } from '../../themes/solarized-light.theme';
+import { ALL_TYPOGRAPHIES } from '../../typographies/registry';
+import { defineColorScheme, defineDensityProfile, profileValuesFromCssVars } from '../compiler';
+import type { ColorSchemeDefinition, DensityProfileDefinition } from '../compiler';
 import type { ResolvedDensity } from '../define-density';
 import type { ResolvedTheme } from '../define-theme';
-import { emitSemanticCss } from './emit-semantic-css';
 import { emitShikiThemesTs } from './emit-shiki';
-import { emitThemeCss } from './emit-theme-css';
+import { emitStylesCss } from './emit-styles-css';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,21 +43,42 @@ const DENSITIES: ResolvedDensity[] = [...ALL_DENSITIES];
 function run(): void {
   const themes = ALL_THEMES;
   const densities = DENSITIES;
+  const colorSchemeDefinitions: ColorSchemeDefinition[] = themes.map((theme) =>
+    defineColorScheme({
+      id: theme.id,
+      label: theme.label,
+      polarity: theme.polarity,
+      selector: theme.selector as `.${string}`,
+      values: profileValuesFromCssVars('color-scheme', theme.cssVars),
+    })
+  );
+  const densityDefinitions: DensityProfileDefinition[] = densities.map((density) =>
+    defineDensityProfile({
+      id: density.id,
+      label: density.label,
+      selector: density.selector as `.${string}`,
+      values: profileValuesFromCssVars('density', density.cssVars),
+    })
+  );
 
   console.log(
-    `Building ${themes.length} theme(s): ${themes.map((t) => t.id).join(', ')}; ${densities.length} density mode(s): ${densities.map((d) => d.id).join(', ')}`
+    `Building ${themes.length} Color scheme(s): ${themes.map((t) => t.id).join(', ')}; ${densities.length} Density profile(s): ${densities.map((d) => d.id).join(', ')}; ${ALL_TYPOGRAPHIES.length} Typography profile(s): ${ALL_TYPOGRAPHIES.map((t) => t.id).join(', ')}`
   );
 
   // Ensure output directory exists
   mkdirSync(GENERATED_DIR, { recursive: true });
 
-  // theme/__generated__/theme.css
-  writeFileSync(join(GENERATED_DIR, 'theme.css'), emitThemeCss(themes, densities), 'utf8');
-  console.log('✓ theme/__generated__/theme.css');
-
-  // theme/__generated__/semantic.css
-  writeFileSync(join(GENERATED_DIR, 'semantic.css'), emitSemanticCss(themes), 'utf8');
-  console.log('✓ theme/__generated__/semantic.css');
+  // theme/__generated__/styles.css — public canonical artifact
+  writeFileSync(
+    join(GENERATED_DIR, 'styles.css'),
+    emitStylesCss({
+      colorSchemes: colorSchemeDefinitions,
+      densities: densityDefinitions,
+      typographies: ALL_TYPOGRAPHIES,
+    }),
+    'utf8'
+  );
+  console.log('✓ theme/__generated__/styles.css');
 
   // theme/__generated__/shiki-themes.gen.ts
   writeFileSync(join(GENERATED_DIR, 'shiki-themes.gen.ts'), emitShikiThemesTs(), 'utf8');

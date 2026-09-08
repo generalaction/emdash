@@ -1,75 +1,49 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 // Side-effect import so the @layer order declaration is emitted before these
 // rules; otherwise `recipes` gets registered first and loses to app layers.
-import '@styles/layers.css';
 
 export const root = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      minHeight: 0,
-      width: '100%',
-      padding: '2rem',
-      backgroundColor: vars.background,
-    },
-  },
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  minHeight: 0,
+  width: '100%',
+  padding: '2rem',
+  backgroundColor: tokens.palette.neutral.step1,
 });
 
 export const bare = style({
-  '@layer': {
-    recipes: {
-      backgroundColor: 'transparent',
-    },
-  },
+  backgroundColor: 'transparent',
 });
 
 export const content = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      textAlign: 'center',
-      maxWidth: '20rem',
-    },
-  },
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  textAlign: 'center',
+  maxWidth: '20rem',
 });
 
 export const label = style({
-  '@layer': {
-    recipes: {
-      margin: 0,
-      fontFamily: tokenVars.fontSans,
-      fontSize: tokenVars.textSm,
-      fontWeight: 500,
-      color: vars.foregroundMuted,
-    },
-  },
+  margin: 0,
+  fontFamily: tokens.typography.family.sans,
+  fontSize: tokens.typography.size.sm,
+  fontWeight: 500,
+  color: tokens.foreground.muted,
 });
 
 export const description = style({
-  '@layer': {
-    recipes: {
-      margin: 0,
-      marginTop: '0.375rem',
-      fontSize: tokenVars.textXs,
-      lineHeight: 1.625,
-      fontWeight: 400,
-      color: vars.foregroundPassive,
-    },
-  },
+  margin: 0,
+  marginTop: '0.375rem',
+  fontSize: tokens.typography.size.xs,
+  lineHeight: 1.625,
+  fontWeight: 400,
+  color: tokens.foreground.passive,
 });
 
 export const action = style({
-  '@layer': {
-    recipes: {
-      marginTop: '1.25rem',
-    },
-  },
+  marginTop: '1.25rem',
 });

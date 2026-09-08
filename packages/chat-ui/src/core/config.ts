@@ -10,8 +10,8 @@
  *
  * Colors / font-family / radii are intentionally excluded from ChatConfig.
  * They remain CSS-themed via the :where() defaults in styles/theme.css.ts and
- * the .emlight/.emdark host override in chat-theme.css so that host apps can
- * rebind them without inline-style specificity fighting class-based overrides.
+ * host-owned styling adapters so host apps can rebind them without inline-style
+ * specificity fighting class-based overrides.
  * Only the measurement-coupled vars (--chat-type-*, --chat-ic-pad-*) are emitted
  * inline at runtime so they can be driven by the runtime config.
  *

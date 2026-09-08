@@ -1,5 +1,7 @@
 import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { control } from '@styles/recipes/control';
+import { fieldControl } from '@styles/recipes/field-control';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
@@ -8,6 +10,8 @@ import {
   isEventInsideInteractiveLayer,
   useHoverCard,
 } from '@/react/primitives/hover-card';
+import { Icon } from '@/react/primitives/icon';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
 import * as styles from './combobox-popover.css';
 
 export interface ComboboxPopoverProps<T> {
@@ -32,6 +36,8 @@ export interface ComboboxPopoverProps<T> {
   triggerTitle?: (selected: T | null) => string | undefined;
   /** Optional id used to associate the trigger with an external form label. */
   triggerId?: string;
+  /** Called when the rendered trigger root loses focus. */
+  onTriggerBlur?: React.FocusEventHandler<HTMLButtonElement>;
   /**
    * Render the content of each list row.
    * Receives the item; the row wrapper (hover/selected states) is provided by
@@ -46,8 +52,17 @@ export interface ComboboxPopoverProps<T> {
   /** Placeholder text inside the search input. */
   searchPlaceholder?: string;
   disabled?: boolean;
+  /** Marks the form-oriented trigger invalid. */
+  invalid?: boolean;
+  /** Shared trigger size. Defaults to `base` for input appearance and `sm` otherwise. */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
+  /** Applies caller-owned classes to the rendered trigger root. */
   className?: string;
+  /** Applies caller-owned classes to the popup content slot. */
   contentClassName?: string;
+  /** Applies genuine runtime geometry to the popup content slot. */
   contentStyle?: React.CSSProperties;
   contentWidth?: 'trigger' | 'content' | 'content-at-least-trigger';
   onOpenChange?: (open: boolean) => void;
@@ -81,11 +96,15 @@ export function ComboboxPopover<T>({
   renderTrigger,
   triggerTitle,
   triggerId,
+  onTriggerBlur,
   renderItem,
   renderItemDetail,
   renderFooter,
   searchPlaceholder = 'Search…',
   disabled = false,
+  invalid = false,
+  size,
+  tone = 'neutral',
   className,
   contentClassName,
   contentStyle,
@@ -101,6 +120,7 @@ export function ComboboxPopover<T>({
 
   const selectedItem = value != null ? (items.find((i) => itemToKey(i) === value) ?? null) : null;
   const triggerTitleValue = triggerTitle?.(selectedItem);
+  const resolvedSize = size ?? (appearance === 'input' ? 'base' : 'sm');
 
   const activeDetailItem =
     renderItemDetail && hoverCard.activeKey != null
@@ -153,16 +173,20 @@ export function ComboboxPopover<T>({
       <Combobox.Trigger
         id={triggerId}
         disabled={disabled}
+        onBlur={onTriggerBlur}
+        aria-invalid={invalid || undefined}
         title={triggerTitleValue}
         aria-label={triggerTitleValue}
+        data-size={resolvedSize}
+        data-tone={tone}
         className={
           appearance === 'input'
-            ? cx(...styles.triggerInput, className)
-            : cx(styles.trigger, className)
+            ? cx(fieldControl({ size: resolvedSize, tone }), styles.triggerInput, className)
+            : cx(control({ emphasis: 'low', size: resolvedSize, tone }), styles.trigger, className)
         }
       >
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
-        <ChevronDown className={styles.triggerChevron} />
+        <Icon source={ChevronDown} size="xs" className={styles.triggerChevron} />
       </Combobox.Trigger>
 
       <Combobox.Content

@@ -1,24 +1,26 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { useState } from 'react';
-import { Box } from '@/react/primitives/box';
 import { Button } from '@/react/primitives/button';
 import { ConfirmationDialog } from '.';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const meta: Meta = {
   title: 'Components/ConfirmationDialog',
   parameters: { layout: 'centered' },
 };
 export default meta;
-
 type Story = StoryObj;
-
 function NeutralStory() {
   const [open, setOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string>('—');
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3',
+      })}
+    >
       <Button variant="ghost" onClick={() => setOpen(true)}>
         Leave page
       </Button>
@@ -35,10 +37,9 @@ function NeutralStory() {
         onConfirm={() => setLastAction('confirmed')}
         onCancel={() => setLastAction('cancelled')}
       />
-    </Box>
+    </div>
   );
 }
-
 function DestructiveStory() {
   const [open, setOpen] = useState(false);
   return (
@@ -58,7 +59,6 @@ function DestructiveStory() {
     </>
   );
 }
-
 function AsyncStory() {
   const [open, setOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -83,7 +83,6 @@ function AsyncStory() {
     </>
   );
 }
-
 export const Neutral: Story = { render: () => <NeutralStory /> };
 export const Destructive: Story = { render: () => <DestructiveStory /> };
 export const AsyncConfirm: Story = { name: 'Async confirm', render: () => <AsyncStory /> };

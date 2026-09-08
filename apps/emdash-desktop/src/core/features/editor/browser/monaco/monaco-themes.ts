@@ -1,71 +1,66 @@
+import { COLOR_SCHEME_MANIFEST, type ColorSchemeManifestEntry } from '@emdash/theme/profiles';
 import type { Monaco } from '@monaco-editor/react';
 import { cssColorToHex } from '@core/primitives/styling/browser/cssVars';
+import {
+  monacoThemeIntegration,
+  type MonacoThemeIntegrationValues,
+} from './monaco-theme-integration';
 
-type MonacoColors = Record<string, string>;
+type MonacoThemeStyle = Parameters<typeof monacoThemeIntegration.read>[0];
 
 /**
- * Reads all --monaco-* CSS custom properties from an element bearing the given
- * theme class, converts each value to a hex string, and returns a Monaco color
- * token map. Entries where the variable is not defined for that theme are
- * omitted.
+ * Reads Monaco's complete color map from its generated integration contract.
+ * Private CSS property names remain owned by the manifest.
  */
-function readMonacoVarsForTheme(cssClass: 'emlight' | 'emdark'): MonacoColors {
-  const el = document.createElement('div');
-  el.className = cssClass;
-  el.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
-  document.body.appendChild(el);
-  const style = getComputedStyle(el);
-
-  const get = (v: string) => style.getPropertyValue(v).trim();
-
-  const mapping: Array<[string, string]> = [
-    ['--monaco-bg', 'editor.background'],
-    ['--monaco-fg', 'editor.foreground'],
-    ['--monaco-line-highlight', 'editor.lineHighlightBackground'],
-    ['--monaco-line-number', 'editorLineNumber.foreground'],
-    ['--monaco-gutter', 'editorGutter.background'],
-    ['--monaco-inserted-text-bg', 'diffEditor.insertedTextBackground'],
-    ['--monaco-inserted-line-bg', 'diffEditor.insertedLineBackground'],
-    ['--monaco-inserted-text-border', 'diffEditor.insertedTextBorder'],
-    ['--monaco-removed-text-bg', 'diffEditor.removedTextBackground'],
-    ['--monaco-removed-line-bg', 'diffEditor.removedLineBackground'],
-    ['--monaco-removed-text-border', 'diffEditor.removedTextBorder'],
-    ['--monaco-unchanged-region-bg', 'diffEditor.unchangedRegionBackground'],
-    ['--monaco-diff-border', 'diffEditor.border'],
-    ['--monaco-diff-diagonal-fill', 'diffEditor.diagonalFill'],
-    ['--monaco-selection-bg', 'editor.selectionBackground'],
-    ['--monaco-selection-fg', 'editor.selectionForeground'],
-    ['--monaco-inactive-selection-bg', 'editor.inactiveSelectionBackground'],
-  ];
-
-  const colors: MonacoColors = {};
-  for (const [cssVar, monacoToken] of mapping) {
-    const value = get(cssVar);
-    if (value) {
-      colors[monacoToken] = cssColorToHex(value);
-    }
-  }
-
-  el.remove();
-  return colors;
+export function readMonacoThemeColors(
+  style: MonacoThemeStyle = getComputedStyle(document.documentElement)
+): MonacoThemeIntegrationValues {
+  return Object.fromEntries(
+    Object.entries(monacoThemeIntegration.read(style)).map(([field, value]) => [
+      field,
+      cssColorToHex(value),
+    ])
+  ) as MonacoThemeIntegrationValues;
 }
 
-export function defineMonacoThemes(monaco: Monaco): void {
-  monaco.editor.defineTheme('custom-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
-    colors: readMonacoVarsForTheme('emdark'),
-  });
+function resolveColorScheme(effectiveTheme: string): ColorSchemeManifestEntry {
+  const colorScheme = COLOR_SCHEME_MANIFEST.find(
+    (entry) => entry.selector === `.${effectiveTheme}`
+  );
+  if (!colorScheme) {
+    throw new RangeError(`Unknown active Color scheme class "${effectiveTheme}"`);
+  }
+  return colorScheme;
+}
 
-  monaco.editor.defineTheme('custom-light', {
-    base: 'vs',
+function activeColorSchemeClass(): string {
+  const colorScheme =
+    COLOR_SCHEME_MANIFEST.find((entry) =>
+      document.documentElement.classList.contains(entry.selector.slice(1))
+    ) ?? COLOR_SCHEME_MANIFEST[0];
+  if (!colorScheme) {
+    throw new Error('Monaco requires at least one Color scheme profile');
+  }
+  return colorScheme.selector.slice(1);
+}
+
+/**
+ * Defines the currently resolved Monaco Theme. Runtime changes re-read the
+ * generated contract before activating the corresponding Monaco Theme id.
+ */
+export function defineMonacoThemes(
+  monaco: Monaco,
+  effectiveTheme = activeColorSchemeClass()
+): void {
+  const colorScheme = resolveColorScheme(effectiveTheme);
+  monaco.editor.defineTheme(getMonacoTheme(effectiveTheme), {
+    base: colorScheme.polarity === 'dark' ? 'vs-dark' : 'vs',
     inherit: true,
     rules: [],
-    colors: readMonacoVarsForTheme('emlight'),
+    colors: readMonacoThemeColors(),
   });
 }
 
 export function getMonacoTheme(effectiveTheme: string): string {
-  return effectiveTheme === 'emlight' ? 'custom-light' : 'custom-dark';
+  return `custom-${resolveColorScheme(effectiveTheme).id}`;
 }

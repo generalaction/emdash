@@ -1,4 +1,4 @@
-import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
+import { menuItem } from '@emdash/ui/styles/recipes/menu-item';
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Fragment } from 'react';
@@ -105,11 +105,8 @@ function HomeProjectAction({
       aria-label={label}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      className={cn(
-        menuItemBase({ fullWidth: true }),
-        'justify-between hover:bg-background-1',
-        isSelected && 'bg-background-1'
-      )}
+      data-selected={isSelected || undefined}
+      className={cn(menuItem({ fullWidth: true }), 'justify-between')}
     >
       <div className="flex items-center gap-3">
         <Icon className="size-7 shrink-0 text-foreground-passive" strokeWidth={1} />

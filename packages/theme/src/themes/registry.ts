@@ -13,7 +13,7 @@ export type ThemeManifestEntry = {
   selector: string;
 };
 
-export const THEME_MANIFEST: readonly ThemeManifestEntry[] = [
+export const THEME_MANIFEST = [
   { id: 'light', label: 'Light', polarity: 'light', selector: '.emlight' },
   { id: 'dark', label: 'Dark', polarity: 'dark', selector: '.emdark' },
   {
@@ -28,6 +28,6 @@ export const THEME_MANIFEST: readonly ThemeManifestEntry[] = [
     polarity: 'dark',
     selector: '.emsolarized-dark',
   },
-] as const;
+] as const satisfies readonly ThemeManifestEntry[];
 
 export type ThemeId = (typeof THEME_MANIFEST)[number]['id'];

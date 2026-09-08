@@ -1,4 +1,12 @@
 import {
+  BotIcon,
+  GitBranchIcon,
+  GlobeIcon,
+  PanelLeftIcon,
+  PlugIcon,
+  SettingsIcon,
+} from 'lucide-react';
+import {
   defineSettingsPageContribution,
   type SettingsPageContribution,
 } from '@core/primitives/settings/api/page-contribution';
@@ -13,41 +21,41 @@ import type { SettingsPageTab } from './views';
 export const generalSettingsPage = defineSettingsPageContribution({
   id: 'general',
   label: 'General',
-  icon: 'settings',
+  icon: SettingsIcon,
   component: GeneralSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const integrationsSettingsPage = defineSettingsPageContribution({
   id: 'integrations',
   label: 'Integrations',
-  icon: 'plug',
+  icon: PlugIcon,
   component: IntegrationsSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const interfaceSettingsPage = defineSettingsPageContribution({
   id: 'interface',
   label: 'Interface',
-  icon: 'panel-left',
+  icon: PanelLeftIcon,
   component: InterfaceSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const browserSettingsPage = defineSettingsPageContribution({
   id: 'browser',
   label: 'Browser',
-  icon: 'globe',
+  icon: GlobeIcon,
   component: BrowserSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const repositorySettingsPage = defineSettingsPageContribution({
   id: 'repository',
   label: 'Repository',
-  icon: 'git-branch',
+  icon: GitBranchIcon,
   component: RepositorySettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const agentsSettingsPage = defineSettingsPageContribution({
   id: 'clis-models',
   label: 'Agents',
-  icon: 'bot',
+  icon: BotIcon,
   component: AgentsSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);

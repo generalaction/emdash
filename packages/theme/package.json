@@ -13,29 +13,23 @@
   ],
   "type": "module",
   "sideEffects": [
-    "./src/__generated__/theme.css",
-    "./src/__generated__/semantic.css"
+    "./src/__generated__/styles.css"
   ],
   "exports": {
     ".": {
-      "development": "./src/core/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
-    "./manifest": {
-      "development": "./src/themes/registry.ts",
-      "types": "./dist/manifest.d.mts",
-      "default": "./dist/manifest.mjs"
+    "./profiles": {
+      "types": "./dist/profiles.d.mts",
+      "default": "./dist/profiles.mjs"
     },
-    "./densities": {
-      "development": "./src/densities/registry.ts",
-      "types": "./dist/densities.d.mts",
-      "default": "./dist/densities.mjs"
+    "./runtime": {
+      "types": "./dist/runtime.d.mts",
+      "default": "./dist/runtime.mjs"
     },
-    "./theme.css": "./src/__generated__/theme.css",
-    "./semantic.css": "./src/__generated__/semantic.css",
+    "./styles.css": "./src/__generated__/styles.css",
     "./shiki-themes": {
-      "development": "./src/__generated__/shiki-themes.gen.ts",
       "types": "./dist/shiki-themes.d.mts",
       "default": "./dist/shiki-themes.mjs"
     },
@@ -43,8 +37,8 @@
   },
   "scripts": {
     "dev": "tsdown --watch",
-    "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts && tsdown",
-    "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/theme.css src/__generated__/semantic.css src/__generated__/shiki-themes.gen.ts",
+    "build": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/styles.css src/__generated__/shiki-themes.gen.ts && tsdown",
+    "build:theme": "tsx src/core/codegen/run.ts && oxfmt src/__generated__/styles.css src/__generated__/shiki-themes.gen.ts",
     "watch:theme": "tsx --watch src/core/codegen/run.ts",
     "test": "vitest run",
     "lint": "oxlint src",
@@ -64,5 +58,14 @@
     "typescript": "^6.0.2",
     "vitest": "^4.1.0"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "dependsOn": [
+          "build"
+        ]
+      }
+    }
+  }
 }

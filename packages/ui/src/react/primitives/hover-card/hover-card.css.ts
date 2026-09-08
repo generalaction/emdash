@@ -1,9 +1,9 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 /** Default style for HoverCard when no className is passed. */
 export const hoverCardDefault = style({
   width: 'auto',
   padding: 0,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });

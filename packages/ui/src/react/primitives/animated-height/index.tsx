@@ -1,6 +1,6 @@
 'use client';
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { HEIGHT_TRANSITION_DURATION_MS } from './constants';
 import { createHeightChangeTracker } from './height-change-tracker';

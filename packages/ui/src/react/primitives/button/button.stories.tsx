@@ -1,12 +1,14 @@
-import { Box } from '@react/primitives/box';
 import { Button, type ButtonVariant } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import { Kbd, KbdGroup } from '@react/primitives/kbd';
+import { Toggle } from '@react/primitives/toggle';
+import { TriggerButton } from '@react/primitives/trigger-button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx, cx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
-
 const buttonVariants: ButtonVariant[] = ['primary', 'destructive', 'secondary', 'ghost', 'link'];
-
 const meta: Meta<typeof Button> = {
   title: 'Primitives/Button',
   component: Button,
@@ -19,32 +21,48 @@ const meta: Meta<typeof Button> = {
     disabled: { control: 'boolean' },
   },
 };
-
 export default meta;
 type Story = StoryObj<typeof Button>;
-
 export const Default: Story = {
   args: { children: 'Button', variant: 'primary' },
 };
-
 /** Public button variants. */
 export const VariantMatrix: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
       {buttonVariants.map((variant) => (
         <Button key={variant} variant={variant}>
           {variant}
         </Button>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 /** The four-step size scale — XS (24 px), SM (28 px), Base (32 px), LG (40 px) — plus link. */
 export const Sizes: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3">
-      <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '3',
+      })}
+    >
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-end',
+          gap: '2',
+        })}
+      >
         <Button variant="primary" size="xs">
           Extra small
         </Button>
@@ -58,115 +76,181 @@ export const Sizes: Story = {
           Large
         </Button>
         <Button variant="link">Link</Button>
-      </Box>
-      <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
+      </div>
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-end',
+          gap: '2',
+        })}
+      >
         <Button size="xs" icon>
-          <SearchIcon />
+          <Icon source={SearchIcon} />
         </Button>
         <Button size="sm" icon>
-          <SearchIcon />
+          <Icon source={SearchIcon} />
         </Button>
         <Button size="base" icon>
-          <SearchIcon />
+          <Icon source={SearchIcon} />
         </Button>
         <Button size="lg" icon>
-          <SearchIcon />
+          <Icon source={SearchIcon} />
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
-
 /** Icon-only icon buttons. */
 export const IconButtons: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
       <Button icon variant="ghost">
-        <PlusIcon />
+        <Icon source={PlusIcon} />
       </Button>
       <Button icon variant="primary">
-        <PlusIcon />
+        <Icon source={PlusIcon} />
       </Button>
       <Button icon variant="secondary" size="xs">
-        <SearchIcon />
+        <Icon source={SearchIcon} />
       </Button>
       <Button icon variant="destructive">
-        <TrashIcon />
+        <Icon source={TrashIcon} />
       </Button>
-    </Box>
+    </div>
   ),
 };
-
 /** Disabled state. */
 export const Disabled: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
       {buttonVariants.map((variant) => (
         <Button key={variant} variant={variant} disabled>
           {variant}
         </Button>
       ))}
-    </Box>
+    </div>
   ),
 };
-
+/**
+ * Shared control-state contract. Hover the labeled control and tab through the
+ * row to inspect hover/focus-visible alongside selected, disabled, and invalid.
+ */
+export const ControlStates: Story = {
+  render: () => (
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
+      <Button>Default</Button>
+      <Button>Hover me</Button>
+      <Button autoFocus>Focused</Button>
+      <Toggle pressed>Selected</Toggle>
+      <Button disabled>Disabled</Button>
+      <Button aria-invalid="true">Invalid</Button>
+      <TriggerButton data-popup-open>Open trigger</TriggerButton>
+    </div>
+  ),
+};
 /** Surface-relative hover / active adapt correctly across all backgrounds. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box
-      background="surfaceSunken"
-      display="flex"
-      flexDirection="column"
-      gap="4"
-      rounded="xl"
-      padding="4"
+    <div
+      className={sx({
+        background: 'surfaceSunken',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4',
+        rounded: 'xl',
+        padding: '4',
+      })}
     >
-      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
-        (level) => (
-          <Box
-            key={level}
-            surface={level}
-            display="flex"
-            flexWrap="wrap"
-            alignItems="center"
-            gap="2"
-            rounded="lg"
-            padding="3"
+      {(['sunken', 'base', 'raised', 'elevated', 'overlay'] as const).map((level) => (
+        <div
+          key={level}
+          className={cx(
+            surface({ level }),
+            sx({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '2',
+              rounded: 'lg',
+              padding: '3',
+            })
+          )}
+        >
+          <span
+            className={s.w36}
+            style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
           >
-            <span
-              className={s.w36}
-              style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
-            >
-              {level}
-            </span>
-            <Button variant="primary">Primary</Button>
-            <Button variant="destructive">Destructive</Button>
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="ghost">Ghost</Button>
-            <Button variant="link">Link</Button>
-            <Button icon>
-              <SearchIcon />
-            </Button>
-          </Box>
-        )
-      )}
-    </Box>
+            {level}
+          </span>
+          <Button variant="primary">Primary</Button>
+          <Button variant="destructive">Destructive</Button>
+          <Button variant="secondary">Secondary</Button>
+          <Button variant="ghost">Ghost</Button>
+          <Button variant="link">Link</Button>
+          <Button icon>
+            <Icon source={SearchIcon} />
+          </Button>
+        </div>
+      ))}
+    </div>
   ),
 };
-
 /** Buttons with trailing keyboard shortcuts, across variants and sizes. */
 export const WithShortcuts: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3" alignItems="flex-start">
-      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '3',
+        alignItems: 'flex-start',
+      })}
+    >
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '2',
+        })}
+      >
         {buttonVariants.map((variant) => (
           <Button key={variant} variant={variant} kbd={<Kbd>K</Kbd>}>
             {variant[0].toUpperCase() + variant.slice(1)}
           </Button>
         ))}
-      </Box>
+      </div>
 
-      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '2',
+        })}
+      >
         {buttonVariants.map((variant) => (
           <Button
             key={variant}
@@ -182,9 +266,16 @@ export const WithShortcuts: Story = {
             {variant[0].toUpperCase() + variant.slice(1)}
           </Button>
         ))}
-      </Box>
+      </div>
 
-      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '2',
+        })}
+      >
         <Button
           variant="primary"
           kbd={
@@ -209,7 +300,7 @@ export const WithShortcuts: Story = {
         >
           Save
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };

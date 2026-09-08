@@ -1,6 +1,6 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
 // ── FilterPill ────────────────────────────────────────────────────────────────
 
@@ -10,14 +10,14 @@ export const pill = style({
   alignItems: 'center',
   gap: '0.25rem',
   borderRadius: '999px',
-  border: `1px solid ${vars.border}`,
-  backgroundColor: vars.surfaceHover,
+  border: `1px solid ${tokens.border.default}`,
+  backgroundColor: tokens.surface.current.hover,
   paddingLeft: '0.5rem',
   paddingRight: '0.25rem',
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foreground,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.default,
   whiteSpace: 'nowrap',
 });
 
@@ -45,14 +45,16 @@ export const pillRemove = style({
   borderRadius: '999px',
   border: 'none',
   backgroundColor: 'transparent',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   cursor: 'pointer',
   transition: 'color 150ms',
+  vars: {
+    [iconSizeVar]: '0.625rem',
+  },
   selectors: {
-    '&:hover': { color: vars.foreground },
+    '&:hover': { color: tokens.foreground.default },
   },
 });
-globalStyle(`${pillRemove} svg`, { pointerEvents: 'none', width: '0.625rem', height: '0.625rem' });
 
 // ── FilterButton ──────────────────────────────────────────────────────────────
 
@@ -64,19 +66,16 @@ export const filterButton = style({
   border: 'none',
   backgroundColor: 'transparent',
   padding: 0,
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
   cursor: 'pointer',
   transition: 'color 150ms',
+  vars: {
+    [iconSizeVar]: '0.875rem',
+  },
   selectors: {
-    '&:hover': { color: vars.foreground },
-    '&[data-active="true"]': { color: vars.foreground, fontWeight: 400 },
+    '&:hover': { color: tokens.foreground.default },
+    '&[data-active="true"]': { color: tokens.foreground.default, fontWeight: 400 },
     '&:disabled': { pointerEvents: 'none', opacity: 0.4, cursor: 'not-allowed' },
   },
-});
-globalStyle(`${filterButton} svg`, {
-  pointerEvents: 'none',
-  width: '0.875rem',
-  height: '0.875rem',
-  flexShrink: 0,
 });

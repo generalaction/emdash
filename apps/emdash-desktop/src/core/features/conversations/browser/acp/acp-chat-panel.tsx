@@ -10,6 +10,7 @@ import type {
   PromptEditorRef,
 } from '@emdash/ui/react/components';
 import { Button, toast } from '@emdash/ui/react/primitives';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -52,6 +53,7 @@ import { openExternal } from '@core/primitives/desktop-host/browser/host-client'
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -837,7 +839,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const showHero = showComposer && store.isEmpty && store.loadError === null;
 
   return (
-    <div ref={rootRef} className="surface-paper relative h-full overflow-hidden bg-(--em-surface)">
+    <div
+      ref={rootRef}
+      className={cn(surface({ role: 'paper' }), 'relative h-full overflow-hidden')}
+    >
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}

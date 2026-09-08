@@ -1,5 +1,6 @@
 import { RotateCw } from 'lucide-react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { Spinner } from '../../primitives/spinner';
 import type {
   CreateTaskAvailability,
@@ -53,7 +54,7 @@ export function CreateTaskOptionState({
         <span>{state.message}</span>
         {state.retryable && onRetry && (
           <Button size="sm" onClick={onRetry}>
-            <RotateCw />
+            <Icon source={RotateCw} />
             Retry
           </Button>
         )}

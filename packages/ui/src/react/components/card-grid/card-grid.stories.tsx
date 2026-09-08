@@ -1,6 +1,9 @@
+import { tokens } from '@emdash/theme';
 import { Button } from '@react/primitives/button';
+import { Icon, type StaticSvgComponent } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Blocks, Globe, Plus, Terminal, Wrench, type LucideIcon } from 'lucide-react';
+import { sx } from '@styles/index';
+import { Blocks, Globe, Plus, Terminal, Wrench } from 'lucide-react';
 import { CardGrid, CardGridItem, CardGridSection } from './card-grid';
 
 const meta: Meta<typeof CardGrid> = {
@@ -13,17 +16,17 @@ export default meta;
 type Story = StoryObj<typeof CardGrid>;
 
 function DemoCardContent({
-  icon: Icon = Blocks,
+  icon: source = Blocks,
   name,
   description,
 }: {
-  icon?: LucideIcon;
+  icon?: StaticSvgComponent;
   name: string;
   description: string;
 }) {
   return (
     <>
-      <Icon size={24} strokeWidth={1.5} />
+      <Icon source={source} size="xl" strokeWidth={1.5} />
       <div
         style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '0.125rem' }}
       >
@@ -48,13 +51,13 @@ function DemoCardContent({
 export const Default: Story = {
   render: () => (
     <CardGrid>
-      <CardGridItem role="button" tabIndex={0}>
+      <CardGridItem interactive>
         <DemoCardContent name="Filesystem" description="Read and write files in the workspace" />
       </CardGridItem>
-      <CardGridItem role="button" tabIndex={0}>
+      <CardGridItem interactive>
         <DemoCardContent name="Fetch" description="Fetch URLs and convert HTML to markdown" />
       </CardGridItem>
-      <CardGridItem role="button" tabIndex={0}>
+      <CardGridItem interactive>
         <DemoCardContent name="Sequential thinking" description="Structured multi-step reasoning" />
       </CardGridItem>
     </CardGrid>
@@ -65,15 +68,15 @@ export const Sections: Story = {
   render: () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <CardGridSection title="Installed">
-        <CardGridItem role="button" tabIndex={0}>
+        <CardGridItem interactive>
           <DemoCardContent icon={Terminal} name="Shell" description="Run shell commands" />
         </CardGridItem>
-        <CardGridItem role="button" tabIndex={0}>
+        <CardGridItem interactive>
           <DemoCardContent icon={Globe} name="Browser" description="Automate a headless browser" />
         </CardGridItem>
       </CardGridSection>
       <CardGridSection title="Recommended">
-        <CardGridItem role="button" tabIndex={0}>
+        <CardGridItem interactive>
           <DemoCardContent
             icon={Wrench}
             name="Linter"
@@ -88,7 +91,7 @@ export const Sections: Story = {
 export const WithTrailingAction: Story = {
   render: () => (
     <CardGrid>
-      <CardGridItem role="button" tabIndex={0} style={{ position: 'relative' }}>
+      <CardGridItem interactive style={{ position: 'relative' }}>
         <DemoCardContent name="Fetch" description="Fetch URLs and convert HTML to markdown" />
         <div
           style={{
@@ -99,9 +102,23 @@ export const WithTrailingAction: Story = {
           }}
         >
           <Button size="sm" icon variant="ghost" aria-label="Install">
-            <Plus />
+            <Icon source={Plus} />
           </Button>
         </div>
+      </CardGridItem>
+    </CardGrid>
+  ),
+};
+
+/** Caller-owned padding through the documented CardGrid root className seam. */
+export const SxOverride: Story = {
+  render: () => (
+    <CardGrid className={sx({ p: tokens.space.step4 })}>
+      <CardGridItem interactive selected>
+        <DemoCardContent name="Selected card" description="The item owns its semantic state." />
+      </CardGridItem>
+      <CardGridItem interactive disabled>
+        <DemoCardContent name="Disabled card" description="Unavailable but still visible." />
       </CardGridItem>
     </CardGrid>
   ),

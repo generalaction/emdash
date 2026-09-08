@@ -27,6 +27,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.tsx'),
+        styles: resolve(__dirname, 'src/styles-entry.ts'),
       },
       formats: ['es'],
     },

@@ -17,17 +17,12 @@ import { getSidebarStore } from '@core/features/workbench/contributions/browser/
 import { workbenchSidebarMemento } from '@core/features/workbench/contributions/mementos';
 import { appStoreContributions } from '@core/manifests/browser/app-scoped-stores';
 import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
+import { installDesktopHostStyles } from '@core/manifests/browser/host-style-contributions';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 import { log } from '@core/primitives/logging/browser/logger';
 import { getMementosWireClient } from '@core/primitives/mementos/api/client';
 import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
-import '@fontsource-variable/inter/index.css';
-import '@emdash/ui/style.css';
-import '@emdash/chat-ui/style.css';
-import './index.css';
-import 'devicon/devicon.min.css';
-import 'katex/dist/katex.min.css';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import {
   workbenchHistoryMemento,
@@ -57,6 +52,8 @@ import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
 import { App } from './App';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
+
+installDesktopHostStyles();
 
 const bootstrapStartedAt = performance.now();
 let lastBootMarkAt = bootstrapStartedAt;

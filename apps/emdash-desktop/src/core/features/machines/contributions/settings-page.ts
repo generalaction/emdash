@@ -1,3 +1,4 @@
+import { ActivityIcon, FolderGit2Icon, MessageSquareIcon, ServerIcon } from 'lucide-react';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
@@ -23,14 +24,14 @@ function projectBreadcrumbLabel(path: string[]): string | null {
 export const systemSettingsPage = defineSettingsPageContribution({
   id: 'system',
   label: 'System',
-  icon: 'activity',
+  icon: ActivityIcon,
   component: SystemSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const localWorkspacesSettingsPage = defineSettingsPageContribution({
   id: 'workspaces-local',
   label: 'Workspaces',
-  icon: 'folder-git-2',
+  icon: FolderGit2Icon,
   component: LocalWorkspacesSettingsPage,
   detail: {
     component: LocalWorkspaceDetailPage,
@@ -41,14 +42,14 @@ export const localWorkspacesSettingsPage = defineSettingsPageContribution({
 export const conversationsSettingsPage = defineSettingsPageContribution({
   id: 'conversations',
   label: 'Conversations',
-  icon: 'message-square',
+  icon: MessageSquareIcon,
   component: ConversationsSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const machinesConnectionsPage = defineSettingsPageContribution({
   id: 'connections',
   label: 'Machines',
-  icon: 'server',
+  icon: ServerIcon,
   component: MachinesSettingsPage,
   detail: {
     component: MachineDetailsPage,

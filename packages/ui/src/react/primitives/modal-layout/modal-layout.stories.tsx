@@ -1,20 +1,17 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import { Dialog } from '@react/primitives/dialog';
 import { Input } from '@react/primitives/input';
 import { Text } from '@react/primitives/typography/Text';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { useState } from 'react';
 import { ModalLayout } from '.';
-
 const meta: Meta = {
   title: 'Primitives/ModalLayout',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 function SteppedModalContent() {
   const [step, setStep] = useState<1 | 2>(1);
   return (
@@ -45,7 +42,13 @@ function SteppedModalContent() {
         {step === 1 ? (
           <Input placeholder="Project name" />
         ) : (
-          <Box display="flex" flexDirection="column" gap="2">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2',
+            })}
+          >
             <Text variant="description">
               The header and footer stay put while this middle section height-animates between
               steps.
@@ -54,13 +57,12 @@ function SteppedModalContent() {
               Step two intentionally has taller content than step one, so switching steps shows the
               animated middle expanding and collapsing.
             </Text>
-          </Box>
+          </div>
         )}
       </Dialog.Body>
     </ModalLayout>
   );
 }
-
 export const SteppedComposition: Story = {
   render: () => (
     <Dialog.Root>

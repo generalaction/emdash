@@ -3,7 +3,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileTreeHeaderBar } from './editor-file-tree';
-import '@emdash/ui/style.css';
 
 beforeAll(() => {
   (

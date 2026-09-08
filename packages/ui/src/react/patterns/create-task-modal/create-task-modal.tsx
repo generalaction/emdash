@@ -1,7 +1,7 @@
 import { Bot, MessageCircle, Paperclip, ShieldCheck, Terminal } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '../../primitives/button';
-import { Input } from '../../primitives/input';
+import { Icon } from '../../primitives/icon';
 import { Toggle } from '../../primitives/toggle';
 import { CreateFromPicker } from './create-from-picker';
 import type {
@@ -185,10 +185,9 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
           Task name
         </label>
         <div className={styles.taskNameControl}>
-          <Input
+          <input
             id={`${descriptionId}-task-name-input`}
             ref={taskNameRef}
-            bare
             className={styles.taskNameInput}
             value={nameValue}
             placeholder={namePlaceholder}
@@ -208,6 +207,9 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
                 value,
                 wasTruncated: segments.length > 256,
               });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') event.currentTarget.blur();
             }}
           />
           {state.taskName.kind === 'generation-error' && (
@@ -245,7 +247,7 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
         <div className={styles.footerStart}>
           <FooterChoicePicker
             label="Agent"
-            icon={<Bot />}
+            icon={<Icon source={Bot} />}
             overlay="agent"
             open={agentOpen}
             state={state.run.agent}
@@ -308,7 +310,7 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
               }
             }}
           >
-            <ShieldCheck />
+            <Icon source={ShieldCheck} />
           </Toggle>
           <div className={styles.radioDock} role="radiogroup" aria-label="Conversation interface">
             {(['tui', 'gui'] as const).map((mode) => {
@@ -332,7 +334,7 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
                     }
                   }}
                 >
-                  {mode === 'tui' ? <Terminal /> : <MessageCircle />}
+                  {mode === 'tui' ? <Icon source={Terminal} /> : <Icon source={MessageCircle} />}
                 </Toggle>
               );
             })}
@@ -358,7 +360,7 @@ export function CreateTaskModal({ state, onIntent }: CreateTaskModalProps) {
               }
             }}
           >
-            <Paperclip />
+            <Icon source={Paperclip} />
           </Button>
           <Button
             variant="primary"

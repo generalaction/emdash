@@ -1,7 +1,7 @@
 'use client';
 
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import * as React from 'react';
 import * as styles from './popover.css';
 
@@ -13,6 +13,7 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
+/** Non-modal popup. `className` is applied to the rendered content root. */
 function PopoverContent({
   className,
   align = 'center',
@@ -20,11 +21,12 @@ function PopoverContent({
   side = 'bottom',
   sideOffset = 4,
   anchor,
+  collisionAvoidance,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
-    'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor'
+    'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor' | 'collisionAvoidance'
   >) {
   return (
     <PopoverPrimitive.Portal>
@@ -34,11 +36,12 @@ function PopoverContent({
         side={side}
         sideOffset={sideOffset}
         anchor={anchor}
+        collisionAvoidance={collisionAvoidance}
         className={styles.positioner}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
-          className={cx('surface-elevated', styles.popupContent, className)}
+          className={cx(styles.popupContent, className)}
           {...props}
         />
       </PopoverPrimitive.Positioner>

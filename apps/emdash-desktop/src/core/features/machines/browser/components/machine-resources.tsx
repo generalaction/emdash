@@ -1,5 +1,9 @@
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
-import { Box, Field } from '@emdash/ui/react/primitives';
+import { tokens } from '@emdash/theme';
+import { Field } from '@emdash/ui/react/primitives';
+import { sx } from '@emdash/ui/styles';
+import { surface } from '@emdash/ui/styles/recipes/surface';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export function ResourceUtilizationRow({ metrics }: { metrics: ResourceUsageSample | null }) {
   return (
@@ -44,13 +48,23 @@ function ResourceCard({
   description: string;
 }) {
   return (
-    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
+    <div
+      className={cn(
+        surface({ level: 'sunken' }),
+        'min-w-0',
+        sx({
+          borderRadius: tokens.radius.md,
+          p: tokens.space.step2,
+          px: tokens.space.step3,
+        })
+      )}
+    >
       <div className="text-xs text-foreground-muted">{label}</div>
       <div className="mt-1 text-lg font-medium text-foreground tabular-nums">{value}</div>
       <div className="mt-0.5 truncate text-[11px] text-foreground-passive tabular-nums">
         {description}
       </div>
-    </Box>
+    </div>
   );
 }
 

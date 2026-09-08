@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { Bot, Cpu, Plus, Settings, Zap } from 'lucide-react';
 import { useState } from 'react';
-import { Box } from '@/react/primitives/box';
+import { Icon } from '@/react/primitives/icon';
 import { ComboboxPopover } from '.';
 import * as s from '@react/story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 interface ModelItem {
   id: string;
   name: string;
@@ -16,7 +14,6 @@ interface ModelItem {
   speed: number;
   intelligence: number;
 }
-
 const MODELS: ModelItem[] = [
   {
     id: 'claude-opus-4',
@@ -73,11 +70,16 @@ const MODELS: ModelItem[] = [
     intelligence: 0.95,
   },
 ];
-
 function BarMeter({ value }: { value: number }) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
   return (
-    <Box display="flex" alignItems="center" gap="0.5">
+    <div
+      className={sx({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5',
+      })}
+    >
       {Array.from({ length: 5 }, (_, i) => (
         <span
           key={i}
@@ -85,73 +87,113 @@ function BarMeter({ value }: { value: number }) {
           style={{ background: i < filled ? 'var(--em-foreground-muted)' : 'var(--em-border)' }}
         />
       ))}
-    </Box>
+    </div>
   );
 }
-
 function ModelDetailCard({ item }: { item: ModelItem }) {
   return (
-    <Box padding="3" fontSize="sm" className={s.w52} style={{ color: 'var(--em-foreground)' }}>
-      <Box display="flex" alignItems="center" gap="1.5">
-        <Bot
-          className={cx(s.size4, sx({ flexShrink: 0 }))}
-          style={{ color: 'var(--em-foreground-muted)' }}
-        />
+    <div
+      style={{ color: 'var(--em-foreground)' }}
+      className={cx(
+        s.w52,
+        sx({
+          padding: '3',
+          fontSize: 'sm',
+        })
+      )}
+    >
+      <div
+        className={sx({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1.5',
+        })}
+      >
+        <Icon source={Bot} style={{ color: 'var(--em-foreground-muted)' }} />
         <p className={cx(sx({ lineHeight: 'tight' }))}>{item.name}</p>
-      </Box>
+      </div>
       <p
         className={cx(sx({ marginTop: '1.5', fontSize: 'xs', lineHeight: 'snug' }))}
         style={{ color: 'var(--em-foreground-muted)' }}
       >
         {item.description}
       </p>
-      <Box
-        marginTop="2"
-        borderTopWidth="1"
-        borderStyle="solid"
-        paddingTop="2"
-        className={s.spaceY15}
+      <div
         style={{ borderColor: 'var(--em-border)' }}
+        className={sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5',
+          marginTop: '2',
+          borderTopWidth: '1',
+          borderStyle: 'solid',
+          paddingTop: '2',
+        })}
       >
-        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
+        <div
+          className={sx({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 'xs',
+          })}
+        >
           <span style={{ color: 'var(--em-foreground-muted)' }}>Context</span>
           <span style={{ color: 'var(--em-foreground)' }}>{item.contextK}K</span>
-        </Box>
-        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
+        </div>
+        <div
+          className={sx({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 'xs',
+          })}
+        >
           <span
             className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
             style={{ color: 'var(--em-foreground-muted)' }}
           >
-            <Zap className={s.size3} /> Speed
+            <Icon source={Zap} size="xs" /> Speed
           </span>
           <BarMeter value={item.speed} />
-        </Box>
-        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
+        </div>
+        <div
+          className={sx({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 'xs',
+          })}
+        >
           <span
             className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
             style={{ color: 'var(--em-foreground-muted)' }}
           >
-            <Cpu className={s.size3} /> Intelligence
+            <Icon source={Cpu} size="xs" /> Intelligence
           </span>
           <BarMeter value={item.intelligence} />
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
-
 const meta: Meta = {
   title: 'Components/ComboboxPopover',
   parameters: { layout: 'centered' },
 };
 export default meta;
-
 type Story = StoryObj;
-
 function BasicStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4',
+      })}
+    >
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
         Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
       </p>
@@ -169,14 +211,20 @@ function BasicStory() {
           <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
         )}
       />
-    </Box>
+    </div>
   );
 }
-
 function WithDetailHoverCardStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4',
+      })}
+    >
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
         Hover any row in the list to see the detail card.
       </p>
@@ -197,14 +245,20 @@ function WithDetailHoverCardStory() {
         detailSide="right"
         detailAlign="start"
       />
-    </Box>
+    </div>
   );
 }
-
 function DetailCardAboveStory() {
   const [value, setValue] = useState<string>('gpt-4o');
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4',
+      })}
+    >
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
         Hover a row — detail card appears above the popover (for bottom-anchored selectors like the
         composer toolbar).
@@ -220,11 +274,14 @@ function DetailCardAboveStory() {
           <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <Box display="flex" alignItems="center" gap="2">
-            <Bot
-              className={cx(s.size35, sx({ flexShrink: 0 }))}
-              style={{ color: 'var(--em-foreground-muted)' }}
-            />
+          <div
+            className={sx({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2',
+            })}
+          >
+            <Icon source={Bot} size="sm" style={{ color: 'var(--em-foreground-muted)' }} />
             <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
             <span
               className={cx(sx({ fontSize: 'xs' }))}
@@ -232,21 +289,27 @@ function DetailCardAboveStory() {
             >
               {item.provider}
             </span>
-          </Box>
+          </div>
         )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="top"
         detailAlign="start"
       />
-    </Box>
+    </div>
   );
 }
-
 function WithFooterStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   const [lastAction, setLastAction] = useState<string>('—');
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4',
+      })}
+    >
       <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--em-foreground-muted)' }}>
         Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
         {' · '}
@@ -269,7 +332,14 @@ function WithFooterStory() {
           <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
         )}
         renderFooter={() => (
-          <Box display="flex" flexDirection="column" padding="1" gap="0.5">
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '1',
+              gap: '0.5',
+            })}
+          >
             <button
               type="button"
               style={{
@@ -297,7 +367,7 @@ function WithFooterStory() {
               }}
               onClick={() => setLastAction('Add model clicked')}
             >
-              <Plus style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              <Icon source={Plus} />
               Add model
             </button>
             <button
@@ -327,36 +397,31 @@ function WithFooterStory() {
               }}
               onClick={() => setLastAction('Manage providers clicked')}
             >
-              <Settings style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              <Icon source={Settings} />
               Manage providers
             </button>
-          </Box>
+          </div>
         )}
       />
-    </Box>
+    </div>
   );
 }
-
 export const Basic: Story = {
   name: 'Basic',
   render: () => <BasicStory />,
 };
-
 export const WithDetailHoverCard: Story = {
   name: 'With detail hover card',
   render: () => <WithDetailHoverCardStory />,
 };
-
 export const DetailCardAbove: Story = {
   name: 'Detail card above (detailSide=top)',
   render: () => <DetailCardAboveStory />,
 };
-
 export const WithFooter: Story = {
   name: 'With footer actions',
   render: () => <WithFooterStory />,
 };
-
 export const ContentAtLeastTriggerWidth: Story = {
   render: () => (
     <ComboboxPopover<ModelItem>

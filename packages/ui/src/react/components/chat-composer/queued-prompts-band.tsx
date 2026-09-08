@@ -1,7 +1,8 @@
 import { Button } from '@react/primitives/button';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ArrowUp, Check, GripVertical, Trash2, X } from 'lucide-react';
 import * as React from 'react';
+import { Icon } from '@/react/primitives/icon';
 import * as styles from './queued-prompts-band.css';
 
 export type ComposerQueuedPrompt = {
@@ -142,7 +143,7 @@ export function QueuedPromptsBand({
                     onDragStart={(event) => handleDragStart(event, prompt.id)}
                     onDragEnd={handleDragEnd}
                   >
-                    <GripVertical className={styles.dragHandleIcon} aria-hidden />
+                    <Icon source={GripVertical} className={styles.dragHandleIcon} />
                   </button>
                 )}
               </span>
@@ -177,7 +178,7 @@ export function QueuedPromptsBand({
                     disabled={!draft.trim()}
                     onClick={() => saveEdit(prompt.id)}
                   >
-                    <Check />
+                    <Icon source={Check} />
                   </Button>
                   <Button
                     type="button"
@@ -188,7 +189,7 @@ export function QueuedPromptsBand({
                     title="Cancel edit"
                     onClick={cancelEdit}
                   >
-                    <X />
+                    <Icon source={X} />
                   </Button>
                 </div>
               ) : (
@@ -217,7 +218,7 @@ export function QueuedPromptsBand({
                       onSendNow(prompt.id);
                     }}
                   >
-                    <ArrowUp />
+                    <Icon source={ArrowUp} />
                   </Button>
                   <Button
                     type="button"
@@ -232,7 +233,7 @@ export function QueuedPromptsBand({
                       onDelete(prompt.id);
                     }}
                   >
-                    <Trash2 />
+                    <Icon source={Trash2} />
                   </Button>
                 </div>
               )}

@@ -51,12 +51,13 @@ describe('useSystemDependencies', () => {
   });
 
   afterEach(async () => {
-    act(() => root.unmount());
+    await act(async () => root.unmount());
     await resetSystemDependenciesRemoteForTests();
     await activeFixture?.scope.dispose();
     await activeFixture?.wire.dispose();
     activeFixture = undefined;
     queryClient.clear();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     dom.window.close();

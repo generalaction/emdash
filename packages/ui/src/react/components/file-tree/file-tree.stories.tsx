@@ -1,4 +1,6 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import {
   CheckSquareIcon,
   CopyIcon,
@@ -12,6 +14,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import {
   FileTree,
   type FileTreeHandle,
@@ -58,6 +61,20 @@ export const Interactive: Story = {
   render: () => (
     <StoryFrame>
       <MockFileTree initialNodes={baseNodes} />
+    </StoryFrame>
+  ),
+};
+
+/** Caller-owned static padding through the documented FileTree root className seam. */
+export const SxOverride: Story = {
+  render: () => (
+    <StoryFrame>
+      <FileTree
+        rootNodes={[]}
+        childrenById={new Map()}
+        isLoading
+        className={sx({ p: tokens.space.step2 })}
+      />
     </StoryFrame>
   ),
 };
@@ -282,19 +299,19 @@ function MockFileTree({
           {
             id: 'rename',
             label: 'Rename',
-            icon: <FilePenIcon size={14} />,
+            icon: <Icon source={FilePenIcon} size="sm" />,
             onSelect: () => setRenamePath(node.path),
           },
           {
             id: 'copy-path',
             label: 'Copy Path',
-            icon: <CopyIcon size={14} />,
+            icon: <Icon source={CopyIcon} size="sm" />,
             onSelect: () => setLastAction(`Copied ${node.path}`),
           },
           {
             id: 'delete',
             label: 'Delete',
-            icon: <Trash2Icon size={14} />,
+            icon: <Icon source={Trash2Icon} size="sm" />,
             variant: 'destructive',
             onSelect: () => setLastAction(`Delete ${node.path}`),
           },
@@ -586,10 +603,10 @@ function GitChangeDecoration({
       aria-label={`${change.additions} lines added, ${change.deletions} lines removed`}
     >
       {change.additions > 0 ? (
-        <span style={{ color: 'var(--em-foreground-diff-added)' }}>+{change.additions}</span>
+        <span style={{ color: 'var(--em-green-9)' }}>+{change.additions}</span>
       ) : null}
       {change.deletions > 0 ? (
-        <span style={{ color: 'var(--em-foreground-diff-deleted)' }}>-{change.deletions}</span>
+        <span style={{ color: 'var(--em-red-9)' }}>-{change.deletions}</span>
       ) : null}
       <button
         type="button"
@@ -610,7 +627,11 @@ function GitChangeDecoration({
           padding: 0,
         }}
       >
-        {selected ? <CheckSquareIcon size={16} /> : <GitChangeStatusIcon status={change.status} />}
+        {selected ? (
+          <Icon source={CheckSquareIcon} />
+        ) : (
+          <GitChangeStatusIcon status={change.status} />
+        )}
       </button>
     </span>
   );
@@ -619,15 +640,15 @@ function GitChangeDecoration({
 function GitChangeStatusIcon({ status }: { status: GitChange['status'] }) {
   switch (status) {
     case 'added':
-      return <SquarePlusIcon size={16} style={{ color: 'var(--em-foreground-diff-added)' }} />;
+      return <SquarePlusIcon size={16} style={{ color: 'var(--em-green-9)' }} />;
     case 'modified':
-      return <SquareDotIcon size={16} style={{ color: 'var(--em-foreground-diff-modified)' }} />;
+      return <SquareDotIcon size={16} style={{ color: 'var(--em-amber-9)' }} />;
     case 'deleted':
-      return <SquareMinusIcon size={16} style={{ color: 'var(--em-foreground-diff-deleted)' }} />;
+      return <SquareMinusIcon size={16} style={{ color: 'var(--em-red-9)' }} />;
     case 'renamed':
       return <SquareArrowRightIcon size={16} style={{ color: 'var(--em-foreground-muted)' }} />;
     case 'conflicted':
-      return <SquareXIcon size={16} style={{ color: 'var(--em-foreground-conflict)' }} />;
+      return <SquareXIcon size={16} style={{ color: 'var(--em-orange-11)' }} />;
   }
 }
 

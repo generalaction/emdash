@@ -423,5 +423,3 @@ function createScriptsConnector(workspaceId: string, script: ScriptType): Fronte
     },
   };
 }
-
-

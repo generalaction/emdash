@@ -52,10 +52,9 @@ export const STATE_LAYER_DELTA = {
  * Dark mode: elevation gets lighter at every step (monotonic, sunken darkest).
  *
  * Light mode: sunken is darkest, base is a mid gray, and `elevated` is near-white.
- * Emphasis is relative to its canvas: on the gray `base` it lightens
- * (base → base-emphasis, toward white). On the near-white `elevated` a card
- * reads as a subtle gray panel — slightly darker than `elevated` but never
- * darker than `base`. So light mode is intentionally non-monotonic by name.
+ * Context-relative emphasis follows the canonical ladder: base → raised and
+ * elevated → overlay. In light mode overlay reads as a subtle gray panel, so
+ * the literal lightness progression is intentionally non-monotonic.
  *
  * Surface roles (not part of the ladder):
  *   paper — primary content/tab background. White-ish in light (matches
@@ -68,17 +67,17 @@ export const SURFACE_L: Record<Polarity, Record<SurfaceScopeName, number>> = {
   light: {
     sunken: 0.95,
     base: 0.972,
-    'base-emphasis': 0.982,
+    raised: 0.982,
     elevated: 0.993,
-    'elevated-emphasis': 0.973,
+    overlay: 0.973,
     paper: 0.993,
   },
   dark: {
     sunken: 0.185,
     base: 0.215,
-    'base-emphasis': 0.235,
+    raised: 0.235,
     elevated: 0.265,
-    'elevated-emphasis': 0.305,
+    overlay: 0.305,
     paper: 0.215,
   },
 };

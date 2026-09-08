@@ -1,32 +1,41 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
 
 export const row = recipe({
   base: {
     display: 'flex',
     flexDirection: 'column',
     width: '100%',
-    borderBottom: `1px solid ${vars.border}`,
+    borderBottom: `1px solid ${tokens.border.default}`,
     transition: 'background-color 100ms',
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${tokens.border.focus}`,
+        outlineOffset: '-2px',
+      },
+    },
   },
   variants: {
     interactive: {
       true: {
         cursor: 'pointer',
         selectors: {
-          '&:hover': { backgroundColor: vars.surfaceHover },
+          '&:hover:not([data-disabled])': { backgroundColor: tokens.surface.current.hover },
         },
       },
     },
     selected: {
       true: {
-        backgroundColor: vars.surfaceSelected,
+        backgroundColor: tokens.surface.current.selected,
         selectors: {
-          '&:hover': { backgroundColor: vars.surfaceSelected },
+          '&:hover': { backgroundColor: tokens.surface.current.selected },
         },
+      },
+    },
+    disabled: {
+      true: {
+        cursor: 'not-allowed',
+        opacity: 0.5,
       },
     },
     isLast: {
@@ -34,18 +43,17 @@ export const row = recipe({
     },
     divider: {
       default: {},
-      subtle: { borderBottomColor: vars.borderSubtle },
+      subtle: { borderBottomColor: tokens.border.subtle },
     },
   },
   defaultVariants: {
     interactive: false,
     selected: false,
+    disabled: false,
     isLast: false,
     divider: 'default',
   },
 });
-
-export type RowVariants = NonNullable<RecipeVariants<typeof row>>;
 
 /** Inner content padding for a standard Row. */
 export const rowInner = style({
@@ -71,12 +79,12 @@ export const sectionHeader = style({
 });
 
 export const sectionHeaderLabel = style({
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   fontWeight: 400,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const sectionHeaderCount = style({
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });

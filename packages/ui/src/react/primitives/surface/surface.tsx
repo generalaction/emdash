@@ -1,77 +1,71 @@
 /**
- * Surface — elevation scope component.
+ * Renders a region that establishes inherited Surface context for itself and
+ * descendants. At least one of `level`, `role="paper"`, `tone`, or
+ * `emphasis={true}` is required.
  *
- * Applies a surface scope class that CSS cascade picks up, so nested components
- * using bg-surface / bg-surface-emphasis automatically resolve to the right level.
+ * `className` is applied to the rendered root so callers can own layout through
+ * `sx()`. `role="paper"` selects the Surface Role; other valid ARIA roles are
+ * forwarded when another visual axis is present.
  *
- * Usage:
- *   <Surface level="base">          sets .surface-base on the canvas
- *   <Surface level="elevated">      sets .surface-elevated on a dialog/tab
- *   <Surface emphasis>              sets .surface-emphasis on a card/tab strip
- *   <Surface emphasis level="...">  explicit emphasis that also re-scopes
+ * @example
+ * ```tsx
+ * <Surface level="base" className={sx({ p: tokens.space.step4 })}>
+ *   <Surface emphasis>Context-relative content</Surface>
+ * </Surface>
+ * ```
  */
 
-import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
-import { cx } from '@styles/utilities/cx';
-import React, { createContext, useContext } from 'react';
+import type { SurfaceLevelName, SurfaceRoleName, SurfaceToneName } from '@emdash/theme';
+import { cx } from '@styles/index';
+import { surface, type SurfaceOptions } from '@styles/recipes/surface';
+import React from 'react';
 
-// ── Context ───────────────────────────────────────────────────────────────────
-
-const SurfaceContext = createContext<SurfaceScopeName>('base');
-
-/** Returns the surface scope (elevation level or role) of the nearest <Surface> ancestor. */
-export function useSurfaceLevel(): SurfaceScopeName {
-  return useContext(SurfaceContext);
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
-export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Explicit surface scope — an elevation level (`base`, `elevated`, …) or a
-   * semantic role (`paper`). Sets the `.surface-<scope>` class on this element.
-   * Omit entirely when using `emphasis` or `status` — the cascade handles the level.
-   */
-  level?: SurfaceScopeName;
-  /**
-   * When true, applies `.surface-emphasis`, which resolves to the next level
-   * above the nearest canvas scope without requiring the caller to know the level.
-   */
+interface SurfaceAxes {
+  /** Absolute position in the canonical Surface elevation ladder. */
+  level?: SurfaceLevelName;
+  /** Neutral-status intent applied within the selected or inherited context. */
+  tone?: SurfaceToneName;
+  /** Selects the surrounding Surface's context-relative emphasis. */
   emphasis?: boolean;
-  /**
-   * Status tint. Applies `.surface-<status>` which rebinds the generic
-   * --surface-* cascade vars to the tinted status room. A ghost Button/Toggle/Tab
-   * inside a status surface will automatically use tinted hover/selected states.
-   * Can be combined with `level` to set both the elevation and the status tint.
-   */
-  status?: SurfaceStatusName;
-  /** Element to render. Defaults to div. */
-  as?: React.ElementType;
+  /** Surface Role (`paper`) or, with another visual axis, a normal ARIA role. */
+  role?: SurfaceRoleName | React.AriaRole;
 }
+
+type RequiredSurfaceAxis =
+  | { level: SurfaceLevelName }
+  | { role: SurfaceRoleName }
+  | { tone: SurfaceToneName }
+  | { emphasis: true };
+
+export type SurfaceProps = Omit<React.HTMLAttributes<HTMLElement>, 'role'> &
+  SurfaceAxes &
+  RequiredSurfaceAxis & {
+    /** Element rendered as the Surface root. Defaults to `div`. */
+    as?: React.ElementType;
+  };
 
 export function Surface({
   level,
   emphasis,
-  status,
+  tone,
+  role,
   as: As = 'div',
   className,
   children,
   ...props
 }: SurfaceProps) {
-  const elevationClass = emphasis ? 'surface-emphasis' : level ? `surface-${level}` : undefined;
-  const statusClass = status ? `surface-${status}` : undefined;
-
-  // Resolve the context value so JS consumers of useSurfaceLevel() get the
-  // correct level. When using emphasis or status, we propagate the parent level
-  // unchanged (the CSS cascade handles the visual shift; React context is for JS use only).
-  const parentLevel = useContext(SurfaceContext);
-  const contextValue: SurfaceScopeName = level ?? parentLevel;
+  const surfaceRole = role === 'paper' ? role : undefined;
+  const ariaRole = surfaceRole == null ? role : undefined;
+  const options = {
+    level,
+    role: surfaceRole,
+    tone,
+    emphasis,
+  } as SurfaceOptions;
 
   return (
-    <SurfaceContext.Provider value={contextValue}>
-      <As className={cx(elevationClass, statusClass, className)} {...props}>
-        {children}
-      </As>
-    </SurfaceContext.Provider>
+    <As role={ariaRole} className={cx(surface(options), className)} {...props}>
+      {children}
+    </As>
   );
 }

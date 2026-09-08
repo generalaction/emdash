@@ -1,43 +1,49 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { cx, recipe, style, sx } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
+import { surface } from '@styles/recipes/surface';
 
-export const composerRoot = style({
-  display: 'flex',
-  flexDirection: 'column',
-});
+export const composerRoot = cx(
+  surface({ level: 'base' }),
+  sx({ display: 'flex' }),
+  style({
+    flexDirection: 'column',
+    fontFamily: tokens.typography.family.sans,
+  })
+);
 
 export const noticeBand = recipe({
-  base: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.5rem',
-    borderRadius: `${tokenVars.radiusXl} ${tokenVars.radiusXl} 0 0`,
-    border: '1px solid',
-    borderBottomWidth: 0,
-    paddingLeft: '0.75rem',
-    paddingRight: '0.75rem',
-    paddingTop: '0.5rem',
-    paddingBottom: '0.5rem',
-    fontSize: tokenVars.textXs,
-  },
+  base: [
+    sx({
+      display: 'flex',
+      alignItems: 'start',
+      gap: tokens.space.step2,
+      px: tokens.space.step3,
+      py: tokens.space.step2,
+    }),
+    {
+      borderRadius: `${tokens.radius.xl} ${tokens.radius.xl} 0 0`,
+      border: '1px solid',
+      borderBottomWidth: 0,
+      fontSize: tokens.typography.size.xs,
+    },
+  ],
   variants: {
     variant: {
       error: {
-        backgroundColor: vars.surfaceDestructive,
-        borderColor: vars.surfaceDestructiveBorder,
-        color: vars.surfaceDestructiveForeground,
+        backgroundColor: tokens.surface.tone.destructive.background,
+        borderColor: tokens.surface.tone.destructive.border,
+        color: tokens.surface.tone.destructive.foreground,
       },
       warning: {
-        backgroundColor: vars.surfaceWarning,
-        borderColor: vars.surfaceWarningBorder,
-        color: vars.surfaceWarningForeground,
+        backgroundColor: tokens.surface.tone.warning.background,
+        borderColor: tokens.surface.tone.warning.border,
+        color: tokens.surface.tone.warning.foreground,
       },
       info: {
-        backgroundColor: vars.surfaceInfo,
-        borderColor: vars.surfaceInfoBorder,
-        color: vars.surfaceInfoForeground,
+        backgroundColor: tokens.surface.tone.info.background,
+        borderColor: tokens.surface.tone.info.border,
+        color: tokens.surface.tone.info.foreground,
       },
     },
   },
@@ -53,7 +59,7 @@ export const noticeBandHeader = style({
 });
 
 export const noticeBandTitle = style({
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   lineHeight: 1.375,
 });
 
@@ -68,15 +74,23 @@ export const noticeDismiss = style({
   marginLeft: '0.25rem',
   flexShrink: 0,
   opacity: 0.7,
-  transition: 'opacity 150ms',
+  transition: `opacity ${tokens.motion.duration.fast} ${tokens.motion.easing.standard}`,
   selectors: {
     '&:hover': { opacity: 1 },
+    '&:focus-visible': {
+      borderRadius: tokens.radius.sm,
+      outline: `2px solid ${tokens.border.focus}`,
+      outlineOffset: 1,
+    },
   },
 });
 
 export const noticeAnimWrapper = style({
   display: 'grid',
-  transition: 'grid-template-rows 200ms ease-out, opacity 200ms ease-out',
+  transition: [
+    `grid-template-rows ${tokens.motion.duration.normal} ${tokens.motion.easing.standard}`,
+    `opacity ${tokens.motion.duration.normal} ${tokens.motion.easing.standard}`,
+  ].join(', '),
 });
 
 export const noticeAnimVisible = style({ gridTemplateRows: '1fr', opacity: 1 });
@@ -87,35 +101,52 @@ export const noticeOverflowClip = style({ overflow: 'hidden' });
 // ── Composer shell ────────────────────────────────────────────────────────────
 
 export const composerShell = recipe({
-  base: {
-    // Host-overridable via `--composer-bg`; defaults to the elevated surface.
-    backgroundColor: `var(--composer-bg, ${vars.surfaceBaseEmphasis})`,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 0,
-    border: `1px solid ${vars.border}`,
-    transition: 'border-color 150ms',
-    selectors: {
-      '&:hover': { borderColor: vars.border1 },
-      '&:focus-within': {
-        borderColor: vars.border1,
+  base: [
+    sx({ display: 'flex', gap: tokens.space.step0 }),
+    {
+      backgroundColor: tokens.surface.current.emphasis,
+      flexDirection: 'column',
+      border: `1px solid ${tokens.border.default}`,
+      color: tokens.foreground.default,
+      transition: [
+        `border-color ${tokens.motion.duration.fast} ${tokens.motion.easing.standard}`,
+        `background-color ${tokens.motion.duration.fast} ${tokens.motion.easing.standard}`,
+        `box-shadow ${tokens.motion.duration.fast} ${tokens.motion.easing.standard}`,
+      ].join(', '),
+      selectors: {
+        '&:hover': { borderColor: tokens.border.muted },
+        '&:focus-within': {
+          borderColor: tokens.border.focus,
+          boxShadow: `0 0 0 2px ${tokens.border.focus}`,
+        },
       },
     },
-  },
+  ],
   variants: {
     hasBand: {
-      true: { borderRadius: `0 0 ${tokenVars.radiusXl} ${tokenVars.radiusXl}` },
-      false: { borderRadius: tokenVars.radiusXl },
+      true: { borderRadius: `0 0 ${tokens.radius.xl} ${tokens.radius.xl}` },
+      false: { borderRadius: tokens.radius.xl },
     },
     dragActive: {
       true: {
-        borderColor: vars.border1,
-        boxShadow: `0 0 0 1px ${vars.border1}`,
+        borderColor: tokens.border.focus,
+        boxShadow: `0 0 0 2px ${tokens.border.focus}`,
+      },
+      false: {},
+    },
+    disabled: {
+      true: {
+        borderColor: tokens.border.subtle,
+        backgroundColor: tokens.surface.level.sunken.background,
+        color: tokens.foreground.muted,
+        boxShadow: 'none',
+        cursor: 'not-allowed',
+        opacity: 0.64,
       },
       false: {},
     },
   },
-  defaultVariants: { hasBand: false, dragActive: false },
+  defaultVariants: { hasBand: false, dragActive: false, disabled: false },
 });
 
 // ── Image attachments ─────────────────────────────────────────────────────────
@@ -140,18 +171,22 @@ export const attachmentThumbBtn = style({
   width: '2rem',
   height: '2rem',
   padding: 0,
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
+  outline: 'none',
   selectors: {
-    '&:focus-visible': { outlineWidth: 2, outlineOffset: 1 },
+    '&:focus-visible': {
+      outline: `2px solid ${tokens.border.focus}`,
+      outlineOffset: 1,
+    },
   },
 });
 
 export const attachmentThumbImg = style({
   width: '2rem',
   height: '2rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   objectFit: 'cover',
-  boxShadow: `0 0 0 1px ${vars.border}`,
+  boxShadow: `0 0 0 1px ${tokens.border.default}`,
 });
 
 export const attachmentRemoveBtn = style({
@@ -162,15 +197,23 @@ export const attachmentRemoveBtn = style({
   placeItems: 'center',
   width: '1rem',
   height: '1rem',
-  borderRadius: '9999px',
-  backgroundColor: vars.surface,
-  color: vars.foreground,
+  borderRadius: tokens.radius.full,
+  backgroundColor: tokens.surface.current.background,
+  color: tokens.foreground.default,
   opacity: 0,
-  boxShadow: `0 0 0 1px ${vars.border}`,
-  transition: 'opacity 150ms',
+  boxShadow: `0 0 0 1px ${tokens.border.default}`,
+  transition: `opacity ${tokens.motion.duration.fast} ${tokens.motion.easing.standard}`,
+  vars: {
+    [iconSizeVar]: '0.625rem',
+  },
   selectors: {
     // Show on hover of parent thumb
     '[data-attachment-thumb]:hover &': { opacity: 1 },
+    '&:focus-visible': {
+      opacity: 1,
+      outline: `2px solid ${tokens.border.focus}`,
+      outlineOffset: 1,
+    },
   },
 });
 
@@ -209,16 +252,23 @@ export const mcpTrigger = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: '0.25rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   paddingLeft: '0.1875rem',
   paddingRight: '0.1875rem',
-  color: vars.foreground,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.default,
+  fontSize: tokens.typography.size.xs,
   lineHeight: 1,
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+    '&:hover': { backgroundColor: tokens.surface.current.selected },
+    '&[data-popup-open]': { backgroundColor: tokens.surface.current.selected },
+    '&:focus-visible': {
+      boxShadow: `0 0 0 2px ${tokens.border.focus}`,
+    },
+    '&:disabled': {
+      cursor: 'not-allowed',
+      opacity: 0.5,
+    },
   },
 });
 
@@ -238,10 +288,10 @@ export const mcpRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   padding: '0.375rem 0.5rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foreground,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
 });
 
 export const mcpName = style({
@@ -253,11 +303,11 @@ export const mcpName = style({
 
 export const mcpBadge = style({
   flexShrink: 0,
-  borderRadius: tokenVars.radiusSm,
-  border: `1px solid ${vars.border}`,
+  borderRadius: tokens.radius.sm,
+  border: `1px solid ${tokens.border.default}`,
   padding: '0.0625rem 0.3125rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 // ── Agent trigger ─────────────────────────────────────────────────────────────
@@ -268,21 +318,25 @@ export const agentTrigger = style({
   height: '1.75rem',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   border: '1px solid transparent',
-  color: vars.foreground,
+  color: tokens.foreground.default,
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+    '&:hover': { backgroundColor: tokens.surface.current.selected },
+    '&[data-popup-open]': { backgroundColor: tokens.surface.current.selected },
+    '&:focus-visible': {
+      borderColor: tokens.border.focus,
+      boxShadow: `0 0 0 2px ${tokens.border.focus}`,
+    },
   },
 });
 
 export const agentIconPlaceholder = style({
   width: '1rem',
   height: '1rem',
-  borderRadius: tokenVars.radiusSm,
-  backgroundColor: vars.border,
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.border.default,
 });
 
 // ── Model detail card ─────────────────────────────────────────────────────────
@@ -290,8 +344,8 @@ export const agentIconPlaceholder = style({
 export const modelDetailCard = style({
   width: '14rem',
   padding: '0.75rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foreground,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
 });
 
 export const modelDetailName = style({
@@ -301,14 +355,14 @@ export const modelDetailName = style({
 
 export const modelDetailDesc = style({
   marginTop: '0.25rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
   lineHeight: 1.375,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 export const modelDetailFeatures = style({
   marginTop: '0.5rem',
-  borderTop: `1px solid ${vars.border}`,
+  borderTop: `1px solid ${tokens.border.default}`,
   paddingTop: '0.5rem',
 });
 
@@ -317,16 +371,16 @@ export const modelDetailRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
 });
 
-export const modelDetailLabel = style({ color: vars.foregroundMuted });
-export const modelDetailValue = style({ color: vars.foreground });
+export const modelDetailLabel = style({ color: tokens.foreground.muted });
+export const modelDetailValue = style({ color: tokens.foreground.default });
 
 export const barMeter = style({ display: 'flex', alignItems: 'center', gap: '0.125rem' });
 
 /** Send button override — fully rounded pill shape. */
-export const sendButtonRound = style({ borderRadius: '9999px' });
+export const sendButtonRound = style({ borderRadius: tokens.radius.full });
 
 export const stopIcon = style({
   width: '0.5rem',
@@ -346,19 +400,19 @@ export const donut = style({
 });
 
 /** Background track ring. */
-export const donutTrack = style({ stroke: vars.border });
+export const donutTrack = style({ stroke: tokens.border.default });
 
 /** Foreground fill ring — normal state. */
-export const donutProgress = style({ stroke: vars.foreground });
+export const donutProgress = style({ stroke: tokens.foreground.default });
 
 /** Foreground fill ring — warning state (>= 90% full). */
-export const donutProgressWarn = style({ stroke: vars.surfaceWarningForeground });
+export const donutProgressWarn = style({ stroke: tokens.surface.tone.warning.foreground });
 
 /** Cost row shown below the description in the popover when cost is available. */
 export const usageCostRow = style({
   marginTop: '0.625rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 export const usagePopoverBody = style({
@@ -370,16 +424,16 @@ export const usageStatsRow = style({
   alignItems: 'baseline',
   justifyContent: 'space-between',
   gap: '1rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const usagePercent = style({
   fontWeight: 400,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const usageTokenCount = style({
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   whiteSpace: 'nowrap',
 });
 
@@ -387,32 +441,32 @@ export const usageBarTrack = style({
   marginTop: '0.5rem',
   height: '0.375rem',
   overflow: 'hidden',
-  borderRadius: '9999px',
-  backgroundColor: vars.border,
+  borderRadius: tokens.radius.full,
+  backgroundColor: tokens.border.default,
 });
 
 export const usageBarFill = style({
   height: '100%',
-  borderRadius: '9999px',
-  backgroundColor: vars.foreground,
+  borderRadius: tokens.radius.full,
+  backgroundColor: tokens.foreground.default,
 });
 
 export const usageBarFillWarn = style({
-  backgroundColor: vars.surfaceWarningForeground,
+  backgroundColor: tokens.surface.tone.warning.foreground,
 });
 
 export const barDotFilled = style({
   width: '0.375rem',
   height: '0.375rem',
-  borderRadius: '9999px',
-  background: vars.foregroundMuted,
+  borderRadius: tokens.radius.full,
+  background: tokens.foreground.muted,
 });
 
 export const barDotEmpty = style({
   width: '0.375rem',
   height: '0.375rem',
-  borderRadius: '9999px',
-  background: vars.border,
+  borderRadius: tokens.radius.full,
+  background: tokens.border.default,
 });
 
 // ── Effort row (footer inside the model popover) ───────────────────────────────
@@ -430,27 +484,30 @@ export const effortRow = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
-  fontSize: tokenVars.textSm,
-  color: vars.foreground,
+  borderRadius: tokens.radius.md,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
   background: 'transparent',
   border: 'none',
   cursor: 'default',
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceHover },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+    '&:hover': { backgroundColor: tokens.surface.current.hover },
+    '&[data-popup-open]': { backgroundColor: tokens.surface.current.hover },
+    '&:focus-visible': {
+      boxShadow: `0 0 0 2px ${tokens.border.focus}`,
+    },
   },
 });
 
 export const effortRowLabel = style({
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const effortRowValue = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.25rem',
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });

@@ -1,5 +1,6 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
 export const root = style({
   position: 'relative',
@@ -11,9 +12,9 @@ export const root = style({
   justifyContent: 'center',
   padding: 0,
   borderRadius: '4px',
-  border: `1px solid ${vars.border1}`,
+  border: `1px solid ${tokens.border.muted}`,
   backgroundColor: 'transparent',
-  color: vars.foreground,
+  color: tokens.foreground.default,
   outline: 'none',
   transition: 'border-color 150ms, background-color 150ms',
   selectors: {
@@ -27,13 +28,13 @@ export const root = style({
       right: '-0.75rem',
     },
     '&:focus-visible': {
-      borderColor: vars.borderPrimary,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
+      borderColor: tokens.border.focus,
+      boxShadow: `0 0 0 3px color-mix(in srgb, ${tokens.border.focus} 30%, transparent)`,
     },
     '&[data-checked]': {
-      borderColor: vars.borderPrimary,
-      backgroundColor: vars.backgroundNeutral,
-      color: vars.foregroundNeutral,
+      borderColor: tokens.border.focus,
+      backgroundColor: tokens.palette.neutral.step12,
+      color: tokens.palette.neutral.step1,
     },
     // base-ui sets data-disabled both for a direct `disabled` prop and when the
     // checkbox sits inside a disabled Field — this covers the legacy
@@ -43,7 +44,7 @@ export const root = style({
       opacity: 0.5,
     },
     '&[data-invalid]': {
-      borderColor: vars.borderDestructive,
+      borderColor: tokens.border.destructive,
     },
   },
 });
@@ -52,10 +53,7 @@ export const indicator = style({
   display: 'grid',
   placeContent: 'center',
   color: 'currentColor',
-});
-
-globalStyle(`${indicator} svg`, {
-  width: '0.75rem',
-  height: '0.75rem',
-  pointerEvents: 'none',
+  vars: {
+    [iconSizeVar]: '0.75rem',
+  },
 });

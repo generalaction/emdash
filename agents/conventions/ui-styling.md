@@ -1,220 +1,190 @@
 # UI Styling Conventions
 
-This guide covers the rules and patterns for authoring styles in `packages/ui`.
-The system uses [vanilla-extract](https://vanilla-extract.style/) (VE) with CSS `@layer`
-ordering, shared recipes, and composition over inheritance.
+Use this guide when authoring UI or host styles. The end-to-end ownership and runtime model lives in
+[Styling architecture](../architecture/styling.md).
 
-## Core Principle: One Owner Per Property
-
-Every CSS property on an element should have exactly **one authoritative source** of truth.
-When two rules set the same property at the same specificity, source order decides —
-which is fragile and hard to reason about.
-
-**Anti-pattern (two owners fighting):**
-```ts
-// primitive: always sets padding 0.25rem
-export const comboboxList = style({ padding: '0.25rem' });
-// consumer: also sets padding → source-order roulette
-export const list = style({ padding: '0.25rem' });
-```
-
-**Correct (single owner):**
-```ts
-// primitive owns padding; consumer just composes it
-// consumer delegates to primitive, no override
-<ComboboxList> {/* no extra className needed */}
-```
-
-## State = Variant, Not Higher-Specificity Selector
-
-Express component state through `data-*` attributes handled inside the owning
-`style()` or `recipe()`, not by adding specificity from the outside.
-
-**Anti-pattern (state via higher specificity):**
-```ts
-// parent component pushing state into child via specificity escalation
-globalStyle(`${someParent} ${childClass}`, { padding: 0 });
-```
-
-**Correct (state-owned selector inside the primitive):**
-```ts
-export const comboboxList = style({
-  padding: '0.25rem',
-  selectors: {
-    '&[data-empty]': { padding: 0 },  // library-owned state drives own style
-  },
-});
-```
-
-## No globalStyle Across Component Boundaries
-
-`globalStyle` with a multi-segment selector that crosses a component boundary
-(e.g. `${parentClass} [data-slot="child"]`) creates invisible coupling.
-If the child's class changes, the parent silently breaks.
-
-**Anti-pattern (cross-boundary globalStyle):**
-```ts
-// combobox.css.ts reaching into input-group internals
-globalStyle(`${comboboxContent} [data-slot="input-group"]`, {
-  borderRadius: 0,
-  boxShadow: 'none',
-});
-```
-
-**Correct (variant prop on the child):**
-```ts
-// input-group.css.ts adds an "embedded" variant
-export const inputGroup = recipe({
-  variants: {
-    variant: {
-      embedded: { borderRadius: 0, boxShadow: 'none' },
-    },
-  },
-});
-// consumer passes the variant explicitly
-<InputGroup variant="embedded" />
-```
-
-## Prefer Composition Over Inheritance
-
-Reuse styles by **composing** `style()` arrays rather than inheriting through
-class hierarchies or overrides.
+## Import Homes
 
 ```ts
-// compose shared base into component-specific style
-export const menuItem = style([
-  menuItemBase(),          // shared structural recipe
-  {
-    selectors: { '&:focus': { backgroundColor: vars.surfaceHover } },
-  },
-]);
+import { tokens } from '@emdash/theme';
+import { cx, recipe, style, sx, type VariantProps } from '@emdash/ui/styles';
+import { control } from '@emdash/ui/styles/recipes/control';
+import { fieldControl } from '@emdash/ui/styles/recipes/field-control';
+import { menuItem } from '@emdash/ui/styles/recipes/menu-item';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 ```
 
-VE's `style([...])` merges multiple style objects/classes into one atomic class at
-build time. The `recipe()` base also accepts an array:
-```ts
-recipe({ base: [sharedBase, { componentSpecific: '...' }] })
-```
+- Tokens and authoring types: `@emdash/theme`
+- Runtime profile ids and manifests: `@emdash/theme/profiles`
+- Complete Theme resolution: `@emdash/theme/runtime`
+- React Theme runtime: `@emdash/ui/react/theme-runtime`
+- Ordinary styles, Utilities, and class composition: `@emdash/ui/styles`
+- Reviewed public Recipes: their explicit `@emdash/ui/styles/recipes/*` subpaths
+- Host Adapter modules only: `@emdash/ui/styles/host`
+- Components: `@emdash/ui/react`, `/primitives`, `/components`, `/patterns`, or `/form`
 
-## SVG Sizing: Use svg-helpers
+Do not import Vanilla Extract authoring APIs directly, author through an app alias, import internal
+`.css.ts` modules across ownership boundaries, or re-export these APIs from another barrel.
 
-Use the shared helpers from `@styles/effects/svg-helpers.css` instead of hand-rolling
-`globalStyle` for SVG sizing.
+Every host imports `@emdash/ui/styles.css` exactly once before vendor and host CSS. React and
+TypeScript imports never load CSS.
 
-| Helper | Effect |
-|--------|--------|
-| `svgContainer` | `svg { pointer-events: none; flex-shrink: 0 }` |
-| `svgDefaultSize` | `svg:not([class*='size-']) { width: 1rem; height: 1rem }` |
-| `svgSmSize` | `svg:not([class*='size-']) { width: 0.75rem; height: 0.75rem }` |
-| `svgTextSize` | same as default (alias for inline text contexts) |
+## Authoring Decision Tree
 
-```ts
-export const menuItem = style([svgContainer, svgDefaultSize, { /* ... */ }]);
-```
+1. **Can an existing component express the UI?** Use it and its semantic props.
+2. **Is this a Theme value?** Use `tokens.*`; prefer Semantic/Contextual Tokens over Palette Tokens
+   when the meaning exists.
+3. **Is this a Surface context?** Use `<Surface>` or `surface()` with at least one Level, Role,
+   Tone, or `emphasis` axis.
+4. **Is this a reusable visual concept with owned properties, states, or variants?** Create or
+   deepen a `recipe()` in the owning module.
+5. **Is this one-off layout or a deliberate finite static override?** Use `sx()` on the documented
+   root and combine with `cx()`.
+6. **Is the value genuinely runtime-computed?** Use inline style, preferably by assigning a
+   module-local `--_*` property read by an owned class.
+7. **Is the DOM generated by a library or opaque child?** Use a rooted shared or Host Adapter.
+8. **Is it a host product meaning or imperative integration?** Put a Host Recipe or typed
+   integration manifest in the owning vertical slice.
 
-## Shared Recipes for Common Patterns
+Popup shell, field-shell, card, icon, and component Recipes are private. Adding a public Recipe
+subpath is an API review, not a shortcut for sharing implementation classes.
 
-### menuItemBase
+## Property and State Ownership
 
-`@styles/recipes/menu-item.css` — structural recipe for all list item rows
-(DropdownMenu, Select, Combobox, ComboboxPopup).
-
-```ts
-import { menuItemBase } from '@styles/recipes/menu-item.css';
-
-export const myItem = style([
-  menuItemBase({ trailingIndicator: true, fullWidth: true }),
-  { selectors: { '&:focus': { backgroundColor: vars.surfaceHover } } },
-]);
-```
-
-Variants: `trailingIndicator`, `fullWidth`, `inset`, `muted`.
-
-### popupSurface + popupShadow*
-
-`@styles/recipes/popup-surface.css` — base style for floating popup containers with
-the animation keyframe selectors and visual properties already wired up.
-
-```ts
-import { popupSurface, popupShadowMd } from '@styles/recipes/popup-surface.css';
-
-export const myMenu = style([
-  popupSurface,
-  popupShadowMd,
-  { minWidth: '12rem', padding: '0.25rem' },
-]);
-```
-
-Shadow variants: `popupShadowSm` (tooltips, comboboxes), `popupShadowMd` (menus, selects).
-
-### InputGroup variant prop
-
-`InputGroup` accepts a `variant` prop:
-
-- `default` — standalone field with border, shadow, and focus ring
-- `embedded` — bottom-border-only divider for use inside popup containers
+One element has one owner for each CSS property. The component/Recipe owns recurring visual and
+state behavior; caller `sx()` intentionally transfers a finite property to the caller and wins
+through `emdash.utilities`.
 
 ```tsx
-// ComboboxInput uses "embedded" automatically
-<InputGroup variant="embedded" />
+<Button className={sx({ width: 'full' })}>Continue</Button>
 ```
 
-### Input bare prop
+Do not create same-layer source-order contests, duplicate selectors, or reach into another
+component's private `data-slot`. If callers repeatedly need an override, add a semantic prop or
+documented structural slot to the owning component.
 
-`Input` accepts a `bare` boolean that strips its standalone border/shadow/focus ring.
-`InputGroupInput` passes `bare` automatically; consumers should not need it directly.
-
-## CSS @layer Discipline
-
-The layer order is: `reset < tokens < base < recipes < utilities`.
-
-- `reset` / `base` — `globalStyle` rules in `reset.css.ts` and `base.css.ts`
-- `recipes` — component `style()` and `recipe()` output (target destination)
-- `utilities` — `sx()` sprinkles; always overrides component styles
-
-**Migration path:** To place a style in the `recipes` layer, wrap properties inside
-`'@layer': { recipes: { ... } }`:
+Keep native pseudo-class, ARIA, and owned `data-*` state selectors in the Recipe that styles the
+same element. Cross-element state flows through an explicit prop, slot, inherited module-local
+property, or parent-owned class.
 
 ```ts
-export const foo = style({
-  '@layer': {
-    recipes: {
-      color: vars.foreground,
-      selectors: { '&:hover': { backgroundColor: vars.surfaceHover } },
+export const root = recipe({
+  base: {
+    selectors: {
+      '&:focus-visible': { outline: `2px solid ${tokens.border.focus}` },
+      '&[data-disabled]': { opacity: 0.5 },
+    },
+  },
+  variants: {
+    tone: {
+      neutral: {},
+      destructive: { color: tokens.feedback.error.foreground },
     },
   },
 });
 ```
 
-> **Important:** Unlayered styles always beat ALL layered styles. The migration must
-> be coordinated — mixing layered and unlayered styles for the same property on the
-> same element will make the unlayered one always win regardless of intent.
-> Migrate an entire property-ownership group at once.
+`sx()` may be composed inside a style/Recipe only when it is a literal call and its expanded
+properties are disjoint from every Recipe branch. Dynamic or overlapping internal composition
+fails lint. Caller-level `className={sx(...)}` is the intentional override seam.
 
-## Overrides Go Through utilities Layer
+## Surface Rules
 
-If a consumer genuinely needs to override a component style (rare), use the
-`utilities` layer rather than adding specificity:
+Use `surface()` for host-authored DOM and `<Surface>` for React composition. Omitted axes inherit;
+use an ordinary element when no axis is selected.
 
-```ts
-// Correct: opt into utilities layer to predictably win
-export const myOverride = style({
-  '@layer': {
-    utilities: { padding: '0.5rem' },
-  },
-});
+```tsx
+<Surface level="base" className={sx({ p: tokens.space.step4 })}>
+  <Surface emphasis>Context-relative content</Surface>
+</Surface>
 ```
 
-Avoid using `!important`. If you find yourself reaching for it, the owning
-component should expose a variant or `data-*` hook instead.
+Descendants consume `tokens.surface.current.*`. Do not paint static `.surface-*` classes, create a
+parallel React Surface context, or layer a caller Surface over an owned popup shell.
 
-## Checklist for New Component Styles
+## Global and SVG Rules
 
-- [ ] One style definition owns each property on the element
-- [ ] Interactive states expressed as `data-*`-keyed selectors inside the owning style
-- [ ] No `globalStyle` with multi-segment selectors crossing component boundaries
-- [ ] SVG sizing via `svgContainer`/`svgDefaultSize`/`svgSmSize` composition
-- [ ] Popup containers compose `popupSurface` + a `popupShadow*`
-- [ ] List-item rows compose `menuItemBase()`
-- [ ] InputGroup inside a popup uses `variant="embedded"`
-- [ ] No `!important` — expose a variant or compound variant instead
+Ordinary modules do not author Global Rules. They are limited to:
+
+- generated Theme/profile and reset/base infrastructure;
+- registered rooted adapters for foreign or otherwise unclassable DOM;
+- `IconSlot`'s single direct-child SVG adapter.
+
+Owned SVGs use `Icon`; opaque caller content uses `IconSlot`:
+
+```tsx
+<Icon source={SearchIcon} size="sm" />
+<IconSlot size="md">{callerIcon}</IconSlot>
+```
+
+Icons inherit `currentColor`; the parent Recipe or specialized component owns tone. Devicon,
+plugin assets, Markdown, Mermaid, images, and generated diagrams keep dedicated adapters. Do not
+clone opaque children, inspect class-name substrings, or add ad hoc descendant SVG selectors.
+
+Shared adapters use the private adapter authoring seam and must appear in
+`tooling/oxlint/registries/global-adapters.json`. Host-owned adapters use
+`@emdash/ui/styles/host` and must appear in `host-adapters.json`. Selectors stay beneath one owned
+root and never cross between owned components.
+
+## Suppressions
+
+Migration debt never receives an inline suppression. Fix the violation or remove the exact
+shrink-only manifest entry.
+
+A permanent suppression is allowed only for an external declaration or markup constraint that the
+owned adapter cannot change. It must:
+
+1. name the exact styling lint rule;
+2. state the external constraint after `--`;
+3. name a deterministic fixture after `fixture:`;
+4. have a matching reason and fixture in the rule-specific permanent-exception manifest.
+
+```ts
+// oxlint-disable-next-line emdash/no-important -- External widget owns inline width; fixture: tooling/oxlint/fixtures/permanent-exceptions/widget.css.ts
+```
+
+Never suppress to win an internal cascade, preserve a retired alias, or avoid exposing a proper
+variant/slot.
+
+## Plain CSS Review
+
+Oxlint does not parse authored `.css` files. Review every changed plain-CSS rule for:
+
+- a declared canonical layer; only keyframes and font faces may be top-level;
+- package/third-party imports assigned to `emdash.vendor`;
+- host-authored rules assigned to `emdash.host`;
+- no retired stylesheet specifier or alternate CSS entrypoint;
+- no author-facing unprefixed visual custom property or duplicated Theme literal;
+- no raw visual value that should be a canonical Token;
+- no cross-component or ad hoc SVG descendant selector;
+- no `!important` unless an external constraint and fixture justify it;
+- private runtime/framework properties kept local to their writer and reader.
+
+## Focused Commands
+
+From the repository root:
+
+```bash
+pnpm run format
+pnpm run lint
+pnpm run typecheck
+pnpm run check
+```
+
+For styling work during iteration:
+
+```bash
+pnpm --filter @emdash/theme run build
+pnpm --filter @emdash/theme run test
+pnpm --filter @emdash/ui run lint
+pnpm --filter @emdash/ui run typecheck
+pnpm --filter @emdash/ui run test
+pnpm --filter @emdash/ui run build
+pnpm --filter @emdash/ui run build:storybook
+node --test tooling/styling-convergence/*.test.mjs
+node tooling/styling-convergence/check-convergence.mjs
+node tooling/oxlint/scripts/check-styling-ratchets.mjs
+```
+
+The UI build enforces aggregate sentinels and stylesheet/font budgets. Storybook remains the human
+visual review surface; this architecture does not use screenshot or computed-style gates.

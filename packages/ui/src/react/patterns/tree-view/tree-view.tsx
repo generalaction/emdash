@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as React from 'react';
 import { buildVisibleTreeRows, type TreeNode, type TreeRow } from './tree-model';
@@ -18,9 +18,17 @@ export interface TreeViewProps<T> {
   estimateSize?: number;
   gap?: number;
   overscan?: number;
+  /** Applied to the rendered tree scroll-container root. */
   className?: string;
 }
 
+/**
+ * Headless virtualized tree layout.
+ *
+ * Callers own row rendering and optional wrappers. This component owns visible
+ * row derivation, scrolling, measurement, and overflow. `className` is applied
+ * to the rendered scroll-container root.
+ */
 function TreeViewInner<T>(
   {
     nodes,

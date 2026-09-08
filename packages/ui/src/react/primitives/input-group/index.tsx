@@ -1,40 +1,96 @@
 'use client';
 
-import { cx } from '@styles/utilities/cx';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
+import { Input as InputPrimitive } from '@base-ui/react/input';
+import type { VariantProps } from '@styles/index';
+import { cx } from '@styles/index';
 import * as React from 'react';
-// Relative imports: the dts emitter rewrites aliased imports to a dangling
-// relative path, silently degrading the prop types.
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
 import { Button } from '../button';
-import { Input, type InputProps } from '../input';
-import { Textarea } from '../textarea';
 import * as styles from './input-group.css';
+import { fieldShell } from '@styles/recipes/field-shell.css';
 
-type InputGroupVariant = NonNullable<RecipeVariants<typeof styles.inputGroup>>['variant'];
-export type InputGroupAddonAlign = NonNullable<
-  RecipeVariants<typeof styles.inputGroupAddon>
->['align'];
+export type InputGroupAppearance = 'standalone' | 'embedded';
+export type InputGroupAddonAlign = VariantProps<typeof styles.inputGroupAddon>['align'];
 
+interface InputGroupState {
+  disabled: boolean;
+  invalid: boolean;
+  readOnly: boolean;
+}
+
+const InputGroupContext = React.createContext<InputGroupState>({
+  disabled: false,
+  invalid: false,
+  readOnly: false,
+});
+
+export interface InputGroupRootProps extends React.ComponentProps<'div'> {
+  /**
+   * Applies caller-owned classes to the rendered group root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Visual containment for the field shell. @default 'standalone' */
+  appearance?: InputGroupAppearance;
+  /** Shared text-entry size inherited by the group control slot. @default 'base' */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
+  /** Disables the group control and button slots. @default false */
+  disabled?: boolean;
+  /** Makes the group text-entry slots readonly. @default false */
+  readOnly?: boolean;
+  /** Marks the group and text-entry slots invalid. @default false */
+  invalid?: boolean;
+}
+
+/**
+ * State-owning field shell for caller-composed text-entry, addon, and button
+ * slots. `className` is applied to the rendered group root.
+ */
 function InputGroupRoot({
   className,
-  variant = 'default',
+  appearance = 'standalone',
+  size = 'base',
+  tone = 'neutral',
+  disabled = false,
+  readOnly = false,
+  invalid = false,
   ...props
-}: React.ComponentProps<'div'> & { variant?: InputGroupVariant }) {
+}: InputGroupRootProps) {
   return (
-    <div
-      data-slot="input-group"
-      role="group"
-      className={cx(styles.inputGroup({ variant }), className)}
-      {...props}
-    />
+    <InputGroupContext.Provider value={{ disabled, invalid, readOnly }}>
+      <div
+        {...props}
+        data-slot="input-group"
+        data-appearance={appearance}
+        data-size={size}
+        data-tone={tone}
+        data-disabled={disabled || undefined}
+        data-readonly={readOnly || undefined}
+        data-invalid={invalid || undefined}
+        aria-disabled={disabled || undefined}
+        aria-invalid={invalid || undefined}
+        role="group"
+        className={cx(
+          fieldShell({ interaction: 'within', containment: appearance, tone }),
+          styles.inputGroup({ appearance, size }),
+          className
+        )}
+      />
+    </InputGroupContext.Provider>
   );
 }
 
-function InputGroupAddon({
-  className,
-  align = 'inline-start',
-  ...props
-}: React.ComponentProps<'div'> & { align?: InputGroupAddonAlign }) {
+export interface InputGroupAddonProps extends React.ComponentProps<'div'> {
+  /** Applies caller-owned classes to the rendered addon slot. */
+  className?: string;
+  /** Places the addon around the control slot. @default 'inline-start' */
+  align?: InputGroupAddonAlign;
+}
+
+/** Caller-owned adornment slot. Opaque children retain their own visual ownership. */
+function InputGroupAddon({ className, align = 'inline-start', ...props }: InputGroupAddonProps) {
   return (
     <div
       role="group"
@@ -52,43 +108,91 @@ function InputGroupAddon({
   );
 }
 
+export interface InputGroupButtonProps extends React.ComponentProps<typeof Button> {
+  /** Applies caller-owned classes to the rendered button slot. */
+  className?: string;
+  type?: 'button' | 'submit' | 'reset';
+}
+
 function InputGroupButton({
   className,
   type = 'button',
+  disabled,
   ...props
-}: React.ComponentProps<typeof Button> & {
-  type?: 'button' | 'submit' | 'reset';
-}) {
+}: InputGroupButtonProps) {
+  const group = React.useContext(InputGroupContext);
   return (
     <Button
       type={type}
       size="xs"
       icon
+      disabled={disabled ?? group.disabled}
       className={cx(styles.inputGroupButton, className)}
       {...props}
     />
   );
 }
 
-function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
+export interface InputGroupTextProps extends React.ComponentProps<'span'> {
+  /** Applies caller-owned classes to the rendered text slot. */
+  className?: string;
+}
+
+function InputGroupText({ className, ...props }: InputGroupTextProps) {
   return <span className={cx(styles.inputGroupText, className)} {...props} />;
 }
 
-function InputGroupInput({ className, size: _size, ...props }: Omit<InputProps, 'bare'>) {
+export interface InputGroupInputProps extends Omit<React.ComponentProps<'input'>, 'size'> {
+  /** Applies caller-owned classes to the rendered input slot. */
+  className?: string;
+}
+
+function InputGroupInput({
+  className,
+  disabled,
+  readOnly,
+  onKeyDown,
+  'aria-invalid': ariaInvalid,
+  ...props
+}: InputGroupInputProps) {
+  const group = React.useContext(InputGroupContext);
   return (
-    <Input
-      bare
+    <InputPrimitive
       data-slot="input-group-control"
+      disabled={disabled ?? group.disabled}
+      readOnly={readOnly ?? group.readOnly}
+      aria-invalid={(ariaInvalid ?? group.invalid) || undefined}
       className={cx(styles.inputGroupControl, className)}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (!event.defaultPrevented && event.key === 'Escape') {
+          event.currentTarget.blur();
+        }
+      }}
       {...props}
     />
   );
 }
 
-function InputGroupTextarea({ className, ...props }: React.ComponentProps<'textarea'>) {
+export interface InputGroupTextareaProps extends Omit<React.ComponentProps<'textarea'>, 'size'> {
+  /** Applies caller-owned classes to the rendered textarea slot. */
+  className?: string;
+}
+
+function InputGroupTextarea({
+  className,
+  disabled,
+  readOnly,
+  'aria-invalid': ariaInvalid,
+  ...props
+}: InputGroupTextareaProps) {
+  const group = React.useContext(InputGroupContext);
   return (
-    <Textarea
+    <textarea
       data-slot="input-group-control"
+      disabled={disabled ?? group.disabled}
+      readOnly={readOnly ?? group.readOnly}
+      aria-invalid={(ariaInvalid ?? group.invalid) || undefined}
       className={cx(styles.inputGroupTextareaControl, className)}
       {...props}
     />

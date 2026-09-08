@@ -1,7 +1,8 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ExpandIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '@/react/primitives/button';
+import { Icon } from '@/react/primitives/icon';
 import { ContainedImage } from './contained-image';
 import { ZoomViewerDialog } from './zoom-viewer-dialog';
 import * as styles from './image-viewer.css';
@@ -52,7 +53,7 @@ export function ExpandableImage({
         className={styles.expandButton}
         onClick={openViewer}
       >
-        <ExpandIcon style={{ width: '0.75rem', height: '0.75rem' }} />
+        <Icon source={ExpandIcon} />
       </Button>
       <ContainedImage src={src} alt={imageAlt} className={className} {...props} />
       {shouldRenderDialog && (

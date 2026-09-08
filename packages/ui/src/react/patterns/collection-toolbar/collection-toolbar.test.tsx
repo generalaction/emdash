@@ -1,11 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CollectionToolbar } from '.';
 import { Button } from '../../primitives/button';
+
+afterEach(cleanup);
 
 function ControlledToolbar() {
   const [searchValue, setSearchValue] = useState('agent');
@@ -33,14 +35,25 @@ describe('CollectionToolbar', () => {
     expect(search.value).toBe('');
   });
 
-  it('renders metadata and actions in dedicated slots', () => {
+  it('renders caller-owned metadata and actions', () => {
     const { container } = render(<ControlledToolbar />);
 
-    expect(
-      container.querySelector('[data-slot="collection-toolbar-metadata"]')?.textContent
-    ).toContain('2 agents');
-    expect(
-      container.querySelector('[data-slot="collection-toolbar-actions"]')?.textContent
-    ).toContain('Add agent');
+    expect(container.textContent).toContain('2 agents');
+    expect(screen.getByRole('button', { name: 'Add agent' })).not.toBeNull();
+  });
+
+  it('applies className to the toolbar root and owns search availability', () => {
+    const { container } = render(
+      <CollectionToolbar
+        searchValue=""
+        onSearchValueChange={() => {}}
+        searchPlaceholder="Search"
+        searchDisabled
+        className="caller-toolbar"
+      />
+    );
+
+    expect(container.firstElementChild?.classList.contains('caller-toolbar')).toBe(true);
+    expect(screen.getByRole('searchbox').hasAttribute('disabled')).toBe(true);
   });
 });

@@ -1,6 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style, sx } from '@styles/index';
 
 // ── ZoomViewerDialog ──────────────────────────────────────────────────────────
 
@@ -16,20 +15,16 @@ export const toolbarGroup = style({
   display: 'flex',
   alignItems: 'center',
   overflow: 'hidden',
-  borderRadius: tokenVars.radiusMd,
-  border: `1px solid ${vars.border}`,
-  backgroundColor: vars.surface,
-  boxShadow: vars.shadowSm,
+  borderRadius: tokens.radius.md,
+  border: `1px solid ${tokens.border.default}`,
+  backgroundColor: tokens.surface.current.background,
+  boxShadow: tokens.shadow.sm,
 });
 
 // Buttons sit flush inside the bordered group; the group's overflow clipping
 // owns the outer corner rounding. Radius removal must go through the
 // utilities layer to win over the control recipe.
-export const toolbarButton = style({
-  '@layer': {
-    utilities: { borderRadius: 0 },
-  },
-});
+export const toolbarButton = sx({ borderRadius: '0' });
 
 export const viewerBody = style({
   minHeight: 0,
@@ -42,13 +37,13 @@ export const viewerBody = style({
 // Sizing is owned by the inline wrapperStyle passed to TransformComponent
 // (react-zoom-pan-pinch defaults the wrapper to fit-content otherwise).
 export const transformWrapper = style({
-  borderRadius: tokenVars.radiusMd,
-  backgroundColor: vars.background1,
+  borderRadius: tokens.radius.md,
+  backgroundColor: tokens.palette.neutral.step2,
 });
 
 export const unavailable = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
 });
 
 export const unavailableContainer = style({
@@ -90,8 +85,8 @@ export const expandButton = style({
   zIndex: 10,
   opacity: 0,
   transition: 'opacity 150ms',
-  backgroundColor: vars.surface,
-  boxShadow: `${vars.shadowSm}, 0 0 0 1px color-mix(in srgb, ${vars.border} 80%, transparent)`,
+  backgroundColor: tokens.surface.current.background,
+  boxShadow: `${tokens.shadow.sm}, 0 0 0 1px color-mix(in srgb, ${tokens.border.default} 80%, transparent)`,
   selectors: {
     [`${expandableContainer}:hover &`]: { opacity: 1 },
     '&:focus-visible': { opacity: 1 },

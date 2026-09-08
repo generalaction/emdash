@@ -1,5 +1,6 @@
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
+import { menuItem } from '../../../styles/recipes/menu-item';
 import * as styles from './context-menu.css';
 
 function ContextMenuRoot({ ...props }: ContextMenuPrimitive.Root.Props) {
@@ -10,6 +11,7 @@ function ContextMenuTrigger({ ...props }: ContextMenuPrimitive.Trigger.Props) {
   return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />;
 }
 
+/** Right-click action popup. `className` is applied to the rendered content root. */
 function ContextMenuContent({
   className,
   sideOffset = 4,
@@ -20,12 +22,7 @@ function ContextMenuContent({
       <ContextMenuPrimitive.Positioner className={styles.positioner} sideOffset={sideOffset}>
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-content"
-          className={cx(
-            'surface-elevated',
-            styles.menuContent,
-            styles.contextMenuContent,
-            className
-          )}
+          className={cx(styles.menuContent, className)}
           {...props}
         />
       </ContextMenuPrimitive.Positioner>
@@ -68,7 +65,10 @@ function ContextMenuItem({
       data-slot="context-menu-item"
       data-inset={inset}
       data-variant={variant}
-      className={cx(styles.menuItem, className)}
+      className={cx(
+        menuItem({ inset, tone: variant === 'destructive' ? variant : 'neutral' }),
+        className
+      )}
       {...props}
     />
   );

@@ -1,3 +1,5 @@
+import { Devicon } from '@emdash/ui/react/components';
+import { Icon } from '@emdash/ui/react/primitives';
 import { File, FileImage } from 'lucide-react';
 
 /** Maps a file extension (or full filename for extensionless files) to a devicon class name. */
@@ -204,9 +206,7 @@ export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
   const deviconClass = FILENAME_MAP[filename] ?? EXTENSION_MAP[extension];
 
   if (deviconClass) {
-    return (
-      <i className={deviconClass} style={{ fontSize: size, lineHeight: 1 }} aria-hidden="true" />
-    );
+    return <Devicon iconClass={deviconClass} size={size} className={className} />;
   }
 
   const imageMeta = IMAGE_ICON_META[extension];
@@ -217,10 +217,10 @@ export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
         style={{ width: size, height: size }}
         title={`${imageMeta.label} image`}
       >
-        <FileImage
+        <Icon
+          source={FileImage}
           className={className ?? `shrink-0 ${imageMeta.className}`}
           style={{ width: size, height: size }}
-          aria-hidden="true"
         />
         {size >= 16 && (
           <span className="absolute -bottom-1 rounded-[2px] bg-background px-0.5 font-mono text-[6px] leading-none text-foreground-muted">
@@ -232,10 +232,10 @@ export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
   }
 
   return (
-    <File
+    <Icon
+      source={File}
       className={className ?? 'shrink-0 text-foreground-passive'}
       style={{ width: size, height: size }}
-      aria-hidden="true"
     />
   );
 }

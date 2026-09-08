@@ -3,10 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
     <title>Emdash</title>
+    <script id="emdash-theme-prepaint-data" type="application/json">
+      {
+        "colorSchemes": [
+          { "id": "light", "className": "emlight" },
+          { "id": "dark", "className": "emdark" },
+          { "id": "solarized-light", "className": "emsolarized-light" },
+          { "id": "solarized-dark", "className": "emsolarized-dark" }
+        ],
+        "densities": [
+          { "id": "comfortable", "className": "density-comfortable" },
+          { "id": "compact", "className": "density-compact" }
+        ],
+        "typographies": [{ "id": "default", "className": "typography-default" }]
+      }
+    </script>
     <script>
       (function () {
         try {
+          var profileData = JSON.parse(
+            document.getElementById('emdash-theme-prepaint-data').textContent
+          );
           var raw = localStorage.getItem('emdash-theme');
           var pref = raw ? JSON.parse(raw) : null;
           var effective =
@@ -15,7 +34,17 @@
               : window.matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'emdark'
                 : 'emlight';
-          document.documentElement.classList.add(effective);
+          var colorId = effective === 'emdark' ? 'dark' : 'light';
+          var colorClass = profileData.colorSchemes.find(function (profile) {
+            return profile.id === colorId;
+          }).className;
+          var densityClass = profileData.densities.find(function (profile) {
+            return profile.id === 'comfortable';
+          }).className;
+          var typographyClass = profileData.typographies.find(function (profile) {
+            return profile.id === 'default';
+          }).className;
+          document.documentElement.classList.add(colorClass, densityClass, typographyClass);
           // sRGB approximations of the theme --background / --foreground
           // tokens, applied before any stylesheet loads so the very first
           // paint (and the boot splash) match the persisted theme.

@@ -6,7 +6,7 @@
  * Do NOT move these padding/font values to sprinkles or inline styles.
  */
 
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { vars } from '@styles/theme.css';
 
 export const pchatTable = style({
@@ -18,16 +18,14 @@ export const pchatTable = style({
 });
 
 // Cell geometry — padding defines TABLE_ROW_H = 32 (line-height:20 + 6+6 padding).
-// Uses globalStyle with the parent class selector to mirror the old
-// `.pchat-table th, .pchat-table td` rule without touching Tailwind cascade.
-globalStyle(`${pchatTable} th, ${pchatTable} td`, {
+export const tableCell = style({
   padding: '6px 10px',
   textAlign: 'left',
   // max-width:0 activates text-overflow:ellipsis inside fixed-layout tables
   maxWidth: 0,
 });
 
-globalStyle(`${pchatTable} th`, {
+export const tableHeaderCell = style({
   fontWeight: 600,
   // background — applied in Table.tsx via Tailwind / sprinkles
 });

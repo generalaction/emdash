@@ -1,15 +1,14 @@
 import * as React from 'react';
-// Relative import: the dts emitter rewrites aliased imports to a dangling
-// relative path, silently degrading the prop types.
-import { Field, type FieldVariants } from '../../primitives/field';
+import { Field, type FieldOrientation } from '../../primitives/field';
 import { useFieldContext } from './form-context';
 
-export type FieldOrientation = NonNullable<FieldVariants['orientation']>;
+export type { FieldOrientation };
 
 export interface FormFieldShellProps {
   label?: React.ReactNode;
   description?: React.ReactNode;
   orientation?: FieldOrientation;
+  /** Applies caller-owned classes to the rendered Field root. */
   className?: string;
   children: (wiring: { id: string; invalid: boolean }) => React.ReactNode;
 }
@@ -47,7 +46,7 @@ export function FormFieldShell({
 
   if (orientation === 'horizontal') {
     return (
-      <Field.Root orientation="horizontal" className={className}>
+      <Field.Root orientation="horizontal" className={className} invalid={invalid}>
         {hasTextContent && (
           <Field.Content>
             {label != null && (
@@ -64,7 +63,7 @@ export function FormFieldShell({
   }
 
   return (
-    <Field.Root orientation="vertical" className={className}>
+    <Field.Root orientation="vertical" className={className} invalid={invalid}>
       {label != null && (
         <Field.Label id={`${id}-label`} htmlFor={id}>
           {label}

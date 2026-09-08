@@ -1,10 +1,10 @@
 /**
  * generate/surfaces.ts
  *
- * Generates the 5-level surface elevation scale + hover/selected state layers.
+ * Generates the five canonical Surface Levels plus interaction states.
  *
- * Elevation always gets lighter (higher OKLCH L) in both modes:
- *   sunken (darkest) → base → base-emphasis → elevated → elevated-emphasis (lightest)
+ * Dark-mode elevation gets lighter at every step:
+ *   sunken → base → raised → elevated → overlay
  *
  * Each level is constructed from an absolute OKLCH L target in SURFACE_L,
  * keeping the neutral hue and a reduced chroma tint. Hover/selected states are
@@ -61,9 +61,9 @@ function buildSurfaceLevel(neutralRamp: Ramp, targetL: number, polarity: Polarit
  * Generate the full surface set (5 elevation levels + semantic roles) from the
  * resolved neutral ramp.
  *
- * Elevation levels are ordered darkest → lightest (sunken → elevated-emphasis)
- * in both modes. Roles (e.g. `paper`) are generated the same way but sit outside
- * the ladder. Each surface has base, hover, and selected variants.
+ * Levels use the canonical sunken/base/raised/elevated/overlay vocabulary.
+ * Roles (for example `paper`) are generated the same way but sit outside the
+ * ladder. Each Surface has base, hover, and selected variants.
  *
  * `lightnessOverrides` lets a theme replace the shared SURFACE_L target for one
  * or more scopes (e.g. Solarized's cream `paper` at base3 instead of the default

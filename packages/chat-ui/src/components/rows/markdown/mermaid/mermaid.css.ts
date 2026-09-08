@@ -6,7 +6,7 @@
  * theme, and a hover affordance for the click-to-view affordance.
  */
 
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { vars } from '@styles/theme.css';
 
 /** Outer container — absolute inset-0 within the BlockFrame. */
@@ -24,13 +24,6 @@ export const mermaidWrapper = style({
   ':hover': {
     borderColor: vars.fgMuted,
   },
-});
-
-/** SVG inside the wrapper fills the container preserving diagram proportions. */
-globalStyle(`${mermaidWrapper} svg`, {
-  width: '100%',
-  height: '100%',
-  display: 'block',
 });
 
 /** Placeholder shown before the idle SVG render completes. */

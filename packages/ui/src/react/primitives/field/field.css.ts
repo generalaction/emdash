@@ -1,9 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
 import { labelBase } from '../label/label.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 export const field = recipe({
   base: {
@@ -28,8 +25,6 @@ export const field = recipe({
     orientation: 'vertical',
   },
 });
-
-export type FieldVariants = NonNullable<RecipeVariants<typeof field>>;
 
 // Label + description stacked, used in horizontal mode to occupy the left side.
 export const fieldContent = style({
@@ -59,14 +54,14 @@ export const fieldControlSlot = style({
 export const fieldLabel = style([labelBase]);
 
 export const fieldDescription = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
   lineHeight: 1.5,
 });
 
 export const fieldError = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundDestructive,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.palette.red.step11,
 });
 
 // A semantic grouping of related fields (renders a <fieldset>).
@@ -85,18 +80,16 @@ export const fieldLegend = recipe({
     marginBottom: '0.75rem',
     padding: 0,
     fontWeight: 500,
-    color: vars.foreground,
+    color: tokens.foreground.default,
   },
   variants: {
     variant: {
-      legend: { fontSize: tokenVars.textBase },
-      label: { fontSize: tokenVars.textSm },
+      legend: { fontSize: tokens.typography.size.base },
+      label: { fontSize: tokens.typography.size.sm },
     },
   },
   defaultVariants: { variant: 'legend' },
 });
-
-export type FieldLegendVariants = NonNullable<RecipeVariants<typeof fieldLegend>>;
 
 // Vertical stack of Field rows with consistent spacing.
 export const fieldGroup = style({

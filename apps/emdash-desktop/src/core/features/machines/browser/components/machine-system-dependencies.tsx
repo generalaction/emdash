@@ -1,11 +1,15 @@
 import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
+import { tokens } from '@emdash/theme';
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { Box, Button, Field, Heading } from '@emdash/ui/react/primitives';
+import { Button, Field, Heading } from '@emdash/ui/react/primitives';
+import { sx } from '@emdash/ui/styles';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 import type { MachineSystemDependencyStatus } from '@core/features/machines/api';
 import { SudoRetryPanel } from '@core/primitives/agents/browser/SudoRetryPanel';
 import type { DependencyOperationFailure } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
+import { cn } from '@core/primitives/styling/browser/cn';
 import type { SystemDependenciesStore } from '../machines-store';
 import { useSystemDependencies } from '../use-system-dependencies';
 
@@ -131,7 +135,15 @@ function DependencySection({
           No {title.toLowerCase()} dependencies.
         </div>
       ) : (
-        <Box surface="sunken" borderRadius="md" padding="3">
+        <div
+          className={cn(
+            surface({ level: 'sunken' }),
+            sx({
+              borderRadius: tokens.radius.md,
+              p: tokens.space.step3,
+            })
+          )}
+        >
           <div className="divide-y divide-border">
             {dependencies.map((dependency) => (
               <SystemDependencyRow
@@ -150,7 +162,7 @@ function DependencySection({
               />
             ))}
           </div>
-        </Box>
+        </div>
       )}
     </div>
   );

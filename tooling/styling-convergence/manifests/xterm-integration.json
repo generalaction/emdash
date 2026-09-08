@@ -1,0 +1,38 @@
+{
+  "background": {
+    "property": "--emdash-integration-xterm-background",
+    "writer": "var(--em-surface-paper)",
+    "reader": "background",
+    "theme": "surface.role.paper.background"
+  },
+  "foreground": {
+    "property": "--emdash-integration-xterm-foreground",
+    "writer": "var(--em-foreground)",
+    "reader": "foreground",
+    "theme": "foreground.default"
+  },
+  "cursor": {
+    "property": "--emdash-integration-xterm-cursor",
+    "writer": "var(--em-foreground)",
+    "reader": "cursor",
+    "theme": "foreground.default"
+  },
+  "cursorAccent": {
+    "property": "--emdash-integration-xterm-cursor-accent",
+    "writer": "var(--em-foreground-inverse)",
+    "reader": "cursorAccent",
+    "theme": "foreground.inverse"
+  },
+  "selectionBackground": {
+    "property": "--emdash-integration-xterm-selection-background",
+    "writer": "var(--em-selection)",
+    "reader": "selectionBackground",
+    "theme": "selection.background"
+  },
+  "selectionForeground": {
+    "property": "--emdash-integration-xterm-selection-foreground",
+    "writer": "var(--em-selection-foreground)",
+    "reader": "selectionForeground",
+    "theme": "selection.foreground"
+  }
+}

@@ -1,6 +1,5 @@
 /**
- * animations.css.ts — Vanilla Extract keyframes for overlay primitives.
- * (dialog, sheet, popover, dropdown, select, combobox)
+ * animations.css.ts — Vanilla Extract keyframes for React primitives.
  *
  *  - kfPopupIn/Out           fade + zoom (for dialogs and side-less popups)
  *  - kfPopupInSlideFrom*     fade + zoom + 0.5rem slide (for positioner popups)
@@ -8,6 +7,87 @@
  */
 
 import { keyframes } from '@vanilla-extract/css';
+
+// ── Progress indicators ───────────────────────────────────────────────────────
+
+export const kfSpin = keyframes({
+  from: { transform: 'rotate(0deg)' },
+  to: { transform: 'rotate(360deg)' },
+});
+
+export const kfSegmentFade = keyframes({
+  '0%': { opacity: 1 },
+  '25%': { opacity: 0.55 },
+  '50%': { opacity: 0.25 },
+  '75%': { opacity: 0.12 },
+  '100%': { opacity: 0.08 },
+});
+
+export const kfAgentStatusDotShimmer = keyframes({
+  '0%, 100%': {
+    opacity: 0.3,
+    transform: 'scale(0.8)',
+  },
+  '35%': {
+    opacity: 1,
+    transform: 'scale(1.0)',
+  },
+  '68%': {
+    opacity: 0.4,
+    transform: 'scale(0.89)',
+  },
+});
+
+export const kfPillDotPulse = keyframes({
+  '0%, 100%': {
+    opacity: 1,
+  },
+  '50%': {
+    opacity: 0.4,
+  },
+});
+
+export const kfScriptStatusDotPulse = keyframes({
+  '0%, 18%': {
+    opacity: 1,
+    transform: 'scale(1)',
+  },
+  '38%, 100%': {
+    opacity: 0.28,
+    transform: 'scale(0.8)',
+  },
+});
+
+export const kfRotateTo = keyframes({
+  to: { transform: 'rotate(360deg)' },
+});
+
+export const kfSteppedLoaderExitUp = keyframes({
+  from: {
+    opacity: 1,
+    transform: 'translateY(0)',
+  },
+  to: {
+    opacity: 0,
+    transform: 'translateY(-8px)',
+  },
+});
+
+export const kfSteppedLoaderEnterFromBottom = keyframes({
+  from: {
+    opacity: 0,
+    transform: 'translateY(8px)',
+  },
+  to: {
+    opacity: 1,
+    transform: 'translateY(0)',
+  },
+});
+
+export const kfMentionPendingPulse = keyframes({
+  '0%, 100%': { opacity: 1 },
+  '50%': { opacity: 0.55 },
+});
 
 // ── Fade (backdrop / overlay) ─────────────────────────────────────────────────
 

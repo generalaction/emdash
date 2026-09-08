@@ -1,22 +1,29 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx, cx } from '@styles/index';
 import { RocketIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Alert } from '.';
 import * as s from '@react/story-layout.css';
-
 const meta: Meta = {
   title: 'Primitives/Alert',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Statuses: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+    <div
+      className={cx(
+        s.w80,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+        })
+      )}
+    >
       <Alert.Root status="info">
         <Alert.Title>New version available</Alert.Title>
         <Alert.Description>Restart the app to apply Emdash 1.4.0.</Alert.Description>
@@ -40,20 +47,27 @@ export const Statuses: Story = {
           Unable to reach the remote host. Check your SSH config.
         </Alert.Description>
       </Alert.Root>
-    </Box>
+    </div>
   ),
 };
-
 export const Simple: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+    <div
+      className={cx(
+        s.w80,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+        })
+      )}
+    >
       <Alert.Root status="info">Agent is running in the background.</Alert.Root>
       <Alert.Root status="warning">Unsaved changes will be lost.</Alert.Root>
       <Alert.Root status="destructive">Build failed with exit code 1.</Alert.Root>
-    </Box>
+    </div>
   ),
 };
-
 export const Dismissible: Story = {
   render: function DismissibleAlerts() {
     const [visible, setVisible] = useState({
@@ -62,9 +76,17 @@ export const Dismissible: Story = {
       warning: true,
       destructive: true,
     });
-
     return (
-      <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+      <div
+        className={cx(
+          s.w80,
+          sx({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '3',
+          })
+        )}
+      >
         {visible.info && (
           <Alert.Root status="info" onDismiss={() => setVisible((v) => ({ ...v, info: false }))}>
             <Alert.Title>Update available</Alert.Title>
@@ -99,7 +121,14 @@ export const Dismissible: Story = {
           </Alert.Root>
         )}
         {Object.values(visible).every((v) => !v) && (
-          <Box display="flex" flexDirection="column" gap="2" style={{ alignItems: 'center' }}>
+          <div
+            style={{ alignItems: 'center' }}
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2',
+            })}
+          >
             <span style={{ fontSize: 'var(--em-text-sm)', color: 'var(--em-foreground-muted)' }}>
               All alerts dismissed.
             </span>
@@ -111,17 +140,25 @@ export const Dismissible: Story = {
             >
               Reset
             </Button>
-          </Box>
+          </div>
         )}
-      </Box>
+      </div>
     );
   },
 };
-
 /** Action slot — a free-form control pinned to the top-right corner. */
 export const WithAction: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+    <div
+      className={cx(
+        s.w80,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+        })
+      )}
+    >
       <Alert.Root status="warning">
         <Alert.Title>CLI not found</Alert.Title>
         <Alert.Description>The claude binary is missing from your PATH.</Alert.Description>
@@ -140,13 +177,21 @@ export const WithAction: Story = {
           </Button>
         </Alert.Action>
       </Alert.Root>
-    </Box>
+    </div>
   ),
 };
-
 export const NoIcon: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3" className={s.w80}>
+    <div
+      className={cx(
+        s.w80,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+        })
+      )}
+    >
       <Alert.Root status="info" icon={null}>
         <Alert.Title>Heads up</Alert.Title>
         <Alert.Description>This section requires admin access.</Alert.Description>
@@ -154,13 +199,12 @@ export const NoIcon: Story = {
       <Alert.Root status="destructive" icon={null}>
         Build failed — check the logs below.
       </Alert.Root>
-    </Box>
+    </div>
   ),
 };
-
 export const CustomIcon: Story = {
   render: () => (
-    <Alert.Root status="success" icon={<RocketIcon />} className={s.w80}>
+    <Alert.Root status="success" icon={<Icon source={RocketIcon} />} className={s.w80}>
       <Alert.Title>Agent launched</Alert.Title>
       <Alert.Description>Claude is now running on your branch.</Alert.Description>
     </Alert.Root>

@@ -10,23 +10,23 @@
  * Backspace / Delete at the node boundary deletes the entire atom at once.
  */
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AtSign, Braces, CircleDot, File, X } from 'lucide-react';
 import React from 'react';
+import { Icon, IconSlot } from '../../primitives/icon';
+import { Devicon } from '../devicon/devicon';
 import { basename, fileIconClass } from './mention-pill-helpers';
 import type { MentionKind, RenderMentionIcon } from './types';
 import * as styles from './mention-pill.css';
 
 // ── Kind → fallback lucide icon ───────────────────────────────────────────────
 
-const ICON_SIZE_SM = { width: '0.75rem', height: '0.75rem' };
-
 const KIND_ICONS: Record<MentionKind, React.ReactNode> = {
-  file: <File style={ICON_SIZE_SM} />,
-  issue: <CircleDot style={ICON_SIZE_SM} />,
-  symbol: <Braces style={ICON_SIZE_SM} />,
-  custom: <AtSign style={ICON_SIZE_SM} />,
+  file: <Icon source={File} size="xs" />,
+  issue: <Icon source={CircleDot} size="xs" />,
+  symbol: <Icon source={Braces} size="xs" />,
+  custom: <Icon source={AtSign} size="xs" />,
 };
 
 function PillIcon({
@@ -45,7 +45,7 @@ function PillIcon({
 
   if (kind === 'file') {
     const cls = fileIconClass(label);
-    if (cls) return <i className={cls} style={{ fontSize: '12px', lineHeight: 1 }} />;
+    if (cls) return <Devicon iconClass={cls} size={12} />;
   }
   return KIND_ICONS[kind] ?? KIND_ICONS.custom;
 }
@@ -75,7 +75,9 @@ export function MentionPill({
       >
         {/* Icon area — relative so the ✕ overlay is positioned inside it */}
         <span className={styles.pillIconArea}>
-          <PillIcon id={id} kind={kind} label={label} renderMentionIcon={renderMentionIcon} />
+          <IconSlot size="xs">
+            <PillIcon id={id} kind={kind} label={label} renderMentionIcon={renderMentionIcon} />
+          </IconSlot>
           {/* Hover-x: overlaid over the icon on pill-hover */}
           <button
             type="button"
@@ -87,7 +89,7 @@ export function MentionPill({
             aria-label={`Remove @${name}`}
             className={styles.pillRemoveBtn}
           >
-            <X style={{ width: '0.625rem', height: '0.625rem' }} />
+            <Icon source={X} />
           </button>
         </span>
         {/* Display name */}

@@ -1,5 +1,6 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { radioHiddenInputAdapter } from './radio-hidden-input.adapter.css';
 
 export const radioGroup = style({
   display: 'grid',
@@ -7,39 +8,42 @@ export const radioGroup = style({
   gap: '0.75rem',
 });
 
-export const radioItem = style({
-  position: 'relative',
-  display: 'inline-flex',
-  width: '1rem',
-  height: '1rem',
-  flexShrink: 0,
-  cursor: 'pointer',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: `1px solid ${vars.border}`,
-  borderRadius: '9999px',
-  backgroundColor: 'transparent',
-  outline: 'none',
-  transition: 'background-color 150ms, border-color 150ms, box-shadow 150ms',
-  selectors: {
-    '&:focus-visible': {
-      borderColor: vars.borderPrimary,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
-    },
-    '&[data-checked]': {
-      borderColor: vars.primaryButtonBackground,
-      backgroundColor: vars.primaryButtonBackground,
-    },
-    '&[data-disabled]': {
-      pointerEvents: 'none',
-      opacity: 0.5,
-    },
-    '&[data-invalid], &[aria-invalid="true"]': {
-      borderColor: vars.foregroundDestructive,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.foregroundDestructive} 20%, transparent)`,
+export const radioItem = style([
+  radioHiddenInputAdapter,
+  {
+    position: 'relative',
+    display: 'inline-flex',
+    width: '1rem',
+    height: '1rem',
+    flexShrink: 0,
+    cursor: 'pointer',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: `1px solid ${tokens.border.default}`,
+    borderRadius: '9999px',
+    backgroundColor: 'transparent',
+    outline: 'none',
+    transition: 'background-color 150ms, border-color 150ms, box-shadow 150ms',
+    selectors: {
+      '&:focus-visible': {
+        borderColor: tokens.border.focus,
+        boxShadow: `0 0 0 3px color-mix(in srgb, ${tokens.border.focus} 30%, transparent)`,
+      },
+      '&[data-checked]': {
+        borderColor: tokens.palette.accent.step9,
+        backgroundColor: tokens.palette.accent.step9,
+      },
+      '&[data-disabled]': {
+        pointerEvents: 'none',
+        opacity: 0.5,
+      },
+      '&[data-invalid], &[aria-invalid="true"]': {
+        borderColor: tokens.palette.red.step11,
+        boxShadow: `0 0 0 3px color-mix(in srgb, ${tokens.palette.red.step11} 20%, transparent)`,
+      },
     },
   },
-});
+]);
 
 export const radioIndicator = style({
   display: 'flex',
@@ -53,15 +57,5 @@ export const radioIndicatorDot = style({
   width: '0.375rem',
   height: '0.375rem',
   borderRadius: '9999px',
-  backgroundColor: vars.foregroundInverse,
-});
-
-globalStyle(`${radioItem} input[type="radio"]`, {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  overflow: 'hidden',
-  clip: 'rect(0,0,0,0)',
-  whiteSpace: 'nowrap',
-  border: 0,
+  backgroundColor: tokens.foreground.inverse,
 });

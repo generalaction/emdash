@@ -1,7 +1,8 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import * as styles from './page-layout.css';
-import type { ContentVariants } from './page-layout.css';
+
+export type PageContentWidth = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
 
 export interface PageLayoutProps {
   /**
@@ -16,6 +17,7 @@ export interface PageLayoutProps {
    * Default: false.
    */
   draggable?: boolean;
+  /** Applied to the rendered outer page root; the inner scroll region stays private. */
   className?: string;
   children: React.ReactNode;
 }
@@ -39,6 +41,10 @@ export interface PageLayoutProps {
  *   </PageLayout.Content>
  * </PageLayout>
  * ```
+ *
+ * `className` is applied to the rendered page root. The optional `sidebar`
+ * and `children` are caller-owned structural slots; this component owns the
+ * single/two-column layout and page overflow.
  */
 function PageLayoutRoot({ sidebar, draggable = false, className, children }: PageLayoutProps) {
   return (
@@ -92,13 +98,14 @@ export interface PageContentProps extends React.HTMLAttributes<HTMLDivElement> {
    * - `3xl` (768px) — Library-style
    * - `4xl` (896px) — Settings / Automations-style (default)
    */
-  maxWidth?: ContentVariants['maxWidth'];
+  maxWidth?: PageContentWidth;
 }
 
 /**
  * PageLayout.Content — the centered content column inside a `PageLayout`.
  *
- * Applies horizontal padding and an optional max-width cap.
+ * Applies horizontal padding and an optional max-width cap. `className` is
+ * applied to the rendered content root.
  */
 function Content({ maxWidth = '4xl', className, ...props }: PageContentProps) {
   return <div className={cx(styles.content({ maxWidth }), className)} {...props} />;

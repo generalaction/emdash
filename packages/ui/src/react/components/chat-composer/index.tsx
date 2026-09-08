@@ -1,9 +1,10 @@
 import { Button } from '@react/primitives/button';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ArrowUp, ChevronRight, CircleAlert, Paperclip, Plug, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
+import { Icon, IconSlot } from '@/react/primitives/icon';
 import { Popover } from '@/react/primitives/popover';
 import { Select } from '@/react/primitives/select';
 import { ComboboxPopover } from '../combobox-popover';
@@ -22,7 +23,6 @@ import type { ComposerPermissionRequest } from './permission-band';
 import { QueuedPromptsBand } from './queued-prompts-band';
 import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
-import { composerThemeScope } from './composer-contract.css';
 
 export type { MentionItem, CommandItem };
 export type {
@@ -365,10 +365,13 @@ function formatContextWindow(tokens: number): string {
 
 function NoticeBand({ notice }: { notice: ComposerNotice }) {
   return (
-    <div className={styles.noticeBand({ variant: notice.variant })}>
+    <div
+      className={styles.noticeBand({ variant: notice.variant })}
+      role={notice.variant === 'error' ? 'alert' : 'status'}
+    >
       <div className={styles.noticeBandBody}>
         <div className={styles.noticeBandHeader}>
-          <CircleAlert style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
+          <Icon source={CircleAlert} size="sm" />
           {notice.title && <p className={styles.noticeBandTitle}>{notice.title}</p>}
         </div>
         <p
@@ -384,7 +387,7 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
           onClick={notice.onDismiss}
           className={styles.noticeDismiss}
         >
-          <X style={{ width: '0.875rem', height: '0.875rem' }} />
+          <Icon source={X} size="sm" />
         </button>
       )}
     </div>
@@ -449,7 +452,11 @@ function ComposerAgentSelector({
         aria-label={triggerLabel}
         title={triggerLabel}
       >
-        {selected?.icon ?? <span style={{ width: '0.875rem', height: '0.875rem' }} />}
+        {selected?.icon ? (
+          <IconSlot size="sm">{selected.icon}</IconSlot>
+        ) : (
+          <span style={{ width: '0.875rem', height: '0.875rem' }} />
+        )}
       </Button>
     );
   }
@@ -475,10 +482,13 @@ function ComposerAgentSelector({
         title={triggerLabel}
         className={styles.agentTrigger}
       >
-        {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
+        {selected?.icon ? (
+          <IconSlot size="sm">{selected.icon}</IconSlot>
+        ) : (
+          <span className={styles.agentIconPlaceholder} />
+        )}
       </Combobox.Trigger>
-      {/* Portaled out of the composer root — must carry the theme-bridge scope. */}
-      <Combobox.Content className={composerThemeScope} style={{ minWidth: '11.25rem' }}>
+      <Combobox.Content style={{ minWidth: '11.25rem' }}>
         <Combobox.Input showTrigger={false} placeholder="Search agents…" />
         <Combobox.List>
           {groups.map((group) =>
@@ -487,7 +497,7 @@ function ComposerAgentSelector({
                 <Combobox.Label>{group.label}</Combobox.Label>
                 {group.items.map((item) => (
                   <Combobox.Item key={item.id} value={item} disabled={item.disabled}>
-                    {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
+                    {item.icon && <IconSlot size="sm">{item.icon}</IconSlot>}
                     <span
                       style={{
                         minWidth: 0,
@@ -505,7 +515,7 @@ function ComposerAgentSelector({
             ) : (
               group.items.map((item) => (
                 <Combobox.Item key={item.id} value={item} disabled={item.disabled}>
-                  {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
+                  {item.icon && <IconSlot size="sm">{item.icon}</IconSlot>}
                   <span
                     style={{
                       minWidth: 0,
@@ -746,7 +756,7 @@ export function ChatComposer({
       : (placeholder ?? 'Send a message, tag @files or use /commands');
 
   return (
-    <div className={cx(styles.composerRoot, composerThemeScope, className)}>
+    <div className={cx(styles.composerRoot, className)}>
       {canShowQueuedPrompts && (
         <QueuedPromptsBand
           prompts={queuedPrompts}
@@ -785,7 +795,11 @@ export function ChatComposer({
       )}
 
       <div
-        className={styles.composerShell({ hasBand: !!hasBand, dragActive })}
+        className={styles.composerShell({ hasBand: !!hasBand, dragActive, disabled })}
+        data-slot="chat-composer-shell"
+        data-state={disabled ? 'disabled' : notice?.variant === 'error' ? 'error' : 'default'}
+        aria-disabled={disabled || undefined}
+        aria-invalid={notice?.variant === 'error' || undefined}
         onPaste={handlePaste}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -810,7 +824,7 @@ export function ChatComposer({
                   onClick={() => removeAttachment(att.id)}
                   className={styles.attachmentRemoveBtn}
                 >
-                  <X style={{ width: '0.625rem', height: '0.625rem' }} />
+                  <Icon source={X} />
                 </button>
               </div>
             ))}
@@ -840,7 +854,6 @@ export function ChatComposer({
             queryMentions={queryMentions}
             queryCommands={queryCommands}
             onCommand={onCommand}
-            popupClassName={composerThemeScope}
           />
         </div>
 
@@ -866,7 +879,6 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search models…"
-                contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
                 triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
@@ -882,9 +894,7 @@ export function ChatComposer({
                     }}
                   >
                     {selectedAgentItem?.icon && (
-                      <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-                        {selectedAgentItem.icon}
-                      </span>
+                      <IconSlot size="sm">{selectedAgentItem.icon}</IconSlot>
                     )}
                     <span
                       style={{
@@ -923,17 +933,10 @@ export function ChatComposer({
                             <span className={styles.effortRowLabel}>Effort</span>
                             <span className={styles.effortRowValue}>
                               {selectedEffortItem?.name ?? 'Default'}
-                              <ChevronRight
-                                style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
-                              />
+                              <Icon source={ChevronRight} size="xs" />
                             </span>
                           </DropdownMenu.Trigger>
-                          <DropdownMenu.Content
-                            className={composerThemeScope}
-                            side="right"
-                            align="start"
-                            sideOffset={4}
-                          >
+                          <DropdownMenu.Content side="right" align="start" sideOffset={4}>
                             <DropdownMenu.RadioGroup
                               value={selectedEffort}
                               onValueChange={(v) => onEffortChange?.(String(v))}
@@ -974,14 +977,13 @@ export function ChatComposer({
                       lineHeight: 1.25,
                     }}
                   >
-                    <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                    <Icon source={ShieldCheck} size="xs" />
                     {selectedPermissionModeItem?.name ?? 'Permissions…'}
                   </span>
                 </Select.Trigger>
                 <Select.Content
                   align="start"
                   width="trigger"
-                  className={composerThemeScope}
                   style={{
                     width: 'min(18rem, var(--available-width, 18rem))',
                     minWidth: 0,
@@ -1023,12 +1025,12 @@ export function ChatComposer({
             {mcpServers.length > 0 && (
               <Popover.Root>
                 <Popover.Trigger className={styles.mcpTrigger} disabled={disabled}>
-                  <Plug style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                  <Icon source={Plug} size="xs" />
                   MCP {mcpServers.length}
                 </Popover.Trigger>
                 <Popover.Content
                   align="start"
-                  className={cx(styles.mcpPopoverContent, composerThemeScope)}
+                  className={styles.mcpPopoverContent}
                   aria-label="Session MCP servers"
                 >
                   <div className={styles.mcpList}>
@@ -1058,7 +1060,7 @@ export function ChatComposer({
                 disabled={disabled}
                 aria-label="Add attachment"
               >
-                <Paperclip />
+                <Icon source={Paperclip} />
               </Button>
             )}
 
@@ -1085,7 +1087,7 @@ export function ChatComposer({
                   disabled={disabled || !canSubmit}
                   aria-label="Send message"
                 >
-                  <ArrowUp />
+                  <Icon source={ArrowUp} />
                 </Button>
               )
             ) : null}

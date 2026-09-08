@@ -32,6 +32,7 @@ import { OpenInMenu } from '@core/features/settings/contributions/browser/open-i
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import {
   getRegisteredTaskData,
   getTaskStore,
@@ -55,6 +56,8 @@ import { ActivityBadge } from './components/activity-badge';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -368,12 +371,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                       )}
                     >
                       {linesAdded > 0 && (
-                        <span className="text-foreground-diff-added">
+                        <span className={diffLine({ kind: 'added' })}>
                           +{formatDiffLineCount(linesAdded)}
                         </span>
                       )}
                       {linesDeleted > 0 && (
-                        <span className="text-foreground-diff-deleted">
+                        <span className={diffLine({ kind: 'deleted' })}>
                           -{formatDiffLineCount(linesDeleted)}
                         </span>
                       )}

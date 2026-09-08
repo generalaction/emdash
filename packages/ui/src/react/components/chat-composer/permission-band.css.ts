@@ -1,28 +1,31 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style, sx } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
-export const band = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.75rem',
-  borderRadius: `${tokenVars.radiusXl} ${tokenVars.radiusXl} 0 0`,
-  border: `1px solid ${vars.border}`,
-  borderBottomWidth: 0,
-  paddingLeft: '0.75rem',
-  paddingRight: '0.75rem',
-  paddingTop: '0.5rem',
-  paddingBottom: '0.5rem',
-  backgroundColor: `var(--composer-bg, ${vars.surfaceBaseEmphasis})`,
-  color: vars.foreground,
-  fontSize: tokenVars.textXs,
-});
+export const band = style([
+  sx({
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.space.step3,
+    px: tokens.space.step3,
+    py: tokens.space.step2,
+  }),
+  {
+    borderRadius: `${tokens.radius.xl} ${tokens.radius.xl} 0 0`,
+    border: `1px solid ${tokens.border.default}`,
+    borderBottomWidth: 0,
+    backgroundColor: tokens.surface.current.emphasis,
+    color: tokens.foreground.default,
+    fontSize: tokens.typography.size.xs,
+  },
+]);
 
 export const bandIcon = style({
   flexShrink: 0,
-  width: '0.875rem',
-  height: '0.875rem',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
+  vars: {
+    [iconSizeVar]: '0.875rem',
+  },
 });
 
 export const bandLabel = style({
@@ -33,12 +36,12 @@ export const bandLabel = style({
   WebkitBoxOrient: 'vertical',
   WebkitLineClamp: 2,
   lineHeight: 1.375,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 export const bandLabelStrong = style({
   fontWeight: 400,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const bandCounter = style({
@@ -48,25 +51,4 @@ export const bandCounter = style({
 
 export const bandAction = style({
   flexShrink: 0,
-});
-
-globalStyle(`${bandAction} button`, {
-  backgroundColor: vars.surfaceElevated,
-  color: vars.foreground,
-  borderColor: `color-mix(in srgb, ${vars.foreground} 12%, transparent)`,
-});
-
-globalStyle(`${bandAction} button:hover`, {
-  backgroundColor: vars.surfaceElevatedHover,
-  color: vars.foreground,
-});
-
-globalStyle(`${bandAction} button[aria-expanded="true"]`, {
-  backgroundColor: vars.surfaceElevatedSelected,
-  color: vars.foreground,
-});
-
-globalStyle(`${bandAction} button[data-popup-open]`, {
-  backgroundColor: vars.surfaceElevatedSelected,
-  color: vars.foreground,
 });

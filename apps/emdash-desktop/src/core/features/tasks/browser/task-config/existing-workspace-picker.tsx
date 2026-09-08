@@ -3,9 +3,12 @@ import { Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 function workspaceLabel(ws: ProjectWorkspace): string {
   if (ws.kind === 'repository') return 'Repository root';
@@ -29,10 +32,10 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
         {hasDiff && (
           <span className="ml-1 text-xs text-foreground-muted">
             {ws.linesAdded != null && (
-              <span className="text-foreground-diff-added">+{ws.linesAdded}</span>
+              <span className={diffLine({ kind: 'added' })}>+{ws.linesAdded}</span>
             )}
             {ws.linesDeleted != null && (
-              <span className="ml-1 text-foreground-diff-deleted">−{ws.linesDeleted}</span>
+              <span className={cn('ml-1', diffLine({ kind: 'deleted' }))}>−{ws.linesDeleted}</span>
             )}
           </span>
         )}

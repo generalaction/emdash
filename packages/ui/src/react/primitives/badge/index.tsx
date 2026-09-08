@@ -1,6 +1,6 @@
 import { mergeProps } from '@base-ui/react/merge-props';
 import { useRender } from '@base-ui/react/use-render';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { badge } from './badge.css';
 
 export type BadgeVariant = 'soft' | 'outline';

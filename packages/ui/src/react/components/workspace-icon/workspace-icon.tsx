@@ -1,6 +1,7 @@
-import { cx } from '@styles/utilities/cx';
-import { FolderGit2Icon, FolderIcon, GitBranchIcon, type LucideIcon } from 'lucide-react';
+import { cx } from '@styles/index';
+import { FolderGit2Icon, FolderIcon, GitBranchIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, type StaticSvgComponent } from '../../primitives/icon';
 import * as styles from './workspace-icon.css';
 
 export type WorkspaceIconType = 'directory' | 'repository' | 'worktree';
@@ -22,7 +23,7 @@ export interface WorkspaceIconProps extends Omit<
   size?: string | number;
 }
 
-const TYPE_ICONS: Record<WorkspaceIconType, LucideIcon> = {
+const TYPE_ICONS: Record<WorkspaceIconType, StaticSvgComponent> = {
   directory: FolderIcon,
   repository: FolderGit2Icon,
   worktree: GitBranchIcon,
@@ -49,7 +50,9 @@ function toCssLength(size: string | number) {
 /**
  * WorkspaceIcon — a rounded tile with a workspace-kind glyph (directory,
  * repository, or worktree) and an optional status dot on the bottom-right
- * corner, following the MachineStatus dot conventions.
+ * corner, following the MachineStatus dot conventions. Its semantic status
+ * Recipe and caller `className` are applied to the span root; the glyph renders
+ * through the owned `Icon` contract.
  */
 function WorkspaceIcon({
   type,
@@ -61,7 +64,7 @@ function WorkspaceIcon({
   'aria-label': ariaLabel,
   ...props
 }: WorkspaceIconProps) {
-  const Icon = TYPE_ICONS[type];
+  const source = TYPE_ICONS[type];
   const defaultLabel = status
     ? `${TYPE_LABELS[type]} — ${STATUS_LABELS[status]}`
     : TYPE_LABELS[type];
@@ -73,18 +76,16 @@ function WorkspaceIcon({
       aria-label={ariaLabel ?? defaultLabel}
       data-type={type}
       data-status={status}
-      className={cx(styles.root, className)}
+      className={cx(styles.workspaceIcon({ status }), className)}
       style={
         {
-          '--workspace-icon-size': toCssLength(size),
+          '--_workspace-icon-size': toCssLength(size),
           ...style,
         } as React.CSSProperties
       }
     >
-      <Icon className={styles.icon} aria-hidden />
-      {status !== undefined && (
-        <span className={cx(styles.statusDot, styles.statusDotVariant[status])} aria-hidden />
-      )}
+      <Icon source={source} />
+      {status !== undefined && <span className={styles.statusDot} aria-hidden />}
     </span>
   );
 }

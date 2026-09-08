@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setXtermThemeFixture } from './xterm-theme-fixture';
 
 async function getPtyModule() {
   return import('@core/features/terminals/api/browser/pty/pty');
@@ -19,12 +20,7 @@ describe('FrontendPty xterm host', () => {
       invoke: vi.fn(() => Promise.resolve({ success: true, data: null })),
     });
 
-    document.documentElement.style.setProperty('--xterm-bg', '#101010');
-    document.documentElement.style.setProperty('--xterm-fg', '#f0f0f0');
-    document.documentElement.style.setProperty('--xterm-cursor', '#f0f0f0');
-    document.documentElement.style.setProperty('--xterm-cursor-accent', '#101010');
-    document.documentElement.style.setProperty('--xterm-selection-bg', '#335577');
-    document.documentElement.style.setProperty('--xterm-selection-fg', '#ffffff');
+    setXtermThemeFixture();
   });
 
   afterEach(async () => {

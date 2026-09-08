@@ -1,29 +1,31 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { svgDefaultSize } from '@styles/effects/svg-helpers.css';
-import { menuItemBase } from '@styles/recipes/menu-item.css';
-import { popupSurface, popupShadowSm } from '@styles/recipes/popup-surface.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
+import { popup } from '@styles/recipes/popup';
+import { popupVars } from '@styles/recipes/popup-contract';
 
 export const positioner = style({
   isolation: 'isolate',
   zIndex: 50,
 });
 
-export const comboboxTrigger = style([svgDefaultSize, {}]);
+export const comboboxTrigger = style({
+  vars: {
+    [iconSizeVar]: '1rem',
+  },
+});
 
 export const comboboxContent = style([
-  popupSurface,
-  popupShadowSm,
+  popup(),
   {
-    maxHeight: 'var(--available-height)',
-    maxWidth: 'var(--available-width)',
+    maxHeight: popupVars.availableHeight,
+    maxWidth: popupVars.availableWidth,
     overflow: 'hidden',
     padding: '2px',
     selectors: {
       '&[data-width="trigger"]': {
-        width: 'var(--anchor-width)',
-        minWidth: 'var(--anchor-width)',
+        width: popupVars.anchorWidth,
+        minWidth: popupVars.anchorWidth,
       },
       '&[data-width="content"]': {
         width: 'max-content',
@@ -31,7 +33,7 @@ export const comboboxContent = style([
       },
       '&[data-width="content-at-least-trigger"]': {
         width: 'max-content',
-        minWidth: 'max(11.25rem, var(--anchor-width))',
+        minWidth: `max(11.25rem, ${popupVars.anchorWidth})`,
       },
     },
   },
@@ -53,22 +55,6 @@ export const comboboxList = style({
   scrollPaddingBottom: '2px',
 });
 
-export const comboboxItem = style([
-  menuItemBase({ trailingIndicator: true, fullWidth: true }),
-  {
-    selectors: {
-      '&[data-highlighted]:not([data-selected])': { backgroundColor: vars.surfaceHover },
-      '&[data-selected]': { backgroundColor: vars.surfaceSelected },
-      '&[data-highlighted]': { color: vars.foreground },
-      '&[data-disabled]': { pointerEvents: 'none', opacity: 0.5 },
-      '&[data-disabled][data-hoverable-when-disabled]': {
-        pointerEvents: 'auto',
-        cursor: 'not-allowed',
-      },
-    },
-  },
-]);
-
 export const comboboxItemIndicator = style({
   pointerEvents: 'none',
   position: 'absolute',
@@ -85,8 +71,8 @@ export const comboboxLabel = style({
   paddingRight: '0.5rem',
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
 });
 
 export const comboboxEmpty = style({
@@ -96,8 +82,8 @@ export const comboboxEmpty = style({
   paddingTop: '0.5rem',
   paddingBottom: '0.5rem',
   textAlign: 'center',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
   selectors: {
     // show when data-empty is on the parent popup
     '[data-slot="combobox-content"][data-empty] &': {
@@ -112,38 +98,43 @@ export const comboboxSeparator = style({
   marginTop: '0.25rem',
   marginBottom: '0.25rem',
   height: '1px',
-  backgroundColor: vars.border,
+  backgroundColor: tokens.border.default,
 });
 
-export const comboboxChips = style({
-  display: 'flex',
-  minHeight: '2.25rem',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
-  border: `1px solid ${vars.border}`,
-  backgroundColor: 'transparent',
-  backgroundClip: 'padding-box',
-  paddingLeft: '0.625rem',
-  paddingRight: '0.625rem',
-  paddingTop: '0.375rem',
-  paddingBottom: '0.375rem',
-  fontSize: tokenVars.textSm,
-  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
-  transition: 'color 150ms, box-shadow 150ms',
-  selectors: {
-    '&:focus-within': {
-      borderColor: vars.borderPrimary,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
+export const comboboxChips = recipe({
+  base: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.375rem',
+    selectors: {
+      '&:has([data-slot="combobox-chip"])': {
+        paddingLeft: '0.375rem',
+      },
     },
-    '&:has([aria-invalid="true"])': {
-      borderColor: vars.borderDestructive,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderDestructive} 20%, transparent)`,
+  },
+  variants: {
+    size: {
+      base: {
+        minHeight: '2.25rem',
+        paddingTop: '0.375rem',
+        paddingRight: '0.625rem',
+        paddingBottom: '0.375rem',
+        paddingLeft: '0.625rem',
+        fontSize: tokens.typography.size.sm,
+      },
+      sm: {
+        minHeight: '1.5rem',
+        paddingTop: '0.25rem',
+        paddingRight: '0.5rem',
+        paddingBottom: '0.25rem',
+        paddingLeft: '0.5rem',
+        fontSize: tokens.typography.size.xs,
+      },
     },
-    '&:has([data-slot="combobox-chip"])': {
-      paddingLeft: '0.375rem',
-    },
+  },
+  defaultVariants: {
+    size: 'base',
   },
 });
 
@@ -154,14 +145,14 @@ export const comboboxChip = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: '0.25rem',
-  borderRadius: tokenVars.radiusSm,
-  backgroundColor: vars.surfaceHover,
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.surface.current.hover,
   paddingLeft: '0.375rem',
   paddingRight: '0.375rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
   fontWeight: 400,
   whiteSpace: 'nowrap',
-  color: vars.foreground,
+  color: tokens.foreground.default,
   selectors: {
     '&:has([disabled])': { pointerEvents: 'none', cursor: 'not-allowed', opacity: 0.5 },
     '&:has([data-slot="combobox-chip-remove"])': { paddingRight: 0 },
@@ -182,16 +173,13 @@ export const comboboxChipsInput = style({
   outline: 'none',
 });
 
-/**
- * Applied to the trigger InputGroupButton inside ComboboxInput.
- * Hides when a sibling combobox-clear button is present; clears pressed bg.
- */
-export const triggerButtonHideIfClear = style({
+/** Applied directly to the trigger button owned by `Combobox.Input`. */
+export const triggerButton = style({
   selectors: {
     '&[data-pressed]': { backgroundColor: 'transparent' },
   },
 });
-globalStyle(
-  `[data-slot="input-group"]:has([data-slot="combobox-clear"]) ${triggerButtonHideIfClear}`,
-  { display: 'none' }
-);
+
+export const triggerButtonHidden = style({
+  display: 'none',
+});

@@ -1,7 +1,7 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+import type { VariantProps } from '@styles/index';
+import { switchHiddenInputAdapter } from './switch-hidden-input.adapter.css';
 
 // Pre-created base so the thumb and hidden-input selectors can reference it.
 const switchBase = style({
@@ -13,14 +13,14 @@ const switchBase = style({
   border: '1px solid transparent',
   outline: 'none',
   transition: 'background-color 150ms, border-color 150ms',
-  backgroundColor: vars.surfaceHover,
+  backgroundColor: tokens.surface.current.hover,
   selectors: {
     '&:focus-visible': {
-      borderColor: vars.borderPrimary,
-      boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
+      borderColor: tokens.border.focus,
+      boxShadow: `0 0 0 3px color-mix(in srgb, ${tokens.border.focus} 30%, transparent)`,
     },
     '&[data-checked]': {
-      backgroundColor: vars.primaryButtonBackground,
+      backgroundColor: tokens.palette.accent.step9,
     },
     '&[data-disabled]': {
       pointerEvents: 'none',
@@ -30,7 +30,7 @@ const switchBase = style({
 });
 
 export const switchRoot = recipe({
-  base: switchBase,
+  base: [switchBase, switchHiddenInputAdapter],
   variants: {
     size: {
       base: { width: '2rem', height: '1.125rem' },
@@ -40,7 +40,7 @@ export const switchRoot = recipe({
   defaultVariants: { size: 'base' },
 });
 
-export type SwitchVariants = NonNullable<RecipeVariants<typeof switchRoot>>;
+export type SwitchVariants = NonNullable<VariantProps<typeof switchRoot>>;
 
 export const switchThumb = style({
   position: 'absolute',
@@ -50,7 +50,7 @@ export const switchThumb = style({
   width: '0.75rem',
   height: '0.75rem',
   borderRadius: '9999px',
-  backgroundColor: vars.foreground,
+  backgroundColor: tokens.foreground.default,
   transition: 'left 150ms',
   pointerEvents: 'none',
   selectors: {
@@ -65,15 +65,4 @@ export const switchThumb = style({
       left: 'calc(100% - 0.125rem - 0.625rem)',
     },
   },
-});
-
-// Ensure the hidden input doesn't affect layout
-globalStyle(`${switchBase} input[type="checkbox"]`, {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  overflow: 'hidden',
-  clip: 'rect(0,0,0,0)',
-  whiteSpace: 'nowrap',
-  border: 0,
 });

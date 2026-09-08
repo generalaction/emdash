@@ -1,31 +1,35 @@
-import { Box } from '@react/primitives/box';
 import { Checkbox } from '@react/primitives/checkbox';
 import { Input } from '@react/primitives/input';
 import { Label, MicroLabel } from '@react/primitives/label';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx, cx } from '@styles/index';
 import * as s from '@react/story-layout.css';
-
 const meta: Meta = {
   title: 'Primitives/Label',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Default: Story = {
   render: () => <Label htmlFor="name-input">Workspace name</Label>,
 };
-
 export const WithInput: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="2" className={s.w72}>
+    <div
+      className={cx(
+        s.w72,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2',
+        })
+      )}
+    >
       <Label htmlFor="branch-input">Branch name</Label>
       <Input id="branch-input" placeholder="feature/my-branch" />
-    </Box>
+    </div>
   ),
 };
-
 export const WrappingControl: Story = {
   render: () => (
     <Label>
@@ -34,12 +38,20 @@ export const WrappingControl: Story = {
     </Label>
   ),
 };
-
 export const Micro: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="2" className={s.w72}>
+    <div
+      className={cx(
+        s.w72,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2',
+        })
+      )}
+    >
       <MicroLabel>Pinned tasks</MicroLabel>
       <span style={{ fontSize: 'var(--em-text-sm)' }}>Task list content…</span>
-    </Box>
+    </div>
   ),
 };

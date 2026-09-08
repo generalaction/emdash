@@ -1,18 +1,22 @@
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle';
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group';
-import { controlVariants } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { control } from '@styles/recipes/control';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
+import type { ControlSize, ControlTone } from '../../../styles/recipes/control';
 import { toggleGroup as toggleGroupClass } from './toggle.css';
 
-// ── Toggle ────────────────────────────────────────────────────────────────────
-
-export interface ToggleProps extends TogglePrimitive.Props {
-  size?: ControlVariantProps['size'];
-  tone?: ControlVariantProps['tone'];
+export interface ToggleProps extends Omit<TogglePrimitive.Props, 'className'> {
+  /**
+   * Applies caller-owned classes to the rendered toggle root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Shared four-step control size. @default 'base' */
+  size?: ControlSize;
+  /** Semantic status intent. @default 'neutral' */
+  tone?: ControlTone;
+  /** Makes the selected size square and removes inline padding. @default false */
   icon?: boolean;
 }
 
@@ -23,50 +27,89 @@ export const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(function 
   return (
     <TogglePrimitive
       ref={ref}
+      {...props}
       data-slot="toggle"
-      className={cx(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
-      {...props}
+      data-emphasis="low"
+      data-size={size}
+      data-tone={tone}
+      data-icon-only={icon ? '' : undefined}
+      className={cx(control({ emphasis: 'low', tone, size, iconOnly: icon }), className)}
     />
   );
 });
 
-// ── ToggleGroup ───────────────────────────────────────────────────────────────
-
-export interface ToggleGroupProps extends ToggleGroupPrimitive.Props {
-  size?: ControlVariantProps['size'];
-  tone?: ControlVariantProps['tone'];
+interface ToggleGroupStyle {
+  size: ControlSize;
+  tone: ControlTone;
 }
 
-function ToggleGroupRoot({ className, ...props }: ToggleGroupProps) {
+const ToggleGroupStyleContext = React.createContext<ToggleGroupStyle>({
+  size: 'xs',
+  tone: 'neutral',
+});
+
+export interface ToggleGroupProps extends Omit<ToggleGroupPrimitive.Props, 'className'> {
+  /** Applies caller-owned classes to the rendered group root. */
+  className?: string;
+  /** Default size inherited by group items. @default 'xs' */
+  size?: ControlSize;
+  /** Default tone inherited by group items. @default 'neutral' */
+  tone?: ControlTone;
+}
+
+function ToggleGroupRoot({ className, size = 'xs', tone = 'neutral', ...props }: ToggleGroupProps) {
   return (
-    <ToggleGroupPrimitive
-      data-slot="toggle-group"
-      className={cx(toggleGroupClass, className)}
-      {...props}
-    />
+    <ToggleGroupStyleContext.Provider value={{ size, tone }}>
+      <ToggleGroupPrimitive
+        {...props}
+        data-slot="toggle-group"
+        data-size={size}
+        data-tone={tone}
+        className={cx(toggleGroupClass, className)}
+      />
+    </ToggleGroupStyleContext.Provider>
   );
 }
 
-const ToggleGroupItem = React.forwardRef<
-  HTMLButtonElement,
-  TogglePrimitive.Props & {
-    size?: ControlVariantProps['size'];
-    tone?: ControlVariantProps['tone'];
-    icon?: boolean;
+export interface ToggleGroupItemProps extends Omit<TogglePrimitive.Props, 'className'> {
+  /** Applies caller-owned classes to the rendered group-item root. */
+  className?: string;
+  /** Overrides the size inherited from ToggleGroup.Root. */
+  size?: ControlSize;
+  /** Overrides the tone inherited from ToggleGroup.Root. */
+  tone?: ControlTone;
+  /** Makes the selected size square and removes inline padding. @default false */
+  icon?: boolean;
+}
+
+const ToggleGroupItem = React.forwardRef<HTMLButtonElement, ToggleGroupItemProps>(
+  function ToggleGroupItem({ className, size, tone, icon = false, ...props }, ref) {
+    const groupStyle = React.useContext(ToggleGroupStyleContext);
+    const resolvedSize = size ?? groupStyle.size;
+    const resolvedTone = tone ?? groupStyle.tone;
+
+    return (
+      <TogglePrimitive
+        ref={ref}
+        {...props}
+        data-slot="toggle-group-item"
+        data-emphasis="low"
+        data-size={resolvedSize}
+        data-tone={resolvedTone}
+        data-icon-only={icon ? '' : undefined}
+        className={cx(
+          control({
+            emphasis: 'low',
+            tone: resolvedTone,
+            size: resolvedSize,
+            iconOnly: icon,
+          }),
+          className
+        )}
+      />
+    );
   }
->(function ToggleGroupItem(
-  { className, size = 'xs', tone = 'neutral', icon = false, ...props },
-  ref
-) {
-  return (
-    <TogglePrimitive
-      ref={ref}
-      data-slot="toggle-group-item"
-      className={cx(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
-      {...props}
-    />
-  );
-});
+);
 
 export const ToggleGroup = {
   Root: ToggleGroupRoot,

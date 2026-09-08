@@ -1,10 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 export function useTaskGitDiffStats(task: TaskStore): {
   linesAdded: number;
@@ -64,10 +67,10 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
         .join(', ')}
     >
       {linesAdded > 0 ? (
-        <span className="text-foreground-diff-added">+{formatDiffLineCount(linesAdded)}</span>
+        <span className={diffLine({ kind: 'added' })}>+{formatDiffLineCount(linesAdded)}</span>
       ) : null}
       {linesDeleted > 0 ? (
-        <span className="text-foreground-diff-deleted">-{formatDiffLineCount(linesDeleted)}</span>
+        <span className={diffLine({ kind: 'deleted' })}>-{formatDiffLineCount(linesDeleted)}</span>
       ) : null}
     </span>
   );

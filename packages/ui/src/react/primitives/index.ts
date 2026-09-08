@@ -1,12 +1,22 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
 export { AnimatedHeight, type AnimatedHeightProps } from './animated-height';
-export { Box } from './box';
 export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './badge';
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
-export { Button, type ButtonProps } from './button';
+export { Button, type ButtonProps, type ButtonVariant } from './button';
 export { Checkbox, type CheckboxProps } from './checkbox';
-export { DirectoryField, type DirectoryFieldProps } from './directory-field';
-export { Icon, type IconName, type IconProps, type IconSize } from './icon';
+export {
+  DirectoryField,
+  type DirectoryFieldProps,
+  type DirectoryFieldSize,
+} from './directory-field';
+export {
+  Icon,
+  IconSlot,
+  type IconProps,
+  type IconSize,
+  type IconSlotProps,
+  type StaticSvgComponent,
+} from './icon';
 export { Input, type InputProps } from './input';
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from './kbd';
 export { Label, MicroLabel, type LabelProps } from './label';
@@ -20,16 +30,21 @@ export { SearchInput, type SearchInputProps } from './search-input';
 export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { SeparatedList, type SeparatedListProps } from './separated-list';
 export { SelectableCard, type SelectableCardProps } from './selectable-card';
-export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
+export { Surface, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
-export { Text, type TextProps } from './typography/Text';
+export { Text, type TextProps, type TextTone, type TextVariant } from './typography/Text';
 export { AbsoluteTime, type AbsoluteTimeProps } from './time/absolute-time';
 export { RelativeTime, type RelativeTimeProps } from './time/relative-time';
 export { Heading, type HeadingProps } from './typography/Heading';
-export { textVariants, type TextVariantProps } from './typography/typography.variants';
 
 // ── Toggle (standalone) + ToggleGroup namespace ───────────────────────────────
-export { Toggle, ToggleGroup, type ToggleProps, type ToggleGroupProps } from './toggle';
+export {
+  Toggle,
+  ToggleGroup,
+  type ToggleGroupItemProps,
+  type ToggleGroupProps,
+  type ToggleProps,
+} from './toggle';
 
 // ── Multi-part namespace consts ───────────────────────────────────────────────
 export { Select } from './select';
@@ -43,9 +58,25 @@ export { ContextMenu } from './context-menu';
 export { Combobox, useComboboxAnchor } from './combobox/combobox';
 export { Tabs, type TabsTabProps } from './tabs/tabs';
 export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
-export { InputGroup, type InputGroupAddonAlign } from './input-group';
+export {
+  InputGroup,
+  type InputGroupAddonAlign,
+  type InputGroupAddonProps,
+  type InputGroupAppearance,
+  type InputGroupButtonProps,
+  type InputGroupInputProps,
+  type InputGroupRootProps,
+  type InputGroupTextProps,
+  type InputGroupTextareaProps,
+} from './input-group';
 export { Alert, type AlertProps } from './alert';
-export { Field, type FieldLegendVariants, type FieldVariants } from './field';
+export {
+  Field,
+  type FieldLegendProps,
+  type FieldLegendVariant,
+  type FieldOrientation,
+  type FieldRootProps,
+} from './field';
 export {
   Resizable,
   useCollapsiblePanelBinding,
@@ -100,19 +131,4 @@ export {
   type ToasterProps,
 } from './toast';
 
-// ── Theme / provider ──────────────────────────────────────────────────────────
-export {
-  ThemeProvider,
-  useTheme,
-  usePortalThemeClass,
-  THEME_MANIFEST,
-  type ThemeId,
-  type ThemeProviderProps,
-} from './theme-provider';
-
-// ── Utility / recipe re-exports ───────────────────────────────────────────────
 export { resolveFileIconClass } from '../lib/file-icons';
-// Relative re-exports: the dts emitter rewrites aliased (`@styles/*`) imports
-// to a dangling relative path, silently degrading the exported types.
-export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';

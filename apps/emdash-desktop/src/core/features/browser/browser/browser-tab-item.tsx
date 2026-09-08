@@ -1,3 +1,4 @@
+import { Icon } from '@emdash/ui/react/primitives';
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
@@ -37,9 +38,11 @@ export const BrowserTabBarItem = observer(function BrowserTabBarItem({
       ctx={ctx}
       label={label}
       preSlot={
-        <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
-          {session?.isLoading ? <Loader2 className="animate-spin" /> : <Globe />}
-        </span>
+        session?.isLoading ? (
+          <Icon source={Loader2} size="xs" className="animate-spin text-foreground-muted" />
+        ) : (
+          <Icon source={Globe} size="xs" className="text-foreground-muted" />
+        )
       }
       hasError={!!session?.loadError}
     />
@@ -50,7 +53,7 @@ export function BrowserTabBarItemDragPreview({ tab }: { tab: ResolvedTab<Browser
   const label = browserTabLabel(tab.resource.session);
   return (
     <GenericTabDragPreview
-      preSlot={<Globe className="size-3 shrink-0 text-foreground-muted" />}
+      preSlot={<Icon source={Globe} size="xs" className="text-foreground-muted" />}
       label={label}
     />
   );

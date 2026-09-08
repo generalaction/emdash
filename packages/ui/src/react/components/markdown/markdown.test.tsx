@@ -7,6 +7,12 @@ import { Markdown } from './markdown';
 import { sanitizeSchema } from './sanitize-schema';
 
 describe('Markdown', () => {
+  it('contains rendered document DOM beneath the dedicated Markdown adapter root', () => {
+    const { container } = render(<Markdown content="Adapter boundary" />);
+
+    expect(container.firstElementChild?.getAttribute('data-foreign-adapter')).toBe('markdown');
+  });
+
   describe('sanitize-before-KaTeX pipeline', () => {
     it('renders math because the sanitize schema preserves math classes', () => {
       const { container } = render(<Markdown content={'Inline $x^2$ math'} />);
@@ -77,6 +83,7 @@ describe('Markdown', () => {
       const image = container.querySelector('img[src="https://example.com/screenshot.png"]');
       expect(image).not.toBeNull();
       expect(image!.getAttribute('alt')).toBe('Screenshot');
+      expect(image!.getAttribute('data-foreign-adapter')).toBe('image');
       expect(container.querySelector('button[aria-label="Expand image"]')).not.toBeNull();
     });
 

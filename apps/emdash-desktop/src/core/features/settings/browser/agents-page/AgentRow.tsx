@@ -31,7 +31,7 @@ export const AgentRow = ({ agent }: { agent: AgentPayload }) => {
       <div className="flex w-full items-center justify-between">
         <span className="text-sm text-foreground">{agent.name}</span>
         <div className="flex items-center gap-1.5">
-          {showUiBadge && <Pill variant="info">Chat UI</Pill>}
+          {showUiBadge && <Pill tone="info">Chat UI</Pill>}
           {updateState.render && <UpdateAvailableBadge />}
           {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
         </div>

@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { Command } from 'cmdk';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

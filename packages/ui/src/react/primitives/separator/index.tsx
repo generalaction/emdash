@@ -1,5 +1,5 @@
 import { Separator as SeparatorPrimitive } from '@base-ui/react/separator';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as styles from './separator.css';
 
 export interface SeparatorProps extends Omit<SeparatorPrimitive.Props, 'className'> {

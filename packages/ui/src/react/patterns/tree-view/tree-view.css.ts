@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { style } from '@styles/index';
 
 export const scrollContainer = style({
   minHeight: 0,

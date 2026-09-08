@@ -1,5 +1,7 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { CheckIcon, MinusIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, type StaticSvgComponent } from '../../primitives/icon';
 import * as styles from './script-status.css';
 
 export type ScriptStatusKind = 'success' | 'error' | 'in-progress' | 'waiting' | 'cancelled';
@@ -32,10 +34,22 @@ const DOT_POINTS = [
   [7.5, 16.5],
 ] as const;
 
+const STATUS_ICONS: Record<ScriptStatusKind, StaticSvgComponent> = {
+  success: CheckIcon,
+  error: XIcon,
+  'in-progress': InProgressStatusIcon,
+  waiting: WaitingStatusIcon,
+  cancelled: MinusIcon,
+};
+
 function toCssLength(size: string | number) {
   return typeof size === 'number' ? `${size}px` : size;
 }
 
+/**
+ * Renders an accessible script-state graphic through the owned `Icon` contract.
+ * The semantic status Recipe and caller `className` are applied to the span root.
+ */
 function ScriptStatus({
   status,
   size = '1.5rem',
@@ -51,89 +65,35 @@ function ScriptStatus({
       role={role}
       aria-label={ariaLabel ?? STATUS_LABELS[status]}
       data-status={status}
-      className={cx(styles.root, className)}
+      className={cx(styles.scriptStatus({ status }), className)}
       style={
         {
-          '--script-status-size': toCssLength(size),
+          '--_script-status-size': toCssLength(size),
           ...style,
         } as React.CSSProperties
       }
     >
-      <ScriptStatusGlyph status={status} />
+      <Icon source={STATUS_ICONS[status]} strokeWidth={2} />
     </span>
   );
 }
 
-function ScriptStatusGlyph({ status }: { status: ScriptStatusKind }) {
-  switch (status) {
-    case 'success':
-      return (
-        <svg
-          className={cx(styles.icon, styles.successIcon)}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-      );
+function InProgressStatusIcon(props: React.ComponentPropsWithRef<'svg'>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      {DOT_POINTS.map(([cx, cy], index) => (
+        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2" className={styles.dot[index]} />
+      ))}
+    </svg>
+  );
+}
 
-    case 'error':
-      return (
-        <svg
-          className={cx(styles.icon, styles.errorIcon)}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
-      );
-
-    case 'in-progress':
-      return (
-        <svg
-          className={cx(styles.icon, styles.inProgressIcon)}
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          {DOT_POINTS.map(([cx, cy], index) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2" className={styles.dot[index]} />
-          ))}
-        </svg>
-      );
-
-    case 'waiting':
-      return (
-        <svg className={cx(styles.icon, styles.waitingIcon)} viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" fill="currentColor" />
-        </svg>
-      );
-
-    case 'cancelled':
-      return (
-        <svg
-          className={cx(styles.icon, styles.cancelledIcon)}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          aria-hidden="true"
-        >
-          <path d="M6 12h12" />
-        </svg>
-      );
-  }
+function WaitingStatusIcon(props: React.ComponentPropsWithRef<'svg'>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
+    </svg>
+  );
 }
 
 export { ScriptStatus };

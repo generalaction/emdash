@@ -3,8 +3,8 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     index: 'src/core/index.ts',
-    manifest: 'src/themes/registry.ts',
-    densities: 'src/densities/registry.ts',
+    profiles: 'src/profiles.ts',
+    runtime: 'src/runtime.ts',
     'shiki-themes': 'src/__generated__/shiki-themes.gen.ts',
   },
   format: ['esm'],

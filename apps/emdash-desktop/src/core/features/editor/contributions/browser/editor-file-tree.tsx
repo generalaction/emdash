@@ -955,7 +955,7 @@ export function FileTreeHeaderBar({
             maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
             aria-label="Search"
             placeholder="Search"
-            className="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
+            inputClassName="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
             onClear={() => setSearchQuery('')}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {

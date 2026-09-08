@@ -17,6 +17,7 @@ import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import type { MermaidLaidOut } from '@core/layout/layout-types';
 import type { MermaidBlock } from '@core/markdown/document';
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { mermaidGraphicAdapter } from './mermaid-graphic.adapter.css';
 import { mermaidError, mermaidPlaceholder, mermaidWrapper } from './mermaid.css';
 
 export type MermaidProps = {
@@ -97,7 +98,9 @@ export function Mermaid(props: MermaidProps) {
             </Show>
           }
         >
-          {(s) => <div innerHTML={s()} />}
+          {(s) => (
+            <div class={mermaidGraphicAdapter} data-foreign-adapter="mermaid" innerHTML={s()} />
+          )}
         </Show>
       </div>
     </BlockFrame>

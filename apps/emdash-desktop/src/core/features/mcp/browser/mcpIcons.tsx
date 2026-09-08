@@ -1,6 +1,7 @@
 import React from 'react';
 import mcpDefaultSvg from '@/assets/images/mcp/mcp_default.svg?raw';
 import { coerceRawSvgContent, prepareInlineSvgMarkup } from './mcp-icon-data';
+import { mcpIconAssetAdapter } from './mcp-icon-asset.adapter.css';
 
 const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { query: '?raw', eager: true });
 
@@ -95,7 +96,13 @@ function getIcon(key: string): string | undefined {
 
 function renderSvgMarkup(svgContent: string): React.ReactNode {
   const processed = prepareInlineSvgMarkup(svgContent);
-  return <div className="size-5" dangerouslySetInnerHTML={{ __html: processed }} />;
+  return (
+    <span
+      className={mcpIconAssetAdapter}
+      data-foreign-adapter="mcp-icon-asset"
+      dangerouslySetInnerHTML={{ __html: processed }}
+    />
+  );
 }
 
 export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ name, iconKey }) => {

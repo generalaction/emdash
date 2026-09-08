@@ -1,3 +1,4 @@
+import { Icon } from '@emdash/ui/react/primitives';
 import { FolderOpen, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ContentStatus } from '@core/features/editor/api/browser/open-file-store/open-file-store';
@@ -53,13 +54,11 @@ export const FileTabBarItem = observer(function FileTabBarItem({
       label={fileName}
       tooltip={tooltip}
       preSlot={
-        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-          {showSpinner ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <FileIcon filename={fileName} />
-          )}
-        </span>
+        showSpinner ? (
+          <Icon source={Loader2} size="xs" className="animate-spin" />
+        ) : (
+          <FileIcon filename={fileName} size={12} />
+        )
       }
       hasError={status.kind === 'error'}
       kindCommands={
@@ -92,13 +91,6 @@ export const FileTabBarItem = observer(function FileTabBarItem({
 export function FileTabBarItemDragPreview({ tab }: { tab: ResolvedTab<FileTabResource> }) {
   const fileName = tab.resource.path.split('/').pop() ?? 'Untitled';
   return (
-    <GenericTabDragPreview
-      preSlot={
-        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-          <FileIcon filename={fileName} />
-        </span>
-      }
-      label={fileName}
-    />
+    <GenericTabDragPreview preSlot={<FileIcon filename={fileName} size={12} />} label={fileName} />
   );
 }

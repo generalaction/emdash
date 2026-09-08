@@ -1,6 +1,7 @@
 import { cp, rm } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
+import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import { desktopWorkers } from './src/core/manifests/node/workers';
@@ -102,7 +103,7 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), vanillaExtractPlugin(), tailwindcss()],
     resolve: {
       alias: {
         '@': resolve('src'),

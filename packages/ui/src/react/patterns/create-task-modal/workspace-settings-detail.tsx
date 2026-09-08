@@ -2,6 +2,7 @@ import { ChevronsDown, RotateCw } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { Checkbox } from '../../primitives/checkbox';
 import { Combobox } from '../../primitives/combobox/combobox';
+import { Icon } from '../../primitives/icon';
 import { Input } from '../../primitives/input';
 import { Spinner } from '../../primitives/spinner';
 import { Tabs } from '../../primitives/tabs/tabs';
@@ -39,7 +40,7 @@ function SetupPreview({
         }
       >
         Setup steps ({setup.steps.length})
-        <ChevronsDown />
+        <Icon source={ChevronsDown} />
       </Button>
       {setup.expanded && (
         <ol className={styles.setupList}>
@@ -164,7 +165,7 @@ export function WorkspaceSettingsDetail({
             size="sm"
             onClick={() => onIntent({ type: 'workspace.retry-requested', target: 'detail' })}
           >
-            <RotateCw />
+            <Icon source={RotateCw} />
             Retry
           </Button>
         )}

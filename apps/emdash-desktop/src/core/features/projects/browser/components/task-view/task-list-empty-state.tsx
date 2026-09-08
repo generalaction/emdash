@@ -1,4 +1,4 @@
-import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
+import { menuItem } from '@emdash/ui/styles/recipes/menu-item';
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
@@ -115,12 +115,8 @@ function TaskActionRow({
       disabled={disabled}
       onClick={disabled ? undefined : onActivate}
       onMouseEnter={disabled ? undefined : onMouseEnter}
-      className={cn(
-        menuItemBase({ fullWidth: true }),
-        'justify-between',
-        disabled ? 'opacity-50' : 'hover:bg-background-1',
-        !disabled && isSelected && 'bg-background-1'
-      )}
+      data-selected={(!disabled && isSelected) || undefined}
+      className={cn(menuItem({ fullWidth: true }), 'justify-between')}
     >
       <div className="flex items-center gap-3">
         <Icon className="size-7 shrink-0 text-foreground-passive" strokeWidth={1} />

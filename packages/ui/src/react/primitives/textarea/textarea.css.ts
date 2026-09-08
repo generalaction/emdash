@@ -1,8 +1,8 @@
-import { style } from '@vanilla-extract/css';
+import { style } from '@styles/index';
 
 /**
- * Overrides applied on top of inputVariants to turn a fixed-height input into
- * an auto-growing textarea.
+ * Anatomy applied on top of field-control to turn the fixed-height control
+ * into an auto-growing textarea.
  */
 export const textareaOverride = style({
   height: 'auto',

@@ -1,5 +1,6 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
-import { cx } from '@styles/utilities/cx';
+import { IconSlot } from '@react/primitives/icon';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import * as styles from './pill-tabs.css';
 
@@ -8,6 +9,7 @@ export type PillTabsLabelVisibility = 'always' | 'active-only';
 export interface PillTab<TValue extends string> {
   value: TValue;
   label: string;
+  /** Decorative caller-owned icon content rendered in an authoritative-size slot. */
   icon: React.ReactNode;
   disabled?: boolean;
 }
@@ -19,6 +21,7 @@ export interface PillTabsProps<TValue extends string> {
   ariaLabel: string;
   panelId?: string;
   labelVisibility?: PillTabsLabelVisibility;
+  /** Applied to the rendered tablist root. Use `sx()` for caller-owned layout overrides. */
   className?: string;
 }
 
@@ -26,6 +29,13 @@ export function getPillTabId(panelId: string, value: string): string {
   return `${panelId}-tab-${value}`;
 }
 
+/**
+ * Controlled pill navigation with caller-owned item labels and icon content.
+ *
+ * The component owns equal-width layout, selected/focus/disabled states, and
+ * active-only label overflow. `className` is applied to the rendered tablist
+ * root rather than the state-only Base UI root.
+ */
 export function PillTabs<TValue extends string>({
   items,
   value,
@@ -66,9 +76,7 @@ export function PillTabs<TValue extends string>({
                 render={<button type="button" aria-label={item.label} className={styles.tab} />}
               >
                 <span className={styles.content}>
-                  <span aria-hidden className={styles.icon}>
-                    {item.icon}
-                  </span>
+                  <IconSlot className={styles.icon}>{item.icon}</IconSlot>
                   <span
                     aria-hidden
                     data-hidden={compact ? 'true' : undefined}

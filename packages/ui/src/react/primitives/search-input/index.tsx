@@ -1,14 +1,27 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { SearchIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { InputVariantProps } from '../../../styles/recipes/input';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
+import { Icon } from '../icon';
 import { Input } from '../input';
 import * as styles from './search-input.css';
 
-export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 'size' | 'type'> {
-  size?: InputVariantProps['size'];
+export interface SearchInputProps extends Omit<
+  React.ComponentProps<'input'>,
+  'className' | 'size' | 'style' | 'type'
+> {
+  /** Applies caller-owned classes to the rendered wrapper root. */
+  className?: string;
+  /** Applies caller-owned classes to the nested input control slot. */
+  inputClassName?: string;
+  /** Applies genuine runtime values to the wrapper root. */
+  style?: React.CSSProperties;
+  /** Applies genuine runtime values to the nested input control slot. */
+  inputStyle?: React.CSSProperties;
+  /** Shared text-entry size. @default 'base' */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
   /** Called when the user clicks the × clear button. Renders the button when provided. */
   onClear?: () => void;
   /** Optional trailing content, such as a keyboard shortcut hint. */
@@ -19,9 +32,8 @@ export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 's
  * SearchInput — a text input with a leading search icon and an optional
  * trailing clear button.
  *
- * Delegates to the `Input` primitive for all field-shell styling (border,
- * background, focus ring, invalid ring) and adds left padding to make room
- * for the icon.
+ * Delegates to `Input` for the field-control contract. `className` is applied
+ * to the wrapper root; use `inputClassName` for the nested control slot.
  *
  * Usage:
  *   // Uncontrolled, no clear button
@@ -36,30 +48,34 @@ export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 's
  *   />
  */
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, size = 'base', onClear, shortcut, value, style: consumerStyle, ...props },
+  {
+    className,
+    inputClassName,
+    size = 'base',
+    tone = 'neutral',
+    onClear,
+    shortcut,
+    value,
+    style,
+    inputStyle,
+    ...props
+  },
   ref
 ) {
   const hasValue = value !== undefined && value !== '';
 
-  // Left padding: icon (0.875rem) + left offset (0.625rem) + gap (0.25rem) = ~1.875rem → 2rem
-  const paddingLeft = size === 'sm' ? '1.75rem' : '2rem';
-  // Right padding only reserves space for the clear button; the shortcut is treated as a
-  // placeholder overlay and does not reduce the input's available text width.
-  const paddingRight = onClear != null ? '1.875rem' : undefined;
-
   return (
-    <div data-slot="search-input" className={styles.container} style={consumerStyle}>
-      <span className={styles.icon} aria-hidden>
-        <SearchIcon />
-      </span>
+    <div data-slot="search-input" className={cx(styles.container, className)} style={style}>
+      <Icon source={SearchIcon} className={styles.icon} />
 
       <Input
         ref={ref}
         type="search"
         size={size}
+        tone={tone}
         value={value}
-        className={cx(className)}
-        style={{ paddingLeft, paddingRight }}
+        className={cx(styles.control({ clearable: onClear != null, size }), inputClassName)}
+        style={inputStyle}
         {...props}
       />
 
@@ -77,7 +93,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
           tabIndex={-1}
           onClick={onClear}
         >
-          <XIcon aria-hidden />
+          <Icon source={XIcon} />
         </button>
       )}
     </div>

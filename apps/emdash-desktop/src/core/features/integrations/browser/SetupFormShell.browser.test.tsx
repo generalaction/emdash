@@ -2,7 +2,6 @@ import { Dialog, Input } from '@emdash/ui/react/primitives';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import '@emdash/ui/style.css';
 
 vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
   useIntegrationsContext: () => ({

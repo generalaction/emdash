@@ -1,5 +1,7 @@
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 
@@ -25,7 +27,10 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
     // focusActiveContent() defers the focus call until after they settle.
     // The inline rename input stops propagation, so it keeps focus while editing.
     <div
-      className="task-tab-bar surface-paper flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-(--em-surface)"
+      className={cn(
+        surface({ role: 'paper' }),
+        'task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border'
+      )}
       onClick={() => pane.focusActiveContent()}
     >
       <div

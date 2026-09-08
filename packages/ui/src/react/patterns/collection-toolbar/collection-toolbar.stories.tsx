@@ -1,7 +1,10 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { PlusIcon, RefreshCwIcon, WifiOffIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { CollectionToolbar } from './collection-toolbar';
 
 const meta = {
@@ -33,10 +36,10 @@ export const WithActions: Story = {
         actions={
           <>
             <Button variant="secondary" icon aria-label="Refresh skills">
-              <RefreshCwIcon />
+              <Icon source={RefreshCwIcon} />
             </Button>
             <Button variant="primary">
-              <PlusIcon />
+              <Icon source={PlusIcon} />
               New Skill
             </Button>
           </>
@@ -65,7 +68,7 @@ export const WithMetadata: Story = {
           <>
             <span>9 conversations</span>
             <span>
-              <WifiOffIcon aria-hidden size={12} />
+              <Icon source={WifiOffIcon} size="xs" />
               Offline
             </span>
           </>
@@ -93,4 +96,23 @@ export const SearchOnly: Story = {
       />
     );
   },
+};
+
+/** Caller-owned root padding uses `sx`; search disabled state remains semantic. */
+export const DisabledSearchWithSxOverride: Story = {
+  args: {
+    searchValue: 'Unavailable while syncing',
+    onSearchValueChange: () => {},
+    searchPlaceholder: 'Search agents…',
+  },
+  render: (args) => (
+    <div style={storyWidth}>
+      <CollectionToolbar
+        {...args}
+        searchDisabled
+        className={sx({ p: tokens.space.step2 })}
+        metadata={<span>Syncing collection…</span>}
+      />
+    </div>
+  ),
 };
