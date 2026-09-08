@@ -205,11 +205,72 @@ describe('useSyncCheckRuns', () => {
     expect(syncChecks).toHaveBeenCalledTimes(3);
   });
 
-  it('keeps the current checks when a refresh fails without starting a retry loop', async () => {
+  it('waits to sync when the pull request view mounts hidden', async () => {
     const syncChecks = vi.fn().mockResolvedValue({
-      success: false,
-      error: { type: 'refresh_failed', message: 'GitHub is unavailable' },
+      success: true,
+      data: { hasRunning: false },
     });
+    mocks.getPullRequestsRuntimeClient.mockResolvedValue({ syncChecks });
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+
+    await act(async () => {
+      root.render(React.createElement(Probe));
+      await flushAsyncWork();
+    });
+    expect(syncChecks).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    await act(async () => {
+      document.dispatchEvent(new dom.window.Event('visibilitychange'));
+      await flushAsyncWork();
+    });
+    expect(syncChecks).toHaveBeenCalledOnce();
+  });
+
+  it('does not sync when the client resolves after the view is hidden', async () => {
+    const syncChecks = vi.fn().mockResolvedValue({
+      success: true,
+      data: { hasRunning: false },
+    });
+    let resolveClient: ((value: { syncChecks: typeof syncChecks }) => void) | null = null;
+    mocks.getPullRequestsRuntimeClient.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveClient = resolve;
+        })
+    );
+
+    await act(async () => {
+      root.render(React.createElement(Probe));
+      await flushAsyncWork();
+    });
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new dom.window.Event('visibilitychange'));
+    await act(async () => {
+      resolveClient?.({ syncChecks });
+      await flushAsyncWork();
+    });
+    expect(syncChecks).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    await act(async () => {
+      document.dispatchEvent(new dom.window.Event('visibilitychange'));
+      await flushAsyncWork();
+    });
+    expect(syncChecks).toHaveBeenCalledOnce();
+  });
+
+  it('keeps polling through refresh failures until checks complete', async () => {
+    const syncChecks = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        error: { type: 'checks_failed', message: 'GitHub is unavailable' },
+      })
+      .mockResolvedValueOnce({ success: true, data: { hasRunning: true } })
+      .mockRejectedValueOnce(new Error('The connection was interrupted'))
+      .mockResolvedValueOnce({ success: true, data: { hasRunning: false } });
     mocks.getPullRequestsRuntimeClient.mockResolvedValue({ syncChecks });
 
     await act(async () => {
@@ -217,6 +278,31 @@ describe('useSyncCheckRuns', () => {
       await flushAsyncWork();
     });
     await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_RUN_POLL_INTERVAL_MS * 3);
+    });
+
+    expect(syncChecks).toHaveBeenCalledTimes(4);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHECK_RUN_POLL_INTERVAL_MS * 2);
+    });
+    expect(syncChecks).toHaveBeenCalledTimes(4);
+  });
+
+  it('stops polling after a non-retryable refresh error', async () => {
+    const syncChecks = vi.fn().mockResolvedValue({
+      success: false,
+      error: {
+        type: 'github_auth_required',
+        host: 'github.com',
+        hint: 'Connect GitHub from account settings.',
+      },
+    });
+    mocks.getPullRequestsRuntimeClient.mockResolvedValue({ syncChecks });
+
+    await act(async () => {
+      root.render(React.createElement(Probe));
+      await flushAsyncWork();
       await vi.advanceTimersByTimeAsync(CHECK_RUN_POLL_INTERVAL_MS * 2);
     });
 

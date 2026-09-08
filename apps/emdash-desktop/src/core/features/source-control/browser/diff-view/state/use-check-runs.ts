@@ -1,9 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { computeCheckRunsSummary, type CheckRun } from '@core/features/github/api/browser/checks';
-import type { PullRequest } from '@core/services/pull-requests/api';
+import type { PullRequest, PullRequestError } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 
 export const CHECK_RUN_POLL_INTERVAL_MS = 10_000;
+
+const retryableCheckSyncErrors = new Set<PullRequestError['type']>([
+  'host_unreachable',
+  'github_rate_limited',
+  'checks_failed',
+]);
 
 export function useSyncCheckRuns(pr: PullRequest) {
   const checks = useMemo(() => pr.checks as CheckRun[], [pr.checks]);
@@ -32,7 +38,7 @@ export function useSyncCheckRuns(pr: PullRequest) {
     };
 
     const sync = async () => {
-      if (disposed || inFlight || !client) return;
+      if (disposed || document.hidden || inFlight || !client) return;
       inFlight = true;
       try {
         const result = await client.syncChecks(
@@ -43,10 +49,13 @@ export function useSyncCheckRuns(pr: PullRequest) {
           },
           { signal: controller.signal }
         );
-        hasRunning = result.success && result.data.hasRunning;
+        if (result.success) {
+          hasRunning = result.data.hasRunning;
+        } else if (!retryableCheckSyncErrors.has(result.error.type)) {
+          hasRunning = false;
+        }
       } catch {
-        hasRunning = false;
-        // The existing checks remain renderable when a background refresh fails.
+        // A failed refresh does not prove that active checks have completed.
       } finally {
         inFlight = false;
         schedulePoll();
