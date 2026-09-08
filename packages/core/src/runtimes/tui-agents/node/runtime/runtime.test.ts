@@ -825,6 +825,43 @@ describe('TuiAgentsRuntime', () => {
     await runtime.dispose();
   });
 
+  it('resumes non-tmux intents when tmux is unavailable without vetoing the run', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      sessionId: 'provider-session',
+      payload: { ...startInput({ sessionId: 'provider-session' }) },
+    });
+    await intents.saveActive({
+      conversationId: 'conversation-2',
+      sessionId: 'tmux-session',
+      payload: {
+        ...startInput({ conversationId: 'conversation-2', sessionId: 'tmux-session' }),
+        tmuxSessionName: makeLegacyTmuxSessionName('project:task:conversation-2'),
+      },
+    });
+    const exec = vi.fn(() => Promise.reject(missingTmuxError()));
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec }, platform: 'linux' });
+
+    await runtime.reconcile();
+    await flushIntentWrites();
+
+    expect(spawner.specs).toHaveLength(1);
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
+      'conversation-1'
+    );
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).not.toHaveProperty(
+      'conversation-2'
+    );
+    expect(intents.snapshot()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ conversationId: 'conversation-1', status: 'active' }),
+        expect.objectContaining({ conversationId: 'conversation-2', status: 'active' }),
+      ])
+    );
+    await runtime.dispose();
+  });
+
   it('keeps tmux sessions across sweeps when the tmux binary is missing', async () => {
     const clock = createManualClock(0);
     const exec = vi.fn(() => Promise.reject(missingTmuxError()));

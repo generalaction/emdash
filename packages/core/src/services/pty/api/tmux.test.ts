@@ -14,7 +14,7 @@ import {
   resolveTmuxSession,
   tmuxIdentityActivityKey,
 } from './tmux';
-import { buildTmuxShellLine, TmuxUnavailableError } from './tmux-commands';
+import { buildTmuxShellLine, isTmuxMissingError, TmuxUnavailableError } from './tmux-commands';
 import {
   decodeLegacyTmuxSessionName,
   makeLegacyTmuxSessionName,
@@ -270,6 +270,10 @@ describe('listTmuxSessionActivity', () => {
     await expect(listTmuxSessionActivity(stubExecContext(exec))).rejects.toBeInstanceOf(
       TmuxUnavailableError
     );
+  });
+
+  it('classifies a wrapped TmuxUnavailableError as a missing-tmux failure', () => {
+    expect(isTmuxMissingError(new TmuxUnavailableError())).toBe(true);
   });
 
   it.each([

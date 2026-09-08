@@ -25,6 +25,7 @@ export class TmuxUnavailableError extends Error {
 
 /** Reusable capability check: is this failure just a missing tmux executable? */
 export function isTmuxMissingError(error: unknown): boolean {
+  if (error instanceof TmuxUnavailableError) return true;
   const failure = readExecFailure(error);
   if (!failure) return false;
   if (failure.executableMissing) return true;
