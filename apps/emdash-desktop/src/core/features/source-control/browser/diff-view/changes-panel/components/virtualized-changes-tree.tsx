@@ -38,33 +38,7 @@ export function VirtualizedChangesTree({
   className,
 }: VirtualizedChangesTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set());
-
-  const tree = useMemo(() => buildChangesTree(changes, rootPath), [changes, rootPath]);
-
-  const expandedPaths = useMemo(() => {
-    const expanded = new Set<string>();
-    for (const path of tree.directoryPaths) {
-      if (!collapsedPaths.has(path)) expanded.add(path);
-    }
-    return expanded;
-  }, [tree.directoryPaths, collapsedPaths]);
-
-  const visibleRows = useMemo(
-    () => buildNestedVisibleRows(tree.rootNodes, expandedPaths),
-    [tree, expandedPaths]
-  );
-
-  const toggleChain = useCallback((chain: readonly { path: string }[], expanded: boolean) => {
-    setCollapsedPaths((prev) => {
-      const next = new Set(prev);
-      for (const segment of chain) {
-        if (expanded) next.add(segment.path);
-        else next.delete(segment.path);
-      }
-      return next;
-    });
-  }, []);
+  const { tree, expandedPaths, visibleRows, toggleChain } = useChangesTreeRows(changes, rootPath);
 
   const virtualizer = useVirtualizer({
     count: visibleRows.length,
@@ -124,7 +98,40 @@ export function VirtualizedChangesTree({
   );
 }
 
-function DirectoryRow({
+/** Directories start expanded; collapsing is tracked so new directories also start expanded. */
+export function useChangesTreeRows(changes: GitChange[], rootPath?: string) {
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set());
+
+  const tree = useMemo(() => buildChangesTree(changes, rootPath), [changes, rootPath]);
+
+  const expandedPaths = useMemo(() => {
+    const expanded = new Set<string>();
+    for (const path of tree.directoryPaths) {
+      if (!collapsedPaths.has(path)) expanded.add(path);
+    }
+    return expanded;
+  }, [tree.directoryPaths, collapsedPaths]);
+
+  const visibleRows = useMemo(
+    () => buildNestedVisibleRows(tree.rootNodes, expandedPaths),
+    [tree, expandedPaths]
+  );
+
+  const toggleChain = useCallback((chain: readonly { path: string }[], expanded: boolean) => {
+    setCollapsedPaths((prev) => {
+      const next = new Set(prev);
+      for (const segment of chain) {
+        if (expanded) next.add(segment.path);
+        else next.delete(segment.path);
+      }
+      return next;
+    });
+  }, []);
+
+  return { tree, expandedPaths, visibleRows, toggleChain };
+}
+
+export function DirectoryRow({
   row,
   isExpanded,
   onToggle,
@@ -133,7 +140,7 @@ function DirectoryRow({
   row: TreeRow;
   isExpanded: boolean;
   onToggle: () => void;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
 }) {
   const paddingLeft = row.renderDepth * 12 + 4;
   const displayName =
@@ -160,7 +167,7 @@ function DirectoryRow({
   );
 }
 
-function FileRow({
+export function FileRow({
   row,
   change,
   isSelected,
@@ -179,7 +186,7 @@ function FileRow({
   onClick: () => void;
   onDoubleClick: () => void;
   onMouseEnter: () => void;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
 }) {
   const paddingLeft = row.renderDepth * 12 + 4;
   const node = row.node;
