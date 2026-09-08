@@ -36,6 +36,20 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
 - Work locally or on your own remote machines over SSH/SFTP.
 
+## A Poem for Parallel Exploration
+
+```
+Multiple agents, branching in time,
+Each in their worktree, solving with rhyme,
+Isolated paths through the code they explore,
+Ideas colliding, unlocking the door.
+
+What works survives, what fails you discard,
+Parallel futures less difficult, less hard,
+Merge the best solutions, leave problems behind,
+A symphony of agents, collaborative mind.
+```
+
 ## Installation
 
 | Platform | Install |
