@@ -40,6 +40,7 @@ import {
 } from '#services/conversation-reports/node';
 import {
   decodeLegacyTmuxSessionName,
+  isTmuxMissingError,
   killTmuxSession,
   listTmuxSessionActivity,
   logLocalPtySpawnWarnings,
@@ -102,6 +103,12 @@ export class TuiAgentsRuntime {
   private readonly clock: Clock;
   private readonly lifecycle: ConversationSessionLifecycle;
   private tmuxActivity = new Map<string, number>();
+  /**
+   * True when the last tmux listing failed because the executable is
+   * unavailable. Liveness is then unknown: tmux-backed sessions are kept
+   * (sweep) or deferred (reconcile) instead of being mistaken for dead.
+   */
+  private tmuxUnknown = false;
   private readonly unexpectedRespawns = new Map<string, number>();
   private readonly promptSpills = new Map<string, PromptSpillResult>();
   /**
@@ -166,15 +173,28 @@ export class TuiAgentsRuntime {
         if (sessionPolicy.kind === 'always') return;
         if ((this.deps.platform ?? process.platform) === 'win32') {
           this.tmuxActivity = new Map();
+          this.tmuxUnknown = false;
           return;
         }
         // Skip the tmux subprocess entirely when nothing is tracked; the sweep
         // below iterates the same (empty) config set.
         if (this.configs.size === 0) {
           this.tmuxActivity = new Map();
+          this.tmuxUnknown = false;
           return;
         }
-        this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+        try {
+          this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+          this.tmuxUnknown = false;
+        } catch (error) {
+          if (!isTmuxMissingError(error)) throw error;
+          // The dependency is gone, not the sessions: keep the previous table
+          // and let the snapshot treat tmux-backed sessions as unknown.
+          this.tmuxUnknown = true;
+          this.deps.logger.debug('TuiAgentsRuntime: tmux unavailable; skipping activity refresh', {
+            error: String(error),
+          });
+        }
       },
       entries: () => this.configs.keys(),
       snapshot: (conversationId, activity) => this.lifecycleSnapshot(conversationId, activity),
@@ -258,14 +278,29 @@ export class TuiAgentsRuntime {
           precheck: async () => {
             if ((this.deps.platform ?? process.platform) === 'win32') {
               this.tmuxActivity = new Map();
+              this.tmuxUnknown = false;
               return { ctx: undefined };
             }
             try {
               // The prefetch doubles as the gate's liveness table; a listing
               // failure vetoes the whole run (intents stay untouched).
               this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+              this.tmuxUnknown = false;
               return { ctx: undefined };
             } catch (error) {
+              if (isTmuxMissingError(error)) {
+                // Missing dependency, not missing sessions: proceed so
+                // tmux-independent intents still resume; the gate defers the
+                // tmux-backed ones.
+                this.tmuxUnknown = true;
+                this.deps.logger.debug(
+                  'TuiAgentsRuntime: tmux unavailable; deferring tmux intents',
+                  {
+                    error: String(error),
+                  }
+                );
+                return { ctx: undefined };
+              }
               return { veto: true as const, error };
             }
           },
@@ -278,6 +313,11 @@ export class TuiAgentsRuntime {
             return { input: this.normalizePersistedInput(parsed.data) };
           },
           gate: (input) => {
+            // Sessions without tmux never depended on it; their liveness is
+            // the runtime's own PTY state, so they always resume.
+            if (!input.tmux) return { ok: true as const };
+            // Unqueryable tmux means unknown liveness: defer, don't suspend.
+            if (this.tmuxUnknown) return { defer: true as const };
             if (tmuxActivityForInput(this.tmuxActivity, input) === undefined) {
               return { suspend: 'process-lost' };
             }
@@ -876,9 +916,12 @@ export class TuiAgentsRuntime {
     // Interactive busy window, plus tmux-side liveness: recent output inside the
     // tmux session must keep the key alive exactly as long as the idle policy's
     // output window would (it previously enriched the policy's lastOutputAt).
+    // When tmux is unqueryable its sessions are unknown, not dead: keep them
+    // until a successful listing can judge them again.
     const busy =
       (lastOutputAt !== null && now - lastOutputAt < BUSY_OUTPUT_WINDOW_MS) ||
-      (tmuxLastOutputAt !== undefined && now - tmuxLastOutputAt < this.tmuxKeepAliveMs);
+      (tmuxLastOutputAt !== undefined && now - tmuxLastOutputAt < this.tmuxKeepAliveMs) ||
+      (this.tmuxUnknown && config.input.tmux !== undefined);
     return { running: state?.status === 'running', busy };
   }
 

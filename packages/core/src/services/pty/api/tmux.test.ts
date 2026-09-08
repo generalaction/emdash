@@ -14,7 +14,7 @@ import {
   resolveTmuxSession,
   tmuxIdentityActivityKey,
 } from './tmux';
-import { buildTmuxShellLine } from './tmux-commands';
+import { buildTmuxShellLine, TmuxUnavailableError } from './tmux-commands';
 import {
   decodeLegacyTmuxSessionName,
   makeLegacyTmuxSessionName,
@@ -81,6 +81,17 @@ describe('resolveTmuxSession', () => {
     await expect(
       resolveTmuxSession(stubExecContext(exec), { identity, label: 'workspace' })
     ).resolves.toEqual({ name: legacyName, exists: true, writeIdentity: false });
+  });
+
+  it('treats a missing tmux executable as a not-yet-existing session', async () => {
+    const identity = 'project:task:terminal';
+    const exec = vi.fn(async () => {
+      throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
+    });
+
+    await expect(
+      resolveTmuxSession(stubExecContext(exec), { identity, label: 'workspace' })
+    ).resolves.toMatchObject({ exists: false, writeIdentity: true });
   });
 });
 
@@ -229,32 +240,36 @@ describe('listTmuxSessionActivity', () => {
     await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
   });
 
-  it('returns an empty map when tmux is not installed (spawn failure)', async () => {
+  it('reports tmux as unavailable when tmux is not installed (spawn failure)', async () => {
     const exec = vi.fn(async () => {
       throw Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' });
     });
 
-    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).rejects.toBeInstanceOf(
+      TmuxUnavailableError
+    );
   });
 
-  it('returns an empty map when BoundExec wraps a missing tmux executable', async () => {
+  it('reports tmux as unavailable when BoundExec wraps a missing tmux executable', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'emdash-tmux-missing-'));
     try {
       const bound = createBoundExec({ file: join(cwd, 'missing-tmux'), cwd });
       const ctx = stubExecContext((_file, args) => bound.exec(args ?? []));
 
-      await expect(listTmuxSessionActivity(ctx)).resolves.toEqual(new Map());
+      await expect(listTmuxSessionActivity(ctx)).rejects.toBeInstanceOf(TmuxUnavailableError);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
   });
 
-  it('returns an empty map for a shell command-not-found exit', async () => {
+  it('reports tmux as unavailable for a shell command-not-found exit', async () => {
     const exec = vi.fn(async () => {
       throw new ExecError('tmux', [], 127, '', 'tmux: command not found');
     });
 
-    await expect(listTmuxSessionActivity(stubExecContext(exec))).resolves.toEqual(new Map());
+    await expect(listTmuxSessionActivity(stubExecContext(exec))).rejects.toBeInstanceOf(
+      TmuxUnavailableError
+    );
   });
 
   it.each([

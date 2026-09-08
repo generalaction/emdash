@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
@@ -109,6 +110,20 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
     rows: 30,
     ...overrides,
   };
+}
+
+/** Mirrors the BoundExec spawn failure when the tmux executable is not on PATH. */
+function missingTmuxError(): Error {
+  return Object.assign(new Error('spawn tmux ENOENT'), {
+    exitCode: null,
+    stderr: 'spawn tmux ENOENT',
+    cause: Object.assign(new Error('spawn tmux ENOENT'), { code: 'ENOENT' }),
+  });
+}
+
+/** Lifecycle intent writes are queued behind promise microtasks; let them land. */
+function flushIntentWrites(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 describe('TuiAgentsRuntime', () => {
@@ -372,7 +387,7 @@ describe('TuiAgentsRuntime', () => {
       startInput({ conversationId: 'conversation-2', trustWorkspace: true })
     );
     expect(trustWorkspace).toHaveBeenCalledWith(expect.any(Object), {
-      workspacePath: '/workspace',
+      workspacePath: path.normalize('/workspace'),
     });
   });
 
@@ -416,7 +431,7 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('wraps command execution with shellSetup and tmux', async () => {
-    const { runtime, spawner } = createRuntime();
+    const { runtime, spawner } = createRuntime({ platform: 'linux' });
 
     await runtime.startSession(
       startInput({
@@ -437,7 +452,7 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('resolves a readable metadata-backed tmux session from its stable identity', async () => {
-    const { runtime, spawner, exec } = createRuntime();
+    const { runtime, spawner, exec } = createRuntime({ platform: 'linux' });
 
     await runtime.startSession(
       startInput({
@@ -555,7 +570,7 @@ describe('TuiAgentsRuntime', () => {
       stdout: `${sessionName}\t42\tv1:${encodedIdentity}\n`,
       stderr: '',
     }));
-    const { runtime, spawner } = createRuntime({ exec: { exec } });
+    const { runtime, spawner } = createRuntime({ exec: { exec }, platform: 'linux' });
 
     await runtime.startSession(startInput({ tmux: { identity } }));
     await runtime.stopSession('conversation-1');
@@ -638,6 +653,7 @@ describe('TuiAgentsRuntime', () => {
       clock,
       lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
       exec: { exec },
+      platform: 'linux',
     });
 
     const identity = 'project:task:conversation-1';
@@ -682,6 +698,7 @@ describe('TuiAgentsRuntime', () => {
     const { runtime, spawner } = createRuntime({
       intents,
       exec: { exec },
+      platform: 'linux',
     });
 
     await runtime.reconcile();
@@ -698,7 +715,7 @@ describe('TuiAgentsRuntime', () => {
       conversationId: 'conversation-1',
       payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('missing') },
     });
-    const { runtime } = createRuntime({ intents });
+    const { runtime } = createRuntime({ intents, platform: 'linux' });
 
     await runtime.reconcile();
 
@@ -754,7 +771,7 @@ describe('TuiAgentsRuntime', () => {
       payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('legacy') },
     });
     const exec = vi.fn(() => Promise.reject(new Error('tmux unavailable')));
-    const { runtime, spawner } = createRuntime({ intents, exec: { exec } });
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec }, platform: 'linux' });
 
     await runtime.reconcile();
 
@@ -763,6 +780,69 @@ describe('TuiAgentsRuntime', () => {
       conversationId: 'conversation-1',
       status: 'active',
     });
+  });
+
+  it('resumes non-tmux active intents without consulting tmux liveness', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      sessionId: 'provider-session',
+      payload: { ...startInput({ sessionId: 'provider-session' }) },
+    });
+    const { runtime, spawner } = createRuntime({ intents, platform: 'linux' });
+
+    await runtime.reconcile();
+
+    expect(spawner.specs).toHaveLength(1);
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
+      'conversation-1'
+    );
+    await runtime.dispose();
+  });
+
+  it('leaves tmux-backed intents active when the tmux binary is missing', async () => {
+    const identity = 'project:task:conversation-1';
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      sessionId: 'provider-session',
+      payload: {
+        ...startInput({ sessionId: 'provider-session' }),
+        tmuxSessionName: makeLegacyTmuxSessionName(identity),
+      },
+    });
+    const exec = vi.fn(() => Promise.reject(missingTmuxError()));
+    const { runtime, spawner } = createRuntime({ intents, exec: { exec }, platform: 'linux' });
+
+    await runtime.reconcile();
+    await flushIntentWrites();
+
+    expect(spawner.specs).toHaveLength(0);
+    expect(intents.snapshot()[0]).toMatchObject({
+      conversationId: 'conversation-1',
+      status: 'active',
+    });
+    await runtime.dispose();
+  });
+
+  it('keeps tmux sessions across sweeps when the tmux binary is missing', async () => {
+    const clock = createManualClock(0);
+    const exec = vi.fn(() => Promise.reject(missingTmuxError()));
+    const { runtime, spawner } = createRuntime({
+      clock,
+      lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
+      exec: { exec },
+      platform: 'linux',
+    });
+
+    await runtime.startSession(startInput({ tmux: { identity: 'project:task:conversation-1' } }));
+    await clock.advanceBy(1_200);
+
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
+      'conversation-1'
+    );
+    expect(spawner.processes[0]?.killCount ?? 0).toBe(0);
+    await runtime.dispose();
   });
 
   it('removes persisted TUI intent when a session is killed', async () => {
