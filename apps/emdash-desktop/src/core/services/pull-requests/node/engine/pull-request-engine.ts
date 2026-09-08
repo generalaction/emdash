@@ -74,6 +74,12 @@ type RequestLane = {
   gates: Record<GitHubRateResource, RateGate>;
 };
 
+type CheckSyncState = {
+  nextGeneration: number;
+  latestStoredGenerations: Map<string, number>;
+  active: number;
+};
+
 type GitHubRateResource = 'graphql' | 'rest';
 
 type GitHubClient = {
@@ -173,6 +179,7 @@ type GqlCheckNode = GqlCheckRunNode | GqlStatusContextNode;
 
 export class PullRequestEngine {
   private readonly requestLanes = new Map<string, RequestLane>();
+  private readonly checkSyncStates = new Map<string, CheckSyncState>();
   /**
    * Last identity each repository was accessed as, keyed by repository URL and
    * held in memory only — the store no longer persists an account binding.
@@ -301,21 +308,38 @@ export class PullRequestEngine {
     headRefOid: string,
     signal: AbortSignal
   ): Promise<Result<boolean, PullRequestError>> {
-    const repository = this.parseRepository(repositoryUrl);
-    if (!repository.success) return repository;
+    const requestedRepository = this.parseRepository(repositoryUrl);
+    if (!requestedRepository.success) return requestedRepository;
     const identity = this.options.store.getPullRequestIdentity(pullRequestUrl);
-    const number = identity?.identifier
+    if (!identity) return ok(false);
+    const repository = parseRepositoryRef(identity.repositoryUrl);
+    if (
+      repository?.repositoryUrl.toLowerCase() !==
+      requestedRepository.data.repositoryUrl.toLowerCase()
+    ) {
+      return err({
+        type: 'checks_failed',
+        message: 'The pull request does not belong to the requested repository.',
+      });
+    }
+    const number = identity.identifier
       ? Number.parseInt(identity.identifier.replace('#', ''), 10)
       : Number.NaN;
     if (!Number.isFinite(number)) return ok(false);
-    if (this.options.store.getChecksCommitSha(pullRequestUrl) !== headRefOid) {
-      this.options.store.clearChecks(pullRequestUrl);
-    }
-    const github = await this.getOctokit(repository.data, signal);
-    if (!github.success) return github;
-    const { lane, octokit } = github.data;
+    const syncState = this.checkSyncStates.get(pullRequestUrl) ?? {
+      nextGeneration: 0,
+      latestStoredGenerations: new Map<string, number>(),
+      active: 0,
+    };
+    this.checkSyncStates.set(pullRequestUrl, syncState);
+    const syncGeneration = ++syncState.nextGeneration;
+    syncState.active += 1;
     try {
+      const github = await this.getOctokit(repository, signal);
+      if (!github.success) return github;
+      const { lane, octokit } = github.data;
       const nodes: GqlCheckNode[] = [];
+      let checksHeadRefOid: string | undefined;
       let cursor: string | undefined;
       for (;;) {
         const response = await this.request(
@@ -323,7 +347,7 @@ export class PullRequestEngine {
           signal,
           {
             priority: requestPriorities.interactive,
-            key: `checks:${repository.data.repositoryUrl}:${number}:${headRefOid}:${cursor ?? ''}`,
+            key: `checks:${repository.repositoryUrl}:${number}:${headRefOid}:${cursor ?? ''}`,
           },
           (requestSignal) =>
             octokit.graphql<{
@@ -332,6 +356,7 @@ export class PullRequestEngine {
                   commits: {
                     nodes: Array<{
                       commit: {
+                        oid: string;
                         statusCheckRollup: {
                           contexts: {
                             pageInfo: { hasNextPage: boolean; endCursor: string | null };
@@ -345,28 +370,56 @@ export class PullRequestEngine {
               };
               rateLimit?: GraphQlRateLimit;
             }>(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
-              owner: repository.data.owner,
-              repo: repository.data.repo,
+              owner: repository.owner,
+              repo: repository.repo,
               number,
               cursor: cursor ?? null,
               request: { signal: requestSignal },
             })
         );
         lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
-        const contexts =
-          response.repository.pullRequest?.commits.nodes[0]?.commit.statusCheckRollup?.contexts;
+        const commit = response.repository.pullRequest?.commits.nodes[0]?.commit;
+        if (!commit) {
+          return err({
+            type: 'checks_failed',
+            message: 'GitHub did not return a pull request head for the check runs.',
+          });
+        }
+        if (checksHeadRefOid && commit.oid !== checksHeadRefOid) {
+          return err({
+            type: 'checks_failed',
+            message: 'The pull request head changed while check runs were loading.',
+          });
+        }
+        checksHeadRefOid = commit.oid;
+        const contexts = commit.statusCheckRollup?.contexts;
         if (!contexts) break;
         nodes.push(...contexts.nodes);
         if (!contexts.pageInfo.hasNextPage) break;
         cursor = contexts.pageInfo.endCursor ?? undefined;
       }
-      this.options.store.replaceChecks(
+      if (!checksHeadRefOid) return ok(false);
+      if ((syncState.latestStoredGenerations.get(checksHeadRefOid) ?? 0) > syncGeneration) {
+        return err({
+          type: 'checks_failed',
+          message: 'A newer check run sync completed before this one.',
+        });
+      }
+      const replaced = this.options.store.replaceChecksForHead(
         pullRequestUrl,
+        checksHeadRefOid,
         nodes.map((node, index) =>
-          checkNodeToPullRequestCheck(node, pullRequestUrl, headRefOid, index)
+          checkNodeToPullRequestCheck(node, pullRequestUrl, checksHeadRefOid, index)
         )
       );
-      this.emit(repositoryUrl, {
+      if (!replaced) {
+        return err({
+          type: 'checks_failed',
+          message: 'The pull request head changed while check runs were loading.',
+        });
+      }
+      syncState.latestStoredGenerations.set(checksHeadRefOid, syncGeneration);
+      this.emit(repository.repositoryUrl, {
         phase: 'idle',
         kind: 'single',
         lastSyncedAt: Date.now(),
@@ -379,7 +432,12 @@ export class PullRequestEngine {
         )
       );
     } catch (error) {
-      return this.handleError(error, repository.data, 'Unable to sync check runs', 'checks_failed');
+      return this.handleError(error, repository, 'Unable to sync check runs', 'checks_failed');
+    } finally {
+      syncState.active -= 1;
+      if (syncState.active === 0 && this.checkSyncStates.get(pullRequestUrl) === syncState) {
+        this.checkSyncStates.delete(pullRequestUrl);
+      }
     }
   }
 
