@@ -147,6 +147,37 @@ Parsed transcript and raw ACP log exports are live-activation reads. They never 
 conversation because the raw log is activation-local and a post-wake export would describe the
 replay rather than the evicted process.
 
+## Transcript event ownership
+
+The transcript reducer separates foreground content progression from asynchronous tool, agent,
+and plan state. `event-routing.ts` resolves a tool's owning turn (including suppressed edit calls)
+before opening a turn or materializing content. The owner index survives turn completion and is
+reset with the parser on activation/replay. Child calls inherit their parent's owner. Provider
+enrichment must preserve whether a specialized tool notification starts or updates a call via
+`operation`; changing its presentation kind to `subagent` must not erase this distinction.
+
+Only content transitions and new foreground root invocations close a content segment.
+`content-stream.ts` owns both identity and reasoning finalization; `item-fold.ts` applies updates
+without inferring content completion from notification arrival. Provider ids are opaque values in
+a namespace separate from generated ordinals and roles. Reasoning continuation uses exact ids and
+explicit segment ordinals, never prefix matching. Item ids remain deterministic across live and
+replayed input, but consumers must treat them as opaque rather than parse their spelling.
+
+Tool updates, plan revisions, and nested activity preserve the foreground stream even when they
+materialize new rows. A late tool update amends its original turn and never opens a new agent turn.
+SessionCell uses the same foreground classification for idle activity/quiescence. Background tool
+rows remain running across foreground turn completion and settle from their own status updates.
+The optional session `historyRevision` increments when an already committed turn is amended; the
+desktop refreshes history independently of turn completion (deferring replacement while a new
+foreground turn is active). Plans remain session-scoped, with their transcript anchor in the turn
+that first presented the plan; an idle plan notification alone does not start a turn.
+
+For partial provider replay, an update-only call can be recovered within an existing active turn,
+without ending its content. When idle, unmatched tool notifications are retained in a bounded
+128-event window until a call start or parent establishes ownership; older unmatched notifications
+are evicted. This fallback cannot infer ownership absent provider evidence. No status notification
+alone is treated as proof of a new foreground turn.
+
 ## Suspension and Rematerialization
 
 The public identity is always `conversationId`; provider process activations are internal. A
