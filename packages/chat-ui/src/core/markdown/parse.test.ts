@@ -301,3 +301,26 @@ describe('reference-style links and images', () => {
     expect(textSegments(runs).join('')).toContain('[text][missing]');
   });
 });
+
+// ── Math ───────────────────────────────────────────────────────────────────
+
+describe('math delimiters', () => {
+  it('keeps prose with two dollar amounts as plain text (no single-dollar math)', () => {
+    const runs = firstProseRuns('A $580 fee means the customer pays $685 in total.', nullProvider);
+    expect(runs.some((r) => r.kind === 'mention')).toBe(false);
+    const text = runs
+      .filter((r): r is InlineText => r.kind === 'text')
+      .map((r) => r.text)
+      .join('');
+    expect(text).toBe('A $580 fee means the customer pays $685 in total.');
+  });
+
+  it('renders $$-delimited inline math as inline code with its source', () => {
+    const runs = firstProseRuns('Energy is $$E = mc^2$$ here.', nullProvider);
+    expect(runs).toEqual([
+      { kind: 'text', text: 'Energy is ' },
+      { kind: 'code', text: 'E = mc^2' },
+      { kind: 'text', text: ' here.' },
+    ]);
+  });
+});
