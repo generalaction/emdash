@@ -5,8 +5,8 @@
  * active turn) and the session slices (config, usage, title) side by side.
  * A single reduce() call routes each NormalizedEvent to the appropriate slice:
  *
- *   transcript kinds (message / thinking / tool_call / tool_update / plan)
- *     → turn boundary logic + item fold (unchanged from before).
+ *   content and new foreground calls → turn/segment boundaries + item fold.
+ *   async tool/plan updates → their owner, without foreground side effects.
  *
  *   session kinds (config / mode_selected / commands / usage / title)
  *     → slice update, no turn boundary side-effect.
@@ -29,15 +29,21 @@ import { initialSessionConfigState } from '../models/config';
 import { SESSION_PLAN_ID, type PlanState } from '../models/plan';
 import type {
   TranscriptItem,
-  TranscriptThinking,
   ToolNode,
   TranscriptTurnInitiator,
   TranscriptTurnOutcome,
   TranscriptTurn,
 } from '../models/turns';
 import { deriveConfigGroups } from './config-derive';
+import {
+  closeContent,
+  initialSegment,
+  materializeContent,
+  type SegmentState,
+} from './content-stream';
 import { decodeSessionUpdate } from './decode';
-import { makeMessageId, makeThinkingId, makeTurnId } from './ids';
+import { routeEvent, type ToolEvent, type ToolOwner } from './event-routing';
+import { makeMessageId, makeTurnId } from './ids';
 import { foldItem, finalizeItems, type FoldEvent } from './item-fold';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 
@@ -45,15 +51,6 @@ import type { EnrichHook, NormalizedEvent } from './normalized-event';
 // in browser builds; the structural declaration keeps this isomorphic reducer
 // free of node ambient types.
 declare const process: { env: { NODE_ENV?: string } };
-
-type SynthesizedSegmentKind = 'message:user' | 'message:assistant' | 'thinking';
-
-export interface SegmentState {
-  open: SynthesizedSegmentKind | null;
-  user: number;
-  assistant: number;
-  thinking: number;
-}
 
 export interface TranscriptSlice {
   committed: TranscriptTurn[];
@@ -69,6 +66,10 @@ export interface ParserState {
   segment: SegmentState;
   agents: AgentState[];
   plan: PlanState | null;
+  toolOwners: ReadonlyMap<string, ToolOwner>;
+  pendingTools: readonly ToolEvent[];
+  planTurnId: string | null;
+  historyRevision: number;
 }
 
 export type ReducerInput =
@@ -93,15 +94,10 @@ export function initialState(): ParserState {
     segment: initialSegment(),
     agents: [],
     plan: null,
-  };
-}
-
-function initialSegment(): SegmentState {
-  return {
-    open: null,
-    user: 0,
-    assistant: 0,
-    thinking: 0,
+    toolOwners: new Map(),
+    pendingTools: [],
+    planTurnId: null,
+    historyRevision: 0,
   };
 }
 
@@ -153,135 +149,25 @@ export function isNewUserMessage(
 ): boolean {
   if (!active) return true;
   if (event.messageId === null) {
-    if (segment.open === 'message:user') return false;
+    if (segment.open?.kind === 'user') return false;
     return active.items.some((it) => it.kind !== 'message' || it.role !== 'user');
   }
   const id = makeMessageId(active.id, event.messageId, 'user');
   return !active.items.some((it) => it.kind === 'message' && it.id === id);
 }
 
-function segmentStream(kind: SynthesizedSegmentKind): keyof Omit<SegmentState, 'open'> {
-  switch (kind) {
-    case 'message:user':
-      return 'user';
-    case 'message:assistant':
-      return 'assistant';
-    case 'thinking':
-      return 'thinking';
-  }
-}
-
-function segmentKind(
-  event: Extract<NormalizedEvent, { kind: 'message' | 'thinking' }>
-): SynthesizedSegmentKind {
-  if (event.kind === 'thinking') return 'thinking';
-  return event.role === 'user' ? 'message:user' : 'message:assistant';
-}
-
-function synthesizedMessageId(segment: SegmentState, kind: SynthesizedSegmentKind): string {
-  const stream = segmentStream(kind);
-  return `auto:${stream}:${segment[stream]}`;
-}
-
-function closeSynthesizedSegment(
-  transcript: TranscriptSlice,
-  segment: SegmentState,
-  at: number
-): { transcript: TranscriptSlice; segment: SegmentState } {
-  const active = transcript.active;
-  if (!active || !segment.open) return { transcript, segment };
-
-  const openKind = segment.open;
-  const stream = segmentStream(openKind);
-  const messageId = synthesizedMessageId(segment, openKind);
-  const itemId =
-    openKind === 'thinking'
-      ? makeThinkingId(active.id, messageId)
-      : makeMessageId(active.id, messageId, stream);
-  let changed = false;
-  const items = active.items.map((item): TranscriptItem => {
-    if (openKind === 'thinking') {
-      if (item.kind === 'thinking' && item.id === itemId && item.status === 'thinking') {
-        changed = true;
-        return { ...item, status: 'done' as const, durationMs: at - item.startedAt };
-      }
-      return item;
-    }
-    return item;
-  });
-
-  const nextSegment: SegmentState = {
-    ...segment,
-    open: null,
-    [stream]: segment[stream] + 1,
-  };
-
-  if (!changed) return { transcript, segment: nextSegment };
-  return { transcript: { ...transcript, active: { ...active, items } }, segment: nextSegment };
-}
-
-function resolveProviderThinkingMessageId(active: TranscriptTurn, messageId: string): string {
-  for (let i = active.items.length - 1; i >= 0; i -= 1) {
-    const item = active.items[i];
-    if (
-      item.kind === 'thinking' &&
-      item.status === 'thinking' &&
-      (item.segmentId === messageId || item.segmentId.startsWith(`${messageId}:segment:`))
-    ) {
-      return item.segmentId;
-    }
-  }
-
-  const baseId = makeThinkingId(active.id, messageId);
-  const base = active.items.find(
-    (item): item is TranscriptThinking => item.kind === 'thinking' && item.id === baseId
-  );
-  if (!base || base.status !== 'done') return messageId;
-
-  const prefix = `${messageId}:segment:`;
-  const count = active.items.filter(
-    (item) => item.kind === 'thinking' && item.segmentId.startsWith(prefix)
-  ).length;
-  return `${prefix}${count + 1}`;
-}
-
 function materializeEvent(
-  transcript: TranscriptSlice,
+  turn: TranscriptTurn,
   segment: SegmentState,
   event: NormalizedEvent,
+  foreground: boolean,
   at: number
-): { transcript: TranscriptSlice; segment: SegmentState; event: FoldEvent } {
+): { turn: TranscriptTurn; segment: SegmentState; event: FoldEvent } {
   if (event.kind === 'message' || event.kind === 'thinking') {
-    if (event.messageId === null) {
-      const kind = segmentKind(event);
-      const closed =
-        segment.open === kind
-          ? { transcript, segment }
-          : closeSynthesizedSegment(transcript, segment, at);
-      const messageId = synthesizedMessageId(closed.segment, kind);
-      const nextSegment = { ...closed.segment, open: kind };
-      return {
-        transcript: closed.transcript,
-        segment: nextSegment,
-        event: { ...event, messageId },
-      };
-    }
-
-    const closed = closeSynthesizedSegment(transcript, segment, at);
-    if (event.kind === 'thinking' && closed.transcript.active) {
-      return {
-        ...closed,
-        event: {
-          ...event,
-          messageId: resolveProviderThinkingMessageId(closed.transcript.active, event.messageId),
-        },
-      };
-    }
-    return { ...closed, event: event as FoldEvent };
+    return materializeContent(turn, segment, event, at);
   }
-
-  const closed = closeSynthesizedSegment(transcript, segment, at);
-  return { ...closed, event: event as FoldEvent };
+  const content = foreground ? closeContent(turn, segment, at) : { turn, segment };
+  return { ...content, event };
 }
 
 function toAgentStatus(
@@ -307,14 +193,14 @@ function updateAgentSlice(
 ): AgentState[] {
   if (event.kind !== 'subagent' && event.kind !== 'subagent_update') return agents;
 
-  const agentId = event.agentId ?? event.toolCallId;
-  if (!agentId) return agents;
-
-  const toolCallId = event.toolCallId ?? agentId;
   const idx = agents.findIndex(
-    (agent) => agent.agentId === agentId || agent.toolCallId === toolCallId
+    (agent) => agent.agentId === event.agentId || agent.toolCallId === event.toolCallId
   );
-  const status = toAgentStatus(event.status);
+  const existing = idx >= 0 ? agents[idx] : undefined;
+  const agentId = event.agentId ?? existing?.agentId ?? event.toolCallId;
+  if (!agentId) return agents;
+  const toolCallId = event.toolCallId ?? existing?.toolCallId ?? agentId;
+  const status = event.status === null && existing ? existing.status : toAgentStatus(event.status);
   const completedAt =
     status === 'completed' || status === 'failed'
       ? { completedAt: at }
@@ -329,7 +215,7 @@ function updateAgentSlice(
       ...(idx >= 0 ? agents[idx] : {}),
       agentId,
       toolCallId,
-      launchTurnId,
+      launchTurnId: existing?.launchTurnId ?? launchTurnId,
       name: event.title,
       status,
       startedAt: idx >= 0 ? agents[idx].startedAt : at,
@@ -512,7 +398,18 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
       return s;
     case 'subagent_update': {
       const agents = updateAgentSlice(s.agents, event, s.transcript.active?.id ?? null, input.at);
-      return agents === s.agents ? s : { ...s, agents };
+      const toolCallId =
+        event.toolCallId ?? agents.find((agent) => agent.agentId === event.agentId)?.toolCallId;
+      if (!toolCallId || !s.toolOwners.has(toolCallId)) return { ...s, agents };
+      return reduce(
+        { ...s, agents },
+        {
+          kind: 'event',
+          at: input.at,
+          event: { kind: 'tool_update', toolCallId, parentToolCallId: null, status: event.status },
+        },
+        deps
+      );
     }
     default:
       break; // falls through to transcript handling below
@@ -521,7 +418,6 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
   let t = s.transcript;
   let segment = s.segment;
   const plan = updatePlanSlice(s.plan, event, input.at);
-  let agents = s.agents;
 
   // OPEN boundary: a new user message starts a new turn.
   if (event.kind === 'message' && event.role === 'user') {
@@ -532,31 +428,91 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
     }
   }
 
-  // Lazy open: agent-initiated content with no active turn.
-  if (!t.active) {
+  const route = routeEvent(event, s.toolOwners, t.active?.id ?? null, s.planTurnId);
+  // Only foreground content or a new root invocation can open an agent turn.
+  if (route.turnId === null && route.foreground) {
     t = openTurn(t, deps, 'agent');
     segment = initialSegment();
   }
-
-  const materialized = materializeEvent(t, segment, event, input.at);
-  t = materialized.transcript;
-  segment = materialized.segment;
-
-  const active = t.active!;
-  agents = updateAgentSlice(agents, materialized.event, active.id, input.at);
-  const items = foldItem(active.items, materialized.event, active.id, input.at);
-
-  if (
-    items === active.items &&
-    t === s.transcript &&
-    segment === s.segment &&
-    agents === s.agents &&
-    plan === s.plan
-  ) {
-    return s;
+  const turnId = route.turnId ?? (route.foreground ? t.active?.id : null);
+  const routedEvent = route.tool ?? event;
+  if (!turnId) {
+    // Keep a bounded window of unmatched notifications from incomplete replay.
+    // They may establish ownership when their start/parent arrives; they never
+    // create a turn merely because the provider emitted a status notification.
+    return {
+      ...s,
+      agents: updateAgentSlice(s.agents, routedEvent, null, input.at),
+      plan,
+      pendingTools: route.tool ? [...s.pendingTools, route.tool].slice(-128) : s.pendingTools,
+    };
   }
-  const transcript: TranscriptSlice =
-    items === active.items ? t : { ...t, active: { ...active, items } };
-  assertTranscriptInvariants(transcript);
-  return { ...s, transcript, segment, agents, plan };
+
+  const isActive = t.active?.id === turnId;
+  const owner = isActive ? t.active : t.committed.find((turn) => turn.id === turnId);
+  if (!owner) throw new Error(`ACP event owner turn not found: ${turnId}`);
+  const materialized = materializeEvent(owner, segment, routedEvent, route.foreground, input.at);
+  if (isActive) segment = materialized.segment;
+
+  let toolOwners = s.toolOwners;
+  if (route.tool) {
+    const previous = toolOwners.get(route.tool.toolCallId);
+    if (previous?.turnId !== turnId || previous.parentToolCallId !== route.tool.parentToolCallId) {
+      toolOwners = new Map(toolOwners).set(route.tool.toolCallId, {
+        turnId,
+        parentToolCallId: route.tool.parentToolCallId,
+      });
+    }
+  }
+  const pendingForCall = route.tool
+    ? s.pendingTools.filter((pending) => pending.toolCallId === route.tool?.toolCallId)
+    : [];
+  let items = materialized.turn.items;
+  // An update observed before its start contains newer tool state than that
+  // start's initial fields. For update-only recovery, the arriving patch wins.
+  const isUpdate =
+    routedEvent.kind === 'tool_update' ||
+    ('operation' in routedEvent && routedEvent.operation === 'update');
+  const operations = isUpdate
+    ? [...pendingForCall, materialized.event]
+    : [materialized.event, ...pendingForCall];
+  let agents = s.agents;
+  for (const operation of operations) {
+    items = foldItem(items, operation, turnId, input.at);
+    agents = updateAgentSlice(agents, operation, turnId, input.at);
+  }
+  const updated = items === owner.items ? owner : { ...owner, items };
+  const transcript = isActive
+    ? { ...t, active: updated }
+    : { ...t, committed: t.committed.map((turn) => (turn.id === turnId ? updated : turn)) };
+  let result: ParserState = {
+    ...s,
+    transcript,
+    segment,
+    agents,
+    plan,
+    toolOwners,
+    planTurnId: event.kind === 'plan' ? turnId : s.planTurnId,
+    pendingTools: pendingForCall.length
+      ? s.pendingTools.filter((pending) => !pendingForCall.includes(pending))
+      : s.pendingTools,
+    historyRevision: s.historyRevision + (!isActive && updated !== owner ? 1 : 0),
+  };
+  // A parent can establish ownership of previously unseen child calls. Remove
+  // them before folding so each retained notification is replayed exactly once.
+  const ready = result.pendingTools.filter(
+    (pending) =>
+      toolOwners.has(pending.toolCallId) ||
+      (pending.parentToolCallId !== null && toolOwners.has(pending.parentToolCallId))
+  );
+  if (ready.length) {
+    result = {
+      ...result,
+      pendingTools: result.pendingTools.filter((pending) => !ready.includes(pending)),
+    };
+    for (const pending of ready)
+      result = reduce(result, { kind: 'event', event: pending, at: input.at }, deps);
+  }
+  assertTranscriptInvariants(result.transcript);
+  return result;
 }

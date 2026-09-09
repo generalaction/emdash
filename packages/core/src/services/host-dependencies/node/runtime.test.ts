@@ -470,7 +470,7 @@ describe('HostDependenciesRuntime snapshot query', () => {
 
     const result = await runtime.setSelection('fake-agent', {
       kind: 'path',
-      path: '/usr/local/bin/fake-agent',
+      path: process.execPath,
     });
     expect(result.success).toBe(true);
     flushStateTurn();
@@ -478,7 +478,7 @@ describe('HostDependenciesRuntime snapshot query', () => {
     const after = await snapshotOf(source);
     expect(after.dependencies['fake-agent']?.selection).toEqual({
       kind: 'path',
-      path: '/usr/local/bin/fake-agent',
+      path: process.execPath,
     });
 
     await lease.release();

@@ -891,6 +891,26 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it('refreshes amended history without a foreground turn transition', async () => {
+    const live = fakeLiveSession({ ...idleState(), historyRevision: 0 }, historyPage('initial'));
+    const store = await bootstrapWithSession(live.session);
+    try {
+      live.loadHistory.mockClear();
+      historySeed.mockClear();
+      live.loadHistory.mockResolvedValue({ success: true, data: historyPage('amended') });
+      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      await vi.waitFor(() =>
+        expect(historySeed).toHaveBeenCalledWith([expect.objectContaining({ id: 'amended' })])
+      );
+      expect(live.loadHistory).toHaveBeenCalledTimes(1);
+      live.sessionState.set({ ...idleState(), historyRevision: 1, backgroundAgentCount: 1 });
+      await Promise.resolve();
+      expect(live.loadHistory).toHaveBeenCalledTimes(1);
+    } finally {
+      store.dispose();
+    }
+  });
+
   it('keeps rendered history when a suspension-driven refresh is unavailable', async () => {
     const live = fakeLiveSession(idleState(), historyPage('rendered'));
     const store = await bootstrapWithSession(live.session);

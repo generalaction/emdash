@@ -886,6 +886,7 @@ export class AcpChatStore {
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     let previousLifecycle = session.sessionState.current().lifecycle;
+    let previousHistoryRevision = session.sessionState.current().historyRevision;
     const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
@@ -902,11 +903,13 @@ export class AcpChatStore {
       this._bindTerminalOutputs(session),
       session.sessionState.onChange((state) => {
         const replayCompleted = previousLifecycle === 'replaying' && state.lifecycle === 'ready';
+        const historyChanged = previousHistoryRevision !== state.historyRevision;
         previousLifecycle = state.lifecycle;
+        previousHistoryRevision = state.historyRevision;
         runInAction(() => {
           this._syncMessageCount();
         });
-        if (replayCompleted) this._requestHistoryRefresh();
+        if (replayCompleted || historyChanged) this._requestHistoryRefresh();
       }),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
     );

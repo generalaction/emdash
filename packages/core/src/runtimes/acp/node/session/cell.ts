@@ -115,7 +115,7 @@ export class SessionCell {
   }
 
   get sessionState(): SessionState {
-    return this.machine.sessionState();
+    return { ...this.machine.sessionState(), historyRevision: this.transcript.historyRevision };
   }
 
   get config(): SessionConfigState {
@@ -699,7 +699,7 @@ export class SessionCell {
   private isIdleAgentTranscriptEvent(event: NormalizedEvent): boolean {
     return (
       this.machine.phase.kind === 'ready' &&
-      this.isTranscriptEvent(event) &&
+      this.transcript.advancesForeground(event) &&
       !(event.kind === 'message' && event.role === 'user')
     );
   }

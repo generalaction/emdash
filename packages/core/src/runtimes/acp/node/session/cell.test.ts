@@ -345,14 +345,74 @@ describe('SessionCell config options', () => {
 });
 
 describe('SessionCell idle turns and queue commands', () => {
+  it('amends a completed tool without starting agent activity or an idle timer', () => {
+    vi.useFakeTimers();
+    const { cell } = makeCell();
+    try {
+      cell.transcript.pushEvent(
+        {
+          kind: 'tool_call',
+          toolCallId: 'old',
+          title: 'Run',
+          toolKind: 'execute',
+          status: 'in_progress',
+          parentToolCallId: null,
+          diffs: [],
+          locations: [],
+        },
+        0
+      );
+      cell.transcript.endTurn(10);
+      cell.push({
+        kind: 'tool_update',
+        toolCallId: 'old',
+        status: 'failed',
+        parentToolCallId: null,
+        outputText: 'late failure',
+      });
+      expect(cell.sessionState.agentTurnActive).toBe(false);
+      expect(cell.sessionState.isGenerating).toBe(false);
+      expect(cell.history().active).toBeNull();
+      expect(cell.history().committed[0].items[0]).toMatchObject({
+        toolCallId: 'old',
+        status: 'error',
+        outputText: 'late failure',
+      });
+      expect(cell.sessionState.historyRevision).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      cell.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not mistake idle plan revisions or unmatched tool updates for agent activity', () => {
+    const { cell } = makeCell();
+    try {
+      cell.push({ kind: 'plan', entries: [] });
+      cell.push({
+        kind: 'tool_update',
+        toolCallId: 'unknown',
+        parentToolCallId: null,
+        status: 'completed',
+      });
+      expect(cell.sessionState.agentTurnActive).toBe(false);
+      expect(cell.history()).toEqual({ committed: [], active: null });
+    } finally {
+      cell.dispose();
+    }
+  });
+
   it('settles idle agent turns after quiesce', async () => {
     vi.useFakeTimers();
     try {
       const { cell } = makeCell();
 
       cell.push({
-        kind: 'plan',
-        entries: [{ content: 'Background step', status: 'in_progress', priority: 'medium' }],
+        kind: 'message',
+        role: 'assistant',
+        messageId: null,
+        text: 'An unsolicited response',
       });
 
       expect(cell.sessionState.agentTurnActive).toBe(true);

@@ -64,6 +64,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'subagent';
+      operation?: 'start' | 'update';
       toolCallId: string;
       title: string;
       status: NormalizedToolStatus | null;
@@ -83,6 +84,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'search';
+      operation?: 'start' | 'update';
       toolCallId: string;
       query: string;
       status: NormalizedToolStatus | null;
@@ -91,6 +93,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'mcp_tool';
+      operation?: 'start' | 'update';
       toolCallId: string;
       server?: string;
       tool: string;
@@ -100,6 +103,7 @@ export type NormalizedEvent =
     }
   | {
       kind: 'web_fetch';
+      operation?: 'start' | 'update';
       toolCallId: string;
       url: string;
       title?: string;
