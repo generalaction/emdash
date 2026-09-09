@@ -5,10 +5,12 @@ import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
 import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
+import { tasksHostStylesContribution } from '@core/features/tasks/contributions/host-styles';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 
 const { diffLine } = sourceControlHostStylesContribution.exports;
+const { workflowStatus } = tasksHostStylesContribution.exports;
 
 function workspaceLabel(ws: ProjectWorkspace): string {
   if (ws.kind === 'repository') return 'Repository root';
@@ -42,7 +44,12 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
         {ws.linkedTaskCount > 0 && (
           <Tooltip.Provider>
             <Tooltip.Root>
-              <Tooltip.Trigger className="ml-1 flex items-center gap-0.5 text-xs text-foreground-info">
+              <Tooltip.Trigger
+                className={cn(
+                  'ml-1 flex items-center gap-0.5 text-xs',
+                  workflowStatus({ status: 'linked' })
+                )}
+              >
                 <Link className="size-3" />
                 {ws.linkedTaskCount}
               </Tooltip.Trigger>

@@ -8,10 +8,10 @@ For day-to-day authoring rules, use [UI styling conventions](../conventions/ui-s
 
 `@emdash/theme` owns:
 
-- the literal `tokens` tree and Token/Profile types;
-- Color scheme, Density, and Typography Profile Definitions;
-- Theme Compiler validation and generated Token Values;
-- public profile manifests and complete Theme resolution;
+- the literal `tokens` tree and narrow authoring types exported from the package root;
+- internal Color scheme, Density, and Typography Profile Definitions;
+- internal Theme Compiler validation and generated Token Values;
+- public profile ids/manifests from `/profiles` and complete Theme resolution from `/runtime`;
 - the generated `@emdash/theme/styles.css` artifact consumed by the UI build.
 
 `@emdash/ui` consumes Theme interfaces and owns:
@@ -74,7 +74,10 @@ assets; hosts do not separately import Theme CSS.
 
 Vendor CSS is host-selected and loaded with `layer(emdash.vendor)`. Host-authored CSS belongs to
 `emdash.host`. Desktop's concrete aggregate is `apps/emdash-desktop/src/renderer/styles.css`, with
-vendor imports in `vendor.css` and host rules in `index.css`.
+vendor imports in `vendor.css` and host rules in `index.css`. Tailwind directive sources such as
+`tw-animate-css` also live in `vendor.css`, but their top-level `@utility` definitions cannot be
+wrapped by an import layer; Tailwind emits their generated utilities at the configured host
+insertion point.
 
 ## Cascade Layers
 

@@ -15,7 +15,6 @@ const outputRoot = resolve(packageRoot, 'dist');
 const entries = {
   react: resolve(sourceRoot, 'react/index.ts'),
   'react/chat-ui': resolve(sourceRoot, 'react/chat-ui/index.ts'),
-  'react/chat-ui/host-adapter': resolve(sourceRoot, 'react/chat-ui/chat-host-adapter.css.ts'),
   'react/components': resolve(sourceRoot, 'react/components/index.ts'),
   'react/form': resolve(sourceRoot, 'react/patterns/form/index.ts'),
   'react/patterns': resolve(sourceRoot, 'react/patterns/index.ts'),

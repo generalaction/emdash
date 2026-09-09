@@ -8,7 +8,7 @@
  *   - Background lightness anchored to the current neutral.1 OKLCH L (~0.991)
  */
 
-import { defineTheme } from '../core/index';
+import { defineTheme } from '../core/define-theme';
 
 export const lightTheme = defineTheme({
   id: 'light',

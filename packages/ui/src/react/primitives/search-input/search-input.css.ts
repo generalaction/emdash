@@ -14,7 +14,9 @@ export const container = style({
   width: '100%',
   selectors: {
     '&:has(input:not(:placeholder-shown))': {
-      [shortcutDisplay]: 'none',
+      vars: {
+        [shortcutDisplay]: 'none',
+      },
     },
   },
 });

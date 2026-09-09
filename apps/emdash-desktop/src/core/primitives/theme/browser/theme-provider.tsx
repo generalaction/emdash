@@ -1,66 +1,56 @@
 import {
-  COLOR_SCHEME_MANIFEST,
-  DENSITY_MANIFEST,
-  TYPOGRAPHY_MANIFEST,
-  type ColorSchemeId,
-} from '@emdash/theme/profiles';
-import { resolveTheme, type Theme as ResolvedTheme } from '@emdash/theme/runtime';
+  resolveTheme,
+  THEME_PREPAINT_CLASS_DATA,
+  type Theme as ResolvedTheme,
+  type ThemePrepaintClassEntry,
+  type ThemeProfileIds,
+} from '@emdash/theme/runtime';
 import { ThemeProvider as ControlledThemeProvider } from '@emdash/ui/react/theme-runtime';
 import { createContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type { Theme } from '@core/primitives/app-settings/api';
 import {
-  THEME_CLASS_DARK,
-  THEME_CLASS_LIGHT,
-  THEME_CLASSES,
-  THEME_STORAGE_KEY,
-} from './theme-classes';
+  normalizeThemeProfileSelection,
+  resolveThemeProfileIds,
+} from '@core/primitives/theme/api/theme-profile-selection';
+import { THEME_STORAGE_KEY } from './theme-classes';
 import { getNextTheme } from './theme-toggle-model';
 
-export type EffectiveTheme = (typeof THEME_CLASSES)[number];
+export type EffectiveTheme = ResolvedTheme['classNames'][0];
 
-function getSystemTheme(): EffectiveTheme {
-  if (typeof window === 'undefined') return THEME_CLASS_LIGHT;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? THEME_CLASS_DARK
-    : THEME_CLASS_LIGHT;
-}
-
-function colorSchemeId(effectiveTheme: EffectiveTheme): ColorSchemeId {
-  const entry = COLOR_SCHEME_MANIFEST.find(
-    (colorScheme) => colorScheme.selector === `.${effectiveTheme}`
-  );
-  if (!entry) {
-    throw new Error(`No Color scheme profile for selector ".${effectiveTheme}"`);
-  }
-  return entry.id;
+function getSystemPrefersDark(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 /** Resolves the complete desktop Theme through the public profile manifests. */
-export function resolveDesktopTheme(effectiveTheme: EffectiveTheme): ResolvedTheme {
-  const density = DENSITY_MANIFEST[0];
-  const typography = TYPOGRAPHY_MANIFEST[0];
-  if (!density || !typography) {
-    throw new Error('Desktop Theme requires at least one Density and Typography profile');
-  }
-  return resolveTheme({
-    colorScheme: colorSchemeId(effectiveTheme),
-    density: density.id,
-    typography: typography.id,
-  });
+export function resolveDesktopTheme(value: unknown, systemPrefersDark: boolean): ResolvedTheme {
+  return resolveTheme(resolveThemeProfileIds(value, systemPrefersDark));
 }
 
-function subscribeToSystemTheme(onChange: () => void) {
+function subscribeToSystemTheme(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   mq.addEventListener('change', onChange);
   return () => mq.removeEventListener('change', onChange);
 }
 
-function getPrepaintTheme(): EffectiveTheme | null {
-  if (typeof document === 'undefined') return null;
-  return (
-    THEME_CLASSES.find((className) => document.documentElement.classList.contains(className)) ??
-    null
+function activePrepaintProfileId<Id extends string>(
+  entries: readonly ThemePrepaintClassEntry<Id>[]
+): Id | null {
+  const entry = entries.find(({ className }) =>
+    document.documentElement.classList.contains(className)
   );
+  return entry?.id ?? null;
+}
+
+function getPrepaintTheme(): ResolvedTheme | null {
+  if (typeof document === 'undefined') return null;
+  const profileIds = {
+    colorScheme: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.colorSchemes),
+    density: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.densities),
+    typography: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.typographies),
+  };
+  if (!profileIds.colorScheme || !profileIds.density || !profileIds.typography) return null;
+  return resolveTheme(profileIds as ThemeProfileIds);
 }
 
 export interface ThemeContextType {
@@ -75,7 +65,7 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export interface ThemeProviderProps {
   readonly children: ReactNode;
-  readonly theme: Theme;
+  readonly theme: Theme | null;
   readonly isLoading?: boolean;
   readonly onThemeChange: (theme: Theme) => void;
   readonly onThemeApplied?: (effectiveTheme: EffectiveTheme) => void;
@@ -88,26 +78,35 @@ export function ThemeProvider({
   onThemeChange,
   onThemeApplied,
 }: ThemeProviderProps) {
-  const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
-  const effectiveTheme: EffectiveTheme =
-    (isLoading ? getPrepaintTheme() : null) ?? theme ?? systemTheme;
-  const resolvedTheme = useMemo(() => resolveDesktopTheme(effectiveTheme), [effectiveTheme]);
+  const systemPrefersDark = useSyncExternalStore(
+    subscribeToSystemTheme,
+    getSystemPrefersDark,
+    getSystemPrefersDark
+  );
+  const selectedTheme = useMemo(() => normalizeThemeProfileSelection(theme), [theme]);
+  const resolvedTheme = useMemo(
+    () =>
+      (isLoading ? getPrepaintTheme() : null) ??
+      resolveDesktopTheme(selectedTheme, systemPrefersDark),
+    [isLoading, selectedTheme, systemPrefersDark]
+  );
+  const effectiveTheme = resolvedTheme.classNames[0];
 
   useEffect(() => {
     if (isLoading) return;
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme));
+      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(selectedTheme));
     } catch {
       // Local storage is only a startup paint cache; persisted settings remain authoritative.
     }
-  }, [theme, isLoading]);
+  }, [selectedTheme, isLoading]);
 
   const setTheme = (newTheme: Theme) => {
     onThemeChange(newTheme);
   };
 
   const toggleTheme = () => {
-    const next = getNextTheme(theme, effectiveTheme);
+    const next = getNextTheme(selectedTheme, effectiveTheme);
     setTheme(next);
   };
 
@@ -116,7 +115,9 @@ export function ThemeProvider({
   }, [effectiveTheme, isLoading, onThemeApplied]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme, resolvedTheme }}>
+    <ThemeContext.Provider
+      value={{ theme: selectedTheme, setTheme, toggleTheme, effectiveTheme, resolvedTheme }}
+    >
       <ControlledThemeProvider target="document" theme={resolvedTheme}>
         {children}
       </ControlledThemeProvider>

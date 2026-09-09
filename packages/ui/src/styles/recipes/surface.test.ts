@@ -1,7 +1,5 @@
 import {
-  SURFACE_LEVELS,
-  SURFACE_ROLES,
-  SURFACE_TONES,
+  tokens,
   type SurfaceLevelName,
   type SurfaceRoleName,
   type SurfaceToneName,
@@ -26,16 +24,16 @@ const canonicalTones = [
 
 describe('public surface Recipe', () => {
   it('exposes the canonical Level, Role, and Tone vocabulary', () => {
-    expect(SURFACE_LEVELS).toEqual(canonicalLevels);
-    expect(SURFACE_ROLES).toEqual(canonicalRoles);
-    expect(SURFACE_TONES).toEqual(canonicalTones);
+    expect(Object.keys(tokens.surface.level)).toEqual(canonicalLevels);
+    expect(Object.keys(tokens.surface.role)).toEqual(canonicalRoles);
+    expect(Object.keys(tokens.surface.tone)).toEqual(canonicalTones);
   });
 
   it('returns complete classes for every absolute and context-relative Surface axis', () => {
     const classes = [
-      ...SURFACE_LEVELS.map((level) => surface({ level })),
-      ...SURFACE_ROLES.map((role) => surface({ role })),
-      ...SURFACE_TONES.map((tone) => surface({ tone })),
+      ...canonicalLevels.map((level) => surface({ level })),
+      ...canonicalRoles.map((role) => surface({ role })),
+      ...canonicalTones.map((tone) => surface({ tone })),
       surface({ emphasis: true }),
     ];
 

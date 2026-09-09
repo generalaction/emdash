@@ -1,11 +1,7 @@
-export type AuthoringStyleRule = {
+import type { StyleRule as VanillaStyleRule } from '@vanilla-extract/css';
+
+export type AuthoringStyleRule = Omit<VanillaStyleRule, '@layer'> & {
   readonly '@layer'?: never;
-  readonly [property: string]:
-    | string
-    | number
-    | AuthoringStyleRule
-    | readonly AuthoringStyleRule[]
-    | undefined;
 };
 
 export type AuthoringStyleInput = AuthoringStyleRule | string | readonly AuthoringStyleInput[];

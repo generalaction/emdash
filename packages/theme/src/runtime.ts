@@ -34,6 +34,11 @@ export type ThemePrepaintClassEntry<Id extends string = string> = {
   readonly className: string;
 };
 
+export type ThemePrepaintColorSchemeEntry<Id extends string = string> =
+  ThemePrepaintClassEntry<Id> & {
+    readonly polarity: ColorSchemeManifestEntry['polarity'];
+  };
+
 function classNameFromSelector(selector: string): string {
   if (!/^\.[A-Za-z_][A-Za-z0-9_-]*$/.test(selector)) {
     throw new TypeError(`Theme profile selector must be one class selector: "${selector}"`);
@@ -57,7 +62,11 @@ function prepaintEntries<const Entries extends readonly { id: string; selector: 
  * hosts can embed this data without importing CSS or the React runtime.
  */
 export const THEME_PREPAINT_CLASS_DATA = {
-  colorSchemes: prepaintEntries(COLOR_SCHEME_MANIFEST),
+  colorSchemes: COLOR_SCHEME_MANIFEST.map(({ id, polarity, selector }) => ({
+    id,
+    polarity,
+    className: classNameFromSelector(selector),
+  })) satisfies readonly ThemePrepaintColorSchemeEntry<ColorSchemeId>[],
   densities: prepaintEntries(DENSITY_MANIFEST),
   typographies: prepaintEntries(TYPOGRAPHY_MANIFEST),
 } as const;

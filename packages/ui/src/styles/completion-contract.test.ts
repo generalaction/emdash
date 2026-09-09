@@ -107,6 +107,24 @@ describe('completed public styling contract', () => {
       expect(existsSync(resolve(themeRoot, path)), path).toBe(false);
     }
   });
+
+  it('keeps scroll-fade custom properties private and avoids cascade overrides', () => {
+    const fadeCss = readFileSync(
+      resolve(packageRoot, 'src/styles/effects/overflow-fade.css'),
+      'utf8'
+    );
+    const fadeComponent = readFileSync(
+      resolve(packageRoot, 'src/react/primitives/scroll-container/scroll-fade.tsx'),
+      'utf8'
+    );
+
+    expect(fadeCss).toContain('@property --_scroll-fade-top');
+    expect(fadeCss).toContain('--_scroll-fade-size: 24px');
+    expect(fadeCss).not.toMatch(/--(?:fade-size|sf-t)\b/);
+    expect(fadeCss).not.toContain('!important');
+    expect(fadeComponent).toContain("'--_scroll-fade-size': fadeSize");
+    expect(fadeComponent).not.toContain("'--fade-size'");
+  });
 });
 
 describe('completed Global Rule and migration-debt contract', () => {

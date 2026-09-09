@@ -16,8 +16,8 @@ interface SkillIconRendererProps {
 
 export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme.colorScheme.polarity === 'dark';
 
   const letter = skill.displayName.charAt(0).toUpperCase();
 

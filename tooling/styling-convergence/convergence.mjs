@@ -41,6 +41,31 @@ export function findHostEntrypointProblems(source, hostStylesheet) {
   return problems;
 }
 
+export function findHostLoaderProblems(source, hostEntrypoint) {
+  const imports = [...source.matchAll(/\bimport\s+['"]([^'"]+\.css)['"]/g)].map(
+    (match) => match[1]
+  );
+  const problems = [];
+  const hostImports = imports.filter((specifier) => specifier === hostEntrypoint);
+  if (hostImports.length !== 1) {
+    problems.push(
+      `expected exactly one plain-CSS host entry import ${hostEntrypoint}, found ${hostImports.length}`
+    );
+  }
+  if (imports.includes(UI_STYLESHEET)) {
+    problems.push(`TypeScript host loader must not import ${UI_STYLESHEET} directly`);
+  }
+  const additionalImports = imports
+    .filter((specifier) => specifier !== hostEntrypoint && specifier !== UI_STYLESHEET)
+    .sort(compareText);
+  if (additionalImports.length > 0) {
+    problems.push(
+      `TypeScript host loader has additional CSS imports: ${additionalImports.join(', ')}`
+    );
+  }
+  return problems;
+}
+
 export function findCssCompatibilityProblems({
   canonicalExport,
   canonicalTarget,
@@ -106,6 +131,15 @@ export function findIntegrationCoverageGaps(manifest) {
 
 export function findForbiddenThemeProductPaths(tokens, forbiddenPaths) {
   return forbiddenPaths.filter((tokenPath) => hasPath(tokens, tokenPath)).sort(compareText);
+}
+
+export function findProductSemanticUtilityConsumers(sources, forbiddenUtilityPattern) {
+  const pattern = new RegExp(forbiddenUtilityPattern, 'g');
+  return Object.entries(sources)
+    .flatMap(([filePath, source]) =>
+      [...source.matchAll(pattern)].map((match) => `${filePath}: ${match[0]}`)
+    )
+    .sort(compareText);
 }
 
 export function findTailwindAliasProblems(source) {

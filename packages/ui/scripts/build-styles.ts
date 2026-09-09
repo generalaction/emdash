@@ -15,6 +15,7 @@ import { vanillaExtractPlugin } from '@vanilla-extract/rollup-plugin';
 import { transform } from 'lightningcss';
 import { rollup } from 'rollup';
 import type { OutputAsset, Plugin, RollupLog } from 'rollup';
+import { unlayeredRuleHeaders } from './css-layer-gate';
 
 const require = createRequire(import.meta.url);
 const packageRoot = resolve(import.meta.dirname, '..');
@@ -249,109 +250,6 @@ function unresolvedImports(css: string): string[] {
     ([value]) => value
   );
   return [...new Set([...imports, ...packageReferences])].sort(compareText);
-}
-
-function topLevelRuleHeaders(css: string): string[] {
-  const headers: string[] = [];
-  let cursor = 0;
-
-  while (cursor < css.length) {
-    while (cursor < css.length) {
-      if (/\s/.test(css[cursor] ?? '')) {
-        cursor += 1;
-        continue;
-      }
-      if (css.startsWith('/*', cursor)) {
-        const commentEnd = css.indexOf('*/', cursor + 2);
-        if (commentEnd === -1) throw new Error('Unterminated CSS comment in aggregate');
-        cursor = commentEnd + 2;
-        continue;
-      }
-      break;
-    }
-    if (cursor >= css.length) break;
-
-    const start = cursor;
-    let quote: '"' | "'" | undefined;
-    let escaped = false;
-
-    while (cursor < css.length) {
-      const character = css[cursor]!;
-      if (quote) {
-        if (escaped) {
-          escaped = false;
-        } else if (character === '\\') {
-          escaped = true;
-        } else if (character === quote) {
-          quote = undefined;
-        }
-        cursor += 1;
-        continue;
-      }
-      if (character === '"' || character === "'") {
-        quote = character;
-        cursor += 1;
-        continue;
-      }
-      if (character === ';') {
-        headers.push(css.slice(start, cursor + 1));
-        cursor += 1;
-        break;
-      }
-      if (character === '{') {
-        headers.push(css.slice(start, cursor).trim());
-        let depth = 1;
-        cursor += 1;
-        while (cursor < css.length && depth > 0) {
-          const nestedCharacter = css[cursor]!;
-          if (quote) {
-            if (escaped) {
-              escaped = false;
-            } else if (nestedCharacter === '\\') {
-              escaped = true;
-            } else if (nestedCharacter === quote) {
-              quote = undefined;
-            }
-          } else if (nestedCharacter === '"' || nestedCharacter === "'") {
-            quote = nestedCharacter;
-          } else if (nestedCharacter === '{') {
-            depth += 1;
-          } else if (nestedCharacter === '}') {
-            depth -= 1;
-          }
-          cursor += 1;
-        }
-        break;
-      }
-      cursor += 1;
-    }
-  }
-
-  return headers;
-}
-
-function unlayeredRuleHeaders(css: string): string[] {
-  const prelude = canonicalLayerPrelude();
-  const canonicalLayers = prelude
-    .slice('@layer '.length, -1)
-    .split(',')
-    .map((layer) => `@layer ${layer}`);
-  const allowedLayerHeaders = new Set([
-    prelude,
-    ...canonicalLayers,
-    ...canonicalLayers.map((header) => `${header};`),
-  ]);
-
-  return topLevelRuleHeaders(css)
-    .filter(
-      (header) =>
-        !allowedLayerHeaders.has(header) &&
-        header !== '@font-face' &&
-        !header.startsWith('@keyframes ') &&
-        !header.startsWith('@-webkit-keyframes ') &&
-        !header.startsWith('@property ')
-    )
-    .map((header) => (header.length > 160 ? `${header.slice(0, 157)}...` : header));
 }
 
 function compareText(left: string, right: string): number {

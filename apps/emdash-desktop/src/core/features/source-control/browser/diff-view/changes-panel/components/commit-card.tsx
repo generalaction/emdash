@@ -6,6 +6,7 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
@@ -14,6 +15,9 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/styling/browser/cn';
+
+const { vcsState } = sourceControlHostStylesContribution.exports;
 
 type CommitPhase =
   | 'idle'
@@ -193,7 +197,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       )}
       {(phase === 'commit-only-done' || phase === 'committed') && (
         <StatusRow
-          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          icon={<CheckCircle className={cn('size-4', vcsState({ state: 'completed' }))} />}
           label="Committed"
         />
       )}
@@ -202,7 +206,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       )}
       {phase === 'pushed' && (
         <StatusRow
-          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          icon={<CheckCircle className={cn('size-4', vcsState({ state: 'completed' }))} />}
           label="Pushed"
         />
       )}

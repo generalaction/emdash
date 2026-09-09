@@ -28,7 +28,10 @@ export function mergeAppSettingsValue<K extends AppSettingsKey>(
     typeof current === 'object' &&
     current !== null
   ) {
-    return { ...current, ...partial } as AppSettings[K];
+    return {
+      ...(current as Record<string, unknown>),
+      ...(partial as Record<string, unknown>),
+    } as AppSettings[K];
   }
   return partial as AppSettings[K];
 }

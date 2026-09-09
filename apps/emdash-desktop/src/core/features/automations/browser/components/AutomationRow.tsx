@@ -16,6 +16,7 @@ import {
   useScheduledAutomationRun,
   useAutomationTargetAvailability,
 } from '@core/features/automations/browser/use-automations';
+import { automationsHostStylesContribution } from '@core/features/automations/contributions/host-styles';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import {
   getProjectStore,
@@ -30,19 +31,18 @@ import type { AutomationRunStatus } from '@core/primitives/automations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 
-const RUN_STATUS_ICON: Record<
-  AutomationRunStatus,
-  { Icon: LucideIcon; textClass: string; spin?: boolean }
-> = {
-  scheduled: { Icon: Clock, textClass: 'text-foreground-info' },
-  queued: { Icon: Clock, textClass: 'text-foreground-muted' },
-  provisioning_workspace: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
-  starting_session: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
-  done: { Icon: CheckCircle2, textClass: 'text-foreground-success' },
-  failed: { Icon: XCircle, textClass: 'text-foreground-error' },
-  skipped: { Icon: MinusCircle, textClass: 'text-foreground-muted' },
-  cancelled: { Icon: MinusCircle, textClass: 'text-foreground-muted' },
+const RUN_STATUS_ICON: Record<AutomationRunStatus, { Icon: LucideIcon; spin?: boolean }> = {
+  scheduled: { Icon: Clock },
+  queued: { Icon: Clock },
+  provisioning_workspace: { Icon: Loader2, spin: true },
+  starting_session: { Icon: Loader2, spin: true },
+  done: { Icon: CheckCircle2 },
+  failed: { Icon: XCircle },
+  skipped: { Icon: MinusCircle },
+  cancelled: { Icon: MinusCircle },
 };
+
+const { automationRunIcon } = automationsHostStylesContribution.exports;
 
 interface AutomationRowProps {
   automation: Automation;
@@ -140,14 +140,22 @@ export const AutomationRow = observer(function AutomationRow({
         {/* Row 2: latest run sentence left, next run / disabled right */}
         <div className="flex min-w-0 items-center justify-between gap-2">
           {!runtimeAvailable ? (
-            <span className="text-sm text-foreground-warning">Remote runtime unavailable</span>
+            <span className={cn('text-sm', automationRunIcon({ status: 'unavailable' }))}>
+              Remote runtime unavailable
+            </span>
           ) : run ? (
             (() => {
-              const { Icon, textClass, spin } = RUN_STATUS_ICON[run.status];
+              const { Icon, spin } = RUN_STATUS_ICON[run.status];
               const time = run.startedAt ?? run.finishedAt;
               return (
                 <span className="flex items-center gap-1.5 text-sm text-foreground-muted">
-                  <Icon className={cn('size-3.5 shrink-0', textClass, spin && 'animate-spin')} />
+                  <Icon
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      automationRunIcon({ status: run.status }),
+                      spin && 'animate-spin'
+                    )}
+                  />
                   Last run on
                   {time && <AbsoluteTime value={time} className="text-foreground-muted" />}·{' '}
                   {formatRunTriggerKindLabel(run.triggerKind)}

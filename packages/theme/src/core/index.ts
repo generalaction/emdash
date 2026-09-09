@@ -1,65 +1,16 @@
 /**
- * Public API barrel for the theme creation runtime library.
+ * Public authoring API for canonical Theme Token References.
  *
- * Consumers should import from here rather than from individual internal modules.
- * The generate/ and codegen/ subdirectories are internal implementation details.
+ * Profile metadata and runtime resolution have dedicated public subpaths.
+ * Theme generation, compilation, and contract data are package internals.
  */
 
-export { defineTheme } from './define-theme';
-export type { ThemeInput, ResolvedTheme, HueSeed } from './define-theme';
-export { defineDensity } from './define-density';
-export type { DensityInput, ResolvedDensity } from './define-density';
-export {
-  compileBaseTokenValues,
-  compileProfile,
-  defineColorScheme,
-  defineDensityProfile,
-  defineTypographyProfile,
-} from './compiler';
-export type {
-  ColorSchemeDefinition,
-  ColorTokenPath,
-  CompiledProfile,
-  DensityProfileDefinition,
-  DensityTokenPath,
-  ProfileDefinition,
-  TokenPath,
-  TypographyProfileDefinition,
-  TypographyTokenPath,
-} from './compiler';
-export { tokens } from './tokens';
-export type { TokenReference, Tokens } from './tokens';
+import { tokens } from './tokens';
 
-export type {
-  ScaleName,
-  HueScaleName,
-  Polarity,
-  Ramp,
-  Scales,
-  Surfaces,
-  SurfaceLevel,
-  SurfaceLevelName,
-  SurfaceRoleName,
-  SurfaceScopeName,
-  SurfaceToneName,
-  ShadowName,
-  SyntaxRole,
-  Step,
-} from './contract/roles';
+export { tokens };
+export type { TokenReference } from './tokens';
 
-export {
-  allSurfaceVarNames,
-  SCALE_NAMES,
-  SHADOW_NAMES,
-  STEPS,
-  SURFACE_LEVELS,
-  SURFACE_ROLES,
-  SURFACE_SCOPES,
-  SURFACE_TONES,
-  TONE_SCALE,
-  TONE_SCOPES,
-} from './contract/roles';
-
-export { nsName, nsVar, TOKEN_NAMESPACE } from './contract/namespace';
-export { SEMANTIC_TEMPLATE, SEMANTIC_VARS } from './contract/semantic-template';
-export type { SemanticSlot, SemanticVar } from './contract/semantic-template';
+export type SurfaceLevelName = keyof typeof tokens.surface.level;
+export type SurfaceRoleName = keyof typeof tokens.surface.role;
+export type SurfaceScopeName = SurfaceLevelName | SurfaceRoleName;
+export type SurfaceToneName = keyof typeof tokens.surface.tone;

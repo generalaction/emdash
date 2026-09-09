@@ -292,7 +292,7 @@ export const BrowserPane = observer(function BrowserPane({
           focusUrlRef.current = focus;
         }}
       />
-      <div className="emlight min-h-0 flex-1 bg-background">
+      <div className="min-h-0 flex-1 bg-background">
         {loadError && loadErrorPresentation ? (
           <BrowserLoadErrorView
             url={loadErrorUrl}

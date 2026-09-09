@@ -170,6 +170,30 @@ describe('@emdash/ui aggregate stylesheet build', () => {
     );
   }, 30_000);
 
+  it('publishes Vanilla Extract-typed StyleRule declarations', () => {
+    execFileSync(
+      process.execPath,
+      [
+        require.resolve('typescript/bin/tsc'),
+        '--ignoreConfig',
+        '--noEmit',
+        '--strict',
+        '--skipLibCheck',
+        '--target',
+        'ES2022',
+        '--module',
+        'ESNext',
+        '--moduleResolution',
+        'bundler',
+        resolve(packageRoot, 'test-fixtures/public-style-rule.ts'),
+      ],
+      {
+        cwd: packageRoot,
+        stdio: 'pipe',
+      }
+    );
+  }, 30_000);
+
   it('publishes the semantic field-control Recipe through built declarations', () => {
     execFileSync(
       process.execPath,
@@ -348,6 +372,7 @@ describe('@emdash/ui aggregate stylesheet build', () => {
     expect(layerContains(css, 'emdash.utilities', 'display:inline-flex')).toBe(true);
     expect(layerContains(css, 'emdash.utilities', '.text-shimmer{')).toBe(true);
     expect(layerContains(css, 'emdash.utilities', '.scroll-fade__viewport{')).toBe(true);
+    expect(layerContains(css, 'emdash.utilities', '@property --_scroll-fade-top')).toBe(true);
   });
 
   it('places representative primitive styles and recipes in the recipe layer', () => {

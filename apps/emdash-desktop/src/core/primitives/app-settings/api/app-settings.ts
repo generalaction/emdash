@@ -1,6 +1,7 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import type { BrowserProfile, BrowserProfileSelection } from '@core/primitives/browser/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
+import type { ThemeProfileSelection } from '@core/primitives/theme/api/theme-profile-selection';
 
 export type LocalProjectSettings = {
   defaultProjectsDirectory: string;
@@ -46,7 +47,7 @@ export type TerminalSettings = {
   defaultShell: TerminalShellId;
 };
 
-export type Theme = 'emlight' | 'emdark' | null;
+export type Theme = ThemeProfileSelection;
 
 export type InterfaceSettings = {
   taskHoverAction: 'delete' | 'archive';

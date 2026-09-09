@@ -49,7 +49,6 @@ type Props = {
   /** Remote terminals are served by workspace-server runtimes and are not supported here yet. */
   remoteConnectionId?: string;
   workspaceId: string;
-  themeOverride?: SessionTheme['override'];
   /** Overrides only the bottom of xterm's otherwise uniform internal padding. */
   paddingBottom?: number;
   onActivity?: () => void;
@@ -138,7 +137,6 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       readOnly = false,
       remoteConnectionId,
       workspaceId,
-      themeOverride,
       paddingBottom,
       onActivity,
       onFirstMessage,
@@ -168,7 +166,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
     const lastDomImagePasteAtRef = useRef(0);
     const lastSystemPasteAtRef = useRef(0);
 
-    const theme: SessionTheme = { override: themeOverride, paddingBottom };
+    const theme: SessionTheme = { paddingBottom };
 
     const handleSystemPaste = useCallback<PasteFromClipboardHandler>(
       ({ focus, sendInput }) => {
@@ -352,13 +350,13 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
           height: '100%',
           minHeight: 0,
           boxSizing: 'border-box',
-          backgroundColor: themeOverride?.background ?? 'var(--em-surface)',
+          backgroundColor: 'var(--em-surface)',
         }}
       >
         <div
           ref={setContainerRef}
           data-terminal-container
-          className={cn(themeOverride?.background ? '' : 'bg-(--em-surface)')}
+          className="bg-(--em-surface)"
           style={{
             width: '100%',
             height: '100%',

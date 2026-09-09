@@ -4,7 +4,9 @@ import {
   findCssCompatibilityProblems,
   findForbiddenThemeProductPaths,
   findHostEntrypointProblems,
+  findHostLoaderProblems,
   findIntegrationCoverageGaps,
+  findProductSemanticUtilityConsumers,
   findProfileParityMismatches,
   findTailwindAliasProblems,
 } from './convergence.mjs';
@@ -22,6 +24,18 @@ if (config.hostEntrypoints.active) {
     const source = fs.readFileSync(path.join(repoRoot, entry.entry), 'utf8');
     for (const problem of findHostEntrypointProblems(source, entry.hostStylesheet)) {
       failures.push(`host entrypoint ${entry.name}: ${problem}`);
+    }
+    if (entry.loader || entry.loaderSpecifier) {
+      if (!entry.loader || !entry.loaderSpecifier) {
+        failures.push(
+          `host entrypoint ${entry.name}: loader and loaderSpecifier must be configured together`
+        );
+        continue;
+      }
+      const loaderSource = fs.readFileSync(path.join(repoRoot, entry.loader), 'utf8');
+      for (const problem of findHostLoaderProblems(loaderSource, entry.loaderSpecifier)) {
+        failures.push(`host entrypoint ${entry.name}: ${problem}`);
+      }
     }
   }
 }
@@ -92,6 +106,21 @@ if (config.themeProductPathRemoval.active) {
     config.themeProductPathRemoval.forbiddenPaths
   )) {
     failures.push(`Theme product path remains: ${tokenPath}`);
+  }
+}
+
+if (config.productRecipeConvergence.active) {
+  const sources = Object.fromEntries(
+    config.productRecipeConvergence.consumerFiles.map((relativePath) => [
+      relativePath,
+      fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'),
+    ])
+  );
+  for (const consumer of findProductSemanticUtilityConsumers(
+    sources,
+    config.productRecipeConvergence.forbiddenUtilityPattern
+  )) {
+    failures.push(`Product semantic utility consumer remains: ${consumer}`);
   }
 }
 

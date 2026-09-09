@@ -1,8 +1,10 @@
+import { automationsHostStylesContribution } from '@core/features/automations/contributions/host-styles';
 import { conversationsHostStylesContribution } from '@core/features/conversations/contributions/host-styles';
 import { editorHostStylesContribution } from '@core/features/editor/contributions/host-styles';
 import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { tasksHostStylesContribution } from '@core/features/tasks/contributions/host-styles';
 import { terminalsHostStylesContribution } from '@core/features/terminals/contributions/host-styles';
+import { workspacesHostStylesContribution } from '@core/features/workspaces/contributions/host-styles';
 import {
   DESKTOP_HOST_ROOT_ATTRIBUTE,
   desktopHostRootMarker,
@@ -10,12 +12,14 @@ import {
 import { pullRequestsHostStylesContribution } from '@core/services/pull-requests/contributions/host-styles';
 
 export const desktopHostStyleContributions = [
+  automationsHostStylesContribution,
   conversationsHostStylesContribution,
   editorHostStylesContribution,
   pullRequestsHostStylesContribution,
   sourceControlHostStylesContribution,
   tasksHostStylesContribution,
   terminalsHostStylesContribution,
+  workspacesHostStylesContribution,
 ] as const;
 
 export const desktopHostRootClassNames = [

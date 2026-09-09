@@ -1,5 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { COLOR_SCHEME_MANIFEST } from '@emdash/theme/profiles';
+import {
+  COLOR_SCHEME_MANIFEST,
+  DENSITY_MANIFEST,
+  TYPOGRAPHY_MANIFEST,
+} from '@emdash/theme/profiles';
 import { describe, expect, it } from 'vitest';
 // This convergence test reads generated files from disk, so it lives in the
 // node surface even though the constants under test are browser code.
@@ -31,5 +35,23 @@ describe('theme class-name convergence with @emdash/theme', () => {
     expect(html).toContain(`'${THEME_CLASS_LIGHT}'`);
     expect(html).toContain(`'${THEME_CLASS_DARK}'`);
     expect(html).toContain(`localStorage.getItem('${THEME_STORAGE_KEY}')`);
+  });
+
+  it('keeps profile classes out of browser-pane runtime class writers', () => {
+    const source = readFileSync(
+      new URL('../../../features/browser/browser/browser-pane.tsx', import.meta.url),
+      'utf8'
+    );
+    const profileClasses = [
+      ...COLOR_SCHEME_MANIFEST,
+      ...DENSITY_MANIFEST,
+      ...TYPOGRAPHY_MANIFEST,
+    ].map(({ selector }) => selector.slice(1));
+
+    for (const profileClass of profileClasses) {
+      expect(source).not.toMatch(
+        new RegExp(`className=(?:\\\\?["'\`])[^"'\\\`]*\\b${profileClass}\\b`)
+      );
+    }
   });
 });

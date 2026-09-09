@@ -1,10 +1,4 @@
-import {
-  SURFACE_LEVELS,
-  SURFACE_ROLES,
-  SURFACE_SCOPES,
-  SURFACE_TONES,
-  tokens,
-} from '@emdash/theme';
+import { tokens } from '@emdash/theme';
 import type { SurfaceLevelName, SurfaceScopeName, SurfaceToneName } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx, sx } from '@styles/index';
@@ -28,6 +22,11 @@ const meta: Meta = {
 
 export default meta;
 type Story = StoryObj;
+
+const SURFACE_LEVELS = Object.keys(tokens.surface.level) as SurfaceLevelName[];
+const SURFACE_ROLES = Object.keys(tokens.surface.role) as SurfaceScopeName[];
+const SURFACE_SCOPES = [...SURFACE_LEVELS, ...SURFACE_ROLES];
+const SURFACE_TONES = Object.keys(tokens.surface.tone) as SurfaceToneName[];
 
 function surfaceScopeTokens(scope: SurfaceScopeName) {
   return scope === 'paper' ? tokens.surface.role.paper : tokens.surface.level[scope];

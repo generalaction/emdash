@@ -1,17 +1,35 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const workspaceRoot = resolve(packageRoot, '../..');
 const packageJson = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')) as {
   exports: Record<string, unknown>;
 };
 
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === 'dist' || entry.name === 'node_modules') return [];
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.(?:[cm]?[jt]sx?)$/.test(entry.name) ? [path] : [];
+  });
+}
+
 describe('built @emdash/theme package', () => {
   it('exports built root/profile modules and generated styles without source conditions', () => {
+    expect(Object.keys(packageJson.exports)).toEqual([
+      '.',
+      './profiles',
+      './runtime',
+      './styles.css',
+      './shiki-themes',
+      './package.json',
+    ]);
     expect(packageJson.exports['.']).toEqual({
       types: './dist/index.d.mts',
       default: './dist/index.mjs',
@@ -29,8 +47,107 @@ describe('built @emdash/theme package', () => {
 
     expect(packageJson.exports).not.toHaveProperty('./manifest');
     expect(packageJson.exports).not.toHaveProperty('./densities');
+    expect(packageJson.exports).not.toHaveProperty('./compiler');
+    expect(packageJson.exports).not.toHaveProperty('./internal');
     expect(packageJson.exports).not.toHaveProperty('./theme.css');
     expect(packageJson.exports).not.toHaveProperty('./semantic.css');
+  });
+
+  it('limits the root entry to literal Tokens and narrow authoring types', async () => {
+    const rootEntry = '@emdash/theme';
+    const root = await import(rootEntry);
+    const rootDeclaration = readFileSync(resolve(packageRoot, 'dist/index.d.mts'), 'utf8');
+    const declarationExports = [...rootDeclaration.matchAll(/export\s*\{([^}]*)\};/gs)]
+      .flatMap((match) => match[1].split(','))
+      .map((specifier) => specifier.trim().replace(/^type\s+/, ''))
+      .filter(Boolean)
+      .sort();
+
+    expect(Object.keys(root)).toEqual(['tokens']);
+    expect(declarationExports).toEqual(
+      [
+        'tokens',
+        'TokenReference',
+        'SurfaceLevelName',
+        'SurfaceRoleName',
+        'SurfaceScopeName',
+        'SurfaceToneName',
+      ].sort()
+    );
+    for (const internalName of [
+      'Tokens',
+      'ScaleName',
+      'ThemeInput',
+      'DensityInput',
+      'ProfileDefinition',
+      'defineTheme',
+      'defineDensity',
+      'compileProfile',
+      'compileBaseTokenValues',
+      'nsName',
+      'nsVar',
+      'TOKEN_NAMESPACE',
+      'SEMANTIC_TEMPLATE',
+      'SEMANTIC_VARS',
+      'SCALE_NAMES',
+      'STEPS',
+      'SURFACE_LEVELS',
+      'SURFACE_ROLES',
+      'SURFACE_SCOPES',
+      'SURFACE_TONES',
+      'TONE_SCALE',
+      'TONE_SCOPES',
+      'allSurfaceVarNames',
+    ]) {
+      expect(rootDeclaration).not.toMatch(new RegExp(`\\b${internalName}\\b`));
+    }
+    for (const authoringType of [
+      'SurfaceLevelName',
+      'SurfaceRoleName',
+      'SurfaceScopeName',
+      'SurfaceToneName',
+      'TokenReference',
+    ]) {
+      expect(rootDeclaration).toMatch(new RegExp(`\\b${authoringType}\\b`));
+    }
+  });
+
+  it('keeps workspace root imports within the authoring surface', () => {
+    const allowedRootImports = new Set([
+      'tokens',
+      'SurfaceLevelName',
+      'SurfaceRoleName',
+      'SurfaceScopeName',
+      'SurfaceToneName',
+      'TokenReference',
+    ]);
+    const importedNames = new Set<string>();
+
+    for (const directory of ['apps', 'packages'].map((name) => resolve(workspaceRoot, name))) {
+      for (const file of sourceFiles(directory)) {
+        const source = readFileSync(file, 'utf8');
+        for (const match of source.matchAll(
+          /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]@emdash\/theme['"]/gs
+        )) {
+          for (const specifier of match[1].split(',')) {
+            const importedName = specifier
+              .trim()
+              .replace(/^type\s+/, '')
+              .split(/\s+as\s+/)[0];
+            if (importedName) importedNames.add(importedName);
+          }
+        }
+      }
+    }
+
+    expect([...importedNames].sort()).toEqual([...allowedRootImports].sort());
+
+    const internalBarrelImports = sourceFiles(resolve(packageRoot, 'src'))
+      .filter((file) => file !== resolve(packageRoot, 'src/core/index.ts'))
+      .filter((file) =>
+        /from\s+['"](?:\.\/index|\.\.\/core\/index)['"]/.test(readFileSync(file, 'utf8'))
+      );
+    expect(internalBarrelImports).toEqual([]);
   });
 
   it('keeps the literal Token tree and profile ids navigable through built declarations', () => {

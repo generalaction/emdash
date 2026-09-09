@@ -62,7 +62,10 @@ describe('Modal Escape routing', () => {
     detachKeybindings = dispatcher.attach(window);
     await act(async () => {
       root.render(
-        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+        <ThemeProvider
+          theme={{ colorScheme: 'light', density: 'comfortable', typography: 'default' }}
+          onThemeChange={vi.fn()}
+        >
           <ModalRenderer />
         </ThemeProvider>
       );

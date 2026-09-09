@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@core/primitives/theme/browser', () => ({
-  useTheme: () => ({ effectiveTheme: 'emlight' }),
+  useTheme: () => ({ resolvedTheme: { colorScheme: { polarity: 'light' } } }),
 }));
 
 import { PluginIcon } from './plugin-icon';

@@ -13,6 +13,7 @@ import {
 import { HtmlContentRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
 import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
@@ -34,6 +35,8 @@ import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { ImageDiffView } from './image-diff-view';
 import { useDiffFacets } from './use-diff-facets';
+
+const { monacoDiffAdapterClassName } = sourceControlHostStylesContribution.exports;
 
 interface DiffFileRendererProps {
   tab: DiffTabResource;
@@ -136,7 +139,7 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
   }
 
   return (
-    <div className="file-diff-view flex h-full flex-col">
+    <div className={`file-diff-view flex h-full flex-col ${monacoDiffAdapterClassName}`}>
       <div className="relative min-h-0 flex-1">
         <StickyDiffEditor
           original={sides.original}

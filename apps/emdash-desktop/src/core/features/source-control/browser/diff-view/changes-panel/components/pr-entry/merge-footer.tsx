@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { pullRequestsHostStylesContribution } from '@core/services/pull-requests/contributions/host-styles';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
 
 /** A selectable action for the merge split button: label plus its own callback. */
@@ -21,13 +22,18 @@ export type MergeAction = {
 };
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
-  success: { icon: CheckCircle2, iconClass: 'text-foreground-success' },
-  warning: { icon: AlertTriangle, iconClass: 'text-foreground-warning' },
-  error: { icon: XCircle, iconClass: 'text-foreground-error' },
-  neutral: { icon: HelpCircle, iconClass: 'text-foreground-passive' },
+  success: { icon: CheckCircle2, state: 'ready' },
+  warning: { icon: AlertTriangle, state: 'attention' },
+  error: { icon: XCircle, state: 'blocked' },
+  neutral: { icon: HelpCircle, state: 'inactive' },
 };
 
-type SeverityConfig = { icon: LucideIcon; iconClass: string };
+type SeverityConfig = {
+  icon: LucideIcon;
+  state: 'attention' | 'blocked' | 'inactive' | 'ready';
+};
+
+const { pullRequestState } = pullRequestsHostStylesContribution.exports;
 
 export function MergeFooter({
   uiState,
@@ -51,7 +57,7 @@ export function MergeFooter({
   const mergeDisabled =
     !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
   const bypassEnabled = uiState.canBypassRequirements && bypassRequirements;
-  const { icon: MergeStatusIcon, iconClass } =
+  const { icon: MergeStatusIcon, state } =
     severityConfig[bypassEnabled ? 'warning' : uiState.severity];
   const mergeStatusTitle = bypassEnabled ? 'Bypass requirements enabled' : uiState.title;
 
@@ -59,7 +65,7 @@ export function MergeFooter({
     <div className="flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2.5">
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <MergeStatusIcon className={cn('size-4 shrink-0', iconClass)} />
+          <MergeStatusIcon className={cn('size-4 shrink-0', pullRequestState({ state }))} />
           <p className="truncate text-sm leading-tight text-foreground">{mergeStatusTitle}</p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -96,7 +102,12 @@ export function MergeFooter({
         </div>
       </div>
       {uiState.canBypassRequirements && (
-        <label className="flex cursor-pointer items-start gap-2 text-xs leading-snug text-foreground-error">
+        <label
+          className={cn(
+            'flex cursor-pointer items-start gap-2 text-xs leading-snug',
+            pullRequestState({ state: 'blocked' })
+          )}
+        >
           <Checkbox
             className="mt-px"
             checked={bypassRequirements}

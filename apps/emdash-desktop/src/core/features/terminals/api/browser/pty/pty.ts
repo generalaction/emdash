@@ -29,7 +29,6 @@ export const TERMINAL_LETTER_SPACING = 0;
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
-  override?: ITerminalOptions['theme'];
   /** Optional per-mount bottom inset; other sides retain the standard terminal padding. */
   paddingBottom?: number;
 }
@@ -40,8 +39,7 @@ export type FrontendPtyConnector = {
   resize?(cols: number, rows: number): void;
 };
 
-export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermTheme(), ...theme.override };
+export function buildTheme(): ITerminalOptions['theme'] {
   return readXtermTheme();
 }
 
@@ -112,7 +110,7 @@ export class FrontendPty {
           });
         },
       },
-      theme: buildTheme(theme),
+      theme: buildTheme(),
     });
 
     // Keep xterm on its DOM renderer: CanvasAddon repaints the full canvas on resize,
@@ -161,12 +159,12 @@ export class FrontendPty {
 
   setTheme(theme?: SessionTheme): void {
     this.theme = theme;
-    this.terminal.options.theme = buildTheme(theme);
+    this.terminal.options.theme = buildTheme();
     this.applyElementTheme(theme);
   }
 
   refreshTheme(): void {
-    this.terminal.options.theme = buildTheme(this.theme);
+    this.terminal.options.theme = buildTheme();
     this.applyElementTheme(this.theme);
   }
 
@@ -174,8 +172,7 @@ export class FrontendPty {
     const element = this.terminal.element;
     if (!element) return;
     element.style.paddingBottom = `${theme?.paddingBottom ?? TERMINAL_PADDING_PX}px`;
-    element.style.backgroundColor =
-      theme?.override?.background ?? this.terminal.options.theme?.background ?? '';
+    element.style.backgroundColor = this.terminal.options.theme?.background ?? '';
   }
 
   clear(): void {

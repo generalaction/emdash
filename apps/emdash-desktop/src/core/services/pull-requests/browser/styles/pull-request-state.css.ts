@@ -34,6 +34,34 @@ export const pullRequestState = hostRecipe({
           },
         },
       },
+      ready: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.feedback.success.foreground,
+          },
+        },
+      },
+      attention: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.feedback.warning.foreground,
+          },
+        },
+      },
+      blocked: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.feedback.error.foreground,
+          },
+        },
+      },
+      inactive: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.foreground.muted,
+          },
+        },
+      },
     },
   },
 });

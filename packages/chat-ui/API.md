@@ -5,13 +5,14 @@ virtualizes long conversations, renders markdown/code/diffs/tool calls, and
 exposes three primitives modeled on the CodeMirror `EditorState`/`EditorView`
 split for fine-grained lifecycle control.
 
-The package ships a single entry point:
+The package ships its runtime plus a styling-contract subpath:
 
 - `@emdash/chat-ui` — the three factory functions `createChatContext`,
   `createChatState`, and `createChatView`.
+- `@emdash/chat-ui/host-styles` — the typed `--chat-*` host property boundary.
 
-The React wrapper (`ChatTranscript`) and typed Host Styling Adapter now live in
-`@emdash/ui/react/chat-ui`. See that package for React integration docs.
+The React wrapper (`ChatTranscript`) lives in `@emdash/ui/react/chat-ui`. Each
+application host owns the mapping from `chatHostProperties` to its Theme Tokens.
 
 Everything below is the supported surface. Internals (components, layout
 engine, stores) are not exported and may change without notice.

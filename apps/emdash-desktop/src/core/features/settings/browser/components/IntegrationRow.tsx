@@ -83,8 +83,8 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   showStatusPill = true,
   installCommand,
 }) => {
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme.colorScheme.polarity === 'dark';
   const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
   const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';

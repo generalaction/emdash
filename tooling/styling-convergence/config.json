@@ -9,13 +9,17 @@
       },
       {
         "name": "desktop-browser-tests",
-        "entry": "apps/emdash-desktop/tooling/vitest/setup-browser-styles.ts",
-        "hostStylesheet": "@renderer/index.css"
+        "entry": "apps/emdash-desktop/src/renderer/styles.css",
+        "hostStylesheet": "./index.css",
+        "loader": "apps/emdash-desktop/tooling/vitest/setup-browser-styles.ts",
+        "loaderSpecifier": "@renderer/styles.css"
       },
       {
         "name": "ui-storybook",
-        "entry": "packages/ui/.storybook/preview.tsx",
-        "hostStylesheet": "./host.css"
+        "entry": "packages/ui/.storybook/styles.css",
+        "hostStylesheet": "./host.css",
+        "loader": "packages/ui/.storybook/preview.tsx",
+        "loaderSpecifier": "./styles.css"
       }
     ]
   },
@@ -90,6 +94,29 @@
       "workflow.inReview",
       "workflow.todo"
     ]
+  },
+  "productRecipeConvergence": {
+    "active": true,
+    "consumerFiles": [
+      "apps/emdash-desktop/src/core/features/automations/browser/components/AutomationRow.tsx",
+      "apps/emdash-desktop/src/core/features/automations/browser/components/RunStatusBadge.tsx",
+      "apps/emdash-desktop/src/core/features/projects/browser/components/pr-view/pr-row.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/changes-list-item.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/commit-card.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/checks-list.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/merge-footer.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-input.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-widget.tsx",
+      "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/stacked-diff-view.tsx",
+      "apps/emdash-desktop/src/core/features/tasks/browser/components/issue-selector/issue-status-indicator.tsx",
+      "apps/emdash-desktop/src/core/features/tasks/browser/task-config/existing-workspace-picker.tsx",
+      "apps/emdash-desktop/src/core/features/tasks/browser/task-titlebar.tsx",
+      "apps/emdash-desktop/src/core/features/tasks/contributions/browser/task-git-diff-stats.tsx",
+      "apps/emdash-desktop/src/core/features/workspaces/contributions/browser/git-stats-cell.tsx",
+      "apps/emdash-desktop/src/core/features/workspaces/contributions/browser/repository-header.tsx",
+      "apps/emdash-desktop/src/core/services/pull-requests/browser/components/pr-status-icon.tsx"
+    ],
+    "forbiddenUtilityPattern": "\\b(?:text|bg|border|fill)-(?:foreground-(?:conflict|destructive|diff-added|diff-deleted|diff-modified|error|info|merged|success|warning)|background-(?:error|info|success|warning)|border-(?:error|info|success|warning)|status-(?:done|in-progress|in-review)(?:-hover)?|(?:amber|green|orange|purple|red|yellow)-\\d+)\\b"
   },
   "tailwindAliasConvergence": {
     "active": true,

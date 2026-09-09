@@ -2,7 +2,6 @@
 @import 'tailwindcss/preflight.css' layer(emdash.reset);
 @import 'tailwindcss/utilities.css' layer(emdash.host);
 /* Tailwind directives must stay top-level; generated utilities land at the host insertion point. */
-@import 'tw-animate-css';
 @import '../core/primitives/styling/browser/tailwind-color-targets.css' layer(emdash.host);
 
 @source '../core';
@@ -30,54 +29,6 @@
   #root {
     height: 100%;
     overflow: hidden;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  ::selection {
-    background-color: color-mix(in srgb, var(--em-selection) 35%, transparent);
-    color: var(--em-selection-foreground);
-  }
-
-  ::-moz-selection {
-    background-color: color-mix(in srgb, var(--em-selection) 35%, transparent);
-    color: var(--em-selection-foreground);
-  }
-
-  * {
-    @apply border-border;
-    scrollbar-width: thin;
-    scrollbar-color: var(--em-border) transparent;
-  }
-
-  *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background-color: var(--em-border);
-    border: 2px solid transparent;
-    border-radius: 4px;
-    background-clip: content-box;
-  }
-
-  /* Hide xterm viewport scrollbars in embedded terminals. */
-  .xterm .xterm-viewport {
-    background-color: transparent !important;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .xterm .xterm-viewport::-webkit-scrollbar {
-    width: 0 !important;
-    height: 0 !important;
   }
 
   .logo-shimmer-container {
@@ -145,117 +96,5 @@
       opacity: 0;
       animation: none;
     }
-  }
-
-  /* Diff decorations for Monaco editor gutter and line highlights. */
-  .diff-glyph-added::before,
-  .diff-glyph-modified::before,
-  .diff-glyph-deleted::before {
-    position: absolute;
-    left: 3px;
-    width: 3px;
-    height: 100%;
-    content: '';
-    border-radius: 1px;
-  }
-
-  .diff-glyph-added::before {
-    background-color: var(--diff-added);
-  }
-
-  .diff-glyph-modified::before {
-    background-color: var(--diff-modified);
-  }
-
-  .diff-glyph-deleted::before {
-    background-color: var(--diff-deleted);
-  }
-
-  .diff-glyph-added:hover::before,
-  .diff-glyph-modified:hover::before,
-  .diff-glyph-deleted:hover::before {
-    left: 2px;
-    width: 4px;
-    transition:
-      width 0.1s ease-in-out,
-      left 0.1s ease-in-out;
-  }
-
-  .diff-line-added {
-    background-color: var(--diff-added-bg);
-  }
-
-  .diff-line-modified {
-    background-color: var(--diff-modified-bg);
-  }
-
-  .diff-line-deleted {
-    background-color: var(--diff-deleted-bg);
-  }
-
-  /* Monaco diff comment UI. */
-  .file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
-    width: 20px !important;
-  }
-
-  .file-diff-view .monaco-editor .margin {
-    background-color: transparent !important;
-  }
-
-  .file-diff-view .comment-hover-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    margin: 1px auto;
-    pointer-events: auto;
-    cursor: pointer;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    transition:
-      background-color 0.15s ease,
-      border-color 0.15s ease;
-  }
-
-  .file-diff-view .comment-hover-icon::before {
-    display: block;
-    width: 12px;
-    height: 12px;
-    color: var(--em-foreground-muted);
-    content: '';
-    background-color: currentColor;
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
-    mask-repeat: no-repeat;
-    mask-position: center;
-    mask-size: contain;
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
-    -webkit-mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    -webkit-mask-size: contain;
-  }
-
-  .file-diff-view .comment-hover-icon:hover,
-  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
-    background-color: var(--em-surface-hover);
-    border-color: var(--em-border);
-  }
-
-  .file-diff-view .comment-hover-icon:hover::before,
-  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
-    color: var(--em-foreground);
-  }
-
-  .file-diff-view .monaco-editor .glyph-margin > div {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
-
-  .file-diff-view .monaco-editor .view-zones,
-  .file-diff-view .monaco-editor .view-zone,
-  .file-diff-view .comment-view-zone {
-    pointer-events: auto !important;
   }
 }

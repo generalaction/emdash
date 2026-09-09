@@ -36,10 +36,18 @@ describe('full Theme runtime', () => {
   it('publishes serializable pre-paint class data for every profile dimension', () => {
     expect(THEME_PREPAINT_CLASS_DATA).toEqual({
       colorSchemes: [
-        { id: 'light', className: 'emlight' },
-        { id: 'dark', className: 'emdark' },
-        { id: 'solarized-light', className: 'emsolarized-light' },
-        { id: 'solarized-dark', className: 'emsolarized-dark' },
+        { id: 'light', polarity: 'light', className: 'emlight' },
+        { id: 'dark', polarity: 'dark', className: 'emdark' },
+        {
+          id: 'solarized-light',
+          polarity: 'light',
+          className: 'emsolarized-light',
+        },
+        {
+          id: 'solarized-dark',
+          polarity: 'dark',
+          className: 'emsolarized-dark',
+        },
       ],
       densities: [
         { id: 'comfortable', className: 'density-comfortable' },

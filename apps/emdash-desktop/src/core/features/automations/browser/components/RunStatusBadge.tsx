@@ -4,6 +4,7 @@ import type {
   AutomationRun,
   AutomationRunStatus,
 } from '@core/features/automations/api/automation-run';
+import { automationsHostStylesContribution } from '@core/features/automations/contributions/host-styles';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { formatRunError } from '../automation-run-format';
 
@@ -12,7 +13,7 @@ interface RunStatusBadgeProps {
   error: AutomationRun['error'];
 }
 
-const BASE = 'flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs';
+const { automationRunBadge } = automationsHostStylesContribution.exports;
 
 const PROGRESS_LABELS: Partial<Record<AutomationRunStatus, string>> = {
   provisioning_workspace: 'Preparing workspace',
@@ -24,7 +25,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
 
   if (status === 'done') {
     return (
-      <span className={cn(BASE, 'bg-background-success text-foreground-success')}>
+      <span className={automationRunBadge({ status: 'done' })}>
         <CheckCircle2 className="size-3" />
         Agent started
       </span>
@@ -33,7 +34,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
 
   if (status === 'failed') {
     const badge = (
-      <span className={cn(BASE, 'bg-destructive/10 text-destructive')}>
+      <span className={automationRunBadge({ status: 'failed' })}>
         <XCircle className="size-3" />
         Failed
       </span>
@@ -43,7 +44,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
       <Tooltip.Root>
         <Tooltip.Trigger
           render={
-            <span className={cn(BASE, 'bg-destructive/10 text-destructive cursor-default')} />
+            <span className={cn(automationRunBadge({ status: 'failed' }), 'cursor-default')} />
           }
         >
           <XCircle className="size-3" />
@@ -56,7 +57,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
 
   if (status === 'queued') {
     return (
-      <span className={cn(BASE, 'bg-background-info text-foreground-info')}>
+      <span className={automationRunBadge({ status: 'queued' })}>
         <Clock className="size-3" />
         Queued
       </span>
@@ -65,7 +66,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
 
   if (status === 'skipped' || status === 'cancelled') {
     return (
-      <span className={cn(BASE, 'bg-background-3 text-muted-foreground')}>
+      <span className={automationRunBadge({ status })}>
         <MinusCircle className="size-3" />
         {status === 'cancelled' ? 'Cancelled' : 'Skipped'}
       </span>
@@ -76,7 +77,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
   if (!progressLabel) return null;
 
   return (
-    <span className={cn(BASE, 'bg-background-3 text-foreground-muted')}>
+    <span className={automationRunBadge({ status })}>
       <Loader2 className="size-3 animate-spin" />
       {progressLabel}
     </span>

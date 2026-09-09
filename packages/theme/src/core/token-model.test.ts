@@ -8,10 +8,10 @@ import {
 import {
   compileProfile,
   defineTypographyProfile,
-  SEMANTIC_TEMPLATE,
-  tokens,
   type TypographyProfileDefinition,
-} from './index';
+} from './compiler';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template';
+import { tokens } from './tokens';
 
 const typographyValues = {
   'typography.family.sans': "'Inter Variable', sans-serif",

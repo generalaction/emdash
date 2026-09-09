@@ -46,8 +46,8 @@ export function HomeMainPanel() {
       void openAddProjectModal(PROJECT_ACTIONS[index].modalArgs);
     }
   );
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme.colorScheme.polarity === 'dark';
 
   return (
     <motion.div

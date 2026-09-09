@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { xtermThemeIntegration } from '@core/features/terminals/browser/pty/xterm-theme-integration';
 import { setXtermThemeFixture } from './xterm-theme-fixture';
 
 async function getPtyModule() {
@@ -115,5 +116,27 @@ describe('FrontendPty xterm host', () => {
     expect(openCall.parent?.parentElement).toBe(host);
     expect(dims?.css.cell.width).toBeGreaterThan(0);
     expect(dims?.css.cell.height).toBeGreaterThan(0);
+  });
+
+  it('re-reads the typed manifest on every Theme refresh', async () => {
+    const { FrontendPty } = await getPtyModule();
+    const frontendPty = new FrontendPty(
+      'test-session',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
+
+    expect(frontendPty.terminal.options.theme?.background).toBe('#101010');
+
+    document.documentElement.style.setProperty(
+      xtermThemeIntegration.properties.background,
+      '#202020'
+    );
+    frontendPty.refreshTheme();
+
+    expect(frontendPty.terminal.options.theme?.background).toBe('#202020');
+    expect(frontendPty.terminal.element?.style.backgroundColor).toBe('rgb(32, 32, 32)');
   });
 });

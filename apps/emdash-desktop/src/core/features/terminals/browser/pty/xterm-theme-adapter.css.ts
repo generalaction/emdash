@@ -1,5 +1,18 @@
-import { hostStyle } from '@emdash/ui/styles/host';
+import { hostAdapter } from '@emdash/ui/styles/host';
 import { xtermThemeIntegration } from './xterm-theme-integration';
 
-/** Future desktop-root contribution; intentionally not applied before the atomic cutover. */
-export const xtermThemeIntegrationClass = hostStyle(xtermThemeIntegration.writer);
+/** Desktop-root integration writer and rooted adapter for Xterm-owned viewport DOM. */
+export const xtermThemeIntegrationClass = hostAdapter({
+  root: xtermThemeIntegration.writer,
+  descendants: {
+    '& .xterm .xterm-viewport': {
+      backgroundColor: 'transparent',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
+    },
+    '& .xterm .xterm-viewport::-webkit-scrollbar': {
+      width: 0,
+      height: 0,
+    },
+  },
+});

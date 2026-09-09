@@ -1,10 +1,15 @@
-import { SCALE_NAMES, STEPS, tokens } from '@emdash/theme';
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx, sx } from '@styles/index';
 import React, { useEffect, useRef, useState } from 'react';
 import { StoryThemeScope } from '../story-theme';
 import * as s from '../story-layout.css';
-type ScaleName = (typeof SCALE_NAMES)[number];
+
+type ScaleName = keyof typeof tokens.palette;
+
+const SCALE_NAMES = Object.keys(tokens.palette) as ScaleName[];
+const STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+
 function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   const tokenPath = `tokens.palette.${scale}.step${step}`;
   const tokenReference =

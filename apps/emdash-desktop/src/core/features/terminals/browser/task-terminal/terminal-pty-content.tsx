@@ -7,7 +7,6 @@ import { PaneSizingContextProvider } from '@core/features/terminals/contribution
 import { PtyPane } from '@core/features/terminals/contributions/browser/pty/pty-pane';
 import { TerminalSearchOverlay } from '@core/features/terminals/contributions/browser/pty/terminal-search-overlay';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { cssVar } from '@core/primitives/styling/browser/cssVars';
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,
@@ -153,9 +152,6 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                       pty={activeSession.pty}
                       onFind={openSearch}
                       className="h-full w-full"
-                      themeOverride={{
-                        background: cssVar('--em-surface-paper'),
-                      }}
                       paddingBottom={terminalPaddingBottom}
                       onEnterPress={onEnterPress}
                       onInterruptPress={onInterruptPress}

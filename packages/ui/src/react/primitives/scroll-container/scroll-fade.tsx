@@ -48,7 +48,7 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
   const mergedViewportStyle: React.CSSProperties = {
     height: '100%',
     width: '100%',
-    ...(fadeSize ? ({ '--fade-size': fadeSize } as React.CSSProperties) : {}),
+    ...(fadeSize ? ({ '--_scroll-fade-size': fadeSize } as React.CSSProperties) : {}),
     ...(resolvedPadding ? { padding: resolvedPadding } : {}),
     ...viewportStyle,
   };

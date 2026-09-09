@@ -43,6 +43,13 @@ export const workflowStatus = hostRecipe({
           },
         },
       },
+      linked: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.feedback.info.foreground,
+          },
+        },
+      },
     },
   },
 });

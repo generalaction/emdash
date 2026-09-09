@@ -43,6 +43,13 @@ export const vcsState = hostRecipe({
           },
         },
       },
+      completed: {
+        selectors: {
+          [`${DESKTOP_HOST_ROOT_SELECTOR} &`]: {
+            color: tokens.feedback.success.foreground,
+          },
+        },
+      },
     },
   },
 });

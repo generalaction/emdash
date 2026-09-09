@@ -14,8 +14,8 @@ type PluginIconProps = {
 };
 
 export function PluginIcon({ id, icon, size = 16, className, grayscale }: PluginIconProps) {
-  const { effectiveTheme } = useTheme();
-  const mode = effectiveTheme === 'emdark' ? 'dark' : 'light';
+  const { resolvedTheme } = useTheme();
+  const mode = resolvedTheme.colorScheme.polarity;
   const variant = pickIconVariant(icon.variants, size);
   if (!variant) return null;
 

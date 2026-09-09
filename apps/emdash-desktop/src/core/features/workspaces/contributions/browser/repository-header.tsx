@@ -2,6 +2,7 @@ import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/compon
 import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { useId } from 'react';
+import { workspacesHostStylesContribution } from '@core/features/workspaces/contributions/host-styles';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import type {
   ProjectWorkspaceGitStats,
@@ -10,6 +11,9 @@ import type {
 } from '@core/primitives/workspaces/api';
 import { GitStatsCell } from './git-stats-cell';
 import { PathIssueSummaryPill, RemovalSummaryPill } from './workspace-pills';
+
+const { workspaceRuntimeStatus, workspaceScanWarning, workspaceScanWarningDetail } =
+  workspacesHostStylesContribution.exports;
 
 export function RepositoryHeader({
   project,
@@ -48,7 +52,7 @@ export function RepositoryHeader({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h2 className="truncate text-base font-semibold text-foreground">{project.name}</h2>
               {healthStatus !== 'idle' && (
-                <span className={runtimeStatusPillClass(healthStatus)}>
+                <span className={workspaceRuntimeStatus({ status: healthStatus })}>
                   {runtimeStatusLabel(healthStatus)}
                 </span>
               )}
@@ -133,28 +137,14 @@ function runtimeStatusLabel(status: WorkspaceIconStatus): string {
 function WorkspaceScanWarnings({ warnings }: { warnings: readonly string[] }) {
   if (warnings.length === 0) return null;
   return (
-    <div className="mt-3 flex items-start gap-2 rounded-md border border-border-warning bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+    <div className={workspaceScanWarning({ tone: 'warning' })}>
       <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="font-medium">Workspace scan completed with warnings</div>
-        <div className="truncate text-foreground-warning/80">{warnings.join(' ')}</div>
+        <div className={`truncate ${workspaceScanWarningDetail({ tone: 'warning' })}`}>
+          {warnings.join(' ')}
+        </div>
       </div>
     </div>
   );
-}
-
-function runtimeStatusPillClass(status: WorkspaceIconStatus): string {
-  const base = 'rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase';
-  switch (status) {
-    case 'active':
-      return `${base} border-border-success text-foreground-success`;
-    case 'setting-up':
-      return `${base} border-border-info text-foreground-info`;
-    case 'tearing-down':
-      return `${base} border-border-warning text-foreground-warning`;
-    case 'error':
-      return `${base} border-border-destructive text-foreground-destructive`;
-    case 'idle':
-      return base;
-  }
 }

@@ -10,25 +10,38 @@ import {
   type CheckRunBucket,
 } from '@core/features/github/api/browser/checks';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
+import { cn } from '@core/primitives/styling/browser/cn';
 import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
+import { pullRequestsHostStylesContribution } from '@core/services/pull-requests/contributions/host-styles';
 import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
 
 const EMPTY_COMMENTS: PullRequestComment[] = [];
+const { pullRequestState } = pullRequestsHostStylesContribution.exports;
 
 export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
     case 'pass':
-      return <CheckCircle2 className="size-3.5 shrink-0 text-foreground-success" />;
+      return (
+        <CheckCircle2 className={cn('size-3.5 shrink-0', pullRequestState({ state: 'ready' }))} />
+      );
     case 'fail':
-      return <XCircle className="size-3.5 shrink-0 text-foreground-destructive" />;
+      return (
+        <XCircle className={cn('size-3.5 shrink-0', pullRequestState({ state: 'blocked' }))} />
+      );
     case 'pending':
-      return <Loader2 className="size-3.5 shrink-0 animate-spin text-foreground-warning" />;
+      return (
+        <Loader2
+          className={cn('size-3.5 shrink-0 animate-spin', pullRequestState({ state: 'attention' }))}
+        />
+      );
     case 'skipping':
     case 'cancel':
-      return <MinusCircle className="size-3.5 shrink-0 text-foreground-muted" />;
+      return (
+        <MinusCircle className={cn('size-3.5 shrink-0', pullRequestState({ state: 'inactive' }))} />
+      );
   }
 }
 

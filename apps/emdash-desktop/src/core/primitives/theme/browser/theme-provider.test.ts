@@ -15,6 +15,12 @@ import { ThemeProvider, resolveDesktopTheme, useTheme } from './index';
 const container = document.createElement('div');
 let root: Root;
 
+const defaultTheme: Theme = {
+  colorScheme: null,
+  density: DENSITY_MANIFEST[0]!.id,
+  typography: TYPOGRAPHY_MANIFEST[0]!.id,
+};
+
 function expectedClass(profile: { readonly selector: string }): string {
   return profile.selector.slice(1);
 }
@@ -28,7 +34,7 @@ function ThemeProbe() {
   );
 }
 
-function renderTheme(theme: Theme, isLoading = false): void {
+function renderTheme(theme: Theme | null, isLoading = false): void {
   act(() => {
     root.render(
       createElement(ThemeProvider, {
@@ -63,19 +69,55 @@ afterEach(() => {
 });
 
 describe('active desktop full-profile Theme runtime', () => {
-  it('resolves the desktop profile through public manifests', () => {
-    const resolved = resolveDesktopTheme('emdark');
+  it('resolves every selected profile through public manifests', () => {
+    const resolved = resolveDesktopTheme(
+      {
+        colorScheme: 'solarized-dark',
+        density: 'compact',
+        typography: 'default',
+      },
+      false
+    );
+
+    expect(resolved.colorScheme).toBe(
+      COLOR_SCHEME_MANIFEST.find(({ id }) => id === 'solarized-dark')
+    );
+    expect(resolved.density).toBe(DENSITY_MANIFEST.find(({ id }) => id === 'compact'));
+    expect(resolved.typography).toBe(TYPOGRAPHY_MANIFEST.find(({ id }) => id === 'default'));
+  });
+
+  it('uses the system light/dark Color scheme while preserving selected profiles', () => {
+    const resolved = resolveDesktopTheme(defaultTheme, true);
 
     expect(resolved.colorScheme).toBe(COLOR_SCHEME_MANIFEST.find(({ id }) => id === 'dark'));
+    expect(resolved.density.id).toBe(defaultTheme.density);
+    expect(resolved.typography.id).toBe(defaultTheme.typography);
+  });
+
+  it('falls back unknown persisted profile ids by dimension', () => {
+    const resolved = resolveDesktopTheme(
+      {
+        colorScheme: 'unknown-color',
+        density: 'unknown-density',
+        typography: 'unknown-typography',
+      } as unknown as Theme,
+      false
+    );
+
+    expect(resolved.colorScheme.id).toBe('light');
     expect(resolved.density).toBe(DENSITY_MANIFEST[0]);
     expect(resolved.typography).toBe(TYPOGRAPHY_MANIFEST[0]);
   });
 
   it('uses the controlled provider as the one complete document class writer', () => {
     document.documentElement.classList.add('host-owned');
-    renderTheme('emlight');
+    const lightThemeSelection: Theme = {
+      ...defaultTheme,
+      colorScheme: 'light',
+    };
+    renderTheme(lightThemeSelection);
 
-    const lightTheme = resolveDesktopTheme('emlight');
+    const lightTheme = resolveDesktopTheme(lightThemeSelection, false);
     expect(Array.from(document.documentElement.classList)).toEqual([
       'host-owned',
       ...lightTheme.classNames,
@@ -84,9 +126,14 @@ describe('active desktop full-profile Theme runtime', () => {
       `${lightTheme.colorScheme.id}/${lightTheme.density.id}/${lightTheme.typography.id}`
     );
 
-    renderTheme('emdark');
+    const nextThemeSelection: Theme = {
+      colorScheme: 'solarized-dark',
+      density: 'compact',
+      typography: 'default',
+    };
+    renderTheme(nextThemeSelection);
 
-    const darkTheme = resolveDesktopTheme('emdark');
+    const darkTheme = resolveDesktopTheme(nextThemeSelection, false);
     expect(Array.from(document.documentElement.classList)).toEqual([
       'host-owned',
       ...darkTheme.classNames,
@@ -96,14 +143,22 @@ describe('active desktop full-profile Theme runtime', () => {
     );
   });
 
-  it('preserves the pre-paint Color scheme while persisted settings load', () => {
-    const darkScheme = COLOR_SCHEME_MANIFEST.find(({ id }) => id === 'dark')!;
-    document.documentElement.classList.add(expectedClass(darkScheme));
+  it('preserves every pre-paint profile while persisted settings load', () => {
+    const colorScheme = COLOR_SCHEME_MANIFEST.find(({ id }) => id === 'solarized-light')!;
+    const density = DENSITY_MANIFEST.find(({ id }) => id === 'compact')!;
+    const typography = TYPOGRAPHY_MANIFEST.find(({ id }) => id === 'default')!;
+    document.documentElement.classList.add(
+      expectedClass(colorScheme),
+      expectedClass(density),
+      expectedClass(typography)
+    );
 
     renderTheme(null, true);
 
-    expect(document.documentElement.classList).toContain(expectedClass(darkScheme));
-    expect(document.documentElement.classList).toContain(expectedClass(DENSITY_MANIFEST[0]!));
-    expect(document.documentElement.classList).toContain(expectedClass(TYPOGRAPHY_MANIFEST[0]!));
+    expect(Array.from(document.documentElement.classList)).toEqual([
+      expectedClass(colorScheme),
+      expectedClass(density),
+      expectedClass(typography),
+    ]);
   });
 });

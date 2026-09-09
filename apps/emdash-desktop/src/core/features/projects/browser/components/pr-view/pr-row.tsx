@@ -1,6 +1,7 @@
 import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
@@ -8,6 +9,8 @@ import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requ
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 export const PrRow = memo(function PrRow({
   pr,
@@ -73,8 +76,10 @@ function PrDiffStat({ pr }: { pr: PullRequest }) {
 
   return (
     <span className="shrink-0 text-xs tabular-nums" aria-label="Pull request diff lines">
-      <span className="text-foreground-success">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
-      <span className="text-foreground-error">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
+      <span className={diffLine({ kind: 'added' })}>+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
+      <span className={diffLine({ kind: 'deleted' })}>
+        -{formatDiffLineCount(pr.deletions ?? 0)}
+      </span>
     </span>
   );
 }

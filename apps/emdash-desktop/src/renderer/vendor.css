@@ -3,3 +3,5 @@
 @import 'devicon/devicon.min.css' layer(emdash.vendor);
 @import 'katex/dist/katex.min.css' layer(emdash.vendor);
 @import '@emdash/chat-ui/style.css' layer(emdash.vendor);
+/* Tailwind's @utility directives must remain top-level; generated rules use its host insertion. */
+@import 'tw-animate-css';

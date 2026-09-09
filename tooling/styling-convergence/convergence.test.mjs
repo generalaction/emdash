@@ -6,7 +6,9 @@ import {
   findCssCompatibilityProblems,
   findForbiddenThemeProductPaths,
   findHostEntrypointProblems,
+  findHostLoaderProblems,
   findIntegrationCoverageGaps,
+  findProductSemanticUtilityConsumers,
   findProfileParityMismatches,
   findTailwindAliasProblems,
 } from './convergence.mjs';
@@ -21,14 +23,32 @@ test('every atomic-cutover convergence check is active', () => {
       hostEntrypoints: true,
       profileParity: true,
       integrationManifestCoverage: true,
+      productRecipeConvergence: true,
       themeProductPathRemoval: true,
       tailwindAliasConvergence: true,
     }
   );
-  assert.deepEqual(
-    config.hostEntrypoints.entries.map((entry) => entry.name),
-    ['desktop', 'desktop-browser-tests', 'ui-storybook']
-  );
+  assert.deepEqual(config.hostEntrypoints.entries, [
+    {
+      name: 'desktop',
+      entry: 'apps/emdash-desktop/src/renderer/styles.css',
+      hostStylesheet: './index.css',
+    },
+    {
+      name: 'desktop-browser-tests',
+      entry: 'apps/emdash-desktop/src/renderer/styles.css',
+      hostStylesheet: './index.css',
+      loader: 'apps/emdash-desktop/tooling/vitest/setup-browser-styles.ts',
+      loaderSpecifier: '@renderer/styles.css',
+    },
+    {
+      name: 'ui-storybook',
+      entry: 'packages/ui/.storybook/styles.css',
+      hostStylesheet: './host.css',
+      loader: 'packages/ui/.storybook/preview.tsx',
+      loaderSpecifier: './styles.css',
+    },
+  ]);
 });
 
 test('host entrypoint convergence requires one UI stylesheet before host CSS', () => {
@@ -74,6 +94,29 @@ test('host entrypoint convergence requires one UI stylesheet before host CSS', (
       './index.css'
     ),
     []
+  );
+});
+
+test('host loader convergence routes TypeScript through one plain-CSS host entry', () => {
+  assert.deepEqual(
+    findHostLoaderProblems(
+      ["import { render } from './render';", "import './styles.css';"].join('\n'),
+      './styles.css'
+    ),
+    []
+  );
+  assert.deepEqual(
+    findHostLoaderProblems(
+      ["import '@emdash/ui/styles.css';", "import './vendor.css';", "import './host.css';"].join(
+        '\n'
+      ),
+      './styles.css'
+    ),
+    [
+      'expected exactly one plain-CSS host entry import ./styles.css, found 0',
+      'TypeScript host loader must not import @emdash/ui/styles.css directly',
+      'TypeScript host loader has additional CSS imports: ./host.css, ./vendor.css',
+    ]
   );
 });
 
@@ -210,5 +253,20 @@ test('Tailwind alias convergence rejects noncanonical and duplicate targets', ()
       '--color-background: noncanonical value var(--background)',
       '--color-foreground: noncanonical value #fff',
     ]
+  );
+});
+
+test('product Recipe convergence reports generic semantic utility consumers', () => {
+  assert.deepEqual(
+    findProductSemanticUtilityConsumers(
+      {
+        'stacked-diff.tsx':
+          '<span className="text-foreground-success">+1</span><span className={diffLine()}>-1</span>',
+        'workflow.tsx': '<Icon className="text-amber-500" />',
+        'recipe-owned.tsx': '<Icon className={workflowStatus({ status })} />',
+      },
+      String.raw`\btext-(?:foreground-(?:destructive|error|success|warning)|(?:amber|green|orange|purple|red|yellow)-\d+)\b`
+    ),
+    ['stacked-diff.tsx: text-foreground-success', 'workflow.tsx: text-amber-500']
   );
 });

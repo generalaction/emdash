@@ -2,7 +2,10 @@ import { Button } from '@emdash/ui/react/primitives';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { Comment, useTextareaAutoFocus } from './comment-card';
+
+const { vcsState } = sourceControlHostStylesContribution.exports;
 
 interface CommentWidgetProps {
   comment: DraftComment;
@@ -81,7 +84,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
                 title="Save (Cmd/Ctrl+Enter)"
                 aria-label="Save comment"
               >
-                <Check className="h-4 w-4 text-foreground-success" />
+                <Check className={`h-4 w-4 ${vcsState({ state: 'completed' })}`} />
               </Button>
             </>
           ) : (

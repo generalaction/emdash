@@ -53,6 +53,33 @@ describe('host pre-paint and controlled runtime Theme parity', () => {
       runScripts: 'dangerously',
       url: 'https://emdash.local',
       beforeParse(window) {
+        window.localStorage.setItem(
+          'emdash-theme',
+          JSON.stringify({
+            colorScheme: 'solarized-dark',
+            density: 'compact',
+            typography: 'default',
+          })
+        );
+        window.matchMedia = () =>
+          ({
+            matches: false,
+          }) as MediaQueryList;
+      },
+    });
+
+    expect([...dom.window.document.documentElement.classList]).toEqual([
+      'emsolarized-dark',
+      'density-compact',
+      'typography-default',
+    ]);
+  });
+
+  it('keeps legacy Color scheme preferences compatible', () => {
+    const dom = new JSDOM(rendererHtml, {
+      runScripts: 'dangerously',
+      url: 'https://emdash.local',
+      beforeParse(window) {
         window.localStorage.setItem('emdash-theme', JSON.stringify('emdark'));
         window.matchMedia = () =>
           ({
@@ -63,8 +90,38 @@ describe('host pre-paint and controlled runtime Theme parity', () => {
 
     expect([...dom.window.document.documentElement.classList]).toEqual([
       'emdark',
-      'density-comfortable',
-      'typography-default',
+      THEME_PREPAINT_CLASS_DATA.densities[0]!.className,
+      THEME_PREPAINT_CLASS_DATA.typographies[0]!.className,
+    ]);
+  });
+
+  it('falls back unknown persisted ids by dimension using public manifest defaults', () => {
+    const dom = new JSDOM(rendererHtml, {
+      runScripts: 'dangerously',
+      url: 'https://emdash.local',
+      beforeParse(window) {
+        window.localStorage.setItem(
+          'emdash-theme',
+          JSON.stringify({
+            colorScheme: 'unknown-color',
+            density: 'unknown-density',
+            typography: 'unknown-typography',
+          })
+        );
+        window.matchMedia = () =>
+          ({
+            matches: true,
+          }) as MediaQueryList;
+      },
+    });
+
+    const systemDark = THEME_PREPAINT_CLASS_DATA.colorSchemes.find(
+      (profile) => profile.polarity === 'dark'
+    )!;
+    expect([...dom.window.document.documentElement.classList]).toEqual([
+      systemDark.className,
+      THEME_PREPAINT_CLASS_DATA.densities[0]!.className,
+      THEME_PREPAINT_CLASS_DATA.typographies[0]!.className,
     ]);
   });
 
