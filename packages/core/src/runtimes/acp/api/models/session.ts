@@ -37,6 +37,8 @@ export const sessionStateSchema = z.object({
   suspended: z.literal(true).optional(),
   /** Current control-plane turn id, or null when no prompt/replay turn is active. */
   activeTurnId: z.string().nullable(),
+  /** Activation-local revision of amendments to committed turns, independent of foreground work. */
+  historyRevision: z.number().int().nonnegative().optional(),
   pendingPermissions: z.array(acpPermissionRequestSchema),
   /** Last ACP prompt stop reason observed by the machine; separate from transcript outcomes. */
   lastStopReason: stopReasonSchema.nullable(),
