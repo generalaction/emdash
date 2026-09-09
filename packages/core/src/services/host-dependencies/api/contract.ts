@@ -24,7 +24,9 @@ import {
 
 export const hostDependencyResolverContract = defineContract({
   resolve: fallible({
-    input: hostDependencyInputSchema,
+    input: hostDependencyInputSchema.extend({
+      selection: hostDependencySelectionSchema.optional(),
+    }),
     data: resolvedHostDependencySchema,
     error: hostDependencyErrorSchema,
   }),
