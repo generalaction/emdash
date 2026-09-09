@@ -31,10 +31,10 @@ export const hostDependencyDefinitionSchema = hostDependencyDescriptorSchema.ext
 export type HostDependencyDefinition = z.output<typeof hostDependencyDefinitionSchema>;
 
 export const hostDependencySelectionSchema = z
-  .object({
-    kind: z.literal('path'),
-    path: z.string().min(1),
-  })
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('path'), path: z.string().min(1) }),
+    z.object({ kind: z.literal('cli'), command: z.string().min(1) }),
+  ])
   .nullable();
 export type HostDependencySelection = z.output<typeof hostDependencySelectionSchema>;
 
@@ -54,6 +54,7 @@ export const resolvedHostDependencySchema = z.object({
   source: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('auto') }),
     z.object({ kind: z.literal('path'), path: z.string() }),
+    z.object({ kind: z.literal('cli'), command: z.string() }),
   ]),
 });
 export type ResolvedHostDependency = z.output<typeof resolvedHostDependencySchema>;
@@ -132,7 +133,10 @@ export const hostDependencyViewResultSchema = resultSchema(
 export type HostDependencyViewResult = Result<HostDependencyView, HostDependencyError>;
 
 export interface HostDependencyResolver {
-  resolve(id: DependencyId): Promise<HostDependencyResolveResult>;
+  resolve(
+    id: DependencyId,
+    selection?: HostDependencySelection
+  ): Promise<HostDependencyResolveResult>;
 }
 
 export interface DependencyState {
