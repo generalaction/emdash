@@ -1,13 +1,26 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { TaskSessionLaunchContextResolver } from '../api/node/task-session-launch-context';
+import {
+  resolveSessionTmux,
+  TaskSessionLaunchContextResolver,
+} from '../api/node/task-session-launch-context';
 
 describe('TaskSessionLaunchContextResolver', () => {
+  it('forces tmux off only for local Windows sessions', () => {
+    expect(resolveSessionTmux({ type: 'local', id: 'local' }, true, 'win32')).toBe(false);
+    expect(resolveSessionTmux({ type: 'local', id: 'local' }, true, 'darwin')).toBe(true);
+    expect(resolveSessionTmux({ type: 'remote', id: 'ssh-1' }, true, 'win32')).toBe(true);
+  });
+
   it('reads mutable launch policy from its authorities on every resolution', async () => {
     let taskName = 'Old task';
     let tmux = false;
     let shellSetup = 'source old-profile';
     let defaultBranch = 'main';
+    let projectEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-old',
+      EMDASH_TASK_NAME: 'cannot-override',
+    };
     const identity = {
       workspaceId: 'workspace-1',
       projectId: 'project-1',
@@ -26,6 +39,7 @@ describe('TaskSessionLaunchContextResolver', () => {
       ok({
         resolved: {
           shellSetup: { value: shellSetup, from: 'team' as const },
+          env: { value: projectEnv, from: 'personal' as const },
         },
       })
     );
@@ -76,6 +90,10 @@ describe('TaskSessionLaunchContextResolver', () => {
     tmux = true;
     shellSetup = 'source new-profile';
     defaultBranch = 'trunk';
+    projectEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-new',
+      EMDASH_TASK_NAME: 'still-cannot-override',
+    };
     const second = await source.resolve();
 
     expect(first).toMatchObject({
@@ -84,6 +102,7 @@ describe('TaskSessionLaunchContextResolver', () => {
         tmux: false,
         shellSetup: 'source old-profile',
         env: {
+          CLAUDE_CONFIG_DIR: '/tmp/claude-old',
           EMDASH_TASK_NAME: 'old-task',
           EMDASH_DEFAULT_BRANCH: 'main',
         },
@@ -95,6 +114,7 @@ describe('TaskSessionLaunchContextResolver', () => {
         tmux: true,
         shellSetup: 'source new-profile',
         env: {
+          CLAUDE_CONFIG_DIR: '/tmp/claude-new',
           EMDASH_TASK_NAME: 'new-task',
           EMDASH_DEFAULT_BRANCH: 'trunk',
         },

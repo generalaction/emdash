@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { makeLegacyTmuxSessionName } from '@emdash/core/services/pty/api';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -868,7 +868,7 @@ describe('legacy-port table passes', () => {
       if (
         command === 'tmux' &&
         args?.[0] === 'has-session' &&
-        args[2] !== 'emdash-claude-chat-conv-legacy-chat'
+        args[2] !== '=emdash-claude-chat-conv-legacy-chat'
       ) {
         throw new Error('missing');
       }
@@ -889,22 +889,22 @@ describe('legacy-port table passes', () => {
       tmuxExec,
     });
 
-    const newTmuxName = makeTmuxSessionName(
+    const newTmuxName = makeLegacyTmuxSessionName(
       makePtySessionId('proj-legacy-tmux', 'task-legacy-tmux', mappedChatUuid)
     );
 
     expect(calls).toEqual([
       {
         command: 'tmux',
-        args: ['has-session', '-t', 'emdash-claude-chat-conv-legacy-chat'],
+        args: ['has-session', '-t', '=emdash-claude-chat-conv-legacy-chat'],
       },
       {
         command: 'tmux',
-        args: ['has-session', '-t', newTmuxName],
+        args: ['has-session', '-t', `=${newTmuxName}`],
       },
       {
         command: 'tmux',
-        args: ['rename-session', '-t', 'emdash-claude-chat-conv-legacy-chat', newTmuxName],
+        args: ['rename-session', '-t', '=emdash-claude-chat-conv-legacy-chat', newTmuxName],
       },
     ]);
   });

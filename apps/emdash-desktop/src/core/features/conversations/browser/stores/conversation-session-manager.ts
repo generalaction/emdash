@@ -62,6 +62,10 @@ export class ConversationSessionManager {
     this.sync();
   }
 
+  retryHydration(conversationId: string): void {
+    this._reconciler.retry(conversationId);
+  }
+
   dispose(): void {
     this._disposeHostReaction();
     this._reconciler.dispose();

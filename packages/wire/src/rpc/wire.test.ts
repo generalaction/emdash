@@ -57,6 +57,31 @@ function structuredCloneTransport(transport: WireTransport): WireTransport {
 }
 
 describe('wire serve/connect', () => {
+  it('preserves non-delivery evidence when a gateway forwards a call to a disconnected worker', async () => {
+    const workerPair = memoryTransportPair();
+    const worker = connect(workerPair.left);
+    worker.dispose();
+    const gatewayPair = memoryTransportPair();
+    const gateway = connect(gatewayPair.left);
+    const stop = serve(
+      gatewayPair.right,
+      createController(contract, {
+        greet: (input) => worker.call('greet', input) as Promise<string>,
+        fail: () => {},
+        state: knownStateProvider(new LiveStateSource({ count: 0 })),
+      })
+    );
+    try {
+      await expect(gateway.call('greet', { name: 'wire' })).rejects.toMatchObject({
+        code: 'DISCONNECTED',
+        delivery: 'not-sent',
+      });
+    } finally {
+      gateway.dispose();
+      stop();
+    }
+  });
+
   it('calls procedures and propagates errors', async () => {
     const { connection } = setup();
     await expect(connection.call('greet', { name: 'wire' })).resolves.toBe('hello wire');
@@ -94,6 +119,7 @@ describe('wire serve/connect', () => {
       })
     ).rejects.toMatchObject({
       code: 'SERIALIZATION',
+      delivery: 'not-sent',
       message:
         "Wire call 'pullRequests.listPullRequests' could not be serialized: " +
         "'input.filters.labelNames' is an Array value that cannot be structured-cloned " +
@@ -114,6 +140,7 @@ describe('wire serve/connect', () => {
     await expect(connection.call('pullRequests.listPullRequests', undefined)).rejects.toMatchObject(
       {
         code: 'SERIALIZATION',
+        delivery: undefined,
         message:
           "Wire response for call 'pullRequests.listPullRequests' could not be serialized: " +
           "'value.filters.labelNames' is an Array value that cannot be structured-cloned " +

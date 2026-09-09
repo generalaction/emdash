@@ -46,3 +46,28 @@ export function searchRootPaths(
     throw error;
   }
 }
+
+/** Serves the cold published generation of a root with no active registration. */
+export function searchColdPaths(
+  rootKey: string,
+  input: PathSearchInput,
+  store: PathIndexStore
+): Result<PathSearchResult, PathSearchError> | undefined {
+  try {
+    const result = store.searchPaths(
+      rootKey,
+      input.query,
+      input.kinds,
+      input.limit ?? PATH_SEARCH_DEFAULT_LIMIT
+    );
+    return result.kind === 'ready' ? ok({ hits: result.hits }) : undefined;
+  } catch (error) {
+    const expected = toExpectedStoreError(
+      input.root,
+      error,
+      'Unable to query the file-search index'
+    );
+    if (expected) return err(expected);
+    throw error;
+  }
+}

@@ -55,12 +55,16 @@ describe('AcpRuntime session manager', () => {
     const rt = new AcpRuntime(h.deps);
 
     const result = await rt.launchSession(
-      makeStartInput({ conversationId: 'conv-unsupported-model', model: 'removed-model' })
+      makeStartInput({
+        conversationId: 'conv-unsupported-model',
+        model: 'removed-model',
+        collaborationMode: 'plan',
+      })
     );
 
     expect(result).toMatchObject({
       success: true,
-      data: { clearedConfiguration: ['model'] },
+      data: { clearedConfiguration: ['model', 'collaborationMode'] },
     });
     expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
 
@@ -68,7 +72,11 @@ describe('AcpRuntime session manager', () => {
     missingCatalogHarness.agent.newSession.mockResolvedValueOnce({ sessionId: 'session-2' });
     const missingCatalogRuntime = new AcpRuntime(missingCatalogHarness.deps);
     const missingCatalogResult = await missingCatalogRuntime.launchSession(
-      makeStartInput({ conversationId: 'conv-missing-catalog', model: 'keep-me' })
+      makeStartInput({
+        conversationId: 'conv-missing-catalog',
+        model: 'keep-me',
+        collaborationMode: 'plan',
+      })
     );
     expect(missingCatalogResult).toMatchObject({ success: true, data: { sessionId: 'session-2' } });
     if (missingCatalogResult.success) {
@@ -250,7 +258,11 @@ describe('AcpRuntime session manager', () => {
     });
     h.agent.newSession.mockResolvedValueOnce({
       sessionId: 'session-1',
-      configOptions: [modeConfigOption('agent'), effortConfigOption('low')],
+      configOptions: [
+        modeConfigOption('agent'),
+        effortConfigOption('low'),
+        collaborationModeConfigOption('default'),
+      ],
     });
     const rt = new AcpRuntime(h.deps);
     const input = makeStartInput({ conversationId: 'conv-dormant-settings' });
@@ -265,20 +277,28 @@ describe('AcpRuntime session manager', () => {
       ok()
     );
     await expect(rt.setOption(input.conversationId, 'effort', 'high')).resolves.toEqual(ok());
+    await expect(rt.setOption(input.conversationId, 'collaborationMode', 'plan')).resolves.toEqual(
+      ok()
+    );
 
     expect(h.agent.loadSession).not.toHaveBeenCalled();
     expect(h.agent.newSession).not.toHaveBeenCalled();
     expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
     expect(intents.snapshot()[0]?.payload).toMatchObject({
-      configured: { modeId: 'agent-full-access', effort: 'high' },
+      configured: { modeId: 'agent-full-access', effort: 'high', collaborationMode: 'plan' },
     });
     expect(peek(rt.sessionLiveModels(input.conversationId)!.states.config)).toMatchObject({
       modeOptions: { selected: 'agent-full-access' },
       efforts: { selected: 'high' },
+      collaborationModeOptions: { selected: 'plan' },
     });
 
     h.agent.loadSession.mockResolvedValueOnce({
-      configOptions: [modeConfigOption('agent'), effortConfigOption('low')],
+      configOptions: [
+        modeConfigOption('agent'),
+        effortConfigOption('low'),
+        collaborationModeConfigOption('default'),
+      ],
     });
     await rt.sendPrompt(input.conversationId, { text: 'wake once' });
 
@@ -292,6 +312,11 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-1',
       configId: 'reasoning_effort',
       value: 'high',
+    });
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'collaboration_mode',
+      value: 'plan',
     });
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
   });
@@ -336,7 +361,7 @@ describe('AcpRuntime session manager', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { kind: 'wake-failed', error: { type: 'new_session_failed' } },
+      error: { type: 'new_session_failed' },
     });
     expect(peek(live.states.state)).toMatchObject({ suspended: true, canSubmit: true });
     expect(peek(rt.sessionsListLiveModel().states.list)[input.conversationId]).toMatchObject({
@@ -488,6 +513,27 @@ describe('AcpRuntime session manager', () => {
       configId: 'reasoning_effort',
       value: 'high',
     });
+  });
+
+  it('replaces retained capabilities when a loaded session omits config options', async () => {
+    const h = makeAcpHarness({ lifecycle: { connectionIdleTtlMs: 0 } });
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [effortConfigOption('medium')],
+    });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-omitted-config-options' });
+
+    await rt.launchSession(input);
+    const live = rt.sessionLiveModels(input.conversationId);
+    if (!live) throw new Error('expected stable live projection');
+    expect(peek(live.states.config)?.efforts?.selected).toBe('medium');
+
+    await rt.stopSession(input.conversationId);
+    h.agent.loadSession.mockResolvedValueOnce({});
+    await rt.launchSession(input);
+
+    expect(peek(live.states.config)?.efforts).toBeNull();
   });
 
   it('keeps a newer runtime session id when attach races host-report convergence', async () => {
@@ -1156,6 +1202,29 @@ describe('AcpRuntime session manager', () => {
     unsub();
   });
 
+  it('passes the session environment to ACP-created terminals', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const result = await rt.launchSession(
+      makeStartInput({
+        conversationId: 'conv-terminal-env',
+        env: { ENV_TEST: 'this-is-a-test' },
+      })
+    );
+    expect(isOk(result)).toBe(true);
+
+    await h.client().createTerminal!({
+      sessionId: 'session-1',
+      command: 'echo',
+      args: ['$ENV_TEST'],
+      cwd: '/tmp',
+    });
+
+    expect(h.fakeHost.spawnTerminalFn).toHaveBeenCalledWith(
+      expect.objectContaining({ env: expect.objectContaining({ ENV_TEST: 'this-is-a-test' }) })
+    );
+  });
+
   it('suspends sessions when the process closes', async () => {
     const { h, rt } = await launchHarness('conv-close');
     const live = rt.sessionLiveModels('conv-close');
@@ -1315,6 +1384,27 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     expect(rt.manager.inspect().retained).toContain('conv-died');
   });
 
+  it('starts a fresh env-keyed provider process after the previous process dies', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({
+      conversationId: 'conv-env-restart',
+      env: { ENV_TEST: 'this-is-a-test' },
+    });
+    await rt.launchSession(input);
+
+    h.lastChild.emitExit(42);
+    await vi.waitFor(() =>
+      expect(peek(rt.sessionLiveModels(input.conversationId)!.states.state)).toMatchObject({
+        suspended: true,
+      })
+    );
+
+    await rt.launchSession(input);
+
+    expect(h.children).toHaveLength(2);
+  });
+
   it('suspends the persisted intent when the provider process dies', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -1425,6 +1515,20 @@ function effortConfigOption(currentValue: string) {
     options: [
       { value: 'low', name: 'Low' },
       { value: 'high', name: 'High' },
+    ],
+  };
+}
+
+function collaborationModeConfigOption(currentValue: string) {
+  return {
+    id: 'collaboration_mode',
+    name: 'Collaboration mode',
+    category: 'collaboration_mode',
+    type: 'select',
+    currentValue,
+    options: [
+      { value: 'default', name: 'Default' },
+      { value: 'plan', name: 'Plan' },
     ],
   };
 }

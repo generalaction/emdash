@@ -28,6 +28,7 @@ export type CreateRegisteredRootOptions = Readonly<{
   exclusionsFingerprint: string;
   scope: Scope;
   scanLimiter: ConcurrencyLimiter;
+  watchLimiter: ConcurrencyLimiter;
   onError?: (context: string, error: unknown) => void;
 }>;
 
@@ -41,6 +42,7 @@ export function createRegisteredRoot(options: CreateRegisteredRootOptions): Regi
     exclusions: options.exclusions,
     scope: options.scope,
     runScan: (signal, operation) => options.scanLimiter.run(signal, operation),
+    runWatchStart: (signal, operation) => options.watchLimiter.run(signal, operation),
     onError: options.onError,
   });
   void index.reconcile().catch((error: unknown) => {

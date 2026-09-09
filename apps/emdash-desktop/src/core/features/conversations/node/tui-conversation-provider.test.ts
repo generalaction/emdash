@@ -39,42 +39,75 @@ describe('TuiConversationProvider', () => {
     expect(resume).not.toHaveBeenCalled();
   });
 
-  it('routes native-id providers to the runtime resume path when a native id exists', async () => {
+  it.each(['codex', 'prime-agent'])(
+    'routes native-id provider %s to the runtime resume path when a native id exists',
+    async (providerId) => {
+      const provider = createProvider();
+
+      await provider.ensureSession({
+        conversation: conversation({ providerId, sessionId: 'native-session' }),
+        mode: 'resume',
+        initialPrompt: 'do not replay',
+      });
+
+      expect(resume).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId,
+          sessionId: 'native-session',
+          initialPrompt: undefined,
+        })
+      );
+      expect(start).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['codex', 'prime-agent'])(
+    'downgrades missing-native-id provider %s to fresh without replaying the prompt',
+    async (providerId) => {
+      const provider = createProvider();
+
+      await provider.ensureSession({
+        conversation: conversation({ providerId, sessionId: 'conversation-1' }),
+        mode: 'resume',
+        initialPrompt: 'do not replay',
+      });
+
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId,
+          sessionId: null,
+          initialPrompt: undefined,
+        })
+      );
+      expect(resume).not.toHaveBeenCalled();
+    }
+  );
+
+  it('resumes claude with a hook-captured session id that differs from the conversation id', async () => {
     const provider = createProvider();
 
     await provider.ensureSession({
-      conversation: conversation({ providerId: 'codex', sessionId: 'native-session' }),
+      conversation: conversation({ providerId: 'claude', sessionId: 'native-session' }),
       mode: 'resume',
-      initialPrompt: 'do not replay',
     });
 
     expect(resume).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'codex',
-        sessionId: 'native-session',
-        initialPrompt: undefined,
-      })
+      expect.objectContaining({ providerId: 'claude', sessionId: 'native-session' })
     );
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('downgrades missing-native-id providers to fresh without replaying the prompt', async () => {
+  it('resumes claude with the conversation id when no other session id was captured', async () => {
     const provider = createProvider();
 
     await provider.ensureSession({
-      conversation: conversation({ providerId: 'codex', sessionId: 'conversation-1' }),
+      conversation: conversation({ providerId: 'claude', sessionId: 'conversation-1' }),
       mode: 'resume',
-      initialPrompt: 'do not replay',
     });
 
-    expect(start).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'codex',
-        sessionId: null,
-        initialPrompt: undefined,
-      })
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'claude', sessionId: 'conversation-1' })
     );
-    expect(resume).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -117,7 +150,10 @@ describe('TuiConversationProvider', () => {
       },
       tmux: false,
       shellSetup: 'source old-profile',
-      env: { EMDASH_TASK_NAME: 'old-name' },
+      env: {
+        CLAUDE_CONFIG_DIR: '/tmp/claude-old',
+        EMDASH_TASK_NAME: 'old-name',
+      },
     };
     const resolve = vi.fn(async () => ok(launchContext));
     const provider = createProvider({ launchContextSource: { resolve } });
@@ -131,7 +167,10 @@ describe('TuiConversationProvider', () => {
       ...launchContext,
       tmux: true,
       shellSetup: 'source new-profile',
-      env: { EMDASH_TASK_NAME: 'new-name' },
+      env: {
+        CLAUDE_CONFIG_DIR: '/tmp/claude-new',
+        EMDASH_TASK_NAME: 'new-name',
+      },
     };
     await provider.ensureSession({
       conversation: conversation({ id: 'conversation-2', providerId: 'claude' }),
@@ -142,17 +181,22 @@ describe('TuiConversationProvider', () => {
     expect(start).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        providerVars: expect.objectContaining({ EMDASH_TASK_NAME: 'old-name' }),
+        providerVars: expect.objectContaining({
+          CLAUDE_CONFIG_DIR: '/tmp/claude-old',
+          EMDASH_TASK_NAME: 'old-name',
+        }),
         shellSetup: 'source old-profile',
-        tmuxSessionName: undefined,
       })
     );
     expect(start).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        providerVars: expect.objectContaining({ EMDASH_TASK_NAME: 'new-name' }),
+        providerVars: expect.objectContaining({
+          CLAUDE_CONFIG_DIR: '/tmp/claude-new',
+          EMDASH_TASK_NAME: 'new-name',
+        }),
         shellSetup: 'source new-profile',
-        tmuxSessionName: expect.stringMatching(/^emdash-/),
+        tmux: { identity: expect.stringMatching(/:/) },
       })
     );
   });

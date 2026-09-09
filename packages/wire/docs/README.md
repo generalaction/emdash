@@ -187,10 +187,12 @@ barrier: a consumer joining an already-attached topic will not cause the server 
 
 Use `resourcedStream()` when a successful attach must guarantee that an underlying resource is
 ready. Its host must be created with `createEventStreamHost(def, { activate })`, where `activate`
-resolves to the activation-owned disposer only after the resource is ready. The source registers
-the subscriber before activation begins, shares and retains the activation promise for all
-subscribers to the key, and invokes the disposer when the final subscriber leaves. Failed
-activation is not retained, so a later attach makes a fresh attempt.
+receives an `AbortSignal` and resolves to the activation-owned disposer only after the resource is
+ready. The source registers the subscriber before activation begins, shares and retains the
+activation promise for all subscribers to the key, and invokes the disposer when the final
+subscriber leaves. If the final subscriber leaves while activation is pending, the signal aborts
+and any late result is disposed. Failed activation is not retained, so a later attach makes a fresh
+attempt.
 
 This guarantee is enforced when a controller binds the endpoint: a resourced definition accepts
 its matching host or a forwarded client handle, but rejects a bare resolver. Forwarding preserves

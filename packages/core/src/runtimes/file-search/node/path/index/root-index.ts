@@ -1,18 +1,18 @@
 import type { Run, Scope } from '@emdash/shared/concurrency';
-import { throwIfAborted, waitWithSignal } from '@emdash/shared/scheduling';
+import { throwIfAborted, waitWithSignal, type RetrySchedule } from '@emdash/shared/scheduling';
+import { cell, peek, type Cell, type Readable } from '@emdash/wire/state';
 import {
   ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
 import type { PathSearchError } from '#runtimes/file-search/api';
-import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
+import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import { toExpectedRootOrIndexError } from '../../error-mapping';
 import type { FileSearchExclusions } from '../../exclusions';
 import { hostAbsolutePathFromNative } from '../../native-paths';
 import type { StoredFileSearchRoot } from '../../root/registered-root';
 import { affectedSubtrees } from './affected-subtrees';
-import { RootWatchError } from './errors';
 import type {
   PathIndexBuild,
   PathIndexEntry,
@@ -20,11 +20,12 @@ import type {
   PathIndexStore,
 } from './path-index-store';
 import type { PathScanner } from './scanner';
+import { WatchSupervisor, type WatchSupervisorHealth } from './watch-supervisor';
 
 const WATCH_DEBOUNCE_MS = 50;
 const SCAN_WRITE_BATCH_SIZE = 500;
 
-type RunPathScan = <T>(signal: AbortSignal, operation: () => Promise<T>) => Promise<T>;
+type RunLimited = <T>(signal: AbortSignal, operation: () => Promise<T>) => Promise<T>;
 
 type RootIndexOptions = Readonly<{
   root: StoredFileSearchRoot;
@@ -33,7 +34,10 @@ type RootIndexOptions = Readonly<{
   scanner: PathScanner;
   exclusions: FileSearchExclusions;
   scope: Scope;
-  runScan: RunPathScan;
+  runScan: RunLimited;
+  runWatchStart: RunLimited;
+  watchRetrySchedule?: RetrySchedule;
+  degradedPollMs?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
@@ -49,8 +53,8 @@ export type RootIndexStatus =
 /** Keeps one registered root's published path generation current. */
 export class RootIndex {
   private readonly scope: Scope;
-  private readonly watch: WatchHandle;
   private readonly root: HostAbsolutePath;
+  private readonly supervisor: WatchSupervisor;
   private publicationState:
     | { kind: 'published' }
     | { kind: 'building'; patches: PathIndexPatch[] } = {
@@ -59,29 +63,47 @@ export class RootIndex {
   private eventQueue: Promise<void> = Promise.resolve();
   private reconcileRun: Run<void> | undefined;
   private trailingReconcileRequested = false;
-  private currentStatus: RootIndexStatus = { kind: 'building' };
+  private readonly currentStatus: Cell<RootIndexStatus> = cell(
+    { kind: 'building' },
+    { equals: sameSteadyStatus }
+  );
+  private attached = false;
+  private needsGapClose = false;
 
   constructor(private readonly options: RootIndexOptions) {
     this.root = hostAbsolutePathFromNative(options.root.rootPath);
     this.scope = options.scope.child(`file-search-root-${options.root.id}`);
-    try {
-      this.watch = options.watcher.watch(
-        options.root.rootPath,
-        (events) => this.enqueueEvents(events),
-        {
-          debounceMs: WATCH_DEBOUNCE_MS,
-          ignore: [...options.exclusions.watchIgnoreGlobs()],
-          onResync: () => this.requestReconcile(),
-        }
-      );
-    } catch (error) {
-      throw new RootWatchError('File-search watcher could not be created for the root', error);
-    }
-    this.scope.add(() => this.watch.release());
+    this.supervisor = new WatchSupervisor({
+      rootPath: options.root.rootPath,
+      watcher: options.watcher,
+      ignoreGlobs: options.exclusions.watchIgnoreGlobs(),
+      debounceMs: WATCH_DEBOUNCE_MS,
+      scope: this.scope,
+      runWatchStart: options.runWatchStart,
+      retrySchedule: options.watchRetrySchedule,
+      degradedPollMs: options.degradedPollMs,
+      onEvents: (events) => this.enqueueEvents(events),
+      onRefresh: () => this.requestReconcile(),
+      onAttached: () => this.closeAttachmentGap(),
+      isPermanentFailure: (error) => this.isPermanentWatchFailure(error),
+      onError: options.onError,
+    });
   }
 
   get status(): RootIndexStatus {
+    return peek(this.currentStatus);
+  }
+
+  get statusChanges(): Readable<RootIndexStatus> {
     return this.currentStatus;
+  }
+
+  get watcherHealth(): WatchSupervisorHealth {
+    return this.supervisor.health;
+  }
+
+  get watcherHealthChanges(): Readable<WatchSupervisorHealth> {
+    return this.supervisor.healthChanges;
   }
 
   /** Coalesces concurrent requests and settles when the current reconciliation attempt settles. */
@@ -91,7 +113,7 @@ export class RootIndex {
     }
     if (this.reconcileRun) return this.reconcileRun.value();
 
-    if (this.currentStatus.kind !== 'failed') this.currentStatus = { kind: 'building' };
+    if (peek(this.currentStatus).kind !== 'failed') this.currentStatus.set({ kind: 'building' });
     const run = this.scope.run('reconcile', (signal) => this.reconcileLoop(signal));
     this.reconcileRun = run;
     void run.exit.then(() => {
@@ -113,14 +135,9 @@ export class RootIndex {
 
   private async reconcileOnce(signal: AbortSignal): Promise<void> {
     let build: PathIndexBuild | undefined;
+    const startedUnattached = !this.attached;
+    if (startedUnattached) this.needsGapClose = true;
     try {
-      const attached = await waitWithSignal(this.watch.ready(), signal, 'Root index cancelled');
-      if (!attached.success) {
-        throw new RootWatchError(
-          'File-search watcher could not attach to the root',
-          attached.error
-        );
-      }
       throwIfAborted(signal, 'Root index cancelled');
       const activeBuild = this.options.store.beginBuild(this.options.root.id);
       build = activeBuild;
@@ -139,7 +156,8 @@ export class RootIndex {
         this.publicationState.kind === 'building' ? this.publicationState.patches : [];
       activeBuild.publish(finalPatches);
       this.publicationState = { kind: 'published' };
-      if (!this.trailingReconcileRequested) this.currentStatus = { kind: 'ready' };
+      if (!startedUnattached) this.needsGapClose = false;
+      if (!this.trailingReconcileRequested) this.currentStatus.set({ kind: 'ready' });
     } catch (error) {
       if (build) {
         try {
@@ -149,9 +167,26 @@ export class RootIndex {
         }
       }
       this.publicationState = { kind: 'published' };
-      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
+      this.currentStatus.set({ kind: 'failed', failure: this.classifyFailure(error) });
       throw error;
     }
+  }
+
+  private async closeAttachmentGap(): Promise<void> {
+    this.attached = true;
+    if (this.needsGapClose) this.requestReconcile();
+    while (this.reconcileRun) await this.reconcileRun.exit;
+  }
+
+  private isPermanentWatchFailure(error: unknown): boolean {
+    const expected = toExpectedRootOrIndexError(
+      this.root,
+      error,
+      'File-search watcher could not attach to the root',
+      'root'
+    );
+    if (expected?.type !== 'root-unavailable') return false;
+    return expected.reason === 'not-found' || expected.reason === 'not-a-directory';
   }
 
   private async populateBuild(build: PathIndexBuild, signal: AbortSignal): Promise<void> {
@@ -172,8 +207,9 @@ export class RootIndex {
   private enqueueEvents(events: WatchEvent[]): void {
     if (this.scope.state !== 'open' || events.length === 0) return;
     if (events.every((event) => event.kind === 'update')) {
-      if (this.currentStatus.kind === 'ready') return;
-      if (this.currentStatus.kind === 'failed') {
+      const status = peek(this.currentStatus);
+      if (status.kind === 'ready') return;
+      if (status.kind === 'failed') {
         this.requestReconcile();
         return;
       }
@@ -200,7 +236,7 @@ export class RootIndex {
     });
     this.eventQueue = run.value().catch((error: unknown) => {
       if (this.scope.signal.aborted) return;
-      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
+      this.currentStatus.set({ kind: 'failed', failure: this.classifyFailure(error) });
       this.report('file-search watcher patch failed', error);
       this.requestReconcile();
     });
@@ -254,4 +290,9 @@ export class RootIndex {
     );
     return expected ? { expected } : { unexpected: error };
   }
+}
+
+/** Building/ready re-announcements are no-ops; failures always publish. */
+function sameSteadyStatus(left: RootIndexStatus, right: RootIndexStatus): boolean {
+  return left.kind === right.kind && left.kind !== 'failed';
 }

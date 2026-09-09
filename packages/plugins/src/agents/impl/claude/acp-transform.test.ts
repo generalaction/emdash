@@ -17,6 +17,7 @@ function makeToolCall(
     parentToolCallId: null,
     diffs: [],
     ...overrides,
+    locations: overrides.locations ?? [],
   };
 }
 
@@ -128,6 +129,52 @@ describe('enrichClaudeUpdate', () => {
     const raw = {
       ...makeRaw({ claudeCode: { toolName: 'Bash' } }),
       rawOutput: 'raw output',
+    } as unknown as SessionUpdate;
+
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
+  });
+
+  it('removes a description echoed by Claude command metadata', () => {
+    const command = 'git rev-parse --abbrev-ref HEAD';
+    const description = 'Get current branch name';
+    const update = makeToolUpdate({
+      title: command,
+      toolKind: 'execute',
+      status: null,
+      inputSummary: description,
+      outputText: description,
+    });
+    const raw = {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'tc-1',
+      title: command,
+      kind: 'execute',
+      content: [{ type: 'content', content: { type: 'text', text: description } }],
+      rawInput: { command, description },
+    } as unknown as SessionUpdate;
+
+    const result = enrichClaudeUpdate(update, raw);
+    expect(result).toMatchObject({
+      kind: 'tool_update',
+      title: command,
+      inputSummary: description,
+    });
+    expect(result).not.toHaveProperty('outputText');
+  });
+
+  it('preserves matching output outside Claude command metadata updates', () => {
+    const description = 'Get current branch name';
+    const update = makeToolUpdate({
+      inputSummary: description,
+      outputText: description,
+    });
+    const raw = {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'tc-1',
+      title: null,
+      status: 'completed',
+      content: [{ type: 'content', content: { type: 'text', text: description } }],
+      rawInput: { description },
     } as unknown as SessionUpdate;
 
     expect(enrichClaudeUpdate(update, raw)).toBe(update);

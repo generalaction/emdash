@@ -8,6 +8,7 @@ const taskState = vi.hoisted(() => ({
   workspaceConfig: {
     presetId: 'new-worktree',
     setPresetId: vi.fn(),
+    workspaceOptions: [],
     branchSelection: {
       createBranchAndWorktree: false,
       setCreateBranchAndWorktree: vi.fn(),

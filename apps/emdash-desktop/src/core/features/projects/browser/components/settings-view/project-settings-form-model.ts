@@ -9,6 +9,7 @@ import type {
 } from '@core/primitives/project-settings/api';
 import type {
   ProjectFileHandlingDomainSnapshot,
+  ProjectEnvironmentDomainSnapshot,
   ProjectGitIdentityDomainSnapshot,
   ProjectLifecycleDomainSnapshot,
   ProjectPlacementDomainSnapshot,
@@ -33,6 +34,12 @@ export type FileHandlingFormState = {
   preservePatterns: string;
 };
 
+export type EnvironmentVariableFormEntry = { key: string; value: string };
+
+export type EnvironmentFormState = {
+  variables: EnvironmentVariableFormEntry[];
+};
+
 export type GitIdentityFormState = {
   defaultBranch: GitBranchRef | null;
   baseRemote: string;
@@ -50,6 +57,7 @@ export type PlacementFormState = {
 export type FormState = {
   lifecycle: LifecycleFormState;
   fileHandling: FileHandlingFormState;
+  environment: EnvironmentFormState;
   gitIdentity: GitIdentityFormState;
   placement: PlacementFormState;
 };
@@ -105,6 +113,12 @@ export function fileHandlingToForm(
   return { preservePatterns: (domain.personal.preservePatterns ?? []).join('\n') };
 }
 
+export function environmentToForm(domain: ProjectEnvironmentDomainSnapshot): EnvironmentFormState {
+  return {
+    variables: Object.entries(domain.personal.env ?? {}).map(([key, value]) => ({ key, value })),
+  };
+}
+
 export function gitIdentityToForm(
   domain: ProjectGitIdentityDomainSnapshot,
   remotes: { name: string; url: string }[]
@@ -132,6 +146,7 @@ export function projectSettingsDomainsToForm(
   return {
     lifecycle: lifecycleToForm(domains.lifecycle),
     fileHandling: fileHandlingToForm(domains.fileHandling),
+    environment: environmentToForm(domains.environment),
     gitIdentity: gitIdentityToForm(domains.gitIdentity, remotes),
     placement: placementToForm(domains.placement),
   };
@@ -187,6 +202,19 @@ export function fileHandlingToPatch(
   };
 }
 
+export function environmentToPatch(
+  form: EnvironmentFormState,
+  touchedFields?: ReadonlySet<FormFieldPath>
+): ProjectSettingsDomainPatch['environment'] | undefined {
+  if (!isTouched(touchedFields, 'environment.variables')) return undefined;
+  const env: Record<string, string> = {};
+  for (const entry of form.variables) {
+    const key = entry.key.trim();
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) env[key] = entry.value;
+  }
+  return { personal: { env: Object.keys(env).length > 0 ? env : null } };
+}
+
 export function gitIdentityToPatch(
   form: GitIdentityFormState,
   touchedFields?: ReadonlySet<FormFieldPath>
@@ -235,11 +263,13 @@ export function formToProjectSettingsDomainPatch(
 ): ProjectSettingsDomainPatch {
   const lifecycle = lifecycleToPatch(form.lifecycle, touchedFields);
   const fileHandling = fileHandlingToPatch(form.fileHandling, touchedFields);
+  const environment = environmentToPatch(form.environment, touchedFields);
   const gitIdentity = gitIdentityToPatch(form.gitIdentity, touchedFields);
   const placement = placementToPatch(form.placement, touchedFields);
   return {
     ...(lifecycle ? { lifecycle } : {}),
     ...(fileHandling ? { fileHandling } : {}),
+    ...(environment ? { environment } : {}),
     ...(gitIdentity ? { gitIdentity } : {}),
     ...(placement ? { placement } : {}),
   };

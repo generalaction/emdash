@@ -6,13 +6,13 @@ export type FileSearchProcedures = ContractImpl<FileSearchContract>;
 
 export type FileSearchRuntimeApi = Pick<
   FileSearchRuntime,
-  'registerRoot' | 'unregisterRoot' | 'searchPaths' | 'searchContent'
+  'activeRoots' | 'evictRoot' | 'searchPaths' | 'searchContent'
 >;
 
 export function createFileSearchProcedures(runtime: FileSearchRuntimeApi): FileSearchProcedures {
   return {
-    registerRoot: (input) => runtime.registerRoot(input),
-    unregisterRoot: (input) => runtime.unregisterRoot(input),
+    activeRoot: runtime.activeRoots,
+    evictRoot: (input) => runtime.evictRoot(input),
     searchPaths: (input) => runtime.searchPaths(input),
     searchContent: {
       run: (input, context) =>

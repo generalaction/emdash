@@ -71,6 +71,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       });
       const runtime = new TuiAgentsRuntime({
         agentHost,
+        env,
         exec,
         intents,
         conversationReports: createConversationLifecycleReporter({

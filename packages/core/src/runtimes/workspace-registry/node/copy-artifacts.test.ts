@@ -192,4 +192,25 @@ describe('executeCopyArtifacts', () => {
     expect(stat.isSymbolicLink()).toBe(true);
     expect(await fs.readlink(path.join(worktreePath, 'ignored-link'))).toBe('/etc');
   });
+
+  it('preserves a broken external link without dereferencing its target', async () => {
+    const target = path.join(root, 'outside-does-not-exist');
+    await fs.symlink(target, path.join(repoPath, 'broken-link'));
+    await fs.appendFile(path.join(repoPath, '.gitignore'), 'broken-link\n');
+    git(repoPath, 'add', '.gitignore');
+    git(repoPath, 'commit', '-m', 'ignore broken link');
+
+    const outcome = await executeCopyArtifacts({
+      git: gitContext,
+      repositoryPath: repoPath,
+      worktreePath,
+      preservePatterns: ['broken-link'],
+    });
+
+    expect(outcome.status).toBe('succeeded');
+    const copied = path.join(worktreePath, 'broken-link');
+    expect((await fs.lstat(copied)).isSymbolicLink()).toBe(true);
+    expect(await fs.readlink(copied)).toBe(target);
+    await expect(fs.stat(copied)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

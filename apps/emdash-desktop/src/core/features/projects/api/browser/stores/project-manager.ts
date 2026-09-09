@@ -436,7 +436,7 @@ export class ProjectManagerStore {
     const isSsh = projectType.type === 'ssh';
     const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
     const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
-      data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
+      data.mode === 'clone' ? 'clone' : data.mode === 'create' ? 'create' : 'open';
 
     let result: ProjectCreationCompletion;
     try {
@@ -495,7 +495,7 @@ export class ProjectManagerStore {
           break;
         }
 
-        case 'new': {
+        case 'create': {
           const repoResult = await (
             await getGithubClient()
           ).createRepository({
@@ -638,6 +638,16 @@ export class ProjectManagerStore {
     }
   }
 
+  async renameProject(projectId: string, name: string): Promise<void> {
+    await (await getProjectsWireClient()).renameProject({ projectId, name });
+    const store = this.projects.get(projectId);
+    const data = store?.data;
+    if (!store || !data) return;
+    runInAction(() => {
+      store.updateData({ ...data, name });
+    });
+  }
+
   async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
     await (
       await getProjectsWireClient()
@@ -729,7 +739,7 @@ export class ProjectManagerStore {
   private async _createProjectFromRemote(opts: {
     projectId: string;
     host: { type: 'local' } | { type: 'ssh'; connectionId: string };
-    mode: 'clone' | 'new';
+    mode: 'clone' | 'create';
     repositoryUrl: string;
     targetPath: string;
     name: string;
@@ -785,7 +795,7 @@ export class ProjectManagerStore {
           opts.projectType.type === 'ssh'
             ? { type: 'ssh', connectionId: opts.projectType.connectionId }
             : { type: 'local' },
-        mode: 'new',
+        mode: 'create',
         repositoryUrl: opts.cloneUrl,
         targetPath: opts.targetPath,
         name: opts.name,
@@ -851,7 +861,7 @@ function initialCreationStage(mode: ModeData['mode']): ProjectCreationStage {
       return 'registering';
     case 'clone':
       return 'cloning';
-    case 'new':
+    case 'create':
       return 'creating-repo';
   }
 }

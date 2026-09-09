@@ -52,12 +52,13 @@ describe('createWorkspaceWireController', () => {
     }
   });
 
-  it('disables the worker deadline for the turn-long ACP prompt call', async () => {
+  it('disables the worker deadline while activating the ACP session for prompt acceptance', async () => {
     const acp = createFakeAcpClient();
     const controller = createTestWorkspaceWireController({ acp });
     const signal = new AbortController().signal;
     const input = {
       conversationId: 'conversation-1',
+      promptId: '00000000-0000-4000-8000-000000000001',
       prompt: { text: 'hello' },
     };
 

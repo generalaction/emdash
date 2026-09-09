@@ -33,6 +33,8 @@ export type Conversation = {
   modeId?: string;
   /** Last user-selected ACP reasoning/effort id, re-applied on session start. */
   effort?: string;
+  /** Last user-selected ACP collaboration mode, re-applied on session start. */
+  collaborationMode?: string;
   /** Initial queued prompts to deliver on first ACP spawn. Only present before sessionId is set. */
   initialQueue?: InitialQueuePrompt[];
   isInitialConversation: boolean | null;
@@ -51,7 +53,13 @@ export type ConversationEvent =
       changes: Partial<
         Pick<
           Conversation,
-          'lastInteractedAt' | 'title' | 'sessionId' | 'model' | 'modeId' | 'effort'
+          | 'lastInteractedAt'
+          | 'title'
+          | 'sessionId'
+          | 'model'
+          | 'modeId'
+          | 'effort'
+          | 'collaborationMode'
         >
       >;
     }
@@ -114,6 +122,8 @@ export type CreateConversationParams = {
   modeId?: string;
   /** Provider-native ACP reasoning/effort id to apply on first activation. */
   effort?: string;
+  /** Provider-native ACP collaboration mode to apply on first activation. */
+  collaborationMode?: string;
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;

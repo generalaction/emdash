@@ -10,12 +10,11 @@ import {
 import type { SshWorkspaceServerTarget } from '../../../api/targets';
 import type { HostStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
-import type { WireConnectionManager } from '../connect/wire-connection-manager';
+import type { WorkspaceServerDialer } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
-import type { WorkspaceServerSshPort } from '../ports';
 import { sshWorkspaceServerTarget } from '../targets';
 import type { RemoteWorkspaceServerDaemon } from './daemon-control';
-import type { RemoteHostProbe } from './host-probe';
+import { WINDOWS_SSH_UNSUPPORTED_MESSAGE, type RemoteHostProbe } from './host-probe';
 import { WorkspaceServerInstallError, type WorkspaceServerInstaller } from './installer';
 
 export type WorkspaceServerProvisionErrorCode =
@@ -39,13 +38,13 @@ export class WorkspaceServerProvisionError extends Error {
 }
 
 type WorkspaceServerProvisionerDeps = {
+  connectionId: string;
   scope: Scope;
-  ssh: WorkspaceServerSshPort;
   host: RemoteHostProbe;
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
-  model: HostStateModel;
-  wire: Pick<WireConnectionManager, 'dialOnce'>;
+  model: Pick<HostStateModel, 'set' | 'remove'>;
+  wire: Pick<WorkspaceServerDialer, 'dialOnce'>;
   devAutoUpdate?: boolean;
   logger?: { warn(message: string, metadata?: Record<string, unknown>): void };
   clock?: Clock;
@@ -66,9 +65,9 @@ type DialOutcome =
 const daemonReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 2_000]);
 
 export class WorkspaceServerProvisioner {
-  private readonly runs = new Map<string, EnsureRun>();
-  private readonly targets = new Map<string, SshWorkspaceServerTarget>();
-  private readonly dialOnce: WireConnectionManager['dialOnce'];
+  private run: EnsureRun | undefined;
+  private target: SshWorkspaceServerTarget | undefined;
+  private readonly dialOnce: WorkspaceServerDialer['dialOnce'];
   private readonly clock: Clock;
 
   constructor(private readonly deps: WorkspaceServerProvisionerDeps) {
@@ -76,10 +75,12 @@ export class WorkspaceServerProvisioner {
     this.clock = deps.clock ?? systemClock;
   }
 
-  ensure(connectionId: string): Promise<SshWorkspaceServerTarget> {
-    const cached = this.targets.get(connectionId);
+  ensure(): Promise<SshWorkspaceServerTarget> {
+    if (this.deps.scope.disposed) return Promise.reject(this.deps.scope.signal.reason);
+    const connectionId = this.deps.connectionId;
+    const cached = this.target;
     if (cached && !this.deps.devAutoUpdate) return Promise.resolve(cached);
-    const existing = this.runs.get(connectionId);
+    const existing = this.run;
     if (existing) return existing.promise;
 
     const runScope = this.deps.scope.child(`ensure:${connectionId}`);
@@ -88,13 +89,13 @@ export class WorkspaceServerProvisioner {
     const promise = run
       .value()
       .then((target) => {
-        if (this.runs.get(connectionId)?.token === token && !this.deps.devAutoUpdate) {
-          this.targets.set(connectionId, target);
+        if (this.run?.token === token && !this.deps.devAutoUpdate) {
+          this.target = target;
         }
         return target;
       })
       .finally(() => {
-        if (this.runs.get(connectionId)?.token === token) this.runs.delete(connectionId);
+        if (this.run?.token === token) this.run = undefined;
         void runScope.dispose();
       });
     const entry: EnsureRun = {
@@ -103,7 +104,7 @@ export class WorkspaceServerProvisioner {
       promise,
     };
     entry.promise.catch(() => {});
-    this.runs.set(connectionId, entry);
+    this.run = entry;
     return entry.promise;
   }
 
@@ -112,15 +113,16 @@ export class WorkspaceServerProvisioner {
    * the remote daemon. Call whenever the daemon may no longer be running
    * (connection lost, reconnect failed, explicit lifecycle operations).
    */
-  drop(connectionId: string): void {
-    this.targets.delete(connectionId);
+  drop(): void {
+    this.target = undefined;
   }
 
-  async cancel(connectionId: string): Promise<void> {
-    this.targets.delete(connectionId);
-    const run = this.runs.get(connectionId);
+  async cancel(): Promise<void> {
+    const connectionId = this.deps.connectionId;
+    this.target = undefined;
+    const run = this.run;
     if (!run) return;
-    this.runs.delete(connectionId);
+    this.run = undefined;
     this.deps.model.remove(connectionId);
     await run.scope.dispose(new Error(`Workspace-server ensure cancelled for ${connectionId}`));
   }
@@ -134,16 +136,20 @@ export class WorkspaceServerProvisioner {
       // an already-running server must not flap the published status.
       let host;
       try {
-        host = await this.deps.host.probe(connectionId, signal);
+        host = await this.deps.host.probe(signal);
       } catch (error) {
         throw provisionError('connection-failed', 'Could not inspect the remote machine', error);
       }
       throwIfAborted(signal);
+      if (host.platform === 'win32') {
+        throw provisionError('unsupported-platform', WINDOWS_SSH_UNSUPPORTED_MESSAGE);
+      }
 
       const layout = workspaceServerLayout(host.home);
       const target = sshWorkspaceServerTarget(connectionId, layout);
 
       const outcome = await this.tryDial(target, signal);
+      throwIfAborted(signal);
       switch (outcome.kind) {
         case 'ready': {
           const handshake =
@@ -154,24 +160,26 @@ export class WorkspaceServerProvisioner {
               outcome.handshake,
               signal
             )) ?? outcome.handshake;
+          throwIfAborted(signal);
           this.publishHealthy(connectionId, handshake);
           return target;
         }
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
-          await this.install(connectionId, layout, signal);
-          await this.restart(connectionId, layout, signal);
-          this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
-          return target;
+          throw protocolError(outcome.error);
         case 'unreachable':
           break;
       }
 
       await this.install(connectionId, layout, signal);
+      throwIfAborted(signal);
       await this.start(connectionId, layout, signal);
+      throwIfAborted(signal);
 
-      this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
+      const handshake = await this.waitUntilReady(target, signal);
+      throwIfAborted(signal);
+      this.publishHealthy(connectionId, handshake);
       return target;
     } catch (error) {
       if (signal.aborted) throw error;
@@ -200,18 +208,22 @@ export class WorkspaceServerProvisioner {
     try {
       availableVersion = await this.deps.installer.availableVersion(connectionId, signal);
     } catch (error) {
+      throwIfAborted(signal);
       this.deps.logger?.warn('Could not resolve latest workspace-server dev version', {
         connectionId,
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
+    throwIfAborted(signal);
 
     // Dev versions put a commit SHA before their timestamp, so SemVer order does not represent
     // build recency. Any different published dev artifact must replace the running one.
     if (availableVersion === handshake.server.appVersion) return null;
     await this.install(connectionId, layout, signal, availableVersion);
+    throwIfAborted(signal);
     await this.restart(connectionId, layout, signal);
+    throwIfAborted(signal);
     return await this.waitUntilReady(target, signal);
   }
 

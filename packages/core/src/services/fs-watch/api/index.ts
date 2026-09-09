@@ -9,6 +9,7 @@ export {
   type FsWatchStreamEvent,
 } from './contract';
 export { requireWatchReady } from './models';
+export { gitMetadataWatchIgnore, workspaceContentWatchIgnore } from './profiles';
 export type {
   IWatchService,
   WatchEvent,

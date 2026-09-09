@@ -1,10 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
   absoluteRuntimePath,
+  dirnameHostPath,
   hostFileRefFromNativePath,
   hostPathFromNative,
+  joinHostPath,
   nativePathFromHost,
 } from './paths';
+
+describe('host path dialect operations', () => {
+  it.each([
+    ['/home/user/repo', '.emdash.json', '/home/user/repo/.emdash.json'],
+    ['C:\\repo', '.emdash.json', 'C:\\repo\\.emdash.json'],
+    ['\\\\server\\share\\repo', '.emdash.json', '\\\\server\\share\\repo\\.emdash.json'],
+  ])('joins %s with the owning host dialect', (root, child, expected) => {
+    expect(joinHostPath(root, child)).toBe(expected);
+  });
+
+  it.each([
+    ['/home/user/repo/file.txt', '/home/user/repo'],
+    ['C:\\repo\\file.txt', 'C:\\repo'],
+    ['\\\\server\\share\\repo\\file.txt', '\\\\server\\share\\repo'],
+  ])('finds the parent of %s with the owning host dialect', (input, expected) => {
+    expect(dirnameHostPath(input)).toBe(expected);
+  });
+});
 
 describe('hostFileRefFromNativePath', () => {
   it('uses the local host by default', () => {

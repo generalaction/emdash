@@ -24,6 +24,7 @@ import {
   type ConversationEvent,
   type CreateConversationParams,
 } from '@core/primitives/conversations/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { getConversationsClient } from './client';
 
@@ -522,7 +523,10 @@ export class ConversationManagerStore implements Disposable {
     const connector =
       conversation.type === 'acp'
         ? createNoopConnector()
-        : createTuiAgentsConnector(conversation.id);
+        : createTuiAgentsConnector(conversation.id, () => {
+            const state = this.hostAccess?.state;
+            return !state ? 0 : state.kind === 'ready' ? state.hostGeneration : undefined;
+          });
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,
@@ -549,7 +553,10 @@ function createNoopConnector(): FrontendPtyConnector {
   };
 }
 
-function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector {
+function createTuiAgentsConnector(
+  conversationId: string,
+  generation: () => number | undefined
+): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
   let clientPromise: ReturnType<typeof getConversationsClient> | null = null;
   const client = () => {
@@ -569,7 +576,25 @@ function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector 
       };
     },
     sendInput(data: string) {
-      void client().then((runtime) => runtime.tui.sendInput({ conversationId, data }));
+      const sentGeneration = generation();
+      if (sentGeneration === undefined) return;
+      void client()
+        .then(async (runtime) => {
+          if (generation() !== sentGeneration) return;
+          const result = await runtime.tui.sendInput({ conversationId, data });
+          if (!result.success) {
+            log.warn('ConversationManagerStore: TUI input failed', {
+              conversationId,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          log.warn('ConversationManagerStore: failed to send TUI input', {
+            conversationId,
+            error,
+          });
+        });
     },
     resize(cols: number, rows: number) {
       void client().then((runtime) => runtime.tui.resize({ conversationId, cols, rows }));

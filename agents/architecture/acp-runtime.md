@@ -35,11 +35,13 @@ not mix cross-session routing with per-session state projection.
   lifecycle leak assertions.
   `SessionsListProjector` composes live handle summaries with lightweight suspended-intent rows.
 - `SessionCell` owns one live activation: the state machine, transcript reducer, permission broker,
-  prompt queue effects, and turn quiescence. It does not own the conversation-lifetime projection
-  or retained rematerialization descriptor.
+  prompt queue effects, turn quiescence, and whether the provider's config catalog is pending or
+  ready. It does not own the conversation-lifetime projection or retained rematerialization
+  descriptor.
 - The ACP connection source owns provider processes through `createResourceCache`.
-  Cache identity includes provider, workspace, and cwd; the process route id stays
-  provider/workspace and can host multiple ACP sessions.
+  Cache identity includes provider, cwd, and an opaque fingerprint of the requested environment;
+  the process route id stays provider/cwd plus generation and can host multiple ACP sessions with
+  the same environment.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
 - Runtime implementation code lives under `packages/core/src/runtimes/acp/node/`; the portable
@@ -112,6 +114,29 @@ lifecycle cell. `setOption` updates one of the provider's model, mode, or effort
 waking a suspended session. Headless callers that need creation and activation as one atomic
 operation use `launch`; there is no public `ensureActivation`, `start`, or `resume` procedure.
 
+`sendPrompt` (protocol 8) waits for activation and attachment validation, then acknowledges
+once the live session accepts the prompt for dispatch or queuing. Its host-owned operation retains
+the activation lease until execution finishes; a desktop disconnect does not cancel that work.
+Startup/authentication failures are returned before acceptance. Provider failures after acceptance
+are published through the existing session and transcript state. Callers that need completion
+observe that state; the send acknowledgement no longer means the turn has finished.
+
+The desktop subscribes before submission and refreshes both live snapshots and committed history
+after reattachment, even when no active turn was observed before the outage. History reads are
+fenced to the current attachment and retried after transient failure; a newly active turn defers
+history replacement until its completion. The optimistic row shares the submission's client prompt
+id, so history clears only the corresponding row and preserves newer submissions. A client
+prompt id follows the existing queue and synthesized user transcript message so a lost acknowledgement
+can be reconciled without matching text. Wire marks failures known to occur before posting as
+"not-sent", including held-call overflow and cancellation or disposal before posting. This evidence
+survives gateway forwarding, allowing the desktop to report rejection and restore the draft.
+Failures without that evidence remain uncertain and do not restore or resubmit the prompt.
+This is not a durable outbox:
+provider-replayed history may lack the correlation id after a worker restart, leaving delivery
+explicitly uncertain. No receipt journal or new persistence authority is introduced.
+The changed acknowledgement semantics require protocol major 8. Older clients or servers must
+upgrade through the existing protocol-incompatibility flow; there is no legacy sending fallback.
+
 The handle persists an explicitly allowlisted, versioned intent containing provider/session
 identity, cwd, desired model/mode/effort, and a bounded non-secret presentation snapshot. Provider
 environment, MCP credentials, runtime endpoints, and unknown descriptor fields are never persisted.
@@ -131,6 +156,14 @@ summaries, usage, and observation time. During one runtime generation, its handl
 move between `closed`, `suspended`, `materializing`, and `active`; suspended and materializing
 projections keep controls visible and prompt submission enabled while clearing activation-local
 queues, permissions, terminals, active turns, plans, and agents.
+
+While a rematerialized session's provider config catalog is pending, the handle projects the
+retained catalog to avoid transiently removing its controls. A ready catalog atomically replaces
+all retained model, effort, mode, and collaboration-mode groups; explicit empty or unsupported
+groups are authoritative and must not fall back to retained values. Successful `newSession` and
+`loadSession` handshakes end the pending phase; omitted or null config options produce a ready empty
+catalog. Available commands have a separate readiness lifecycle and are retained independently
+while materialization is pending.
 
 On worker boot, every valid persisted intent is restored only as a lightweight suspended index row;
 the worker never starts a provider from disk. The first desktop `attach` hydrates a handle using a
@@ -187,6 +220,10 @@ with `ELECTRON_RUN_AS_NODE`. The packaged app must keep the `RunAsNode` fuse
 enabled while this fork model is used. If the app later disables that fuse for
 macOS hardening, the wire package exposes the Electron
 `utilityProcessSpawner()` seam for utility-process generations.
+
+ACP terminal callbacks execute as client-hosted sibling processes rather than operating-system
+children of the provider process. Their environment therefore starts from the provider process's
+resolved spawn environment, then applies command-specific variables from the ACP request.
 
 ## Models and Protocol Versioning
 

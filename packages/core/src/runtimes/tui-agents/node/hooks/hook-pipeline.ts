@@ -39,11 +39,18 @@ export class TuiHookPipeline {
     }
 
     const body = parseHookBody(raw.body);
-    const event =
-      provider.parseHookEvent?.(raw.type, body) ?? defaultHookEventParser(raw.type, body);
+    let event = provider.parseHookEvent?.(raw.type, body) ?? defaultHookEventParser(raw.type, body);
+    const validateSessionId = provider.validateSessionId;
     if (event.kind === 'session') {
-      const validateSessionId = provider.validateSessionId;
       if (validateSessionId && !validateSessionId(event.providerSessionId)) return;
+    } else if (
+      event.kind === 'status' &&
+      event.providerSessionId !== undefined &&
+      validateSessionId &&
+      !validateSessionId(event.providerSessionId)
+    ) {
+      const { providerSessionId: _invalid, ...rest } = event;
+      event = rest;
     }
 
     this.options.applyCanonicalEvent(config.conversationId, config.providerId, event);

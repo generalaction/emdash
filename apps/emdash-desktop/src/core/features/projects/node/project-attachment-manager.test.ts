@@ -9,7 +9,7 @@ import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
 import type { Project } from '@core/primitives/projects/api';
-import { createHostAvailability } from '@core/services/hosts/node/availability';
+import { createWorkerHostAvailability } from '@core/services/hosts/node/worker-host-availability';
 import {
   createProjectAttachmentManager,
   type ProjectAttachmentAdapter,
@@ -20,7 +20,7 @@ describe('ProjectAttachmentManager', () => {
     const scope = createScope({ label: 'project-attachment-manager-contract-test' });
     const manager = createProjectAttachmentManager({
       scope,
-      availability: createHostAvailability({
+      availability: createWorkerHostAvailability({
         scope,
         readiness: { prepare: async () => ok() },
       }),
@@ -41,11 +41,11 @@ describe('ProjectAttachmentManager', () => {
   it('attaches a tracked Project once when its Host reaches a ready generation', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const readiness = deferred<ReturnType<typeof ok<void>>>();
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: () => readiness.promise },
     });
-    const demand = vi.spyOn(availability, 'demand');
+    const demand = vi.spyOn(availability, 'lease');
     const project = sshProject();
     const provider = projectProvider();
     const open = vi.fn(async () => ok(provider));
@@ -81,8 +81,8 @@ describe('ProjectAttachmentManager', () => {
     expect(open).toHaveBeenCalledOnce();
     expect(manager.requireAttached(project.id)).toEqual(ok(provider));
     expect(demand).toHaveBeenCalledOnce();
-    expect(demand).toHaveBeenCalledWith(project.host, 'automatic', expect.anything());
-    expect(demand.mock.results[0]?.value.mode).toBe('automatic');
+    expect(demand).toHaveBeenCalledWith(project.host, expect.anything());
+    expect(demand.mock.calls[0]?.[1].disposed).toBe(false);
 
     await owner.dispose();
     await scope.dispose();
@@ -90,7 +90,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('retains its Provider across explicit Host suspension and Connect', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -156,7 +156,7 @@ describe('ProjectAttachmentManager', () => {
           connection: runtime,
         }),
     });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: {
         async prepare(host) {
@@ -221,11 +221,11 @@ describe('ProjectAttachmentManager', () => {
       .mockResolvedValueOnce(ok())
       .mockResolvedValueOnce(err(failure))
       .mockResolvedValueOnce(ok());
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare },
     });
-    const demand = vi.spyOn(availability, 'demand');
+    const demand = vi.spyOn(availability, 'lease');
     const provider = projectProvider();
     const open = vi.fn(async () => ok(provider));
     const manager = createProjectAttachmentManager({
@@ -249,14 +249,14 @@ describe('ProjectAttachmentManager', () => {
         recovery: 'manual',
       })
     );
-    expect(demand.mock.results[0]?.value.mode).toBe('automatic');
+    expect(demand.mock.calls[0]?.[1].disposed).toBe(false);
 
     availability.wakeDemanded('online');
     availability.wakeDemanded('focus');
     await Promise.resolve();
     expect(prepare).toHaveBeenCalledTimes(2);
 
-    availability.wake(project.host, 'ssh-edge');
+    await availability.ensureReady(project.host, 'connect');
     await vi.waitFor(() =>
       expect(availability.stateFor(project.host)).toEqual({
         kind: 'ready',
@@ -276,7 +276,7 @@ describe('ProjectAttachmentManager', () => {
   it('degrades every attached Project on a suspended Host without disposing Providers', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const prepare = vi.fn(async () => ok<void>());
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare },
     });
@@ -336,7 +336,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('cancels an in-flight attachment on Host suspension and disposes a late Provider', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -379,7 +379,7 @@ describe('ProjectAttachmentManager', () => {
     'starts %s as the matching explicit Host readiness request',
     async (_label, project, cause) => {
       const scope = createScope({ label: 'project-attachment-manager-test' });
-      const availability = createHostAvailability({
+      const availability = createWorkerHostAvailability({
         scope,
         readiness: { prepare: async () => ok() },
       });
@@ -404,7 +404,7 @@ describe('ProjectAttachmentManager', () => {
   it('joins concurrent manual recovery requests without restarting Host readiness', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const readiness = deferred<ReturnType<typeof ok<void>>>();
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: () => readiness.promise },
     });
@@ -437,7 +437,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('retries a Project-specific failure in the current ready generation only when recovered', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -482,9 +482,9 @@ describe('ProjectAttachmentManager', () => {
     await scope.dispose();
   });
 
-  it('disposes a late Provider when the durable Project revision changed during attachment', async () => {
+  it('keeps a late Provider when only Project display metadata changed during attachment', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -506,6 +506,50 @@ describe('ProjectAttachmentManager', () => {
     await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
     project = {
       ...project,
+      name: 'Renamed Project',
+      updatedAt: '2026-08-13T00:00:01.000Z',
+    };
+
+    opened.resolve(ok(provider));
+
+    await vi.waitFor(() =>
+      expect(peek(state)).toEqual({
+        kind: 'attached',
+        establishedHostGeneration: 1,
+      })
+    );
+    expect(provider.dispose).not.toHaveBeenCalled();
+    expect(manager.requireAttached(project.id)).toEqual(ok(provider));
+
+    await owner.dispose();
+    await scope.dispose();
+  });
+
+  it('disposes a late Provider when the Project base ref changed during attachment', async () => {
+    const scope = createScope({ label: 'project-attachment-manager-test' });
+    const availability = createWorkerHostAvailability({
+      scope,
+      readiness: { prepare: async () => ok() },
+    });
+    let project = sshProject();
+    const provider = projectProvider();
+    const opened = deferred<ReturnType<typeof ok<ProjectProvider>>>();
+    const open = vi.fn(() => opened.promise);
+    const manager = createProjectAttachmentManager({
+      scope,
+      availability,
+      adapter: {
+        loadProject: async () => ({ ...project }),
+        statRepository: async () => ok({ type: 'directory' as const }),
+        open,
+      },
+    });
+    const owner = createScope({ label: 'project-owner' });
+    const state = manager.track(project.id, owner);
+    await vi.waitFor(() => expect(peek(state).kind).toBe('attaching'));
+    project = {
+      ...project,
+      baseRef: 'develop',
       updatedAt: '2026-08-13T00:00:01.000Z',
     };
 
@@ -524,7 +568,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('releases and disposes retained Provider ownership at most once during shutdown', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -557,7 +601,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('holds Provider ownership until the final tracking lease releases', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -594,7 +638,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('disposes a Provider that completes after its final tracking lease released', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -630,7 +674,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('rejects an old-generation completion and attaches only the current Host generation', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -730,7 +774,7 @@ describe('ProjectAttachmentManager', () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
     const project = sshProject();
     const prepare = vi.fn(async () => ok<void>());
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare },
     });
@@ -772,11 +816,11 @@ describe('ProjectAttachmentManager', () => {
 
   it('keeps repository failures passive across Host generations until explicit recovery', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
-    const demand = vi.spyOn(availability, 'demand');
+    const demand = vi.spyOn(availability, 'lease');
     const project = sshProject();
     const provider = projectProvider();
     const statRepository = vi
@@ -796,7 +840,7 @@ describe('ProjectAttachmentManager', () => {
     const state = manager.track(project.id, owner);
     await vi.waitFor(() => expect(peek(state).kind).toBe('absent'));
     await vi.waitFor(() => expect(statRepository).toHaveBeenCalledOnce());
-    expect(demand.mock.results[0]?.value.mode).toBe('passive');
+    expect(demand.mock.calls[0]?.[1].disposed).toBe(true);
     const ensureReady = vi.spyOn(availability, 'ensureReady');
     ensureReady.mockClear();
 
@@ -806,7 +850,7 @@ describe('ProjectAttachmentManager', () => {
     expect(ensureReady).not.toHaveBeenCalled();
 
     availability.invalidate(project.host);
-    availability.wake(project.host, 'ssh-edge');
+    await availability.ensureReady(project.host, 'connect');
     await vi.waitFor(() =>
       expect(availability.stateFor(project.host)).toEqual({ kind: 'ready', generation: 2 })
     );
@@ -835,11 +879,11 @@ describe('ProjectAttachmentManager', () => {
       const project = sshProject();
       const failure = runtimeHostUnavailable(project.host, reason, `semantic:${reason}`);
       const prepare = vi.fn(async () => err(failure));
-      const availability = createHostAvailability({
+      const availability = createWorkerHostAvailability({
         scope,
         readiness: { prepare },
       });
-      const demand = vi.spyOn(availability, 'demand');
+      const demand = vi.spyOn(availability, 'lease');
       const manager = createProjectAttachmentManager({
         scope,
         availability,
@@ -859,7 +903,7 @@ describe('ProjectAttachmentManager', () => {
         })
       );
 
-      expect(demand.mock.results[0]?.value.mode).toBe('passive');
+      expect(demand.mock.calls[0]?.[1].disposed).toBe(true);
       const ensureReady = vi.spyOn(availability, 'ensureReady');
       ensureReady.mockClear();
       availability.wakeDemanded('online');
@@ -874,7 +918,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('rejects recovery and releases attachment when the durable Project is gone', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -909,7 +953,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('rejects a superseded attempt after relink and attaches the replacement Host identity', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -969,7 +1013,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('rebinds after relink even when destructive disposal of the old Provider fails', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -1020,7 +1064,7 @@ describe('ProjectAttachmentManager', () => {
 
   it('cancels in-flight ownership before the shutdown release phase completes', async () => {
     const scope = createScope({ label: 'project-attachment-manager-test' });
-    const availability = createHostAvailability({
+    const availability = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
@@ -1112,7 +1156,7 @@ async function expectAttachmentFailure(options: {
   expected: object;
 }): Promise<void> {
   const scope = createScope({ label: 'project-attachment-failure-test' });
-  const availability = createHostAvailability({
+  const availability = createWorkerHostAvailability({
     scope,
     readiness: { prepare: async () => ok() },
   });

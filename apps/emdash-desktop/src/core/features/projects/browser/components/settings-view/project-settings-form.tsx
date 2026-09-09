@@ -104,8 +104,10 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             <ShareableSettingsSection
               lifecycleForm={formModel.form.lifecycle}
               fileHandlingForm={formModel.form.fileHandling}
+              environmentForm={formModel.form.environment}
               updateLifecycle={formModel.updateLifecycle}
               updateFileHandling={formModel.updateFileHandling}
+              updateEnvironment={formModel.updateEnvironment}
               getOverrideSources={formModel.getOverrideSources}
               lifecycle={domains.lifecycle}
               fileHandling={domains.fileHandling}

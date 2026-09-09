@@ -92,12 +92,24 @@ export class TerminalManagerStore implements Disposable {
       },
       { fireImmediately: true }
     );
+    const initialHost = this.hostAccess?.state;
+    let lastHostGeneration = initialHost?.kind === 'ready' ? initialHost.hostGeneration : undefined;
     this._disposeHostReaction = reaction(
       () => this.hostAccess?.state,
       (state) => {
         if (state?.kind !== 'ready') return;
         this.list.invalidate();
-        for (const session of this.sessions.values()) session.resumeIfRequested();
+        const changed = lastHostGeneration !== state.hostGeneration;
+        lastHostGeneration = state.hostGeneration;
+        for (const session of this.sessions.values()) {
+          if (!changed) {
+            session.resumeIfRequested();
+            continue;
+          }
+          void session.refreshAttachment().catch((error) => {
+            log.warn('Terminal attachment recovery failed', { error });
+          });
+        }
       }
     );
   }
@@ -252,7 +264,13 @@ export class TerminalManagerStore implements Disposable {
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      createTerminalsConnector(() => this.ensureRuntimeKey(terminal.id)),
+      createTerminalsConnector(
+        () => this.ensureRuntimeKey(terminal.id),
+        () => {
+          const state = this.hostAccess?.state;
+          return !state ? 0 : state.kind === 'ready' ? state.hostGeneration : undefined;
+        }
+      ),
       () => this.hostAccess?.liveAction.kind !== 'disabled'
     );
   }
@@ -280,7 +298,10 @@ function terminalErrorMessage(error: { type: string; message?: string }): string
   return error.message ?? `Terminal operation failed: ${error.type}`;
 }
 
-function createTerminalsConnector(key: () => Promise<TerminalRuntimeKey>): FrontendPtyConnector {
+function createTerminalsConnector(
+  key: () => Promise<TerminalRuntimeKey>,
+  generation: () => number | undefined
+): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
   let runtimePromise: Promise<TerminalsClient> | null = null;
   const runtime = () => {
@@ -301,8 +322,11 @@ function createTerminalsConnector(key: () => Promise<TerminalRuntimeKey>): Front
       };
     },
     sendInput(data: string) {
+      const sentGeneration = generation();
+      if (sentGeneration === undefined) return;
       void Promise.all([runtime(), key()])
         .then(async ([terminalsRuntime, terminalKey]) => {
+          if (generation() !== sentGeneration) return;
           const result = await terminalsRuntime.sendInput({ ...terminalKey, data });
           if (!result.success) {
             log.warn('TerminalManagerStore: terminal input failed', {

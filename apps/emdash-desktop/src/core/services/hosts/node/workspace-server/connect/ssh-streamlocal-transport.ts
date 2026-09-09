@@ -5,9 +5,10 @@ import { ownedStreamTransport } from './owned-stream-transport';
 
 export async function openSshWorkspaceServerTransport(
   target: SshWorkspaceServerTarget,
-  ssh: WorkspaceServerSshPort
+  ssh: WorkspaceServerSshPort,
+  options?: { signal?: AbortSignal }
 ): Promise<WireTransport> {
   const proxy = await ssh.ensureProxy(target.sshConnectionId);
-  const channel = await proxy.forwardOutStreamLocal(target.socketPath);
+  const channel = await proxy.forwardOutStreamLocal(target.socketPath, options);
   return ownedStreamTransport(channel);
 }

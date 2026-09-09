@@ -3,6 +3,7 @@ import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
@@ -228,22 +229,27 @@ export const EnableTmuxRow: React.FC = () => {
   } = useAppSettingsKey('project');
 
   const tmuxByDefault = projects?.tmuxByDefault ?? false;
+  const tmuxSupported = detectPlatformContext().os !== 'windows';
 
   return (
     <SettingRow
       title="Enable tmux"
-      description="Run agent sessions and terminals in tmux sessions by default."
+      description={
+        tmuxSupported
+          ? 'Run agent sessions and terminals in tmux sessions by default.'
+          : 'tmux is unavailable for Windows sessions. Your stored preference is preserved.'
+      }
       control={
         <>
           <ResetToDefaultButton
             visible={isFieldOverridden('tmuxByDefault')}
             defaultLabel="off"
             onReset={() => resetField('tmuxByDefault')}
-            disabled={loading || saving}
+            disabled={loading || saving || !tmuxSupported}
           />
           <Switch
-            checked={tmuxByDefault}
-            disabled={loading || saving}
+            checked={tmuxSupported ? tmuxByDefault : false}
+            disabled={loading || saving || !tmuxSupported}
             onCheckedChange={(checked) => update({ tmuxByDefault: checked })}
           />
         </>

@@ -1,299 +1,172 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
-import type { RuntimeUnavailableReason } from '@emdash/core/primitives/runtime-resolution/api';
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { deferred } from '@emdash/shared/testing';
-import { describe, expect, it, vi } from 'vitest';
-import type {
-  SshConnectionManager,
-  SshConnectionManagerListener,
-} from '@core/primitives/ssh/api/node/ssh-connection-manager';
-import type { HostInvalidation } from '@core/services/hosts/api';
-import type { HostService } from '@core/services/hosts/node';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Hosts } from '@core/services/hosts/node/hosts';
 import {
-  WorkspaceServerProtocolError,
-  WorkspaceServerProvisionError,
-} from '@core/services/hosts/node/workspace-server';
-import {
-  createDesktopHostAvailability as createProductionHostAvailability,
-  type CreateDesktopHostAvailabilityOptions,
-} from './host-availability';
+  createSupervisorDriver,
+  createFaultPeer,
+} from '@core/services/hosts/node/testing/connection-supervisor-fixture';
+import { createDesktopHostAvailability } from './host-availability';
 
-function createDesktopHostAvailability(
-  options: Omit<CreateDesktopHostAvailabilityOptions, 'connectSsh' | 'sshEvents' | 'runtimes'> & {
-    connectSsh?: CreateDesktopHostAvailabilityOptions['connectSsh'];
-    runtimes?: CreateDesktopHostAvailabilityOptions['runtimes'];
-    sshEvents?: CreateDesktopHostAvailabilityOptions['sshEvents'];
-  }
-) {
-  return createProductionHostAvailability({
-    ...options,
-    connectSsh: options.connectSsh ?? (async () => 'connected'),
-    runtimes: options.runtimes ?? { rebind: vi.fn() },
-    sshEvents:
-      options.sshEvents ??
-      ({
-        on: () => {},
-        off: () => {},
-      } as unknown as CreateDesktopHostAvailabilityOptions['sshEvents']),
+describe('desktop Host availability supervisor projection', () => {
+  const remoteHost = hostRef('remote', 'host');
+  let fixture: ReturnType<typeof createFixture>;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fixture = createFixture();
   });
-}
+  afterEach(async () => {
+    await fixture.scope.dispose();
+    await fixture.driver.dispose();
+    await fixture.peer.dispose();
+    vi.useRealTimers();
+  });
 
-describe('desktop Host availability', () => {
-  it.each(['connected', 'reconnected'] as const)(
-    'forwards an SSH %s edge to demanded Host recovery',
-    async (type) => {
-      const scope = createScope({ label: 'desktop-host-availability-test' });
-      let listener: SshConnectionManagerListener | undefined;
-      const off = vi.fn();
-      const sshEvents = {
-        on(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
-          listener = nextListener;
-          return this;
-        },
-        off(_event: 'connection-event', nextListener: SshConnectionManagerListener) {
-          if (listener === nextListener) listener = undefined;
-          off();
-          return this;
-        },
-      } as Pick<SshConnectionManager, 'on' | 'off'>;
-      const availability = createDesktopHostAvailability({
-        scope,
-        hosts: {
-          client: vi.fn(async () => ({})),
-          onInvalidate: () => () => {},
-        } as unknown as HostService,
-        sshEvents,
-        localReady: async () => {},
-      });
-      const wake = vi.spyOn(availability, 'wake');
-
-      listener?.({
-        type,
-        connectionId: 'ssh-1',
-        proxy: {},
-      } as Parameters<SshConnectionManagerListener>[0]);
-
-      expect(wake).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'), 'ssh-edge');
-      await scope.dispose();
-      expect(off).toHaveBeenCalledOnce();
-    }
-  );
-
-  it.each(['connect', 'retry'] as const)(
-    'records explicit SSH connection intent before %s prepares runtime readiness',
-    async (cause) => {
-      const scope = createScope({ label: 'desktop-host-availability-test' });
-      const order: string[] = [];
-      const availability = createDesktopHostAvailability({
-        scope,
-        hosts: {
-          client: vi.fn(async () => {
-            order.push('runtime');
-            return {};
-          }),
-          onInvalidate: () => () => {},
-        } as unknown as HostService,
-        connectSsh: vi.fn(async () => {
-          order.push('transport');
-          return 'connected' as const;
-        }),
-        localReady: async () => {},
-      });
-
-      availability.requestReady(hostRef('remote', 'ssh-1'), cause);
-      await vi.waitFor(() =>
-        expect(availability.stateFor(hostRef('remote', 'ssh-1')).kind).toBe('ready')
-      );
-
-      expect(order).toEqual(['transport', 'runtime']);
-      await scope.dispose();
-    }
-  );
-
-  it('uses the existing SSH provisioner and Wire handshake before publishing ready', async () => {
-    const scope = createScope({ label: 'desktop-host-availability-test' });
-    const provisioning = deferred<void>();
-    const handshake = deferred<void>();
-    const runtimeClient = {};
-    const wireConnection = {};
-    const rebind = vi.fn();
-    const client = vi.fn(
-      async (
-        _connectionId: string,
-        options: {
-          signal: AbortSignal;
-          onPhase(phase: 'provisioning' | 'handshaking'): void;
-        }
-      ) => {
-        options.onPhase('provisioning');
-        provisioning.resolve();
-        options.onPhase('handshaking');
-        await handshake.promise;
-        return { client: runtimeClient, connection: wireConnection };
-      }
+  it('retains independent local worker readiness', async () => {
+    await expect(fixture.availability.ensureReady(LOCAL_HOST_REF, 'demand')).resolves.toMatchObject(
+      { success: true }
     );
-    const availability = createDesktopHostAvailability({
-      scope,
-      hosts: { client, onInvalidate: () => () => {} } as unknown as HostService,
-      runtimes: { rebind },
-      localReady: async () => {},
-    });
-    const host = hostRef('remote', 'ssh-1');
-
-    const pending = availability.ensureReady(host, 'demand');
-    await provisioning.promise;
-
-    expect(client).toHaveBeenCalledWith(
-      'ssh-1',
-      expect.objectContaining({
-        signal: expect.any(AbortSignal),
-        onPhase: expect.any(Function),
-      })
-    );
-    expect(availability.stateFor(host)).toEqual({
-      kind: 'preparing',
-      phase: 'handshaking',
-      attempt: 1,
-    });
-
-    handshake.resolve();
-    await expect(pending).resolves.toMatchObject({ success: true });
-    expect(rebind).toHaveBeenCalledWith(host, {
-      client: runtimeClient,
-      connection: wireConnection,
-    });
-
-    await scope.dispose();
+    expect(fixture.localReady).toHaveBeenCalledOnce();
+    expect(fixture.peer.opens).toBe(0);
   });
 
-  it('invalidates a ready generation when the Host runtime connection is lost', async () => {
-    const scope = createScope({ label: 'desktop-host-availability-test' });
-    let invalidate: ((event: HostInvalidation) => void) | undefined;
-    const hosts = {
-      client: vi.fn(async () => ({})),
-      onInvalidate(listener: (event: HostInvalidation) => void) {
-        invalidate = listener;
-        return () => {
-          invalidate = undefined;
-        };
-      },
-    } as unknown as HostService;
-    const availability = createDesktopHostAvailability({
-      scope,
-      hosts,
-      localReady: async () => {},
-    });
-    const host = hostRef('remote', 'ssh-1');
-    await expect(availability.ensureReady(host, 'demand')).resolves.toMatchObject({
-      success: true,
-      data: { generation: 1 },
-    });
-
-    invalidate?.({ connectionId: 'ssh-1', reason: 'connection-lost' });
-
-    expect(availability.stateFor(host)).toEqual({
-      kind: 'unavailable',
-      recovery: 'eligible',
-    });
-    await expect(availability.ensureReady(host, 'ssh-edge')).resolves.toMatchObject({
-      success: true,
-      data: { generation: 2 },
-    });
-
-    await scope.dispose();
-  });
-
-  it.each([
-    ['connection-failed', new WorkspaceServerProvisionError('connection-failed', 'raw')],
-    ['daemon-start-failed', new WorkspaceServerProvisionError('daemon-start-failed', 'raw')],
-    [
-      'artifact-download-failed',
-      new WorkspaceServerProvisionError('artifact-download-failed', 'raw'),
-    ],
-    ['install-failed', new WorkspaceServerProvisionError('install-failed', 'raw')],
-    ['unsupported-platform', new WorkspaceServerProvisionError('unsupported-platform', 'raw')],
-    [
-      'protocol-upgrade-client',
-      new WorkspaceServerProvisionError('protocol-incompatible', 'raw', {
-        cause: new WorkspaceServerProtocolError({
-          type: 'protocol-incompatible',
-          action: 'upgrade-client',
-          clientProtocolVersion: '2.0.0',
-          serverProtocolVersion: '1.0.0',
-        }),
-      }),
-    ],
-    [
-      'protocol-upgrade-server',
-      new WorkspaceServerProvisionError('protocol-incompatible', 'raw', {
-        cause: new WorkspaceServerProtocolError({
-          type: 'protocol-incompatible',
-          action: 'upgrade-server',
-          clientProtocolVersion: '1.0.0',
-          serverProtocolVersion: '2.0.0',
-        }),
-      }),
-    ],
-  ] as const)(
-    'preserves the %s runtime reason without parsing messages',
-    async (reason: RuntimeUnavailableReason, failure: Error) => {
-      const scope = createScope({ label: 'desktop-host-availability-test' });
-      const availability = createDesktopHostAvailability({
-        scope,
-        hosts: {
-          client: async () => {
-            throw failure;
-          },
-          onInvalidate: () => () => {},
-        } as unknown as HostService,
-        localReady: async () => {},
+  it('keeps a readiness wait on the identity captured before pinning', async () => {
+    const original = fixture.hosts.get(remoteHost);
+    if (!original) throw new Error('Expected remote Host fixture');
+    const issue = runtimeHostUnavailable(remoteHost, 'offline', 'Host identity was replaced');
+    const oldWait = vi.fn(async () => err(issue));
+    const replacementWait = vi.fn(async () => ok({ host: remoteHost, generation: 99 }));
+    const get = vi.spyOn(fixture.hosts, 'get');
+    get.mockReturnValue({ ...original, runtime: { ...original.runtime, waitUntilReady: oldWait } });
+    vi.spyOn(original.connection, 'pin').mockImplementation(async () => {
+      get.mockReturnValue({
+        ...original,
+        runtime: { ...original.runtime, waitUntilReady: replacementWait },
       });
-
-      const host = hostRef('remote', 'ssh-1');
-      const pending = availability.ensureReady(host, 'demand');
-      if (reason === 'connection-failed' || reason === 'daemon-start-failed') {
-        await vi.waitFor(() =>
-          expect(availability.stateFor(host)).toMatchObject({
-            kind: 'unavailable',
-            issue: { type: 'host-unavailable', reason },
-            recovery: 'waiting',
-          })
-        );
-        availability.suspend(host);
-        await pending;
-      } else {
-        await expect(pending).resolves.toMatchObject({
-          success: false,
-          error: { type: 'host-unavailable', reason },
-        });
-      }
-
-      await scope.dispose();
-    }
-  );
-
-  it('waits for the existing local Wire workers before publishing local readiness', async () => {
-    const scope = createScope({ label: 'desktop-host-availability-test' });
-    const handshake = deferred<void>();
-    const connectSsh = vi.fn(async () => 'connected' as const);
-    const availability = createDesktopHostAvailability({
-      scope,
-      hosts: { onInvalidate: () => () => {} } as unknown as HostService,
-      connectSsh,
-      localReady: () => handshake.promise,
+      return ok();
     });
+    await expect(fixture.availability.ensureReady(remoteHost, 'connect')).resolves.toEqual(
+      err(issue)
+    );
+    expect(oldWait).toHaveBeenCalledOnce();
+    expect(replacementWait).not.toHaveBeenCalled();
+    expect(fixture.localReady).not.toHaveBeenCalled();
+  });
 
-    const pending = availability.ensureReady(LOCAL_HOST_REF, 'demand');
+  it('does not prepare local workers when remote intent registration fails', async () => {
+    const issue = runtimeHostUnavailable(remoteHost, 'offline', 'Remote is unavailable');
+    vi.spyOn(fixture.driver.managed, 'pin').mockResolvedValue(err(issue));
+    await expect(fixture.availability.ensureReady(remoteHost, 'connect')).resolves.toEqual(
+      err(issue)
+    );
+    expect(fixture.localReady).not.toHaveBeenCalled();
+    expect(fixture.peer.opens).toBe(0);
+  });
 
-    expect(availability.stateFor(LOCAL_HOST_REF)).toEqual({
+  it('publishes readiness only after current initialization', async () => {
+    const release = fixture.peer.stallInitialize();
+    const ready = fixture.availability.ensureReady(remoteHost, 'connect');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.availability.requireReady(remoteHost).success).toBe(false);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(ready).resolves.toMatchObject({ success: true });
+    expect(fixture.availability.stateFor(remoteHost)).toEqual(fixture.driver.state);
+  });
+
+  it.each(['online', 'focus'] as const)('does not trust cached ready after %s', async (cause) => {
+    await fixture.availability.ensureReady(remoteHost, 'connect');
+    fixture.peer.current.dropReplies = true;
+    fixture.peer.setOffline(true);
+    fixture.availability.wakeDemanded(cause);
+    expect(fixture.availability.stateFor(remoteHost)).toMatchObject({
       kind: 'preparing',
-      phase: 'handshaking',
-      attempt: 1,
+      phase: 'checking',
     });
-    handshake.resolve();
-    await expect(pending).resolves.toMatchObject({ success: true });
-    expect(connectSsh).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5_001);
+    expect(fixture.availability.requireReady(remoteHost).success).toBe(false);
+  });
 
-    await scope.dispose();
+  it('keeps disconnected intent authoritative over automatic demand', async () => {
+    await fixture.availability.ensureReady(remoteHost, 'connect');
+    await fixture.driver.disconnect();
+    const opens = fixture.peer.opens;
+    fixture.availability.lease(remoteHost, fixture.scope);
+    fixture.availability.wakeDemanded('online');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fixture.availability.stateFor(remoteHost).kind).toBe('suspended');
+    expect(fixture.peer.opens).toBe(opens);
+  });
+
+  it('acquires and releases connection leases without coupling observation to intent', async () => {
+    const project = fixture.scope.child('project');
+    let lease = project.child('lease');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.peer.opens).toBe(0);
+    fixture.availability.lease(remoteHost, lease);
+    await fixture.availability.ensureReady(remoteHost, 'demand');
+    expect(fixture.peer.opens).toBe(1);
+    await lease.dispose();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.peer.current.closed).toBe(true);
+    lease = project.child('lease');
+    fixture.availability.lease(remoteHost, lease);
+    await fixture.availability.ensureReady(remoteHost, 'demand');
+    expect(fixture.peer.opens).toBe(2);
+    await project.dispose();
+    fixture.availability.lease(remoteHost, lease);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.peer.current.closed).toBe(true);
+    expect(fixture.peer.opens).toBe(2);
   });
 });
+
+function createFixture() {
+  const scope = createScope({ label: 'desktop-supervisor-test' });
+  const peer = createFaultPeer();
+  const driver = createSupervisorDriver(peer);
+  const supervisor = driver.supervisor;
+  const localReady = vi.fn(async () => {});
+  // Gateway ports only are substituted; the supervisor and Wire protocol are real.
+  const hosts: Pick<
+    Hosts,
+    'get' | 'availability' | 'lease' | 'wake' | 'revalidate' | 'onReady' | 'onInvalidate'
+  > = {
+    get: () => ({
+      host: hostRef('remote', 'host'),
+      connection: driver.managed,
+      server: {} as never,
+      runtime: {
+        client: async () => {
+          await supervisor.awaitUsable();
+          return supervisor.attachment;
+        },
+        waitUntilReady: async () => {
+          return ok({
+            host: hostRef('remote', 'host'),
+            generation: await supervisor.awaitUsable(),
+          });
+        },
+      },
+    }),
+    availability: () => supervisor.availability,
+    lease: (_id, owner) => driver.managed.lease(owner),
+    revalidate: (_id, cause) => supervisor.revalidate(cause),
+    wake: (cause) => {
+      if (cause === 'resume') supervisor.resume();
+      else if (cause === 'suspend') supervisor.suspendSystem();
+      else supervisor.revalidate(cause);
+    },
+    onReady: () => () => {},
+    onInvalidate: () => () => {},
+  };
+  const availability = createDesktopHostAvailability({
+    scope,
+    hosts,
+    runtimes: { rebind: vi.fn(), forget: vi.fn() },
+    localReady,
+  });
+  return { scope, peer, driver, hosts, availability, localReady };
+}

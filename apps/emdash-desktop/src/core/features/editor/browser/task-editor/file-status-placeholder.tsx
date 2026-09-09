@@ -43,7 +43,7 @@ export const FileStatusPlaceholder = observer(function FileStatusPlaceholder({
   }
 
   const openInDefaultApp = () => {
-    void openWithOS(resource.ref ?? resource.path);
+    if (resource.ref) void openWithOS(resource.ref);
   };
   const retry = () => resource.retryLoad();
 
@@ -70,18 +70,22 @@ export const FileStatusPlaceholder = observer(function FileStatusPlaceholder({
             fileName={fileName}
             message="File too large to display in the editor"
           />
-          <Button variant="secondary" size="sm" onClick={openInDefaultApp}>
-            Open in default app
-          </Button>
+          {resource.ref?.host.type === 'local' && (
+            <Button variant="secondary" size="sm" onClick={openInDefaultApp}>
+              Open in default app
+            </Button>
+          )}
         </Shell>
       );
     case 'binary':
       return (
         <Shell>
           <Notice icon={FileQuestion} fileName={fileName} message="Binary file — no preview" />
-          <Button variant="secondary" size="sm" onClick={openInDefaultApp}>
-            Open in default app
-          </Button>
+          {resource.ref?.host.type === 'local' && (
+            <Button variant="secondary" size="sm" onClick={openInDefaultApp}>
+              Open in default app
+            </Button>
+          )}
         </Shell>
       );
     case 'unavailable':

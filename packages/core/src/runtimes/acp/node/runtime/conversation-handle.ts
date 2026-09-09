@@ -3,6 +3,7 @@ import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
 import { acpErr } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import type { SessionConfigCatalog } from '#runtimes/acp/node/session/cell';
 import {
   closedSessionState,
   emptyRetainedPresentation,
@@ -331,7 +332,14 @@ export class ConversationHandle {
   updateConfig(dimension: ConfigDimension, value: string): void {
     this.configOverrides = { ...this.configOverrides, [dimension]: value };
     this.updateConfigured({ [dimension]: value });
-    this.updateDescriptor(dimension === 'model' ? { model: value } : { effort: value }, true);
+    this.updateDescriptor(
+      dimension === 'model'
+        ? { model: value }
+        : dimension === 'effort'
+          ? { effort: value }
+          : { collaborationMode: value },
+      true
+    );
   }
 
   clearMode(): void {
@@ -343,7 +351,14 @@ export class ConversationHandle {
     const { [dimension]: _removed, ...remaining } = this.configOverrides;
     this.configOverrides = remaining;
     this.updateConfigured({ [dimension]: null });
-    this.updateDescriptor(dimension === 'model' ? { model: null } : { effort: null }, true);
+    this.updateDescriptor(
+      dimension === 'model'
+        ? { model: null }
+        : dimension === 'effort'
+          ? { effort: null }
+          : { collaborationMode: null },
+      true
+    );
   }
 
   refreshDescriptor(descriptor: AcpStartInput): void {
@@ -360,6 +375,7 @@ export class ConversationHandle {
     this.configOverrides = {
       ...(descriptor.model ? { model: descriptor.model } : {}),
       ...(descriptor.effort ? { effort: descriptor.effort } : {}),
+      ...(descriptor.collaborationMode ? { collaborationMode: descriptor.collaborationMode } : {}),
     };
     this.updateConfigured(configuredFromDescriptor(descriptor));
   }
@@ -454,6 +470,7 @@ export class ConversationHandle {
     const lastKnownCapabilities = mergeCapabilities(
       this.retainedValue.lastKnownCapabilities,
       record.cell.config,
+      record.cell.configCatalog,
       this.stateValue === 'materializing'
     );
     return {
@@ -482,7 +499,8 @@ export class ConversationHandle {
       configured: this.retainedValue.configured,
       lastKnownCapabilities: mergeCapabilities(
         this.retainedValue.lastKnownCapabilities,
-        record.cell.config
+        record.cell.config,
+        record.cell.configCatalog
       ),
       lastKnownMcpServers: record.mcpServers,
       lastKnownUsage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
@@ -528,6 +546,7 @@ function configuredFromDescriptor(descriptor: AcpStartInput): RetainedPresentati
     model: descriptor.model ?? null,
     modeId: descriptor.modeId ?? null,
     effort: descriptor.effort ?? null,
+    collaborationMode: descriptor.collaborationMode ?? null,
   };
 }
 
@@ -542,12 +561,21 @@ function sameRetainedContent(
 function mergeCapabilities(
   retained: RetainedPresentation['lastKnownCapabilities'],
   current: RetainedPresentation['lastKnownCapabilities'],
+  catalog: SessionConfigCatalog,
   preservePendingCommands = false
 ): RetainedPresentation['lastKnownCapabilities'] {
+  const capabilities =
+    catalog.kind === 'ready'
+      ? catalog.config
+      : {
+          modelOptions: current.modelOptions ?? retained.modelOptions,
+          efforts: current.efforts ?? retained.efforts,
+          modeOptions: current.modeOptions ?? retained.modeOptions,
+          collaborationModeOptions:
+            current.collaborationModeOptions ?? retained.collaborationModeOptions ?? null,
+        };
   return {
-    modelOptions: current.modelOptions ?? retained.modelOptions,
-    efforts: current.efforts ?? retained.efforts,
-    modeOptions: current.modeOptions ?? retained.modeOptions,
+    ...capabilities,
     availableCommands:
       preservePendingCommands && current.availableCommands.length === 0
         ? retained.availableCommands

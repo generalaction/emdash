@@ -1,7 +1,13 @@
-import { isLocalHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  hostRef,
+  isLocalHostRef,
+  LOCAL_HOST_REF,
+  type HostRef,
+} from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { err, ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
+import { peek } from '@emdash/wire/state';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import { AccountAuthServerClient } from '@core/features/account/node/services/account-auth-server-client';
@@ -86,7 +92,6 @@ import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodi
 import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
-import { isServerUsable } from '@core/services/hosts/api';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { bindPullRequestSyncIdentityResolver } from '@core/services/pull-requests/node/sync-identity';
@@ -200,10 +205,12 @@ export async function bootServices(
       // Advisory only: rejections here mean "no hint" to the tunnel, which
       // then keeps its blind dual-family dial. The usability guard keeps the
       // probe from triggering workspace-server provisioning as a side effect.
-      if (!isServerUsable(infrastructure.hosts.stateModel.get(connectionId))) {
+      if (peek(infrastructure.hosts.availability(connectionId)).kind !== 'ready') {
         throw new Error(`No usable workspace server for SSH connection ${connectionId}`);
       }
-      const connection = await infrastructure.hosts.client(connectionId);
+      const host = infrastructure.hosts.get(hostRef('remote', connectionId));
+      if (!host) throw new Error(`Host '${connectionId}' is not managed`);
+      const connection = await host.runtime.client();
       const inspected = await runWithTimeout(
         () => connection.client.portForwards.inspect({ port: remotePort }),
         { timeoutMs: 2_000 }
@@ -243,7 +250,8 @@ export async function bootServices(
     },
   });
   const lifecycleParticipants = createWorkspaceLifecycleParticipants({
-    registerFileSearchRoot: fileSearchRuntime.registerRoot,
+    acquireFileSearchRoot: fileSearchRuntime.acquireRoot,
+    releaseFileSearchRoot: fileSearchRuntime.releaseRoot,
     stopPreviewServers: (projectId, workspaceId) =>
       previewServerService.stopForWorkspace(projectId, workspaceId),
   });
@@ -382,7 +390,7 @@ export async function bootServices(
       sessionCleanup: lifecycleSessions,
       getMementosRuntimeClient,
       telemetry: telemetryService,
-      unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
+      evictFileSearchRoot: fileSearchRuntime.evictRoot,
     },
   });
   const searchService = createSearchService({
@@ -703,7 +711,6 @@ export async function bootServices(
   reconcileSweep.registerKind(createConversationDeletionSweepKind({ db, runtimes }));
   const hostAttachments = new HostAttachmentRegistry({
     scope: appScope,
-    ssh: infrastructure.ssh.manager,
     hosts: infrastructure.hosts,
     logger: log,
   });

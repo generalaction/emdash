@@ -62,8 +62,15 @@ export function normalizeForProfile(value: string, profile: PathProfile): string
     : normalized;
 }
 
-export function comparisonKeyForAbsolutePath(path: HostAbsolutePath, profile: PathProfile): string {
-  const normalize = (value: string) => normalizeForProfile(value, profile);
+export function comparisonKeyForAbsolutePath(
+  path: HostAbsolutePath,
+  profile?: Partial<PathProfile>
+): string {
+  const resolvedProfile = createPathProfile({
+    style: path.root.kind === 'posix' ? 'posix' : 'win32',
+    ...profile,
+  });
+  const normalize = (value: string) => normalizeForProfile(value, resolvedProfile);
   const segments = path.segments.map(normalize).join('/');
   switch (path.root.kind) {
     case 'posix':

@@ -5,6 +5,7 @@ import type { MutationError } from '@core/primitives/wire/api/mutations';
 import type { WorkspaceDeletionTombstone } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import type { WorkspaceRow } from '@core/services/app-db/node/schema';
+import { workspacePathIdentityKey } from '../../workspace-path-identity';
 import {
   createWorkspaceRegistry,
   liveWorkspaces,
@@ -106,8 +107,14 @@ export function findWorkspaceTombstoneConflict(
     .from(workspaces)
     .where(and(eq(workspaces.location, target.location), hostIdentity, pendingTombstones()))
     .all();
+  const targetPathKey =
+    target.path === undefined ? undefined : workspacePathIdentityKey(target.path);
   for (const row of rows) {
-    if (target.path !== undefined && row.path === target.path) {
+    if (
+      targetPathKey !== undefined &&
+      row.path !== null &&
+      workspacePathIdentityKey(row.path) === targetPathKey
+    ) {
       return conflict(row.id, `A deletion is still pending at ${target.path}.`);
     }
     const branch = getProvisionedWorkspaceBranch(row) ?? row.observedGit?.branch ?? null;

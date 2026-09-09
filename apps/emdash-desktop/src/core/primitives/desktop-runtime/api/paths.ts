@@ -1,27 +1,40 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import {
+  absoluteDirname,
+  createPathSemantics,
   formatAbsolute,
   hostFileRef,
   joinAbsolute,
-  parseAbsolute,
+  parseNativeAbsolute,
   parsePortableRelativePath,
   relativeSegmentsFromAbsolute,
   type HostAbsolutePath,
   type HostFileRef,
+  type PathProfile,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
 
 export function hostPathFromNative(input: string): HostAbsolutePath {
-  const style = isWindowsAbsolute(input) ? 'win32' : 'posix';
-  const parsed = parseAbsolute(input, {
-    profile: { style, unicodeNormalization: 'preserve' },
-  });
+  const parsed = parseNativeAbsolute(input);
   if (!parsed.success) throw new Error(parsed.error.message);
   return parsed.data;
 }
 
 export function nativePathFromHost(path: HostAbsolutePath): string {
   return formatAbsolute(path, { separator: path.root.kind === 'posix' ? '/' : '\\' });
+}
+
+/** Joins a host path without consulting the desktop process's path dialect. */
+export function joinHostPath(base: string, ...segments: string[]): string {
+  const joined = joinAbsolute(hostPathFromNative(base), ...segments);
+  if (!joined.success) throw new Error(joined.error.message);
+  return nativePathFromHost(joined.data);
+}
+
+/** Returns a host path's parent using the path's own root dialect. */
+export function dirnameHostPath(input: string): string {
+  const path = hostPathFromNative(input);
+  return nativePathFromHost(absoluteDirname(path) ?? path);
 }
 
 export function hostFileRefFromNativePath(path: string, connectionId?: string): HostFileRef {
@@ -42,8 +55,21 @@ export function fileKeyForAbsolutePath(path: HostAbsolutePath): { path: HostAbso
 
 export function relativePathWithin(
   root: HostAbsolutePath,
-  candidate: HostAbsolutePath
+  candidate: HostAbsolutePath,
+  profile?: PathProfile
 ): PortableRelativePath {
+  if (profile) {
+    const semantics = createPathSemantics(profile);
+    const rootOnly: HostAbsolutePath = { root: root.root, segments: [] };
+    const candidateRootOnly: HostAbsolutePath = { root: candidate.root, segments: [] };
+    if (!semantics.equals(rootOnly, candidateRootOnly)) {
+      throw new Error('Path roots are not compatible');
+    }
+    if (!semantics.contains(root, candidate)) {
+      throw new Error('Path is outside root');
+    }
+    return portablePath(candidate.segments.slice(root.segments.length).join('/'));
+  }
   const relative = relativeSegmentsFromAbsolute(root, candidate);
   if (!relative.success) throw new Error(relative.error.message);
   return portablePath(relative.data.join('/'));

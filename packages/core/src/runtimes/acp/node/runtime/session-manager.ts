@@ -201,11 +201,12 @@ export class SessionManager {
     return ok();
   }
 
-  async ensureActivation(
-    conversationId: string
-  ): Promise<
+  async ensureActivation(conversationId: string): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -214,11 +215,12 @@ export class SessionManager {
     return this.activateEntry(entry, false);
   }
 
-  async launch(
-    input: AcpStartInput
-  ): Promise<
+  async launch(input: AcpStartInput): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -237,7 +239,10 @@ export class SessionManager {
     removeOnInitialFailure: boolean
   ): Promise<
     Result<
-      { sessionId: string; clearedConfiguration?: Array<'model' | 'modeId' | 'effort'> },
+      {
+        sessionId: string;
+        clearedConfiguration?: Array<'model' | 'modeId' | 'effort' | 'collaborationMode'>;
+      },
       AcpStartError
     >
   > {
@@ -288,8 +293,30 @@ export class SessionManager {
     return ok(record);
   }
 
-  async prompt(
-    input: SendPromptInput
+  sendPrompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return new Promise((resolve, reject) => {
+      void this.runPrompt(input, (accepted) => resolve(ok(accepted))).then(
+        (result) => {
+          if (result.success) resolve(result);
+          else {
+            const error = result.error;
+            resolve(err(isAcpWakeFailure(error) ? error.error : error));
+          }
+        },
+        (error: unknown) => {
+          this.deps.logger.error('ACP prompt execution failed', {
+            conversationId: input.conversationId,
+            error,
+          });
+          reject(error);
+        }
+      );
+    });
+  }
+
+  private async runPrompt(
+    input: SendPromptInput,
+    onAccepted: (result: { queued: boolean }) => void
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
     const entry = this.retained.get(input.conversationId);
     if (!entry || entry.deleted) return acpErr.conversationNotFound(input.conversationId);
@@ -300,17 +327,38 @@ export class SessionManager {
     if (!acquired.success) return this.mapWakeError(acquired.error);
     const lease = acquired.data;
     try {
+      let acceptance;
+      if (
+        !input.prompt.text.trim() &&
+        !input.prompt.hiddenContext?.trim() &&
+        !input.prompt.attachments?.length
+      )
+        return acpErr.invalidState('A prompt needs text or an attachment');
+      try {
+        acceptance = {
+          id: input.promptId,
+          onAccepted,
+          resolvedAttachments: await Promise.all(
+            (input.prompt.attachments ?? []).map((attachment) =>
+              this.deps.resolveAttachment(input.conversationId, attachment)
+            )
+          ),
+        };
+      } catch (error) {
+        return acpErr.promptFailed(toSerializedError(error));
+      }
       if (!entry.isCurrent()) return acpErr.conversationNotFound(input.conversationId);
       this.lifecycle.recordInput(input.conversationId);
       if (input.placement === 'queue') {
         const state = lease.value.cell.sessionState;
         if (state.lifecycle !== 'ready' || state.isGenerating || state.queuedPrompts.length > 0) {
-          const queued = lease.value.cell.queuePrompt(input.prompt);
+          const queued = lease.value.cell.queuePrompt(input.prompt, input.promptId);
           if (!queued.success) return queued;
+          onAccepted({ queued: true });
           return ok({ queued: true });
         }
       }
-      return await lease.value.cell.prompt(input.prompt);
+      return await lease.value.cell.prompt(input.prompt, acceptance);
     } finally {
       await lease.release();
     }
@@ -518,8 +566,8 @@ export class SessionManager {
     if (record) record.conversation.syncRecord(record);
   }
 
-  killAllTerminals(): void {
-    this.terminals.killAll();
+  killAllTerminals(): Promise<void> {
+    return this.terminals.killAll();
   }
 
   private handleSessionUpdate(
@@ -572,7 +620,12 @@ export class SessionManager {
     connection: AcpConnectionContext,
     params: CreateTerminalRequest
   ): Promise<CreateTerminalResponse> {
-    return this.ports.terminals.createTerminal(conversationId, connection.cwd, params);
+    return this.ports.terminals.createTerminal(
+      conversationId,
+      connection.cwd,
+      connection.env,
+      params
+    );
   }
 
   onProcessClosed(processKey: string, processGeneration: number, exitCode: number | null): void {
@@ -593,10 +646,6 @@ export class SessionManager {
       record.connectionLeaseState.release = false;
       record.cell.processClosed(exitCode);
       void this.stop(record.input.conversationId, 'process-exited');
-      void this.connections.invalidate({
-        providerId: record.input.providerId,
-        cwd: record.input.cwd,
-      });
     }
   }
 
@@ -729,6 +778,7 @@ export class SessionManager {
         ({
           ...(input.model ? { model: input.model } : {}),
           ...(input.effort ? { effort: input.effort } : {}),
+          ...(input.collaborationMode ? { collaborationMode: input.collaborationMode } : {}),
         } satisfies ConfigOverrides),
       options.consumed ?? false,
       options.everMaterialized ?? options.suspended,
@@ -755,6 +805,7 @@ export class SessionManager {
         model: configured.model,
         modeId: configured.modeId,
         effort: configured.effort,
+        collaborationMode: configured.collaborationMode ?? null,
       };
       configOverrides = configuredOverrides(configured);
       retained = { ...parsedV1.data.presentation, configured };
@@ -766,6 +817,7 @@ export class SessionManager {
         model: legacyOverrides?.model ?? legacy.model ?? null,
         modeId: legacy.modeId ?? null,
         effort: legacyOverrides?.effort ?? legacy.effort ?? null,
+        collaborationMode: legacyOverrides?.collaborationMode ?? legacy.collaborationMode ?? null,
       };
       descriptor = {
         conversationId: intent.conversationId,
@@ -775,6 +827,7 @@ export class SessionManager {
         model: configured.model,
         modeId: configured.modeId,
         effort: configured.effort,
+        collaborationMode: configured.collaborationMode,
       };
       configOverrides = configuredOverrides(configured);
       retained = emptyRetainedPresentation(configured);
@@ -907,7 +960,7 @@ export class SessionManager {
       record.input.conversationId
     );
     record.conversation.clearRecord(record);
-    this.terminals.disposeConversation(record.input.conversationId);
+    await this.terminals.disposeConversation(record.input.conversationId);
   }
 
   private discardReplacedRecord(record: SessionRecord): void {
@@ -942,6 +995,7 @@ function configuredOverrides(configured: RetainedPresentation['configured']): Co
   return {
     ...(configured.model ? { model: configured.model } : {}),
     ...(configured.effort ? { effort: configured.effort } : {}),
+    ...(configured.collaborationMode ? { collaborationMode: configured.collaborationMode } : {}),
   };
 }
 

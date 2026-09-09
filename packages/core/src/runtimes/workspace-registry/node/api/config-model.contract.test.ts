@@ -309,6 +309,43 @@ describe('workspace registry config live model', () => {
     expect(fixed?.runtime?.notices ?? []).toEqual([]);
   });
 
+  it('retains the last valid config across a transient read failure and clears the notice', async () => {
+    const workspacePath = path.join(root, 'transient-read');
+    const configPath = path.join(workspacePath, '.emdash.json');
+    await fs.mkdir(workspacePath, { recursive: true });
+    await writeConfig(workspacePath, { scripts: { run: 'first' } });
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-transient', path: workspacePath }))
+        .success
+    ).toBe(true);
+
+    await fs.rm(configPath);
+    await fs.mkdir(configPath);
+    expect((await wire.client.refresh({ workspaceId: 'ws-transient' })).success).toBe(true);
+
+    const retained = await wire.client.getProjectConfig({ workspaceId: 'ws-transient' });
+    expect(retained).toMatchObject({
+      success: true,
+      data: { resolved: { run: { value: 'first', from: 'team' } } },
+    });
+    expect((await listRecords())['ws-transient']?.runtime?.notices).toEqual([
+      expect.objectContaining({ kind: 'config-unreadable' }),
+    ]);
+
+    await fs.rm(configPath, { recursive: true });
+    const replacement = path.join(workspacePath, '.emdash.json.replacement');
+    await fs.writeFile(replacement, JSON.stringify({ scripts: { run: 'second' } }));
+    await fs.rename(replacement, configPath);
+    expect((await wire.client.refresh({ workspaceId: 'ws-transient' })).success).toBe(true);
+
+    const recovered = await wire.client.getProjectConfig({ workspaceId: 'ws-transient' });
+    expect(recovered).toMatchObject({
+      success: true,
+      data: { resolved: { run: { value: 'second', from: 'team' } } },
+    });
+    expect((await listRecords())['ws-transient']?.runtime?.notices ?? []).toEqual([]);
+  });
+
   it('the wire record carries the config summary and drops it when the workspace vanishes', async () => {
     const workspacePath = path.join(root, 'summarized');
     await fs.mkdir(workspacePath, { recursive: true });

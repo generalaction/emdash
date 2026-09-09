@@ -65,6 +65,7 @@ export type RetainedConfiguredState = {
   model: string | null;
   modeId: string | null;
   effort: string | null;
+  collaborationMode?: string | null;
 };
 
 export type RetainedPresentation = {
@@ -256,6 +257,10 @@ export function retainedConfig(retained: RetainedPresentation): SessionConfigSta
     modelOptions: selected(lastKnownCapabilities.modelOptions, configured.model),
     efforts: selected(lastKnownCapabilities.efforts, configured.effort),
     modeOptions: selected(lastKnownCapabilities.modeOptions, configured.modeId),
+    collaborationModeOptions: selected(
+      lastKnownCapabilities.collaborationModeOptions ?? null,
+      configured.collaborationMode ?? null
+    ),
   };
 }
 

@@ -7,25 +7,43 @@ import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { hostsContract } from '../api';
 import { createHostAvailability } from './availability';
-import type { HostService } from './host-service';
+import type { Hosts } from './hosts';
 import { createHostsWireController } from './wire-controller';
+import { createWorkerHostAvailability } from './worker-host-availability';
 
 describe('Hosts Wire availability', () => {
   it('publishes readiness through the Host-keyed live state', async () => {
     const scope = createScope({ label: 'hosts-wire-availability-test' });
-    const availability = createHostAvailability({
+    const workers = createWorkerHostAvailability({
       scope,
       readiness: { prepare: async () => ok() },
     });
-    const wakeDemanded = vi.spyOn(availability, 'wakeDemanded');
     const host = hostRef('remote', 'ssh-1');
+    const availability = createHostAvailability({
+      scope,
+      local: workers,
+      remote: () => ({
+        connection: {
+          availability: workers.state(host),
+          lease: (owner) => workers.lease(host, owner),
+          pin: async () => ok(),
+          disconnect: async () => {
+            workers.suspend(host);
+            return ok();
+          },
+        },
+        waitUntilReady: () => workers.ensureReady(host, 'demand'),
+      }),
+      remoteState: () => workers.state(host),
+      remoteLease: (_id, owner) => workers.lease(host, owner),
+      wakeRemote: (cause) => workers.wakeDemanded(cause),
+      revalidateRemote: () => workers.invalidate(host),
+    });
+    const wakeDemanded = vi.spyOn(availability, 'wakeDemanded');
     const serverStates = expose(hostsContract.serverStates, { runtime: cell({}) });
-    const service = { stateModel: { host: serverStates } } as HostService;
+    const service = { stateModel: { host: serverStates } } as Hosts;
     const disconnect = vi.fn(async () => {
-      expect(availability.stateFor(host)).toEqual({
-        kind: 'suspended',
-        reason: 'user-disconnected',
-      });
+      availability.suspend(host);
     });
     const wire = createTestWire(
       hostsContract,

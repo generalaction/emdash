@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => {
   const db = {
     run: vi.fn(),
     select: vi.fn(() => ({
-      from: vi.fn(async () => []),
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({ all: vi.fn(() => []) })),
+      })),
     })),
   };
   const sqlite = {};

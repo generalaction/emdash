@@ -1,9 +1,13 @@
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
+import { ReplicaLog } from '@emdash/wire/live';
+import { defineContract } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { TuiAgentStartInput } from '#runtimes/tui-agents/api';
+import { tuiAgentsContract } from '#runtimes/tui-agents/api';
 import type {
   AgentPluginHost,
   ITrustBehavior,
@@ -12,6 +16,7 @@ import type {
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
 import type { IExecutionContext } from '#services/exec/api';
+import { makeLegacyTmuxSessionName, makeTmuxSessionName } from '#services/pty/api';
 import { FakePtySpawner } from '#services/pty/testing';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import {
@@ -32,6 +37,11 @@ function createRuntime(
     hooks?: ResolvedTuiProvider['hooks'];
     trustWorkspace?: ITrustBehavior['trustWorkspace'];
     spillPrompt?: (prompt: string) => Promise<PromptSpillResult>;
+    platform?: NodeJS.Platform;
+    userEnv?: NodeJS.ProcessEnv;
+    commandEnv?: Record<string, string>;
+    command?: string;
+    args?: string[];
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -50,7 +60,13 @@ function createRuntime(
       behavior: options.trustWorkspace ? { trust: { trustWorkspace: options.trustWorkspace } } : {},
     })),
     buildPromptCommand: vi.fn(() =>
-      Promise.resolve(ok({ command: 'agent', args: ['run', 'hello world'], env: { AGENT: '1' } }))
+      Promise.resolve(
+        ok({
+          command: options.command ?? 'agent',
+          args: options.args ?? ['run', 'hello world'],
+          env: options.commandEnv ?? { AGENT: '1' },
+        })
+      )
     ),
   } as unknown as AgentPluginHost;
   const exec = {
@@ -63,11 +79,17 @@ function createRuntime(
   } satisfies IExecutionContext;
   const runtime = new TuiAgentsRuntime({
     agentHost,
+    env: async () =>
+      options.userEnv ??
+      (options.platform === 'win32'
+        ? { Path: 'C:\\Tools', ComSpec: 'C:\\Windows\\System32\\cmd.exe' }
+        : { PATH: '/bin', SHELL: '/bin/bash' }),
     exec,
     intents: options.intents ?? createMemorySessionIntentStore(),
     conversationReports: options.conversationReports,
     spawner,
     clock: options.clock,
+    platform: options.platform,
     lifecycle: options.lifecycle,
     spillPrompt: options.spillPrompt,
     logger: noopLogger,
@@ -90,6 +112,187 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
+  it.each(['fresh', 'resume'] as const)(
+    'recovers a %s launch using the session id captured after switching sessions',
+    async (mode) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const clock = createManualClock();
+      const reports = createRecordingConversationLifecycleReporter();
+      const { runtime, spawner, agentHost } = createRuntime({
+        clock,
+        conversationReports: reports,
+      });
+      try {
+        if (mode === 'resume') {
+          await runtime.resumeSession(startInput({ sessionId: 'original-session' }));
+        } else {
+          await runtime.startSession(startInput());
+        }
+        runtime['agentStates'].applyCanonicalEvent('conversation-1', 'test', {
+          kind: 'status',
+          type: 'start',
+          providerSessionId: 'switched-session',
+        });
+        expect(reports.providerIds).toEqual([
+          { conversationId: 'conversation-1', providerSessionId: 'switched-session' },
+        ]);
+
+        // Crash outside the early-resume fallback window.
+        await clock.advanceBy(4_000);
+        spawner.processes[0]!.emitExit({ exitCode: 1, signal: null });
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(spawner.processes).toHaveLength(2);
+        expect(agentHost.buildPromptCommand).toHaveBeenLastCalledWith(
+          'test',
+          expect.objectContaining({
+            isResuming: true,
+            providerSessionId: 'switched-session',
+            initialPrompt: undefined,
+          })
+        );
+        expect(reports.started.at(-1)).toEqual({
+          conversationId: 'conversation-1',
+          providerSessionId: 'switched-session',
+          resumeOutcome: 'loaded',
+        });
+      } finally {
+        await runtime.dispose();
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it('retains stopped output when replacement spawning fails', async () => {
+    const { runtime, spawner } = createRuntime();
+    await runtime.startSession(startInput());
+    spawner.processes[0]!.emitData('retained screen');
+    await runtime.stopSession('conversation-1');
+    const output = runtime.outputLog({ conversationId: 'conversation-1' });
+    const previous = await output.snapshot();
+    spawner.failWith = new Error('spawn failed');
+    const result = await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+    expect(result.success).toBe(false);
+    expect(await output.snapshot()).toMatchObject({
+      generation: previous.generation,
+      sequence: previous.sequence,
+      data: previous.data,
+    });
+    await runtime.dispose();
+  });
+
+  it('refreshes a retained Wire output follower when a process is replaced', async () => {
+    const { runtime, spawner } = createRuntime();
+    await runtime.startSession(startInput());
+    spawner.processes[0]!.emitData('original screen');
+    const contract = defineContract({ output: tuiAgentsContract.output });
+    const wire = createTestWire(contract, { output: (key) => runtime.outputLog(key) });
+    let screen = '';
+    const replica = new ReplicaLog(
+      wire.client.output.handle({ conversationId: 'conversation-1' }),
+      {
+        store: {
+          reset(data) {
+            screen = data.text;
+          },
+          append(chunk) {
+            screen += chunk;
+          },
+        },
+      }
+    );
+    try {
+      await replica.ready;
+      expect(screen).toBe('original screen');
+      await runtime.stopSession('conversation-1');
+      expect(screen).toBe('original screen');
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      spawner.processes[1]!.emitData('resumed screen');
+      await vi.waitFor(() => expect(screen).toBe('resumed screen'));
+      await runtime.deactivateSession('conversation-1', 'workspace');
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      spawner.processes[2]!.emitData('replacement screen');
+      await vi.waitFor(() => expect(screen).toBe('replacement screen'));
+      spawner.processes[2]!.emitData(' and live output');
+      await vi.waitFor(() => expect(screen).toBe('replacement screen and live output'));
+    } finally {
+      await replica.dispose();
+      wire.dispose();
+      await runtime.dispose();
+    }
+  });
+
+  it('retains a silent session and its output beyond an hour with an attached client', async () => {
+    const clock = createManualClock(0);
+    const { runtime, spawner } = createRuntime({
+      clock,
+      lifecycle: { sweepIntervalMs: 61 * 60_000 },
+    });
+    await runtime.startSession(startInput());
+    const output = runtime.outputLog({ conversationId: 'conversation-1' });
+    const unsubscribe = await output.subscribe(() => {});
+    try {
+      spawner.processes[0]!.emitData('previous output\n');
+      await clock.advanceBy(61 * 60_000);
+      // Drain the asynchronous sweep before checking the negative assertion.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(spawner.processes[0]!.killCount).toBe(0);
+      expect(await output.snapshot()).toMatchObject({ data: { text: 'previous output\n' } });
+      expect(
+        peek(runtime.sessionsLiveModel.get(undefined)!.states.list)['conversation-1']
+      ).toMatchObject({ status: 'running' });
+    } finally {
+      unsubscribe();
+      await runtime.dispose();
+    }
+  });
+
+  it('keeps an existing output subscriber connected after eviction and explicit resume', async () => {
+    const { runtime, spawner } = createRuntime();
+    await runtime.startSession(startInput());
+    const output = runtime.outputLog({ conversationId: 'conversation-1' });
+    const updates = vi.fn();
+    const unsubscribe = await output.subscribe(updates);
+    try {
+      spawner.processes[0]!.emitData('old output');
+      await runtime.deactivateSession('conversation-1', 'workspace');
+      await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+      spawner.processes[1]!.emitData('resumed output');
+      expect(updates).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          delta: { chunk: 'resumed output' },
+        })
+      );
+      expect(await output.snapshot()).toMatchObject({ data: { text: 'resumed output' } });
+      await runtime.deleteSession('conversation-1');
+      unsubscribe();
+      expectNoSessionResidue('conversation-1', leakContainers(runtime));
+    } finally {
+      unsubscribe();
+      await runtime.dispose();
+    }
+  });
+
+  it('starts a clean output run on resume while keeping stopped history until then', async () => {
+    const { runtime, spawner } = createRuntime();
+    await runtime.startSession(startInput());
+    const output = runtime.outputLog({ conversationId: 'conversation-1' });
+    spawner.processes[0]!.emitData('old screen');
+    const previous = await output.snapshot();
+    await runtime.stopSession('conversation-1');
+    expect(await output.snapshot()).toMatchObject({
+      generation: previous.generation,
+      sequence: previous.sequence,
+      data: previous.data,
+    });
+    await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+    spawner.processes[1]!.emitData('new screen');
+    spawner.processes[0]!.emitData('late output from the retired process');
+    expect(await output.snapshot()).toMatchObject({ data: { text: 'new screen' } });
+    expect((await output.snapshot()).generation).not.toBe(previous.generation);
+    await runtime.dispose();
+  });
+
   it('starts eagerly and output attachment does not spawn', async () => {
     const { runtime, spawner } = createRuntime();
 
@@ -100,8 +303,11 @@ describe('TuiAgentsRuntime', () => {
 
     expect(spawner.specs).toEqual([
       {
-        command: 'agent',
-        args: ['run', 'hello world'],
+        invocation: {
+          kind: 'argv',
+          executable: 'agent',
+          argv: ['run', 'hello world'],
+        },
         cwd: '/workspace',
         env: {
           TERM: 'xterm-256color',
@@ -116,6 +322,43 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(1);
+  });
+
+  it('merges final Windows provider environment overlays case-insensitively', async () => {
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      commandEnv: { PATH: 'C:\\base' },
+    });
+
+    await runtime.startSession(startInput({ providerVars: { Path: 'C:\\override' } }));
+
+    expect(spawner.specs[0]?.env).toMatchObject({ PATH: 'C:\\override' });
+    expect(
+      Object.keys(spawner.specs[0]?.env ?? {}).filter((key) => key.toLowerCase() === 'path')
+    ).toEqual(['PATH']);
+  });
+
+  it('launches Windows cmd providers through an explicit cmd wrapper', async () => {
+    const command = 'C:\\Program Files\\npm\\provider.cmd';
+    const { runtime, spawner } = createRuntime({
+      platform: 'win32',
+      command,
+      commandEnv: {
+        PATH: 'C:\\Program Files\\npm',
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+      },
+    });
+
+    await runtime.startSession(startInput({ cwd: 'C:\\workspace' }));
+
+    expect(spawner.specs[0]).toMatchObject({
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining(command),
+      },
+      cwd: 'C:\\workspace',
+    });
   });
 
   it('trusts the workspace only when the start input opts in', async () => {
@@ -178,15 +421,68 @@ describe('TuiAgentsRuntime', () => {
     await runtime.startSession(
       startInput({
         shellSetup: 'source ~/.profile',
-        tmuxSessionName: 'emdash-test',
+        tmux: { identity: 'project:task:conversation-1' },
       })
     );
 
-    expect(spawner.specs[0]!.command).toBe('/bin/sh');
-    expect(spawner.specs[0]!.args[0]).toBe('-c');
-    expect(spawner.specs[0]!.args[1]).toContain('tmux -u attach-session');
-    expect(spawner.specs[0]!.args[1]).toContain('emdash-test');
-    expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind).toBe('argv');
+    if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
+    expect(invocation.executable).toBe('/bin/bash');
+    expect(invocation.argv[0]).toBe('-lc');
+    expect(invocation.argv[1]).toContain('tmux -u attach-session');
+    expect(invocation.argv[1]).toMatch(/workspace-[a-f0-9]{10}/u);
+    expect(invocation.argv[1]).toContain('source ~/.profile && agent run');
+    expect(invocation.argv[1]).toContain('hello world');
+  });
+
+  it('resolves a readable metadata-backed tmux session from its stable identity', async () => {
+    const { runtime, spawner, exec } = createRuntime();
+
+    await runtime.startSession(
+      startInput({
+        cwd: '/workspace/Fix login',
+        tmux: { identity: 'project:task:conversation-1' },
+      })
+    );
+
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind).toBe('argv');
+    if (invocation.kind !== 'argv') throw new Error('Expected argv invocation');
+    expect(invocation.argv[1]).toMatch(/fix-login-[a-f0-9]{10}/u);
+    expect(invocation.argv[1]).toContain('@emdash_identity');
+    expect(exec.exec).toHaveBeenCalledWith('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
+    ]);
+  });
+
+  it('resolves the Windows default shell, applies setup, and removes tmux intent', async () => {
+    const { runtime, spawner, exec } = createRuntime({ platform: 'win32' });
+
+    await runtime.startSession(
+      startInput({
+        cwd: 'C:\\workspace',
+        shellSetup: 'set READY=1',
+        tmux: { identity: 'must-not-run' },
+      })
+    );
+
+    expect(spawner.specs[0]).toMatchObject({
+      invocation: {
+        kind: 'windows-command-line',
+        executable: 'C:\\Windows\\System32\\cmd.exe',
+        rawArguments: expect.stringContaining('/d /s /c set READY=1 &&'),
+      },
+    });
+    const windowsInvocation = spawner.specs[0]!.invocation;
+    expect(
+      windowsInvocation.kind === 'windows-command-line' ? windowsInvocation.rawArguments : ''
+    ).not.toContain('tmux');
+    await runtime.reconcile();
+    await runtime.dispose();
+    expect(exec.exec).not.toHaveBeenCalled();
   });
 
   it('attaches to an already running session without replacing config', async () => {
@@ -250,22 +546,30 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('stops and deletes sessions while cleaning up tmux', async () => {
-    const { runtime, spawner, exec } = createRuntime();
+    const identity = 'project:task:conversation-1';
+    const sessionName = makeTmuxSessionName(identity, 'workspace');
+    const encodedIdentity = Buffer.from(JSON.stringify({ version: 1, identity }), 'utf8').toString(
+      'base64url'
+    );
+    const exec = vi.fn(async () => ({
+      stdout: `${sessionName}\t42\tv1:${encodedIdentity}\n`,
+      stderr: '',
+    }));
+    const { runtime, spawner } = createRuntime({ exec: { exec } });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity } }));
     await runtime.stopSession('conversation-1');
 
     expect(spawner.processes[0]!.killCount).toBeGreaterThan(0);
     await vi.waitFor(() => {
-      expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-test']);
+      expect(exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', `=${sessionName}`]);
     });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity } }));
     await runtime.deleteSession('conversation-1');
-
-    await vi.waitFor(() => {
-      expect(exec.exec).toHaveBeenCalledTimes(2);
-    });
+    await vi.waitFor(() =>
+      expect(exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', `=${sessionName}`])
+    );
   });
 
   it('falls back to a fresh session when resume exits immediately', async () => {
@@ -326,7 +630,7 @@ describe('TuiAgentsRuntime', () => {
     const clock = createManualClock(1_000_000);
     const exec = vi.fn(() =>
       Promise.resolve({
-        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\n`,
+        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\t\n`,
         stderr: '',
       })
     );
@@ -336,14 +640,20 @@ describe('TuiAgentsRuntime', () => {
       exec: { exec },
     });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    const identity = 'project:task:conversation-1';
+    const readableName = makeTmuxSessionName(identity, 'workspace');
+    exec.mockResolvedValue({
+      stdout: `${readableName}\t${Math.floor(clock.now() / 1000)}\t\n`,
+      stderr: '',
+    });
+    await runtime.startSession(startInput({ tmux: { identity } }));
 
     await clock.advanceBy(1_200);
 
     expect(exec).toHaveBeenCalledWith('tmux', [
       'list-sessions',
       '-F',
-      '#{session_name}\t#{session_activity}',
+      '#{session_name}\t#{session_activity}\t#{@emdash_identity}',
     ]);
     expect(spawner.processes[0]!.killCount).toBe(0);
     expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
@@ -352,18 +662,20 @@ describe('TuiAgentsRuntime', () => {
   });
 
   it('reconciles active intents only when their tmux session exists', async () => {
+    const identity = 'project:task:conversation-1';
+    const legacyName = makeLegacyTmuxSessionName(identity);
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
       sessionId: 'provider-session',
-      payload: startInput({
-        sessionId: 'provider-session',
-        tmuxSessionName: 'emdash-test',
-      }),
+      payload: {
+        ...startInput({ sessionId: 'provider-session' }),
+        tmuxSessionName: legacyName,
+      },
     });
     const exec = vi.fn(() =>
       Promise.resolve({
-        stdout: 'emdash-test\t42\n',
+        stdout: `${legacyName}\t42\t\n`,
         stderr: '',
       })
     );
@@ -384,7 +696,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
-      payload: startInput({ tmuxSessionName: 'emdash-missing' }),
+      payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('missing') },
     });
     const { runtime } = createRuntime({ intents });
 
@@ -439,7 +751,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     await intents.saveActive({
       conversationId: 'conversation-1',
-      payload: startInput({ tmuxSessionName: 'emdash-test' }),
+      payload: { ...startInput(), tmuxSessionName: makeLegacyTmuxSessionName('legacy') },
     });
     const exec = vi.fn(() => Promise.reject(new Error('tmux unavailable')));
     const { runtime, spawner } = createRuntime({ intents, exec: { exec } });
@@ -457,7 +769,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     const { runtime, spawner } = createRuntime({ intents });
 
-    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.startSession(startInput({ tmux: { identity: 'project:task:conversation-1' } }));
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
 
     await runtime.killSession('conversation-1');

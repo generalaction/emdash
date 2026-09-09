@@ -39,6 +39,12 @@ export const workspaceNoticeSchema = z.union([
     message: z.string(),
     at: z.number(),
   }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('config-unreadable'),
+    message: z.string(),
+    at: z.number(),
+  }),
 ]);
 export type WorkspaceNotice = z.infer<typeof workspaceNoticeSchema>;
 

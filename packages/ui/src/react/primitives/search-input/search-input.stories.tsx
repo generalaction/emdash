@@ -30,6 +30,14 @@ export const Sizes: Story = {
   ),
 };
 
+export const BareSurface: Story = {
+  render: () => (
+    <div className={s.w72} style={{ background: 'var(--em-surface-paper)', padding: '0.5rem' }}>
+      <SearchInput bare placeholder="Search…" />
+    </div>
+  ),
+};
+
 // ── With clear button ─────────────────────────────────────────────────────────
 
 export const WithClear: Story = {

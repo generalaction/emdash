@@ -151,13 +151,14 @@ describe('createConversation', () => {
     expect(db.inserted[0]).toMatchObject({ cwd: '/work/repo', workspacePath: '/work/repo' });
   });
 
-  it('stores provider-native ACP model, mode, and effort defaults', async () => {
+  it('stores provider-native ACP configuration defaults', async () => {
     await createConversation(
       {
         ...baseParams,
         model: 'sonnet',
         modeId: 'agent-full-access',
         effort: 'high',
+        collaborationMode: 'plan',
       },
       dependencies()
     );
@@ -168,6 +169,7 @@ describe('createConversation', () => {
           model: 'sonnet',
           modeId: 'agent-full-access',
           effort: 'high',
+          collaborationMode: 'plan',
         }),
       })
     );

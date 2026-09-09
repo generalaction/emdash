@@ -4,16 +4,56 @@ The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a 
 
 The desktop client and managed installation flow live in
 `apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`. For an SSH host, the runtime
-broker asks `HostService` (`core/services/hosts/`) for a runtime client. It coordinates the
-existing `SshConnectionManager`, workspace-server provisioning, and `WireConnectionManager`.
-`WireConnectionManager` owns dial/initialize, reconnecting transports, and one pinned Wire client
-per target until lifecycle invalidation or shutdown. The broker only resolves clients and does not
-own connection lifetime. Ordinary SSH disconnects preserve the pinned connection; terminal Wire
-failures, exhausted SSH reconnects, and machine edits invalidate it.
+broker looks up a `HostService` through `Hosts` (`core/services/hosts/node/hosts.ts`) and asks
+its `runtime` service for a client. `Hosts` owns identity replacement, aggregate state/events,
+and lease rebinding. Each remote identity has one `HostService`
+(`node/host-service.ts`), composing `connection`, `runtime`, and `server`. Server operations
+are bound to that Host, with their own provisioning caches and operation queue. Retired identities
+cannot publish into replacement state. Local workers remain owned by desktop runtime bootstrap.
+`host.server` implements the `HostWorkspaceServer` interface directly through
+`RemoteHostWorkspaceServer` (`node/remote-host-workspace-server.ts`). Its public methods take no
+connection ID; its owner supplies the identity once. It owns the observable daemon state, one
+operation queue, and one latest-version cache. Disposing its owner clears its observed state and
+cancels active and queued operations.
+The Host service coordinates the
+per-Host `HostConnectionSupervisor` (ADR 0008), bounded SSH adapters, and workspace-server
+provisioning. `ManagedHostConnection` owns leases, the runtime pin, and serialized persisted intent.
+Its composed supervisor owns execution, health-check scheduling, and retry policy.
+Its internal `HostRuntimeConnection` owns the stable Wire client, bounded channel opening and
+initialization, candidate installation/cleanup, and physical-generation-bound health requests.
+It reports disconnections and RPC timeouts to the supervisor without scheduling recovery.
+Provisioning uses a one-shot
+`WorkspaceServerDialer`; neither it nor the SSH manager schedules connection recovery. The broker
+only resolves clients. Ordinary outages preserve logical identity; machine identity edits dispose it.
+
+The public `HostConnection` port exposes read-only availability, `lease(owner)`, `pin()`, and
+`disconnect()`. Pin and Disconnect return typed Results about intent registration/persistence;
+they do not wait for connection establishment. Internal readiness and wake operations are separate.
+Projects own a child-scope connection lease while automatic access is eligible, and dispose that
+scope when access becomes ineligible. Observing state registers no intent; there is no demand-mode API.
+`Hosts.lease(connectionId, owner)` follows identity replacement while its owner remains alive;
+`host.connection.lease(owner)` belongs to that particular Host identity. Passive project observation
+registers no lease. SSH-only access
+remains independent of runtime pinning; restoring persisted SSH permission does not create a pin.
+Availability is a kernel-derived projection, with a stable per-Host source that follows identity
+replacement. Readiness waits require existing explicit runtime intent or scope-owned automatic
+demand; they never acquire implicit demand. `host.runtime.waitUntilReady()` only observes;
+explicit Connect/Retry registers a pin before waiting, capturing the same Host identity across both
+steps. Wake hints go through `Hosts`, not runtime access. Health deadlines do not slide when serving
+those waits.
+Explicit server operations capture the supervisor's operation scope before queueing, so Disconnect
+or identity replacement cancels both queued and active work. Failed/timed-out operations expose
+manual recovery; successful Stop remains paused until an explicit runtime action.
+
+`node/availability.ts` routes local/remote availability and exposes the shared Wire live model.
+It owns no retry loop. `node/worker-host-availability.ts` owns readiness for adapter-managed
+workers; production uses it only for desktop-local workers. A remote Host cannot fall back to
+that local preparation path. The Host probe and provisioner each own a single Host's cached result
+and current operation; cancelled work is fenced before continuing to another daemon action.
 
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
-`run/`. When the daemon is absent or negotiation reports `upgrade-server`, the desktop downloads
+`run/`. When the daemon is absent or the user explicitly requests an update, the desktop downloads
 the channel pointer for its protocol major, then downloads and executes that version's immutable
 `apps/workspace-server/install.sh` on the remote with the selected version pinned. Canary desktops
 fall back to the stable pointer when no canary pointer exists. The script detects Linux architecture
@@ -40,13 +80,26 @@ depends on the workspace registry: automation workspace activation flows through
 `createWorkspace` and `activateWorkspace` verbs. Server startup fails if any required worker cannot
 become ready; there are no unavailable-domain fallback implementations in the aggregate controller.
 
+Interactive TUI processes do not expire after an hour of silence. The worker and runtime use
+the `always` lifecycle policy; explicit stop/delete and workspace teardown still release them.
+Closing an output view only detaches that view. Activation uses the host's idempotent start/resume
+path to reattach a surviving process or restore a lost process through its provider resume handle.
+Ordinary transport recovery preserves the output cursor. A replacement process starts a fresh
+output generation and terminal display; exact scrollback across process restarts is not promised.
+Output sources remain stable while subscribed, including through explicit runtime eviction, and
+unobserved evicted sources are released. A stopped process retains its bounded output until resume
+or deletion. Late output from a disposed PTY cannot contaminate its replacement's output.
+
 The parent mounts each complete runtime contract under `workspaceWireContract`. Aggregate
 forwarding rebinds live endpoint definitions to their namespaced contract ids while retaining the
 standalone worker client's upstream topic handles, and translates mutation cursor model ids to the
 same aggregate namespace. Runtime-owned persistence lives below the workspace-server state
 directory, including automation and file-search databases, session intents, ACP attachments, and
 other runtime state. Repository and worktree placement is desktop-owned; the server reports its
-home directory through the files runtime and executes plans containing absolute paths.
+structured home path and filesystem `PathProfile` through the files runtime and executes plans
+containing absolute paths. The profile is optional on the wire so current clients remain compatible
+with older same-major servers. Managed remote Windows hosts are rejected as unsupported before the
+POSIX home, layout, installer, or daemon paths run.
 
 Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
 The daemon parent owns one local `HostDependencies` component backed by a JSON-file
@@ -68,7 +121,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '5.0.0';
+export const PROTOCOL_VERSION = '8.0.0';
 ```
 
 ### What each component means
@@ -124,10 +177,12 @@ is the only pre-initialization exception because daemon lifecycle probes use it 
 absent daemon from an incompatible one. Because the daemon is independently lived, `initialize`
 must be re-called on every reconnect: the daemon may have changed versions between connections.
 
-The reconnecting desktop transport treats `connectOnce` as a readiness barrier. A candidate stream
-is not installed, queued messages are not flushed, and live topics are not reattached until the
-candidate's `initialize` call succeeds. A protocol incompatibility is permanent for that client
-version and stops the reconnect loop; ordinary I/O failures remain retryable.
+The Host supervisor treats initialization as a readiness barrier. A candidate stream is not
+installed and live topics are not reattached until its `initialize` call succeeds. Remote calls
+are not held for later delivery while disconnected. A protocol incompatibility blocks automatic
+recovery and requires an explicit update; ordinary I/O failures retry with capped jittered backoff.
+Resume/focus/online and periodic correlated Wire health checks validate existing evidence instead
+of trusting a retained client object. Healthy SSH alone does not establish runtime usability.
 
 ### Request (client → server)
 

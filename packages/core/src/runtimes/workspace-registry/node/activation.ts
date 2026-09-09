@@ -12,6 +12,7 @@ type ScriptStepScript = 'prepare' | 'setup' | 'run';
 export type ActivationLifecycleConfig = {
   scripts: EmdashScriptsConfig;
   shellSetup: string;
+  env: Record<string, string>;
   autoRunSetup: boolean;
   autoRunRun: boolean;
 };
@@ -75,6 +76,7 @@ export type WorkspaceActivationManagerOptions = {
 type ActiveState = {
   workspacePath: string;
   shellSetup: string;
+  env: Record<string, string>;
   controller: AbortController;
   /** Resolves when the background setup → run chain settles (success or not). */
   background: Promise<void>;
@@ -109,6 +111,7 @@ export class WorkspaceActivationManager {
       (async (id, workspacePath) => ({
         scripts: await (options.readScripts ?? readWorkspaceScripts)(id, workspacePath),
         shellSetup: '',
+        env: {},
         autoRunSetup: true,
         autoRunRun: true,
       }));
@@ -140,6 +143,7 @@ export class WorkspaceActivationManager {
     const state: ActiveState = {
       workspacePath,
       shellSetup: policy.shellSetup,
+      env: policy.env,
       controller,
       background: Promise.resolve(),
       activation: {
@@ -202,6 +206,7 @@ export class WorkspaceActivationManager {
         id: 'teardown',
         command: scripts.teardown,
         shellSetup: policy.shellSetup,
+        env: policy.env,
         cwd: state.workspacePath,
         timeoutMs: this.teardownTimeoutMs,
       });
@@ -278,6 +283,7 @@ export class WorkspaceActivationManager {
       id: script,
       command,
       shellSetup: state.shellSetup,
+      env: state.env,
       cwd: state.workspacePath,
       signal: state.controller.signal,
       // Run scripts are dev-server-shaped: bounded only by deactivation, not a timeout.

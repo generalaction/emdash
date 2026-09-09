@@ -1,6 +1,7 @@
 import { Button, Field, Input, Separator, Switch, Textarea } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
+import { EnvironmentVariableInputs } from '@core/primitives/environment-variables/browser/environment-variable-inputs';
 import type {
   ProjectConfigMigration,
   ShareableProjectSettingsWriteField,
@@ -12,6 +13,7 @@ import type {
 import { ConfigMigrationNotice } from '../config-migration-notice';
 import {
   effectiveAutoRunToggleValue,
+  type EnvironmentFormState,
   type FileHandlingFormState,
   type FormUpdate,
   type LifecycleFormState,
@@ -25,8 +27,10 @@ import { ShareableSettingTitle } from '../shareable-setting-title';
 type ShareableSettingsSectionProps = {
   lifecycleForm: LifecycleFormState;
   fileHandlingForm: FileHandlingFormState;
+  environmentForm: EnvironmentFormState;
   updateLifecycle: FormUpdate<LifecycleFormState>;
   updateFileHandling: FormUpdate<FileHandlingFormState>;
+  updateEnvironment: FormUpdate<EnvironmentFormState>;
   getOverrideSources: (
     field: ShareableProjectSettingsWriteField
   ) => { label: string; path: string; value: string }[];
@@ -125,11 +129,36 @@ function AutoRunToggle({
   );
 }
 
+function ProjectEnvironmentVariables({
+  form,
+  update,
+}: {
+  form: EnvironmentFormState;
+  update: FormUpdate<EnvironmentFormState>;
+}) {
+  return (
+    <Field.Root>
+      <Field.Label>Environment variables</Field.Label>
+      <Field.Description className="text-foreground-muted">
+        Host-local variables added to new terminals, lifecycle scripts, and agent processes for this
+        Project. Values remain on this Machine, are not written to .emdash.json, and are passed
+        literally—use absolute paths for config directories.
+      </Field.Description>
+      <EnvironmentVariableInputs
+        entries={form.variables}
+        onChange={(variables) => update('variables', variables)}
+      />
+    </Field.Root>
+  );
+}
+
 export function ShareableSettingsSection({
   lifecycleForm,
   fileHandlingForm,
+  environmentForm,
   updateLifecycle,
   updateFileHandling,
+  updateEnvironment,
   getOverrideSources,
   configMigrations,
   importDisabled,
@@ -174,6 +203,10 @@ export function ShareableSettingsSection({
           Repository-backed settings are {hostActionReason.toLocaleLowerCase()}
         </p>
       ) : null}
+
+      <ProjectEnvironmentVariables form={environmentForm} update={updateEnvironment} />
+
+      <Separator />
 
       {topLevelFields.map((descriptor, index) => (
         <Fragment key={descriptor.id}>

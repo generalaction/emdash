@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
+import { deferred } from '@emdash/shared/testing';
 import { snapshot } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { HostStateModel } from '../../state-model';
@@ -10,8 +11,8 @@ import { WorkspaceServerProvisioner } from './provisioner';
 describe('WorkspaceServerProvisioner', () => {
   it('coalesces compatible fast-path ensures without installing or starting', async () => {
     const fixture = createProvisionerFixture();
-    const first = fixture.provisioner.ensure('ssh-1');
-    const second = fixture.provisioner.ensure('ssh-1');
+    const first = fixture.provisioner.ensure();
+    const second = fixture.provisioner.ensure();
 
     await expect(first).resolves.toMatchObject({
       kind: 'ssh',
@@ -32,8 +33,8 @@ describe('WorkspaceServerProvisioner', () => {
 
   it('returns the cached target without re-dialing once provisioned', async () => {
     const fixture = createProvisionerFixture();
-    const first = await fixture.provisioner.ensure('ssh-1');
-    const second = await fixture.provisioner.ensure('ssh-1');
+    const first = await fixture.provisioner.ensure();
+    const second = await fixture.provisioner.ensure();
 
     expect(second).toBe(first);
     expect(fixture.dialOnce).toHaveBeenCalledTimes(1);
@@ -42,11 +43,11 @@ describe('WorkspaceServerProvisioner', () => {
 
   it('re-verifies after drop() without republishing an identical healthy state', async () => {
     const fixture = createProvisionerFixture();
-    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure();
 
     const before = snapshot(fixture.model.runtime).revision;
-    fixture.provisioner.drop('ssh-1');
-    await fixture.provisioner.ensure('ssh-1');
+    fixture.provisioner.drop();
+    await fixture.provisioner.ensure();
 
     expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
     expect(snapshot(fixture.model.runtime).revision).toBe(before);
@@ -58,7 +59,7 @@ describe('WorkspaceServerProvisioner', () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
 
-    await expect(fixture.provisioner.ensure('ssh-1')).resolves.toMatchObject({ kind: 'ssh' });
+    await expect(fixture.provisioner.ensure()).resolves.toMatchObject({ kind: 'ssh' });
 
     expect(fixture.installer.install).toHaveBeenCalledOnce();
     expect(fixture.daemon.start).toHaveBeenCalledOnce();
@@ -72,7 +73,7 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
-  it('reinstalls and restarts when the handshake requires a server upgrade', async () => {
+  it('requires an explicit server upgrade without restarting sessions', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(
       new WorkspaceServerProtocolError({
@@ -83,10 +84,12 @@ describe('WorkspaceServerProvisioner', () => {
       })
     );
 
-    await fixture.provisioner.ensure('ssh-1');
+    await expect(fixture.provisioner.ensure()).rejects.toMatchObject({
+      code: 'protocol-incompatible',
+    });
 
-    expect(fixture.installer.install).toHaveBeenCalledOnce();
-    expect(fixture.daemon.restart).toHaveBeenCalledOnce();
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
     await fixture.dispose();
   });
@@ -98,7 +101,7 @@ describe('WorkspaceServerProvisioner', () => {
       .mockResolvedValueOnce(handshake('1.2.3'))
       .mockResolvedValueOnce(handshake('1.2.4-dev.abc123'));
 
-    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure();
 
     expect(fixture.installer.availableVersion).toHaveBeenCalledWith(
       'ssh-1',
@@ -124,7 +127,7 @@ describe('WorkspaceServerProvisioner', () => {
     const fixture = createProvisionerFixture({ devAutoUpdate: true });
     fixture.installer.availableVersion.mockResolvedValue('1.2.3');
 
-    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure();
 
     expect(fixture.installer.availableVersion).toHaveBeenCalledOnce();
     expect(fixture.installer.install).not.toHaveBeenCalled();
@@ -134,8 +137,8 @@ describe('WorkspaceServerProvisioner', () => {
 
   it('dev auto-update bypasses the provisioned target cache', async () => {
     const fixture = createProvisionerFixture({ devAutoUpdate: true });
-    await fixture.provisioner.ensure('ssh-1');
-    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure();
+    await fixture.provisioner.ensure();
 
     expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
     expect(fixture.installer.availableVersion).toHaveBeenCalledTimes(2);
@@ -146,7 +149,7 @@ describe('WorkspaceServerProvisioner', () => {
     const fixture = createProvisionerFixture({ devAutoUpdate: true });
     fixture.installer.availableVersion.mockRejectedValue(new Error('metadata unavailable'));
 
-    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure();
 
     expect(fixture.installer.install).not.toHaveBeenCalled();
     expect(fixture.daemon.restart).not.toHaveBeenCalled();
@@ -165,7 +168,7 @@ describe('WorkspaceServerProvisioner', () => {
       new WorkspaceServerInstallError('unsupported-platform', 'musl is unsupported')
     );
 
-    await expect(fixture.provisioner.ensure('ssh-1')).rejects.toMatchObject({
+    await expect(fixture.provisioner.ensure()).rejects.toMatchObject({
       code: 'unsupported-platform',
     });
     expect(fixture.status('ssh-1')).toMatchObject({
@@ -175,13 +178,32 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
+  it('rejects Windows before dialing or starting POSIX provisioning', async () => {
+    const fixture = createProvisionerFixture({ platform: 'win32' });
+
+    await expect(fixture.provisioner.ensure()).rejects.toMatchObject({
+      code: 'unsupported-platform',
+      message: 'Windows SSH hosts are not supported',
+    });
+    expect(fixture.status('ssh-1')).toMatchObject({
+      status: 'failed',
+      error: { code: 'unsupported-platform' },
+    });
+    expect(fixture.dialOnce).not.toHaveBeenCalled();
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.installer.availableVersion).not.toHaveBeenCalled();
+    expect(fixture.daemon.start).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
+    await fixture.dispose();
+  });
+
   it('cancels an in-flight host probe and removes its stale state', async () => {
     const fixture = createProvisionerFixture({ blockHostProbe: true });
-    const pending = fixture.provisioner.ensure('ssh-1');
+    const pending = fixture.provisioner.ensure();
     const rejected = expect(pending).rejects.toThrow('cancelled for ssh-1');
     await Promise.resolve();
 
-    await fixture.provisioner.cancel('ssh-1');
+    await fixture.provisioner.cancel();
 
     await rejected;
     expect(fixture.status('ssh-1')).toBeUndefined();
@@ -190,27 +212,72 @@ describe('WorkspaceServerProvisioner', () => {
 
   it('does not enter the install path when the initial dial is cancelled', async () => {
     const fixture = createProvisionerFixture({ blockDial: true });
-    const pending = fixture.provisioner.ensure('ssh-1');
+    const pending = fixture.provisioner.ensure();
     const rejected = expect(pending).rejects.toThrow('cancelled for ssh-1');
     await Promise.resolve();
 
-    await fixture.provisioner.cancel('ssh-1');
+    await fixture.provisioner.cancel();
 
     await rejected;
     expect(fixture.installer.install).not.toHaveBeenCalled();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
     await fixture.dispose();
   });
+
+  it('does not start a daemon or overwrite replacement state after a cancelled install finishes', async () => {
+    const fixture = createProvisionerFixture();
+    const installed = deferred<void>();
+    const installing = deferred<void>();
+    fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
+    fixture.installer.install.mockImplementationOnce(() => {
+      installing.resolve();
+      return installed.promise;
+    });
+    const pending = fixture.provisioner.ensure();
+    const rejected = expect(pending).rejects.toThrow('cancelled for ssh-1');
+    await installing.promise;
+    const cancelling = fixture.provisioner.cancel();
+
+    fixture.dialOnce.mockResolvedValue(handshake('2.0.0'));
+    const replacement = await fixture.provisioner.ensure();
+    installed.resolve();
+    await cancelling;
+    await rejected;
+
+    expect(fixture.daemon.start).not.toHaveBeenCalled();
+    expect(fixture.status('ssh-1')).toMatchObject({ status: 'healthy', version: '2.0.0' });
+    await expect(fixture.provisioner.ensure()).resolves.toBe(replacement);
+    expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
+    await fixture.dispose();
+  });
+
+  it('rejects cached access after its Host scope is disposed', async () => {
+    const fixture = createProvisionerFixture();
+    await fixture.provisioner.ensure();
+    await fixture.dispose();
+
+    await expect(fixture.provisioner.ensure()).rejects.toBeDefined();
+    expect(fixture.dialOnce).toHaveBeenCalledOnce();
+  });
 });
 
 function createProvisionerFixture(
-  options: { blockDial?: boolean; blockHostProbe?: boolean; devAutoUpdate?: boolean } = {}
+  options: {
+    blockDial?: boolean;
+    blockHostProbe?: boolean;
+    devAutoUpdate?: boolean;
+    platform?: 'posix' | 'win32';
+  } = {}
 ) {
   const scope = createScope({ label: 'workspace-server-provisioner-test' });
   const model = new HostStateModel();
-  const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
+  const hostProbe = vi.fn((signal?: AbortSignal) => {
     if (!options.blockHostProbe) {
-      return Promise.resolve({ home: '/home/devuser' });
+      return Promise.resolve(
+        options.platform === 'win32'
+          ? ({ platform: 'win32' } as const)
+          : ({ platform: 'posix', home: '/home/devuser' } as const)
+      );
     }
     return new Promise<never>((_resolve, reject) => {
       signal?.addEventListener(
@@ -245,8 +312,8 @@ function createProvisionerFixture(
   });
   const logger = { warn: vi.fn() };
   const provisioner = new WorkspaceServerProvisioner({
+    connectionId: 'ssh-1',
     scope,
-    ssh: { ensureProxy: vi.fn() },
     host: { probe: hostProbe } as never,
     installer: installer as never,
     daemon: daemon as never,

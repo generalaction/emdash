@@ -38,7 +38,9 @@ export type ChildrenById<T extends VisibleFileNode = RenderableFileNode> = Map<
 >;
 
 export function normalizeFileTreePath(path: string): string {
-  const normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+  const slashPath = path.replace(/\\/g, '/');
+  const unc = slashPath.startsWith('//');
+  const normalized = `${unc ? '//' : ''}${slashPath.slice(unc ? 2 : 0).replace(/\/+/g, '/')}`;
   if (normalized === '/') return normalized;
   return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
 }

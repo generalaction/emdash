@@ -17,6 +17,7 @@ import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
+import { WireError } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
@@ -76,6 +77,16 @@ export class AcpStartError extends Error {
   }
 }
 
+export class AcpPromptDeliveryUnknownError extends Error {
+  constructor(
+    readonly promptId: string,
+    cause: unknown
+  ) {
+    super('The connection interrupted confirmation of prompt delivery', { cause });
+    this.name = 'AcpPromptDeliveryUnknownError';
+  }
+}
+
 export class AcpLiveSession {
   readonly sessionState: RemoteValueState<SessionState>;
   readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
@@ -90,6 +101,13 @@ export class AcpLiveSession {
     { replica: ReplicaLog; output: AcpTerminalOutput }
   >();
   private disposed = false;
+  private readonly usableState = observable.box(false);
+  private validation = 0;
+  private readonly refreshStates: () => Promise<void>;
+
+  get usable(): boolean {
+    return this.usableState.get();
+  }
 
   private constructor(
     readonly conversationId: string,
@@ -101,6 +119,9 @@ export class AcpLiveSession {
       lingerMs: 15_000,
     });
     const member = sessionRemote(key);
+    this.refreshStates = async () => {
+      await Promise.all(Object.values(member.states).map((state) => state.refresh()));
+    };
     this.sessionState = remoteValueState(member.states.state, sessionStateSchema, this.scope);
     this.config = remoteValueState(member.states.config, sessionConfigStateSchema, this.scope);
     this.usage = remoteValueState(member.states.usage, sessionUsageSchema.nullable(), this.scope);
@@ -145,10 +166,31 @@ export class AcpLiveSession {
         ]),
         'Timed out connecting ACP live models'
       );
+      runInAction(() => session.usableState.set(true));
       return session;
     } catch (error) {
       session.dispose();
       throw error;
+    }
+  }
+
+  async revalidate(signal: AbortSignal = this.scope.signal): Promise<void> {
+    const validation = ++this.validation;
+    runInAction(() => this.usableState.set(false));
+    try {
+      const result = await withTimeout(
+        (signal) => this.client.attach({ conversationId: this.conversationId }, { signal }),
+        'Timed out reattaching ACP session',
+        10_000,
+        signal
+      );
+      if (validation !== this.validation || this.disposed) return;
+      if (!result.success) throw new AcpStartError(result.error);
+      await withTimeout(this.refreshStates(), 'Timed out refreshing ACP session', 10_000, signal);
+      if (!this.disposed && !signal.aborted && validation === this.validation)
+        runInAction(() => this.usableState.set(true));
+    } catch (error) {
+      if (!this.disposed && validation === this.validation) throw error;
     }
   }
 
@@ -170,14 +212,20 @@ export class AcpLiveSession {
     return { success: true, data: result.data.log };
   }
 
-  sendPrompt(
+  async sendPrompt(
     prompt: PromptInput,
-    placement?: PromptPlacement
+    placement?: PromptPlacement,
+    promptId: string = crypto.randomUUID()
   ): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt(
-      { conversationId: this.conversationId, prompt, placement },
-      { timeoutMs: 0 }
-    );
+    try {
+      return await this.client.sendPrompt(
+        { conversationId: this.conversationId, promptId, prompt, placement },
+        { timeoutMs: 0 }
+      );
+    } catch (error) {
+      if (error instanceof WireError && error.delivery === 'not-sent') throw error;
+      throw new AcpPromptDeliveryUnknownError(promptId, error);
+    }
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {
@@ -196,7 +244,10 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setOption(key: 'model' | 'mode' | 'effort', value: string): Promise<Result<void, unknown>> {
+  setOption(
+    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
+    value: string
+  ): Promise<Result<void, unknown>> {
     return this.client.setOption({ conversationId: this.conversationId, key, value });
   }
 
@@ -230,6 +281,8 @@ export class AcpLiveSession {
 
   dispose(): void {
     this.disposed = true;
+    this.validation += 1;
+    runInAction(() => this.usableState.set(false));
     void this.scope.dispose();
     for (const { replica } of this.terminalLogs.values()) {
       void replica.dispose();
@@ -288,10 +341,12 @@ function readableError(error: unknown): Error {
 function withTimeout<T>(
   work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
   message: string,
-  ms = 10_000
+  ms = 10_000,
+  signal?: AbortSignal
 ): Promise<T> {
   return runWithTimeout((signal) => (typeof work === 'function' ? work(signal) : work), {
     timeoutMs: ms,
+    signal,
   }).catch((error: unknown) => {
     if (error instanceof TimeoutError) throw new Error(message);
     throw error;

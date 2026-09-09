@@ -53,6 +53,10 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
+        'claude-fable-5-1': {
+          name: 'Claude Fable 5.1',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
         'claude-fable-5': {
           name: 'Claude Fable 5',
           modelFeatures: { intelligence: 4, speed: 3 },
@@ -78,7 +82,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'config',
       scope: 'global',
-      supportedEvents: ['start', 'notification', 'stop'],
+      supportedEvents: ['start', 'notification', 'stop', 'session'],
     },
     hostDependency: {
       id: 'claude',

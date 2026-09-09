@@ -1,6 +1,7 @@
 import type { HostAbsolutePath } from '#primitives/path/api';
 import type {
   ContentSearchError,
+  FileSearchAcquireRootError,
   FileSearchRegisterRootError,
   FileSearchRootUnavailableReason,
   FileSearchUnregisterRootError,
@@ -25,6 +26,16 @@ export function rootUnavailable(
   message: string
 ): RootUnavailableError {
   return { type: 'root-unavailable', root, reason, message };
+}
+
+export function exclusionPolicyConflict(
+  root: HostAbsolutePath
+): Extract<FileSearchAcquireRootError, { type: 'exclusion-policy-conflict' }> {
+  return {
+    type: 'exclusion-policy-conflict',
+    root,
+    message: 'Root is actively leased with a different exclusion policy',
+  };
 }
 
 export function rootNotRegistered(

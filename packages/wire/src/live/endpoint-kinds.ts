@@ -408,6 +408,7 @@ function createEventStreamClientHandle<Def extends EventStreamEndpointDef>(
         {
           onReattach: options.onGap,
           onReattachError: options.onError,
+          signal: options.signal,
         }
       );
     },

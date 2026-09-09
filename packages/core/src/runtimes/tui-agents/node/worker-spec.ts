@@ -4,7 +4,6 @@ import type { ProvidedWireComponentRequirements } from '@emdash/wire/worker';
 import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
 import type { z } from 'zod';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
-import { SESSION_IDLE_MS } from '#services/session-lifecycle/api';
 import { createTuiAgentsComponent, type tuiAgentsComponentConfigSchema } from './component';
 
 type TuiAgentsComponent = ReturnType<typeof createTuiAgentsComponent>;
@@ -23,8 +22,9 @@ export type TuiAgentsWorkerSpecInput = {
 };
 
 /**
- * Spawn spec for the TUI agents session runtime worker. Sessions idle out after
- * SESSION_IDLE_MS without output. The plugin registry is injected by the
+ * Spawn spec for the TUI agents session runtime worker. Silence does not end an
+ * interactive session; explicit controls and workspace teardown own its lifetime.
+ * The plugin registry is injected by the
  * embedding app so core stays plugin-free.
  */
 export function tuiAgentsWorkerSpec(
@@ -43,7 +43,7 @@ export function tuiAgentsWorkerSpec(
       config: {
         intentsFilePath: input.intentsFilePath,
         lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+          session: { kind: 'always' },
         },
       },
     },

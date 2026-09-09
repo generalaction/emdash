@@ -23,8 +23,8 @@ import {
 
 const DEFAULT_IDLE_TTL_MS = 30_000;
 
-// A children-scoped parent watch only serves per-file content updates, so events
-// beneath direct subdirectories are ignored at the native watcher.
+// A children-scoped watch only serves direct-child updates, so events beneath
+// direct subdirectories are ignored at the native watcher.
 const CHILDREN_WATCH_IGNORE: readonly string[] = ['*/**'];
 
 export type FilesAllocationGraphOptions = {
@@ -108,7 +108,7 @@ export class FilesAllocationGraph {
   }
 
   acquireTree(key: TreeKey): PendingLease<TreeResource> {
-    return this.acquireResolved(resolveRootIdentity(key.root), (root) =>
+    return this.acquireResolved(resolveRootIdentity(key.root, key.watchScope), (root) =>
       this.trees.acquire(treeIdentity(root, key))
     );
   }

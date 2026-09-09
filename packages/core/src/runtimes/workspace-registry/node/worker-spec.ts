@@ -18,6 +18,7 @@ export type WorkspaceRegistryWorkerSpecInput = {
     (typeof workspaceRegistryComponent)['requirements']
   >;
   databasePath: string;
+  watchIgnore?: string[];
 };
 
 /**
@@ -38,7 +39,10 @@ export function workspaceRegistryWorkerSpec(
       executable: input.executable,
       env: input.env,
       dependencies: input.dependencies,
-      config: { databasePath: input.databasePath },
+      config: {
+        databasePath: input.databasePath,
+        ...(input.watchIgnore ? { watchIgnore: input.watchIgnore } : {}),
+      },
       shutdownGraceMs: 3_000,
     },
   ];

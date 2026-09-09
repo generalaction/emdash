@@ -25,6 +25,7 @@ export class PtySession {
   ) {
     this.output = options.output ?? new LiveLogSource(options.log);
     this.process.onData((chunk) => {
+      if (this.disposed) return;
       this.output.append(chunk);
       this.options.onData?.(chunk);
       this.options.onStateChange?.();

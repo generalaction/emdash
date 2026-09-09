@@ -50,6 +50,7 @@ describe('provider preferences memento', () => {
             model: 'sonnet',
             modeId: 'agent-full-access',
             effort: 'high',
+            collaborationMode: 'plan',
           },
         },
       }).status

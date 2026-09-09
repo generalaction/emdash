@@ -1,5 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
-import { containsAbsolute, parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import { containsAbsolute, parseNativeAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import type { HostRuntimesClient } from '#services/runtime-broker/api';
 
 export type WorkspaceSessionClients = Pick<HostRuntimesClient, 'acp' | 'terminals' | 'tuiAgents'>;
@@ -17,7 +17,7 @@ export type SessionCounter = (workspacePath: string) => Promise<number>;
 
 export function createSessionCounter(clients: WorkspaceSessionClients): SessionCounter {
   return async (workspacePath) => {
-    const parsed = parseAbsolute(workspacePath);
+    const parsed = parseNativeAbsolute(workspacePath);
     if (!parsed.success) return 0;
     const root = parsed.data;
 
@@ -51,7 +51,7 @@ export function createSessionKiller(
   logger?: Logger
 ): SessionKiller {
   return async (workspacePath) => {
-    const parsed = parseAbsolute(workspacePath);
+    const parsed = parseNativeAbsolute(workspacePath);
     if (!parsed.success) return;
     const root = parsed.data;
 
@@ -95,6 +95,6 @@ export function createSessionKiller(
 
 function cwdUnder(root: HostAbsolutePath, cwd: string | null | undefined): boolean {
   if (!cwd) return false;
-  const parsed = parseAbsolute(cwd);
+  const parsed = parseNativeAbsolute(cwd);
   return parsed.success && containsAbsolute(root, parsed.data);
 }

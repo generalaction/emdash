@@ -316,6 +316,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
                   className={cn(!connected && 'pointer-events-none opacity-33')}
                 >
                   <WorkspaceRuntimeRow
+                    availability={availability}
                     connected={connected}
                     loading={workspaceServer.loading}
                     state={workspaceServer.state}

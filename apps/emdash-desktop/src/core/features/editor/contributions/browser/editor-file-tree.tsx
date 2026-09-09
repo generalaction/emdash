@@ -1,9 +1,12 @@
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import { FILE_SEARCH_MAX_QUERY_LENGTH } from '@emdash/core/runtimes/file-search/api';
 import { copyNameForConflict, MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
+import type { GitChangeStatus } from '@emdash/core/runtimes/git/api';
 import {
   EmptyState,
   FileTree,
+  FileTreeToolbar,
+  FileTreeToolbarSearch,
   canMoveNode,
   dedupeDescendantPaths,
   isExpandableFileTreeNode,
@@ -18,9 +21,10 @@ import {
   type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
-import { SearchInput, toast } from '@emdash/ui/react/primitives';
+import { toast } from '@emdash/ui/react/primitives';
 import {
   ClipboardPaste,
+  Circle,
   Copy,
   CopyMinus,
   FilePen,
@@ -37,6 +41,10 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import type { RenderableFileNode } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import {
+  buildFileTreeGitDecorations,
+  type FileTreeGitDecorations,
+} from '@core/features/editor/browser/file-tree/file-tree-git-decorations';
 import { FileContentSearchResults } from '@core/features/editor/browser/task-editor/file-content-search';
 import type { TreeMutationError } from '@core/features/editor/browser/task-editor/stores/files-store';
 import type { FilesStore } from '@core/features/editor/browser/task-editor/stores/files-store';
@@ -219,6 +227,7 @@ async function importLocalFiles(args: {
 
 export const EditorFileTree = observer(function EditorFileTree() {
   const workspace = useWorkspace();
+  const gitCheckout = workspace.get(gitCheckoutStoreToken);
   const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
   const tabLayout = useTabLayout();
@@ -245,6 +254,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const expandedPaths = editorView.expandedPaths;
   const activeFile = tabLayout.focusedPane.activeResourceOfKind<FileTabResource>('file');
   const openedPaths = useMemo(() => new Set(editorView.openFilePaths), [editorView.openFilePaths]);
+  const fileChanges = gitCheckout.fileChanges;
+  const gitDecorations = useMemo(() => buildFileTreeGitDecorations(fileChanges), [fileChanges]);
   const { rootNodes, childrenById } = useMemo(
     () => mapFileTreeData(files?.rootNodes ?? [], files?.childrenById ?? new Map()),
     [files?.childrenById, files?.rootNodes]
@@ -868,9 +879,16 @@ export const EditorFileTree = observer(function EditorFileTree() {
           if (node.type === 'symlink') return <Link2 size={12} />;
           return null;
         }}
+        renderDecoration={(node) => {
+          if (node.type !== 'directory') return null;
+          const status = gitDecorations.directoryStatusByPath.get(
+            relativeFileTreePath(workspace.path, node.path)
+          );
+          return status ? <FileTreeGitChangeIndicator status={status} /> : null;
+        }}
         getRowState={(node) =>
           mergeRowState(
-            rowStateForNode(node, workspace.path, workspace),
+            rowStateForNode(node, workspace.path, gitDecorations),
             clipboard?.mode === 'cut' && clipboard.paths.includes(node.path)
               ? { muted: true }
               : undefined
@@ -910,7 +928,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     );
 
   return (
-    <div ref={attachFileTreeScope} className="flex h-full flex-col overflow-hidden">
+    <div
+      ref={attachFileTreeScope}
+      className="surface-paper flex h-full flex-col overflow-hidden bg-(--em-surface)"
+    >
       <FileTreeHeaderBar
         context={headerContext}
         searchQuery={searchQuery}
@@ -952,53 +973,53 @@ export function FileTreeHeaderBar({
   liveActionDisabledReason?: string | null;
 }) {
   return (
-    <div className="h-[41px] shrink-0 border-b border-border bg-background-secondary px-2">
-      <div className="flex h-full items-center gap-1">
-        <div className="min-w-0 flex-1">
-          <SearchInput
+    <FileTreeToolbar
+      search={
+        <FileTreeToolbarSearch
+          disabled={Boolean(liveActionDisabledReason)}
+          ref={setSearchInputRef}
+          value={searchQuery}
+          maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
+          aria-label="Search"
+          placeholder="Search"
+          onClear={() => setSearchQuery('')}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            if (searchQuery) setSearchQuery('');
+            else event.currentTarget.blur();
+          }}
+        />
+      }
+      actions={
+        <>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'New file'}
             disabled={Boolean(liveActionDisabledReason)}
-            ref={setSearchInputRef}
-            size="sm"
-            value={searchQuery}
-            maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
-            aria-label="Search"
-            placeholder="Search"
-            className="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
-            onClear={() => setSearchQuery('')}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              if (searchQuery) setSearchQuery('');
-              else event.currentTarget.blur();
-            }}
-          />
-        </div>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'New file'}
-          disabled={Boolean(liveActionDisabledReason)}
-          onClick={() => context.startDraft('file')}
-        >
-          <FilePlus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'New folder'}
-          disabled={Boolean(liveActionDisabledReason)}
-          onClick={() => context.startDraft('directory')}
-        >
-          <FolderPlus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction label="Collapse all" onClick={context.collapseAll}>
-          <CopyMinus className="size-3.5" />
-        </HeaderAction>
-        <HeaderAction
-          label={liveActionDisabledReason ?? 'Refresh'}
-          onClick={onRefresh}
-          disabled={isRefreshing || Boolean(liveActionDisabledReason)}
-        >
-          <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
-        </HeaderAction>
-      </div>
-    </div>
+            onClick={() => context.startDraft('file')}
+          >
+            <FilePlus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'New folder'}
+            disabled={Boolean(liveActionDisabledReason)}
+            onClick={() => context.startDraft('directory')}
+          >
+            <FolderPlus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction label="Collapse all" onClick={context.collapseAll}>
+            <CopyMinus className="size-3.5" />
+          </HeaderAction>
+          <HeaderAction
+            label={liveActionDisabledReason ?? 'Refresh'}
+            onClick={onRefresh}
+            disabled={isRefreshing || Boolean(liveActionDisabledReason)}
+          >
+            <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          </HeaderAction>
+        </>
+      }
+    />
   );
 }
 
@@ -1111,27 +1132,65 @@ function toFileTreeNode(node: RenderableFileNode): FileTreeNode {
 function rowStateForNode(
   node: FileTreeNode,
   workspacePath: string,
-  workspace: ReturnType<typeof useWorkspace>
+  gitDecorations: FileTreeGitDecorations
 ): FileTreeRowState | undefined {
-  const relNodePath = relativeToWorkspace(workspacePath, node.path);
-  const fileStatus = workspace
-    .get(gitCheckoutStoreToken)
-    .fileChanges?.find((change) => change.path === relNodePath)?.status;
+  const relativePath = relativeFileTreePath(workspacePath, node.path);
+  const fileStatus =
+    gitDecorations.fileStatusByPath.get(relativePath) ??
+    (node.type === 'directory'
+      ? gitDecorations.directoryStatusByPath.get(relativePath)
+      : undefined);
   if (!fileStatus && !node.isHidden) return undefined;
   return {
     muted: node.isHidden || fileStatus === 'deleted',
     strikethrough: fileStatus === 'deleted',
-    tone:
-      fileStatus === 'added'
-        ? 'success'
-        : fileStatus === 'modified'
-          ? 'warning'
-          : fileStatus === 'deleted'
-            ? 'error'
-            : fileStatus === 'renamed'
-              ? 'info'
-              : undefined,
+    tone: fileStatus ? fileTreeGitStatusTone(fileStatus) : undefined,
   };
+}
+
+function relativeFileTreePath(workspacePath: string, nodePath: string): string {
+  return normalizeFileTreePath(relativeToWorkspace(workspacePath, nodePath));
+}
+
+export function FileTreeGitChangeIndicator({ status }: { status: GitChangeStatus }) {
+  return (
+    <span
+      className="flex size-4 items-center justify-center"
+      style={{ color: fileTreeGitStatusColor(status) }}
+      aria-label="Contains emphasized items"
+      title="Contains emphasized items"
+    >
+      <Circle aria-hidden className="size-2 fill-current opacity-40" strokeWidth={0} />
+    </span>
+  );
+}
+
+export function fileTreeGitStatusTone(status: GitChangeStatus): FileTreeRowState['tone'] {
+  switch (status) {
+    case 'added':
+      return 'success';
+    case 'modified':
+      return 'warning';
+    case 'deleted':
+    case 'conflicted':
+      return 'error';
+    case 'renamed':
+      return 'info';
+  }
+}
+
+function fileTreeGitStatusColor(status: GitChangeStatus): string {
+  switch (status) {
+    case 'added':
+      return 'var(--em-foreground-success)';
+    case 'modified':
+      return 'var(--em-foreground-warning)';
+    case 'deleted':
+    case 'conflicted':
+      return 'var(--em-foreground-error)';
+    case 'renamed':
+      return 'var(--em-foreground-diff-modified)';
+  }
 }
 
 function isPathWithin(path: string, deletedPath: string, closesDescendants: boolean) {

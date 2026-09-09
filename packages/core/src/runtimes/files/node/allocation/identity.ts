@@ -10,17 +10,16 @@ import {
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
-import type { FsError, TreeKey } from '#runtimes/files/api';
+import type { FsError, TreeKey, TreeWatchScope } from '#runtimes/files/api';
 import { toFsError } from '#runtimes/files/node/api/errors';
 import { normalizeRelativePath } from '#runtimes/files/node/fs/path-policy';
 
 /**
- * How the root's watch is scoped: 'recursive' for registered workspace roots,
- * 'children' for the synthesized parent-directory root of a bare absolute file
- * path, where only direct children matter (spec §5: per-file watch is served by
- * watching the file's parent directory).
+ * How the root's watch is scoped: 'recursive' for workspace roots and
+ * 'children' when a consumer only needs direct-child updates, including the
+ * directory picker and the synthesized parent root of a bare absolute file.
  */
-export type RootWatchScope = 'recursive' | 'children';
+export type RootWatchScope = TreeWatchScope;
 
 export type RootIdentity = {
   rootId: string;
@@ -49,9 +48,10 @@ export type FileLocation = {
 };
 
 export function resolveRootIdentity(
-  root: HostAbsolutePath
+  root: HostAbsolutePath,
+  watchScope: RootWatchScope = 'recursive'
 ): Promise<Result<RootIdentity, FsError>> {
-  return resolveDirectoryIdentity(root, 'recursive');
+  return resolveDirectoryIdentity(root, watchScope);
 }
 
 /**

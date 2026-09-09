@@ -7,6 +7,7 @@ import {
   type RuntimeUnavailableReason,
 } from '@emdash/core/primitives/runtime-resolution/api';
 import { SshConnectionNotFoundError } from '@core/primitives/ssh/api';
+import { SshConnectionFailure } from '@core/primitives/ssh/api/node/connection-control';
 import type { HostPreparingPhase } from '../api';
 import { WorkspaceServerProtocolError, WorkspaceServerProvisionError } from './workspace-server';
 
@@ -18,6 +19,9 @@ export function translateHostPreparationError(
   if (isRuntimeResolveError(error)) return error;
   if (hasCause(error, SshConnectionNotFoundError)) {
     return runtimeHostIdentityLost(host, 'Host identity is no longer configured');
+  }
+  if (error instanceof SshConnectionFailure) {
+    return runtimeHostUnavailable(host, 'connection-failed', error.message);
   }
   if (error instanceof WorkspaceServerProtocolError) {
     return unavailable(

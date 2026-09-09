@@ -1,17 +1,62 @@
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
 import { PortForwardService } from './port-forward-service';
+import type { OpenPortForwardTunnelOptions, PortForwardTunnel } from './port-forward-tunnel';
 
-function fakeProxy(): Pick<SshClientProxy, 'client' | 'isConnected'> {
+function fakeProxy(): Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'> {
   return {
     isConnected: true,
-    get client() {
-      return {} as SshClientProxy['client'];
+    async openTcpChannel() {
+      throw new Error('Unused by this test');
     },
   };
 }
 
 describe('PortForwardService', () => {
+  it('coalesces pending opens, cancels on stop, and closes a late tunnel', async () => {
+    const pending = deferred<PortForwardTunnel>();
+    let options!: OpenPortForwardTunnelOptions;
+    const openTunnel = vi.fn((next: OpenPortForwardTunnelOptions) => {
+      options = next;
+      return pending.promise;
+    });
+    const errors = vi.fn();
+    const service = new PortForwardService({ openTunnel, onConnectionError: errors });
+    const request = {
+      id: 'pending',
+      projectId: 'p',
+      workspaceId: 'w',
+      connectionId: 'ssh',
+      proxy: fakeProxy(),
+      remotePort: 5173,
+    };
+    const first = service.open(request);
+    const second = service.open(request);
+    const rejected = Promise.all([
+      expect(first).rejects.toThrow(),
+      expect(second).rejects.toThrow(),
+    ]);
+    await Promise.resolve();
+    expect(openTunnel).toHaveBeenCalledOnce();
+    await service.stopForWorkspace('p', 'w');
+    await rejected;
+    expect(options.signal?.aborted).toBe(true);
+
+    const replacementClose = vi.fn();
+    openTunnel.mockImplementation(async () => ({ localPort: 6200, close: replacementClose }));
+    await service.open(request);
+    options.onConnectionError?.(new Error('stale'));
+    expect(errors).not.toHaveBeenCalled();
+    const close = vi.fn();
+    pending.resolve({ localPort: 6100, close });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(close).toHaveBeenCalledOnce();
+    expect(replacementClose).not.toHaveBeenCalled();
+    await service.stop('pending');
+    expect(replacementClose).toHaveBeenCalledOnce();
+  });
+
   it('deduplicates opens by id and closes the tunnel once', async () => {
     const close = vi.fn();
     const service = new PortForwardService({

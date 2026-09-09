@@ -33,3 +33,9 @@ export interface SessionCellDeps {
 export interface SessionPromptResult {
   queued: boolean;
 }
+
+export interface PromptAcceptance {
+  id: string;
+  onAccepted(result: SessionPromptResult): void;
+  resolvedAttachments: readonly ResolvedPromptAttachment[];
+}

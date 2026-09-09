@@ -87,17 +87,23 @@ function createManualClock(): ManualClock {
 
 class FakeFacetHandle implements FacetHandle {
   readonly descriptor: FacetDescriptor;
+  readOnly: boolean;
   disposed = false;
   private text: string;
   private readonly listeners = new Set<() => void>();
 
   constructor(descriptor: FacetDescriptor) {
     this.descriptor = descriptor;
+    this.readOnly = descriptor.readonly;
     this.text = descriptor.initialText;
   }
 
   getText(): string {
     return this.text;
+  }
+
+  setReadOnly(readOnly: boolean): void {
+    this.readOnly = readOnly;
   }
 
   setText(text: string): void {
@@ -319,6 +325,47 @@ describe('OpenFileStore', () => {
       expect(entry.saving).toBe(false);
     });
 
+    it('honors filesystem read-only state', async () => {
+      const h = start();
+      const ref = hostFileRefFromNativePath('/repo/linked/file.ts');
+      const bufferLease = h.store.acquire(ref, BUFFER);
+      const diskLease = h.store.acquire(ref, DISK);
+      h.publish(h.diskKey('/repo/linked/file.ts'), {
+        ...textContent('external', 'e1'),
+        readonly: true,
+      });
+
+      await waitFor(() => bufferLease.entry.handleFor(BUFFER) !== undefined);
+      expect(bufferLease.entry.status).toEqual({ kind: 'ready' });
+      expect(bufferLease.entry.readOnly).toBe(true);
+      expect(bufferHandle(bufferLease.entry).getText()).toBe('external');
+      expect(bufferHandle(bufferLease.entry).descriptor.readonly).toBe(true);
+      expect(await h.store.save(bufferLease.entry)).toEqual(err({ type: 'readonly' }));
+
+      bufferLease.release();
+      diskLease.release();
+    });
+
+    it('updates existing handles when filesystem permissions change without losing edits', async () => {
+      const h = start();
+      const filePath = '/repo/permissions.ts';
+      const { entry } = await openReady(h, filePath, 'disk');
+      const buffer = bufferHandle(entry);
+      buffer.setText('unsaved');
+      h.publish(h.diskKey(filePath), { ...textContent('disk', 'e1'), readonly: true });
+      await waitFor(() => entry.readOnly);
+      expect(buffer.readOnly).toBe(true);
+      expect(entry.handleFor(BUFFER)).toBe(buffer);
+      expect(buffer.getText()).toBe('unsaved');
+      expect(await h.store.save(entry)).toEqual(err({ type: 'readonly' }));
+
+      h.publish(h.diskKey(filePath), textContent('disk', 'e1'));
+      await waitFor(() => !entry.readOnly);
+      expect(buffer.readOnly).toBe(false);
+      expect((entry.handleFor(DISK) as FakeFacetHandle).readOnly).toBe(true);
+      expect(await h.store.save(entry)).toEqual(ok(undefined));
+    });
+
     it('shares one entry and one in-flight load across spellings of the same ResourceKey', async () => {
       const h = start();
       const nfc = hostFileRefFromNativePath('/repo/caf\u00e9.ts');
@@ -335,6 +382,22 @@ describe('OpenFileStore', () => {
       // One entry means one wire subscription under the first-seen spelling.
       expect(h.resolves).toHaveLength(1);
       expect(h.resolves[0]?.uri).toBe(encodeResourceUri(nfc));
+    });
+
+    it('shares one Windows buffer across path casing variants', async () => {
+      const h = start();
+      const displayRef = hostFileRefFromNativePath('C:\\Repo\\File.ts');
+      const variantRef = hostFileRefFromNativePath('c:\\repo\\file.ts');
+
+      const first = h.store.acquire(displayRef, BUFFER);
+      const second = h.store.acquire(variantRef, BUFFER);
+
+      expect(second.entry).toBe(first.entry);
+      expect(h.store.peek(variantRef)).toBe(first.entry);
+      h.publish(h.diskKey('C:\\Repo\\File.ts'), textContent('shared', 'e1'));
+      await waitFor(() => first.entry.status.kind === 'ready');
+      expect(h.resolves).toHaveLength(1);
+      expect(h.resolves[0]?.uri).toBe(encodeResourceUri(displayRef));
     });
 
     it('holds git snapshot facets per ref alongside each other', async () => {

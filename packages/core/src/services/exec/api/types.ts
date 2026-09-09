@@ -28,9 +28,10 @@ export class ExecError extends Error {
     readonly args: readonly string[],
     readonly exitCode: number | null,
     readonly stdout: string,
-    readonly stderr: string
+    readonly stderr: string,
+    options?: ErrorOptions
   ) {
-    super(`${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`);
+    super(`${file} ${args.join(' ')} failed (exit ${exitCode ?? 'unknown'})`, options);
     this.name = 'ExecError';
   }
 }

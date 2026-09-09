@@ -75,27 +75,29 @@ export function ExternalLinkChoiceDialog({
           </Tooltip.Provider>
         </div>
       </Dialog.Body>
-      <Dialog.Footer className="flex-col-reverse sm:flex-col-reverse">
-        <Button className="w-full" variant="secondary" onClick={controller.dismiss}>
-          Cancel
-        </Button>
-        <Button
-          className="w-full"
-          variant="secondary"
-          disabled={!canOpenInEmdashBrowser}
-          onClick={() => controller.complete('emdash-browser')}
-        >
-          <Globe className="size-4" />
-          Open in Emdash
-        </Button>
-        <Button
-          className="w-full"
-          variant="primary"
-          onClick={() => controller.complete('external-browser')}
-        >
-          <ExternalLink className="size-4" />
-          Open in Browser
-        </Button>
+      <Dialog.Footer>
+        <div className="flex w-full flex-col-reverse gap-2">
+          <Button className="w-full" variant="secondary" onClick={controller.dismiss}>
+            Cancel
+          </Button>
+          <Button
+            className="w-full"
+            variant="secondary"
+            disabled={!canOpenInEmdashBrowser}
+            onClick={() => controller.complete('emdash-browser')}
+          >
+            <Globe className="size-4" />
+            Open in Emdash
+          </Button>
+          <Button
+            className="w-full"
+            variant="primary"
+            onClick={() => controller.complete('external-browser')}
+          >
+            <ExternalLink className="size-4" />
+            Open in Browser
+          </Button>
+        </div>
       </Dialog.Footer>
     </>
   );

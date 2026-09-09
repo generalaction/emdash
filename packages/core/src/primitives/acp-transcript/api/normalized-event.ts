@@ -28,11 +28,17 @@ export type NormalizedDiff = {
   newText: string;
 };
 
+export type NormalizedToolLocation = {
+  path: string;
+  line?: number;
+};
+
 export type NormalizedToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export type NormalizedEvent =
   | {
       kind: 'message';
+      promptId?: string;
       role: 'user' | 'assistant';
       messageId: string | null;
       text: string;
@@ -51,6 +57,7 @@ export type NormalizedEvent =
       status: NormalizedToolStatus | null;
       parentToolCallId: string | null;
       diffs: NormalizedDiff[];
+      locations: NormalizedToolLocation[];
       inputSummary?: string;
       outputText?: string;
       terminalId?: string;
@@ -102,11 +109,15 @@ export type NormalizedEvent =
   | {
       kind: 'tool_update';
       toolCallId: string;
-      title: string | null;
-      toolKind: string | null;
-      status: NormalizedToolStatus | null;
+      title?: string | null;
+      toolKind?: string | null;
+      status?: NormalizedToolStatus | null;
       parentToolCallId: string | null;
-      diffs: NormalizedDiff[];
+      /** Present only when ACP supplied content; an empty array explicitly clears prior diffs. */
+      diffs?: NormalizedDiff[];
+      /** Present only when ACP supplied locations; an empty array explicitly clears them. */
+      locations?: NormalizedToolLocation[];
+      inputSummary?: string;
       outputText?: string;
       terminalId?: string;
     }

@@ -1,9 +1,13 @@
-import path from 'node:path';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { createPathProfile, type PathProfile } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
-import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import {
+  dirnameHostPath,
+  hostPathFromNative,
+  nativePathFromHost,
+} from '@core/primitives/desktop-runtime/api';
 import type { LocalProject } from '@core/primitives/projects/api';
 
 const project: LocalProject = {
@@ -19,6 +23,8 @@ const project: LocalProject = {
 
 function makeResolver(options: {
   home?: string;
+  pathProfile?: PathProfile;
+  omitPathProfile?: boolean;
   existingPaths?: string[];
   registeredPaths?: string[];
   missingParents?: string[];
@@ -32,11 +38,23 @@ function makeResolver(options: {
   const missingParents = new Set(options.missingParents ?? []);
   const getHomeDir = vi.fn(async () => {
     if (options.homeError) throw options.homeError;
-    return { path: hostPathFromNative(options.home ?? '/home/jona') };
+    const home = options.home ?? '/home/jona';
+    return {
+      path: hostPathFromNative(home),
+      ...(options.omitPathProfile
+        ? {}
+        : {
+            profile:
+              options.pathProfile ??
+              createPathProfile({
+                style: hostPathFromNative(home).root.kind === 'posix' ? 'posix' : 'win32',
+              }),
+          }),
+    };
   });
   const exists = vi.fn(async ({ path: target }) => {
     const candidate = nativePathFromHost(target);
-    if (missingParents.has(path.posix.dirname(candidate))) {
+    if (missingParents.has(dirnameHostPath(candidate))) {
       return err({ type: 'not-found' as const, path: '' });
     }
     return ok({ exists: existingPaths.has(candidate) });
@@ -97,6 +115,27 @@ describe('WorkspacePlacementResolver', () => {
     await expect(resolver.resolveRepositoriesRoot(LOCAL_HOST_REF)).resolves.toEqual({
       success: false,
       error: { type: 'host-home-unavailable', message: 'home unavailable' },
+    });
+  });
+
+  it('uses a POSIX-only fallback for older remote servers without path metadata', async () => {
+    const { resolver } = makeResolver({ home: '/home/remote', omitPathProfile: true });
+
+    await expect(resolver.resolveRepositoriesRoot(hostRef('remote', 'ssh-1'))).resolves.toEqual({
+      success: true,
+      data: '/home/remote/emdash/repositories',
+    });
+  });
+
+  it('does not guess local path semantics when metadata is missing', async () => {
+    const { resolver } = makeResolver({ home: 'C:\\Users\\dev', omitPathProfile: true });
+
+    await expect(resolver.resolveRepositoriesRoot(LOCAL_HOST_REF)).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'host-home-unavailable',
+        message: 'The host did not report its filesystem path semantics',
+      },
     });
   });
 
@@ -233,6 +272,39 @@ describe('WorkspacePlacementResolver', () => {
     await expect(
       resolver.resolveRepositoryDestination(hostRef('remote', 'ssh-1'), 'api')
     ).resolves.toEqual({ success: true, data: '/home/jona/source/api' });
+  });
+
+  it('does not apply a desktop absolute repositories root to a remote host', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/remote',
+      appOverrides: { defaultProjectsDirectory: 'C:\\Users\\local\\source' },
+    });
+
+    await expect(
+      resolver.resolveRepositoryDestination(hostRef('remote', 'ssh-1'), 'api')
+    ).resolves.toEqual({ success: true, data: '/home/remote/emdash/repositories/api' });
+  });
+
+  it('allocates local Windows drive and UNC destinations without desktop path semantics', async () => {
+    const drive = makeResolver({ home: 'C:\\Users\\dev' });
+    await expect(
+      drive.resolver.resolveRepositoryDestination(LOCAL_HOST_REF, 'api')
+    ).resolves.toEqual({
+      success: true,
+      data: 'C:\\Users\\dev\\emdash\\repositories\\api',
+    });
+
+    const unc = makeResolver({ home: '\\\\server\\share\\Users\\dev' });
+    await expect(
+      unc.resolver.resolveRepositoryDestination(
+        LOCAL_HOST_REF,
+        'api',
+        '\\\\server\\share\\repositories'
+      )
+    ).resolves.toEqual({
+      success: true,
+      data: '\\\\server\\share\\repositories\\api',
+    });
   });
 
   it('returns runtime and filesystem failures without allocating a path', async () => {

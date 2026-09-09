@@ -107,12 +107,27 @@ export type ChatThinking = {
   durationMs?: number;
 };
 
+/**
+ * Presentation-only group for two or more adjacent reasoning segments.
+ *
+ * The source transcript keeps each segment as an independent `ChatThinking`
+ * item. The flattening pass wraps adjacent siblings so the renderer can offer
+ * one disclosure control without losing protocol ordering or segment data.
+ */
+export type ThinkingGroupItem = {
+  kind: 'thinking-group';
+  /** Synthetic parent id; child thinking rows retain their own disclosure ids. */
+  id: string;
+  steps: readonly ChatThinking[];
+};
+
 /** ACP tool-call categories that represent file operations. */
 export type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 
 /** A single file touched by a file-operation tool call. */
 export type FileOp = {
   path: string;
+  line?: number;
 };
 
 /**
@@ -143,9 +158,10 @@ export type ChatFileOpToolCall = {
 /**
  * An execute tool call row — ACP `kind: 'execute'` commands (e.g. Bash).
  *
- * Rendered as a single non-interactive line: "Execute `{command}` {elapsed}s".
- * While running: shimmer + live ticking timer. When done: frozen duration if
- * durationMs is present; duration omitted if data is unavailable (e.g. replay).
+ * Rendered as a collapsible card. The header shows `inputSummary` when the
+ * provider supplied one, otherwise the first command line. The body (command
+ * and output) is hidden until the user expands the row, in every status; a
+ * running row only shimmers its header.
  */
 export type ChatExecute = {
   kind: 'execute';
@@ -310,7 +326,7 @@ export type TurnOutcomeItem = {
   outcome: TranscriptTurnOutcome;
 };
 
-export type SyntheticItem = WorkingItem | TurnOutcomeItem;
+export type SyntheticItem = ThinkingGroupItem | WorkingItem | TurnOutcomeItem;
 
 export type ChatItem =
   | TranscriptItem

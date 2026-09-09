@@ -1,5 +1,6 @@
 import '@emdash/ui/style.css';
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +29,33 @@ describe('MCP drawer Escape routing', () => {
   let root: Root;
   let settingsInstance: ViewScopeInstance;
   let detachKeybindings: () => void;
+
+  async function saveEdit(
+    server: McpServer,
+    onSave: (saved: McpServer) => Promise<void>
+  ): Promise<void> {
+    await act(async () => {
+      root.render(
+        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+          <McpDrawer
+            open
+            mode={{ type: 'edit', server }}
+            host={LOCAL_HOST_REF}
+            providers={[]}
+            onOpenChange={vi.fn()}
+            onSave={onSave}
+          />
+        </ThemeProvider>
+      );
+    });
+
+    const sheet = document.querySelector<HTMLElement>('[data-slot="sheet-content"]');
+    const save = [...(sheet?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((button) =>
+      button.textContent?.includes('Save')
+    );
+    expect(save).toBeDefined();
+    await act(async () => save!.click());
+  }
 
   beforeEach(() => {
     host = document.createElement('div');
@@ -95,5 +123,43 @@ describe('MCP drawer Escape routing', () => {
     expect(closeSettings).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('preserves hidden stdio settings when saving an edit', async () => {
+    const onSave = vi.fn(async (_server: McpServer) => undefined);
+    const server: McpServer = {
+      name: 'local',
+      transport: 'stdio',
+      command: 'node',
+      enabled: false,
+      cwd: '/srv/mcp',
+      timeout: 60_000,
+      providers: ['prime-agent'],
+    };
+
+    await saveEdit(server, onSave);
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false,
+        cwd: '/srv/mcp',
+        timeout: 60_000,
+      })
+    );
+  });
+
+  it('preserves hidden OAuth settings when saving an HTTP edit', async () => {
+    const onSave = vi.fn(async (_server: McpServer) => undefined);
+    const server: McpServer = {
+      name: 'docs',
+      transport: 'http',
+      url: 'https://example.com/mcp',
+      oauth: {},
+      providers: ['prime-agent'],
+    };
+
+    await saveEdit(server, onSave);
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ oauth: {} }));
   });
 });

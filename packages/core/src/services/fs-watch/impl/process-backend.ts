@@ -32,6 +32,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
           }
         },
         {
+          signal: scope.signal,
           onReattach: () => sink.resync(),
           onReattachError: (error, context) => {
             const mode = context.retrying ? 'retrying' : 'terminal';

@@ -40,6 +40,9 @@ export interface SshConnectionManager {
 
   getAllHealthStates(): Record<string, SshHealthState>;
 
+  /** Retire physical transport while retaining the stable proxy. Does not reconnect. */
+  resetConnection(id: string): void;
+
   /**
    * Gracefully close a connection and permanently stop reconnection for it.
    * This is an intentional teardown — auto-reconnect will NOT fire afterward.

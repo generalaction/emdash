@@ -38,6 +38,10 @@ function domains(setup: string): ProjectSettingsDomains {
       sources: [],
       writeTargets: [],
     },
+    environment: {
+      personal: {},
+      resolved: { env: { value: {}, from: 'built-in' } },
+    },
     gitIdentity: { stored: {} },
     placement: {
       stored: {},
@@ -95,6 +99,7 @@ describe('useProjectSettingsForm', () => {
             domains: {
               lifecycle: saved.lifecycle,
               fileHandling: saved.fileHandling,
+              environment: saved.environment,
               placement: {
                 layers: saved.placement.layers,
                 resolved: saved.placement.resolved,

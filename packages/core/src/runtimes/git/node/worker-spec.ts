@@ -16,6 +16,8 @@ export type GitWorkerSpecInput = {
   dependencies: ProvidedWireComponentRequirements<(typeof gitComponent)['requirements']>;
   /** Path to the git binary; defaults to PATH resolution inside the worker. */
   gitExecutable?: string;
+  /** Host `watcherExclude` for working-tree watches (restart-applied); unset uses the default. */
+  watchIgnore?: string[];
 };
 
 /**
@@ -36,6 +38,7 @@ export function gitWorkerSpec(
       dependencies: input.dependencies,
       config: {
         ...(input.gitExecutable ? { executable: input.gitExecutable } : {}),
+        ...(input.watchIgnore ? { watchIgnore: input.watchIgnore } : {}),
       },
     },
   ];

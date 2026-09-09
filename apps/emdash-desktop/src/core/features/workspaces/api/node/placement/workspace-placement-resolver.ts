@@ -1,17 +1,19 @@
-import path from 'node:path';
-import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
-import { type HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { hostRefKey, isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  formatAbsolute,
+  joinAbsolute,
+  parseAbsolute,
+  POSIX_PATH_PROFILE,
+  type HostAbsolutePath,
+  type PathProfile,
+} from '@emdash/core/primitives/path/api';
 import type {
   HostRuntimesClient,
   RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import {
-  fileKeyForAbsolutePath,
-  hostPathFromNative,
-  nativePathFromHost,
-} from '@core/primitives/desktop-runtime/api';
+import { fileKeyForAbsolutePath, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { safePathSegment } from '@core/primitives/path-name/api';
 import { builtInWorktreeRootFor, resolveWorktreeRoot } from '@core/primitives/project-settings/api';
 import {
@@ -42,10 +44,15 @@ type PlacementResolverDependencies = {
   getStoredProjectWorktreeRoot: (projectId: string) => Promise<string | undefined>;
 };
 
+type HostPathInfo = {
+  home: HostAbsolutePath;
+  profile: PathProfile;
+};
+
 export class WorkspacePlacementResolver {
   private readonly homeDirectories = new Map<
     string,
-    Promise<Result<string, WorkspacePlacementError>>
+    Promise<Result<HostPathInfo, WorkspacePlacementError>>
   >();
 
   constructor(private readonly dependencies: PlacementResolverDependencies) {}
@@ -64,11 +71,13 @@ export class WorkspacePlacementResolver {
       this.dependencies.getStoredProjectWorktreeRoot(project.id),
       this.getHostWorktreeRoot(host),
     ]);
+    const homeDirectory = formatHostPath(homeResult.data.home, homeResult.data.profile);
     const resolved = resolveWorktreeRoot({
       projectWorktreeRoot,
       hostWorktreeRoot: hostWorktreeRoot ?? null,
-      builtInWorktreeRoot: builtInWorktreeRootFor(homeResult.data),
-      homeDirectory: homeResult.data,
+      builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory, homeResult.data.profile),
+      homeDirectory,
+      pathProfile: homeResult.data.profile,
     });
     if (resolved.provenance.kind === 'broken-setting') {
       log.warn('Configured worktree root is unusable; degrading to the next layer', {
@@ -96,9 +105,13 @@ export class WorkspacePlacementResolver {
     if (!homeResult.success) return homeResult;
 
     const configuredRoot = await this.getExplicitAppRoot('defaultProjectsDirectory');
-    return configuredRoot
-      ? resolveConfiguredRoot(configuredRoot, homeResult.data)
-      : ok(defaultRepositoriesRoot(homeResult.data));
+    const applicableRoot =
+      configuredRoot && (isLocalHostRef(host) || isPortableHomeRoot(configuredRoot))
+        ? configuredRoot
+        : undefined;
+    return applicableRoot
+      ? resolveConfiguredRoot(applicableRoot, homeResult.data)
+      : ok(defaultRepositoriesRoot(formatHostPath(homeResult.data.home, homeResult.data.profile)));
   }
 
   async resolveRepositoryDestination(
@@ -118,14 +131,31 @@ export class WorkspacePlacementResolver {
 
     const session = await this.dependencies.broker.client(host);
     if (!session.success) return session;
+    const homeResult = await this.getHomeDirectory(host);
+    if (!homeResult.success) return homeResult;
+    const root = parseAbsolute(rootResult.data, { profile: homeResult.data.profile });
+    if (!root.success) {
+      return err({
+        type: 'invalid-host-path',
+        path: rootResult.data,
+        message: root.error.message,
+      });
+    }
 
-    const pathApi = pathApiFor(rootResult.data);
     const baseName = safePathSegment(name, 'repository');
     for (let suffix = 1; ; suffix += 1) {
       const candidateName = suffix === 1 ? baseName : `${baseName}-${suffix}`;
-      const candidate = pathApi.join(rootResult.data, candidateName);
+      const joined = joinAbsolute(root.data, candidateName);
+      if (!joined.success) {
+        return err({
+          type: 'invalid-host-path',
+          path: rootResult.data,
+          message: joined.error.message,
+        });
+      }
+      const candidate = formatHostPath(joined.data, homeResult.data.profile);
       const [exists, registeredProject] = await Promise.all([
-        session.data.files.fs.exists(fileKeyForAbsolutePath(hostPathFromNative(candidate))),
+        session.data.files.fs.exists(fileKeyForAbsolutePath(joined.data)),
         this.dependencies.findProjectByPath(host, candidate),
       ]);
       if (!exists.success) {
@@ -151,7 +181,7 @@ export class WorkspacePlacementResolver {
     this.homeDirectories.clear();
   }
 
-  private getHomeDirectory(host: HostRef): Promise<Result<string, WorkspacePlacementError>> {
+  private getHomeDirectory(host: HostRef): Promise<Result<HostPathInfo, WorkspacePlacementError>> {
     const key = hostRefKey(host);
     const cached = this.homeDirectories.get(key);
     if (cached) return cached;
@@ -163,11 +193,19 @@ export class WorkspacePlacementResolver {
 
   private async queryHomeDirectory(
     host: HostRef
-  ): Promise<Result<string, WorkspacePlacementError>> {
+  ): Promise<Result<HostPathInfo, WorkspacePlacementError>> {
     const session = await this.dependencies.broker.client(host);
     if (!session.success) return session;
     try {
-      return ok(nativePathFromHost((await session.data.files.getHomeDir()).path));
+      const home = await session.data.files.getHomeDir();
+      if (home.profile) return ok({ home: home.path, profile: home.profile });
+      if (!isLocalHostRef(host) && home.path.root.kind === 'posix') {
+        return ok({ home: home.path, profile: POSIX_PATH_PROFILE });
+      }
+      return err({
+        type: 'host-home-unavailable',
+        message: 'The host did not report its filesystem path semantics',
+      });
     } catch (error) {
       return err({
         type: 'host-home-unavailable',
@@ -190,31 +228,32 @@ export class WorkspacePlacementResolver {
 
 function resolveConfiguredRoot(
   configuredRoot: string,
-  homeDirectory: string
+  pathInfo: HostPathInfo
 ): Result<string, WorkspacePlacementError> {
   const trimmed = configuredRoot.trim();
-  const pathApi = pathApiFor(homeDirectory);
-  const expanded =
+  const parsed =
     trimmed === '~'
-      ? homeDirectory
+      ? ok(pathInfo.home)
       : trimmed.startsWith('~/') || trimmed.startsWith('~\\')
-        ? pathApi.join(homeDirectory, trimmed.slice(2))
-        : trimmed;
-
-  if (!pathApi.isAbsolute(expanded)) {
+        ? joinAbsolute(pathInfo.home, trimmed.slice(2))
+        : parseAbsolute(trimmed, { profile: pathInfo.profile });
+  if (!parsed.success) {
     return err({
       type: 'invalid-host-path',
       path: configuredRoot,
-      message: 'Placement roots must be absolute paths on the target host',
+      message: parsed.error.message,
     });
   }
-  return ok(pathApi.normalize(expanded));
+  return ok(formatHostPath(parsed.data, pathInfo.profile));
 }
 
-function pathApiFor(absolutePath: string): typeof path.posix {
-  return /^[a-zA-Z]:[\\/]/u.test(absolutePath) || absolutePath.startsWith('\\\\')
-    ? path.win32
-    : path.posix;
+function isPortableHomeRoot(configuredRoot: string): boolean {
+  const trimmed = configuredRoot.trim();
+  return trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('~\\');
+}
+
+function formatHostPath(path: HostAbsolutePath, profile: PathProfile): string {
+  return formatAbsolute(path, { separator: profile.style === 'win32' ? '\\' : '/' });
 }
 
 function fsErrorMessage(error: { type: string; message?: string; path?: string }): string {

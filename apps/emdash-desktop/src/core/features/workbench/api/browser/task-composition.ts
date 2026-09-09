@@ -1,3 +1,4 @@
+import { nativePathIdentityKey } from '@emdash/core/primitives/path/api';
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { computed, makeAutoObservable, observable, reaction, runInAction, when } from 'mobx';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
@@ -311,7 +312,8 @@ export class TaskComposition {
     }
     if (
       this._acquiredWorkspaceId === workspaceId &&
-      this._workspace?.path === path &&
+      this._workspace !== null &&
+      nativePathIdentityKey(this._workspace.path) === nativePathIdentityKey(path) &&
       this._workspace.sshConnectionId === sshConnectionId
     ) {
       return;
@@ -407,35 +409,6 @@ export class TaskComposition {
     });
 
     this.paneLayout.startPersistence();
-    this._sessionDisposers.push(
-      reaction(
-        () => ({
-          isDrawerOpen: this.isTerminalDrawerOpen,
-          isCreatingTerminal: this._isCreatingTerminal,
-          isLoaded: this._terminals.isLoaded,
-          terminalCount: this._terminals.terminals.size,
-        }),
-        (state, previous) => {
-          if (
-            state.isDrawerOpen &&
-            !state.isCreatingTerminal &&
-            state.isLoaded &&
-            state.terminalCount === 0 &&
-            (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
-          ) {
-            runInAction(() => {
-              this.chrome.commands.closeTerminalDrawer();
-              this._terminalSelectionHandle.update((current) => ({
-                ...current,
-                activeItem: undefined,
-              }));
-            });
-          }
-        },
-        { fireImmediately: true }
-      )
-    );
-
     this.editorView.startFiles(workspace.path, workspace.sshConnectionId);
     this._sessionDisposers.push(
       reaction(

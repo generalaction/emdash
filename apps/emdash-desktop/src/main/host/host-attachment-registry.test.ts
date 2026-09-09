@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HostAttachmentRegistry } from './host-attachment-registry';
 
 describe('HostAttachmentRegistry', () => {
-  it('replays SSH hosts that connected before registry construction', async () => {
+  it('replays runtime-ready hosts established before registry construction', async () => {
     const fixture = createFixture({ connectedIds: ['ssh-1'] });
     const attach = vi.fn();
 
@@ -113,8 +113,17 @@ function createFixture({ connectedIds = [] }: { connectedIds?: string[] } = {}) 
   let invalidate = (_event: { connectionId: string; reason: 'connection-lost' }): void => {};
   const logger = { warn: vi.fn() };
   const registry = new HostAttachmentRegistry({
-    ssh: ssh as never,
     hosts: {
+      onReady(listener) {
+        const ready = (event: { type: string; connectionId: string }) => {
+          if (event.type === 'connected') listener(event.connectionId, {} as never);
+        };
+        ssh.on('connection-event', ready);
+        for (const id of connected) listener(id, {} as never);
+        return () => {
+          ssh.off('connection-event', ready);
+        };
+      },
       onInvalidate(listener) {
         invalidate = listener as typeof invalidate;
         return () => {

@@ -1,7 +1,6 @@
 import type { GitCredentialsSessionSpec } from '@emdash/core/primitives/git-credentials/api';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type {
@@ -26,6 +25,7 @@ const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set([
   'goose',
   'oh-my-pi',
   'pi',
+  'prime-agent',
 ]);
 
 export type TuiConversationProviderOptions = {
@@ -96,7 +96,7 @@ export class TuiConversationProvider implements ConversationProvider {
   }
 
   async detachSession(_conversationId: string): Promise<void> {
-    // Output subscriptions are passive; explicit control and idle cleanup own PTY lifetime.
+    // Output subscriptions are passive; explicit control and workspace teardown own PTY lifetime.
   }
 
   async stopSession(conversationId: string): Promise<void> {
@@ -171,7 +171,7 @@ export class TuiConversationProvider implements ConversationProvider {
       cols: initialSize.cols,
       rows: initialSize.rows,
       shellSetup: launchContext.data.shellSetup,
-      tmuxSessionName: launchContext.data.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      tmux: launchContext.data.tmux ? { identity: sessionId } : undefined,
     };
   }
 }
@@ -181,13 +181,12 @@ function resolveAgentSession(
   mode: 'start' | 'resume'
 ): { sessionId: string; isResuming: boolean } {
   const isResuming = mode === 'resume';
+  const nativeSessionId = conversation.sessionId;
+  const hasNativeSessionId = Boolean(nativeSessionId) && nativeSessionId !== conversation.id;
   if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
-    const nativeSessionId = conversation.sessionId;
-    if (nativeSessionId && nativeSessionId !== conversation.id) {
-      return { sessionId: nativeSessionId, isResuming: true };
-    }
+    if (hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming: true };
     return { sessionId: conversation.id, isResuming: false };
   }
-
+  if (isResuming && hasNativeSessionId) return { sessionId: nativeSessionId!, isResuming };
   return { sessionId: conversation.id, isResuming };
 }

@@ -26,15 +26,14 @@ import type {
   ToolNode,
   ToolStatus,
 } from '../models/turns';
-import {
-  makeDiffId,
-  makeMessageId,
-  makePlanId,
-  makeThinkingId,
-  makeToolGroupId,
-  makeToolId,
-} from './ids';
-import type { NormalizedDiff, NormalizedEvent, NormalizedToolStatus } from './normalized-event';
+import { makeDiffId, makeMessageId, makePlanId, makeThinkingId, makeToolId } from './ids';
+import type {
+  NormalizedDiff,
+  NormalizedEvent,
+  NormalizedToolLocation,
+  NormalizedToolStatus,
+} from './normalized-event';
+import { toolRunStatus, wrapToolRuns } from './tool-runs';
 
 export type FoldEvent =
   | Exclude<NormalizedEvent, { kind: 'message' | 'thinking' }>
@@ -75,8 +74,8 @@ function searchQueryFromTitle(title: string): string {
   return title.replace(/^search\s+/i, '');
 }
 
-function isReadKind(toolKind: string | null | undefined, title?: string | null): boolean {
-  return toolKind === 'read' || toolKind === 'read_file' || title?.startsWith('Read ') === true;
+function isReadKind(toolKind: string | null | undefined): boolean {
+  return toolKind === 'read' || toolKind === 'read_file';
 }
 
 function isEditKind(toolKind: string | null | undefined): boolean {
@@ -93,11 +92,6 @@ function isMcpToolKind(toolKind: string | null | undefined): boolean {
 
 function isWebFetchKind(toolKind: string | null | undefined): boolean {
   return toolKind === 'web-fetch' || toolKind === 'web_fetch' || toolKind === 'fetch';
-}
-
-function inferReadPath(title: string): string | undefined {
-  const match = /^Read\s+(.+?)(?:\s+\(|$)/.exec(title);
-  return match?.[1];
 }
 
 function compareSeq(a: { seq: number }, b: { seq: number }): number {
@@ -143,7 +137,8 @@ function baseToolFields(
   title: string,
   status: NormalizedToolStatus | null,
   parentToolCallId: string | undefined,
-  inputSummary?: string
+  inputSummary?: string,
+  locations?: NormalizedToolLocation[]
 ): Omit<ToolCallItem, 'kind'> {
   return {
     id,
@@ -152,6 +147,7 @@ function baseToolFields(
     title,
     status: mapToolStatus(status) ?? 'running',
     ...(inputSummary !== undefined ? { inputSummary } : {}),
+    ...(locations !== undefined ? { locations } : {}),
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
   };
 }
@@ -167,6 +163,7 @@ export function createToolCallItem(params: {
   inputSummary?: string;
   outputText?: string;
   terminalId?: string;
+  locations?: NormalizedToolLocation[];
 }): ToolCallItem {
   const base = baseToolFields(
     params.id,
@@ -175,7 +172,8 @@ export function createToolCallItem(params: {
     params.title,
     params.status,
     params.parentToolCallId,
-    params.inputSummary
+    params.inputSummary,
+    params.locations
   );
   const { title, toolKind } = params;
   if (isSubagentKind(toolKind)) {
@@ -190,12 +188,8 @@ export function createToolCallItem(params: {
   if (isWebFetchKind(toolKind)) {
     return { kind: 'web-fetch-tool-call', ...base, url: title };
   }
-  if (isReadKind(toolKind, title)) {
-    return {
-      kind: 'read-tool-call',
-      ...base,
-      ...(inferReadPath(title) ? { path: inferReadPath(title) } : {}),
-    };
+  if (isReadKind(toolKind)) {
+    return { kind: 'read-tool-call', ...base };
   }
   if (isExecuteKind(toolKind)) {
     return {
@@ -211,31 +205,61 @@ export function createToolCallItem(params: {
 
 function updateToolCallItem(
   item: ToolCallItem,
-  title: string | null,
-  status: NormalizedToolStatus | null,
-  outputText?: string,
-  terminalId?: string
+  patch: {
+    title?: string | null;
+    toolKind?: string | null;
+    status?: NormalizedToolStatus | null;
+    outputText?: string;
+    terminalId?: string;
+    inputSummary?: string;
+    locations?: NormalizedToolLocation[];
+  }
 ): ToolCallItem {
-  const mapped = mapToolStatus(status ?? undefined);
-  const nextTitle = title ?? item.title;
+  const mapped = mapToolStatus(patch.status);
+  const nextTitle = patch.title ?? item.title;
+  const nextLocations = patch.locations ?? item.locations;
+  const nextInputSummary = patch.inputSummary ?? item.inputSummary;
+
+  if (patch.toolKind !== undefined && patch.toolKind !== null) {
+    const reclassified = createToolCallItem({
+      id: item.id,
+      seq: item.seq,
+      toolCallId: item.toolCallId,
+      title: nextTitle,
+      toolKind: patch.toolKind,
+      status: patch.status ?? null,
+      parentToolCallId: item.parentToolCallId,
+      ...(nextInputSummary !== undefined ? { inputSummary: nextInputSummary } : {}),
+      ...(patch.outputText !== undefined ? { outputText: patch.outputText } : {}),
+      ...(patch.terminalId !== undefined ? { terminalId: patch.terminalId } : {}),
+      ...(nextLocations !== undefined ? { locations: nextLocations } : {}),
+    });
+    if (reclassified.kind !== item.kind) {
+      return {
+        ...reclassified,
+        status: mapped ?? item.status,
+        ...(item.children?.length ? { children: item.children } : {}),
+      };
+    }
+  }
+
   const common = {
     ...item,
     ...(mapped !== undefined ? { status: mapped } : {}),
-    ...(title !== null ? { title: title } : {}),
+    ...(patch.title !== undefined && patch.title !== null ? { title: patch.title } : {}),
+    ...(patch.inputSummary !== undefined ? { inputSummary: patch.inputSummary } : {}),
+    ...(patch.locations !== undefined ? { locations: patch.locations } : {}),
   };
   switch (item.kind) {
     case 'execute-tool-call':
       return {
         ...common,
-        ...(title !== null ? { command: nextTitle } : {}),
-        ...(outputText !== undefined ? { outputText } : {}),
-        ...(terminalId !== undefined ? { terminalId } : {}),
+        ...(patch.title !== undefined && patch.title !== null ? { command: nextTitle } : {}),
+        ...(patch.outputText !== undefined ? { outputText: patch.outputText } : {}),
+        ...(patch.terminalId !== undefined ? { terminalId: patch.terminalId } : {}),
       };
     case 'read-tool-call':
-      return {
-        ...common,
-        ...(title !== null && inferReadPath(nextTitle) ? { path: inferReadPath(nextTitle) } : {}),
-      };
+      return common;
     case 'create-file-tool-call':
       return common;
     case 'modify-file-tool-call':
@@ -245,18 +269,33 @@ function updateToolCallItem(
     case 'search-tool-call':
       return {
         ...common,
-        ...(title !== null ? { query: searchQueryFromTitle(nextTitle) } : {}),
+        ...(patch.title !== undefined && patch.title !== null
+          ? { query: searchQueryFromTitle(nextTitle) }
+          : {}),
       };
     case 'mcp-tool-call':
-      return { ...common, ...(title !== null ? { tool: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(patch.title !== undefined && patch.title !== null ? { tool: nextTitle } : {}),
+      };
     case 'web-fetch-tool-call':
-      return { ...common, ...(title !== null ? { pageTitle: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(patch.title !== undefined && patch.title !== null ? { pageTitle: nextTitle } : {}),
+      };
     case 'spawn-subagent-tool-call':
-      return { ...common, ...(title !== null ? { name: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(patch.title !== undefined && patch.title !== null ? { name: nextTitle } : {}),
+      };
     case 'create-plan-tool-call':
       return common;
     case 'unknown-tool-call':
-      return { ...common, ...(title !== null ? { name: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(patch.toolKind !== undefined ? { toolKind: patch.toolKind } : {}),
+        ...(patch.title !== undefined && patch.title !== null ? { name: nextTitle } : {}),
+      };
   }
 }
 
@@ -361,16 +400,26 @@ function finalizeOpenThinking(items: TranscriptItem[], now: number): TranscriptI
   return changed ? result : items;
 }
 
-function upsertFileOperations(
+function replaceFileOperations(
   items: TranscriptItem[],
   toolId: string,
   toolCallId: string,
   title: string,
   parentToolCallId: string | undefined,
   diffs: NormalizedDiff[],
-  status: NormalizedToolStatus | null
+  status: NormalizedToolStatus | null | undefined
 ): TranscriptItem[] {
-  let result = items;
+  const desiredIds = new Set(diffs.map((diff) => makeDiffId(toolId, diff.path)));
+  let result = items.filter((item) => {
+    switch (item.kind) {
+      case 'create-file-tool-call':
+      case 'modify-file-tool-call':
+      case 'delete-file-tool-call':
+        return item.toolCallId !== toolCallId || desiredIds.has(item.id);
+      default:
+        return true;
+    }
+  });
   for (const d of diffs) {
     const id = makeDiffId(toolId, d.path);
     const mapped = mapToolStatus(status);
@@ -437,7 +486,7 @@ function upsertFileOperations(
 function updateFileOperationStatuses(
   items: TranscriptItem[],
   toolCallId: string,
-  status: NormalizedToolStatus | null
+  status: NormalizedToolStatus | null | undefined
 ): TranscriptItem[] {
   const mapped = mapToolStatus(status);
   if (mapped === undefined) return items;
@@ -502,51 +551,6 @@ function upsertPlanToolCall(
   return [...items, next];
 }
 
-function nodeStatus(node: ToolNode): ToolStatus {
-  return node.status;
-}
-
-function readGroupStatus(children: ToolNode[]): ToolStatus {
-  if (children.some((child) => nodeStatus(child) === 'running')) return 'running';
-  if (children.some((child) => nodeStatus(child) === 'error')) return 'error';
-  return 'done';
-}
-
-function wrapReadGroups<T extends TranscriptItem | ToolNode>(items: T[]): Array<T | ToolGroup> {
-  const result: Array<T | ToolGroup> = [];
-  for (let i = 0; i < items.length; ) {
-    const item = items[i];
-    if (item.kind !== 'read-tool-call') {
-      result.push(item);
-      i += 1;
-      continue;
-    }
-
-    const run: ToolNode[] = [item];
-    let j = i + 1;
-    while (j < items.length && items[j].kind === 'read-tool-call') {
-      run.push(items[j] as ToolNode);
-      j += 1;
-    }
-
-    if (run.length > 1) {
-      result.push({
-        kind: 'tool-group',
-        id: makeToolGroupId(run[0].id),
-        seq: run[0].seq,
-        label: `${run.length} file reads`,
-        groupKind: 'read-batch',
-        status: readGroupStatus(run),
-        children: run,
-      });
-    } else {
-      result.push(item);
-    }
-    i = j;
-  }
-  return result;
-}
-
 function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[] {
   const toolById = new Map<string, ToolCallItem>();
   const childrenByParent = new Map<string, ToolCallItem[]>();
@@ -579,7 +583,7 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     const rawChildren = childrenByParent.get(item.id);
     if (!rawChildren?.length) return stripChildren(item);
 
-    const children = wrapReadGroups(rawChildren.map(attachChildren).sort(compareSeq)) as ToolNode[];
+    const children = wrapToolRuns(rawChildren.map(attachChildren).sort(compareSeq)) as ToolNode[];
     return { ...stripChildren(item), children };
   };
 
@@ -587,7 +591,7 @@ function buildTree(flatItems: TranscriptItem[], turnId: string): TranscriptItem[
     (item): TranscriptItem => (isToolCallItem(item) ? attachChildren(item) : item)
   );
 
-  return wrapReadGroups(attached.sort(compareSeq)) as TranscriptItem[];
+  return wrapToolRuns(attached.sort(compareSeq)) as TranscriptItem[];
 }
 
 function normalizeToolStructure(items: TranscriptItem[], turnId: string): TranscriptItem[] {
@@ -635,6 +639,7 @@ export function foldItem(
         seq: nextSeq(base),
         role: event.role,
         text: event.text,
+        ...(event.promptId ? { promptId: event.promptId } : {}),
         ...(event.attachments?.length ? { attachments: event.attachments } : {}),
       };
       return normalizeToolStructure([...base, newMsg], turnId);
@@ -669,7 +674,7 @@ export function foldItem(
       const parentToolCallId = event.parentToolCallId ?? undefined;
       const base = finalizeOpenThinking(flatItems, at);
       if (event.diffs.length > 0) {
-        const next = upsertFileOperations(
+        const next = replaceFileOperations(
           base,
           toolId,
           event.toolCallId,
@@ -694,6 +699,7 @@ export function foldItem(
         ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
         ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
         ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
+        ...(event.locations.length > 0 ? { locations: event.locations } : {}),
       });
       const next = upsertToolCallItem(base, tool);
       return normalizeToolStructure(next, turnId);
@@ -702,9 +708,10 @@ export function foldItem(
     case 'tool_update': {
       const toolId = makeToolId(turnId, event.toolCallId);
       const parentToolCallId = event.parentToolCallId ?? undefined;
-      const base = finalizeOpenThinking(flatItems, at);
-      if (event.diffs.length > 0) {
-        const next = upsertFileOperations(
+      let base = finalizeOpenThinking(flatItems, at);
+      const hadFileOperations = hasFileOperationsForToolCall(base, event.toolCallId);
+      if (event.diffs !== undefined) {
+        base = replaceFileOperations(
           base,
           toolId,
           event.toolCallId,
@@ -713,20 +720,23 @@ export function foldItem(
           event.diffs,
           event.status
         );
-        return normalizeToolStructure(next, turnId);
+        if (event.diffs.length > 0) return normalizeToolStructure(base, turnId);
+        if (hadFileOperations) return normalizeToolStructure(base, turnId);
       }
 
       const idx = base.findIndex((it) => isToolCallItem(it) && it.id === toolId);
       let next: TranscriptItem[];
       if (idx >= 0) {
         const tool = base[idx] as ToolCallItem;
-        const updated = updateToolCallItem(
-          tool,
-          event.title,
-          event.status,
-          event.outputText,
-          event.terminalId
-        );
+        const updated = updateToolCallItem(tool, {
+          ...(event.title !== undefined ? { title: event.title } : {}),
+          ...(event.toolKind !== undefined ? { toolKind: event.toolKind } : {}),
+          ...(event.status !== undefined ? { status: event.status } : {}),
+          ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
+          ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
+          ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
+          ...(event.locations !== undefined ? { locations: event.locations } : {}),
+        });
         next = base.map((it, i) => (i === idx ? updated : it));
       } else if (hasFileOperationsForToolCall(base, event.toolCallId)) {
         next = base;
@@ -740,11 +750,13 @@ export function foldItem(
             seq: nextSeq(base),
             toolCallId: event.toolCallId,
             title: event.title ?? 'unknown',
-            toolKind: event.toolKind,
-            status: event.status,
+            toolKind: event.toolKind ?? null,
+            status: event.status ?? null,
             parentToolCallId,
+            ...(event.inputSummary !== undefined ? { inputSummary: event.inputSummary } : {}),
             ...(event.outputText !== undefined ? { outputText: event.outputText } : {}),
             ...(event.terminalId !== undefined ? { terminalId: event.terminalId } : {}),
+            ...(event.locations !== undefined ? { locations: event.locations } : {}),
           })
         );
       }
@@ -786,7 +798,7 @@ export function finalizeItems(items: TranscriptItem[], at: number): TranscriptIt
   const finalizeNode = (item: ToolNode): ToolNode => {
     if (isToolGroup(item)) {
       const children = item.children.map(finalizeNode);
-      return { ...item, children, status: readGroupStatus(children) };
+      return { ...item, children, status: toolRunStatus(children) };
     }
 
     const children = item.children?.map(finalizeNode);

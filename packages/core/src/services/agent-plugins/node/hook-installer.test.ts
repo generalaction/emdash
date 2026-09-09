@@ -53,6 +53,35 @@ describe('AgentHookInstaller', () => {
     );
   });
 
+  it('uses a project environment override when resolving the provider config root', async () => {
+    const homeDir = await makeTempDir();
+    const providerRoot = path.join(homeDir, 'provider-codex');
+    const projectRoot = path.join(homeDir, 'project-codex');
+    const behavior = hookBehavior({
+      resolveConfigRoots: configRoots(envConfigRoot('CODEX_HOME', '.codex')),
+      writeHooks: async (fs) => {
+        await fs.write('hooks.json', 'installed');
+        return ['hooks.json'];
+      },
+    });
+    const installer = createInstaller(homeDir, { CODEX_HOME: providerRoot }, [
+      hookProvider('codex', behavior),
+    ]);
+
+    await expect(
+      installer.ensureHooksInstalled({
+        providerId: 'codex',
+        workspacePath: '/workspace',
+        env: { CODEX_HOME: projectRoot },
+      })
+    ).resolves.toBe(true);
+
+    await expect(nodeFs.readFile(path.join(projectRoot, 'hooks.json'), 'utf8')).resolves.toBe(
+      'installed'
+    );
+    await expect(nodeFs.stat(providerRoot)).rejects.toThrow();
+  });
+
   it('serializes writes shared by providers resolving to the same root', async () => {
     const homeDir = await makeTempDir();
     const root = path.join(homeDir, '.shared');

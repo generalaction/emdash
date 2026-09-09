@@ -7,6 +7,34 @@ import { connect } from './connect';
 import { WireError, type WireMessage, type WireTransport } from './protocol';
 
 describe('connection call deadline', () => {
+  it.each(['timeout', 'cancel', 'dispose', 'terminal'] as const)(
+    'distinguishes held requests from posted requests on %s',
+    async (outcome) => {
+      for (const held of [false, true]) {
+        const clock = createManualClock();
+        const transport = scriptedTransport({ reconnectCapable: true });
+        const connection = connect(transport, { clock });
+        const abort = new AbortController();
+        if (held) transport.goDown();
+        const result = connection
+          .call('prompt', {}, { signal: abort.signal })
+          .catch((error: unknown) => error);
+        if (outcome === 'timeout') await clock.advanceBy(30_000);
+        if (outcome === 'cancel') abort.abort();
+        if (outcome === 'dispose') connection.dispose();
+        if (outcome === 'terminal') transport.failTerminally(new Error('failed'));
+        const error = await result;
+        expect(error).toBeInstanceOf(WireError);
+        expect((error as WireError).delivery).toBe(held ? 'not-sent' : undefined);
+        if (held) {
+          transport.goUp();
+          expect(transport.sent).toHaveLength(0);
+        }
+        connection.dispose();
+      }
+    }
+  );
+
   it('rejects a call with a TIMEOUT WireError when the peer never answers', async () => {
     const clock = createManualClock();
     const transport = scriptedTransport({ reconnectCapable: true });
@@ -119,7 +147,7 @@ describe('hold-until-deadline while disconnected', () => {
     const second = connection.call('held.second', {});
     const third = connection.call('held.third', {});
 
-    await expectWireError(third, 'DISCONNECTED');
+    expect(await expectWireError(third, 'DISCONNECTED')).toMatchObject({ delivery: 'not-sent' });
 
     transport.goUp();
     expect(transport.sent.map(callPath)).toEqual(['held.first', 'held.second']);
@@ -138,7 +166,7 @@ describe('hold-until-deadline while disconnected', () => {
     const inFlight = connection.call('posted.before', {});
     const inFlightRejection = expectWireError(inFlight, 'DISCONNECTED');
     transport.goDown();
-    await inFlightRejection;
+    expect((await inFlightRejection).delivery).toBeUndefined();
 
     const held = connection.call('issued.after', {});
     transport.goUp();
@@ -169,7 +197,9 @@ describe('hold-until-deadline while disconnected', () => {
     const connection = connect(transport, { clock });
 
     transport.goDown();
-    await expectWireError(connection.call('fails.fast', {}), 'DISCONNECTED');
+    expect(await expectWireError(connection.call('fails.fast', {}), 'DISCONNECTED')).toMatchObject({
+      delivery: 'not-sent',
+    });
     connection.dispose();
   });
 });
@@ -189,7 +219,10 @@ describe('terminal failure and disposal', () => {
     expect(await heldRejection).toMatchObject({ cause });
 
     const later = connection.call('after.terminal', {});
-    expect(await expectWireError(later, 'DISCONNECTED')).toMatchObject({ cause });
+    expect(await expectWireError(later, 'DISCONNECTED')).toMatchObject({
+      cause,
+      delivery: 'not-sent',
+    });
     connection.dispose();
   });
 

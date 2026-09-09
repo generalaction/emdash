@@ -8,7 +8,7 @@ import { deferred } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
-import { createHostService } from '@core/services/hosts/node';
+import { createHosts } from '@core/services/hosts/node/hosts';
 import { workspaceServerLayout } from '@core/services/hosts/node/workspace-server/layout';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import { createDesktopRuntimeBroker } from './runtime-broker';
@@ -44,16 +44,33 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
     const expectedVersion = await readPublishedVersion(
       process.env['EMDASH_TEST_REMOTE_WSS_POINTER_URL'] ?? defaultPublishedPointerUrl
     );
-    const hosts = createHostService({
+    const hosts = createHosts({
       scope,
       ssh: {
         manager,
-        connect: { ensureConnected: connect },
+        control: {
+          readIntent: async () => true,
+          writeIntent: async () => {},
+          establish: (id, signal) =>
+            manager.createConnection(
+              id,
+              async () => ({ config: connectConfig, cleanup() {}, debugLogs: [] }),
+              { signal }
+            ),
+          reset: (id) => manager.resetConnection(id),
+          probe: async (id, signal) => {
+            const proxy = manager.getProxy(id);
+            if (!proxy) throw new Error('SSH is disconnected');
+            await proxy.execScript('true', { signal, timeoutMs: 5_000 });
+          },
+        },
       },
       machineEvents: { on: () => () => {} },
       installBaseUrl,
     });
     const broker = createDesktopRuntimeBroker({} as never, hosts);
+    const service = hosts.get(hostRef('remote', connectionId));
+    if (!service) throw new Error('Missing remote Host');
     const layout = workspaceServerLayout('/home/devuser');
     const invalidations: unknown[] = [];
     hosts.onInvalidate((event) => invalidations.push(event));
@@ -64,6 +81,8 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       const bootstrapProxy = manager.getProxy(connectionId);
       if (!bootstrapProxy) throw new Error('Docker SSH proxy did not connect');
       await resetManagedRoot(bootstrapProxy, layout);
+      hosts.lease(connectionId, scope);
+      await service.runtime.client();
 
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
@@ -82,7 +101,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         throw new Error('Could not construct workspace-server ripgrep smoke-test paths');
       }
 
-      let searchRootRegistered = false;
+      let releaseSearchRoot: (() => void) | undefined;
       const contentJobs = createLiveJobReplicaCache(
         fileSearchContract.searchContent,
         resolved.data.fileSearch.searchContent
@@ -109,10 +128,10 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
             }
           )
         ).resolves.toMatchObject({ success: true });
-        await expect(
-          resolved.data.fileSearch.registerRoot({ root: smokeRoot.data })
-        ).resolves.toMatchObject({ success: true });
-        searchRootRegistered = true;
+        // Attaching to the activeRoot status state acquires the lease.
+        releaseSearchRoot = await resolved.data.fileSearch.activeRoot
+          .state({ root: smokeRoot.data }, 'status')
+          .attach(() => {});
 
         const lease = await contentJobs.start({
           root: smokeRoot.data,
@@ -126,16 +145,15 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         await lease.release();
       } finally {
         await contentJobs.dispose();
-        if (searchRootRegistered) {
-          await resolved.data.fileSearch.unregisterRoot({ root: smokeRoot.data });
-        }
+        releaseSearchRoot?.();
+        await resolved.data.fileSearch.evictRoot({ root: smokeRoot.data });
         await resolved.data.files.fs.delete({
           path: smokeRoot.data,
           recursive: true,
         });
       }
 
-      const connection = await hosts.client(connectionId);
+      const connection = await service.runtime.client();
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });
       expect(connection.currentHandshake()?.server.appVersion).toBe(expectedVersion);
       const disconnected = deferred<void>();

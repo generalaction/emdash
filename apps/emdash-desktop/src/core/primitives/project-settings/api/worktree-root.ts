@@ -8,6 +8,15 @@
  * browser-safe: no node imports.
  */
 
+import {
+  createPathProfile,
+  formatAbsolute,
+  joinAbsolute,
+  parseAbsolute,
+  parseNativeAbsolute,
+  type PathProfile,
+} from '@emdash/core/primitives/path/api';
+
 /**
  * The worktree-root layers below the per-project override, plus the host
  * home directory needed to expand `~` the same way execution does. Produced
@@ -21,13 +30,18 @@ export type WorktreeRootContext = {
   builtInWorktreeRoot: string;
   /** The host's home directory, for `~` expansion of configured roots. */
   homeDirectory: string;
+  /** Owning filesystem semantics. Optional only for older serialized snapshots. */
+  pathProfile?: PathProfile;
 };
 
 /** The built-in (last) worktree-root layer: `<home>/emdash/worktrees`. */
-export function builtInWorktreeRootFor(homeDirectory: string): string {
-  const separator = pathSeparatorFor(homeDirectory);
-  const trimmed = homeDirectory.replace(trailingSeparators(separator), '');
-  return `${trimmed}${separator}emdash${separator}worktrees`;
+export function builtInWorktreeRootFor(homeDirectory: string, pathProfile?: PathProfile): string {
+  const profile = pathProfile ?? pathProfileFor(homeDirectory);
+  const home = parseAbsolute(homeDirectory, { profile });
+  if (!home.success) return homeDirectory;
+  const builtIn = joinAbsolute(home.data, 'emdash', 'worktrees');
+  if (!builtIn.success) return homeDirectory;
+  return formatForProfile(builtIn.data, profile);
 }
 
 /**
@@ -39,72 +53,34 @@ export function builtInWorktreeRootFor(homeDirectory: string): string {
  */
 export function normalizeWorktreeRootPath(
   configuredRoot: string,
-  homeDirectory: string
+  homeDirectory: string,
+  pathProfile?: PathProfile
 ): string | null {
   const trimmed = configuredRoot.trim();
   if (!trimmed) return null;
 
-  const homeSeparator = pathSeparatorFor(homeDirectory);
-  const home = homeDirectory.trim().replace(trailingSeparators(homeSeparator), '');
-  let expanded = trimmed;
-  if (trimmed === '~') {
-    expanded = home;
-  } else if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
-    if (!home) return null;
-    expanded = `${home}${homeSeparator}${trimmed.slice(2)}`;
-  }
+  const profile = pathProfile ?? pathProfileFor(homeDirectory);
+  const home = parseAbsolute(homeDirectory.trim(), { profile });
+  if (!home.success) return null;
 
-  const separator = pathSeparatorFor(expanded);
-  if (!isAbsolutePath(expanded, separator)) return null;
-  return normalizeAbsolutePath(expanded, separator);
+  const parsed =
+    trimmed === '~'
+      ? home
+      : trimmed.startsWith('~/') || trimmed.startsWith('~\\')
+        ? joinAbsolute(home.data, trimmed.slice(2))
+        : parseAbsolute(trimmed, { profile });
+  return parsed.success ? formatForProfile(parsed.data, profile) : null;
 }
 
-function pathSeparatorFor(absolutePath: string): '/' | '\\' {
-  return /^[a-zA-Z]:[\\/]/u.test(absolutePath) || absolutePath.startsWith('\\\\') ? '\\' : '/';
+function pathProfileFor(absolutePath: string): PathProfile {
+  const parsed = parseNativeAbsolute(absolutePath);
+  const style = parsed.success && parsed.data.root.kind !== 'posix' ? 'win32' : 'posix';
+  return createPathProfile({ style });
 }
 
-function trailingSeparators(separator: '/' | '\\'): RegExp {
-  return separator === '\\' ? /[\\/]+$/u : /\/+$/u;
-}
-
-function isAbsolutePath(candidate: string, separator: '/' | '\\'): boolean {
-  if (separator === '\\') {
-    return /^[a-zA-Z]:[\\/]/u.test(candidate) || candidate.startsWith('\\\\');
-  }
-  return candidate.startsWith('/');
-}
-
-/**
- * Pure equivalent of node's `path.normalize` for absolute paths: collapses
- * separators and resolves `.`/`..` without escaping the root.
- */
-function normalizeAbsolutePath(absolutePath: string, separator: '/' | '\\'): string {
-  let root: string;
-  let rest: string;
-  if (separator === '\\') {
-    if (absolutePath.startsWith('\\\\')) {
-      // UNC: keep `\\server\share` as the root.
-      const segments = absolutePath.slice(2).split(/[\\/]+/u);
-      root = `\\\\${segments.slice(0, 2).join('\\')}\\`;
-      rest = segments.slice(2).join('\\');
-    } else {
-      root = `${absolutePath.slice(0, 2)}\\`;
-      rest = absolutePath.slice(3);
-    }
-  } else {
-    root = '/';
-    rest = absolutePath.slice(1);
-  }
-
-  const splitPattern = separator === '\\' ? /[\\/]+/u : /\/+/u;
-  const resolved: string[] = [];
-  for (const segment of rest.split(splitPattern)) {
-    if (!segment || segment === '.') continue;
-    if (segment === '..') {
-      resolved.pop();
-      continue;
-    }
-    resolved.push(segment);
-  }
-  return `${root}${resolved.join(separator)}` || root;
+function formatForProfile(
+  path: Parameters<typeof formatAbsolute>[0],
+  profile: PathProfile
+): string {
+  return formatAbsolute(path, { separator: profile.style === 'win32' ? '\\' : '/' });
 }

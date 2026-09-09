@@ -22,6 +22,7 @@ export const workspaceRegistryComponentConfigSchema = z.object({
     .refine((value) => value === ':memory:' || path.isAbsolute(value), {
       message: 'Workspace registry database path must be absolute or :memory:',
     }),
+  watchIgnore: z.array(z.string()).optional(),
 });
 
 /**
@@ -99,12 +100,18 @@ export const workspaceRegistryComponent = defineWireComponent({
       execute: (request) => runtime.scanner.executeScanRequest(request),
       listTargets: () => runtime.scanTargets(),
       isActive: (id) => runtime.isWorkspaceActive(id),
+      watchIgnore: config.watchIgnore,
       logger,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
     // Self-suppression: background steps mute their own watch events while writing.
     runtime.setScanMuter((id) => scheduler.mute(id));
-    scheduler.start();
+    void scheduler
+      .start()
+      .then(() => (scope.disposed ? undefined : runtime.scanHost()))
+      .catch((error) => {
+        logger.warn?.(`initial workspace registry scan failed: ${String(error)}`);
+      });
     scope.add(() => scheduler.dispose());
 
     // The autonomous ref-follow loop (spec: pr-workspace-model staleness): slow,
@@ -115,11 +122,6 @@ export const workspaceRegistryComponent = defineWireComponent({
     });
     refFollow.start();
     scope.add(() => refFollow.dispose());
-
-    // Boot reconciliation: catch up with whatever changed while the daemon was down.
-    void runtime.scanHost().catch((error) => {
-      logger.warn?.(`initial workspace registry scan failed: ${String(error)}`);
-    });
 
     return instance({
       scope,

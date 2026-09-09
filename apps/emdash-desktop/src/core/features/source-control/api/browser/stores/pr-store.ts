@@ -178,7 +178,6 @@ export class PrStore {
       options,
     });
     if (result.success) {
-      await this._refreshPr(pr, client);
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
         bypass_requirements: options.bypassRequirements ?? false,
@@ -206,11 +205,10 @@ export class PrStore {
     const prNumber = getPrNumber(pr);
     if (!prNumber) return;
     const client = await getPullRequestsRuntimeClient();
-    const result = await client.markReadyForReview({
+    await client.markReadyForReview({
       repositoryUrl: pr.repositoryUrl,
       number: prNumber,
     });
-    if (result.success) await this._refreshPr(pr, client);
   }
 
   /** Refresh the pull request and its check runs from GitHub. */

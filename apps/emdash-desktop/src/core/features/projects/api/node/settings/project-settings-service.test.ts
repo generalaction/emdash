@@ -40,11 +40,19 @@ function configState() {
     repositoryId: 'repo-1',
     resolved: {
       preservePatterns: { value: [], from: 'built-in' as const },
+      env: {
+        value: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+        from: 'personal' as const,
+      },
       setup: { value: 'old setup', from: 'personal' as const },
       autoRunSetup: { value: true, from: 'built-in' as const },
       autoRunRun: { value: true, from: 'personal' as const },
     },
-    personalConfig: { scripts: { setup: 'old setup' }, autoRunRun: true },
+    personalConfig: {
+      scripts: { setup: 'old setup' },
+      env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+      autoRunRun: true,
+    },
     sources: {
       preservePatterns: [],
       prepare: [],
@@ -212,6 +220,15 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         agentGitCredentials: 'none',
       },
     });
+    expect(domains.environment).toEqual({
+      personal: { env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' } },
+      resolved: {
+        env: {
+          value: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+          from: 'personal',
+        },
+      },
+    });
     expect(domains.placement).toMatchObject({
       stored: { worktreeRoot: '/project/worktrees', tmux: true },
       layers: {
@@ -288,6 +305,9 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
       fileHandling: {
         personal: { preservePatterns: ['personal/**'] },
       },
+      environment: {
+        personal: { env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' } },
+      },
       gitIdentity: {
         stored: { baseRemote: 'origin', agentGitCredentials: 'none' },
       },
@@ -303,6 +323,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         scripts: { setup: 'new setup', run: null },
         autoRunRun: null,
         preservePatterns: ['personal/**'],
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
       },
     });
     expect(patch).toHaveBeenCalledWith('project-1', {
@@ -326,6 +347,9 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
       fileHandling: {
         personal: { preservePatterns: null },
       },
+      environment: {
+        personal: { env: null },
+      },
     });
 
     expect(result.success).toBe(true);
@@ -335,6 +359,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         scripts: { setup: null },
         autoRunRun: null,
         preservePatterns: null,
+        env: null,
       },
     });
   });

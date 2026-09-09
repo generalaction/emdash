@@ -41,6 +41,7 @@ const nativeAcpProviders: Array<{
   { id: 'kiro', args: ['acp'] },
   { id: 'mimocode', args: ['acp'] },
   { id: 'oh-my-pi', args: ['acp'] },
+  { id: 'prime-agent', args: ['--mode', 'acp'] },
   {
     id: 'mistral',
     cli: '/usr/local/bin/vibe',

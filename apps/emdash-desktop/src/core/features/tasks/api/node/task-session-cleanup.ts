@@ -17,7 +17,7 @@ export type TaskSessionTargets = {
   acpConversationIds: string[];
   tuiConversationIds: string[];
   terminalSessionIds: string[];
-  tmuxSessionNames: string[];
+  tmuxSessionIdentities: string[];
 };
 
 export type TaskSessionScope = {
@@ -65,7 +65,7 @@ export async function killTaskSessions(
     if (
       targets.tuiConversationIds.length > 0 ||
       targets.terminalSessionIds.length > 0 ||
-      targets.tmuxSessionNames.length > 0
+      targets.tmuxSessionIdentities.length > 0
     ) {
       await sessionCleanup.killTerminals(db, scope, context, targets);
     }

@@ -1,6 +1,7 @@
 import { reaction } from 'mobx';
 import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { getConversationSessionManager } from '@core/features/conversations/browser/stores/conversation-session-manager';
 import { setTelemetryConversationScope } from '@core/primitives/telemetry/browser/telemetry-scope';
 import type {
   TabHandle,
@@ -49,6 +50,12 @@ export class ConversationTabResource implements TabResource {
     if (!this.store.seen) {
       this.store.markSeen();
     }
+    if (this.store.data.type === 'acp') return;
+
+    if (!conversationRegistry.get(this._taskId)) return;
+    // The host's ensure operation reattaches a surviving process or resumes a
+    // lost one. Cached runtime observations can lag behind process exit.
+    getConversationSessionManager(this._taskId).retryHydration(this.store.data.id);
   }
 
   rename(name: string): void {

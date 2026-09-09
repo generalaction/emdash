@@ -8,6 +8,7 @@ import type {
   TabOpenOptions,
   TabRegistry,
 } from './core/tab-provider-registry';
+import { parsePaneDropTargetId, type SplitSide } from './pane-drop-target';
 import type { PaneLayoutSnapshotMemento, TabGroupsSnapshot } from './persistence';
 
 const MAX_PANE_COUNT = 8;
@@ -15,6 +16,11 @@ const MAX_PANE_COUNT = 8;
 export interface Pane<R extends TabRegistry = TabRegistry> {
   paneId: string;
   pane: PaneStore<R>;
+}
+
+export interface PaneDropDestination {
+  paneId: string;
+  insertBeforeTabId?: string;
 }
 
 /**
@@ -83,10 +89,13 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       activePaneId: observable,
       isViewActive: computed,
       focusedPane: computed,
+      canInsertPane: computed,
       splitRight: action,
+      insertPane: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
+      materializeDropDestination: action,
       setActiveGroup: action,
       setViewActive: action,
       restoreSnapshot: action,
@@ -109,8 +118,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     return this.groups.find((g) => g.paneId === this.activePaneId)?.pane ?? this.groups[0].pane;
   }
 
+  get canInsertPane(): boolean {
+    return this.groups.length < MAX_PANE_COUNT;
+  }
+
   splitRight(): void {
-    if (this.groups.length >= MAX_PANE_COUNT) return;
+    if (!this.canInsertPane) return;
 
     const focusedIndex = this.groups.findIndex((g) => g.paneId === this.activePaneId);
     const sourceGroup = this.groups[focusedIndex === -1 ? 0 : focusedIndex];
@@ -124,6 +137,16 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this.groups.splice(insertAt, 0, newGroup);
 
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
+  }
+
+  insertPane(relativeToPaneId: string, side: SplitSide): string | undefined {
+    if (!this.canInsertPane) return undefined;
+    const index = this.groups.findIndex((g) => g.paneId === relativeToPaneId);
+    if (index === -1) return undefined;
+
+    const newGroup = this._createPane();
+    this.groups.splice(side === 'left' ? index : index + 1, 0, newGroup);
+    return newGroup.paneId;
   }
 
   closePane(paneId: string): void {
@@ -174,30 +197,64 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const fromGroup = this.groups.find((g) => g.pane.entries.has(draggedTabId));
     if (!fromGroup) return;
 
-    let toPaneId: string | undefined;
-    if (overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')) {
-      toPaneId = overId.startsWith('pane-drop-')
-        ? overId.slice('pane-drop-'.length)
-        : overId.slice('pane-content-'.length);
-    } else {
-      toPaneId = this.groups.find((g) => g.pane.entries.has(overId))?.paneId;
-    }
+    const destination = this.materializeDropDestination(overId, draggedTabId);
+    if (!destination) return;
 
-    if (!toPaneId || toPaneId === fromGroup.paneId) {
+    if (destination.paneId === fromGroup.paneId) {
       const fromTabIds = fromGroup.pane.resolvedTabs.map((t) => t.tabId);
       const fromIdx = fromTabIds.indexOf(draggedTabId);
       if (fromIdx === -1) return;
-      const toIdx =
-        overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')
-          ? fromTabIds.length - 1
-          : fromTabIds.indexOf(overId);
+      const toIdx = destination.insertBeforeTabId
+        ? fromTabIds.indexOf(destination.insertBeforeTabId)
+        : fromTabIds.length - 1;
       if (toIdx !== -1) fromGroup.pane.reorderTabs(fromIdx, toIdx);
       return;
     }
 
-    const insertBeforeTabId =
-      overId.startsWith('pane-drop-') || overId.startsWith('pane-content-') ? undefined : overId;
-    this.moveTab(draggedTabId, fromGroup.paneId, toPaneId, insertBeforeTabId);
+    this.moveTab(draggedTabId, fromGroup.paneId, destination.paneId, destination.insertBeforeTabId);
+  }
+
+  canSplitAt(targetPaneId: string, side: SplitSide, sourceTabId?: string): boolean {
+    if (!this.canInsertPane) return false;
+    const targetIndex = this.groups.findIndex((group) => group.paneId === targetPaneId);
+    if (targetIndex === -1) return false;
+
+    const fromGroup = sourceTabId
+      ? this.groups.find((group) => group.pane.entries.has(sourceTabId))
+      : undefined;
+    if (!fromGroup || fromGroup.pane.tabOrder.length !== 1) return true;
+
+    const insertAt = side === 'left' ? targetIndex : targetIndex + 1;
+    const fromIndex = this.groups.indexOf(fromGroup);
+    return insertAt !== fromIndex && insertAt !== fromIndex + 1;
+  }
+
+  /**
+   * Materializes one pane destination for a DnD target. Split targets create the
+   * pane here, keeping creation, cap fallback, and no-op policy in one module.
+   */
+  materializeDropDestination(overId: string, sourceTabId?: string): PaneDropDestination | null {
+    const paneTarget = parsePaneDropTargetId(overId);
+    if (!paneTarget) {
+      const tabGroup = this.groups.find((group) => group.pane.entries.has(overId));
+      return tabGroup ? { paneId: tabGroup.paneId, insertBeforeTabId: overId } : null;
+    }
+
+    const targetExists = this.groups.some((group) => group.paneId === paneTarget.paneId);
+    if (!targetExists) return null;
+    if (paneTarget.kind !== 'split') return { paneId: paneTarget.paneId };
+
+    const sourcePaneId = sourceTabId
+      ? this.groups.find((group) => group.pane.entries.has(sourceTabId))?.paneId
+      : undefined;
+    if (!this.canSplitAt(paneTarget.paneId, paneTarget.side, sourceTabId)) {
+      return this.canInsertPane || paneTarget.paneId === sourcePaneId
+        ? null
+        : { paneId: paneTarget.paneId };
+    }
+
+    const newPaneId = this.insertPane(paneTarget.paneId, paneTarget.side);
+    return newPaneId ? { paneId: newPaneId } : null;
   }
 
   setActiveGroup(paneId: string): void {
@@ -397,7 +454,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     }
 
     // Need to split.
-    if (this.groups.length >= MAX_PANE_COUNT) return this.focusedPane;
+    if (!this.canInsertPane) return this.focusedPane;
     const newGroup = this._createPane();
     const insertAt = target === 'right' ? idx + 1 : idx;
     this.groups.splice(insertAt, 0, newGroup);

@@ -48,6 +48,9 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 // radio item pins a background on the checked row and mutes unchecked rows.
 const PROFILE_RADIO_ITEM_CLASS = 'text-foreground data-checked:bg-transparent';
 
+// Inline because the Input recipe's own padding beats Tailwind's layered pl-*/pr-* utilities.
+const URL_INPUT_PADDING = { paddingLeft: '1.75rem', paddingRight: '2rem' } as const;
+
 export function BrowserToolbar({
   session,
   adapter,
@@ -193,7 +196,8 @@ export function BrowserToolbar({
               if (urlError) setUrlError(null);
             }}
             onFocus={(event) => event.currentTarget.select()}
-            className="h-7 truncate border-0 pr-8 pl-7 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+            className="h-7 truncate border-0 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+            style={URL_INPUT_PADDING}
             aria-label="Browser URL"
             placeholder="Search or enter URL"
             spellCheck={false}

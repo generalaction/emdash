@@ -19,6 +19,7 @@ export const icon = style({
   flexShrink: 0,
   color: vars.foregroundMuted,
 });
+export const iconWithoutInset = style({ left: 0 });
 globalStyle(`${icon} svg:not([class*='size-'])`, { width: '0.875rem', height: '0.875rem' });
 
 /** Optional shortcut/help content pinned to the trailing edge and vertically centered. */

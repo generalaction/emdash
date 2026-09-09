@@ -56,4 +56,15 @@ describe('resolveTerminalPanelActiveItem', () => {
       })
     ).toEqual({ kind: 'script', id: 'script-lifecycle-run' });
   });
+
+  it('falls back to the terminal empty state when the last terminal is removed', () => {
+    expect(
+      resolveTerminalPanelActiveItem({
+        requestedActiveItem: { kind: 'terminal', id: 'terminal-1' },
+        activeTerminalId: undefined,
+        terminalIds: [],
+        scriptIds: [],
+      })
+    ).toEqual({ kind: 'terminal', id: '' });
+  });
 });

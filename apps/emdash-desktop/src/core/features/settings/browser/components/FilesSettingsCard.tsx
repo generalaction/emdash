@@ -67,7 +67,7 @@ const FilesSettingsCard: React.FC = () => {
         />
         <ExclusionListEditor
           title="Watcher exclusions"
-          description="Reduce file-watcher work for noisy folders. Changes apply after restart."
+          description="Folders the file watcher skips for the editor, Git status, and workspace tracking. Watching dependency or build folders can use tens of thousands of native watches. Changes apply after restart."
           field="watcherExclude"
           value={current.watcherExclude}
           loading={loading}

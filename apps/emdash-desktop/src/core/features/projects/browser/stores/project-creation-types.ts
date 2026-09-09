@@ -17,15 +17,15 @@ export interface CloneModeData extends BaseModeData {
   repositoryUrl: string;
 }
 
-export interface NewModeData extends BaseModeData {
-  mode: 'new';
+export interface CreateRepositoryModeData extends BaseModeData {
+  mode: 'create';
   repositoryName: string;
   repositoryOwner: string;
   repositoryVisibility: 'public' | 'private';
   githubAccountId?: string;
 }
 
-export type ModeData = PickModeData | CloneModeData | NewModeData;
+export type ModeData = PickModeData | CloneModeData | CreateRepositoryModeData;
 
 export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: string };
 

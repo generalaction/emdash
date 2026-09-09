@@ -704,6 +704,58 @@ describe('PullRequestEngine', () => {
     });
   });
 
+  it('reports requested check runs as active', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi.fn(async () => ({
+      repository: {
+        pullRequest: {
+          commits: {
+            nodes: [
+              {
+                commit: {
+                  statusCheckRollup: {
+                    contexts: {
+                      pageInfo: { hasNextPage: false, endCursor: null },
+                      nodes: [
+                        {
+                          __typename: 'CheckRun',
+                          name: 'CI',
+                          status: 'REQUESTED',
+                          conclusion: null,
+                          detailsUrl: 'https://github.com/checks/1',
+                          startedAt: null,
+                          completedAt: null,
+                          checkSuite: null,
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    }));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
+    ).resolves.toEqual(ok(true));
+  });
+
   it('schedules background sync pages with retry through one account lane', async () => {
     const handle = await pullRequestSqliteStore.openTemp();
     closeHandles.push(() => handle.close());

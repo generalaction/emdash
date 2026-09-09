@@ -1,5 +1,6 @@
 import net from 'node:net';
-import type { ClientChannel } from 'ssh2';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { abortableWait } from '@emdash/shared/scheduling';
 import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 
 const LOCAL_BIND_HOST = '127.0.0.1';
@@ -33,8 +34,9 @@ export type PortForwardProbeResult = {
 export type PortForwardProbe = (remotePort: number) => Promise<PortForwardProbeResult>;
 
 export type OpenPortForwardTunnelOptions = {
-  proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+  proxy: Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>;
   remotePort: number;
+  signal?: AbortSignal;
   preferredLocalPort?: number;
   onConnectionError?: (error: Error) => void;
   probe?: PortForwardProbe;
@@ -55,13 +57,30 @@ const FAMILY_TARGET_HOSTS: Record<PortForwardProbeFamily, RemoteTargetHost> = {
 export async function openPortForwardTunnel(
   options: OpenPortForwardTunnelOptions
 ): Promise<PortForwardTunnel> {
-  const dialOrder = startAdvisoryProbe(options);
+  const scope = createScope({ label: 'port-forward-tunnel' });
+  const abort = () => {
+    void scope.dispose(options.signal?.reason);
+  };
+  options.signal?.addEventListener('abort', abort, { once: true });
+  scope.add(() => options.signal?.removeEventListener('abort', abort));
+  if (options.signal?.aborted) abort();
+  const ownedOptions = { ...options, signal: scope.signal };
+  const dialOrder = startAdvisoryProbe(ownedOptions);
   try {
-    return await bindTunnel(options, options.preferredLocalPort ?? 0, dialOrder);
-  } catch (error) {
-    if (options.preferredLocalPort !== undefined && isAddressInUse(error)) {
-      return await bindTunnel(options, 0, dialOrder);
+    try {
+      return await bindTunnel(ownedOptions, options.preferredLocalPort ?? 0, dialOrder, scope);
+    } catch (error) {
+      if (
+        !scope.signal.aborted &&
+        options.preferredLocalPort !== undefined &&
+        isAddressInUse(error)
+      ) {
+        return await bindTunnel(ownedOptions, 0, dialOrder, scope);
+      }
+      throw error;
     }
+  } catch (error) {
+    await scope.dispose();
     throw error;
   }
 }
@@ -77,8 +96,9 @@ function startAdvisoryProbe(options: OpenPortForwardTunnelOptions): DialOrder {
   if (!probe) return dialOrder;
 
   void Promise.resolve()
-    .then(() => probe(options.remotePort))
+    .then(() => (options.signal?.aborted ? undefined : probe(options.remotePort)))
     .then((result) => {
+      if (!result || options.signal?.aborted) return;
       dialOrder.current = orderTargetHosts(result.families);
       options.onProbeResult?.(result);
     })
@@ -100,96 +120,93 @@ function orderTargetHosts(families: PortForwardProbeFamily[]): readonly RemoteTa
 function bindTunnel(
   options: OpenPortForwardTunnelOptions,
   localPort: number,
-  dialOrder: DialOrder
+  dialOrder: DialOrder,
+  scope: Scope
 ): Promise<PortForwardTunnel> {
-  const sockets = new Set<net.Socket>();
-  const server = net.createServer((socket) => {
-    sockets.add(socket);
-    socket.on('close', () => sockets.delete(socket));
-    socket.on('error', () => {});
-    forwardSocket(socket, options, dialOrder.current);
-  });
-
-  return new Promise((resolve, reject) => {
-    const onError = (error: Error) => {
-      server.removeListener('listening', onListening);
-      reject(error);
-    };
-
-    const onListening = () => {
-      server.removeListener('error', onError);
+  return abortableWait({ signal: scope.signal }, ({ resolve, reject }) => {
+    const server = net.createServer((socket) => {
+      const owner = scope.child('forwarded-socket');
+      owner.add(() => {
+        socket.destroy();
+      });
+      socket.once('close', () => {
+        void owner.dispose();
+      });
+      socket.on('error', () => {
+        void owner.dispose();
+      });
+      void forwardSocket(socket, options, dialOrder.current, owner);
+    });
+    // Keep the error handler for the full listener lifetime, including cancellation during bind.
+    server.on('error', reject);
+    scope.add(() => closeServer(server));
+    server.once('listening', () => {
+      if (scope.signal.aborted) {
+        void closeServer(server);
+        return;
+      }
       const address = server.address();
       if (typeof address !== 'object' || address === null) {
         reject(new Error('port forward listener did not bind to a TCP address'));
         return;
       }
-
-      resolve({
-        localPort: address.port,
-        close: async () => {
-          for (const socket of sockets) socket.destroy();
-          await closeServer(server);
-        },
-      });
-    };
-
-    server.once('error', onError);
-    server.once('listening', onListening);
-    server.listen({ host: LOCAL_BIND_HOST, port: localPort });
+      resolve({ localPort: address.port, close: () => scope.dispose() });
+    });
+    server.listen({ host: LOCAL_BIND_HOST, port: localPort, signal: scope.signal });
   });
 }
 
-function forwardSocket(
+async function forwardSocket(
   socket: net.Socket,
   options: OpenPortForwardTunnelOptions,
-  targetHosts: readonly RemoteTargetHost[]
-): void {
+  targetHosts: readonly RemoteTargetHost[],
+  owner: Scope
+): Promise<void> {
   if (!options.proxy.isConnected) {
-    socket.destroy();
+    await owner.dispose();
     return;
   }
-
-  let client;
-  try {
-    client = options.proxy.client;
-  } catch {
-    socket.destroy();
-    return;
-  }
-
   let firstError: Error | undefined;
-
-  const tryTargetHost = (index: number): void => {
-    const remoteHost = targetHosts[index];
-    client.forwardOut(
-      LOCAL_BIND_HOST,
-      0,
-      remoteHost,
-      options.remotePort,
-      (error: Error | undefined, channel: ClientChannel) => {
-        if (error) {
-          firstError = firstError ?? error;
-          if (index + 1 < targetHosts.length && isConnectFailure(error)) {
-            tryTargetHost(index + 1);
-            return;
-          }
-          options.onConnectionError?.(firstError);
-          socket.destroy();
-          return;
-        }
-
-        options.onConnectionEstablished?.();
-        socket.on('error', () => channel.destroy());
-        channel.on('error', (channelError: Error) => {
-          options.onConnectionError?.(channelError);
-          socket.destroy();
-        });
-        socket.pipe(channel).pipe(socket);
+  for (const remoteHost of targetHosts) {
+    if (owner.signal.aborted) return;
+    try {
+      const channel = await options.proxy.openTcpChannel(
+        {
+          sourceHost: LOCAL_BIND_HOST,
+          sourcePort: 0,
+          remoteHost,
+          remotePort: options.remotePort,
+        },
+        { signal: owner.signal }
+      );
+      // Acquisition may finish just before disposal, while this continuation is queued.
+      if (owner.signal.aborted || socket.destroyed) {
+        channel.destroy();
+        return;
       }
-    );
-  };
-
-  tryTargetHost(0);
+      owner.add(() => {
+        channel.destroy();
+      });
+      channel.once('close', () => {
+        void owner.dispose();
+      });
+      channel.on('error', (error: Error) => {
+        if (!owner.signal.aborted) options.onConnectionError?.(error);
+        void owner.dispose();
+      });
+      options.onConnectionEstablished?.();
+      if (!owner.signal.aborted) socket.pipe(channel).pipe(socket);
+      return;
+    } catch (cause) {
+      if (owner.signal.aborted) return;
+      const error = cause instanceof Error ? cause : new Error(String(cause));
+      firstError ??= error;
+      if (isConnectFailure(error) && remoteHost !== targetHosts.at(-1)) continue;
+      options.onConnectionError?.(firstError);
+      await owner.dispose();
+      return;
+    }
+  }
 }
 
 function closeServer(server: net.Server): Promise<void> {

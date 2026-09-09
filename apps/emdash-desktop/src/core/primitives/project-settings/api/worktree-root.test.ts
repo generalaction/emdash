@@ -1,3 +1,4 @@
+import { POSIX_PATH_PROFILE, WIN32_PATH_PROFILE } from '@emdash/core/primitives/path/api';
 import { describe, expect, it } from 'vitest';
 import { builtInWorktreeRootFor, normalizeWorktreeRootPath } from './worktree-root';
 
@@ -47,7 +48,7 @@ describe('normalizeWorktreeRootPath', () => {
     expect(normalizeWorktreeRootPath('/a//b///c/', home)).toBe('/a/b/c');
     expect(normalizeWorktreeRootPath('/a/./b/../c', home)).toBe('/a/c');
     expect(normalizeWorktreeRootPath('/a/b/../../c/d', home)).toBe('/c/d');
-    expect(normalizeWorktreeRootPath('/../a', home)).toBe('/a');
+    expect(normalizeWorktreeRootPath('/../a', home)).toBeNull();
   });
 
   it('matches node path.normalize for messy win32 inputs', () => {
@@ -65,5 +66,10 @@ describe('normalizeWorktreeRootPath', () => {
 
   it('expands ~ using a windows home directory', () => {
     expect(normalizeWorktreeRootPath('~/pool', 'C:\\Users\\me')).toBe('C:\\Users\\me\\pool');
+  });
+
+  it('rejects roots written in a different dialect than the owning host', () => {
+    expect(normalizeWorktreeRootPath('C:\\pool', '/home/me', POSIX_PATH_PROFILE)).toBeNull();
+    expect(normalizeWorktreeRootPath('/srv/pool', 'C:\\Users\\me', WIN32_PATH_PROFILE)).toBeNull();
   });
 });

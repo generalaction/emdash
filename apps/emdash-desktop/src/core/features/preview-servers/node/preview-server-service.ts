@@ -62,7 +62,9 @@ type PreviewMetadata = {
 
 type PreviewSshRuntime = {
   getConnectionState: (connectionId: string) => ConnectionState;
-  getSshProxy: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
+  getSshProxy: (
+    connectionId: string
+  ) => Promise<Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>>;
   /**
    * One-shot advisory inspection of a remote port through the host's pinned
    * workspace-server wire client. Absent or rejecting means "no hint": the
@@ -538,7 +540,7 @@ export class PreviewServerService {
 
   private async getSshProxy(
     connectionId: string
-  ): Promise<Pick<SshClientProxy, 'client' | 'isConnected'>> {
+  ): Promise<Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>> {
     if (!this.sshRuntime) {
       throw new Error('SSH runtime is not attached');
     }
@@ -547,7 +549,9 @@ export class PreviewServerService {
 
   private async resolveManualSshProxy(
     connectionId: string
-  ): Promise<Result<Pick<SshClientProxy, 'client' | 'isConnected'>, ManualPreviewServerError>> {
+  ): Promise<
+    Result<Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>, ManualPreviewServerError>
+  > {
     if (!this.sshRuntime) {
       return err(
         runtimeHostUnavailable(
@@ -573,7 +577,7 @@ export class PreviewServerService {
     projectId: string;
     workspaceId: string;
     connectionId: string;
-    proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+    proxy: Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>;
     remotePort: number;
     preferredLocalPort: number;
     probe?: PortForwardProbe;

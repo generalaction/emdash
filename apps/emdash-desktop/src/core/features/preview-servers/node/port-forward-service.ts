@@ -1,3 +1,5 @@
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { waitWithSignal } from '@emdash/shared/scheduling';
 import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import {
   openPortForwardTunnel,
@@ -12,7 +14,7 @@ export type OpenPortForwardRequest = {
   projectId: string;
   workspaceId: string;
   connectionId: string;
-  proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+  proxy: Pick<SshClientProxy, 'openTcpChannel' | 'isConnected'>;
   remotePort: number;
   preferredLocalPort?: number;
   probe?: PortForwardProbe;
@@ -27,8 +29,12 @@ export type PortForwardRecord = {
   localPort: number;
 };
 
-type PortForwardEntry = PortForwardRecord & {
-  tunnel: PortForwardTunnel;
+type PortForwardEntry = {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  scope: Scope;
+  ready: Promise<PortForwardRecord>;
 };
 
 export type PortForwardConnectionErrorHandler = (id: string, error: Error) => void;
@@ -77,35 +83,67 @@ export class PortForwardService {
 
   async open(request: OpenPortForwardRequest): Promise<PortForwardRecord> {
     const existing = this.tunnels.get(request.id);
-    if (existing) return toRecord(existing);
+    if (existing) return existing.ready;
 
-    const tunnel = await this.openTunnel({
-      proxy: request.proxy,
-      remotePort: request.remotePort,
-      preferredLocalPort: request.preferredLocalPort,
-      onConnectionError: (error) => this.emitConnectionError(request.id, error),
-      probe: request.probe,
-      onProbeResult: (result) => this.emitProbeResult(request.id, result),
-      onConnectionEstablished: () => this.emitConnectionEstablished(request.id),
-    });
+    const scope = createScope({ label: `port-forward:${request.id}` });
     const entry: PortForwardEntry = {
       id: request.id,
       projectId: request.projectId,
       workspaceId: request.workspaceId,
-      connectionId: request.connectionId,
-      remotePort: request.remotePort,
-      localPort: tunnel.localPort,
-      tunnel,
+      scope,
+      ready: Promise.resolve().then(async () => {
+        scope.signal.throwIfAborted();
+        const pending = this.openTunnel({
+          proxy: request.proxy,
+          signal: scope.signal,
+          remotePort: request.remotePort,
+          preferredLocalPort: request.preferredLocalPort,
+          onConnectionError: (error) => {
+            if (isCurrent()) this.emitConnectionError(request.id, error);
+          },
+          probe: request.probe,
+          onProbeResult: (result) => {
+            if (isCurrent()) this.emitProbeResult(request.id, result);
+          },
+          onConnectionEstablished: () => {
+            if (isCurrent()) this.emitConnectionEstablished(request.id);
+          },
+        }).then(async (tunnel) => {
+          // Also covers adapters that complete after cancellation instead of honoring the signal.
+          if (scope.signal.aborted) {
+            await tunnel.close();
+            scope.signal.throwIfAborted();
+          }
+          scope.add(() => tunnel.close());
+          return tunnel;
+        });
+        const tunnel = await waitWithSignal(pending, scope.signal);
+        return {
+          id: request.id,
+          projectId: request.projectId,
+          workspaceId: request.workspaceId,
+          connectionId: request.connectionId,
+          remotePort: request.remotePort,
+          localPort: tunnel.localPort,
+        };
+      }),
     };
+    const isCurrent = () => this.tunnels.get(request.id) === entry && !scope.signal.aborted;
     this.tunnels.set(request.id, entry);
-    return toRecord(entry);
+    try {
+      return await entry.ready;
+    } catch (error) {
+      if (this.tunnels.get(request.id) === entry) this.tunnels.delete(request.id);
+      await scope.dispose();
+      throw error;
+    }
   }
 
   async stop(id: string): Promise<void> {
     const entry = this.tunnels.get(id);
     if (!entry) return;
     this.tunnels.delete(id);
-    await entry.tunnel.close();
+    await entry.scope.dispose();
     this.onTunnelClosed?.(id);
   }
 
@@ -140,15 +178,4 @@ export class PortForwardService {
       handler(id);
     }
   }
-}
-
-function toRecord(entry: PortForwardEntry): PortForwardRecord {
-  return {
-    id: entry.id,
-    projectId: entry.projectId,
-    workspaceId: entry.workspaceId,
-    connectionId: entry.connectionId,
-    remotePort: entry.remotePort,
-    localPort: entry.localPort,
-  };
 }

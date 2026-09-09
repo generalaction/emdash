@@ -91,8 +91,8 @@ import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts'
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { HostService } from '@core/services/hosts/node';
 import type { HostAvailabilityService } from '@core/services/hosts/node/availability';
+import type { Hosts } from '@core/services/hosts/node/hosts';
 import { createHostsWireController } from '@core/services/hosts/node/wire-controller';
 import {
   createLoggingWireController,
@@ -141,7 +141,7 @@ export type DesktopControllerContext = {
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
   readonly reconcileSweep: ReconcileSweepHandle;
-  readonly hosts: HostService;
+  readonly hosts: Hosts;
   readonly runtimeClients: {
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
     getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
@@ -383,6 +383,7 @@ export const desktopNodeControllers = {
       projects,
       providerSettings,
       runtimes,
+      sessionLaunchContexts,
       taskSessions,
       telemetry,
       workspaceIdentity,
@@ -392,6 +393,7 @@ export const desktopNodeControllers = {
         logger,
         projects,
         getProviderEnv: async (providerId) => (await providerSettings.getItem(providerId))?.env,
+        sessionLaunchContexts,
         runtimes,
         taskSessions,
         telemetry,

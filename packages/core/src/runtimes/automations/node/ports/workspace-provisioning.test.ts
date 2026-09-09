@@ -46,6 +46,7 @@ const emptyProjectConfig: ProjectConfigState = {
   repositoryId: 'test-workspace',
   resolved: {
     preservePatterns: { value: [], from: 'built-in' },
+    env: { value: {}, from: 'built-in' },
     autoRunSetup: { value: true, from: 'built-in' },
     autoRunRun: { value: false, from: 'built-in' },
   },

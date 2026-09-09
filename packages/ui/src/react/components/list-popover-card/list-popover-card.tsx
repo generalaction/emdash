@@ -21,7 +21,7 @@ function ListPopoverCard({ status, className, children, ...props }: ListPopoverC
       <div
         data-status={status}
         className={cx(
-          card({ level: 'elevated', radius: 'md', padding: 'sm', status }),
+          card({ level: 'elevated-emphasis', radius: 'md', padding: 'sm', status }),
           styles.inner,
           className
         )}

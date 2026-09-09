@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
 import type { RegistryGitContext } from '../git-context';
 import type { DurableWorkspaceRecord } from '../persistence/record-store';
@@ -115,7 +116,7 @@ export class RegistryScanner {
       const record = this.landing.get(request.id);
       if (!record) return;
       if (request.kind === 'repository') {
-        await this.scanRepository(record, this.landing.list());
+        await this.scanRepositoryGroup(record);
         return;
       }
       if (request.mode === 'refs') {
@@ -191,18 +192,29 @@ export class RegistryScanner {
 
   private async scanRecordPass(record: DurableWorkspaceRecord): Promise<void> {
     if (record.kind === 'repository') {
-      await this.scanRepository(record, this.landing.list());
+      await this.scanRepositoryGroup(record);
       return;
     }
     if (record.kind === 'worktree' && record.parentId !== null) {
       const parent = this.landing.get(record.parentId);
       if (parent && (await isDirectory(parent.path))) {
         // Reconcile through the owning repository so relinks and locked/prunable land.
-        await this.scanRepository(parent, this.landing.list());
+        await this.scanRepositoryGroup(parent);
         return;
       }
     }
     await this.scanStandalone(record);
+  }
+
+  private async scanRepositoryGroup(repository: DurableWorkspaceRecord): Promise<void> {
+    const records = this.landing.list();
+    const settled = await this.scanRepository(repository, records);
+    for (const child of records) {
+      if (child.kind !== 'worktree' || child.parentId !== repository.id || settled.has(child.id)) {
+        continue;
+      }
+      await this.scanStandalone(child);
+    }
   }
 
   /**
@@ -241,7 +253,9 @@ export class RegistryScanner {
     const children = records.filter(
       (record) => record.kind === 'worktree' && record.parentId === repository.id
     );
-    const childByPath = new Map(children.map((child) => [child.path, child]));
+    const childByPath = new Map(
+      children.map((child) => [nativePathIdentityKey(child.path), child] as const)
+    );
     const childByAdminName = new Map(
       children.flatMap((child) => (child.gitAdminName ? [[child.gitAdminName, child]] : []))
     );
@@ -254,7 +268,7 @@ export class RegistryScanner {
         continue;
       }
 
-      const byPath = childByPath.get(canonicalPath);
+      const byPath = childByPath.get(nativePathIdentityKey(canonicalPath));
       const byAdmin = listing.adminName ? childByAdminName.get(listing.adminName) : undefined;
       const child = byPath ?? byAdmin;
       if (child) {

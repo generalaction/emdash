@@ -1,17 +1,21 @@
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
+import { runtimeHostUnavailable } from '@emdash/core/primitives/runtime-resolution/api';
 import type { ReleaseChannel } from '@emdash/core/workspace-server';
+import { err, ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { waitWithSignal } from '@emdash/shared/scheduling';
-import type { SshService } from '@core/primitives/ssh/api';
-import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
-import type {
-  SshConnectionManager,
-  SshConnectionManagerEvent,
-} from '@core/primitives/ssh/api/node/ssh-connection-manager';
-import type { HostInvalidation, HostPreparingPhase, MachineMutationEvents } from '../api';
-import { HostServerOperations } from './server-operations';
-import { HostStateModel } from './state-model';
+import { peek } from '@emdash/wire/state';
+import type { SshConnectionControl } from '@core/primitives/ssh/api/node/connection-control';
+import type { SshConnectionManager } from '@core/primitives/ssh/api/node/ssh-connection-manager';
+import type { HostServerState } from '../api';
+import type { HostService } from '../api/node/host-service';
+import { ManagedHostConnection } from './managed-host-connection';
+import { RemoteHostWorkspaceServer } from './remote-host-workspace-server';
+import { translateHostPreparationError } from './runtime-resolution';
+import type { HostStateModel } from './state-model';
+import { openSshWorkspaceServerTransport } from './workspace-server/connect/ssh-streamlocal-transport';
 import {
-  createWireConnectionManager,
+  createWorkspaceServerDialer,
   type WorkspaceServerConnection,
 } from './workspace-server/connect/wire-connection-manager';
 import type { WorkspaceServerSshPort } from './workspace-server/ports';
@@ -20,182 +24,198 @@ import { RemoteHostProbe } from './workspace-server/provision/host-probe';
 import { WorkspaceServerInstaller } from './workspace-server/provision/installer';
 import { WorkspaceServerProvisioner } from './workspace-server/provision/provisioner';
 
-type HostServiceLog = {
-  warn(message: string, metadata?: Record<string, unknown>): void;
-};
-
-export type CreateHostServiceDeps = {
+export type CreateHostServiceOptions = {
   scope: Scope;
-  ssh: {
-    manager: SshConnectionManager;
-    connect: Pick<SshService, 'ensureConnected'>;
-  };
-  machineEvents: MachineMutationEvents;
+  host: HostRef;
+  ssh: { manager: SshConnectionManager; control: SshConnectionControl };
+  stateModel: HostStateModel;
+  nextGeneration(): number;
+  onReady(attachment: WorkspaceServerConnection): void;
   installBaseUrl?: string;
   releaseChannel?: ReleaseChannel;
   devAutoUpdate?: boolean;
   client?: { id: string; appVersion: string };
-  logger?: HostServiceLog;
+  logger?: {
+    debug?(message: string, metadata?: Record<string, unknown>): void;
+    warn(message: string, metadata?: Record<string, unknown>): void;
+  };
 };
 
-export type HostClientOptions = {
-  signal: AbortSignal;
-  onPhase(phase: HostPreparingPhase): void;
-};
-
-/**
- * Orchestrates transport, provisioning, and lifecycle for remote runtime clients.
- * Machine persistence and CRUD remain owned by the feature-level MachinesService.
- */
-export interface HostService {
-  readonly stateModel: HostStateModel;
-  client(connectionId: string, options?: HostClientOptions): Promise<WorkspaceServerConnection>;
-  refreshServerState(connectionId: string, options?: { force?: boolean }): Promise<void>;
-  installServer(connectionId: string): Promise<void>;
-  startServer(connectionId: string): Promise<void>;
-  stopServer(connectionId: string): Promise<void>;
-  restartServer(connectionId: string): Promise<void>;
-  updateServer(connectionId: string): Promise<void>;
-  onInvalidate(listener: (event: HostInvalidation) => void): () => void;
+/** Registry-owned lifetime controls are kept off the HostService consumer interface. */
+export type HostServiceEntry = {
+  service: HostService;
+  readyAttachment(): WorkspaceServerConnection | undefined;
+  connectSsh(): Promise<void>;
+  ensureSsh(): Promise<void>;
+  sshDisconnected(): void;
+  wake(cause: 'online' | 'focus' | 'resume' | 'suspend'): void;
   dispose(): Promise<void>;
-}
+};
 
-export function createHostService(deps: CreateHostServiceDeps): HostService {
-  const scope = deps.scope.child('host-service');
-  const stateModel = scope.use(new HostStateModel());
-  const ssh = createWorkspaceServerSshPort(deps.ssh);
-  const host = new RemoteHostProbe(ssh);
-  const wire = createWireConnectionManager({ scope, ssh, client: deps.client });
+/** Composes one remote Host identity. Every operation closes over this identity's lifetime. */
+export function createHostService(options: CreateHostServiceOptions): HostServiceEntry {
+  const id = sshConnectionIdOf(options.host);
+  if (!id) throw new Error('Local worker services are not managed SSH Hosts');
+  const scope = options.scope.child(`host:${id}`);
+  const control = options.ssh.control;
+  const ssh: WorkspaceServerSshPort = {
+    async ensureProxy(connectionId) {
+      scope.signal.throwIfAborted();
+      if (connectionId !== id) throw new Error('SSH request belongs to a different Host');
+      const proxy = options.ssh.manager.getProxy(id);
+      if (!proxy?.isConnected)
+        throw new Error(`SSH connection '${id}' did not provide a live proxy`);
+      return proxy;
+    },
+  };
+  // Late work from a retired identity must not publish into the aggregate model by reused ID.
+  const state = {
+    runtime: options.stateModel.runtime,
+    get: (connectionId: string) =>
+      scope.disposed ? undefined : options.stateModel.get(connectionId),
+    set: (connectionId: string, value: HostServerState) => {
+      if (!scope.disposed) options.stateModel.set(connectionId, value);
+    },
+    remove: (connectionId: string) => {
+      if (!scope.disposed) options.stateModel.remove(connectionId);
+    },
+  };
+  const host = new RemoteHostProbe(id, ssh);
+  const wire = createWorkspaceServerDialer({ ssh, client: options.client });
   const installer = new WorkspaceServerInstaller({
     ssh,
-    baseUrl: deps.installBaseUrl,
-    releaseChannel: deps.releaseChannel,
+    baseUrl: options.installBaseUrl,
+    releaseChannel: options.releaseChannel,
   });
   const daemon = new RemoteWorkspaceServerDaemon(ssh);
   const provisioner = new WorkspaceServerProvisioner({
+    connectionId: id,
     scope,
-    ssh,
     host,
     installer,
     daemon,
-    model: stateModel,
+    model: state,
     wire,
-    devAutoUpdate: deps.devAutoUpdate,
-    logger: deps.logger,
+    devAutoUpdate: options.devAutoUpdate,
+    logger: options.logger,
   });
-  const serverOperations = new HostServerOperations({
+  const managed = new ManagedHostConnection({
     scope,
-    state: stateModel,
+    host: options.host,
+    nextGeneration: options.nextGeneration,
+    intent: {
+      read: () => {
+        scope.signal.throwIfAborted();
+        return control.readIntent(id);
+      },
+      write: (enabled) => {
+        scope.signal.throwIfAborted();
+        return control.writeIntent(id, enabled);
+      },
+    },
+    ssh: {
+      connected: () => !scope.disposed && options.ssh.manager.getProxy(id)?.isConnected === true,
+      establish: async (signal) => {
+        scope.signal.throwIfAborted();
+        await control.establish(id, signal);
+      },
+      reset: () => control.reset(id),
+      probe: (signal) => {
+        scope.signal.throwIfAborted();
+        return control.probe(id, signal);
+      },
+    },
+    runtime: {
+      prepare: (signal) => {
+        scope.signal.throwIfAborted();
+        const abort = () => {
+          void provisioner.cancel();
+        };
+        signal.addEventListener('abort', abort, { once: true });
+        return waitWithSignal(provisioner.ensure(), signal).finally(() =>
+          signal.removeEventListener('abort', abort)
+        );
+      },
+      open: (target, signal) => {
+        if (target.kind !== 'ssh') throw new Error('Expected SSH target');
+        return openSshWorkspaceServerTransport(target, ssh, { signal });
+      },
+      cancel: () => {
+        void provisioner.cancel();
+      },
+    },
+    client: options.client,
+    log: (value, detail) =>
+      options.logger?.debug?.('Host connection supervisor', { ...detail, ...value }),
+    onReady: (attachment) => {
+      if (scope.disposed) return;
+      const handshake = attachment.currentHandshake();
+      if (handshake)
+        state.set(id, {
+          status: 'healthy',
+          version: handshake.server.appVersion,
+          startedAt: handshake.server.startedAt,
+        });
+      options.onReady(attachment);
+    },
+  });
+  const server = new RemoteHostWorkspaceServer({
+    connectionId: id,
+    scope,
+    owner: () => managed.supervisor.serverOperationOwner(),
+    state,
     host,
     installer,
     daemon,
     wire,
     provision: provisioner,
   });
-  const invalidationListeners = new Set<(event: HostInvalidation) => void>();
+  scope.add(() => host.drop());
 
-  const handleSshEvent = (event: SshConnectionManagerEvent) => {
-    if (event.type !== 'reconnect-failed') return;
-    host.drop(event.connectionId);
-    provisioner.drop(event.connectionId);
-    stateModel.remove(event.connectionId);
-    notify({ connectionId: event.connectionId, reason: 'reconnect-failed' });
-    void wire.invalidateConnection(event.connectionId).catch((error: unknown) => {
-      deps.logger?.warn('Host service SSH lifecycle handling failed', { error });
-    });
-  };
-  deps.ssh.manager.on('connection-event', handleSshEvent);
-  scope.add(() => {
-    deps.ssh.manager.off('connection-event', handleSshEvent);
-  });
-  scope.add(
-    deps.machineEvents.on('machine:mutated', (event) => {
-      host.drop(event.connectionId);
-      stateModel.remove(event.connectionId);
-      notify({ connectionId: event.connectionId, reason: 'machine-mutation' });
-      void Promise.all([
-        provisioner.cancel(event.connectionId),
-        wire.invalidateConnection(event.connectionId),
-      ]).catch((error: unknown) => {
-        deps.logger?.warn('Host service mutation lifecycle handling failed', { error });
-      });
-    })
-  );
-  scope.add(
-    wire.onConnectionLost((target, error) => {
-      if (target.kind !== 'ssh') return;
-      provisioner.drop(target.sshConnectionId);
-      stateModel.markConnectionLost(target.sshConnectionId);
-      notify({
-        connectionId: target.sshConnectionId,
-        reason: 'connection-lost',
-        target,
-        error,
-      });
-    })
-  );
-  scope.add(() => invalidationListeners.clear());
-
-  let disposePromise: Promise<void> | undefined;
-  return {
-    stateModel,
-    async client(connectionId, options) {
-      if (options) {
-        options.onPhase('connecting');
-        const connectionState = await waitWithSignal(
-          deps.ssh.connect.ensureConnected(connectionId),
-          options.signal
-        );
-        if (connectionState !== 'connected') {
-          throw new Error('Host connection is not available');
+  const service: HostService = {
+    host: options.host,
+    connection: managed,
+    runtime: {
+      waitUntilReady: async (signal) => {
+        try {
+          return ok({
+            host: options.host,
+            generation: await managed.supervisor.awaitUsable(signal),
+          });
+        } catch (error) {
+          return err(translateHostPreparationError(options.host, 'handshaking', error));
         }
-        options.onPhase('provisioning');
-      }
-      const target = options
-        ? await waitWithSignal(provisioner.ensure(connectionId), options.signal)
-        : await provisioner.ensure(connectionId);
-      if (options) {
-        options.onPhase('handshaking');
-        return await waitWithSignal(wire.client(target), options.signal);
-      }
-      return wire.client(target);
+      },
+      client: async (request) => {
+        scope.signal.throwIfAborted();
+        if (request?.waitForReady === false) {
+          const availability = peek(managed.availability);
+          if (availability.kind !== 'ready')
+            throw availability.kind === 'unavailable' && availability.issue
+              ? availability.issue
+              : runtimeHostUnavailable(
+                  options.host,
+                  'runtime-unavailable',
+                  'Host runtime is not currently usable'
+                );
+        } else await managed.supervisor.awaitUsable(request?.signal);
+        return managed.supervisor.attachment;
+      },
     },
-    refreshServerState: (connectionId, options) => serverOperations.refresh(connectionId, options),
-    installServer: (connectionId) => serverOperations.install(connectionId),
-    startServer: (connectionId) => serverOperations.start(connectionId),
-    stopServer: (connectionId) => serverOperations.stop(connectionId),
-    restartServer: (connectionId) => serverOperations.restart(connectionId),
-    updateServer: (connectionId) => serverOperations.update(connectionId),
-    onInvalidate(listener) {
-      invalidationListeners.add(listener);
-      return () => invalidationListeners.delete(listener);
-    },
-    dispose() {
-      disposePromise ??= scope.dispose();
-      return disposePromise;
-    },
+    server,
   };
-
-  function notify(event: HostInvalidation): void {
-    for (const listener of invalidationListeners) {
-      try {
-        listener(event);
-      } catch {
-        // One observer must not prevent lifecycle cleanup or remaining listeners.
-      }
-    }
-  }
-}
-
-function createWorkspaceServerSshPort(ssh: CreateHostServiceDeps['ssh']): WorkspaceServerSshPort {
   return {
-    async ensureProxy(connectionId: string): Promise<SshClientProxy> {
-      await ssh.connect.ensureConnected(connectionId);
-      const proxy = ssh.manager.getProxy(connectionId);
-      if (!proxy?.isConnected) {
-        throw new Error(`SSH connection '${connectionId}' did not provide a live proxy`);
-      }
-      return proxy;
+    service,
+    readyAttachment: () =>
+      peek(managed.availability).kind === 'ready' ? managed.supervisor.attachment : undefined,
+    connectSsh: () => managed.connectSsh(),
+    ensureSsh: () => managed.supervisor.ensureSsh(),
+    sshDisconnected: () => managed.supervisor.sshDisconnected(),
+    wake(cause) {
+      if (cause === 'suspend') managed.supervisor.suspendSystem();
+      else if (cause === 'resume') managed.supervisor.resume();
+      else managed.supervisor.revalidate(cause);
     },
+    dispose: () => scope.dispose(),
   };
 }

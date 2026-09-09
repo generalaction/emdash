@@ -1,4 +1,5 @@
 import { style } from '@vanilla-extract/css';
+import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 // Side-effect import so the @layer order declaration is emitted before these
 // rules; otherwise `recipes` gets registered first and loses to app layers.
@@ -26,6 +27,7 @@ export const inner = style({
       alignItems: 'center',
       gap: '0.5rem',
       fontSize: tokenVars.textSm,
+      boxShadow: vars.shadowSm,
     },
   },
 });

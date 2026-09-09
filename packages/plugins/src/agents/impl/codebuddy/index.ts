@@ -8,6 +8,7 @@ import {
   npmDependency,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
+import { buildCodeBuddyHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -24,6 +25,11 @@ export const plugin = definePlugin(
     },
     autoApprove: {
       kind: 'supported',
+    },
+    hooks: {
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use-failure'],
     },
     hostDependency: npmDependency({
       id: 'codebuddy',
@@ -51,6 +57,7 @@ export const provider = registerPluginBehavior(plugin, {
   acp: createNativeAcpBehavior(() => ({
     args: ['--acp'],
   })),
+  hooks: buildCodeBuddyHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

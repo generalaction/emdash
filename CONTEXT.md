@@ -237,11 +237,45 @@ _Avoid_: Scoped search (Scope is the ownership primitive), treating `@` as a six
 `src/core/services/hosts` owns machine lifecycle and workspace-server provisioning under the Host vocabulary (`HostService`, the `hosts` wire domain) — the merged home of the former `remote-machine` and `workspace-server` services. "Machine" remains a UI label only. Host (wire) remains the separately-scoped wire term.
 _Avoid_: Machine (outside UI labels), "remote" as a noun
 
+**Host service**:
+The desktop's services for one remote Host identity: connection intent, runtime access, and workspace
+server maintenance. `Hosts` owns lookup and replacement; retained HostService instances are invalid
+after machine identity edits. A registry lease follows replacements until its owner is disposed.
+_Avoid_: Confusing the desktop `Hosts` service with the Host-authoritative workspace registry
+
+**Host workspace server control**:
+The desktop's installation and daemon-control service for one remote Host (`host.server`). It owns
+maintenance sequencing and daemon state observation. Connection recovery remains the supervisor's job.
+_Avoid_: Equating Disconnect with stopping a daemon shared by multiple desktop clients
+
 **Host availability**:
 The Hosts-domain fact describing whether a Host runtime can currently serve desktops. SSH connected
 only begins preparation; availability becomes ready after the runtime handshake. The Hosts domain
-owns bounded recovery and an explicit session-scoped suspension after user Disconnect.
+owns recovery and suspension after user Disconnect. ADR 0008 establishes one per-Host connection
+supervisor with bounded attempts, continuing transient retries, and generation-bound liveness
+evidence. Remote availability is a projection of that supervisor; local worker readiness remains
+separate.
 _Avoid_: Treating SSH connection state as runtime readiness, copying availability into each Project
+
+**Host connection supervisor**:
+The owner of one remote Host's connection execution, validation, and recovery
+(ADR 0008). It consumes intent from ManagedHostConnection. Its availability is independent of
+retained logical attachment identity. SSH and Wire adapters perform bounded operations under its policy.
+_Avoid_: Independent SSH, Wire, and Host retry loops for the same Host
+
+**Managed Host connection**:
+The implementation of the public HostConnection interface. It owns scope-bound leases, an explicit
+runtime pin, and serialized persisted connection intent. `lease` registers interest for an owner's
+lifetime; `pin` maintains interest until `disconnect`. Disconnect clears the pin and suppresses all
+leases. Availability reports the independent outcome of its composed connection supervisor.
+_Avoid_: Treating intent acknowledgement as readiness, exposing recovery controls on HostConnection
+
+**Host runtime connection**:
+The supervisor-owned Wire connection to a Host's workspace server. It preserves logical client
+identity across outages and performs bounded transport establishment, initialization, and health
+checks. It owns candidate cleanup and transport replacement; the supervisor decides when to call
+it and whether the resulting evidence makes the Host available.
+_Avoid_: A second recovery supervisor, equating an installed transport with fresh Host availability
 
 **Desktop Secret Authority**:
 The desktop-owned authority over user Secret references, storage backends, Host grants,

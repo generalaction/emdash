@@ -66,11 +66,16 @@ export class NativeWatch implements Disposable {
     await this.restartPromise;
     const subscription = await this.subscription?.catch(() => null);
     this.subscription = null;
-    await subscription?.unsubscribe();
+    try {
+      await subscription?.unsubscribe();
+    } catch (error) {
+      this.reportError(`unsubscribe ${this.root}`, error);
+    }
   }
 
   private async subscribe(): Promise<parcelWatcher.AsyncSubscription> {
     await fs.stat(this.root);
+    if (this.disposed) throw new Error(`Watcher was disposed before subscribing for ${this.root}`);
     const generation = ++this.generation;
     this.activeGeneration = generation;
     return this.subscribeFn(
@@ -78,7 +83,7 @@ export class NativeWatch implements Disposable {
       (err, events) => {
         if (this.disposed || generation !== this.activeGeneration) return;
         if (err) {
-          this.onError(`watch ${this.root}`, err);
+          this.reportError(`watch ${this.root}`, err);
           if (requiresResync(err)) {
             this.scheduleResync();
             return;
@@ -110,7 +115,7 @@ export class NativeWatch implements Disposable {
     try {
       this.resync();
     } catch (error) {
-      this.onError(`resync ${this.root}`, error);
+      this.reportError(`resync ${this.root}`, error);
     }
   }
 
@@ -150,7 +155,7 @@ export class NativeWatch implements Disposable {
     try {
       await previous?.unsubscribe();
     } catch (error) {
-      this.onError(`unsubscribe ${this.root}`, error);
+      this.reportError(`unsubscribe ${this.root}`, error);
       if (!this.disposed && this.subscription === previousPromise) {
         this.activeGeneration = previousGeneration;
         this.scheduleResync();
@@ -165,13 +170,21 @@ export class NativeWatch implements Disposable {
     try {
       await next;
     } catch (error) {
-      this.onError(`resubscribe ${this.root}`, error);
+      this.reportError(`resubscribe ${this.root}`, error);
       return true;
     }
     this.retryAttempts = 0;
     if (this.disposed) return false;
     this.signalResync();
     return false;
+  }
+
+  private reportError(context: string, error: unknown): void {
+    try {
+      this.onError(context, error);
+    } catch {
+      // Error observers are best-effort and must never escape a native watcher callback or cleanup path
+    }
   }
 }
 

@@ -86,6 +86,15 @@ async function waitForDimensions(
   );
 }
 
+/**
+ * Let xterm finish render work queued by open(), resize(), or mount() before disposal.
+ * A render callback can enqueue another frame, so draining only one frame is insufficient.
+ */
+async function drainXtermRenderFrames(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('PaneDimensionProvider single-source measurement', () => {
@@ -295,6 +304,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
   });
 
   afterEach(async () => {
+    await drainXtermRenderFrames();
     const { disposeAllPtys } = await getPtyModule();
     disposeAllPtys();
     document.querySelector('[data-terminal-host="true"]')?.remove();
@@ -319,6 +329,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();
     const pty = new FrontendPty('session-b', undefined, undefined, undefined, noopConnector());
     expect(getFrontendPty('session-b')).toBe(pty);
+    await drainXtermRenderFrames();
     pty.dispose();
     expect(getFrontendPty('session-b')).toBeUndefined();
   });
@@ -412,6 +423,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
       noopConnector()
     );
 
+    await drainXtermRenderFrames();
     ptyA.dispose();
 
     const sessionIds = ['fan-disposed-a', 'fan-disposed-b'];

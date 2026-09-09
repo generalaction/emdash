@@ -85,10 +85,12 @@ function setup(
     sshConnectionId?: string;
     hostAccess?: ProjectHostAccess;
     tree?: FileTreeModel;
+    workspacePath?: string;
     beforeMutation?: (name: string, input: unknown) => Promise<Result<void, FsError> | undefined>;
   } = {}
 ) {
-  const treeCell = cell<FileTreeModel>(options.tree ?? makeTreeModel('/repo'));
+  const workspacePath = options.workspacePath ?? '/repo';
+  const treeCell = cell<FileTreeModel>(options.tree ?? makeTreeModel(workspacePath));
   const stateKeys: FilesTreeKey[] = [];
   const mutationCalls: RecordedMutation[] = [];
   const fsCalls: Array<{ name: string; input: unknown }> = [];
@@ -152,7 +154,7 @@ function setup(
   const store = new FilesStore(
     'project-1',
     'workspace-1',
-    '/repo',
+    workspacePath,
     options.sshConnectionId,
     options.hostAccess
   );
@@ -227,6 +229,28 @@ describe('FilesStore', () => {
     expect(named('delete')[0]?.input).toEqual({
       uri: uri('/repo/src/index.ts'),
       recursive: true,
+    });
+  });
+
+  it('round-trips a UNC root through tree identities and filesystem mutations', async () => {
+    const workspacePath = String.raw`\\server\share\repo`;
+    const { store, fsCalls } = setup({ workspacePath });
+    disposeStore = () => store.dispose();
+    await store.start();
+
+    await waitFor(() => store.rootNodes.length === 2);
+    expect(store.rootPath).toBe('//server/share/repo');
+    expect(store.rootNodes.map((node) => node.path)).toEqual([
+      '//server/share/repo/src',
+      '//server/share/repo/README.md',
+    ]);
+
+    await expect(
+      store.rename(String.raw`\\server\share\repo\README.md`, 'README2.md')
+    ).resolves.toEqual(ok(undefined));
+    expect(fsCalls.find((call) => call.name === 'rename')?.input).toEqual({
+      from: encodeResourceUri(hostFileRefFromNativePath(String.raw`\\server\share\repo\README.md`)),
+      to: encodeResourceUri(hostFileRefFromNativePath(String.raw`\\server\share\repo\README2.md`)),
     });
   });
 

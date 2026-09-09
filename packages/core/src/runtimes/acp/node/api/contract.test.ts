@@ -99,12 +99,13 @@ describe('ACP API contract schemas', () => {
       await expect(
         wire.client.sendPrompt({
           conversationId: input.conversationId,
+          promptId: '00000000-0000-4000-8000-000000000001',
           prompt: { text: 'wake' },
         })
       ).resolves.toMatchObject({
         success: false,
         error: {
-          type: 'prompt_failed',
+          type: 'new_session_failed',
           cause: { name: 'Error', message: 'replacement failed' },
         },
       });

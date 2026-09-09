@@ -4,7 +4,36 @@ import {
   buildInstallCommandInvocation,
   isPermissionDeniedOutput,
   resolveElevationDecision,
+  resolveSelection,
 } from './install-execution';
+
+describe('resolveSelection', () => {
+  it('resolves a saved Windows path across casing variants', () => {
+    expect(
+      resolveSelection('agent', { kind: 'path', path: 'c:\\tools\\agent.cmd' }, [
+        {
+          command: 'agent',
+          path: 'C:\\Tools\\AGENT.cmd',
+          realpath: 'C:\\Tools\\AGENT.cmd',
+          isPathDefault: true,
+        },
+      ])
+    ).toMatchObject({ success: true, data: { path: 'C:\\Tools\\AGENT.cmd' } });
+  });
+
+  it('keeps POSIX selections case-sensitive', () => {
+    expect(
+      resolveSelection('agent', { kind: 'path', path: '/tools/agent' }, [
+        {
+          command: 'agent',
+          path: '/Tools/agent',
+          realpath: '/Tools/agent',
+          isPathDefault: true,
+        },
+      ])
+    ).toMatchObject({ success: false, error: { type: 'stale-selection' } });
+  });
+});
 
 describe('buildInstallCommandInvocation', () => {
   it('builds and previews the exact passwordless sudo argv', () => {

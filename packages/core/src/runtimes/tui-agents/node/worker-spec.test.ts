@@ -1,11 +1,10 @@
 import { createPluginRegistry } from '@emdash/shared/plugins';
 import { describe, expect, it } from 'vitest';
 import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
-import { SESSION_IDLE_MS } from '#services/session-lifecycle/api';
 import { tuiAgentsWorkerSpec, type TuiAgentsWorkerSpecInput } from './worker-spec';
 
 describe('tuiAgentsWorkerSpec', () => {
-  it('bakes the shared session idle window into the config', () => {
+  it('keeps interactive sessions alive until explicit cleanup', () => {
     const env = { PATH: '/usr/bin' };
     const [component, options] = tuiAgentsWorkerSpec({
       pluginRegistry: createPluginRegistry<CLIAgentPluginProvider>(),
@@ -21,7 +20,7 @@ describe('tuiAgentsWorkerSpec', () => {
     expect(options.supervision).toBeUndefined();
     expect(component.configSchema.parse(options.config)).toEqual({
       intentsFilePath: '/data/tui-intents.json',
-      lifecycle: { session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS } },
+      lifecycle: { session: { kind: 'always' } },
     });
   });
 });

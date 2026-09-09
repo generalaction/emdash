@@ -15,7 +15,12 @@ type TranscriptFileContext = {
   taskId: string;
 };
 
-type TranscriptFileOpener = (projectId: string, taskId: string, filePath: string) => Promise<void>;
+type TranscriptFileOpener = (
+  projectId: string,
+  taskId: string,
+  filePath: string,
+  options?: { line?: number }
+) => Promise<void>;
 
 export type TranscriptFileCommands = {
   classifyLink: NonNullable<ChatCommands['classifyLink']>;
@@ -53,13 +58,17 @@ export function createTranscriptFileCommands(
   context: TranscriptFileContext,
   openFile: TranscriptFileOpener = openFileInAdjacentPane
 ): TranscriptFileCommands {
-  const open = (filePath: string) => {
-    void openFile(context.projectId, context.taskId, filePath);
+  const open = (filePath: string, line?: number) => {
+    if (line === undefined) {
+      void openFile(context.projectId, context.taskId, filePath);
+      return;
+    }
+    void openFile(context.projectId, context.taskId, filePath, { line });
   };
 
   return {
     classifyLink: classifyTranscriptLink,
-    onOpenFile: ({ path }) => open(path),
+    onOpenFile: ({ path, line }) => open(path, line),
     openMentionFile: open,
   };
 }

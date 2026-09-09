@@ -3,6 +3,7 @@ import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type {
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
@@ -29,9 +30,11 @@ export async function measureProjectWorkspaces(
 
   const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
   const listed = await listProjectWorkspaces(dependencies, input.projectId);
-  const rowsByPath = new Map(listed.rows.map((row) => [row.path, row]));
+  const rowsByPath = new Map(
+    listed.rows.map((row) => [workspacePathIdentityKey(row.path), row] as const)
+  );
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
-    const row = rowsByPath.get(targetPath);
+    const row = rowsByPath.get(workspacePathIdentityKey(targetPath));
     if (!row) {
       return {
         path: targetPath,

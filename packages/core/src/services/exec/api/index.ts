@@ -1,5 +1,13 @@
 export { createBoundExec, type CreateBoundExecOptions } from './bound-exec';
 export {
+  planExecutableLaunch,
+  type ExecutableLaunchDiagnostic,
+  type ExecutableLaunchPlan,
+  type ExecutableShellProfile,
+  type FileExists,
+  type PlanExecutableLaunchOptions,
+} from '#primitives/exec/node';
+export {
   type ExecContextOptions,
   type ExecStreamingResult,
   type IExecutionContext,

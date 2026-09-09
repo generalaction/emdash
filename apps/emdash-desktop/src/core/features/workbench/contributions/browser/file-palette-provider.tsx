@@ -1,8 +1,8 @@
+import type { PortableRelativePath, ResourceUri } from '@emdash/core/primitives/path/api';
 import { Command } from 'cmdk';
 import React from 'react';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { getSearchClient } from '@core/features/search/api/client';
-import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import {
   matchPaletteText,
@@ -14,12 +14,12 @@ import {
 import type { WorkspaceFileHit, WorkspaceFileSearchQuery } from '@core/primitives/search/api';
 import { openCommandPaletteFile } from '../../browser/command-palette/open-command-palette-file';
 import { PALETTE_ITEM_CLASS } from '../../browser/command-palette/palette-item-styles';
-import { getPaletteFileDisplayPath } from '../../browser/command-palette/search-utils';
 
 const FILE_SEARCH_LIMIT = 20;
 
 export interface FilePaletteMatch extends PaletteProviderMatch {
-  readonly path: string;
+  readonly resource: ResourceUri;
+  readonly relativePath: PortableRelativePath;
   readonly projectId: string;
   readonly taskId: string;
 }
@@ -28,12 +28,10 @@ export interface FilePaletteProviderDependencies {
   readonly searchWorkspaceFiles: (
     input: WorkspaceFileSearchQuery
   ) => Promise<readonly WorkspaceFileHit[]>;
-  readonly getWorkspacePath: (workspaceId: string) => string | undefined;
 }
 
 export function createFilePaletteProviderDef({
   searchWorkspaceFiles,
-  getWorkspacePath,
 }: FilePaletteProviderDependencies): PaletteProviderDef {
   return {
     kind: 'files',
@@ -48,25 +46,21 @@ export function createFilePaletteProviderDef({
         query,
         limit: FILE_SEARCH_LIMIT,
       });
-      const workspacePath = getWorkspacePath(workspaceId);
 
       return hits.flatMap((hit): FilePaletteMatch[] => {
         const relevance = matchPaletteText(query, {
           primary: [hit.filename],
-          secondary: [hit.path],
+          secondary: [hit.relativePath],
         });
         if (!relevance) return [];
 
         return [
           {
-            id: hit.path,
+            id: hit.resource,
             title: hit.filename,
-            subtitle: getPaletteFileDisplayPath({
-              workspacePath,
-              filePath: hit.path,
-              fallback: hit.path,
-            }),
-            path: hit.path,
+            subtitle: hit.relativePath,
+            resource: hit.resource,
+            relativePath: hit.relativePath,
             projectId,
             taskId,
             relevance,
@@ -93,7 +87,7 @@ function FilePaletteProviderRow({
       onSelect={() =>
         openCommandPaletteFile(
           {
-            id: match.path,
+            resource: match.resource,
             projectId: match.projectId,
             taskId: match.taskId,
           },
@@ -117,7 +111,6 @@ export const filePaletteProviderDef = createFilePaletteProviderDef({
     const client = await getSearchClient();
     return client.searchWorkspaceFiles(input);
   },
-  getWorkspacePath: (workspaceId) => workspaceRegistry.get(workspaceId)?.path,
 });
 
 export const workbenchFilePaletteProviderDefs = [filePaletteProviderDef] as const;

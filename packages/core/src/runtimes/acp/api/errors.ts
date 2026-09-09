@@ -81,7 +81,7 @@ export const ACP_UNAMBIGUOUS_START_ERROR_TYPES = [
 export type AcpLaunchError = AcpStartError;
 export type AcpLoadHistoryError = AcpStartError;
 export type AcpTerminateError = IntentPersistenceFailedError;
-export type AcpSendPromptError = ConversationNotFoundError | InvalidStateError | PromptFailedError;
+export type AcpSendPromptError = ConversationNotFoundError | AcpStartError | PromptFailedError;
 export type AcpQueueMutationError = ConversationNotFoundError | InvalidStateError;
 export type AcpEditQueuedPromptError = AcpQueueMutationError;
 export type AcpDeleteQueuedPromptError = AcpQueueMutationError;
@@ -178,6 +178,11 @@ export const acpSendPromptErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,
   invalidStateErrorSchema,
   promptFailedErrorSchema,
+  providerUnsupportedErrorSchema,
+  authRequiredErrorSchema,
+  spawnFailedErrorSchema,
+  initializeFailedErrorSchema,
+  newSessionFailedErrorSchema,
 ]);
 export const acpQueueMutationErrorSchema = z.discriminatedUnion('type', [
   conversationNotFoundErrorSchema,

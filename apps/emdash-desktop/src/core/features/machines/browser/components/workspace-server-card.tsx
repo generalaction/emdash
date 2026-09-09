@@ -1,8 +1,8 @@
-import { UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
+import { Pill, UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Button, SplitButton } from '@emdash/ui/react/primitives';
 import { DownloadIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react';
-import type { HostServerState } from '@core/services/hosts/api';
+import type { HostAvailabilityState, HostServerState } from '@core/services/hosts/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
 type WorkspaceServerActions = {
@@ -19,25 +19,44 @@ export function WorkspaceRuntimeRow({
   loading,
   state,
   actions,
+  availability,
 }: {
   connected: boolean;
   loading: boolean;
   state: HostServerState | undefined;
   actions: WorkspaceServerActions;
+  availability?: HostAvailabilityState;
 }) {
+  const reconnecting =
+    availability?.kind === 'preparing'
+      ? availability.phase !== 'provisioning'
+      : availability?.kind === 'unavailable' && availability.recovery === 'waiting';
   return (
     <div className="flex flex-col gap-3">
       <SettingsRow
         label={
           <span className="flex items-center gap-2">
             Workspace Runtime
-            {connected && !loading && state && (
-              <WorkspaceServerBadge status={state.status} error={state.error} />
-            )}
+            {connected &&
+              !loading &&
+              state &&
+              (reconnecting ? (
+                <Pill variant="neutral">Reconnecting</Pill>
+              ) : state.status === 'healthy' && availability?.kind !== 'ready' ? (
+                <Pill variant="neutral">
+                  {availability?.kind === 'preparing' ? 'Checking' : 'Unverified'}
+                </Pill>
+              ) : (
+                <WorkspaceServerBadge status={state.status} error={state.error} />
+              ))}
           </span>
         }
         description={
-          <WorkspaceRuntimeDetails connected={connected} loading={loading} state={state} />
+          reconnecting ? (
+            'Restoring workspace access. Last observed runtime details remain available.'
+          ) : (
+            <WorkspaceRuntimeDetails connected={connected} loading={loading} state={state} />
+          )
         }
         control={
           connected && !loading && state ? (

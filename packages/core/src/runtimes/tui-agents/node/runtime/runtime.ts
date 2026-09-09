@@ -4,7 +4,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
-import { formatCommandLine } from '#primitives/exec/api';
+import { currentAgentEnvPlatform, mergeAgentEnvLayers } from '#primitives/agent-env/api';
 import { applyGitCredentialsToEnv } from '#primitives/git-credentials/api';
 import type {
   PersistedTuiAgentStartInput,
@@ -39,14 +39,21 @@ import {
   type ConversationLifecycleReporter,
 } from '#services/conversation-reports/node';
 import {
-  buildTmuxShellLine,
+  decodeLegacyTmuxSessionName,
   killTmuxSession,
   listTmuxSessionActivity,
+  logLocalPtySpawnWarnings,
+  makeLegacyTmuxSessionName,
+  makeTmuxSessionName,
   PtyRegistry,
+  resolveLocalPtySpawn,
+  resolveTmuxSession,
+  tmuxIdentityActivityKey,
   type PtyExitInfo,
   type PtySession,
   type PtySpawnSpec,
 } from '#services/pty/api';
+import { resolveTerminalShell } from '#services/pty/node';
 import {
   SESSION_IDLE_MS,
   type ActivityFields,
@@ -71,11 +78,16 @@ type TuiAgentSession = {
   provider: ResolvedTuiProvider | null;
 };
 
+type RetainedOutput = {
+  source: LiveLogSource;
+  subscribers: number;
+};
+
 export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
   private readonly launchMutex = new KeyedMutex();
   private readonly sessions = new Map<string, TuiAgentSession>();
-  private readonly logs = new Map<string, LiveLogSource>();
+  private readonly logs = new Map<string, RetainedOutput>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly generations = new Map<string, number>();
   readonly sessionsLiveModel: TuiSessionsLiveModel;
@@ -141,9 +153,9 @@ export class TuiAgentsRuntime {
       logger: deps.logger,
     });
     this.hookServer = new TuiHookServer((raw) => this.hookPipeline.handle(raw), deps.logger);
-    const sessionPolicy = deps.lifecycle?.session;
+    const sessionPolicy = deps.lifecycle?.session ?? { kind: 'always' as const };
     this.tmuxKeepAliveMs =
-      sessionPolicy?.kind === 'idle-after' ? sessionPolicy.outputMs : SESSION_IDLE_MS;
+      sessionPolicy.kind === 'idle-after' ? sessionPolicy.outputMs : SESSION_IDLE_MS;
     this.lifecycle = createSessionLifecycle<PersistedTuiAgentStartInput, void>({
       name: 'TuiAgentsRuntime',
       logger: deps.logger,
@@ -151,6 +163,11 @@ export class TuiAgentsRuntime {
       idlePolicy: sessionPolicy,
       sweepIntervalMs: deps.lifecycle?.sweepIntervalMs,
       beforeSweep: async () => {
+        if (sessionPolicy.kind === 'always') return;
+        if ((this.deps.platform ?? process.platform) === 'win32') {
+          this.tmuxActivity = new Map();
+          return;
+        }
         // Skip the tmux subprocess entirely when nothing is tracked; the sweep
         // below iterates the same (empty) config set.
         if (this.configs.size === 0) {
@@ -200,14 +217,16 @@ export class TuiAgentsRuntime {
         {
           name: 'log',
           run: (key) => {
-            this.logs.delete(key);
+            const log = this.logs.get(key);
+            log?.source.reseed();
+            // Keep the source identity while clients observe it. A replacement
+            // process must publish to those same subscriptions.
+            if (!log?.subscribers) this.logs.delete(key);
           },
         },
         {
           name: 'retained-session',
           run: (key) => {
-            const active = this.sessions.get(key);
-            active?.output.reseed();
             this.sessions.delete(key);
           },
         },
@@ -237,6 +256,10 @@ export class TuiAgentsRuntime {
         },
         reconcile: {
           precheck: async () => {
+            if ((this.deps.platform ?? process.platform) === 'win32') {
+              this.tmuxActivity = new Map();
+              return { ctx: undefined };
+            }
             try {
               // The prefetch doubles as the gate's liveness table; a listing
               // failure vetoes the whole run (intents stay untouched).
@@ -252,10 +275,10 @@ export class TuiAgentsRuntime {
             if (parsed.data.lastAgentState) {
               this.agentStates.restore(parsed.data.lastAgentState);
             }
-            return { input: parsed.data };
+            return { input: this.normalizePersistedInput(parsed.data) };
           },
           gate: (input) => {
-            if (!input.tmuxSessionName || !this.tmuxActivity.has(input.tmuxSessionName)) {
+            if (tmuxActivityForInput(this.tmuxActivity, input) === undefined) {
               return { suspend: 'process-lost' };
             }
             return { ok: true as const };
@@ -269,6 +292,7 @@ export class TuiAgentsRuntime {
   async startSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -300,6 +324,7 @@ export class TuiAgentsRuntime {
   async resumeSession(
     input: TuiAgentStartInput
   ): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeError>> {
+    input = this.normalizePlatformInput(input);
     const provider = this.resolveProvider(input.providerId);
     if (!provider.success) return err(provider.error);
 
@@ -395,13 +420,26 @@ export class TuiAgentsRuntime {
 
   outputLog(key: { conversationId: string }): LiveSource {
     return {
-      snapshot: async () => this.logFor(key.conversationId).snapshot(),
+      snapshot: async () => this.outputFor(key.conversationId).source.snapshot(),
       subscribe: (cb) => {
+        const log = this.outputFor(key.conversationId);
+        log.subscribers++;
         this.lifecycle.attach(key.conversationId);
-        const unsubscribe = this.logFor(key.conversationId).subscribe(cb);
+        const unsubscribe = log.source.subscribe(cb);
+        let disposed = false;
         return () => {
+          if (disposed) return;
+          disposed = true;
           this.lifecycle.detach(key.conversationId);
           unsubscribe();
+          log.subscribers--;
+          if (
+            !log.subscribers &&
+            !this.sessions.has(key.conversationId) &&
+            this.logs.get(key.conversationId) === log
+          ) {
+            this.logs.delete(key.conversationId);
+          }
         };
       },
     };
@@ -486,34 +524,46 @@ export class TuiAgentsRuntime {
       return this.cancelledSpawn(config.input.conversationId);
     }
 
-    const spawnSpec = this.spawnSpec(command, config.input);
+    // Git-credential behavior is applied last through the blessed construction (spec:
+    // github-git-settings §4) so a "none" scrub wins over provider and hook env.
+    const env = applyGitCredentialsToEnv(
+      mergeAgentEnvLayers(
+        currentAgentEnvPlatform(this.deps.platform),
+        {
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          TERM_PROGRAM: 'emdash',
+        },
+        command.env,
+        config.input.providerVars ?? {},
+        hookEnv
+      ),
+      config.input.gitCredentials
+    );
+    const spawnSpec = await this.spawnSpec(command, config.input, env);
+    if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
+      return this.cancelledSpawn(config.input.conversationId);
+    }
     let pty: PtySession;
     try {
       pty = await this.registry.create(
         config.input.conversationId,
         {
-          command: spawnSpec.command,
-          args: spawnSpec.args,
+          invocation: spawnSpec.invocation,
           cwd: config.input.cwd,
-          // Git-credential behavior is applied last through the blessed
-          // construction (spec: github-git-settings §4) so a "none" scrub
-          // wins over provider and hook env.
-          env: applyGitCredentialsToEnv(
-            {
-              TERM: 'xterm-256color',
-              COLORTERM: 'truecolor',
-              TERM_PROGRAM: 'emdash',
-              ...command.env,
-              ...config.input.providerVars,
-              ...hookEnv,
-            },
-            config.input.gitCredentials
-          ),
+          env,
           cols: config.input.cols,
           rows: config.input.rows,
         },
         {
           output: session.output,
+          onProcess: () => {
+            // Reset only after spawn succeeds, before new output is observed.
+            // Reattaching a surviving process never enters spawnInto.
+            if (this.isCurrentGeneration(config.input.conversationId, generation)) {
+              session.output.reseed();
+            }
+          },
           onData: () => {
             this.lifecycle.recordOutput(config.input.conversationId);
           },
@@ -621,7 +671,7 @@ export class TuiAgentsRuntime {
   private createRetainedSession(conversationId: string): TuiAgentSession {
     return {
       conversationId,
-      output: this.logFor(conversationId),
+      output: this.outputFor(conversationId).source,
       pty: null,
       config: null,
       provider: null,
@@ -732,10 +782,10 @@ export class TuiAgentsRuntime {
     });
   }
 
-  private logFor(conversationId: string): LiveLogSource {
+  private outputFor(conversationId: string): RetainedOutput {
     let log = this.logs.get(conversationId);
     if (!log) {
-      log = new LiveLogSource(this.deps.log);
+      log = { source: new LiveLogSource(this.deps.log), subscribers: 0 };
       this.logs.set(conversationId, log);
     }
     return log;
@@ -758,6 +808,7 @@ export class TuiAgentsRuntime {
     const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
       providerId: input.providerId,
       workspacePath: input.cwd,
+      env: input.providerVars,
     });
     if (!hooksAvailable) {
       this.deps.logger.warn(
@@ -820,9 +871,7 @@ export class TuiAgentsRuntime {
     if (!config || config.intent === 'stopped') return null;
     const state = peek(this.sessionsList.states.list)[conversationId];
     const now = this.clock.now();
-    const tmuxLastOutputAt = config.input.tmuxSessionName
-      ? this.tmuxActivity.get(config.input.tmuxSessionName)
-      : undefined;
+    const tmuxLastOutputAt = tmuxActivityForInput(this.tmuxActivity, config.input);
     const lastOutputAt = maxNullable(activity.lastOutputAt, tmuxLastOutputAt);
     // Interactive busy window, plus tmux-side liveness: recent output inside the
     // tmux session must keep the key alive exactly as long as the idle policy's
@@ -887,27 +936,47 @@ export class TuiAgentsRuntime {
     return peek(this.sessionsList.states.list)[conversationId]?.resume ?? null;
   }
 
-  private spawnSpec(
+  private async spawnSpec(
     command: AgentCommand,
-    input: TuiAgentStartInput
-  ): Pick<PtySpawnSpec, 'command' | 'args'> {
-    if (!input.shellSetup && !input.tmuxSessionName) {
-      return { command: command.command, args: command.args };
+    input: TuiAgentStartInput,
+    env: Record<string, string>
+  ): Promise<Pick<PtySpawnSpec, 'invocation'>> {
+    const platform = this.deps.platform ?? process.platform;
+    const shellProfile = await resolveTerminalShell({
+      intent: 'system',
+      platform,
+      env: await this.deps.env(),
+    });
+    let tmux: { name: string; identity?: string } | undefined;
+    if (input.tmux) {
+      const resolvedTmux = await resolveTmuxSession(this.deps.exec, {
+        identity: input.tmux.identity,
+        label: workspaceLabel(input.cwd),
+      });
+      tmux = {
+        name: resolvedTmux.name,
+        identity: resolvedTmux.writeIdentity ? input.tmux.identity : undefined,
+      };
     }
-
-    const commandLine = formatCommandLine(command, 'posix');
-    const fullCommandLine = input.shellSetup
-      ? `${input.shellSetup} && ${commandLine}`
-      : commandLine;
-    return {
-      command: '/bin/sh',
-      args: [
-        '-c',
-        input.tmuxSessionName
-          ? buildTmuxShellLine(input.tmuxSessionName, fullCommandLine)
-          : fullCommandLine,
-      ],
-    };
+    const resolved = resolveLocalPtySpawn({
+      intent: {
+        kind: 'run-command',
+        cwd: input.cwd,
+        command: { kind: 'argv', command: command.command, args: command.args },
+        shellSetup: input.shellSetup,
+        shellProfile,
+        tmux,
+      },
+      platform,
+      env,
+    });
+    logLocalPtySpawnWarnings(
+      'TuiAgentsRuntime',
+      resolved.warnings,
+      { conversationId: input.conversationId },
+      this.deps.logger
+    );
+    return { invocation: resolved.invocation };
   }
 
   private maybeRespawnAfterUnexpectedExit(
@@ -916,7 +985,7 @@ export class TuiAgentsRuntime {
     generation: number,
     info: PtyExitInfo
   ): boolean {
-    if (config.input.tmuxSessionName || config.intent === 'stopped') return false;
+    if (config.input.tmux || config.intent === 'stopped') return false;
     if (!this.isUnexpectedExit(info)) return false;
     const current = this.configs.get(config.input.conversationId);
     if (!current || current.intent === 'stopped') return false;
@@ -931,6 +1000,17 @@ export class TuiAgentsRuntime {
       if (!active || active !== session || active.pty || !latest || latest.intent === 'stopped') {
         return;
       }
+      const sessionId = this.currentProviderSessionId(
+        config.input.conversationId,
+        latest.input.sessionId
+      );
+      if (sessionId) {
+        this.configs.set(config.input.conversationId, {
+          ...latest,
+          input: { ...latest.input, sessionId },
+          intent: 'resume',
+        });
+      }
       void this.launchCurrentConfig(config.input.conversationId);
     }, RESPAWN_DELAY_MS);
     return true;
@@ -941,7 +1021,15 @@ export class TuiAgentsRuntime {
   }
 
   private async killTmuxForConfig(config: TuiSessionConfig | undefined): Promise<void> {
-    const sessionName = config?.input.tmuxSessionName;
+    if ((this.deps.platform ?? process.platform) === 'win32') return;
+    let sessionName: string | undefined;
+    if (config?.input.tmux) {
+      const resolved = await resolveTmuxSession(this.deps.exec, {
+        identity: config.input.tmux.identity,
+        label: workspaceLabel(config.input.cwd),
+      });
+      sessionName = resolved.exists ? resolved.name : undefined;
+    }
     if (!sessionName) return;
     await killTmuxSession(this.deps.exec, sessionName, (error) => {
       this.deps.logger.debug('TuiAgentsRuntime: tmux session not found or already stopped', {
@@ -950,6 +1038,36 @@ export class TuiAgentsRuntime {
       });
     });
   }
+
+  private normalizePlatformInput(input: TuiAgentStartInput): TuiAgentStartInput {
+    if ((this.deps.platform ?? process.platform) !== 'win32' || !input.tmux) return input;
+    const { tmux: _tmux, ...normalized } = input;
+    return normalized;
+  }
+
+  private normalizePersistedInput(input: PersistedTuiAgentStartInput): TuiAgentStartInput {
+    const { tmuxSessionName, ...current } = input;
+    if (current.tmux || !tmuxSessionName) return this.normalizePlatformInput(current);
+    const identity = decodeLegacyTmuxSessionName(tmuxSessionName);
+    return this.normalizePlatformInput(identity ? { ...current, tmux: { identity } } : current);
+  }
+}
+
+function workspaceLabel(path: string): string {
+  return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? 'workspace';
+}
+
+function tmuxActivityForInput(
+  activity: ReadonlyMap<string, number>,
+  input: Pick<TuiAgentStartInput, 'cwd' | 'tmux'>
+): number | undefined {
+  if (!input.tmux) return undefined;
+  const byIdentity = activity.get(tmuxIdentityActivityKey(input.tmux.identity));
+  return (
+    byIdentity ??
+    activity.get(makeTmuxSessionName(input.tmux.identity, workspaceLabel(input.cwd))) ??
+    activity.get(makeLegacyTmuxSessionName(input.tmux.identity))
+  );
 }
 
 function maxNullable(a: number | null, b: number | null | undefined): number | null {

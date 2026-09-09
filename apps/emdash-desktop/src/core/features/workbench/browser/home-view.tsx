@@ -20,9 +20,9 @@ const PROJECT_ACTIONS = [
   },
   {
     label: 'Create repository',
-    description: 'Create a project by creating a new repository on GitHub',
+    description: 'Create a project and repository on GitHub',
     icon: Plus,
-    modalArgs: { strategy: 'local', mode: 'new' },
+    modalArgs: { strategy: 'local', mode: 'create' },
   },
   {
     label: 'Clone from GitHub',

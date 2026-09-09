@@ -82,8 +82,16 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
   // Session / resume logic.
   // For sessionIdOnResumeOnly providers, use only the provider-native session id.
   // If providerSessionId is absent, validSessionId will be undefined → fallback flags apply.
-  // For all other providers, the emdash session UUID (sessionId) is used.
-  const rawSessionId = spec.sessionIdOnResumeOnly ? ctx.providerSessionId : ctx.sessionId;
+  // For all other providers, the emdash session UUID (sessionId) is used, unless a
+  // resume carries a provider-reported session id that differs from it (the process
+  // switched sessions, e.g. Claude's in-session `/resume`); then that id is resumed.
+  const capturedSessionId =
+    ctx.isResuming && ctx.providerSessionId && ctx.providerSessionId !== ctx.sessionId
+      ? ctx.providerSessionId
+      : undefined;
+  const rawSessionId = spec.sessionIdOnResumeOnly
+    ? ctx.providerSessionId
+    : (capturedSessionId ?? ctx.sessionId);
   const hasSessionId = !!rawSessionId;
   const validSessionId =
     hasSessionId && spec.validateSessionId

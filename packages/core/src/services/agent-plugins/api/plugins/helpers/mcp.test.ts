@@ -71,6 +71,31 @@ describe('createMcpAdapter (single path)', () => {
     expect((parsed.mcpServers as Record<string, unknown>).new).toBeDefined();
   });
 
+  it('passes the current native entry to provider serializers', async () => {
+    const preservingAdapter = createMcpAdapter({
+      configPath: '.test/mcp.json',
+      format: 'json',
+      serversKey: 'mcpServers',
+      toNative(server, current) {
+        return { ...current, command: server.command };
+      },
+      fromNative(name, raw) {
+        return { name, ...raw };
+      },
+    });
+    const fs = createMemoryFs({
+      '.test/mcp.json': jsonFile({
+        mcpServers: { existing: { command: 'old', providerOnly: 'preserved' } },
+      }),
+    });
+
+    await preservingAdapter.writeServers(fs, [{ name: 'existing', command: 'new' }]);
+
+    expect(JSON.parse((await fs.read('.test/mcp.json'))!)).toEqual({
+      mcpServers: { existing: { command: 'new', providerOnly: 'preserved' } },
+    });
+  });
+
   it('removeServer removes only the named server', async () => {
     const fs = createMemoryFs({
       '.test/mcp.json': jsonFile({

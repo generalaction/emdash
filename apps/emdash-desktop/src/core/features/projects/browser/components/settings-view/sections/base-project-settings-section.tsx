@@ -39,6 +39,7 @@ import { ProjectBranchSelector } from '@core/features/source-control/contributio
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import type {
   AgentGitCredentialsSetting,
   Provenance,
@@ -170,6 +171,7 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
     hostTmux: placement.layers.hostTmux,
     appDefaultTmux: placement.layers.appDefaultTmux,
   });
+  const tmuxSupported = projectType !== 'local' || detectPlatformContext().os !== 'windows';
   const derivedPoolPath =
     projectPath !== null && effectiveWorktreeRoot !== null
       ? deriveWorktreePoolPath({ worktreeRoot: effectiveWorktreeRoot, repoPath: projectPath })
@@ -447,10 +449,11 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
         <div className="flex flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
             <Field.Label>Enable tmux</Field.Label>
-            {hostObservationKind !== 'unavailable' || placementForm.tmux !== undefined ? (
+            {tmuxSupported &&
+            (hostObservationKind !== 'unavailable' || placementForm.tmux !== undefined) ? (
               <ProvenanceBadge provenance={effectiveTmux.provenance} flavor="inherited" />
             ) : null}
-            {placementForm.tmux !== undefined ? (
+            {tmuxSupported && placementForm.tmux !== undefined ? (
               <ResetProvenanceButton
                 flavor="inherited"
                 onReset={() => updatePlacement('tmux', undefined)}
@@ -458,17 +461,22 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
             ) : null}
           </div>
           <Field.Description className="text-foreground-muted">
-            {hostObservationKind === 'unavailable' && placementForm.tmux === undefined
-              ? 'The inherited tmux value is unavailable. Choose a value to set a Project override.'
-              : 'Run the agent session inside a tmux session.'}
+            {!tmuxSupported
+              ? 'tmux is unavailable for local Windows sessions. Your stored preference is preserved.'
+              : hostObservationKind === 'unavailable' && placementForm.tmux === undefined
+                ? 'The inherited tmux value is unavailable. Choose a value to set a Project override.'
+                : 'Run the agent session inside a tmux session.'}
           </Field.Description>
         </div>
         <Switch
           checked={
-            hostObservationKind === 'unavailable'
-              ? (placementForm.tmux ?? false)
-              : effectiveTmux.value
+            !tmuxSupported
+              ? false
+              : hostObservationKind === 'unavailable'
+                ? (placementForm.tmux ?? false)
+                : effectiveTmux.value
           }
+          disabled={!tmuxSupported}
           onCheckedChange={(checked) => updatePlacement('tmux', checked)}
         />
       </Field.Root>

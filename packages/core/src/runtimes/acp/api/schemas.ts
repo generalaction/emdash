@@ -12,6 +12,7 @@ export const acpStartInputSchema = z.object({
   model: z.string().nullable(),
   modeId: z.string().nullable().optional(),
   effort: z.string().nullable().optional(),
+  collaborationMode: z.string().nullable().optional(),
   initialQueue: z.array(promptInputSchema).optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
@@ -24,6 +25,8 @@ export const promptPlacementSchema = z.enum(['auto', 'queue']);
 export type PromptPlacement = z.infer<typeof promptPlacementSchema>;
 export const sendPromptCommandSchema = z.object({
   conversationId: z.string(),
+  /** Correlates session acceptance with the queue and transcript. */
+  promptId: z.string().uuid(),
   prompt: promptInputSchema,
   /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
   placement: promptPlacementSchema.optional(),
@@ -44,7 +47,7 @@ export const changeQueuePromptOrderCommandSchema = z.object({
 export const cancelTurnCommandSchema = z.object({ conversationId: z.string() });
 export const setOptionCommandSchema = z.object({
   conversationId: z.string(),
-  key: z.enum(['model', 'mode', 'effort']),
+  key: z.enum(['model', 'mode', 'effort', 'collaborationMode']),
   value: z.string(),
 });
 export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
@@ -83,7 +86,9 @@ export const historyPageSchema = z.object({
 export type HistoryPage = z.infer<typeof historyPageSchema>;
 
 export const loadHistoryResultSchema = historyPageSchema.extend({
-  clearedConfiguration: z.array(z.enum(['model', 'modeId', 'effort'])).optional(),
+  clearedConfiguration: z
+    .array(z.enum(['model', 'modeId', 'effort', 'collaborationMode']))
+    .optional(),
 });
 export type LoadHistoryResult = z.infer<typeof loadHistoryResultSchema>;
 

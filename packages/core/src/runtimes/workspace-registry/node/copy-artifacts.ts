@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { cp, glob, lstat, mkdir, rename, rm } from 'node:fs/promises';
+import { cp, glob, lstat, mkdir, readlink, rename, rm, stat, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { EMDASH_CONFIG_FILE } from '#primitives/emdash-config/api';
@@ -78,7 +78,7 @@ export async function executeCopyArtifacts(
 
   let engine: 'cow' | 'copy' | 'none' = 'none';
   let entries = 0;
-  const errors: string[] = [];
+  const errors: Array<{ entry: string; message: string }> = [];
   for (const entry of accepted) {
     const destination = path.resolve(input.worktreePath, entry);
     if (!isContainedBy(input.worktreePath, destination)) {
@@ -91,14 +91,14 @@ export async function executeCopyArtifacts(
       { tier: 'background', repository: input.repositoryPath },
       () => cloneEntry(input.repositoryPath, input.worktreePath, entry)
     );
-    if (outcome === 'failed-terminally') {
-      errors.push(entry);
+    if (outcome.status === 'failed-terminally') {
+      errors.push({ entry, message: outcome.message });
       continue;
     }
     entries += 1;
-    if (outcome === 'cloned-cow') {
+    if (outcome.status === 'cloned-cow') {
       engine = engine === 'copy' ? 'copy' : 'cow';
-    } else if (outcome === 'cloned-copy') {
+    } else if (outcome.status === 'cloned-copy') {
       engine = 'copy';
     }
   }
@@ -108,7 +108,7 @@ export async function executeCopyArtifacts(
       status: 'failed',
       message:
         `Could not copy ${errors.length} preserved ${errors.length === 1 ? 'entry' : 'entries'} ` +
-        `(first: ${errors[0]}).`,
+        `(first: ${errors[0]!.entry}: ${errors[0]!.message}).`,
     };
   }
   return { status: 'succeeded', engine, entries, warnings };
@@ -172,7 +172,9 @@ async function filterIgnored(
   return candidates.filter((candidate) => ignored.has(candidate));
 }
 
-type CloneEntryOutcome = 'cloned-cow' | 'cloned-copy' | 'existing' | 'failed-terminally';
+type CloneEntryOutcome =
+  | { status: 'cloned-cow' | 'cloned-copy' | 'existing' }
+  | { status: 'failed-terminally'; message: string };
 
 /**
  * Clones one preserved entry with staged-rename idempotency: an existing destination
@@ -188,12 +190,30 @@ async function cloneEntry(
   const destination = path.join(worktreePath, entry);
   const staging = destination + STAGING_SUFFIX;
 
-  if (await exists(destination)) return 'existing';
+  if (await exists(destination)) return { status: 'existing' };
   try {
     await rm(staging, { recursive: true, force: true });
     await mkdir(path.dirname(destination), { recursive: true });
-  } catch {
-    return 'failed-terminally';
+  } catch (error) {
+    return { status: 'failed-terminally', message: message(error) };
+  }
+
+  let sourceStat: Awaited<ReturnType<typeof lstat>>;
+  try {
+    sourceStat = await lstat(source);
+  } catch (error) {
+    return { status: 'failed-terminally', message: message(error) };
+  }
+  if (sourceStat.isSymbolicLink()) {
+    try {
+      await cloneSymbolicLink(source, staging);
+      await rename(staging, destination);
+      return { status: 'cloned-copy' };
+    } catch (error) {
+      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
+      if (await exists(destination)) return { status: 'existing' };
+      return { status: 'failed-terminally', message: linkCopyErrorMessage(error) };
+    }
   }
 
   let tier: 'cow' | 'copy' = 'cow';
@@ -207,20 +227,50 @@ async function cloneEntry(
       await rm(staging, { recursive: true, force: true });
       // fs.cp is the portable plain tier (files and directories); symlinks copy as links.
       await cp(source, staging, { recursive: true, verbatimSymlinks: true });
-    } catch {
+    } catch (error) {
       await rm(staging, { recursive: true, force: true }).catch(() => undefined);
-      return 'failed-terminally';
+      return { status: 'failed-terminally', message: message(error) };
     }
   }
 
   try {
     await rename(staging, destination);
-  } catch {
+  } catch (error) {
     await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     // A concurrent replay may have landed the entry; that is success, not failure.
-    return (await exists(destination)) ? 'existing' : 'failed-terminally';
+    return (await exists(destination))
+      ? { status: 'existing' }
+      : { status: 'failed-terminally', message: message(error) };
   }
-  return tier === 'cow' ? 'cloned-cow' : 'cloned-copy';
+  return { status: tier === 'cow' ? 'cloned-cow' : 'cloned-copy' };
+}
+
+/**
+ * Links are recreated as links and their target text is preserved verbatim. This
+ * intentionally allows external and broken targets without ever reading or
+ * dereferencing them. On Windows, absolute directory reparse points are recreated
+ * as junctions (which standard users may create); relative directory links remain
+ * true symlinks so their target does not get rebound to the source checkout.
+ */
+async function cloneSymbolicLink(source: string, destination: string): Promise<void> {
+  const target = await readlink(source);
+  const targetStat = await stat(source).catch(() => null);
+  const targetKind = targetStat?.isDirectory() ? 'dir' : 'file';
+  const linkKind =
+    process.platform === 'win32' && targetKind === 'dir' && path.isAbsolute(target)
+      ? 'junction'
+      : targetKind;
+  await symlink(target, destination, linkKind);
+}
+
+function linkCopyErrorMessage(error: unknown): string {
+  if (process.platform === 'win32' && errnoCode(error) === 'EPERM') {
+    return (
+      'Windows refused to recreate the preserved symbolic link. Enable Developer Mode or run ' +
+      'with permission to create symbolic links; the link target was not dereferenced.'
+    );
+  }
+  return `Could not recreate symbolic link without dereferencing it: ${message(error)}`;
 }
 
 /**
@@ -264,4 +314,10 @@ async function exists(target: string): Promise<boolean> {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function errnoCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
 }

@@ -75,6 +75,16 @@ export const sessionConfigStateSchema = z.object({
       available: z.array(modeOptionSchema),
     })
     .nullable(),
+  /** Collaboration style selector state (for example Codex Default / Plan). */
+  collaborationModeOptions: z
+    .object({
+      /** Provider-owned ACP config option id used when sending config updates. */
+      configId: z.string(),
+      selected: z.string().nullable(),
+      available: z.array(modeOptionSchema),
+    })
+    .nullable()
+    .optional(),
   /** Slash commands currently advertised by the active ACP session. */
   availableCommands: z.array(sessionCommandSchema),
 });
@@ -84,6 +94,7 @@ export const initialSessionConfigState: SessionConfigState = {
   modelOptions: null,
   efforts: null,
   modeOptions: null,
+  collaborationModeOptions: null,
   availableCommands: [],
 };
 

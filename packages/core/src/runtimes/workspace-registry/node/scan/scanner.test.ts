@@ -92,6 +92,26 @@ describe('RegistryScanner', () => {
     expect(log.events).toEqual([`config:${target.id}`, `observation:${target.id}`]);
   });
 
+  it('observes surviving worktrees when a repository request finds their parent missing', async () => {
+    const repository = record({
+      id: 'repo-missing',
+      kind: 'repository',
+      path: path.join(root, 'missing-repository'),
+    });
+    const worktree = await standaloneRecord('wt-survives');
+    worktree.parentId = repository.id;
+    const { landing, log } = fakeLanding([repository, worktree]);
+    const scanner = new RegistryScanner(landing, {
+      git: createRegistryGitContext(),
+      observe: { full: async () => null, refs: async () => null },
+    });
+
+    await scanner.executeScanRequest({ kind: 'repository', id: repository.id });
+
+    expect(log.vanished).toEqual([repository.id]);
+    expect(log.events).toEqual([`config:${worktree.id}`, `observation:${worktree.id}`]);
+  });
+
   it('serializes scans on one lane — the second observation starts after the first lands', async () => {
     const first = await standaloneRecord('ws-first');
     const second = await standaloneRecord('ws-second');

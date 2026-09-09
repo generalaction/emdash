@@ -27,10 +27,8 @@ export const idlePolicyConfigSchema = z.discriminatedUnion('kind', [
 export type IdlePolicyConfig = z.infer<typeof idlePolicyConfigSchema>;
 
 /**
- * Shared idle window for the agent session runtimes (acp, tui-agents): a session
- * with no output for an hour is idle and can be deactivated; resuming
- * re-materializes it. Both worker spawn specs bake this into their `idle-after`
- * lifecycle policy so the invariant is stated once.
+ * Default idle window for runtimes using idle-after (including ACP). Interactive
+ * TUI sessions opt out: silence does not mean their process can be discarded.
  */
 export const SESSION_IDLE_MS = 60 * 60_000;
 

@@ -1,4 +1,4 @@
-import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
 import {
   isRuntimeResolveError,
   type HostRuntimesClient,
@@ -68,7 +68,7 @@ export type SearchServiceDeps = {
   acquireWorkspaceRuntime(workspaceId: string): Promise<WorkspaceRuntimeAccess | null>;
   searchFileSearchRoot(
     client: HostRuntimesClient['fileSearch'],
-    root: HostAbsolutePath,
+    root: HostFileRef,
     query: string,
     limit?: number
   ): Promise<WorkspaceFileHit[]>;
@@ -86,6 +86,7 @@ export class SearchService {
     this.deps.tasks.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
+    projectEvents.on('project:renamed', (projectId, name) => this.renameProject(projectId, name));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
 
     conversationEvents.on('conversation:created', (conversation) =>
@@ -110,7 +111,7 @@ export class SearchService {
     if (!workspace) return [];
     return await this.deps.searchFileSearchRoot(
       workspace.client.fileSearch,
-      workspace.files.root,
+      hostFileRef(workspace.identity.host, workspace.files.root),
       query,
       limit
     );
@@ -366,6 +367,16 @@ export class SearchService {
         projectId: project.id,
         error: String(e),
       });
+    }
+  }
+
+  private renameProject(projectId: string, name: string): void {
+    try {
+      this.deps.sqlite
+        .prepare(`UPDATE search_index SET title = ? WHERE item_type = 'project' AND item_id = ?`)
+        .run(name, projectId);
+    } catch (e) {
+      log.warn('SearchService: renameProject failed', { projectId, error: String(e) });
     }
   }
 

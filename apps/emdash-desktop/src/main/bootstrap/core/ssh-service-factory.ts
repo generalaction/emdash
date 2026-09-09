@@ -48,6 +48,8 @@ export function createSshService(deps: CreateSshServiceDeps): SshServiceHandle {
 
   let disposePromise: Promise<void> | undefined;
   return {
+    control: ssh.control,
+    bindLifecycle: (lifecycle) => ssh.bindLifecycle(lifecycle),
     ssh,
     machines,
     manager,

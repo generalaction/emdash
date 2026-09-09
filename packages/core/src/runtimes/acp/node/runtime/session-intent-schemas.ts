@@ -10,6 +10,7 @@ const retainedConfiguredSchema = z.object({
   model: z.string().nullable(),
   modeId: z.string().nullable(),
   effort: z.string().nullable(),
+  collaborationMode: z.string().nullable().optional(),
 });
 
 const retainedPresentationSchema = z.object({
@@ -35,6 +36,7 @@ export const legacyRetainedIntentSchema = acpStartInputSchema.extend({
     .object({
       model: z.string().optional(),
       effort: z.string().optional(),
+      collaborationMode: z.string().optional(),
     })
     .optional(),
 });

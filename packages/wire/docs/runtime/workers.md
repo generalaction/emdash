@@ -82,4 +82,6 @@ void runWireComponentWorker(counterComponent);
 The child helper resolves the parent IPC channel, requests bootstrap config and dependency channels,
 serves framed runtime wire messages, sends the ready signal after the component controller is
 installed, disposes the child scope on shutdown/disconnect, and exits with code `1` if creation
-fails.
+fails. It also exits with code `1` when the component reports an unrecoverable failure through
+`fatal(error)`. The worker slot treats that exit like any other failed generation: it disconnects the
+old transport and applies the configured supervision schedule before starting a fresh process.

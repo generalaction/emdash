@@ -2,11 +2,10 @@ import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import { defineContract, liveJob, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
-import type {
-  PaletteEntitySearchQuery,
-  SearchItem,
-  WorkspaceFileHit,
-  WorkspaceFileSearchQuery,
+import type { PaletteEntitySearchQuery, SearchItem } from '@core/primitives/search/api';
+import {
+  workspaceFileHitSchema,
+  workspaceFileSearchQuerySchema,
 } from '@core/primitives/search/api';
 
 const workspaceContentSearchInputSchema = fileSearchContract.searchContent.input
@@ -32,8 +31,8 @@ export const searchContract = defineContract({
     output: z.custom<SearchItem[]>(),
   }),
   searchWorkspaceFiles: procedure({
-    input: z.custom<WorkspaceFileSearchQuery>(),
-    output: z.custom<WorkspaceFileHit[]>(),
+    input: workspaceFileSearchQuerySchema,
+    output: z.array(workspaceFileHitSchema),
   }),
   searchWorkspaceContent: liveJob({
     input: workspaceContentSearchInputSchema,

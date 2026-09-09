@@ -46,7 +46,7 @@ export class PullRequestService {
   private readonly syncStateCells: Family<SyncStateKey, Cell<SyncState>>;
   private readonly syncStateValues = new Map<string, SyncState>();
   private readonly syncRuns = new Map<string, SyncRun>();
-  private readonly lastSuccessfulSyncs = new Map<string, number>();
+  private readonly lastSuccessfulRepositorySyncs = new Map<string, number>();
   private readonly engine: PullRequestEngine;
 
   constructor(private readonly options: PullRequestServiceOptions) {
@@ -215,14 +215,20 @@ export class PullRequestService {
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
     await this.cancelAndWait(normalized);
     this.options.store.unregisterRepository(normalized);
-    this.lastSuccessfulSyncs.delete(normalized);
+    this.lastSuccessfulRepositorySyncs.delete(normalized);
     this.syncStateCells.peekMember({ repositoryUrl: normalized })?.set(idleSyncState());
     this.syncStateValues.delete(normalized);
     return ok();
   }
 
   sync(repositoryUrl: string): Promise<SyncResult> {
-    return this.syncWithPriority(repositoryUrl, requestPriorities.task);
+    const normalized = normalizeRepositoryUrl(repositoryUrl);
+    if (!normalized) {
+      return Promise.resolve(err({ type: 'invalid_repository', input: repositoryUrl }));
+    }
+    return this.startSync(normalized, (signal) =>
+      this.engine.sync(normalized, signal, requestPriorities.task)
+    );
   }
 
   private syncWithPriority(repositoryUrl: string, priority: number): Promise<SyncResult> {
@@ -230,7 +236,7 @@ export class PullRequestService {
     if (!normalized) {
       return Promise.resolve(err({ type: 'invalid_repository', input: repositoryUrl }));
     }
-    const lastSuccessfulSync = this.lastSuccessfulSyncs.get(normalized);
+    const lastSuccessfulSync = this.lastSuccessfulRepositorySyncs.get(normalized);
     const minSyncIntervalMs = this.options.minSyncIntervalMs ?? DEFAULT_MIN_SYNC_INTERVAL_MS;
     if (lastSuccessfulSync !== undefined && Date.now() - lastSuccessfulSync < minSyncIntervalMs) {
       return Promise.resolve(ok());
@@ -369,9 +375,7 @@ export class PullRequestService {
     const run = this.options.scope.run(`sync:${repositoryUrl}`, async (signal) => {
       const result = await operation(signal);
       if (result.success) {
-        this.lastSuccessfulSyncs.set(repositoryUrl, Date.now());
-      } else {
-        this.lastSuccessfulSyncs.delete(repositoryUrl);
+        this.lastSuccessfulRepositorySyncs.set(repositoryUrl, Date.now());
       }
       return result;
     });
@@ -390,11 +394,6 @@ export class PullRequestService {
   }
 
   private setSyncState(repositoryUrl: string, state: SyncState): void {
-    if (state.phase === 'idle' && state.lastSyncedAt !== undefined) {
-      this.lastSuccessfulSyncs.set(repositoryUrl, state.lastSyncedAt);
-    } else if (state.phase === 'error') {
-      this.lastSuccessfulSyncs.delete(repositoryUrl);
-    }
     this.syncStateValues.set(repositoryUrl, state);
     this.syncStateCells.peekMember({ repositoryUrl })?.set(state);
   }
@@ -405,7 +404,9 @@ export class PullRequestService {
         .listRegisteredRepositories()
         .map(
           async ({ repositoryUrl }) =>
-            await this.syncWithPriority(repositoryUrl, requestPriorities.background)
+            await this.startSync(repositoryUrl, (signal) =>
+              this.engine.sync(repositoryUrl, signal, requestPriorities.background)
+            )
         )
     );
   }

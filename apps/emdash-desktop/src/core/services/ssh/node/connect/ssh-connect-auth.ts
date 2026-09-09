@@ -1,6 +1,6 @@
 // Auth assembly: password, key, and agent selection with IdentitiesOnly filtering.
 import ssh2, {
-  type BaseAgent,
+  BaseAgent,
   type ConnectConfig,
   type IdentityCallback,
   type ParsedKey,
@@ -41,7 +41,10 @@ function comparablePublicKey(key: AgentPublicKey): ParsedKey | Buffer | string {
   return key;
 }
 
-class IdentityFilteredAgent implements BaseAgent {
+// Extends ssh2's BaseAgent so `isAgent()` (an instanceof check in ssh2's client
+// config validation) accepts the wrapper; an `implements`-only class is silently
+// dropped from the connect config and agent auth never runs.
+class IdentityFilteredAgent extends BaseAgent {
   readonly kind = 'identity-filtered-agent';
   declare getStream?: BaseAgent['getStream'];
 
@@ -50,6 +53,7 @@ class IdentityFilteredAgent implements BaseAgent {
     private readonly agent: BaseAgent,
     private readonly allowedKeys: ParsedKey[]
   ) {
+    super();
     if (agent.getStream) {
       this.getStream = agent.getStream.bind(agent);
     }

@@ -384,7 +384,7 @@ function formatDate(ms: number | undefined): string {
 }
 
 function basename(path: string, separator: '/' | '\\'): string {
-  const parts = splitPath(path, separator);
+  const parts = splitDirectorySelectorPath(path, separator);
   return parts.at(-1)?.label || path || separator;
 }
 
@@ -399,7 +399,7 @@ function pathToBreadcrumbs(
   onNavigate: (path: string) => void,
   navigationRoot?: string
 ): BreadcrumbItem[] {
-  const parts = splitPath(path, separator);
+  const parts = splitDirectorySelectorPath(path, separator);
   const navigationRootIndex = navigationRoot
     ? parts.findIndex((part) => pathsEqual(part.path, navigationRoot, separator))
     : 0;
@@ -423,15 +423,23 @@ function pathsEqual(left: string, right: string, separator: '/' | '\\'): boolean
   return normalize(left) === normalize(right);
 }
 
-function splitPath(path: string, separator: '/' | '\\'): Array<{ label: string; path: string }> {
+export function splitDirectorySelectorPath(
+  path: string,
+  separator: '/' | '\\'
+): Array<{ label: string; path: string }> {
   if (!path) return [];
 
   if (separator === '\\') {
-    const [root = '', ...rest] = path.split('\\').filter(Boolean);
-    const parts = root ? [{ label: root, path: root }] : [];
+    const normalized = path.replace(/\//gu, '\\');
+    const raw = normalized.split('\\').filter(Boolean);
+    const isUnc = normalized.startsWith('\\\\');
+    const root = isUnc ? raw.splice(0, 2).join('\\') : (raw.shift() ?? '');
+    const rootPath = isUnc ? `\\\\${root}` : /^[A-Za-z]:$/u.test(root) ? `${root}\\` : root;
+    const parts = root ? [{ label: isUnc ? rootPath : root, path: rootPath }] : [];
+    const rest = raw;
     for (const segment of rest) {
-      const previous = parts.at(-1)?.path ?? root;
-      parts.push({ label: segment, path: `${previous}\\${segment}` });
+      const previous = parts.at(-1)?.path ?? rootPath;
+      parts.push({ label: segment, path: joinPath(previous, segment, '\\') });
     }
     return parts;
   }

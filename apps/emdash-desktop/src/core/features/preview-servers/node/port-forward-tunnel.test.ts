@@ -1,8 +1,10 @@
+import { once } from 'node:events';
 import net from 'node:net';
 import { Transform } from 'node:stream';
+import { deferred } from '@emdash/shared/testing';
 import type { ClientChannel } from 'ssh2';
-import { afterEach, describe, expect, it } from 'vitest';
-import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SshTcpTarget } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { openPortForwardTunnel, type PortForwardProbeResult } from './port-forward-tunnel';
 
 class EchoChannel extends Transform {
@@ -16,6 +18,102 @@ class EchoChannel extends Transform {
   }
 }
 
+describe('channel ownership', () => {
+  it('cancels a listener while it is binding', async () => {
+    const controller = new AbortController();
+    const pending = openPortForwardTunnel({
+      remotePort: 5173,
+      proxy: makeProxy().proxy,
+      signal: controller.signal,
+    });
+    controller.abort(new Error('stopped during bind'));
+    await expect(pending).rejects.toThrow('stopped during bind');
+  });
+
+  it.each(['socket', 'tunnel'] as const)(
+    'cancels acquisition when the %s closes',
+    async (owner) => {
+      let finish!: (channel: ClientChannel) => void;
+      let openingSignal!: AbortSignal;
+      const established = vi.fn();
+      const failed = vi.fn();
+      const started = deferred<void>();
+      const tunnel = await openPortForwardTunnel({
+        remotePort: 5173,
+        onConnectionEstablished: established,
+        onConnectionError: failed,
+        proxy: {
+          isConnected: true,
+          openTcpChannel: (_target, options) => {
+            openingSignal = options!.signal!;
+            started.resolve();
+            // Deliberately ignores cancellation to exercise the ownership handoff race.
+            return new Promise((resolve) => {
+              finish = resolve;
+            });
+          },
+        },
+      });
+      const socket = net.connect(tunnel.localPort, '127.0.0.1');
+      socket.on('error', () => {});
+      try {
+        await started.promise;
+        const aborted = new Promise<void>((resolve) =>
+          openingSignal.addEventListener('abort', () => resolve(), { once: true })
+        );
+        if (owner === 'socket') socket.destroy();
+        else await tunnel.close();
+        await aborted;
+        const channel = new EchoChannel();
+        const closed = once(channel, 'close');
+        finish(channel as unknown as ClientChannel);
+        await closed;
+        expect(channel.destroyed).toBe(true);
+        expect(established).not.toHaveBeenCalled();
+        expect(failed).not.toHaveBeenCalled();
+      } finally {
+        socket.destroy();
+        await tunnel.close();
+      }
+    }
+  );
+
+  it('destroys an established channel when its tunnel closes', async () => {
+    const channel = new EchoChannel();
+    const established = deferred<void>();
+    const tunnel = await openPortForwardTunnel({
+      remotePort: 5173,
+      proxy: { isConnected: true, openTcpChannel: async () => channel as unknown as ClientChannel },
+      onConnectionEstablished: () => established.resolve(),
+    });
+    const socket = net.connect(tunnel.localPort, '127.0.0.1');
+    socket.on('error', () => {});
+    try {
+      await established.promise;
+      await tunnel.close();
+      expect(channel.destroyed).toBe(true);
+    } finally {
+      socket.destroy();
+      await tunnel.close();
+    }
+  });
+
+  it('ignores advisory results after closure', async () => {
+    const probe = deferred<PortForwardProbeResult>();
+    const reported = vi.fn();
+    const tunnel = await openPortForwardTunnel({
+      remotePort: 5173,
+      proxy: makeProxy().proxy,
+      probe: () => probe.promise,
+      onProbeResult: reported,
+    });
+    await tunnel.close();
+    probe.resolve({ listening: true, families: ['ipv6'] });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(reported).not.toHaveBeenCalled();
+  });
+});
+
 function channelOpenError(message: string, reason: number): Error {
   const error = new Error(message);
   (error as { reason?: number }).reason = reason;
@@ -23,121 +121,56 @@ function channelOpenError(message: string, reason: number): Error {
 }
 
 function makeProxy() {
-  const calls: Array<{
-    sourceHost: string;
-    sourcePort: number;
-    remoteHost: string;
-    remotePort: number;
-  }> = [];
-
+  const calls: SshTcpTarget[] = [];
   return {
     calls,
     proxy: {
-      get isConnected() {
-        return true;
+      isConnected: true,
+      async openTcpChannel(target: SshTcpTarget) {
+        calls.push(target);
+        return new EchoChannel() as unknown as ClientChannel;
       },
-      get client() {
-        return {
-          forwardOut(
-            sourceHost: string,
-            sourcePort: number,
-            remoteHost: string,
-            remotePort: number,
-            callback: (error: Error | undefined, channel: ClientChannel) => void
-          ) {
-            calls.push({ sourceHost, sourcePort, remoteHost, remotePort });
-            callback(undefined, new EchoChannel() as unknown as ClientChannel);
-          },
-        } as SshClientProxy['client'];
-      },
-    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+    },
   };
 }
 
 function makeRejectingProxy(error: Error) {
   return {
     proxy: {
-      get isConnected() {
-        return true;
+      isConnected: true,
+      async openTcpChannel() {
+        throw error;
       },
-      get client() {
-        return {
-          forwardOut(
-            _sourceHost: string,
-            _sourcePort: number,
-            _remoteHost: string,
-            _remotePort: number,
-            callback: (error: Error | undefined, channel: ClientChannel) => void
-          ) {
-            callback(error, undefined as unknown as ClientChannel);
-          },
-        } as SshClientProxy['client'];
-      },
-    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+    },
   };
 }
 
 function makeFamilyAwareProxy(reachableHost: string) {
   const calls: Array<{ remoteHost: string; remotePort: number }> = [];
-
   return {
     calls,
     proxy: {
-      get isConnected() {
-        return true;
+      isConnected: true,
+      async openTcpChannel({ remoteHost, remotePort }: SshTcpTarget) {
+        calls.push({ remoteHost, remotePort });
+        if (remoteHost === reachableHost) return new EchoChannel() as unknown as ClientChannel;
+        throw channelOpenError('(SSH) Channel open failure: Connection refused', 2);
       },
-      get client() {
-        return {
-          forwardOut(
-            _sourceHost: string,
-            _sourcePort: number,
-            remoteHost: string,
-            remotePort: number,
-            callback: (error: Error | undefined, channel: ClientChannel) => void
-          ) {
-            calls.push({ remoteHost, remotePort });
-            if (remoteHost === reachableHost) {
-              callback(undefined, new EchoChannel() as unknown as ClientChannel);
-              return;
-            }
-            callback(
-              channelOpenError('(SSH) Channel open failure: Connection refused', 2),
-              undefined as unknown as ClientChannel
-            );
-          },
-        } as SshClientProxy['client'];
-      },
-    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+    },
   };
 }
 
 function makePerHostFailingProxy(errors: Record<string, Error>) {
   const calls: Array<{ remoteHost: string; remotePort: number }> = [];
-
   return {
     calls,
     proxy: {
-      get isConnected() {
-        return true;
+      isConnected: true,
+      async openTcpChannel({ remoteHost, remotePort }: SshTcpTarget) {
+        calls.push({ remoteHost, remotePort });
+        throw errors[remoteHost] ?? channelOpenError('(SSH) Channel open failure: unexpected', 2);
       },
-      get client() {
-        return {
-          forwardOut(
-            _sourceHost: string,
-            _sourcePort: number,
-            remoteHost: string,
-            remotePort: number,
-            callback: (error: Error | undefined, channel: ClientChannel) => void
-          ) {
-            calls.push({ remoteHost, remotePort });
-            callback(
-              errors[remoteHost] ?? channelOpenError('(SSH) Channel open failure: unexpected', 2),
-              undefined as unknown as ClientChannel
-            );
-          },
-        } as SshClientProxy['client'];
-      },
-    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+    },
   };
 }
 

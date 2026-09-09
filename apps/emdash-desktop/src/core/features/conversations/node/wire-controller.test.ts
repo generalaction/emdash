@@ -6,7 +6,7 @@ import {
 } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import type { LiveSource } from '@emdash/wire/rpc';
-import { encodeTopic, isDownloadFileOpenResult, type WireFile } from '@emdash/wire/rpc';
+import { encodeTopic, isDownloadFileOpenResult, WireError, type WireFile } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
@@ -35,6 +35,7 @@ const target = {
   model: null,
   modeId: null,
   effort: null,
+  collaborationMode: null,
   workspacePath: '/repo',
   host: LOCAL_HOST_REF,
   acpInput: {
@@ -44,11 +45,91 @@ const target = {
     sessionId: null,
     model: null,
     modeId: null,
+    collaborationMode: null,
   },
 } as const;
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
+  it('adds project environment variables to trusted ACP spawn input', async () => {
+    const attach = vi.fn(async () => ok(undefined));
+    const getProviderEnv = vi.fn(async () => ({
+      CLAUDE_CONFIG_DIR: '/provider/config',
+      PROVIDER_ONLY: 'provider',
+    }));
+    const resolveLaunchContext = vi.fn(async () =>
+      ok({
+        workspace: {
+          workspaceId: 'workspace-1',
+          projectId: target.projectId,
+          host: LOCAL_HOST_REF,
+          path: target.workspacePath,
+        },
+        tmux: false,
+        env: {
+          CLAUDE_CONFIG_DIR: '/project/config',
+          PROJECT_ONLY: 'project',
+        },
+      })
+    );
+    const db = {
+      select: vi.fn(() => ({
+        from: () => ({
+          leftJoin: () => ({
+            where: () => ({
+              limit: async () => [
+                {
+                  projectId: target.projectId,
+                  taskId: target.taskId,
+                  providerId: target.providerId,
+                  sessionId: null,
+                  config: null,
+                  type: 'acp',
+                  workspaceId: 'workspace-1',
+                },
+              ],
+            }),
+          }),
+        }),
+      })),
+    };
+    const controller = createConversationsWireController({
+      db: db as never,
+      logger: { warn: vi.fn() } as never,
+      runtimes: { client: async () => ok({ acp: { attach } }) } as never,
+      workspaceIdentity: {
+        resolve: vi.fn(async () => ({ host: LOCAL_HOST_REF, path: target.workspacePath })),
+      },
+      getProviderEnv,
+      sessionLaunchContexts: { resolve: resolveLaunchContext },
+      telemetry: { capture: vi.fn() } as never,
+      projects: { requireAttached: vi.fn(() => ok({} as never)) },
+      taskSessions: { getTask: vi.fn() },
+      withCompensation: async ({ action }) => action(),
+      hostIsReachable: () => true,
+    });
+
+    await expect(
+      controller.call('acp.attach', { conversationId: target.conversationId })
+    ).resolves.toEqual(ok(undefined));
+
+    expect(attach).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: {
+          CLAUDE_CONFIG_DIR: '/project/config',
+          PROVIDER_ONLY: 'provider',
+          PROJECT_ONLY: 'project',
+        },
+      }),
+      {}
+    );
+    expect(resolveLaunchContext).toHaveBeenCalledWith({
+      projectId: target.projectId,
+      taskId: target.taskId,
+      workspaceId: 'workspace-1',
+    });
+  });
+
   it('attaches with the trusted descriptor and activates while loading history', async () => {
     const attach = vi.fn(async () => ok(undefined));
     const loadHistory = vi.fn(async () => ok({ turns: [], nextCursor: null }));
@@ -96,7 +177,7 @@ describe('createConversationsWireController', () => {
       ok({
         turns: [],
         nextCursor: null,
-        clearedConfiguration: ['model', 'modeId'] as const,
+        clearedConfiguration: ['model', 'modeId', 'collaborationMode'] as const,
       })
     );
     const persistAcpConfigOption = vi.fn(async () => {});
@@ -113,16 +194,18 @@ describe('createConversationsWireController', () => {
     expect(persistAcpConfigOption.mock.calls).toEqual([
       [target, 'model', null],
       [target, 'modeId', null],
+      [target, 'collaborationMode', null],
     ]);
   });
 
-  it('disables the worker Wire deadline for the turn-long ACP prompt call', async () => {
+  it('allows activation to finish before acknowledging prompt acceptance', async () => {
     const sendPrompt = vi.fn(async () => ok({ queued: false }));
     const controller = setupController({
       client: { acp: { sendPrompt } },
     });
     const input = {
       conversationId: target.conversationId,
+      promptId: crypto.randomUUID(),
       prompt: { text: 'hello' },
     };
 
@@ -130,6 +213,21 @@ describe('createConversationsWireController', () => {
 
     expect(sendPrompt).toHaveBeenCalledWith(input, { timeoutMs: 0 });
   });
+
+  it.each(['UNKNOWN_PROCEDURE', 'DISCONNECTED', 'TIMEOUT'] as const)(
+    'does not resend a prompt after %s',
+    async (code) => {
+      const sendPrompt = vi.fn().mockRejectedValue(new WireError(code, 'submission failed'));
+      const controller = setupController({ client: { acp: { sendPrompt } } });
+      const input = {
+        conversationId: target.conversationId,
+        promptId: crypto.randomUUID(),
+        prompt: { text: 'hello' },
+      };
+      await expect(controller.call('acp.sendPrompt', input)).rejects.toMatchObject({ code });
+      expect(sendPrompt).toHaveBeenCalledOnce();
+    }
+  );
 
   it('records submitted TUI input only after a successful carriage return', async () => {
     const sendInput = vi.fn(async () => ok(undefined));
@@ -322,6 +420,7 @@ describe('createConversationsWireController', () => {
     await expect(
       controller.call('acp.sendPrompt', {
         conversationId: target.conversationId,
+        promptId: '00000000-0000-4000-8000-000000000001',
         prompt: { text: 'hello' },
       })
     ).resolves.toEqual(err(attachmentError));
@@ -351,7 +450,7 @@ function setupController(options: {
   hooks?: Partial<{
     persistAcpConfigOption: (
       target: TestRuntimeTarget,
-      key: 'model' | 'modeId' | 'effort',
+      key: 'model' | 'modeId' | 'effort' | 'collaborationMode',
       value: string | null
     ) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;
@@ -372,6 +471,7 @@ function setupController(options: {
       },
     } as never,
     workspaceIdentity: {} as never,
+    sessionLaunchContexts: {} as never,
     telemetry: { capture: vi.fn() } as never,
     projects: {
       requireAttached: vi.fn(() =>

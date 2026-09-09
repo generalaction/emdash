@@ -1,7 +1,7 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { describe, expect, it, vi } from 'vitest';
-import type { HostService } from '@core/services/hosts/node';
+import type { Hosts } from '@core/services/hosts/node/hosts';
 import { WorkspaceServerProvisionError } from '@core/services/hosts/node/workspace-server';
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
@@ -10,8 +10,8 @@ describe('desktop runtime broker remote sessions', () => {
     const runtimeClient = { files: { getHomeDir: vi.fn() } } as unknown as HostRuntimesClient;
     const client = vi.fn(async () => ({ client: runtimeClient }));
     const hosts = {
-      client,
-    } as unknown as HostService;
+      get: () => ({ runtime: { client } }),
+    } as unknown as Hosts;
     const broker = createDesktopRuntimeBroker({} as never, hosts);
     const host = hostRef('remote', 'ssh-1');
 
@@ -28,16 +28,20 @@ describe('desktop runtime broker remote sessions', () => {
     await firstResult.data.files.getHomeDir(undefined);
     expect(runtimeClient.files.getHomeDir).toHaveBeenCalledOnce();
     expect(client).toHaveBeenCalledTimes(2);
-    expect(client).toHaveBeenCalledWith('ssh-1');
+    expect(client).toHaveBeenCalledWith({ waitForReady: false });
   });
 
   it('reports unavailable when a remote runtime connection fails', async () => {
     const broker = createDesktopRuntimeBroker(
       {} as never,
       {
-        client: async () => {
-          throw new Error('connection failed');
-        },
+        get: () => ({
+          runtime: {
+            client: async () => {
+              throw new Error('connection failed');
+            },
+          },
+        }),
       } as never
     );
 
@@ -55,9 +59,13 @@ describe('desktop runtime broker remote sessions', () => {
     const broker = createDesktopRuntimeBroker(
       {} as never,
       {
-        client: async () => {
-          throw new WorkspaceServerProvisionError('install-failed', 'raw lower-level message');
-        },
+        get: () => ({
+          runtime: {
+            client: async () => {
+              throw new WorkspaceServerProvisionError('install-failed', 'raw lower-level message');
+            },
+          },
+        }),
       } as never
     );
 

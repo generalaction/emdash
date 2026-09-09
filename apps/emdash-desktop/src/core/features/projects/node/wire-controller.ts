@@ -78,6 +78,7 @@ export function createProjectsWireController(
         projectOperations.countProjectsUsingGithubAccount(accountId),
       updateProjectConnection: ({ projectId, connectionId }) =>
         projectOperations.updateProjectConnection(projectId, connectionId),
+      renameProject: ({ projectId, name }) => projectOperations.renameProject(projectId, name),
       recoverAttachment: ({ projectId }) => dependencies.projects.recover(projectId),
       getHostHomeDir: async (input) => {
         const runtime = await acquireHostRuntime(dependencies, input);
@@ -143,6 +144,7 @@ function createDirectoryTreeModelProvider(
             {
               root: key.root,
               sessionId: key.sessionId,
+              watchScope: 'children',
             },
             name
           )
@@ -163,6 +165,7 @@ function createDirectoryTreeModelProvider(
         {
           root: envelope.key.root,
           sessionId: envelope.key.sessionId,
+          watchScope: 'children',
         }
       );
     },

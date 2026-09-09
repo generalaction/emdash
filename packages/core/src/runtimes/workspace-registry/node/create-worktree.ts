@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { nativePathIdentityKey } from '#primitives/path/api';
 import type { BoundExec } from '#services/exec/api';
 import type { WorkspaceGitSetup } from '../api/schemas';
 import type { RegistryGitContext } from './git-context';
@@ -71,7 +72,7 @@ export async function executeCreateWorktree(
       return { status: 'failed', stage: 'inspect', message: safe.error.message };
     }
     existing = (await listWorktreePaths(exec)).has(
-      await canonicalOrResolved(execution.worktreePath)
+      nativePathIdentityKey(await canonicalOrResolved(execution.worktreePath))
     );
     if (existing) {
       const current = (
@@ -208,7 +209,7 @@ export async function executeCreateWorktree(
   let finalPath: string;
   try {
     finalPath = await canonicalOrResolved(execution.worktreePath);
-    if (!(await listWorktreePaths(exec)).has(finalPath)) {
+    if (!(await listWorktreePaths(exec)).has(nativePathIdentityKey(finalPath))) {
       return await fail(
         'verify',
         new Error(`Worktree was not listed after creation: ${execution.worktreePath}`)
@@ -260,7 +261,7 @@ async function listWorktreePaths(exec: BoundExec): Promise<Set<string>> {
   const paths = new Set<string>();
   for (const line of result.stdout.split('\n')) {
     if (!line.startsWith('worktree ')) continue;
-    paths.add(await canonicalOrResolved(line.slice('worktree '.length)));
+    paths.add(nativePathIdentityKey(await canonicalOrResolved(line.slice('worktree '.length))));
   }
   return paths;
 }

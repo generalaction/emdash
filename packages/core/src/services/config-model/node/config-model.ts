@@ -25,7 +25,8 @@ export async function readConfigFile<T>(
   let content: string;
   try {
     content = await readFile(filePath, 'utf8');
-  } catch {
+  } catch (error) {
+    if (!isErrno(error, 'ENOENT')) throw error;
     const empty = parse('{}');
     return { data: empty.data, parseError: false };
   }
@@ -42,6 +43,10 @@ export type ConfigModelOptions<T> = {
    * is the refresh's caller context (typically the file's location).
    */
   onChanged?: (key: string, entry: T, previous: T | undefined, source: string) => void;
+  /** Called when a read fails; the last cached entry remains authoritative. */
+  onReadError?: (key: string, error: unknown, previous: T | undefined, source: string) => void;
+  /** Called after every successful read, including one whose value did not change. */
+  onReadSuccess?: (key: string, entry: T, previous: T | undefined, source: string) => void;
 };
 
 /**
@@ -77,13 +82,22 @@ export class ConfigModel<T> {
     if (inFlight) return inFlight;
     const revision = this.revisions.get(key) ?? 0;
     const read = (async () => {
-      const entry = await this.options.read(key, source);
+      let entry: T;
+      try {
+        entry = await this.options.read(key, source);
+      } catch (error) {
+        if (!this.disposed && (this.revisions.get(key) ?? 0) === revision) {
+          this.options.onReadError?.(key, error, this.entries.get(key), source);
+        }
+        throw error;
+      }
       // Reads are often fire-and-forget; a disposed model must never store or
       // fire callbacks into a torn-down host. A delete also invalidates any read
       // already in flight so removal cannot resurrect a stale model entry.
       if (this.disposed || (this.revisions.get(key) ?? 0) !== revision) return entry;
       const previous = this.entries.get(key);
       this.entries.set(key, entry);
+      this.options.onReadSuccess?.(key, entry, previous, source);
       const changed = previous === undefined || JSON.stringify(previous) !== JSON.stringify(entry);
       if (changed) this.options.onChanged?.(key, entry, previous, source);
       return entry;
@@ -119,15 +133,23 @@ export type ConfigFileWatcher = {
 export function watchConfigFile(
   filePath: string,
   onChange: () => void,
-  options?: { debounceMs?: number }
+  options?: { debounceMs?: number; caseSensitive?: boolean }
 ): ConfigFileWatcher {
   const debounceMs = options?.debounceMs ?? 100;
   const fileName = path.basename(filePath);
+  const caseSensitive = options?.caseSensitive ?? process.platform !== 'win32';
   let timer: NodeJS.Timeout | null = null;
   let disposed = false;
   const watcher: FSWatcher = watch(path.dirname(filePath), (_event, changed) => {
     if (disposed) return;
-    if (changed !== null && changed !== fileName) return;
+    if (
+      changed !== null &&
+      (caseSensitive
+        ? changed !== fileName
+        : changed.toLocaleLowerCase('en-US') !== fileName.toLocaleLowerCase('en-US'))
+    ) {
+      return;
+    }
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -141,4 +163,13 @@ export function watchConfigFile(
       watcher.close();
     },
   };
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  );
 }

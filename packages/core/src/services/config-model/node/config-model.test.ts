@@ -1,8 +1,8 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ConfigModel, readConfigFile } from './config-model';
+import { ConfigModel, readConfigFile, watchConfigFile } from './config-model';
 
 describe('readConfigFile', () => {
   let dir: string;
@@ -40,6 +40,13 @@ describe('readConfigFile', () => {
     await writeFile(file, '{nope');
     const entry = await readConfigFile(file, parse);
     expect(entry).toEqual({ data: {}, parseError: true });
+  });
+
+  it('propagates non-missing read failures instead of treating them as an empty file', async () => {
+    const directory = path.join(dir, 'config.json');
+    await mkdir(directory);
+
+    await expect(readConfigFile(directory, parse)).rejects.toMatchObject({ code: 'EISDIR' });
   });
 });
 
@@ -150,5 +157,57 @@ describe('ConfigModel', () => {
     expect(entry).toEqual({ n: 1 });
     expect(model.get('a')).toBeUndefined();
     expect(events).toEqual([]);
+  });
+
+  it('retains the last good entry and reports a failed refresh', async () => {
+    let failure: Error | null = null;
+    const errors: unknown[] = [];
+    const successes: number[] = [];
+    const model = new ConfigModel<{ n: number }>({
+      read: async () => {
+        if (failure) throw failure;
+        return { n: 1 };
+      },
+      onReadError: (_key, error) => errors.push(error),
+      onReadSuccess: (_key, entry) => successes.push(entry.n),
+    });
+
+    await model.refresh('a', 'config.json');
+    failure = Object.assign(new Error('locked'), { code: 'EPERM' });
+    await expect(model.refresh('a', 'config.json')).rejects.toBe(failure);
+
+    expect(model.get('a')).toEqual({ n: 1 });
+    expect(errors).toEqual([failure]);
+    expect(successes).toEqual([1]);
+
+    failure = null;
+    await model.refresh('a', 'config.json');
+    expect(successes).toEqual([1, 1]);
+  });
+});
+
+describe('watchConfigFile', () => {
+  it('matches changed filenames case-insensitively when the host profile requires it', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'config-watch-'));
+    let resolveChanged: () => void = () => undefined;
+    const changed = new Promise<void>((resolve) => {
+      resolveChanged = resolve;
+    });
+    const watcher = watchConfigFile(path.join(dir, 'settings.json'), resolveChanged, {
+      debounceMs: 0,
+      caseSensitive: false,
+    });
+    try {
+      await writeFile(path.join(dir, 'SETTINGS.JSON'), '{}');
+      await expect(
+        Promise.race([
+          changed.then(() => 'changed'),
+          new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 2_000)),
+        ])
+      ).resolves.toBe('changed');
+    } finally {
+      watcher.dispose();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

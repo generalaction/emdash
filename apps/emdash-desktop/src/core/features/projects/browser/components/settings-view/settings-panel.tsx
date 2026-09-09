@@ -120,5 +120,9 @@ function unavailableSettingsDomains(
       sources: [],
       writeTargets: [],
     },
+    environment: {
+      personal: {},
+      resolved: { env: { value: {}, from: 'built-in' } },
+    },
   };
 }

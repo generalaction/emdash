@@ -15,6 +15,7 @@ export type CreateResourceCacheOptions<K, T> = {
   scope?: Scope;
   label?: string;
   idleTtlMs?: number;
+  cancelPendingOnRelease?: boolean;
   clock?: Clock;
   create: (key: K, scope: Scope) => Promise<T> | T;
   onError?: (error: unknown, key: string) => void;
@@ -164,7 +165,7 @@ export function createResourceCache<K, T>(
       .catch(async (error: unknown) => {
         entry.createPromise = undefined;
         if (entries.get(entry.keyId) === entry) entries.delete(entry.keyId);
-        options.onError?.(error, entry.keyId);
+        if (!entry.scope.disposed) options.onError?.(error, entry.keyId);
         await entry.scope.dispose(error);
         throw error;
       });
@@ -176,7 +177,9 @@ export function createResourceCache<K, T>(
     if (entries.get(entry.keyId) !== entry) return Promise.resolve();
     if (entry.refCount > 0) entry.refCount -= 1;
     if (entry.refCount > 0) return Promise.resolve();
-    if (entry.createPromise && !entry.hasValue) return Promise.resolve();
+    if (entry.createPromise && !entry.hasValue) {
+      return options.cancelPendingOnRelease ? disposeEntry(entry) : Promise.resolve();
+    }
     return scheduleDispose(entry);
   }
 

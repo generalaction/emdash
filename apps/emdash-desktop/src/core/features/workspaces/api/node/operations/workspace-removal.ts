@@ -19,6 +19,7 @@ import {
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { tombstoneWorkspaceRow } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import type { MutationAck, MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
@@ -135,7 +136,13 @@ async function removeWorkspacePathThroughRegistry(
   // same path (kept complete by registry sync) carries the host record's identity.
   const workspace = input.workspaceId
     ? registry.getLive(input.workspaceId)
-    : findLiveWorkspaceByPath(db, input.workspacePath);
+    : project.repositoryLocation === null
+      ? undefined
+      : registry.findLiveByPath(
+          project.repositoryLocation,
+          project.repositorySshConnectionId,
+          input.workspacePath
+        );
   if (input.workspaceId && !workspace) {
     return err({
       type: 'workspace-not-found',
@@ -327,16 +334,6 @@ function describeDeleteVerbError(error: DeleteVerbError): string {
   }
 }
 
-function findLiveWorkspaceByPath(db: AppDb, workspacePath: string): WorkspaceRow | undefined {
-  const [row] = db
-    .select()
-    .from(workspaces)
-    .where(and(eq(workspaces.path, workspacePath), isNull(workspaces.untrackedAt)))
-    .limit(1)
-    .all();
-  return row;
-}
-
 /**
  * Snapshot-compiles the cascade's targets: the workspace's cached conversation records
  * with the same observed path on the same host.
@@ -346,15 +343,14 @@ function snapshotWorkspaceConversationIds(
   params: { workspacePath: string | undefined; hostRef: SerializedHostRef }
 ): string[] {
   if (!params.workspacePath) return [];
-  const rows = db
-    .select()
-    .from(conversationRows)
-    .where(and(eq(conversationRows.workspacePath, params.workspacePath), liveConversations()))
-    .all();
+  const pathKey = workspacePathIdentityKey(params.workspacePath);
+  const rows = db.select().from(conversationRows).where(liveConversations()).all();
   return rows
     .filter((row) => {
       try {
         return (
+          row.workspacePath !== null &&
+          workspacePathIdentityKey(row.workspacePath) === pathKey &&
           formatHostRef(hostRefFromParts(row.location, row.sshConnectionId)) === params.hostRef
         );
       } catch {

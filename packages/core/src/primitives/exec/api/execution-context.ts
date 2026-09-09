@@ -6,6 +6,7 @@ export type ExecContextOptions = {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
+  env?: Record<string, string>;
 };
 
 export type ExecStreamingResult = {

@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { waitFor } from '@emdash/shared/testing';
-import { describe, expect, it } from 'vitest';
+import { deferred, waitFor } from '@emdash/shared/testing';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { connect } from '../api/connect';
 import { defineContract, eventStream, resourcedStream } from '../api/define';
@@ -113,5 +113,79 @@ describe('eventStream API', () => {
         events: (() => new EventStreamSource()) as never,
       })
     ).toThrowError(expect.objectContaining<Partial<WireError>>({ code: 'CONTRACT_MISMATCH' }));
+  });
+
+  it('cancels a pending resourced attachment when the caller aborts', async () => {
+    const resourcedContract = defineContract({
+      events: resourcedStream({
+        key: z.object({ id: z.string() }),
+        event: z.object({ message: z.string() }),
+      }),
+    });
+    const activation = deferred<Unsubscribe>();
+    let activationSignal: AbortSignal | undefined;
+    const host = createEventStreamHost(resourcedContract.events, {
+      activate: (_key, signal) => {
+        activationSignal = signal;
+        return activation.promise;
+      },
+    });
+    const wire = createTestWire(resourcedContract, { events: host });
+    const controller = new AbortController();
+    const attachment = wire.client.events
+      .handle({ id: 'known' })
+      .attach(() => {}, { signal: controller.signal });
+
+    await waitFor(() => activationSignal !== undefined);
+    controller.abort();
+
+    await expect(attachment).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(activationSignal?.aborted).toBe(true);
+    expect(host.resolve({ id: 'known' }).subscriberCount).toBe(0);
+
+    const dispose = vi.fn();
+    activation.resolve(dispose);
+    await waitFor(() => dispose.mock.calls.length === 1);
+    wire.dispose();
+    host.dispose();
+  });
+
+  it('keeps shared pending activation alive when only one caller aborts', async () => {
+    const resourcedContract = defineContract({
+      events: resourcedStream({
+        key: z.object({ id: z.string() }),
+        event: z.object({ message: z.string() }),
+      }),
+    });
+    const activation = deferred<Unsubscribe>();
+    let activationSignal: AbortSignal | undefined;
+    const dispose = vi.fn();
+    const host = createEventStreamHost(resourcedContract.events, {
+      activate: (_key, signal) => {
+        activationSignal = signal;
+        return activation.promise;
+      },
+    });
+    const wire = createTestWire(resourcedContract, { events: host });
+    const firstController = new AbortController();
+    const first = wire.client.events
+      .handle({ id: 'known' })
+      .attach(() => {}, { signal: firstController.signal });
+    const second = wire.client.events.handle({ id: 'known' }).attach(() => {});
+
+    await waitFor(() => activationSignal !== undefined);
+    firstController.abort();
+    await expect(first).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(activationSignal?.aborted).toBe(false);
+    expect(host.resolve({ id: 'known' }).subscriberCount).toBe(1);
+
+    activation.resolve(dispose);
+    const detachSecond = await second;
+    expect(dispose).not.toHaveBeenCalled();
+    detachSecond();
+    await waitFor(() => dispose.mock.calls.length === 1);
+
+    wire.dispose();
+    host.dispose();
   });
 });

@@ -135,6 +135,7 @@ describe('project lifecycle config resolver', () => {
   it('resolves each field personal > team > host default > built-in with provenance', () => {
     const resolved = resolveProjectConfig({
       personalConfig: {
+        env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
         scripts: { setup: 'personal setup' },
         autoRunSetup: false,
       },
@@ -148,6 +149,10 @@ describe('project lifecycle config resolver', () => {
     expect(resolved).toEqual({
       resolved: {
         preservePatterns: { value: [], from: 'built-in' },
+        env: {
+          value: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+          from: 'personal',
+        },
         setup: { value: 'personal setup', from: 'personal' },
         run: { value: 'team run', from: 'team' },
         shellSetup: { value: 'team shell', from: 'team' },
@@ -172,6 +177,7 @@ describe('project lifecycle config resolver', () => {
   it('patches personal fields without migration semantics', () => {
     const current = {
       preservePatterns: ['old/**'],
+      env: { OLD: 'value' },
       scripts: { setup: 'personal setup' },
       autoRunRun: true,
     };
@@ -180,11 +186,27 @@ describe('project lifecycle config resolver', () => {
         workspaceId: 'repo',
         patch: {
           preservePatterns: [],
+          env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
           scripts: { setup: null, run: 'pnpm dev' },
           autoRunRun: false,
         },
       })
-    ).toEqual({ preservePatterns: [], scripts: { run: 'pnpm dev' } });
+    ).toEqual({
+      preservePatterns: [],
+      env: { CLAUDE_CONFIG_DIR: '/tmp/claude-project' },
+      scripts: { run: 'pnpm dev' },
+    });
+
+    expect(
+      applyPersonalProjectConfigPatch(current, {
+        workspaceId: 'repo',
+        patch: { env: {} },
+      })
+    ).toEqual({
+      preservePatterns: ['old/**'],
+      scripts: { setup: 'personal setup' },
+      autoRunRun: true,
+    });
   });
 
   it('imports legacy settings only where personal fields are absent', () => {

@@ -49,6 +49,7 @@ export interface AcpRuntimeDeps {
 
 export interface SendPromptInput {
   conversationId: string;
+  promptId: string;
   prompt: PromptInput;
   /** 'queue' always queues; 'auto' (default) delivers if idle and queues while a turn is active. */
   placement?: PromptPlacement;

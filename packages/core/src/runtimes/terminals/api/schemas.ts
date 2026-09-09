@@ -137,7 +137,8 @@ export const terminalControlInputSchema = z.object({
 });
 
 export const killTmuxSessionsInputSchema = z.object({
-  sessionNames: z.array(z.string().min(1)),
+  sessionIdentities: z.array(z.string().min(1)),
+  workspaceLabel: z.string().min(1).optional(),
 });
 
 export type KillTmuxSessionsInput = z.infer<typeof killTmuxSessionsInputSchema>;

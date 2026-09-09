@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { createPathProfile } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import {
   isRuntimeResolveError,
@@ -16,7 +16,9 @@ import {
 import { resolveProjectEffectiveSettings } from '@core/features/projects/api/node/settings/effective-settings';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
+  dirnameHostPath,
   hostPathFromNative,
+  joinHostPath,
   nativePathFromHost,
   relativeRuntimePath,
 } from '@core/primitives/desktop-runtime/api';
@@ -137,10 +139,14 @@ export async function createProvider(
             dependencies.getProjectDefaults(),
           ]);
           const homeDirectory = nativePathFromHost(home.path);
+          const pathProfile =
+            home.profile ??
+            createPathProfile({ style: home.path.root.kind === 'posix' ? 'posix' : 'win32' });
           return {
             hostWorktreeRoot: hostDefaults.worktreeRoot ?? null,
-            builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory),
+            builtInWorktreeRoot: builtInWorktreeRootFor(homeDirectory, pathProfile),
             homeDirectory,
+            pathProfile,
             hostTmux: hostDefaults.tmux ?? null,
             appDefaultTmux: appDefaults.tmuxByDefault,
           };
@@ -149,7 +155,7 @@ export async function createProvider(
           mkdir: async (targetPath, options) => {
             const result = await dependencies.ensureAbsoluteDir(
               filesClient,
-              path.dirname(targetPath),
+              dirnameHostPath(targetPath),
               targetPath,
               options
             );
@@ -181,9 +187,9 @@ export async function createProvider(
           ? { kind: 'ssh', connectionId: project.connectionId }
           : { kind: 'local' },
       files: projectFiles,
-      projectConfigPath: path.join(project.path, '.emdash.json'),
-      resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
-      configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
+      projectConfigPath: joinHostPath(project.path, '.emdash.json'),
+      resolveProjectPath: (relativePath) => joinHostPath(project.path, relativePath),
+      configPathForDirectory: (directoryPath) => joinHostPath(directoryPath, '.emdash.json'),
       settings,
       workspaceRegistry: runtime.data.workspaceRegistry,
       repoFacts,

@@ -1,6 +1,5 @@
 import { hostRefKey, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -19,6 +18,7 @@ import type {
 } from '@core/features/projects/api/node/project-provider';
 import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { workspacePathIdentityKey } from '@core/features/workspaces/api/workspace-path-identity';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
@@ -130,11 +130,14 @@ async function cleanupDetachedSessions(
     return;
   }
   const { conversationIds, terminalIds } = await getTaskSessionLeafIds(db, projectId, taskId);
-  const sessionNames = [...conversationIds, ...terminalIds].map((leafId) =>
-    makeTmuxSessionName(makePtySessionId(projectId, taskId, leafId))
+  const sessionIdentities = [...conversationIds, ...terminalIds].map((leafId) =>
+    makePtySessionId(projectId, taskId, leafId)
   );
-  if (sessionNames.length > 0) {
-    await runtime.data.terminals.killTmuxSessions({ sessionNames });
+  if (sessionIdentities.length > 0) {
+    await runtime.data.terminals.killTmuxSessions({
+      sessionIdentities,
+      workspaceLabel: runtimeWorkspace.path.segments.at(-1) ?? 'workspace',
+    });
   }
 }
 
@@ -212,6 +215,7 @@ export class TaskSessionManager {
 
   async destroySessionsAt(hostRef: SerializedHostRef, workspacePath: string): Promise<void> {
     const taskIds = [...this._tasksByProject.values()].flatMap((ids) => [...ids]);
+    const targetPathKey = workspacePathIdentityKey(workspacePath);
     let matchedIdentity: WorkspaceIdentity | undefined;
     for (const taskId of taskIds) {
       const stored = this._lifecycle.get(taskId);
@@ -219,7 +223,12 @@ export class TaskSessionManager {
       const identity = await this.dependencies.workspaceIdentity.resolve(
         stored.persistData.workspaceId
       );
-      if (identity?.path !== workspacePath || hostRefKey(identity.host) !== hostRef) continue;
+      if (
+        !identity ||
+        workspacePathIdentityKey(identity.path) !== targetPathKey ||
+        hostRefKey(identity.host) !== hostRef
+      )
+        continue;
       matchedIdentity = identity;
       await stored.taskProvider.conversations.destroyAll().catch((error) => {
         log.warn('TaskManager: failed to destroy sessions before workspace operation', {

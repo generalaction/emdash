@@ -5,6 +5,7 @@ import {
   sshConnectionIdOf,
   type HostRef,
 } from '@emdash/core/primitives/host/api';
+import { hostWorkspacePathIdentityKey } from '../workspace-path-identity';
 
 export type WorkspaceIdentity = Readonly<{
   workspaceId: string;
@@ -93,7 +94,9 @@ export class WorkspaceIdentityService {
 
   private cache(identity: WorkspaceIdentity): void {
     this.byId.set(identity.workspaceId, identity);
-    this.byPath.set(pathKey(identity.host, identity.path), identity);
+    const key = pathKey(identity.host, identity.path);
+    const existing = this.byPath.get(key);
+    if (!existing || compareIdentities(identity, existing) < 0) this.byPath.set(key, identity);
   }
 }
 
@@ -135,5 +138,5 @@ function compareStrings(left: string, right: string): number {
 }
 
 function pathKey(host: HostRef, path: string): string {
-  return `${hostRefKey(host)}:${path}`;
+  return hostWorkspacePathIdentityKey(host, path);
 }

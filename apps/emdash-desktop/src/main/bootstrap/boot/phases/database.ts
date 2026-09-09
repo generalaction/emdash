@@ -6,6 +6,7 @@ import {
   editorBufferDatabasePath,
   type EditorBufferService,
 } from '@core/features/editor/node/editor-buffer-service';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { createWorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { appSettingsContributions } from '@core/manifests/node/settings-contributions';
@@ -77,6 +78,17 @@ export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
 async function runStartupRepairs(db: AppDb, editorBuffer: EditorBufferService): Promise<void> {
   await resetStaleAcpAgentStatuses(db);
   await resetStaleTuiAgentStatuses(db);
+
+  for (const collision of createWorkspaceRegistry(db).pathCollisions()) {
+    log.warn('Workspace path identity collision requires repair', {
+      workspaces: collision.map((row) => ({
+        id: row.id,
+        path: row.path,
+        location: row.location,
+        sshConnectionId: row.sshConnectionId,
+      })),
+    });
+  }
 
   runInBackground('editor-buffer-prune', () => editorBuffer.pruneStale(), {
     onError: (error) => log.warn('Failed to prune stale editor buffers', { error }),

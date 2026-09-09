@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createManualClock } from '../testing';
+import { createManualClock, deferred } from '../testing';
 import { acquireResourceAsResult, createResourceCache } from './resource-cache';
 import type { Scope } from './scope';
 
@@ -23,6 +23,56 @@ describe('createResourceCache', () => {
     expect(cleanup).not.toHaveBeenCalled();
     await second.release();
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels in-flight creation when its final lease is released', async () => {
+    const started = deferred<void>();
+    const stopped = deferred<void>();
+    const onError = vi.fn();
+    const cache = createResourceCache({
+      key: (key: string) => key,
+      onError,
+      cancelPendingOnRelease: true,
+      create: async (_key: string, scope: Scope) => {
+        started.resolve();
+        await new Promise<never>((_resolve, reject) => {
+          const onAbort = (): void => {
+            stopped.resolve();
+            reject(scope.signal.reason);
+          };
+          scope.signal.addEventListener('abort', onAbort, { once: true });
+        });
+      },
+    });
+
+    const lease = cache.acquire('pending');
+    const ready = lease.ready();
+    await started.promise;
+    await lease.release();
+
+    await stopped.promise;
+    await expect(ready).rejects.toThrow();
+    expect(cache.peek('pending')).toBeUndefined();
+    expect(onError).not.toHaveBeenCalled();
+    await cache.dispose();
+  });
+
+  it('retains in-flight creation by default when its final lease is released', async () => {
+    const creation = deferred<{ key: string }>();
+    const create = vi.fn(() => creation.promise);
+    const cache = createResourceCache({ key: (key: string) => key, create });
+    const released = cache.acquire('pending');
+    const releasedReady = released.ready();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
+    await released.release();
+
+    const replacement = cache.acquire('pending');
+    creation.resolve({ key: 'pending' });
+
+    await expect(replacement.ready()).resolves.toBe(await releasedReady);
+    expect(create).toHaveBeenCalledOnce();
+    await replacement.release();
+    await cache.dispose();
   });
 
   it('registers the idle-timer cleanup once per entry regardless of release cycles', async () => {

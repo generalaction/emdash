@@ -1,17 +1,15 @@
 import { Button, Collapsible, Field, Input, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
-import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronRight, Info, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import {
-  parseEnvAssignmentPaste,
-  replaceEnvEntryWithPaste,
-} from '@core/primitives/env-paste/browser/env-paste';
+  EnvironmentVariableInputs,
+  type EnvironmentVariableEntry,
+} from '@core/primitives/environment-variables/browser/environment-variable-inputs';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
-
-type EnvEntry = { key: string; value: string };
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
   <Tooltip.Provider>
@@ -50,8 +48,11 @@ function makeDefaultValues(cfg: ProviderCustomConfig | undefined) {
   return {
     extraArgs: cfg?.extraArgs ?? '',
     envEntries: cfg?.env
-      ? (Object.entries(cfg.env).map(([key, value]) => ({ key, value })) as EnvEntry[])
-      : ([] as EnvEntry[]),
+      ? (Object.entries(cfg.env).map(([key, value]) => ({
+          key,
+          value,
+        })) as EnvironmentVariableEntry[])
+      : ([] as EnvironmentVariableEntry[]),
   };
 }
 
@@ -74,33 +75,37 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
     form.setFieldValue('envEntries', next.envEntries);
   }, [isLoading, storedConfig, isOverridden, form]);
 
-  const commit = useCallback(() => {
-    const { extraArgs, envEntries } = form.state.values;
-    const envRecord: Record<string, string> = {};
-    for (const { key, value } of envEntries) {
-      const k = key.trim();
-      if (k && /^[A-Za-z_]\w*$/.test(k)) {
-        envRecord[k] = value;
+  const commit = useCallback(
+    (entries?: EnvironmentVariableEntry[]) => {
+      const { extraArgs, envEntries: currentEntries } = form.state.values;
+      const envEntries = entries ?? currentEntries;
+      const envRecord: Record<string, string> = {};
+      for (const { key, value } of envEntries) {
+        const k = key.trim();
+        if (k && /^[A-Za-z_]\w*$/.test(k)) {
+          envRecord[k] = value;
+        }
       }
-    }
 
-    const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
+      const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
 
-    if (isAtDefaults) {
-      reset(undefined, {
-        onError: (err) => log.error('Failed to reset agent config:', err),
-      });
-    } else {
-      const config: ProviderCustomConfig = {
-        ...(storedConfig ?? {}),
-        extraArgs: extraArgs.trim() || undefined,
-        env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
-      };
-      update(config, {
-        onError: (err) => log.error('Failed to save agent config:', err),
-      });
-    }
-  }, [form, storedConfig, reset, update]);
+      if (isAtDefaults) {
+        reset(undefined, {
+          onError: (err) => log.error('Failed to reset agent config:', err),
+        });
+      } else {
+        const config: ProviderCustomConfig = {
+          ...(storedConfig ?? {}),
+          extraArgs: extraArgs.trim() || undefined,
+          env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
+        };
+        update(config, {
+          onError: (err) => log.error('Failed to save agent config:', err),
+        });
+      }
+    },
+    [form, storedConfig, reset, update]
+  );
 
   const handleResetToDefaults = useCallback(() => {
     form.setFieldValue('extraArgs', '');
@@ -170,71 +175,11 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   <Label>Environment variables</Label>
                   <FieldTooltip content="Environment variables set when running the agent" />
                 </div>
-                <div className="space-y-2">
-                  {field.state.value.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={entry.key}
-                        placeholder="KEY"
-                        className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) =>
-                          field.handleChange(
-                            field.state.value.map((v, idx) =>
-                              idx === i ? { ...v, key: e.target.value } : v
-                            )
-                          )
-                        }
-                        onBlur={() => commit()}
-                        onPaste={(e) => {
-                          const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
-                          if (pasted.length === 0) return;
-                          e.preventDefault();
-                          field.handleChange(
-                            replaceEnvEntryWithPaste(field.state.value, i, pasted)
-                          );
-                        }}
-                      />
-                      <Input
-                        value={entry.value}
-                        placeholder="value"
-                        className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) =>
-                          field.handleChange(
-                            field.state.value.map((v, idx) =>
-                              idx === i ? { ...v, value: e.target.value } : v
-                            )
-                          )
-                        }
-                        onBlur={() => commit()}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        icon
-                        className="h-8 w-8 shrink-0"
-                        aria-label="Remove"
-                        onClick={() => {
-                          field.handleChange(field.state.value.filter((_, idx) => idx !== i));
-                          commit();
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() =>
-                      field.handleChange([...field.state.value, { key: '', value: '' }])
-                    }
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add variable
-                  </Button>
-                </div>
+                <EnvironmentVariableInputs
+                  entries={field.state.value}
+                  onChange={field.handleChange}
+                  onCommit={commit}
+                />
               </Field.Root>
             )}
           </form.Field>

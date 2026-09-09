@@ -1,3 +1,4 @@
+import type { NativeInvocation } from '#primitives/exec/api';
 import type { PtySignal } from './exit-signals';
 
 export interface PtyDimensions {
@@ -20,8 +21,7 @@ export interface PtyProcess {
 }
 
 export interface PtySpawnSpec extends PtyDimensions {
-  command: string;
-  args: string[];
+  invocation: NativeInvocation;
   cwd: string;
   env: Record<string, string>;
 }

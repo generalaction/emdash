@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from './cell';
 
-function makeCell(agent = new FakeAcpAgent()) {
+function makePendingCell(agent = new FakeAcpAgent()) {
   const cell = new SessionCell({
     conversationId: 'conv-1',
     providerId: 'claude',
@@ -14,8 +14,14 @@ function makeCell(agent = new FakeAcpAgent()) {
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
     logger: noopLogger,
   });
-  cell.applySessionReady();
   return { cell, agent };
+}
+
+function makeCell(agent = new FakeAcpAgent()) {
+  const result = makePendingCell(agent);
+  const { cell } = result;
+  cell.applySessionReady();
+  return result;
 }
 
 describe('SessionCell prompts', () => {
@@ -143,6 +149,24 @@ describe('SessionCell permissions', () => {
 });
 
 describe('SessionCell config options', () => {
+  it('distinguishes a pending config catalog from an authoritative empty catalog', () => {
+    const { cell } = makePendingCell();
+
+    expect(cell.configCatalog).toEqual({ kind: 'pending' });
+
+    cell.applySessionReady();
+
+    expect(cell.configCatalog).toEqual({
+      kind: 'ready',
+      config: {
+        modelOptions: null,
+        efforts: null,
+        modeOptions: null,
+        collaborationModeOptions: null,
+      },
+    });
+  });
+
   it('sets mode through the provider config option and seeds the response', async () => {
     const { cell, agent } = makeCell();
     cell.applySessionMeta({
@@ -257,6 +281,66 @@ describe('SessionCell config options', () => {
       value: 'high',
     });
     expect(cell.config.efforts?.selected).toBe('high');
+  });
+
+  it('sets collaboration mode independently from permission mode', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Permissions',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [{ value: 'agent', name: 'Agent' }],
+        },
+        {
+          id: 'collaboration_mode',
+          name: 'Collaboration mode',
+          category: 'collaboration_mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'plan', name: 'Plan' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'mode',
+          name: 'Permissions',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'agent',
+          options: [{ value: 'agent', name: 'Agent' }],
+        },
+        {
+          id: 'collaboration_mode',
+          category: 'collaboration_mode',
+          type: 'select',
+          currentValue: 'plan',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'plan', name: 'Plan' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setConfigOption('collaborationMode', 'plan');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'collaboration_mode',
+      value: 'plan',
+    });
+    expect(cell.config.collaborationModeOptions?.selected).toBe('plan');
+    expect(cell.config.modeOptions?.selected).toBe('agent');
   });
 });
 

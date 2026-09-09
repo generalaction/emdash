@@ -33,8 +33,11 @@ import {
 } from '#services/preview-detection/node';
 import {
   buildTerminalEnv,
+  findTmuxSessionNamesByIdentity,
   killTmuxSession,
+  makeLegacyTmuxSessionName,
   makeTmuxSessionName,
+  resolveTmuxSession,
   resolveLocalPtySpawn,
   PtyRegistry,
   type PtySession,
@@ -284,7 +287,22 @@ export class TerminalsRuntime {
   ): Promise<Result<void, TerminalRuntimeError>> {
     if (process.platform === 'win32') return ok(undefined);
     await this.withExecutionContext(async (exec) => {
-      for (const name of input.sessionNames) await killTmuxSession(exec, name);
+      const names = new Set<string>();
+      for (const identity of input.sessionIdentities) {
+        if (input.workspaceLabel) {
+          names.add(makeTmuxSessionName(identity, input.workspaceLabel));
+        }
+        names.add(makeLegacyTmuxSessionName(identity));
+      }
+      try {
+        const discovered = await findTmuxSessionNamesByIdentity(exec, input.sessionIdentities);
+        for (const name of discovered.values()) names.add(name);
+      } catch (error) {
+        this.logger.warn('terminals: failed to discover tmux sessions; using deterministic names', {
+          error: String(error),
+        });
+      }
+      for (const name of names) await killTmuxSession(exec, name);
     });
     return ok(undefined);
   }
@@ -328,13 +346,26 @@ export class TerminalsRuntime {
       overrides: spec.env,
       gitCredentials: spec.gitCredentials,
     });
+    let tmux: { name: string; identity?: string } | undefined;
+    if (spec.tmux && process.platform === 'win32') {
+      tmux = { name: makeTmuxSessionName(sessionKey, workspaceLabel(spec.cwd)) };
+    } else if (spec.tmux) {
+      const resolvedTmux = await this.withExecutionContext((exec) =>
+        resolveTmuxSession(exec, { identity: sessionKey, label: workspaceLabel(spec.cwd) })
+      );
+      if (!resolvedTmux) throw new Error('No tmux execution context is available');
+      tmux = {
+        name: resolvedTmux.name,
+        identity: resolvedTmux.writeIdentity ? sessionKey : undefined,
+      };
+    }
     const resolved = resolveLocalPtySpawn({
       intent: {
         kind: 'interactive-shell',
         cwd: spec.cwd,
         shellProfile,
         shellSetup: spec.shellSetup,
-        tmuxSessionName: spec.tmux ? makeTmuxSessionName(sessionKey) : undefined,
+        tmux,
       },
       platform: process.platform,
       env,
@@ -343,8 +374,7 @@ export class TerminalsRuntime {
     return await this.registry.create(
       sessionKey,
       {
-        command: resolved.command,
-        args: resolved.args,
+        invocation: resolved.invocation,
         cwd: resolved.cwd,
         env,
         cols: spec.cols ?? DEFAULT_COLS,
@@ -386,9 +416,13 @@ export class TerminalsRuntime {
   private async killTmuxForSession(sessionKey: string): Promise<void> {
     const config = this.interactiveConfigs.get(sessionKey);
     if (!config?.spec.tmux || process.platform === 'win32') return;
-    await this.withExecutionContext((exec) =>
-      killTmuxSession(exec, makeTmuxSessionName(sessionKey))
-    );
+    await this.withExecutionContext(async (exec) => {
+      const resolved = await resolveTmuxSession(exec, {
+        identity: sessionKey,
+        label: workspaceLabel(config.spec.cwd),
+      });
+      if (resolved.exists) await killTmuxSession(exec, resolved.name);
+    });
   }
 
   private async shellResolverFor(
@@ -400,18 +434,17 @@ export class TerminalsRuntime {
     return this.shellResolver;
   }
 
-  private async withExecutionContext(
-    operation: (exec: IExecutionContext) => Promise<void>
-  ): Promise<void> {
+  private async withExecutionContext<T>(
+    operation: (exec: IExecutionContext) => Promise<T>
+  ): Promise<T | undefined> {
     if (this.exec) {
-      await operation(this.exec);
-      return;
+      return await operation(this.exec);
     }
     if (!this.createExecutionContext) return;
 
     const exec = this.createExecutionContext(await this.loadUserEnv());
     try {
-      await operation(exec);
+      return await operation(exec);
     } finally {
       exec.dispose();
     }
@@ -575,6 +608,10 @@ export class TerminalsRuntime {
       Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(prefix)))
     );
   }
+}
+
+function workspaceLabel(path: string): string {
+  return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? 'workspace';
 }
 
 function scopeKeyFor(workspace: HostFileRef): string {

@@ -8,7 +8,7 @@ import { bindGitDir } from '#runtimes/git/node/exec/git-exec';
 import { GitRepository } from '#runtimes/git/node/repository/git-repository';
 import { RepositoryResource } from '#runtimes/git/node/repository/repository-resource';
 import type { BoundExec } from '#services/exec/api';
-import type { IWatchService } from '#services/fs-watch/api';
+import { workspaceContentWatchIgnore, type IWatchService } from '#services/fs-watch/api';
 import {
   repositoryIdentityOf,
   type CheckoutIdentity,
@@ -22,6 +22,7 @@ const DEFAULT_IDLE_TTL_MS = 30_000;
 export type GitAllocationGraphOptions = Readonly<{
   exec: BoundExec;
   watcher: IWatchService;
+  watchIgnoreGlobs?: readonly string[];
   identityResolver?: GitIdentityResolver;
   objectStoreMutex?: KeyedMutex;
   idleTtlMs?: number;
@@ -49,6 +50,7 @@ export class GitAllocationGraph {
     const idleTtlMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     const objectStoreMutex = options.objectStoreMutex ?? new KeyedMutex();
     const onError = options.onError ?? (() => {});
+    const contentWatchIgnore = workspaceContentWatchIgnore(options.watchIgnoreGlobs);
     this.ownsResolver = !options.identityResolver;
     this.resolver =
       options.identityResolver ??
@@ -92,6 +94,7 @@ export class GitAllocationGraph {
           commands,
           repository,
           watcher: options.watcher,
+          watchIgnore: contentWatchIgnore,
           maxFileContentStates: options.maxFileContentStates,
           onError,
         });

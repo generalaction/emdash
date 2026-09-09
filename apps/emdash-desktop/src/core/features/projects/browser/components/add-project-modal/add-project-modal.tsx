@@ -26,14 +26,14 @@ import { defineModal } from '@core/primitives/modals/react';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
+import { ClonePanel, CreateRepositoryPanel, PickExistingPanel } from './content';
 import { LocationSelector } from './location-selector';
-import { extractRepoName, useCloneMode, useNewMode, usePickMode } from './modes';
+import { extractRepoName, useCloneMode, useCreateRepositoryMode, usePickMode } from './modes';
 import { useProjectName } from './use-project-name';
 
 export type Strategy = 'local' | 'ssh';
 
-export type Mode = 'pick' | 'new' | 'clone';
+export type Mode = 'pick' | 'create' | 'clone';
 type MachineOption = SshConfig & { id: string };
 
 export interface AddProjectModalProps {
@@ -130,21 +130,24 @@ export const AddProjectModal = observer(function AddProjectModal({
   const defaultGitHubAccountId = defaultGitHubAccountSelect.selectedAccountId;
 
   const pickState = usePickMode();
-  const newState = useNewMode(defaultPath, mode === 'new' ? selectedGitHubAccountId : null);
+  const createRepositoryState = useCreateRepositoryMode(
+    defaultPath,
+    mode === 'create' ? selectedGitHubAccountId : null
+  );
   const cloneState = useCloneMode(defaultPath);
   const generatedProjectName = useMemo(() => {
     switch (mode) {
       case 'pick':
         return basenameFromAnyPath(pickState.path);
-      case 'new':
-        return newState.repositoryName;
+      case 'create':
+        return createRepositoryState.repositoryName;
       case 'clone':
         return extractRepoName(cloneState.repositoryUrl);
     }
-  }, [cloneState.repositoryUrl, mode, newState.repositoryName, pickState.path]);
+  }, [cloneState.repositoryUrl, createRepositoryState.repositoryName, mode, pickState.path]);
   const projectName = useProjectName(generatedProjectName);
 
-  const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
+  const activeMode = { pick: pickState, create: createRepositoryState, clone: cloneState }[mode];
   const shouldCheckPickPathStatus =
     mode === 'pick' &&
     pickState.path.trim().length > 0 &&
@@ -178,7 +181,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
     !pickPathInspectionError &&
-    (mode !== 'new' || !githubAccountsQuery.isPending) &&
+    (mode !== 'create' || !githubAccountsQuery.isPending) &&
     (mode !== 'pick' ||
       !requiresGitInitialization ||
       !pickState.initGitRepository ||
@@ -209,14 +212,14 @@ export const AddProjectModal = observer(function AddProjectModal({
             : undefined,
         };
         break;
-      case 'new':
+      case 'create':
         data = {
-          mode: 'new',
+          mode: 'create',
           name: projectName.effectiveName,
-          path: newState.path,
-          repositoryName: newState.repositoryName,
-          repositoryOwner: newState.repositoryOwner?.value ?? '',
-          repositoryVisibility: newState.repositoryVisibility,
+          path: createRepositoryState.path,
+          repositoryName: createRepositoryState.repositoryName,
+          repositoryOwner: createRepositoryState.repositoryOwner?.value ?? '',
+          repositoryVisibility: createRepositoryState.repositoryVisibility,
           githubAccountId: selectedGitHubAccountId ?? undefined,
         };
         break;
@@ -324,10 +327,10 @@ export const AddProjectModal = observer(function AddProjectModal({
               onSelect={setMode}
             />
             <ModeCard
-              mode="new"
-              selected={mode === 'new'}
+              mode="create"
+              selected={mode === 'create'}
               icon={<PlusIcon className="size-3" />}
-              label="New Repository"
+              label="Create Repository"
               onSelect={setMode}
             />
             <ModeCard
@@ -348,11 +351,11 @@ export const AddProjectModal = observer(function AddProjectModal({
               showInitializeGitPrompt={requiresGitInitialization}
             />
           )}
-          {mode === 'new' && (
-            <CreateNewPanel
+          {mode === 'create' && (
+            <CreateRepositoryPanel
               strategy={strategy}
               connectionId={selectedConnectionId}
-              state={newState}
+              state={createRepositoryState}
               getProjectsClient={getProjectsClient}
               accounts={githubAccountSelect.accounts}
               selectedAccount={githubAccountSelect.selectedAccount}
@@ -361,7 +364,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               onConnectGithub={() => void openGithubConnectModal({})}
               ensureDefaultRoot={
                 defaultRepositoriesRootQuery.data !== undefined &&
-                newState.path === defaultRepositoriesRootQuery.data
+                createRepositoryState.path === defaultRepositoriesRootQuery.data
               }
             />
           )}

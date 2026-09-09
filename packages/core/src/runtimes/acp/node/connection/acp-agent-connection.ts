@@ -85,9 +85,9 @@ export async function createAcpAgentConnection(
     });
   }
 
-  connectionScope.add(() => {
+  connectionScope.add(async () => {
     try {
-      handle.kill('SIGTERM');
+      await handle.kill('SIGTERM');
     } catch {
       // Ignore teardown errors; process may have already exited.
     }

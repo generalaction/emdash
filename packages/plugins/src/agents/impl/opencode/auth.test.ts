@@ -28,6 +28,15 @@ describe('opencodeAuthStatus', () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it('reports authenticated from an OrcaRouter API key without probing the CLI', async () => {
+    const exec = vi.fn();
+
+    await expect(
+      opencodeAuthStatus(ctx({ env: { ORCAROUTER_API_KEY: 'sk-orca-test' }, exec }))
+    ).resolves.toEqual({ kind: 'authenticated' });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('reports authenticated when opencode auth list reports credentials', async () => {
     const exec = vi.fn().mockResolvedValue({
       stdout: 'Credentials ~/.local/share/opencode/auth.json\nAnthropic api\n1 credentials',

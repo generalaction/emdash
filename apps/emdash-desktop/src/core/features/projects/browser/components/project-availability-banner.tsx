@@ -6,6 +6,7 @@ import {
   classifyProjectAvailability,
   type ProjectAvailabilityAction,
 } from '@core/features/projects/browser/project-availability-presentation';
+import { WORKBENCH_BOTTOM_BAR_HEIGHT_PX } from '@core/primitives/layouts/api/workbench-layout';
 import { log } from '@core/primitives/logging/browser/logger';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -19,6 +20,7 @@ type ProjectAvailabilityBannerProps = {
   state: ProjectHostAccessState;
   machineName?: string;
   actionHandlers?: ProjectAvailabilityActionHandlers;
+  compact?: boolean;
 };
 
 export type ProjectAvailabilityLayout = 'frame' | 'inline';
@@ -28,6 +30,7 @@ export function ProjectAvailabilityBanner({
   state,
   machineName,
   actionHandlers,
+  compact = false,
 }: ProjectAvailabilityBannerProps) {
   const actionDescriptionId = useId();
   const pendingActionRef = useRef<ProjectAvailabilityAction['kind'] | null>(null);
@@ -65,7 +68,8 @@ export function ProjectAvailabilityBanner({
       aria-live={presentation.announcement}
       aria-atomic="true"
       className={cn(
-        'flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3',
+        'flex shrink-0 items-center gap-3',
+        compact ? 'h-full w-full px-3' : 'rounded-lg border px-4 py-3',
         presentation.severity === 'error' || presentation.severity === 'warning'
           ? 'border-foreground-warning/30 bg-background-warning text-foreground'
           : 'border-border bg-background-1 text-foreground'
@@ -80,9 +84,13 @@ export function ProjectAvailabilityBanner({
             : 'text-foreground-warning'
         )}
       />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{presentation.title}</p>
-        <p className="text-xs text-foreground-muted">{presentation.detail}</p>
+      <div className="min-w-0 flex-1" title={compact ? presentation.detail : undefined}>
+        <p className={compact ? 'truncate text-xs text-foreground-muted' : 'text-sm font-medium'}>
+          {presentation.title}
+        </p>
+        <p className={compact ? 'sr-only' : 'text-xs text-foreground-muted'}>
+          {presentation.detail}
+        </p>
       </div>
       {presentation.actions.length > 0 ? (
         <div className="flex shrink-0 items-center gap-2">
@@ -144,19 +152,24 @@ export function ProjectAvailabilityFrame({
     );
   }
 
-  if (state.kind === 'ready') return children;
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="mx-auto w-full max-w-265 shrink-0 px-8 pt-6">
-        <ProjectAvailabilityBanner
-          project={project}
-          state={state}
-          machineName={machineName}
-          actionHandlers={actionHandlers}
-        />
-      </div>
       <div className="min-h-0 flex-1">{children}</div>
+      {state.kind !== 'ready' ? (
+        <div
+          className="flex shrink-0 items-center border-t border-border"
+          data-testid="project-connection-status"
+          style={{ height: WORKBENCH_BOTTOM_BAR_HEIGHT_PX }}
+        >
+          <ProjectAvailabilityBanner
+            compact
+            project={project}
+            state={state}
+            machineName={machineName}
+            actionHandlers={actionHandlers}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

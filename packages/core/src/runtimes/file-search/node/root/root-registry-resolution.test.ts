@@ -26,13 +26,13 @@ describe('FileSearchRootRegistry.resolveRegisteredRoot', () => {
       error: { type: 'root-not-registered' },
     });
 
-    const registration = registry.registerRoot({ root });
+    const acquisition = registry.acquireRoot({ root });
     expect(resolveRoot(registry, root)).toMatchObject({
       success: false,
       error: { type: 'root-not-registered' },
     });
 
-    await expect(registration).resolves.toMatchObject({ success: true });
+    await expect(acquisition).resolves.toMatchObject({ success: true });
     expect(resolveRoot(registry, root)).toMatchObject({ success: true });
   });
 
@@ -46,34 +46,47 @@ describe('FileSearchRootRegistry.resolveRegisteredRoot', () => {
       },
     }).registry;
 
-    await expect(failed.registerRoot({ root })).resolves.toMatchObject({ success: false });
+    await expect(failed.acquireRoot({ root })).resolves.toMatchObject({ success: false });
     expect(resolveRoot(failed, root)).toMatchObject({
       success: false,
       error: { type: 'root-unavailable', reason: 'not-found' },
     });
 
     const { registry } = createRegistry();
-    await registry.registerRoot({ root });
-    const unregister = registry.unregisterRoot({ root });
+    const lease = await registry.acquireRoot({ root });
+    if (!lease.success) throw new Error('Expected lease to acquire');
+    const releasing = lease.data.release();
     expect(resolveRoot(registry, root)).toMatchObject({
       success: false,
       error: { type: 'root-not-registered' },
     });
-    await expect(unregister).resolves.toMatchObject({ success: true });
+    await releasing;
   });
 
-  it('keeps stop-failed resources available and rejects access after disposal', async () => {
+  it('keeps the catalog row when eviction fails and rejects access after disposal', async () => {
     const rootPath = await createRootDirectory();
     const root = absolute(rootPath);
     const catalog = new MemoryCatalog();
     const { registry } = createRegistry({ catalog });
-    await registry.registerRoot({ root });
+    await registry.acquireRoot({ root });
     catalog.deleteFailure = Object.assign(new Error('database busy'), { code: 'SQLITE_BUSY' });
 
-    await expect(registry.unregisterRoot({ root })).resolves.toMatchObject({ success: false });
-    expect(resolveRoot(registry, root)).toMatchObject({ success: true });
+    // Maintenance release succeeds; only the durable deletion fails, so the row
+    // survives as cold cache while the root is no longer actively registered.
+    await expect(registry.evictRoot({ root })).resolves.toMatchObject({ success: false });
+    expect(resolveRoot(registry, root)).toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
+    expect(catalog.listRoots()).toHaveLength(1);
 
     catalog.deleteFailure = undefined;
+    await expect(registry.evictRoot({ root })).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+    expect(catalog.listRoots()).toEqual([]);
+
     await registry.dispose();
     expect(() => resolveRoot(registry, root)).toThrow('disposed');
   });

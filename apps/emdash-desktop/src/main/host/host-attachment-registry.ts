@@ -6,11 +6,7 @@ import {
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import type { Scope } from '@emdash/shared/concurrency';
-import type {
-  SshConnectionManager,
-  SshConnectionManagerEvent,
-} from '@core/primitives/ssh/api/node/ssh-connection-manager';
-import type { HostService } from '@core/services/hosts/node';
+import type { Hosts } from '@core/services/hosts/node/hosts';
 
 export type HostAttachmentParticipant = {
   label: string;
@@ -24,15 +20,14 @@ type HostAttachmentRegistryLogger = {
 
 export type HostAttachmentRegistryOptions = {
   scope?: Scope;
-  ssh: Pick<SshConnectionManager, 'getConnectionIds' | 'isConnected' | 'off' | 'on'>;
-  hosts: Pick<HostService, 'onInvalidate'>;
+  hosts: Pick<Hosts, 'onInvalidate' | 'onReady'>;
   logger?: HostAttachmentRegistryLogger;
 };
 
 /**
  * Tracks hosts whose runtime may be asserted positively and serializes converger
  * lifecycle work per host. Ordinary SSH disconnects deliberately leave attachments
- * intact: the pinned Wire transport owns reconnect and full-snapshot replay.
+ * intact: the supervisor replaces transport while Wire refreshes retained subscriptions.
  */
 export class HostAttachmentRegistry {
   private readonly hosts = new Map<SerializedHostRef, HostRef>([
@@ -41,15 +36,11 @@ export class HostAttachmentRegistry {
   private readonly participants: HostAttachmentParticipant[] = [];
   private readonly chains = new Map<SerializedHostRef, Promise<void>>();
   private readonly unsubscribeInvalidation: () => void;
+  private readonly unsubscribeReady: () => void;
   private disposed = false;
 
   constructor(private readonly options: HostAttachmentRegistryOptions) {
-    options.ssh.on('connection-event', this.handleSshEvent);
-    for (const connectionId of options.ssh.getConnectionIds()) {
-      if (options.ssh.isConnected(connectionId)) {
-        this.attachHost(hostRef('remote', connectionId));
-      }
-    }
+    this.unsubscribeReady = options.hosts.onReady((id) => this.attachHost(hostRef('remote', id)));
     this.unsubscribeInvalidation = options.hosts.onInvalidate(({ connectionId }) => {
       this.detachHost(hostRef('remote', connectionId));
     });
@@ -79,8 +70,8 @@ export class HostAttachmentRegistry {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.options.ssh.off('connection-event', this.handleSshEvent);
     this.unsubscribeInvalidation();
+    this.unsubscribeReady();
     const hosts = [...this.hosts.values()];
     this.hosts.clear();
     for (const host of hosts) {
@@ -93,11 +84,6 @@ export class HostAttachmentRegistry {
     await Promise.allSettled(this.chains.values());
     this.participants.length = 0;
   }
-
-  private readonly handleSshEvent = (event: SshConnectionManagerEvent): void => {
-    if (event.type !== 'connected' && event.type !== 'reconnected') return;
-    this.attachHost(hostRef('remote', event.connectionId));
-  };
 
   private attachHost(host: HostRef): void {
     if (this.disposed) return;

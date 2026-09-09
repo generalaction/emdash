@@ -32,9 +32,16 @@ export function createJsonFileKeyValueStore(options: JsonFileKeyValueStoreOption
     const data = loaded ?? {};
     const tmpPath = `${options.path}.${process.pid}.tmp`;
     try {
+      const serialized = JSON.stringify(data, null, 2);
+      if (serialized === undefined) {
+        throw new TypeError('KV state could not be serialized');
+      }
       await mkdir(dirname(options.path), { recursive: true });
-      await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+      await writeFile(tmpPath, serialized, 'utf8');
       await rename(tmpPath, options.path);
+      // Match persistent KV stores: subsequent reads observe the JSON value that was
+      // actually written, not pre-serialization properties such as nested `undefined`.
+      loaded = JSON.parse(serialized) as Record<string, Serializable>;
       return ok();
     } catch (error) {
       return { success: false, error: keyValueIoError(error, 'Failed to write KV file') };

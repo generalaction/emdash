@@ -1,4 +1,4 @@
-import { and, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
@@ -10,6 +10,7 @@ import {
 } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
+import { workspacePathIdentityKey } from '../api/workspace-path-identity';
 
 export function createWorkspaceIdentityService(options: { db: AppDb }): WorkspaceIdentityService {
   const source: WorkspaceIdentitySource = {
@@ -29,7 +30,9 @@ export function createWorkspaceIdentityService(options: { db: AppDb }): Workspac
       return identities[0] ?? null;
     },
     async findByPath(path) {
-      return loadWorkspaceRows(options.db, eq(workspaces.path, path));
+      const key = workspacePathIdentityKey(path);
+      const rows = await loadWorkspaceRows(options.db, isNotNull(workspaces.path));
+      return rows.filter((row) => workspacePathIdentityKey(row.path) === key);
     },
   };
   return new WorkspaceIdentityService(source);

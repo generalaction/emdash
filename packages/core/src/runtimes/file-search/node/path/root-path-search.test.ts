@@ -120,6 +120,7 @@ function createRoot(
     exclusionsFingerprint: '[]',
     scope,
     scanLimiter: createConcurrencyLimiter(1),
+    watchLimiter: createConcurrencyLimiter(1),
   });
   return { root, store };
 }

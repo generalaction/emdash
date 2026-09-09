@@ -1,6 +1,12 @@
 import { createEmitter, type Unsubscribe } from '@emdash/shared';
+import { abortableWait, abortReason } from '@emdash/shared/scheduling';
 import { stableStringify } from '@emdash/shared/util';
-import type { EventStreamSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
+import type {
+  EventStreamSnapshotData,
+  LiveSnapshot,
+  LiveSubscribeOptions,
+  LiveUpdate,
+} from '../../api/channel';
 import type { EventStreamEndpointDef, EventStreamEvent, EventStreamKey } from '../../api/define';
 import type { EventStreamDelta } from '../protocol';
 
@@ -8,7 +14,7 @@ export type EventStreamSourceOptions = {
   generation?: number;
   onFirst?: () => void;
   onEmpty?: () => void;
-  activate?: () => Promise<Unsubscribe>;
+  activate?: (signal: AbortSignal) => Promise<Unsubscribe>;
 };
 
 type EventStreamSourceSubscribeResult<Resourced extends boolean> = Resourced extends true
@@ -28,9 +34,10 @@ export class EventStreamSource<Event = unknown, Resourced extends boolean = fals
   private readonly emitter = createEmitter<LiveUpdate>();
   private readonly onFirst: (() => void) | undefined;
   private readonly onEmpty: (() => void) | undefined;
-  private readonly activate: (() => Promise<Unsubscribe>) | undefined;
+  private readonly activate: ((signal: AbortSignal) => Promise<Unsubscribe>) | undefined;
   private readonly generation: number;
   private activation: Promise<void> | undefined;
+  private activationController: AbortController | undefined;
   private activationDisposer: Unsubscribe | undefined;
   private sequence = 0;
   private disposed = false;
@@ -70,8 +77,16 @@ export class EventStreamSource<Event = unknown, Resourced extends boolean = fals
     };
   }
 
-  subscribe(cb: (update: LiveUpdate) => void): EventStreamSourceSubscribeResult<Resourced> {
+  subscribe(
+    cb: (update: LiveUpdate) => void,
+    options: LiveSubscribeOptions = {}
+  ): EventStreamSourceSubscribeResult<Resourced> {
     if (this.disposed) throw new Error('EventStreamSource is disposed');
+    if (this.activate && options.signal?.aborted) {
+      return Promise.reject(
+        abortReason(options.signal)
+      ) as EventStreamSourceSubscribeResult<Resourced>;
+    }
     const wasEmpty = this.emitter.size === 0;
     const detach = this.emitter.subscribe(cb);
     let active = true;
@@ -90,7 +105,13 @@ export class EventStreamSource<Event = unknown, Resourced extends boolean = fals
     }
 
     const activation = this.activation ?? this.startActivation();
-    return activation.then(
+    const attached = abortableWait<void>({ signal: options.signal }, (settle) => {
+      activation.then(settle.resolve, settle.reject);
+      return () => {
+        if (options.signal?.aborted) unsubscribe();
+      };
+    });
+    return attached.then(
       () => unsubscribe,
       (error: unknown) => {
         unsubscribe();
@@ -107,8 +128,9 @@ export class EventStreamSource<Event = unknown, Resourced extends boolean = fals
   }
 
   private startActivation(): Promise<void> {
+    const controller = new AbortController();
     const activation = Promise.resolve()
-      .then(() => this.activate!())
+      .then(() => this.activate!(controller.signal))
       .then((disposer) => {
         if (this.activation !== activation) {
           disposer();
@@ -118,20 +140,28 @@ export class EventStreamSource<Event = unknown, Resourced extends boolean = fals
         if (this.disposed || this.emitter.size === 0) this.disposeActivation();
       });
     this.activation = activation;
+    this.activationController = controller;
     void activation.catch(() => {
       if (this.activation !== activation) return;
       this.activation = undefined;
+      this.activationController = undefined;
       this.activationDisposer = undefined;
     });
     return activation;
   }
 
   private disposeActivation(): void {
-    const disposer = this.activationDisposer;
-    if (!disposer) return;
-    this.activationDisposer = undefined;
+    const activation = this.activation;
+    if (!activation) return;
     this.activation = undefined;
-    disposer();
+    const controller = this.activationController;
+    this.activationController = undefined;
+    if (controller && !controller.signal.aborted) {
+      controller.abort(new Error('Event stream activation has no subscribers'));
+    }
+    const disposer = this.activationDisposer;
+    this.activationDisposer = undefined;
+    disposer?.();
   }
 }
 
@@ -151,7 +181,7 @@ type PlainEventStreamHostOptions<Def extends EventStreamEndpointDef> = {
 };
 
 type ResourcedEventStreamHostOptions<Def extends EventStreamEndpointDef> = {
-  activate: (key: EventStreamKey<Def>) => Promise<Unsubscribe>;
+  activate: (key: EventStreamKey<Def>, signal: AbortSignal) => Promise<Unsubscribe>;
 };
 
 export type EventStreamHostOptions<Def extends EventStreamEndpointDef = EventStreamEndpointDef> =
@@ -199,7 +229,8 @@ export function createEventStreamHost<Def extends EventStreamEndpointDef>(
         const sourceKey = key;
         const created = new EventStreamSource<EventStreamEvent<Def>, IsResourcedEventStream<Def>>({
           activate: def.resourced
-            ? () => (options as ResourcedEventStreamHostOptions<Def>).activate(sourceKey)
+            ? (signal) =>
+                (options as ResourcedEventStreamHostOptions<Def>).activate(sourceKey, signal)
             : undefined,
           onFirst: () => (options as PlainEventStreamHostOptions<Def>).onActive?.(sourceKey),
           onEmpty: () => removeIfEmpty(sourceKey, keyId, created),

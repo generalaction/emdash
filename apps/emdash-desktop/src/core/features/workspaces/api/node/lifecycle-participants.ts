@@ -15,14 +15,20 @@ export type WorkspaceLifecycleParticipant = Readonly<{
 }>;
 
 export function createWorkspaceLifecycleParticipants(dependencies: {
-  registerFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
+  acquireFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
+  releaseFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
   stopPreviewServers(projectId: string, workspaceId: string): Promise<void> | void;
 }): readonly WorkspaceLifecycleParticipant[] {
   return [
     {
       id: 'file-search',
       activate: ({ identity }) =>
-        dependencies.registerFileSearchRoot(
+        dependencies.acquireFileSearchRoot(
+          hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path,
+          identity.host
+        ),
+      deactivate: ({ identity }) =>
+        dependencies.releaseFileSearchRoot(
           hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path,
           identity.host
         ),

@@ -1,3 +1,4 @@
+import { nativePathIdentityKey } from '@emdash/core/primitives/path/api';
 import { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import type { WorkspaceScopedStoreContext } from '@core/features/workspaces/contributions/browser/workspace-stores';
 
@@ -13,7 +14,7 @@ export class WorkspaceRegistryStore {
     const existing = this.entries.get(context.workspaceId);
     if (existing) {
       if (
-        existing.store.path === context.path &&
+        nativePathIdentityKey(existing.store.path) === nativePathIdentityKey(context.path) &&
         existing.store.sshConnectionId === context.sshConnectionId
       ) {
         existing.refCount += 1;

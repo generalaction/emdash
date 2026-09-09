@@ -64,6 +64,8 @@ export const startScriptRunInputSchema = z.object({
   command: z.string().min(1),
   /** Canonically resolved shell setup; the empty string means no setup. */
   shellSetup: z.string(),
+  /** Canonically resolved host-local project environment. */
+  env: z.record(z.string(), z.string()).optional(),
   /** A timed-out run settles as 'timed-out'; absent means no timeout. */
   timeoutMs: z.number().int().positive().optional(),
   cols: z.number().int().positive().optional(),

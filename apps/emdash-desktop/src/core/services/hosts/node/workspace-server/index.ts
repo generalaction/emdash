@@ -1,6 +1,6 @@
 export {
-  createWireConnectionManager,
-  type WireConnectionManager,
+  createWorkspaceServerDialer,
+  type WorkspaceServerDialer,
   type WorkspaceServerConnection,
 } from './connect/wire-connection-manager';
 export {

@@ -29,6 +29,23 @@ const apiComponent = defineWireComponent({
     }),
 });
 
+const fatalComponent = defineWireComponent({
+  id: 'fatal-demo',
+  contract: api,
+  requirements: {},
+  configSchema: z.object({}),
+  create: ({ fatal, instance, scope }) =>
+    instance({
+      scope,
+      controller: createController(api, {
+        ping: (input) => {
+          if (input === 'fail') fatal(new Error('component poisoned'));
+          return `pong:${input}`;
+        },
+      }),
+    }),
+});
+
 const dependencyApi = defineContract({
   suffix: procedure({ input: z.string(), output: z.string() }),
 });
@@ -122,6 +139,62 @@ describe('WireWorkerHost and WorkerSlot', () => {
     await expect(firstClient.ping('two')).resolves.toBe('pong:two');
     expect(spawner.processes).toHaveLength(2);
 
+    await host.dispose();
+  });
+
+  it('restarts a generation that reports an unrecoverable component failure', async () => {
+    const clock = createManualClock();
+    const spawner = new FakeWorkerProcessSpawner();
+    const scope = createScope({ label: 'root' });
+    const host = createWireWorkerHost({ scope, processSpawner: spawner, clock });
+    const worker = host.create(fatalComponent, {
+      executable: 'worker',
+      dependencies: {},
+      config: {},
+      shutdownGraceMs: 0,
+      supervision: {
+        restart: 'on-failure',
+        schedule: retrySchedules.sequence([0]),
+      },
+    });
+
+    const ready = worker.ready();
+    await flush();
+    const first = spawner.latest();
+    let firstExitCode: number | undefined;
+    void runWireComponentWorker(fatalComponent, {
+      port: first.childPort,
+      exit: (code) => {
+        firstExitCode = code;
+        first.emitExit({ code });
+      },
+    });
+    const client = await ready;
+    const previousGeneration = worker.state.kind === 'ready' ? worker.state.generation : 0;
+    const restarting = new Promise<void>((resolve) => {
+      const unsubscribe = worker.onStateChanged((state) => {
+        if (state.kind !== 'restarting') return;
+        unsubscribe();
+        resolve();
+      });
+    });
+
+    void client.ping('fail').catch(() => {});
+    await waitFor(() => firstExitCode !== undefined);
+    expect(firstExitCode).toBe(1);
+    await restarting;
+    await clock.runAll();
+    await waitFor(() => spawner.processes.length === 2);
+    const second = spawner.latest();
+    void runWireComponentWorker(fatalComponent, {
+      port: second.childPort,
+      exit: (code) => second.emitExit({ code }),
+    });
+    await waitFor(
+      () => worker.state.kind === 'ready' && worker.state.generation > previousGeneration
+    );
+
+    await expect(client.ping('healthy')).resolves.toBe('pong:healthy');
     await host.dispose();
   });
 

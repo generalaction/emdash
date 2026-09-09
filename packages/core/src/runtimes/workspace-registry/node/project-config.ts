@@ -30,6 +30,10 @@ export function resolveProjectConfig(input: {
         : teamPreservePatterns !== undefined
           ? { value: [...teamPreservePatterns], from: 'team' as const }
           : { value: [...BUILT_IN_PRESERVE_PATTERNS], from: 'built-in' as const },
+    env:
+      input.personalConfig.env !== undefined
+        ? { value: { ...input.personalConfig.env }, from: 'personal' as const }
+        : { value: {}, from: 'built-in' as const },
   } as ResolvedProjectConfig;
   for (const script of ['prepare', 'setup', 'run', 'teardown'] as const) {
     const personal = input.personalConfig.scripts?.[script];
@@ -68,7 +72,8 @@ export function resolveProjectConfig(input: {
  */
 export function collectProjectConfigSources(
   records: readonly DurableWorkspaceRecord[],
-  configs: Pick<ReadonlyMap<string, WorkspaceConfigEntry>, 'get'>
+  configs: Pick<ReadonlyMap<string, WorkspaceConfigEntry>, 'get'>,
+  pathIdentity: (path: string) => string = (path) => path
 ): ProjectConfigSources {
   const sources = emptyProjectConfigSources();
   const ordered = [...records].sort((left, right) => {
@@ -81,8 +86,9 @@ export function collectProjectConfigSources(
   const seenPaths = new Set<string>();
 
   for (const record of ordered) {
-    if (seenPaths.has(record.path)) continue;
-    seenPaths.add(record.path);
+    const pathKey = pathIdentity(record.path);
+    if (seenPaths.has(pathKey)) continue;
+    seenPaths.add(pathKey);
     const entry = configs.get(record.id);
     if (!entry) continue;
     const configPath = path.join(record.path, '.emdash.json');
@@ -134,6 +140,11 @@ export function applyPersonalProjectConfigPatch(
   if (input.patch.preservePatterns !== undefined) {
     if (input.patch.preservePatterns === null) delete next.preservePatterns;
     else next.preservePatterns = [...input.patch.preservePatterns];
+  }
+
+  if (input.patch.env !== undefined) {
+    if (input.patch.env === null || Object.keys(input.patch.env).length === 0) delete next.env;
+    else next.env = { ...input.patch.env };
   }
 
   applyToggle(next, 'autoRunSetup', input.patch.autoRunSetup, BUILT_IN_AUTO_RUN_SETUP);

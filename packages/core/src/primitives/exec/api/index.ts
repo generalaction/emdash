@@ -5,3 +5,4 @@ export type {
   ExecStreamingResult,
   IExecutionContext,
 } from './execution-context';
+export type { NativeInvocation } from './native-invocation';

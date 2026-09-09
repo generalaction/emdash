@@ -25,6 +25,21 @@ function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
 }
 
 describe('LiveLogSource', () => {
+  it('advances the output generation even when runs restart in the same millisecond', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    try {
+      const server = new LiveLogSource();
+      const initial = server.snapshot().generation;
+      server.reseed();
+      const next = server.snapshot().generation;
+      server.reseed();
+      expect(next).toBeGreaterThan(initial);
+      expect(server.snapshot().generation).toBeGreaterThan(next);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('emits envelope-correct append updates', () => {
     const server = new LiveLogSource({ generation: 1000 });
     const updates: unknown[] = [];

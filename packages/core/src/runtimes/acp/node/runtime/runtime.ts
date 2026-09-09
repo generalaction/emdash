@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLogSource } from '@emdash/wire/live';
@@ -96,9 +97,10 @@ export class AcpRuntime {
   sendPrompt(
     conversationId: string,
     prompt: PromptInput,
-    placement?: PromptPlacement
-  ): Promise<Result<{ queued: boolean }, AcpSendPromptError | AcpWakeFailure>> {
-    return this.manager.prompt({ conversationId, prompt, placement });
+    placement?: PromptPlacement,
+    promptId: string = randomUUID()
+  ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
+    return this.manager.sendPrompt({ conversationId, prompt, placement, promptId });
   }
 
   editQueuedPrompt(
@@ -134,7 +136,7 @@ export class AcpRuntime {
 
   setOption(
     conversationId: string,
-    key: 'model' | 'mode' | 'effort',
+    key: 'model' | 'mode' | 'effort' | 'collaborationMode',
     value: string
   ): Promise<Result<void, AcpSetOptionError | AcpWakeFailure>> {
     return key === 'mode'
@@ -173,8 +175,8 @@ export class AcpRuntime {
     return this.manager.getTerminals(conversationId);
   }
 
-  killAllTerminals(): void {
-    this.manager.killAllTerminals();
+  killAllTerminals(): Promise<void> {
+    return this.manager.killAllTerminals();
   }
 
   async uploadAttachment(input: {
@@ -242,7 +244,7 @@ export class AcpRuntime {
 
   async dispose(): Promise<void> {
     await this.manager.dispose();
-    this.killAllTerminals();
+    await this.killAllTerminals();
     await this.connections.dispose();
   }
 }

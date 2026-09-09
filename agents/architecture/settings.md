@@ -20,6 +20,7 @@ committed and shared.
 | `autoRunSetup` | Workspace registry host-local personal config | host-local personal > built-in `true` | `resolveProjectConfig()` | Workspace registry activation gate and lifecycle sequencing |
 | `autoRunRun` | Workspace registry host-local personal config | host-local personal > built-in `false` | `resolveProjectConfig()` | Workspace registry activation gate and lifecycle sequencing |
 | `preservePatterns` | Workspace registry host-local personal config; team `.emdash.json` | host-local personal > that workspace's team file > built-in `[]`; arrays replace | `resolveProjectConfig()` | Worktree create/update copy-artifact steps |
+| `env` | Workspace registry host-local personal config | host-local personal > unset | `resolveProjectConfig()` | Task terminals, lifecycle scripts, and TUI/ACP agent launches |
 | `shellSetup` | Team `.emdash.json`; host settings JSON | that workspace's team file > host default > unset | `resolveProjectConfig()` | Workspace lifecycle script launches and task-session launch context resolution |
 | `tmux` | Desktop project-settings DB override; host settings JSON; desktop app setting `project.tmuxByDefault` | stored project override > host default > app default | `resolveTmux()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | Task-session launch context resolution and project-session teardown |
 | `worktreeRoot` | Desktop project-settings DB override; host settings JSON; built-in host path | stored project override > host default > `<host-home>/emdash/worktrees` | `resolveWorktreeRoot()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | `WorkspacePlacementResolver`, task creation, and destination previews |
@@ -28,7 +29,7 @@ committed and shared.
 | `pushRemote` | Desktop project-settings DB; effective base remote | valid stored remote > effective base remote > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` | Push and pull-request flows, automation deployment, source-control UI |
 | `githubAccount` | Desktop project-settings DB; connected provider accounts; repository remote host | stored account/explicit none > matching default account > sole host-matching account > none; stale or host-mismatched pins fail closed | `resolveEffectiveSettings()` | GitHub issues and pull requests, Git credentials, GitHub account UI |
 | `agentGitCredentials` | Desktop project-settings DB | stored project choice > built-in `effective-account` | `getStoredGitSettings()` plus `DEFAULT_AGENT_GIT_CREDENTIALS` | `createGitCredentialsService()` for TUI, terminal, and source-control session credentials |
-| `watcherExclude` | Local desktop app settings for the local worker; host settings JSON for remote workspace servers | worker-specific stored value > shared built-in exclusion list. With “Sync local settings” enabled, the desktop value is copied to the remote host (last writer wins; this is synchronization, not a precedence layer). | Files runtime construction in `apps/emdash-desktop/src/main/gateway/desktop-workers.ts` and `apps/workspace-server/src/gateway/workspace-workers.ts` | Files runtime watchers and file-search exclusion policy |
+| `watcherExclude` | Local desktop app settings for the local worker; host settings JSON for remote workspace servers | worker-specific stored value > shared built-in exclusion list. With “Sync local settings” enabled, the desktop value is copied to the remote host (last writer wins; this is synchronization, not a precedence layer). | Files, Git, and workspace-registry worker construction in `apps/emdash-desktop/src/main/gateway/desktop-workers.ts` and `apps/workspace-server/src/gateway/workspace-workers.ts` | Files runtime watchers, Git checkout and workspace-registry working-tree watchers (through the `workspaceContentWatchIgnore` profile in `fs-watch`), and file-search exclusion policy |
 
 ## Domain Boundaries
 
@@ -38,12 +39,17 @@ committed and shared.
   migration metadata, not a user setting.
 - Project settings pages are self-contained domain snapshots. Forms patch only touched fields;
   `null` removes an explicit value and restores inheritance.
-- The workspace registry is the sole resolver for lifecycle and file-handling config. The scripts
-  runtime receives already-resolved `command` and `shellSetup` values and does not read config.
+- The workspace registry is the sole resolver for lifecycle, environment, and file-handling config.
+  It passes the resolved `command`, `shellSetup`, and project environment to host-owned runtimes,
+  which select their host's default shell immediately before spawning. Commands remain opaque;
+  repository authors own their portability.
 - Task and terminal providers retain stable identity and runtime capabilities, not mutable launch
   settings. `TaskSessionLaunchContextResolver` reads task, project, host, and workspace-registry
   state immediately before a process starts; task-bound providers receive its zero-argument source.
 - Git/GitHub and placement previews must use the same portable resolvers as execution.
+- Placement obtains the owning host's structured home path and optional `PathProfile` from the files
+  runtime. It must not normalize SSH paths with the desktop's `node:path` dialect or desktop home.
+  Older workspace servers may omit the profile only for the negotiated remote-POSIX fallback.
 
 ## Deferred And Deliberate Legacy Behavior
 

@@ -99,6 +99,7 @@ export async function createConversation(
           ...(params.model && { model: params.model }),
           ...(params.modeId && { modeId: params.modeId }),
           ...(params.effort && { effort: params.effort }),
+          ...(params.collaborationMode && { collaborationMode: params.collaborationMode }),
           ...(initialQueue?.length && { initialQueue }),
         }
       : {

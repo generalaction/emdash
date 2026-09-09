@@ -144,6 +144,7 @@ export {
   type WindowLike,
 } from '../api/transports/electron';
 export { memoryTransportPair, type MemoryTransportPair } from '../api/transports/memory';
+export { replaceableTransport, type ReplaceableTransport } from '../api/transports/replaceable';
 export { type PortLike } from '../api/transports/port';
 export {
   reconnectingTransport,

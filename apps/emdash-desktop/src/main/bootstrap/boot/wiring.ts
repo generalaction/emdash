@@ -76,7 +76,7 @@ export function createDesktopWireOptions(
     hostAvailability: runtimes.hostAvailability,
     hostOperations: {
       openExternal: ({ url }) => appOperations.openExternal(url),
-      openPath: ({ path }) => appOperations.openPath(path),
+      openPath: ({ ref }) => appOperations.openPath(ref),
       showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
       clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
       persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),

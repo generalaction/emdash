@@ -13,20 +13,20 @@ import type {
   ContentSearchError,
   ContentSearchInput,
   ContentSearchResult,
-  FileSearchRegisterRootError,
-  FileSearchRootInput,
+  EvictRootInput,
   FileSearchUnregisterRootError,
   PathSearchError,
   PathSearchInput,
   PathSearchResult,
 } from '#runtimes/file-search/api';
 import type { IWatchService } from '#services/fs-watch/api';
+import { createActiveRootHost, type ActiveRootHost } from './api/active-root-host';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';
 import { DefaultFileSearchExclusions } from './exclusions';
 import { NodePathScanner } from './path/index/scanner';
-import { searchRootPaths } from './path/root-path-search';
+import { searchColdPaths, searchRootPaths } from './path/root-path-search';
 import { createRegisteredRoot } from './root/registered-root';
 import { NodeFileSearchRootResolver } from './root/root-identity';
 import { FileSearchRootRegistry } from './root/root-registry';
@@ -35,6 +35,7 @@ import type { FileSearchDb } from './storage/store';
 
 const DEFAULT_MAX_CONCURRENT_SCANS = 2;
 const DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES = 4;
+const DEFAULT_MAX_CONCURRENT_WATCH_STARTS = 4;
 
 export type FileSearchRuntimeOptions = Readonly<{
   handle: StoreHandle<FileSearchDb, Database.Database>;
@@ -43,14 +44,17 @@ export type FileSearchRuntimeOptions = Readonly<{
   env?: EnvSource;
   maxConcurrentScans?: number;
   maxConcurrentContentSearches?: number;
+  maxConcurrentWatchStarts?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
 /** Host-scoped composition root for durable root, path, and content search. */
 export class FileSearchRuntime {
+  readonly activeRoots: ActiveRootHost;
   private readonly scope: Scope;
   private readonly roots: FileSearchRootRegistry;
   private readonly store: SqliteFileSearchStore;
+  private readonly resolver: NodeFileSearchRootResolver;
   private readonly contentLimiter: ConcurrencyLimiter;
   private readonly contentSearcher: RipgrepContentSearcher;
   private disposePromise: Promise<void> | undefined;
@@ -62,12 +66,16 @@ export class FileSearchRuntime {
       onCleanupError: (error) => onError('file-search cleanup failed', error),
     });
     this.store = new SqliteFileSearchStore(options.handle);
+    this.resolver = new NodeFileSearchRootResolver();
 
     try {
       const defaultContentExclusions = new DefaultFileSearchExclusions();
       const scanner = new NodePathScanner();
       const scanLimiter = createConcurrencyLimiter(
         options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
+      );
+      const watchLimiter = createConcurrencyLimiter(
+        options.maxConcurrentWatchStarts ?? DEFAULT_MAX_CONCURRENT_WATCH_STARTS
       );
       this.contentLimiter = createConcurrencyLimiter(
         options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
@@ -79,7 +87,7 @@ export class FileSearchRuntime {
       });
       this.roots = new FileSearchRootRegistry({
         catalog: this.store,
-        resolver: new NodeFileSearchRootResolver(),
+        resolver: this.resolver,
         createRoot: (record, scope, rootExclusions, exclusionsFingerprint) =>
           createRegisteredRoot({
             record,
@@ -90,6 +98,7 @@ export class FileSearchRuntime {
             exclusionsFingerprint,
             scope,
             scanLimiter,
+            watchLimiter,
             onError,
           }),
         compileExclusions: (patterns) => new DefaultFileSearchExclusions({ patterns }),
@@ -97,23 +106,23 @@ export class FileSearchRuntime {
         scope: this.scope,
         onError,
       });
+      this.activeRoots = createActiveRootHost({ registry: this.roots, scope: this.scope });
+      void this.roots.startCatalogValidation();
     } catch (error) {
       void this.scope.dispose(error);
       throw error;
     }
   }
 
-  registerRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchRegisterRootError>> {
-    return this.roots.registerRoot(input);
-  }
-
-  unregisterRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchUnregisterRootError>> {
-    return this.roots.unregisterRoot(input);
+  evictRoot(input: EvictRootInput): Promise<Result<void, FileSearchUnregisterRootError>> {
+    return this.roots.evictRoot(input);
   }
 
   async searchPaths(input: PathSearchInput): Promise<Result<PathSearchResult, PathSearchError>> {
     const root = this.roots.resolveRegisteredRoot(input.root);
-    return root.success ? searchRootPaths(root.data, input, this.store) : root;
+    if (root.success) return searchRootPaths(root.data, input, this.store);
+    if (root.error.type !== 'root-not-registered') return root;
+    return searchColdPaths(this.resolver.comparisonKey(input.root), input, this.store) ?? root;
   }
 
   searchContent(
@@ -137,6 +146,7 @@ export class FileSearchRuntime {
 
   private async disposeInternal(): Promise<void> {
     try {
+      await this.activeRoots.dispose();
       await this.roots.dispose();
     } finally {
       await this.scope.dispose(new Error('File-search runtime disposed'));

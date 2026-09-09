@@ -1,3 +1,4 @@
+import { hostFileRefSchema } from '@emdash/core/primitives/path/api';
 import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
@@ -78,7 +79,7 @@ export const desktopHostContract = defineContract({
     output: z.custom<ActionResult>(),
   }),
   openPath: procedure({
-    input: z.object({ path: z.string() }),
+    input: z.object({ ref: hostFileRefSchema }),
     output: z.custom<ActionResult>(),
   }),
   showWorkspaceItemInFolder: procedure({

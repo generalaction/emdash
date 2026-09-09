@@ -50,14 +50,28 @@ describe('createTranscriptFileCommands', () => {
       openFile
     );
 
-    for (const source of ['diff', 'file-op', 'resource-link', 'prose-link'] as const) {
-      commands.onOpenFile({ path: `src/${source}.ts`, itemId: source, source });
-    }
+    commands.onOpenFile({ path: 'src/diff.ts', itemId: 'diff', source: 'diff' });
+    commands.onOpenFile({
+      path: 'src/file-op.ts',
+      line: 17,
+      itemId: 'file-op',
+      source: 'file-op',
+    });
+    commands.onOpenFile({
+      path: 'src/resource-link.ts',
+      itemId: 'resource-link',
+      source: 'resource-link',
+    });
+    commands.onOpenFile({
+      path: 'src/prose-link.ts',
+      itemId: 'prose-link',
+      source: 'prose-link',
+    });
     commands.openMentionFile('src/mention.ts');
 
     expect(openFile.mock.calls).toEqual([
       ['project-1', 'task-1', 'src/diff.ts'],
-      ['project-1', 'task-1', 'src/file-op.ts'],
+      ['project-1', 'task-1', 'src/file-op.ts', { line: 17 }],
       ['project-1', 'task-1', 'src/resource-link.ts'],
       ['project-1', 'task-1', 'src/prose-link.ts'],
       ['project-1', 'task-1', 'src/mention.ts'],

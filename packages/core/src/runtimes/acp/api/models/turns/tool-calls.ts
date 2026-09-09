@@ -9,8 +9,15 @@ export interface BaseToolCallItem {
   title: string;
   status: ToolStatus;
   inputSummary?: string;
+  /** Structured ACP file locations. An empty array means the tool currently has none. */
+  locations?: ToolCallLocation[];
   parentToolCallId?: string;
   children?: ToolNode[];
+}
+
+export interface ToolCallLocation {
+  path: string;
+  line?: number;
 }
 
 export interface ExecuteToolCall extends BaseToolCallItem {
@@ -22,8 +29,6 @@ export interface ExecuteToolCall extends BaseToolCallItem {
 
 export interface ReadToolCall extends BaseToolCallItem {
   kind: 'read-tool-call';
-  path?: string;
-  resource?: string;
 }
 
 export interface FileToolCallBase extends BaseToolCallItem {
@@ -118,6 +123,14 @@ export const baseToolCallItemSchema = z.object({
   status: toolStatusSchema,
   /** Provider/plugin-generated short input description for compact display. */
   inputSummary: z.string().optional(),
+  locations: z
+    .array(
+      z.object({
+        path: z.string(),
+        line: z.number().int().nonnegative().optional(),
+      })
+    )
+    .optional(),
   /** Raw provider parent id used to rebuild the tree; not a render link. */
   parentToolCallId: z.string().optional(),
   /** Nested provider or reducer-derived tool nodes owned by this call. */
@@ -135,8 +148,6 @@ export const executeToolCallSchema = baseToolCallItemSchema.extend({
 
 export const readToolCallSchema = baseToolCallItemSchema.extend({
   kind: z.literal('read-tool-call'),
-  path: z.string().optional(),
-  resource: z.string().optional(),
 });
 
 export const fileToolCallBaseSchema = baseToolCallItemSchema.extend({

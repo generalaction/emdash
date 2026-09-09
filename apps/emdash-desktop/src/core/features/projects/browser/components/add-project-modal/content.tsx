@@ -6,7 +6,7 @@ import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { Resolved } from '@core/primitives/project-settings/api';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';
-import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
+import { type CloneModeState, type CreateRepositoryModeState, type PickModeState } from './modes';
 import { OwnerSelector } from './owner-selector';
 import { type ProjectDirectoryPickerClient } from './project-directory-picker';
 
@@ -70,7 +70,7 @@ export function PickExistingPanel({
   );
 }
 
-export function CreateNewPanel({
+export function CreateRepositoryPanel({
   strategy,
   connectionId,
   state,
@@ -84,7 +84,7 @@ export function CreateNewPanel({
 }: {
   strategy: Strategy;
   connectionId?: string;
-  state: NewModeState;
+  state: CreateRepositoryModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   accounts: GitHubAccountSummary[];
   selectedAccount: GitHubAccountSummary | null;

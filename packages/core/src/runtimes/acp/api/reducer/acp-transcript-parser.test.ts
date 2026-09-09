@@ -8,6 +8,7 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import { SESSION_PLAN_ID } from '../models/plan';
+import type { TranscriptItem } from '../models/turns';
 import {
   makeDiffId,
   makeMessageId,
@@ -68,10 +69,7 @@ function toolUpdateDone(toolCallId: string): SessionUpdate {
     sessionUpdate: 'tool_call_update',
     sessionId: 'sess-1',
     toolCallId,
-    title: null,
-    kind: null,
     status: 'completed',
-    content: [],
   } as unknown as SessionUpdate;
 }
 
@@ -388,6 +386,53 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
+  it('reads execute descriptions from rawInput on the initial tool_call', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'list packages'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'ls packages', 'execute'),
+      rawInput: { command: 'ls packages', description: 'List packages directory' },
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call')).toMatchObject({
+      command: 'ls packages',
+      inputSummary: 'List packages directory',
+    });
+  });
+
+  it('preserves matching description and content text for provider enrichment', () => {
+    // The baseline decoder is provider-neutral and must preserve content even
+    // when it matches a description. Provider enrichment can classify a known
+    // adapter-specific description echo without risking legitimate output.
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'what branch am I on'));
+    p.push({
+      ...toolCallUpdate('exec-1', 'Terminal', 'execute'),
+      status: 'pending',
+      rawInput: {},
+    } as unknown as SessionUpdate);
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'exec-1',
+      kind: 'execute',
+      title: 'git rev-parse --abbrev-ref HEAD',
+      content: [{ type: 'content', content: { type: 'text', text: 'Get current branch name' } }],
+      rawInput: {
+        command: 'git rev-parse --abbrev-ref HEAD',
+        description: 'Get current branch name',
+      },
+    } as unknown as SessionUpdate);
+
+    const item = p.activeTurn?.items.find((i) => i.kind === 'execute-tool-call');
+    expect(item).toMatchObject({
+      command: 'git rev-parse --abbrev-ref HEAD',
+      inputSummary: 'Get current branch name',
+      outputText: 'Get current branch name',
+      status: 'running',
+    });
+  });
+
   it('passes through standard terminalId on execute tool updates', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'run it'));
@@ -408,7 +453,10 @@ describe('AcpTranscriptParser', () => {
     p.push(toolCallUpdate('fetch-1', 'https://example.test', 'web-fetch'));
     p.push(toolCallUpdate('subagent-1', 'Investigate failure', 'subagent'));
 
-    const items = p.activeTurn?.items ?? [];
+    // Contiguous search/mcp/fetch calls fold into one tool-run group; look through it.
+    const items = (p.activeTurn?.items ?? []).flatMap((i): TranscriptItem[] =>
+      i.kind === 'tool-group' ? (i.children as TranscriptItem[]) : [i]
+    );
     expect(items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
       id: makeToolId(makeTurnId(CID, 0), 'search-1'),
       query: "for 'symbols'",
@@ -422,6 +470,96 @@ describe('AcpTranscriptParser', () => {
     });
     expect(items.find((i) => i.kind === 'spawn-subagent-tool-call')).toMatchObject({
       name: 'Investigate failure',
+    });
+  });
+
+  it('uses structured read locations without parsing the human-readable title', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read a file'));
+    p.push({
+      sessionUpdate: 'tool_call',
+      sessionId: 'sess-1',
+      toolCallId: 'read-1',
+      title: "Read file '/workspace/AGENTS.md'",
+      kind: 'read',
+      status: 'in_progress',
+      content: [],
+      locations: [{ path: '/workspace/AGENTS.md', line: 12 }],
+    } as unknown as SessionUpdate);
+    p.push(toolUpdateDone('read-1'));
+
+    expect(p.activeTurn?.items.find((item) => item.kind === 'read-tool-call')).toMatchObject({
+      kind: 'read-tool-call',
+      title: "Read file '/workspace/AGENTS.md'",
+      status: 'done',
+      locations: [{ path: '/workspace/AGENTS.md', line: 12 }],
+    });
+  });
+
+  it('applies locations-only updates with replace and clear semantics', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read files'));
+    p.push({
+      sessionUpdate: 'tool_call',
+      sessionId: 'sess-1',
+      toolCallId: 'read-1',
+      title: 'Read File',
+      kind: 'read',
+      status: 'pending',
+      content: [],
+      locations: [],
+    } as unknown as SessionUpdate);
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'read-1',
+      locations: [{ path: '/workspace/a.ts', line: 3 }, { path: '/workspace/b.ts' }],
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((item) => item.kind === 'read-tool-call')).toMatchObject({
+      locations: [{ path: '/workspace/a.ts', line: 3 }, { path: '/workspace/b.ts' }],
+    });
+
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'read-1',
+      locations: [],
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((item) => item.kind === 'read-tool-call')).toMatchObject({
+      locations: [],
+    });
+  });
+
+  it('does not let a presentation title override an explicit execute kind', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'run a command'));
+    p.push(toolCallUpdate('exec-1', 'Read package metadata', 'execute'));
+
+    expect(p.activeTurn?.items.find((item) => item.kind.endsWith('-tool-call'))).toMatchObject({
+      kind: 'execute-tool-call',
+      command: 'Read package metadata',
+    });
+  });
+
+  it('reclassifies a tool when a later update supplies its read kind and locations', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'use a tool'));
+    p.push(toolCallUpdate('tool-1', 'Working', 'other'));
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tool-1',
+      kind: 'read',
+      title: 'Reading source',
+      locations: [{ path: '/workspace/source.ts' }],
+    } as unknown as SessionUpdate);
+
+    expect(p.activeTurn?.items.find((item) => item.kind.endsWith('-tool-call'))).toMatchObject({
+      kind: 'read-tool-call',
+      title: 'Reading source',
+      locations: [{ path: '/workspace/source.ts' }],
     });
   });
 
@@ -453,7 +591,7 @@ describe('AcpTranscriptParser', () => {
     const items = p.activeTurn?.items ?? [];
     expect(items.find((i) => i.kind === 'tool-group')).toMatchObject({
       id: makeToolGroupId(makeToolId(makeTurnId(CID, 0), 'read-1')),
-      label: '2 file reads',
+      label: 'Read 2 files',
       groupKind: 'read-batch',
       status: 'running',
       children: [
@@ -463,12 +601,28 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
-  it('does not group non-contiguous read tool calls', () => {
+  it('groups a mixed run of reads and commands into one tool-run group', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'read files'));
     p.push(toolCallUpdate('read-1', 'Read src/a.ts', 'read'));
     p.push(toolCallUpdate('exec-1', 'echo done', 'execute'));
     p.push(toolCallUpdate('read-2', 'Read src/b.ts', 'read'));
+
+    const groups = p.activeTurn?.items.filter((i) => i.kind === 'tool-group') ?? [];
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      label: 'Ran a command, read 2 files',
+      groupKind: 'tool-run',
+      children: [{ id: makeToolId(makeTurnId(CID, 0), 'read-1') }, {}, {}],
+    });
+  });
+
+  it('does not group tool calls separated by an assistant message', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'read files'));
+    p.push(toolCallUpdate('exec-1', 'echo one', 'execute'));
+    p.push(assistantChunk('a1', 'Now the second one.'));
+    p.push(toolCallUpdate('exec-2', 'echo two', 'execute'));
 
     expect(p.activeTurn?.items.filter((i) => i.kind === 'tool-group')).toHaveLength(0);
   });
@@ -540,6 +694,44 @@ describe('AcpTranscriptParser', () => {
     expect(fileOps).toHaveLength(2);
     expect(fileOps.every((item) => item.toolCallId === 'tc-multi')).toBe(true);
     expect(fileOps.every((item) => item.status === 'done')).toBe(true);
+  });
+
+  it('replaces and clears file operations when an update replaces ACP content', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'patch files'));
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tc-replace',
+      title: 'Apply patch',
+      kind: 'edit',
+      status: 'in_progress',
+      content: [
+        { type: 'diff', path: 'src/a.ts', oldText: 'a', newText: 'aa' },
+        { type: 'diff', path: 'src/b.ts', oldText: 'b', newText: 'bb' },
+      ],
+    } as unknown as SessionUpdate);
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tc-replace',
+      content: [{ type: 'diff', path: 'src/b.ts', oldText: 'b', newText: 'bbb' }],
+    } as unknown as SessionUpdate);
+
+    expect(
+      p.activeTurn?.items.filter((item) => 'toolCallId' in item && item.toolCallId === 'tc-replace')
+    ).toMatchObject([{ kind: 'modify-file-tool-call', path: 'src/b.ts', newText: 'bbb' }]);
+
+    p.push({
+      sessionUpdate: 'tool_call_update',
+      sessionId: 'sess-1',
+      toolCallId: 'tc-replace',
+      content: [],
+    } as unknown as SessionUpdate);
+
+    expect(
+      p.activeTurn?.items.filter((item) => 'toolCallId' in item && item.toolCallId === 'tc-replace')
+    ).toEqual([]);
   });
 
   it('diff-less edit tool_update does not create a placeholder tool call', () => {

@@ -30,6 +30,7 @@ const expectedModalIds = [
   'promptModal',
   'quitUnsavedChangesModal',
   'relinkProjectModal',
+  'renameProjectModal',
   'renameTaskModal',
   'shareProjectConfigModal',
   'skillDetailModal',

@@ -52,6 +52,12 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
+        'gpt-6-astra': {
+          name: 'GPT-6 Astra',
+          description:
+            'Flagship GPT-6 model and Codex default for the most demanding agentic work.',
+          modelFeatures: { intelligence: 5, speed: 3 },
+        },
         'gpt-5.6-sol': {
           name: 'GPT-5.6 Sol',
           description: 'Flagship GPT-5.6 model for the hardest agentic coding workflows.',
@@ -150,7 +156,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag:
-          '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
+          '-c approval_policy=never -c sandbox_mode=danger-full-access --dangerously-bypass-hook-trust',
         initialPromptFlag: '',
         resumeFlag: 'resume',
         sessionIdFlag: ' ',

@@ -1,10 +1,12 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import {
   asProvisioned,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { openFile } from '@core/features/workbench/api/browser/open-file';
 import { openWithOS } from '@core/features/workbench/api/browser/open-with-os';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import {
   absoluteRuntimePath,
@@ -46,7 +48,7 @@ export async function openFileInTaskEditor(
   projectId: string,
   taskId: string,
   filePath: string,
-  options: { target?: 'active' | 'right' } = {}
+  options: { target?: 'active' | 'right'; line?: number } = {}
 ): Promise<void> {
   const provisioned = asProvisioned(getTaskStore(projectId, taskId));
   if (!provisioned) return;
@@ -58,10 +60,21 @@ export async function openFileInTaskEditor(
     return;
   }
 
-  openFile(ref, {
+  const opened = openFile(ref, {
     context: { projectId, taskId },
     target: options.target ?? 'active',
     reveal: true,
+  });
+  if (!opened || options.line === undefined) return;
+
+  const resource = getTaskComposition(
+    projectId,
+    taskId
+  )?.paneLayout.focusedPane.activeResourceOfKind<FileTabResource>('file');
+  resource?.requestSelection({
+    lineNumber: Math.max(1, Math.trunc(options.line)),
+    startColumn: 1,
+    endColumn: 1,
   });
 }
 
@@ -74,9 +87,10 @@ export async function openFileInTaskEditor(
 export async function openFileInAdjacentPane(
   projectId: string,
   taskId: string,
-  filePath: string
+  filePath: string,
+  options: { line?: number } = {}
 ): Promise<void> {
-  return openFileInTaskEditor(projectId, taskId, filePath, { target: 'right' });
+  return openFileInTaskEditor(projectId, taskId, filePath, { ...options, target: 'right' });
 }
 
 /**
@@ -94,7 +108,12 @@ export function makeFileLinkHandlers(
       void openFileInTaskEditor(projectId, taskId, filePath, options);
     },
     onOpenExternal: (filePath) => {
-      void openWithOS(filePath);
+      const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+      if (!provisioned) return;
+      const workspace = workspaceRegistry.get(provisioned.workspaceId);
+      if (!workspace) return;
+      const ref = resolveTaskFileRef(workspace.path, workspace.sshConnectionId, filePath);
+      if (ref) void openWithOS(ref);
     },
   };
 }

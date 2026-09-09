@@ -3,7 +3,6 @@ import {
   providerPreferencesMemento,
 } from '@core/features/conversations/contributions/mementos';
 import {
-  projectPanelLayoutsMemento,
   projectViewMemento,
   workspaceChromeMemento,
 } from '@core/features/projects/contributions/mementos';
@@ -16,7 +15,10 @@ import {
   taskPanelLayoutsMemento,
   taskTerminalSelectionMemento,
 } from '@core/features/tasks/contributions/mementos';
-import { workbenchSidebarMemento } from '@core/features/workbench/contributions/mementos';
+import {
+  workbenchPanelLayoutsMemento,
+  workbenchSidebarMemento,
+} from '@core/features/workbench/contributions/mementos';
 import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
 import { workbenchHistoryMemento } from '@core/primitives/navigation/api/mementos';
 
@@ -31,7 +33,6 @@ export const mementoCatalog: readonly MementoCatalogEntry[] = [
   acpDraftMemento,
   providerPreferencesMemento,
   projectViewMemento,
-  projectPanelLayoutsMemento,
   workspaceChromeMemento,
   taskChromeMemento,
   taskTerminalSelectionMemento,
@@ -40,6 +41,7 @@ export const mementoCatalog: readonly MementoCatalogEntry[] = [
   taskDiffSelectionMemento,
   taskPaneLayoutMemento,
   taskPanelLayoutsMemento,
+  workbenchPanelLayoutsMemento,
   workbenchSidebarMemento,
   workbenchHistoryMemento,
 ];

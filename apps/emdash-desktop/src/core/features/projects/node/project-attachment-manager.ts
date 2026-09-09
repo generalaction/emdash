@@ -28,7 +28,6 @@ import {
   runtimeRecoveryDisposition,
   type HostAvailability,
   type HostAvailabilityState,
-  type HostDemandMode,
 } from '@core/services/hosts/api/availability';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 
@@ -299,23 +298,24 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
     const hostScope = entry.scope.child('host');
     entry.hostScope = hostScope;
     let availabilityState = this.options.availability.stateFor(host);
-    const demand = this.options.availability.demand(
-      host,
-      projectDemandMode(peek(entry.state), availabilityState),
-      hostScope
-    );
-    observe(
-      entry.state,
-      ({ value }) => {
-        demand.setMode(projectDemandMode(value, availabilityState));
-      },
-      { scope: hostScope, immediate: true }
-    );
+    let connectionLease: Scope | undefined;
+    const updateLease = () => {
+      if (shouldLeaseHost(peek(entry.state), availabilityState)) {
+        if (connectionLease || hostScope.disposed) return;
+        connectionLease = hostScope.child('connection-lease');
+        this.options.availability.lease(host, connectionLease);
+      } else {
+        const released = connectionLease;
+        connectionLease = undefined;
+        void released?.dispose();
+      }
+    };
+    observe(entry.state, () => updateLease(), { scope: hostScope, immediate: true });
     observe(
       this.options.availability.state(host),
       ({ value }) => {
         availabilityState = value;
-        demand.setMode(projectDemandMode(peek(entry.state), value));
+        updateLease();
         if (value.kind === 'ready') {
           this.startAttempt(entry, value.generation);
         } else if (entry.attempt) {
@@ -418,7 +418,7 @@ export class ProjectAttachmentManagerService implements ProjectAttachmentManager
         return;
       }
       entry.attempt = undefined;
-      entry.project = project;
+      entry.project = currentProject;
       entry.provider = opened.data;
       entry.providerReleased = false;
       uncommittedProvider = undefined;
@@ -553,7 +553,7 @@ function repositoryStatError(project: Project, failure: FsError | RuntimeResolve
 }
 
 function attachmentProjectIdentity(project: Project): string {
-  return [project.id, project.updatedAt, attachmentTargetIdentity(project)].join('\0');
+  return [project.id, project.baseRef ?? '', attachmentTargetIdentity(project)].join('\0');
 }
 
 function attachmentTargetIdentity(project: Project): string {
@@ -569,14 +569,14 @@ function isAutomaticallyEligibleFailure(failure: ProjectAttachmentError): boolea
   return isRuntimeResolveError(failure) && runtimeRecoveryDisposition(failure) === 'eligible';
 }
 
-function projectDemandMode(
+function shouldLeaseHost(
   attachment: ProjectAttachmentState,
   availability: HostAvailabilityState
-): HostDemandMode {
-  if (attachment.kind === 'attached' || attachment.kind === 'attaching') return 'automatic';
+): boolean {
+  if (attachment.kind === 'attached' || attachment.kind === 'attaching') return true;
   if (attachment.lastFailure && !isAutomaticallyEligibleFailure(attachment.lastFailure)) {
-    return 'passive';
+    return false;
   }
-  if (!allowsAutomaticHostRecovery(availability)) return 'passive';
-  return 'automatic';
+  if (!allowsAutomaticHostRecovery(availability)) return false;
+  return true;
 }

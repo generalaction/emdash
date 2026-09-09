@@ -22,10 +22,10 @@ export function usePickMode() {
 }
 
 export type PickModeState = ReturnType<typeof usePickMode>;
-export type NewModeState = ReturnType<typeof useNewMode>;
+export type CreateRepositoryModeState = ReturnType<typeof useCreateRepositoryMode>;
 export type CloneModeState = ReturnType<typeof useCloneMode>;
 
-export function useNewMode(defaultPath: string, githubAccountId: string | null) {
+export function useCreateRepositoryMode(defaultPath: string, githubAccountId: string | null) {
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);

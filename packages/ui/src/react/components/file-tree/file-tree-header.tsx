@@ -1,5 +1,7 @@
 import { CopyMinusIcon, FilePlusIcon, FolderPlusIcon } from 'lucide-react';
+import * as React from 'react';
 import { Button } from '../../primitives/button';
+import { SearchInput, type SearchInputProps } from '../../primitives/search-input';
 import * as styles from './file-tree.css';
 
 export type FileTreeDraftKind = 'file' | 'directory';
@@ -10,6 +12,28 @@ export interface FileTreeHeaderContext {
   collapseAll(): void;
   expandAll(): void;
 }
+
+export function FileTreeToolbar({
+  search,
+  actions,
+}: {
+  search: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className={styles.toolbar}>
+      <div className={styles.toolbarSearch}>{search}</div>
+      {actions ? <div className={styles.toolbarActions}>{actions}</div> : null}
+    </div>
+  );
+}
+
+export const FileTreeToolbarSearch = React.forwardRef<
+  HTMLInputElement,
+  Omit<SearchInputProps, 'bare' | 'size'>
+>(function FileTreeToolbarSearch(props, ref) {
+  return <SearchInput ref={ref} {...props} size="sm" bare />;
+});
 
 export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTreeHeaderContext) {
   const targetLabel = targetPath ? `New items in ${targetPath}` : 'New items in root';

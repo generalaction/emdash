@@ -69,6 +69,20 @@ describe('WorkspaceIdentityService', () => {
     expect(source.findByPath).not.toHaveBeenCalled();
   });
 
+  it('reverse-indexes Windows path casing variants to one cached identity', async () => {
+    const windowsRow = { ...localRow, path: 'C:\\Repo' };
+    const source = createSource([windowsRow]);
+    const service = new WorkspaceIdentityService(source);
+
+    await service.resolve(windowsRow.workspaceId);
+
+    expect(await service.findByPath('c:\\REPO', LOCAL_HOST_REF)).toMatchObject({
+      workspaceId: windowsRow.workspaceId,
+      path: 'C:\\Repo',
+    });
+    expect(source.findByPath).not.toHaveBeenCalled();
+  });
+
   it('resolves repository identities by project id', async () => {
     const source = createSource([localRow]);
     const service = new WorkspaceIdentityService(source);

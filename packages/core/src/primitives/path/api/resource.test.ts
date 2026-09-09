@@ -106,6 +106,32 @@ describe('host file resources', () => {
     expect(keyA).toBe(keyB);
   });
 
+  it('infers case-insensitive resource identity from Win32 roots', () => {
+    const upper = parseAbsolute('C:/Repo/File.ts', { profile: { style: 'win32' } });
+    const lower = parseAbsolute('c:/repo/file.ts', { profile: { style: 'win32' } });
+    expect(upper.success && lower.success).toBe(true);
+    if (!upper.success || !lower.success) return;
+
+    expect(resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_REF, upper.data))).toBe(
+      resourceKeyFromFileRef(hostFileRef(LOCAL_HOST_REF, lower.data))
+    );
+  });
+
+  it('infers case-insensitive containment and relativization from Win32 roots', () => {
+    const root = parseAbsolute('C:/Repo', { profile: { style: 'win32' } });
+    const child = parseAbsolute('c:/repo/Src/File.ts', { profile: { style: 'win32' } });
+    expect(root.success && child.success).toBe(true);
+    if (!root.success || !child.success) return;
+
+    const rootRef = hostFileRef(LOCAL_HOST_REF, root.data);
+    const childRef = hostFileRef(LOCAL_HOST_REF, child.data);
+    expect(containsHostFileRef(rootRef, childRef)).toBe(true);
+    expect(relativizeHostFileRef(rootRef, childRef)).toEqual({
+      success: true,
+      data: 'Src/File.ts',
+    });
+  });
+
   it('validates structured refs with schemas', () => {
     const path = parseAbsolute('/repo/src/index.ts', { profile: { style: 'posix' } });
     expect(path.success).toBe(true);

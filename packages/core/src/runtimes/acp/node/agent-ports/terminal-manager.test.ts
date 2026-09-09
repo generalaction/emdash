@@ -151,7 +151,7 @@ describe('AgentTerminalManager.release()', () => {
     const proc = new FakeAcpTerminalProcess();
     const terminalId = await createTerminal(manager, host, 'conv-1', 'echo', proc);
 
-    manager.release(terminalId);
+    await manager.release(terminalId);
 
     expect(proc.killFn).toHaveBeenCalledWith('SIGTERM');
     expect(recording.terminalReleased).toHaveLength(1);
@@ -160,9 +160,9 @@ describe('AgentTerminalManager.release()', () => {
     expect(manager.listByConversation('conv-1')).toHaveLength(0);
   });
 
-  it('is a no-op for unknown id', () => {
+  it('is a no-op for unknown id', async () => {
     const { recording, manager } = makeManager();
-    expect(() => manager.release('no-such-id')).not.toThrow();
+    await expect(manager.release('no-such-id')).resolves.toBeUndefined();
     expect(recording.terminalReleased).toHaveLength(0);
   });
 });
@@ -176,7 +176,7 @@ describe('AgentTerminalManager.disposeConversation()', () => {
     await createTerminal(manager, host, 'conv-1', 'b', proc2);
     await createTerminal(manager, host, 'conv-2', 'c');
 
-    manager.disposeConversation('conv-1');
+    await manager.disposeConversation('conv-1');
 
     expect(proc1.killFn).toHaveBeenCalledWith('SIGTERM');
     expect(proc2.killFn).toHaveBeenCalledWith('SIGTERM');
@@ -188,9 +188,9 @@ describe('AgentTerminalManager.disposeConversation()', () => {
     expect(manager.listAll()).toHaveLength(1);
   });
 
-  it('is a no-op for unknown conversation', () => {
+  it('is a no-op for unknown conversation', async () => {
     const { recording, manager } = makeManager();
-    expect(() => manager.disposeConversation('no-such-conv')).not.toThrow();
+    await expect(manager.disposeConversation('no-such-conv')).resolves.toBeUndefined();
     expect(recording.terminalReleased).toHaveLength(0);
   });
 });
@@ -203,7 +203,7 @@ describe('AgentTerminalManager.killAll()', () => {
     await createTerminal(manager, host, 'conv-1', 'a', proc1);
     await createTerminal(manager, host, 'conv-2', 'b', proc2);
 
-    manager.killAll();
+    await manager.killAll();
 
     expect(proc1.killFn).toHaveBeenCalledWith('SIGTERM');
     expect(proc2.killFn).toHaveBeenCalledWith('SIGTERM');
@@ -214,8 +214,31 @@ describe('AgentTerminalManager.killAll()', () => {
   it('leaves the manager empty after being called', async () => {
     const { host, manager } = makeManager();
     await createTerminal(manager, host, 'conv-1');
-    manager.killAll();
-    manager.killAll(); // idempotent — no throw
+    await manager.killAll();
+    await manager.killAll(); // idempotent — no throw
     expect(manager.listAll()).toHaveLength(0);
+  });
+
+  it('awaits asynchronous process-tree cleanup during shutdown', async () => {
+    const { host, manager } = makeManager();
+    const proc = new FakeAcpTerminalProcess();
+    let finishKill: () => void = () => {};
+    proc.killFn.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishKill = resolve;
+      })
+    );
+    await createTerminal(manager, host, 'conv-1', 'long-running', proc);
+    let settled = false;
+
+    const shutdown = manager.killAll().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+
+    expect(settled).toBe(false);
+    finishKill();
+    await shutdown;
+    expect(settled).toBe(true);
   });
 });

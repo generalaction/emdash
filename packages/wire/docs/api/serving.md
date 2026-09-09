@@ -106,7 +106,7 @@ const connection = connect(pair.left, { instrumentation });
 
 - `call(path, input, { signal? })`.
 - `snapshot(topic)`.
-- `attach(topic, push, { onReattach? })`.
+- `attach(topic, push, { signal?, onReattach? })`.
 - `onDisconnect(cb)`.
 - `dispose()` to release the logical connection without closing its transport.
 
@@ -118,6 +118,10 @@ link is live and then calls each attachment's `onReattach` callback.
 Replicas use `onReattach` for live models, logs, and jobs to force a fresh
 snapshot after reattach. Direct client-handle consumers can use the same callback when
 they need to reseed UI state after reconnect.
+
+An attachment signal owns establishment for only that caller. Aborting it before readiness cancels
+the pending attach when no other caller still needs the topic, while shared callers remain attached.
+After `attach()` resolves, the returned unsubscribe owns the established interest.
 
 `dispose()` rejects pending calls, releases live attachments and blob channels, and
 unsubscribes the connection from transport events. It intentionally does not call
@@ -211,9 +215,9 @@ const controller = createController(api, {
 
 Cancellation is cooperative. Long-running handlers should pass the signal into
 their own async work, listen for `abort`, or periodically check
-`meta.signal?.aborted`. `snapshot` and `attach` requests also share the same
-server-side cancellation registry, though most live sources complete those
-requests synchronously.
+`meta.signal?.aborted`. `snapshot` and `attach` requests also share the same server-side
+cancellation registry. Resourced event-stream activation receives an `AbortSignal` so it can release
+partially-created resources when the final pending attachment disappears.
 
 Mutations are intentionally not cancellable through this API; they use
 `mutationId` for idempotency and retry. See [mutations](../live/mutations.md).

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getWindowsEnvValue } from '#primitives/agent-env/api';
 import {
   isRuntimeTerminalShellId,
   terminalCommandArgs,
@@ -49,15 +50,14 @@ function readDirNames(dirPath: string): string[] {
 }
 
 function pathDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] {
-  const rawPath =
-    platform === 'win32' ? (env.Path ?? env.PATH ?? env.path ?? '') : (env.PATH ?? '');
+  const rawPath = platform === 'win32' ? (getWindowsEnvValue(env, 'PATH') ?? '') : (env.PATH ?? '');
   return rawPath
     .split(platform === 'win32' ? path.win32.delimiter : path.posix.delimiter)
     .filter(Boolean);
 }
 
 function windowsPathExts(env: NodeJS.ProcessEnv): string[] {
-  const raw = env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD';
+  const raw = getWindowsEnvValue(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD';
   return raw
     .split(';')
     .map((ext) => ext.trim())
@@ -117,10 +117,11 @@ function findLatestWindowsPwsh(
   fileExists: FileExists = isExecutable,
   readDirs: ReadDirNames = readDirNames
 ): string | undefined {
+  const localAppData = getWindowsEnvValue(env, 'LOCALAPPDATA');
   const roots = [
-    env.ProgramFiles,
-    env.ProgramW6432,
-    env.LOCALAPPDATA ? path.win32.join(env.LOCALAPPDATA, 'Microsoft') : undefined,
+    getWindowsEnvValue(env, 'ProgramFiles'),
+    getWindowsEnvValue(env, 'ProgramW6432'),
+    localAppData ? path.win32.join(localAppData, 'Microsoft') : undefined,
   ]
     .filter((root): root is string => Boolean(root))
     .map((root) => path.win32.join(root, 'PowerShell'));
@@ -146,7 +147,7 @@ function windowsSystemCommand(
   env: NodeJS.ProcessEnv,
   fileExists: FileExists = isExecutable
 ): string | undefined {
-  const systemRoot = env.SystemRoot ?? env.windir;
+  const systemRoot = getWindowsEnvValue(env, 'SystemRoot') ?? getWindowsEnvValue(env, 'windir');
   const systemCandidate = systemRoot
     ? path.win32.join(systemRoot, 'System32', executable)
     : undefined;
@@ -163,11 +164,12 @@ function isWindowsWslBashLauncher(candidate: string): boolean {
 }
 
 function windowsGitBashCandidates(env: NodeJS.ProcessEnv): string[] {
+  const localAppData = getWindowsEnvValue(env, 'LOCALAPPDATA');
   const roots = [
-    env.ProgramFiles,
-    env.ProgramW6432,
-    env['ProgramFiles(x86)'],
-    env.LOCALAPPDATA ? path.win32.join(env.LOCALAPPDATA, 'Programs') : undefined,
+    getWindowsEnvValue(env, 'ProgramFiles'),
+    getWindowsEnvValue(env, 'ProgramW6432'),
+    getWindowsEnvValue(env, 'ProgramFiles(x86)'),
+    localAppData ? path.win32.join(localAppData, 'Programs') : undefined,
   ].filter((root): root is string => Boolean(root));
 
   const candidates: string[] = [];
@@ -209,7 +211,9 @@ function shellLabelFromExecutable(executable: string, fallback: RuntimeTerminalS
 }
 
 function localDefaultShell(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
-  if (platform === 'win32') return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+  if (platform === 'win32') {
+    return getWindowsEnvValue(env, 'ComSpec') || 'C:\\Windows\\System32\\cmd.exe';
+  }
   return env.SHELL ?? (platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 }
 
@@ -221,7 +225,9 @@ function resolveLocalExplicitShell(
   readDirs?: ReadDirNames
 ): string | undefined {
   if (platform === 'win32') {
-    if (shell === 'cmd') return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    if (shell === 'cmd') {
+      return getWindowsEnvValue(env, 'ComSpec') || 'C:\\Windows\\System32\\cmd.exe';
+    }
     if (shell === 'powershell') return findOnPath('powershell.exe', env, platform, fileExists);
     if (shell === 'pwsh') return findLatestWindowsPwsh(env, fileExists, readDirs);
     if (shell === 'wsl') return windowsSystemCommand('wsl.exe', env, fileExists);

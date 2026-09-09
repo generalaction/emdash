@@ -75,7 +75,7 @@ export class LiveLogSource {
   }
 
   reseed(data?: LiveLogSnapshotData): void {
-    this.generation = Date.now();
+    this.generation = Math.max(this.generation + 1, Date.now());
     this.sequence = 0;
     this.baseOffset = data?.baseOffset ?? 0;
     this.truncated = data?.truncated ?? false;

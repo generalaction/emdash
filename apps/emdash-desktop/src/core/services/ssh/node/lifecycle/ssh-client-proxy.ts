@@ -4,9 +4,10 @@ import type {
   SshClientProxy as SshClientProxyContract,
   SshExecOptions,
   SshExecResult,
+  SshTcpTarget,
 } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { execOnClient } from '../operations/exec';
-import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
+import { openChannel } from '../operations/open-channel';
 
 /**
  * Stable reference to an ssh2 Client that survives reconnects.
@@ -20,17 +21,22 @@ import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
  */
 export class SshClientProxy implements SshClientProxyContract {
   private _client: Client | null = null;
+  private connectionLifetime = new AbortController();
 
   constructor(readonly connectionId: string) {}
 
   /** Called by SshConnectionManager when a connection becomes ready. */
   update(client: Client): void {
+    const previousLifetime = this.connectionLifetime;
+    this.connectionLifetime = new AbortController();
     this._client = client;
+    previousLifetime.abort(new Error('SSH connection replaced'));
   }
 
   /** Called by SshConnectionManager when the connection drops. */
   invalidate(): void {
     this._client = null;
+    this.connectionLifetime.abort(new Error('SSH connection is not available'));
   }
 
   /**
@@ -50,18 +56,62 @@ export class SshClientProxy implements SshClientProxyContract {
     return this._client !== null;
   }
 
+  async openTcpChannel(
+    target: SshTcpTarget,
+    options: { signal?: AbortSignal; timeoutMs?: number } = {}
+  ): Promise<ClientChannel> {
+    const { client, signal } = this.captureConnection(options.signal);
+    return openChannel(
+      client,
+      'TCP',
+      (callback) => {
+        client.forwardOut(
+          target.sourceHost,
+          target.sourcePort,
+          target.remoteHost,
+          target.remotePort,
+          callback
+        );
+      },
+      { ...options, signal }
+    );
+  }
+
   /** Opens an OpenSSH streamlocal channel through the current live connection. */
-  forwardOutStreamLocal(socketPath: string): Promise<ClientChannel> {
-    return forwardOutStreamLocalOnClient(this.client, socketPath);
+  forwardOutStreamLocal(
+    socketPath: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number }
+  ): Promise<ClientChannel> {
+    const { client, signal } = this.captureConnection(options?.signal);
+    return openChannel(
+      client,
+      'streamlocal',
+      (callback) => {
+        client.openssh_forwardOutStreamLocal(socketPath, callback);
+      },
+      { ...options, signal }
+    );
   }
 
   /** Runs a structured command through the current live connection with bounded resources. */
   exec(command: Command, options?: SshExecOptions): Promise<SshExecResult> {
-    return execOnClient(this.client, formatCommandLine(command, 'posix'), options);
+    const { client, signal } = this.captureConnection(options?.signal);
+    return execOnClient(client, formatCommandLine(command, 'posix'), { ...options, signal });
   }
 
   /** Runs an explicit POSIX shell script through the current live connection. */
   execScript(script: string, options?: SshExecOptions): Promise<SshExecResult> {
-    return execOnClient(this.client, script, options);
+    const { client, signal } = this.captureConnection(options?.signal);
+    return execOnClient(client, script, { ...options, signal });
+  }
+
+  /** Each operation stays bound to the physical connection on which it started. */
+  private captureConnection(callerSignal?: AbortSignal): { client: Client; signal: AbortSignal } {
+    return {
+      client: this.client,
+      signal: callerSignal
+        ? AbortSignal.any([callerSignal, this.connectionLifetime.signal])
+        : this.connectionLifetime.signal,
+    };
   }
 }

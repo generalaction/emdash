@@ -46,7 +46,8 @@ export const scriptsContract = defineContract({
 
   /**
    * Starts a run and returns once it is spawned (status 'running'). The caller supplies
-   * the canonically resolved command and shellSetup; this runtime only executes them.
+   * the canonically resolved command and shellSetup; this runtime resolves the owning
+   * host's default shell and executes them.
    */
   start: fallible({
     input: startScriptRunInputSchema,

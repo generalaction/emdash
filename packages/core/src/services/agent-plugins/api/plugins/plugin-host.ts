@@ -2,7 +2,11 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate } from '@emdash/shared/requests';
-import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
+import {
+  buildAllowlistedAgentEnv,
+  mergeAgentEnvLayers,
+  type AgentEnvPlatform,
+} from '#primitives/agent-env/api';
 import type { EnvSource, IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver, Platform } from '#primitives/host-dependencies/api';
 import type { PluginFs } from '#primitives/plugin-fs/api';
@@ -82,6 +86,8 @@ export class AgentPluginHost {
 
   private readonly scope: Scope;
   private readonly registry: PluginRegistry<CLIAgentPluginProvider>;
+  private readonly platform: Platform;
+  private readonly agentEnvPlatform: AgentEnvPlatform;
   private readonly spawnContext: SpawnContextResolver;
   private readonly checkAuthStatusOnce: (
     providerId: string
@@ -90,6 +96,8 @@ export class AgentPluginHost {
   constructor(private readonly deps: AgentHostDeps) {
     this.scope = deps.scope.child('agent-host');
     this.registry = deps.registry;
+    this.platform = deps.platform ?? currentPlatform();
+    this.agentEnvPlatform = this.platform === 'windows' ? 'windows' : 'posix';
     this.dependencies = deps.dependencies;
     this.scope.use(deps.exec);
     this.spawnContext = createSpawnContextResolver({
@@ -98,6 +106,7 @@ export class AgentPluginHost {
       env: deps.env,
       homeDir: deps.homeDir,
       includeShellVar: true,
+      platform: this.agentEnvPlatform,
     });
     this.scope.add(() => this.invalidateSpawnContext());
     const checkAuthStatusOnce = compose(
@@ -121,9 +130,10 @@ export class AgentPluginHost {
       env: buildAllowlistedAgentEnv(await this.deps.env(), {
         homeDir: this.deps.homeDir,
         includeShellVar: true,
+        platform: this.agentEnvPlatform,
       }),
       homeDir: this.deps.homeDir,
-      platform: this.deps.platform ?? currentPlatform(),
+      platform: this.platform,
     };
   }
 
@@ -268,7 +278,7 @@ export class AgentPluginHost {
     const command = provider.buildCommand({ ...ctx, cli: spawnContext.data.cli });
     return ok({
       ...command,
-      env: { ...spawnContext.data.agentEnv, ...command.env },
+      env: mergeAgentEnvLayers(this.agentEnvPlatform, spawnContext.data.agentEnv, command.env),
     });
   }
 
@@ -289,7 +299,12 @@ export class AgentPluginHost {
       ...spawn,
       // User-configured provider env (from Settings) wins over the allowlisted
       // agent env and any plugin defaults, mirroring the PTY path's providerVars.
-      env: { ...spawnContext.data.agentEnv, ...spawn.env, ...(ctx.env ?? {}) },
+      env: mergeAgentEnvLayers(
+        this.agentEnvPlatform,
+        spawnContext.data.agentEnv,
+        spawn.env ?? {},
+        ctx.env ?? {}
+      ),
       cwd: ctx.cwd,
     });
   }
@@ -313,13 +328,15 @@ export class AgentPluginHost {
 
     const spawnContext = await this.resolveSpawnContext(providerId);
     if (!spawnContext.success) return err(spawnContext.error);
+    const agentEnv = { ...spawnContext.data.agentEnv };
 
     return ok(
       await provider.behavior.checkStatus({
         cli: spawnContext.data.cli,
-        exec: (command, args, opts) => this.deps.exec.exec(command, args, opts),
+        exec: (command, args, opts) =>
+          this.deps.exec.exec(command, args, { ...opts, env: { ...agentEnv } }),
         fs: this.fs,
-        env: { ...spawnContext.data.agentEnv },
+        env: { ...agentEnv },
       })
     );
   }

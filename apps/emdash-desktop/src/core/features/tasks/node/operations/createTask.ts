@@ -200,12 +200,20 @@ export async function prepareCreateTask(
         message: root.error.message,
       });
     }
-    const compiled = compileWorktreePayload({
-      repoPath: project.repoPath,
-      worktreeRoot: root.data,
-      branchName,
-      preservePatterns,
-    });
+    let compiled: ReturnType<typeof compileWorktreePayload>;
+    try {
+      compiled = compileWorktreePayload({
+        repoPath: project.repoPath,
+        worktreeRoot: root.data,
+        branchName,
+        preservePatterns,
+      });
+    } catch (error) {
+      return err({
+        type: 'provision-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
     const registry = createWorkspaceRegistry(db);
     const allocated = allocateRegistryPath(
       db,

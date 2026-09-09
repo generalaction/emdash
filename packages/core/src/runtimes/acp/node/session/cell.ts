@@ -42,7 +42,7 @@ import {
   type SessionMachineContext,
 } from '#runtimes/acp/node/machine/machine';
 import { createMachineEffectDriver, type MachineEffectDriver } from '../machine/primitive';
-import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
+import type { PromptAcceptance, SessionCellDeps, SessionPromptResult } from './cell-deps';
 import { PermissionBroker } from './permission-broker';
 import { RawAcpLog, type RawAcpEvent } from './raw-log';
 
@@ -51,7 +51,17 @@ export interface AcpChatHistory {
   active: TranscriptTurn | null;
 }
 
-type ConfigDimension = 'model' | 'effort';
+type ConfigDimension = 'model' | 'effort' | 'collaborationMode';
+
+export type SessionConfigCatalog =
+  | { kind: 'pending' }
+  | {
+      kind: 'ready';
+      config: Pick<
+        SessionConfigState,
+        'modelOptions' | 'efforts' | 'modeOptions' | 'collaborationModeOptions'
+      >;
+    };
 
 export class SessionCell {
   readonly machine: SessionMachine;
@@ -59,6 +69,7 @@ export class SessionCell {
   readonly rawLog: RawAcpLog;
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
+  private configCatalogState: SessionConfigCatalog['kind'] = 'pending';
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
   private readonly effectDriver: MachineEffectDriver<Effect>;
@@ -109,6 +120,15 @@ export class SessionCell {
 
   get config(): SessionConfigState {
     return this.transcript.config;
+  }
+
+  get configCatalog(): SessionConfigCatalog {
+    if (this.configCatalogState === 'pending') return { kind: 'pending' };
+    const { modelOptions, efforts, modeOptions, collaborationModeOptions } = this.config;
+    return {
+      kind: 'ready',
+      config: { modelOptions, efforts, modeOptions, collaborationModeOptions },
+    };
   }
 
   get usage(): SessionUsage | null {
@@ -167,7 +187,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionReady' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionLoaded(meta?: {
@@ -175,7 +195,7 @@ export class SessionCell {
     configOptions?: readonly SessionConfigOption[] | null;
   }): void {
     this.applyEvent({ type: 'SessionLoaded' });
-    this.seedTranscriptMeta(meta);
+    this.seedTranscriptMeta(meta, 'complete');
   }
 
   applySessionMeta(meta: {
@@ -201,29 +221,39 @@ export class SessionCell {
 
     const previousRunningAgentCount = this.lastRunningAgentCount;
     this.transcript.pushEvent(event);
+    if (event.kind === 'config') this.configCatalogState = 'ready';
     this.dispatchAgentsChangedIfNeeded(previousRunningAgentCount);
     if (idleTranscriptEvent) this.scheduleQuiesce();
     this.emitTranscriptChanged();
   }
 
-  async prompt(input: PromptInput): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
+  async prompt(
+    input: PromptInput,
+    acceptance?: PromptAcceptance
+  ): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
     const now = Date.now();
-    const result = await this.sendPromptInternal({
-      id: crypto.randomUUID(),
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const result = await this.sendPromptInternal(
+      {
+        id: acceptance?.id ?? crypto.randomUUID(),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      },
+      acceptance
+    );
     return result;
   }
 
-  queuePrompt(input: PromptInput): Result<void, InvalidStateError> {
+  queuePrompt(
+    input: PromptInput,
+    id: string = crypto.randomUUID()
+  ): Result<void, InvalidStateError> {
     const now = Date.now();
     const result = this.dispatchFor<InvalidStateError>(
       {
         type: 'QueuePrompt',
         prompt: {
-          id: crypto.randomUUID(),
+          id,
           ...input,
           createdAt: now,
           updatedAt: now,
@@ -470,7 +500,8 @@ export class SessionCell {
   }
 
   private async sendPromptInternal(
-    prompt: QueuedPrompt
+    prompt: QueuedPrompt,
+    acceptance?: PromptAcceptance
   ): Promise<Result<SessionPromptResult, AcpSendPromptError>> {
     const decision = this.dispatchFor<AcpSendPromptError>({ type: 'Prompt', prompt }, [
       'invalid_state',
@@ -479,13 +510,17 @@ export class SessionCell {
     const started = decision.data.some(
       (effect) => effect.type === 'agentEvent' && effect.phase === 'start'
     );
-    if (!started) return ok({ queued: true });
+    if (!started) {
+      acceptance?.onAccepted({ queued: true });
+      return ok({ queued: true });
+    }
 
     const messageId = `${this.conversationId}-${this.machine.nextTurnIndex}-user`;
     this.transcript.pushEvent({
       kind: 'message',
       role: 'user',
       messageId,
+      promptId: prompt.id,
       text: prompt.text,
       ...(prompt.attachments?.length
         ? {
@@ -500,11 +535,13 @@ export class SessionCell {
     this.emitTranscriptChanged();
 
     try {
-      const resolvedAttachments = await Promise.all(
-        (prompt.attachments ?? []).map((attachment) =>
-          this.deps.resolveAttachment(this.deps.conversationId, attachment)
-        )
-      );
+      const resolvedAttachments =
+        acceptance?.resolvedAttachments ??
+        (await Promise.all(
+          (prompt.attachments ?? []).map((attachment) =>
+            this.deps.resolveAttachment(this.deps.conversationId, attachment)
+          )
+        ));
       const promptRequest = {
         sessionId: this.acpSessionId,
         prompt: [
@@ -522,6 +559,7 @@ export class SessionCell {
         sessionId: this.acpSessionId,
         content: promptRequest.prompt,
       });
+      acceptance?.onAccepted({ queued: false });
       const response = await this.deps.agent.prompt(promptRequest);
       this.rawLog.record({
         kind: 'prompt_result',
@@ -542,24 +580,33 @@ export class SessionCell {
     }
   }
 
-  private seedTranscriptMeta(meta?: {
-    modes?: SessionModeState | null;
-    configOptions?: readonly SessionConfigOption[] | null;
-  }): void {
-    if (!meta) return;
-    if (meta.configOptions !== undefined) {
+  private seedTranscriptMeta(
+    meta?: {
+      modes?: SessionModeState | null;
+      configOptions?: readonly SessionConfigOption[] | null;
+    },
+    catalogBoundary: 'incremental' | 'complete' = 'incremental'
+  ): void {
+    if (!meta && catalogBoundary === 'incremental') return;
+    const configOptions = meta?.configOptions;
+    const modes = meta?.modes;
+    const completesCatalog =
+      configOptions !== undefined ||
+      (catalogBoundary === 'complete' && this.configCatalogState === 'pending');
+    if (completesCatalog) {
       this.transcript.pushEvent({
         kind: 'config',
-        options: meta.configOptions ?? [],
+        options: configOptions ?? [],
       });
+      this.configCatalogState = 'ready';
     }
-    if (meta.modes?.currentModeId) {
+    if (modes?.currentModeId) {
       this.transcript.pushEvent({
         kind: 'mode_selected',
-        modeId: meta.modes.currentModeId,
+        modeId: modes.currentModeId,
       });
     }
-    if (meta.configOptions !== undefined || meta.modes?.currentModeId) {
+    if (completesCatalog || modes?.currentModeId) {
       this.emitTranscriptChanged();
     }
   }
@@ -614,6 +661,9 @@ export class SessionCell {
           ? [this.transcript.config.modelOptions.configId]
           : []),
         ...(this.transcript.config.efforts ? [this.transcript.config.efforts.configId] : []),
+        ...(this.transcript.config.collaborationModeOptions
+          ? [this.transcript.config.collaborationModeOptions.configId]
+          : []),
       ],
     };
   }
@@ -624,6 +674,8 @@ export class SessionCell {
         return this.transcript.config.modelOptions?.configId ?? null;
       case 'effort':
         return this.transcript.config.efforts?.configId ?? null;
+      case 'collaborationMode':
+        return this.transcript.config.collaborationModeOptions?.configId ?? null;
     }
   }
 

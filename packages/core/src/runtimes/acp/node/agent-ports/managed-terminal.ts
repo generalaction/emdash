@@ -104,18 +104,19 @@ export class ManagedAgentTerminal {
     return new Promise<AcpTerminalExit>((resolve) => this.waiters.push(resolve));
   }
 
-  kill(): void {
+  async kill(): Promise<void> {
     try {
-      this.proc.kill('SIGTERM');
+      await this.proc.kill('SIGTERM');
     } catch {
       // ignore
     }
   }
 
-  dispose(): void {
-    this.kill();
+  dispose(): Promise<void> {
+    const termination = this.kill();
     this.chunks.length = 0;
     this.bytes = 0;
     this.waiters.splice(0);
+    return termination;
   }
 }

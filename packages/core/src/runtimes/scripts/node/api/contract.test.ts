@@ -9,7 +9,6 @@ import { createScriptsController } from './controller';
 
 const WORKSPACE = '/work/trees/task-1';
 const FACTS = { workspaceId: 'ws-1', repositoryPath: '/repos/app', branch: 'feature-x' };
-
 describe('scripts runtime contract', () => {
   let spawner: FakePtySpawner;
   let runtime: ScriptsRuntime;
@@ -80,16 +79,25 @@ describe('scripts runtime contract', () => {
   });
 
   it('runs a script to success: spawn spec, run state, exit code, and tail retention', async () => {
-    const started = await start('setup', { provenance: 'manual' });
+    const started = await start('setup', {
+      provenance: 'manual',
+      env: {
+        CLAUDE_CONFIG_DIR: '/tmp/claude-project',
+        EMDASH_TASK_ID: 'cannot-override',
+      },
+    });
     expect(started.success && started.data.status).toBe('running');
 
     const spec = spawner.specs[0]!;
-    expect(spec.args?.slice(-1)[0]).toBe('pnpm install');
+    expect(spec.invocation.kind === 'argv' ? spec.invocation.argv.at(-1) : null).toBe(
+      'pnpm install'
+    );
     expect(spec.cwd).toBe(WORKSPACE);
     expect(spec.env).toMatchObject({
       EMDASH_TASK_ID: 'ws-1',
       EMDASH_TASK_NAME: 'feature-x',
       EMDASH_ROOT_PATH: '/repos/app',
+      CLAUDE_CONFIG_DIR: '/tmp/claude-project',
     });
     expect(spec.env?.USER_VALUE).toBe('kept');
     expect(spec.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
@@ -213,7 +221,8 @@ describe('scripts runtime contract', () => {
   it('executes the supplied command', async () => {
     const result = await start('setup', { command: 'echo personal setup' });
     expect(result.success).toBe(true);
-    expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe('echo personal setup');
+    const { invocation } = spawner.specs[0]!;
+    expect(invocation.kind === 'argv' ? invocation.argv.at(-1) : null).toBe('echo personal setup');
   });
 
   it('stop and wait on a workspace with no runs return not-found', async () => {
@@ -264,12 +273,88 @@ describe('scripts runtime contract', () => {
         command: 'echo supplied command',
         shellSetup: 'source /supplied/profile',
       });
-      expect(spawner.specs[0]!.args?.slice(-1)[0]).toBe(
-        'source /supplied/profile\necho supplied command'
+      const { invocation } = spawner.specs[0]!;
+      expect(invocation.kind === 'argv' ? invocation.argv.at(-1) : null).toBe(
+        'source /supplied/profile && echo supplied command'
       );
       expect(readFile).not.toHaveBeenCalled();
     } finally {
       readFile.mockRestore();
+    }
+  });
+
+  it('resolves the Windows host default and runs shellSetup in the same shell', async () => {
+    const windowsSpawner = new FakePtySpawner();
+    const windowsRuntime = new ScriptsRuntime({
+      spawner: windowsSpawner,
+      platform: 'win32',
+      userEnv: async () => ({
+        Path: 'C:\\Tools',
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+      }),
+    });
+    try {
+      const result = await windowsRuntime.start({
+        workspacePath: 'C:\\workspace',
+        script: 'setup',
+        provenance: 'manual',
+        facts: { workspaceId: 'ws-windows' },
+        command: 'pnpm install',
+        shellSetup: 'set READY=1',
+      });
+
+      expect(result.success).toBe(true);
+      expect(windowsSpawner.specs[0]).toMatchObject({
+        invocation: {
+          kind: 'windows-command-line',
+          executable: 'C:\\Windows\\System32\\cmd.exe',
+          rawArguments: '/d /s /c set READY=1 && pnpm install',
+        },
+      });
+    } finally {
+      windowsRuntime.dispose();
+    }
+  });
+
+  it('treats Windows casing variants as one script-run guard and live state', async () => {
+    const windowsSpawner = new FakePtySpawner();
+    const windowsRuntime = new ScriptsRuntime({
+      spawner: windowsSpawner,
+      platform: 'win32',
+      userEnv: async () => ({ ComSpec: 'C:\\Windows\\System32\\cmd.exe' }),
+    });
+    const windowsWire = createTestWire(scriptsContract, createScriptsController(windowsRuntime));
+    try {
+      const first = await windowsWire.client.start({
+        workspacePath: 'C:\\Repo',
+        script: 'run',
+        provenance: 'manual',
+        facts: { workspaceId: 'windows' },
+        command: 'pnpm dev',
+        shellSetup: '',
+      });
+      const duplicate = await windowsWire.client.start({
+        workspacePath: 'c:\\repo',
+        script: 'run',
+        provenance: 'manual',
+        facts: { workspaceId: 'windows' },
+        command: 'pnpm dev',
+        shellSetup: '',
+      });
+
+      expect(first.success).toBe(true);
+      expect(duplicate).toMatchObject({ success: false, error: { type: 'run-in-flight' } });
+      expect(windowsSpawner.processes).toHaveLength(1);
+      expect(await windowsWire.client.stop({ workspacePath: 'c:\\REPO', script: 'run' })).toEqual({
+        success: true,
+        data: undefined,
+      });
+      expect(
+        await windowsWire.client.wait({ workspacePath: 'C:\\repo', script: 'run' })
+      ).toMatchObject({ success: true, data: { status: 'cancelled' } });
+    } finally {
+      windowsWire.dispose();
+      windowsRuntime.dispose();
     }
   });
 });

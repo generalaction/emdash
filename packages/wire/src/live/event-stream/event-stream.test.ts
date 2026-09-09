@@ -205,6 +205,33 @@ describe('resourced event streams', () => {
     unsubscribe();
     expect(dispose).toHaveBeenCalledOnce();
   });
+
+  it('aborts pending activation when its final subscriber leaves', async () => {
+    const activation = deferred<() => void>();
+    let activationSignal: AbortSignal | undefined;
+    const host = createEventStreamHost(contract, {
+      activate: (_key, signal) => {
+        activationSignal = signal;
+        return activation.promise;
+      },
+    });
+    const controller = new AbortController();
+    const subscription = host
+      .resolve({ id: 'known' })
+      .subscribe(() => {}, { signal: controller.signal });
+
+    await vi.waitFor(() => expect(activationSignal).toBeDefined());
+    controller.abort(new Error('subscriber released'));
+
+    await expect(subscription).rejects.toThrow('subscriber released');
+    expect(activationSignal?.aborted).toBe(true);
+    expect(host.resolve({ id: 'known' }).subscriberCount).toBe(0);
+
+    const dispose = vi.fn();
+    activation.resolve(dispose);
+    await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+    host.dispose();
+  });
 });
 
 function deferred<T>(): {

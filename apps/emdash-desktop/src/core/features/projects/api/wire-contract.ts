@@ -83,7 +83,7 @@ export const projectHostParamsSchema = z.discriminatedUnion('type', [
 export const createProjectFromRemoteInputSchema = z.object({
   projectId: z.string(),
   host: projectHostParamsSchema,
-  mode: z.enum(['clone', 'new']),
+  mode: z.enum(['clone', 'create']),
   repositoryUrl: z.string().min(1),
   targetPath: z.string().min(1),
   name: z.string().min(1),
@@ -186,6 +186,10 @@ export const projectsWireContract = defineContract({
   }),
   updateProjectConnection: procedure({
     input: z.object({ projectId: z.string(), connectionId: z.string() }),
+    output: z.void(),
+  }),
+  renameProject: procedure({
+    input: z.object({ projectId: z.string(), name: z.string().min(1) }),
     output: z.void(),
   }),
   recoverAttachment: procedure({

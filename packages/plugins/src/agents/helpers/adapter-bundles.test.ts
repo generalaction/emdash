@@ -22,7 +22,7 @@ describe('built adapter bundles', () => {
       return;
     }
 
-    const result = spawnSync('pnpm', ['exec', 'tsdown'], {
+    const result = spawnSync('pnpm', ['exec', 'tsdown', '--config-loader', 'tsx'], {
       cwd: packageDirectory,
       stdio: 'inherit',
     });

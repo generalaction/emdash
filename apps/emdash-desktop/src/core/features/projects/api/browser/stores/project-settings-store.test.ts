@@ -24,6 +24,7 @@ function projectConfig(setup: string): ProjectConfigState {
     repositoryId: 'repo-1',
     resolved: {
       preservePatterns: { value: [], from: 'built-in' },
+      env: { value: {}, from: 'built-in' },
       setup: { value: setup, from: 'personal' },
       autoRunSetup: { value: true, from: 'built-in' },
       autoRunRun: { value: false, from: 'built-in' },
