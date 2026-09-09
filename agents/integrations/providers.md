@@ -83,6 +83,14 @@ you select an OrcaRouter model from the OpenCode model picker.
   interpolated shell command and no uninstall/install lifecycle in provider metadata. Future managed
   sources such as Nix should add new source and selection variants without changing runtime spawn
   injection.
+- Executable selection belongs to the host-dependency runtime. Auto follows the plugin's binary
+  names on the host PATH; a saved path or CLI-name override resolves independently of discovery.
+  The resolver accepts an optional proposed selection, so validation and startup share one
+  operation and implementation. Invalid overrides block launch and
+  never fall back to Auto. Settings save only after validation, and failed saves retain the previous
+  selection. Existing path-selection JSON remains valid; CLI selections add a `kind: 'cli'` variant
+  with a `command` field. Overrides accept executable files or PATH names; use a wrapper script for
+  commands with arguments, such as `srt claude`.
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Codex ACP exposes collaboration mode separately from permission mode. The ACP runtime maps the
   provider-owned `collaboration_mode` config category to the chat composer's Default/Plan selector

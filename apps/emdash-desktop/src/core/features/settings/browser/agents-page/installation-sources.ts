@@ -25,10 +25,10 @@ export function toSelection(
   ref: SelectedSource,
   overrideValues: { path?: string; cli?: string } = {}
 ): HostDependencySelection {
-  if (ref.kind === 'pinned') return { kind: 'pinned', realpath: ref.realpath };
+  if (ref.kind === 'pinned') return { kind: 'path', path: ref.realpath };
   if (ref.kind === 'path') return { kind: 'path', path: overrideValues.path ?? '' };
   if (ref.kind === 'cli') return { kind: 'cli', command: overrideValues.cli ?? '' };
-  if (ref.kind === 'method') return { kind: 'method', method: ref.method };
+  if (ref.kind === 'method') return null;
   // auto → null (clear override)
   return null;
 }
@@ -135,12 +135,12 @@ export function buildSourceRows(
   // 1. Auto row — a policy ("follow the PATH winner"), not a concrete install.
   // It never carries an "Installed" badge; instead the sublabel shows what it
   // currently resolves to so the user can see where auto points.
-  const activeInst = installations.find((i) => i.isActive);
+  const autoInst = installations.find((i) => i.id !== 'path' && i.id !== 'cli');
   rows.push({
     ref: { kind: 'auto' },
     label: 'Auto',
-    status: activeInst?.status ?? 'missing',
-    displayPath: activeInst ? shortPath(activeInst.pathEntry ?? activeInst.realpath) : undefined,
+    status: autoInst?.status ?? 'missing',
+    displayPath: autoInst ? shortPath(autoInst.pathEntry ?? autoInst.realpath) : undefined,
   });
 
   // 2. Detected installations

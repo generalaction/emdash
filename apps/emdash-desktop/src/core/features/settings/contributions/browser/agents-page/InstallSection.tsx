@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -14,12 +15,10 @@ import { InstallationOverrideCard } from '@core/features/settings/browser/agents
 import { InstallDependencyCard } from '@core/features/settings/browser/agents-page/InstallDependencyCard';
 import type {
   AgentPayload,
-  Installation,
   InstallMethod,
   InstallOption,
   SelectedSource,
 } from '@core/primitives/agents/api';
-import { sourceKey } from '@core/primitives/agents/api';
 
 export type InstallSectionProps = {
   agentId: string;
@@ -64,7 +63,7 @@ function seedSource(
 
 /**
  * Status-driven composer that owns the renderer-local `selectedSource` (UI intent).
- * Selection is always persisted immediately — `used` and `selectedSource` are kept in sync.
+ * Override drafts are persisted only after validation succeeds.
  * Uninstalled agents with no prior override default to the recommended install method.
  */
 export const InstallSection = observer(function InstallSection({
@@ -104,37 +103,25 @@ const LocalInstallSection = observer(function LocalInstallSection({
     agentPayload
   );
 
-  const [selectedSource, setSelectedSource] = useState<SelectedSource>(() =>
-    seedSource(vm.used, vm.status, installOptions)
-  );
+  const [sourceDraft, setSourceDraft] = useState<SelectedSource | null>(null);
+  const selectedSource = sourceDraft ?? seedSource(vm.used, vm.status, installOptions);
   const [isChecking, setIsChecking] = useState(false);
 
-  // Follow vm.used changes from background probes / post-install updates.
-  // When vm.used is auto and the agent is not installed, keep the recommended
-  // default instead of resetting — the user hasn't persisted a choice yet.
+  // A completed install returns to the active source; background probes leave override drafts alone.
   useEffect(() => {
-    if (vm.isInstalling || vm.isUpdating || !vm.used) return;
-    const liveRef = refFromUsed(vm.used);
-    if (liveRef.kind !== 'auto') {
-      // Explicit persisted selection — always follow it
-      setSelectedSource((prev) => (sourceKey(prev) !== sourceKey(liveRef) ? liveRef : prev));
-    } else if (vm.status === 'available') {
-      // Installed via auto (no explicit method) — reset to auto
-      setSelectedSource((prev) => (prev.kind !== 'auto' ? { kind: 'auto' } : prev));
+    if (vm.status === 'available' && !vm.isInstalling && !vm.isUpdating) {
+      setSourceDraft((draft) => (draft?.kind === 'method' ? null : draft));
     }
-    // Uninstalled + auto → keep the recommended pre-selection
   }, [vm.used, vm.status, vm.isInstalling, vm.isUpdating]);
 
   // Persisted override values used as initial inputs for the override card.
   const initialPath = useMemo(() => {
-    const inst = vm.installations.find((i) => i.id === 'path');
-    return inst?.pathEntry ?? '';
-  }, [vm.installations]);
+    return vm.used?.kind === 'path' ? vm.used.path : '';
+  }, [vm.used]);
 
   const initialCli = useMemo(() => {
-    const inst = vm.installations.find((i) => i.id === 'cli');
-    return inst?.pathEntry ?? '';
-  }, [vm.installations]);
+    return vm.used?.kind === 'cli' ? vm.used.command : '';
+  }, [vm.used]);
 
   const selectedInstall = findInstallation(vm.installations, selectedSource);
 
@@ -151,24 +138,21 @@ const LocalInstallSection = observer(function LocalInstallSection({
   })();
 
   const onSelectSource = (ref: SelectedSource) => {
-    // Persist every selection immediately so `used` always tracks `selected`,
-    // including path/cli overrides. Empty overrides persist harmlessly —
-    // resolveAgentExecutable falls back to auto-resolution when a path/cli
-    // selection does not resolve, and onOverrideResolved re-persists the
-    // concrete value once the user validates it.
-    void vm.setUsed(toSelection(ref, { path: initialPath, cli: initialCli }));
-    setSelectedSource(ref);
-  };
-
-  const onOverrideResolved = (installation: Installation | null) => {
-    if (installation?.status === 'available') {
-      void vm.setUsed(
-        toSelection(selectedSource, {
-          path: installation.id === 'path' ? (installation.pathEntry ?? '') : undefined,
-          cli: installation.id === 'cli' ? (installation.pathEntry ?? '') : undefined,
-        })
-      );
+    if (isOverrideRef(ref) || ref.kind === 'method') {
+      setSourceDraft(ref);
+      return;
     }
+    void vm
+      .setUsed(toSelection(ref))
+      .then(() => setSourceDraft(null))
+      .catch((error: unknown) => {
+        toast.error('Could not change executable', {
+          description:
+            error && typeof error === 'object' && 'message' in error
+              ? String(error.message)
+              : 'Please try again.',
+        });
+      });
   };
 
   // For the install command card, narrow to the selected method when concrete.
@@ -224,13 +208,14 @@ const LocalInstallSection = observer(function LocalInstallSection({
         />
       )}
 
-      {state !== 'found' && isOverrideRef(selectedSource) && (
+      {isOverrideRef(selectedSource) && (
         <InstallationOverrideCard
+          key={`${selectedSource.kind}:${selectedSource.kind === 'path' ? initialPath : initialCli}`}
           vm={vm}
           kind={selectedSource.kind}
           initialValue={selectedSource.kind === 'path' ? initialPath : initialCli}
           onChecking={setIsChecking}
-          onResolved={onOverrideResolved}
+          onSaved={() => setSourceDraft(null)}
         />
       )}
     </div>

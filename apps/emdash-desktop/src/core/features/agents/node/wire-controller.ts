@@ -79,7 +79,7 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
     updateSettings: ({ host, id, config }) =>
       withHostRuntime(options.runtimes, host, () => agentOperations.updateSettings(id, config)),
     setUsedInstallation: ({ host, id, selection }) =>
-      withHostRuntime(options.runtimes, host, (runtime) =>
+      withHostResult(options.runtimes, host, (runtime) =>
         agentOperations.setUsedInstallation(
           id as DependencyId,
           sshConnectionIdOf(host),
@@ -87,9 +87,14 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
           runtime.hostDependencies
         )
       ),
-    probeOverride: ({ host, id, selection }) =>
-      withHostRuntime(options.runtimes, host, () =>
-        agentOperations.probeOverride(id as DependencyId, selection, sshConnectionIdOf(host))
+    resolveInstallation: ({ host, id, selection }) =>
+      withHostResult(options.runtimes, host, (runtime) =>
+        agentOperations.resolveInstallation(
+          id as DependencyId,
+          selection,
+          sshConnectionIdOf(host),
+          runtime.hostDependencies
+        )
       ),
     refreshLatestVersion: ({ host, id }) =>
       withHostRuntime(options.runtimes, host, () =>
@@ -154,6 +159,16 @@ async function withHostRuntime<T>(
   const runtime = await runtimes.client(host);
   if (!runtime.success) return err(runtime.error);
   return ok(await work(runtime.data));
+}
+
+async function withHostResult<T, E>(
+  runtimes: AgentsRuntimeBroker,
+  host: HostRef,
+  work: (client: HostRuntimesClient) => Promise<Result<T, E>>
+): Promise<Result<T, E | RuntimeResolveError>> {
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) return err(runtime.error);
+  return work(runtime.data);
 }
 
 async function withAgentConfigResult<T, E>(
