@@ -36,6 +36,7 @@ import type { AgentState } from '../models/agents';
 import type { SessionConfigState, SessionUsage } from '../models/config';
 import type { PlanState } from '../models/plan';
 import type { TranscriptTurn, TranscriptTurnOutcome } from '../models/turns';
+import { routeEvent } from './event-routing';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 import { initialState, reduce, type ParserState, type ReducerDeps } from './reducer';
 
@@ -76,6 +77,21 @@ export class AcpTranscriptParser {
 
   pushEvent(event: NormalizedEvent, at = Date.now()): void {
     this.state = reduce(this.state, { kind: 'event', event, at }, this.deps);
+  }
+
+  /** Shared with SessionCell so async state updates cannot create foreground activity. */
+  advancesForeground(event: NormalizedEvent): boolean {
+    return routeEvent(
+      event,
+      this.state.toolOwners,
+      this.activeTurn?.id ?? null,
+      this.state.planTurnId
+    ).foreground;
+  }
+
+  /** Changes to already committed turns; live consumers must refresh their history. */
+  get historyRevision(): number {
+    return this.state.historyRevision;
   }
 
   /**

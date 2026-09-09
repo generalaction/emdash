@@ -226,7 +226,7 @@ describe('AcpTranscriptParser', () => {
     p.push(update);
 
     const turnId = makeTurnId(CID, 0);
-    const expectedId = makeMessageId(turnId, 'auto:user:0', 'user');
+    const expectedId = makeMessageId(turnId, null, 'user');
     expect(p.activeTurn?.items[0].id).toBe(expectedId);
   });
 
@@ -251,8 +251,8 @@ describe('AcpTranscriptParser', () => {
     expect(messages.map((message) => message.text)).toEqual(['do it', 'before', 'after']);
     expect(messages.map((message) => message.id)).toEqual([
       makeMessageId(makeTurnId(CID, 0), 'u1', 'user'),
-      makeMessageId(makeTurnId(CID, 0), 'auto:assistant:0', 'assistant'),
-      makeMessageId(makeTurnId(CID, 0), 'auto:assistant:1', 'assistant'),
+      makeMessageId(makeTurnId(CID, 0), null, 'assistant', 0),
+      makeMessageId(makeTurnId(CID, 0), null, 'assistant', 1),
     ]);
     expect(messages.map((message) => message.seq)).toEqual([0, 1, 3]);
   });
@@ -777,17 +777,11 @@ describe('AcpTranscriptParser', () => {
     });
   });
 
-  it('idle-phase plan opens an agent turn and updates the session-scoped plan slice', () => {
+  it('idle-phase plan updates the session-scoped slice without opening an agent turn', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(planUpdate([{ content: 'Agent step', status: 'in_progress', priority: 'medium' }]), 100);
 
-    expect(p.activeTurn?.initiator).toBe('agent');
-    expect(p.activeTurn?.items.find((item) => item.kind === 'create-plan-tool-call')).toMatchObject(
-      {
-        status: 'running',
-        planId: SESSION_PLAN_ID,
-      }
-    );
+    expect(p.activeTurn).toBeNull();
     expect(p.plan).toEqual({
       id: SESSION_PLAN_ID,
       entries: [
@@ -834,7 +828,7 @@ describe('AcpTranscriptParser', () => {
     expect(
       p.history[0].items.find((item) => item.kind === 'spawn-subagent-tool-call')
     ).toMatchObject({
-      status: 'done',
+      status: 'running',
       background: true,
       agentId: 'agent-1',
     });
