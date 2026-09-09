@@ -38,8 +38,8 @@ export async function resolveOverride(
   try {
     if (!(await stat(path)).isFile()) return invalid(`"${path}" is not a file.`);
     await access(path, constants.X_OK);
-    if (process.platform === 'win32' && !/\.(exe|com|cmd|bat)$/i.test(extname(path))) {
-      return invalid(`"${path}" is not a Windows executable (.exe, .com, .cmd or .bat).`);
+    if (process.platform === 'win32' && !/\.(exe|com|cmd|bat|ps1)$/i.test(extname(path))) {
+      return invalid(`"${path}" is not a Windows executable (.exe, .com, .cmd, .bat or .ps1).`);
     }
     return ok({
       id,
