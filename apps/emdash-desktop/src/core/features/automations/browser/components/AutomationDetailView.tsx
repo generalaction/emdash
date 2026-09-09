@@ -64,12 +64,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex flex-1 flex-row items-center gap-3">
             <Input
-              bare
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={handleNameBlur}
               placeholder="Name this automation"
-              className="flex-1 px-0 text-lg!"
+              className="flex-1 border-0 bg-transparent px-0 text-lg! shadow-none"
               disabled={!canEdit}
             />
           </div>

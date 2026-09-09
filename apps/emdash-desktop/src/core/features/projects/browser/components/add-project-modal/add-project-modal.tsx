@@ -291,11 +291,10 @@ export const AddProjectModal = observer(function AddProjectModal({
         <div data-autofocus tabIndex={-1} className="flex flex-col gap-4 outline-none">
           <div className="flex items-center gap-2">
             <Input
-              bare
               autoFocus
               value={projectName.name}
               placeholder={projectName.placeholder}
-              className="min-w-0 flex-1 px-0 text-lg!"
+              className="min-w-0 flex-1 border-0 bg-transparent px-0 text-lg! shadow-none"
               onChange={(e) => projectName.handleNameChange(e.target.value)}
             />
             <LocationSelector

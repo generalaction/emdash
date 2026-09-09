@@ -1,0 +1,104 @@
+{
+  "editor.background": {
+    "property": "--emdash-integration-monaco-editor-background",
+    "writer": "var(--em-surface-paper)",
+    "reader": "editor.background",
+    "theme": "surface.role.paper.background"
+  },
+  "editor.foreground": {
+    "property": "--emdash-integration-monaco-editor-foreground",
+    "writer": "var(--em-foreground)",
+    "reader": "editor.foreground",
+    "theme": "foreground.default"
+  },
+  "editor.lineHighlightBackground": {
+    "property": "--emdash-integration-monaco-editor-line-highlight-background",
+    "writer": "var(--em-surface-paper-hover)",
+    "reader": "editor.lineHighlightBackground",
+    "theme": "surface.role.paper.hover"
+  },
+  "editorLineNumber.foreground": {
+    "property": "--emdash-integration-monaco-editor-line-number-foreground",
+    "writer": "var(--em-foreground-passive)",
+    "reader": "editorLineNumber.foreground",
+    "theme": "foreground.passive"
+  },
+  "editorGutter.background": {
+    "property": "--emdash-integration-monaco-editor-gutter-background",
+    "writer": "var(--em-surface-paper)",
+    "reader": "editorGutter.background",
+    "theme": "surface.role.paper.background"
+  },
+  "diffEditor.insertedTextBackground": {
+    "property": "--emdash-integration-monaco-diff-editor-inserted-text-background",
+    "writer": "var(--em-green-4)",
+    "reader": "diffEditor.insertedTextBackground",
+    "theme": "palette.green.step4"
+  },
+  "diffEditor.insertedLineBackground": {
+    "property": "--emdash-integration-monaco-diff-editor-inserted-line-background",
+    "writer": "var(--em-green-3)",
+    "reader": "diffEditor.insertedLineBackground",
+    "theme": "palette.green.step3"
+  },
+  "diffEditor.insertedTextBorder": {
+    "property": "--emdash-integration-monaco-diff-editor-inserted-text-border",
+    "writer": "var(--em-green-7)",
+    "reader": "diffEditor.insertedTextBorder",
+    "theme": "palette.green.step7"
+  },
+  "diffEditor.removedTextBackground": {
+    "property": "--emdash-integration-monaco-diff-editor-removed-text-background",
+    "writer": "var(--em-red-4)",
+    "reader": "diffEditor.removedTextBackground",
+    "theme": "palette.red.step4"
+  },
+  "diffEditor.removedLineBackground": {
+    "property": "--emdash-integration-monaco-diff-editor-removed-line-background",
+    "writer": "var(--em-red-3)",
+    "reader": "diffEditor.removedLineBackground",
+    "theme": "palette.red.step3"
+  },
+  "diffEditor.removedTextBorder": {
+    "property": "--emdash-integration-monaco-diff-editor-removed-text-border",
+    "writer": "var(--em-red-7)",
+    "reader": "diffEditor.removedTextBorder",
+    "theme": "palette.red.step7"
+  },
+  "diffEditor.unchangedRegionBackground": {
+    "property": "--emdash-integration-monaco-diff-editor-unchanged-region-background",
+    "writer": "var(--em-neutral-3)",
+    "reader": "diffEditor.unchangedRegionBackground",
+    "theme": "palette.neutral.step3"
+  },
+  "diffEditor.border": {
+    "property": "--emdash-integration-monaco-diff-editor-border",
+    "writer": "var(--em-neutral-6)",
+    "reader": "diffEditor.border",
+    "theme": "palette.neutral.step6"
+  },
+  "diffEditor.diagonalFill": {
+    "property": "--emdash-integration-monaco-diff-editor-diagonal-fill",
+    "writer": "var(--em-neutral-4)",
+    "reader": "diffEditor.diagonalFill",
+    "theme": "palette.neutral.step4"
+  },
+  "editor.selectionBackground": {
+    "property": "--emdash-integration-monaco-editor-selection-background",
+    "writer": "var(--em-selection)",
+    "reader": "editor.selectionBackground",
+    "theme": "selection.background"
+  },
+  "editor.selectionForeground": {
+    "property": "--emdash-integration-monaco-editor-selection-foreground",
+    "writer": "var(--em-selection-foreground)",
+    "reader": "editor.selectionForeground",
+    "theme": "selection.foreground"
+  },
+  "editor.inactiveSelectionBackground": {
+    "property": "--emdash-integration-monaco-editor-inactive-selection-background",
+    "writer": "var(--em-accent-4)",
+    "reader": "editor.inactiveSelectionBackground",
+    "theme": "palette.accent.step4"
+  }
+}

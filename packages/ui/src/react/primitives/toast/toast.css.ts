@@ -1,72 +1,84 @@
 /**
- * Toast styling — restyles sonner onto the --em-* token contract.
+ * Toast foreign-DOM Styling Adapter — restyles Sonner onto the Token contract.
  *
  * Sonner themes itself through CSS custom properties declared on
  * `[data-sonner-toaster][data-sonner-theme=…]` selectors and styles its
  * internals via data-attribute selectors on DOM it owns. Its only theming
  * hooks are those variables and CSS targeting those attributes, so the
- * overrides below are attribute-scoped globalStyles by necessity (this is
- * third-party DOM, not an @emdash/ui component boundary). Every selector is
- * anchored on the doubled `toaster` class so it outranks sonner's injected
- * stylesheet regardless of insertion order.
+ * overrides below are rooted Global Rules by necessity (this is third-party
+ * DOM, not an @emdash/ui component boundary). This module is registered as a
+ * Global Adapter; every selector is anchored on the doubled `toaster` class so
+ * it outranks Sonner's injected stylesheet regardless of insertion order.
  */
 
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { globalStyle } from '@styles/adapter';
+import { style } from '@styles/index';
+import { popupShadowValue } from '@styles/recipes/popup';
 
 export const toaster = style({
   selectors: {
     // (0,3,0) — beats sonner's (0,2,0) theme-default variable declarations.
     '&&[data-sonner-toaster]': {
-      fontFamily: tokenVars.fontSans,
+      fontFamily: tokens.typography.family.sans,
       vars: {
-        '--normal-bg': vars.background,
-        '--normal-border': vars.border,
-        '--normal-text': vars.foreground,
-        '--border-radius': tokenVars.radiusMd,
+        '--normal-bg': tokens.palette.neutral.step1,
+        '--normal-border': tokens.border.default,
+        '--normal-text': tokens.foreground.default,
+        '--border-radius': tokens.radius.md,
       },
     },
   },
 });
 
-const scope = `${toaster}${toaster}[data-sonner-toaster]`;
-const toastEl = `${scope} [data-sonner-toast][data-styled='true']`;
+const rootedToaster = `${toaster}${toaster}`;
 
-globalStyle(toastEl, {
-  boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+globalStyle(`${rootedToaster}[data-sonner-toaster] [data-sonner-toast][data-styled='true']`, {
+  boxShadow: popupShadowValue('md'),
   borderColor: 'transparent',
 });
 
 // Sonner hardcodes description colors per light/dark theme; own them instead.
-globalStyle(`${toastEl} [data-description]`, {
-  color: vars.foregroundMuted,
-});
+globalStyle(
+  `${rootedToaster}[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-description]`,
+  {
+    color: tokens.foreground.muted,
+  }
+);
 
 // Tone-colored status icons on an otherwise neutral surface.
 const TONE_ICON_COLORS = {
-  success: vars.foregroundSuccess,
-  error: vars.foregroundError,
-  warning: vars.foregroundWarning,
-  info: vars.foregroundInfo,
+  success: tokens.feedback.success.foreground,
+  error: tokens.feedback.error.foreground,
+  warning: tokens.feedback.warning.foreground,
+  info: tokens.feedback.info.foreground,
 } as const;
 
 for (const [type, color] of Object.entries(TONE_ICON_COLORS)) {
-  globalStyle(`${scope} [data-sonner-toast][data-type='${type}'] [data-icon]`, { color });
+  globalStyle(
+    `${rootedToaster}[data-sonner-toaster] [data-sonner-toast][data-type='${type}'] [data-icon]`,
+    { color }
+  );
 }
 
 // Promise-toast loading spinner bars (sonner defaults them to its gray ramp).
-globalStyle(`${scope} .sonner-loading-bar`, {
-  backgroundColor: vars.foregroundMuted,
+globalStyle(`${rootedToaster}[data-sonner-toaster] .sonner-loading-bar`, {
+  backgroundColor: tokens.foreground.muted,
 });
 
 // Action button reads as the primary button.
-globalStyle(`${toastEl} [data-button]`, {
-  backgroundColor: vars.primaryButtonBackground,
-  color: vars.primaryButtonForeground,
-  cursor: 'pointer',
-});
+globalStyle(
+  `${rootedToaster}[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button]`,
+  {
+    backgroundColor: tokens.palette.accent.step9,
+    color: tokens.palette.accent.contrast,
+    cursor: 'pointer',
+  }
+);
 
-globalStyle(`${toastEl} [data-button]:hover`, {
-  backgroundColor: vars.primaryButtonBackgroundHover,
-});
+globalStyle(
+  `${rootedToaster}[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button]:hover`,
+  {
+    backgroundColor: tokens.palette.accent.step10,
+  }
+);

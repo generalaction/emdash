@@ -1,21 +1,23 @@
-import { Box } from '@react/primitives/box';
 import { AbsoluteTime } from '@react/primitives/time/absolute-time';
 import { RelativeTime } from '@react/primitives/time/relative-time';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-
+import { sx } from '@styles/index';
 const meta: Meta = {
   title: 'Primitives/Time',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
-const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
-
+const minutesAgo = (n: number) => new Date(Date.now() - n * 60000);
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <Box display="flex" alignItems="center" gap="4">
+    <div
+      className={sx({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4',
+      })}
+    >
       <span
         style={{
           width: '16rem',
@@ -26,13 +28,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
         {label}
       </span>
       {children}
-    </Box>
+    </div>
   );
 }
-
 export const Absolute: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2',
+      })}
+    >
       <Row label="Current year (no year shown)">
         <AbsoluteTime value={new Date()} />
       </Row>
@@ -48,13 +55,18 @@ export const Absolute: Story = {
       <Row label="Unparseable input">
         <AbsoluteTime value="not a date" />
       </Row>
-    </Box>
+    </div>
   ),
 };
-
 export const Relative: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2',
+      })}
+    >
       <Row label="Just now">
         <RelativeTime value={minutesAgo(0)} />
       </Row>
@@ -67,13 +79,18 @@ export const Relative: Story = {
       <Row label="Unparseable input">
         <RelativeTime value="" />
       </Row>
-    </Box>
+    </div>
   ),
 };
-
 export const RelativeCompact: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2',
+      })}
+    >
       <Row label="Under a minute → now">
         <RelativeTime value={minutesAgo(0)} compact />
       </Row>
@@ -98,6 +115,6 @@ export const RelativeCompact: Story = {
       <Row label='ago suppressed while "now"'>
         <RelativeTime value={minutesAgo(0)} compact ago />
       </Row>
-    </Box>
+    </div>
   ),
 };

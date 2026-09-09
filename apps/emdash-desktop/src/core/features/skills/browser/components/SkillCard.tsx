@@ -21,7 +21,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
   onClick,
 }) => {
   return (
-    <CardGridItem role="button" tabIndex={0} onClick={onClick} className="group relative">
+    <CardGridItem interactive onClick={onClick} className="group relative">
       <SkillIconRenderer skill={skill} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <h3 className="text-md truncate">{skill.displayName}</h3>

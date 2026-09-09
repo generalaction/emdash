@@ -1,34 +1,43 @@
+import { tokens, type SurfaceLevelName, type SurfaceRoleName } from '@emdash/theme';
+import { DENSITY_MANIFEST, TYPOGRAPHY_MANIFEST, type ColorSchemeId } from '@emdash/theme/profiles';
+import { resolveTheme } from '@emdash/theme/runtime';
+import { ThemeProvider } from '@emdash/ui/react/theme-runtime';
+import { surface as surfaceRecipe } from '@emdash/ui/styles/recipes/surface';
 import type { Decorator, Preview } from '@storybook/react-vite';
 import React from 'react';
-import { ThemeProvider } from '../src/react/primitives/theme-provider';
-import type { ThemeId } from '../src/react/primitives/theme-provider';
-// Third-party CSS loaded globally so all stories can rely on them without
-// individual imports. Vite handles these in the Storybook build.
-import 'devicon/devicon.min.css';
-import 'katex/dist/katex.min.css';
-import '@emdash/chat-ui/style.css';
-import '../src/react/chat-ui/chat-theme.css';
-// Opt-in element-defaults (body bg/fg, scrollbars, selection) using --em-* tokens.
-import '../src/styles/base.css';
+import { storybookChatHostAdapterClassName } from './chat-host-adapter.css';
+import './styles.css';
 
-const SURFACE_FAMILIES = [
-  'none',
-  'sunken',
-  'base',
-  'base-emphasis',
-  'elevated',
-  'elevated-emphasis',
-] as const;
+const SURFACE_LEVELS = Object.keys(tokens.surface.level) as SurfaceLevelName[];
+const SURFACE_ROLES = Object.keys(tokens.surface.role) as SurfaceRoleName[];
+const SURFACE_FAMILIES = ['none', ...SURFACE_LEVELS, ...SURFACE_ROLES] as const;
 type SurfaceFamily = (typeof SURFACE_FAMILIES)[number];
 
 const withTheme: Decorator = (Story, context) => {
-  const colorMode = (context.globals['colorMode'] as ThemeId) ?? 'light';
+  const colorMode = (context.globals['colorMode'] as ColorSchemeId) ?? 'light';
   const surface = (context.globals['surface'] as SurfaceFamily) ?? 'none';
+  const density = DENSITY_MANIFEST[0];
+  const typography = TYPOGRAPHY_MANIFEST[0];
+  if (!density || !typography)
+    throw new Error('Storybook requires Density and Typography profiles');
+  const theme = resolveTheme({
+    colorScheme: colorMode,
+    density: density.id,
+    typography: typography.id,
+  });
   // Fullscreen stories own their layout — don't inject padding/min-height that
   // would stack on top of a story's own h-screen and overflow the viewport.
   const fullscreen = context.parameters?.['layout'] === 'fullscreen';
 
-  const surfaceClass = surface !== 'none' ? `surface-${surface}` : '';
+  const surfaceClass =
+    surface === 'none'
+      ? ''
+      : surface === 'paper'
+        ? surfaceRecipe({ role: surface })
+        : surfaceRecipe({ level: surface });
+  const frameClassName = [storybookChatHostAdapterClassName, surfaceClass]
+    .filter(Boolean)
+    .join(' ');
   // Set the design-system font on the frame (inline style) so story content wins
   // over Storybook's preview base body font; native controls pick it up via the
   // `font: inherit` reset in theme.base.css.
@@ -45,13 +54,13 @@ const withTheme: Decorator = (Story, context) => {
         backgroundColor: surface !== 'none' ? 'var(--em-surface)' : 'var(--em-background)',
       };
 
-  // ThemeProvider (default target="documentElement") applies the theme class to
-  // <html> so portal-rendered elements inherit tokens automatically. All CSS is
-  // loaded as side-effects by importing ThemeProvider — no separate CSS imports
-  // are needed here.
+  // The controlled runtime applies the complete profile class set to <html>;
+  // stylesheet loading remains explicit above.
   return (
-    <ThemeProvider theme={colorMode} className={surfaceClass} style={frameStyle}>
-      <Story />
+    <ThemeProvider theme={theme} target="document">
+      <div className={frameClassName} style={frameStyle}>
+        <Story />
+      </div>
     </ThemeProvider>
   );
 };

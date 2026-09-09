@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-registry/api';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

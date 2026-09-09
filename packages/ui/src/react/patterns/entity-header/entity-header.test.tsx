@@ -9,15 +9,16 @@ afterEach(cleanup);
 
 describe('EntityHeader', () => {
   it('renders the identity and action slots in a semantic header', () => {
-    const { container } = render(
+    render(
       <EntityHeader
         icon={<span data-testid="identity-icon" />}
         title={<h1>Emdash</h1>}
         actions={<button type="button">Actions</button>}
+        className="caller-header"
       />
     );
 
-    expect(container.querySelector('header[data-slot="entity-header"]')).not.toBeNull();
+    expect(screen.getByRole('banner').classList.contains('caller-header')).toBe(true);
     expect(screen.getByTestId('identity-icon')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Emdash' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Actions' })).not.toBeNull();

@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import * as styles from './spinner.css';
 

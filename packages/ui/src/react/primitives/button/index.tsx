@@ -1,42 +1,54 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
-import { controlVariants } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { control } from '@styles/recipes/control';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// broken relative path, silently degrading the variant prop types. Keep this
-// relative until that is fixed.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
+import type { ControlOptions, ControlSize, ControlTone } from '../../../styles/recipes/control';
 import * as buttonStyles from './button.css';
 
-export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';
+export type ButtonVariant = 'ghost' | 'primary' | 'secondary' | 'destructive' | 'link';
 
-export type ButtonProps = ButtonPrimitive.Props &
-  Omit<ControlVariantProps, 'variant' | 'kbd'> & {
-    variant?: ButtonVariant;
-    /** Square aspect ratio; collapses padding. Combines with size. */
-    icon?: boolean;
-    /** Trailing keyboard shortcut; reduces right padding so the Kbd aligns. */
-    kbd?: React.ReactNode;
-  };
+export type ButtonProps = Omit<ButtonPrimitive.Props, 'className'> & {
+  /**
+   * Applies caller-owned classes to the rendered button root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Semantic button presentation. @default 'ghost' */
+  variant?: ButtonVariant;
+  /** Shared four-step control size. @default 'base' */
+  size?: ControlSize;
+  /** Semantic status intent. @default 'neutral' */
+  tone?: ControlTone;
+  /** Square aspect ratio; collapses padding. Combines with size. */
+  icon?: boolean;
+  /** Trailing keyboard shortcut; reduces right padding so the Kbd aligns. */
+  kbd?: React.ReactNode;
+};
 
-export function resolveButtonControlVariant({
+export function resolveButtonControl({
   variant,
   tone,
   size,
 }: {
   variant: ButtonVariant;
-  tone: ControlVariantProps['tone'];
-  size: ControlVariantProps['size'];
-}): ControlVariantProps {
+  tone: ControlTone;
+  size: ControlSize;
+}): ControlOptions {
   if (variant === 'destructive') {
-    return { variant: 'primary', tone: 'destructive', size };
+    return { emphasis: 'high', tone: 'destructive', size };
   }
 
   if (variant === 'link') {
-    return { variant: 'ghost', tone, size: 'link' };
+    return { emphasis: 'minimal', tone, size };
   }
 
-  return { variant, tone, size };
+  const emphasis = {
+    ghost: 'low',
+    secondary: 'medium',
+    primary: 'high',
+  } as const;
+
+  return { emphasis: emphasis[variant], tone, size };
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -52,21 +64,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   },
   ref
 ) {
-  const controlVariant = resolveButtonControlVariant({ variant, tone, size });
+  const controlOptions = resolveButtonControl({ variant, tone, size });
 
   return (
     <ButtonPrimitive
       ref={ref}
       data-slot="button"
-      data-variant={controlVariant.variant}
-      data-tone={controlVariant.tone}
-      data-kbd={kbd ? '' : undefined}
-      className={cx(
-        controlVariants({ ...controlVariant, icon, kbd: Boolean(kbd) }),
-        buttonStyles.kbdHost,
-        className
-      )}
       {...props}
+      data-emphasis={controlOptions.emphasis}
+      data-size={controlOptions.size}
+      data-tone={controlOptions.tone}
+      data-presentation={variant === 'link' ? 'link' : undefined}
+      data-icon-only={icon ? '' : undefined}
+      data-kbd={kbd ? '' : undefined}
+      className={cx(control({ ...controlOptions, iconOnly: icon }), buttonStyles.root, className)}
     >
       {children}
       {kbd}
@@ -74,4 +85,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   );
 });
 
+/**
+ * Shared interactive control with semantic presentation, size, and tone.
+ *
+ * `className` is applied to the button root. Use `sx()` there for caller-owned
+ * layout; interaction and visual state remain owned by the control Recipe.
+ *
+ * @example
+ * ```tsx
+ * <Button variant="primary" className={sx({ width: 'full' })}>
+ *   Continue
+ * </Button>
+ * ```
+ */
 export { Button };

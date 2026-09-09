@@ -3,7 +3,9 @@
  * lists render through `CollectionView` (see Patterns/CollectionView); compose
  * this chrome directly only when a surface cannot fit that shell.
  */
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import {
   CheckIcon,
   FilterIcon,
@@ -13,6 +15,7 @@ import {
   TerminalIcon,
 } from 'lucide-react';
 import * as React from 'react';
+import { Icon } from '../../primitives/icon';
 import { SearchInput } from '../../primitives/search-input';
 import { Tabs } from '../../primitives/tabs/tabs';
 import { ListView } from './index';
@@ -103,6 +106,26 @@ function ItemRow({
 // ── 1. Basic flat list ────────────────────────────────────────────────────────
 
 const FLAT_1000 = makeFlatItems(1000);
+
+/** Caller-owned slot composition and static root override through `className`. */
+export const CallerOwnedStructure: Story = {
+  render: () => (
+    <div className={s.w96} style={{ height: '18rem', display: 'flex' }}>
+      <ListView className={sx({ p: tokens.space.step2 })}>
+        <ListView.Toolbar>Agent collection</ListView.Toolbar>
+        <ListView.Body>
+          <ListView.Row interactive selected>
+            Selected agent
+          </ListView.Row>
+          <ListView.Row interactive disabled isLast>
+            Unavailable agent
+          </ListView.Row>
+        </ListView.Body>
+        <ListView.Footer>Caller-owned footer</ListView.Footer>
+      </ListView>
+    </div>
+  ),
+};
 
 export const FlatList: Story = {
   name: 'Flat list (1 000 items)',
@@ -219,8 +242,10 @@ export const EmptySlot: Story = {
                   fontSize: 'var(--em-text-sm)',
                 }}
               >
-                <LayoutListIcon
-                  style={{ width: 32, height: 32, margin: '0 auto 0.5rem', opacity: 0.4 }}
+                <Icon
+                  source={LayoutListIcon}
+                  size="xl"
+                  style={{ margin: '0 auto 0.5rem', opacity: 0.4 }}
                 />
                 <p>No pull requests match your filters.</p>
               </div>
@@ -315,7 +340,7 @@ function FullListViewDemo() {
             }}
           >
             <ListView.FilterButton
-              icon={<FilterIcon />}
+              icon={<Icon source={FilterIcon} size="sm" />}
               active={activeAuthor === 'user-1'}
               onClick={() => setActiveAuthor((prev) => (prev === 'user-1' ? null : 'user-1'))}
             >
@@ -383,7 +408,7 @@ function MultiSelectDemo() {
                 gap: '0.25rem',
               }}
             >
-              <CheckIcon style={{ width: '0.875rem', height: '0.875rem' }} />
+              <Icon source={CheckIcon} size="sm" />
               {sel.count === SELECT_ITEMS.length ? 'Deselect all' : 'Select all'}
             </button>
             {sel.count > 0 && (
@@ -467,56 +492,56 @@ const AGENT_ITEMS: AgentItem[] = [
     name: 'Claude (Sonnet)',
     description: "Anthropic's flagship coding agent",
     installed: true,
-    icon: <TerminalIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={TerminalIcon} />,
   },
   {
     id: 'codex',
     name: 'OpenAI Codex',
     description: 'Code generation from OpenAI',
     installed: true,
-    icon: <PackageIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={PackageIcon} />,
   },
   {
     id: 'gemini',
     name: 'Gemini Code',
     description: "Google's AI coding assistant",
     installed: false,
-    icon: <GlobeIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={GlobeIcon} />,
   },
   {
     id: 'aider',
     name: 'Aider',
     description: 'AI pair programmer in your terminal',
     installed: false,
-    icon: <TerminalIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={TerminalIcon} />,
   },
   {
     id: 'copilot',
     name: 'GitHub Copilot',
     description: 'AI coding suggestions from GitHub',
     installed: true,
-    icon: <PackageIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={PackageIcon} />,
   },
   {
     id: 'cursor-agent',
     name: 'Cursor Agent',
     description: "Cursor's built-in agent mode",
     installed: true,
-    icon: <GlobeIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={GlobeIcon} />,
   },
   {
     id: 'devin',
     name: 'Devin',
     description: 'Autonomous AI software engineer',
     installed: false,
-    icon: <TerminalIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={TerminalIcon} />,
   },
   {
     id: 'mentat',
     name: 'Mentat',
     description: 'Code-editing AI assistant',
     installed: false,
-    icon: <PackageIcon style={{ width: 16, height: 16 }} />,
+    icon: <Icon source={PackageIcon} />,
   },
 ];
 

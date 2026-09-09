@@ -1,0 +1,38 @@
+{
+  "border": {
+    "default": "var(--em-border)",
+    "destructive": "var(--em-border-destructive)",
+    "focus": "var(--em-border-focus)"
+  },
+  "feedback": {
+    "error": {
+      "foreground": "var(--em-feedback-error-foreground)"
+    },
+    "info": {
+      "foreground": "var(--em-feedback-info-foreground)"
+    },
+    "success": {
+      "foreground": "var(--em-feedback-success-foreground)"
+    },
+    "warning": {
+      "foreground": "var(--em-feedback-warning-foreground)"
+    }
+  },
+  "foreground": {
+    "body": "var(--em-foreground-body)",
+    "default": "var(--em-foreground)",
+    "inverse": "var(--em-foreground-inverse)",
+    "muted": "var(--em-foreground-muted)",
+    "passive": "var(--em-foreground-passive)"
+  },
+  "selection": {
+    "background": "var(--em-selection)",
+    "foreground": "var(--em-selection-foreground)"
+  },
+  "surface": {
+    "current": {
+      "background": "var(--em-surface)",
+      "foreground": "var(--em-surface-foreground)"
+    }
+  }
+}

@@ -376,7 +376,7 @@ const FILE_PATHS = [
   'packages/chat-ui/src/components/execute/Execute.tsx',
   'packages/chat-ui/src/components/file-op/FileOperation.tsx',
   'apps/emdash-desktop/src/core/features/conversations/browser/chat/chat-store.ts',
-  'packages/ui/src/theme/theme.css',
+  'packages/theme/src/__generated__/styles.css',
   'packages/chat-ui/src/state/transcript.ts',
   'apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts',
   'packages/chat-ui/src/model.ts',

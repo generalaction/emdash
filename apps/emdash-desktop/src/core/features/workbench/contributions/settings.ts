@@ -8,6 +8,10 @@ import type {
 } from '@core/primitives/app-settings/api';
 import { openInAppIdSchema } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { defineSettingsContribution } from '@core/primitives/settings/api';
+import {
+  DEFAULT_THEME_PROFILE_SELECTION,
+  normalizeThemeProfileSelection,
+} from '@core/primitives/theme/api/theme-profile-selection';
 
 const keyboardSettingsSchema = z
   .optional(
@@ -32,7 +36,11 @@ const interfaceSettingsSchema = z.object({
   hideContextBar: z.boolean(),
 });
 
-const themeSchema = z.enum(['emlight', 'emdark']).nullable().catch(null).optional().default(null);
+const themeSchema = z
+  .unknown()
+  .transform(normalizeThemeProfileSelection)
+  .optional()
+  .default(DEFAULT_THEME_PROFILE_SELECTION);
 
 const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
@@ -67,7 +75,7 @@ export const interfaceSettingsContribution = defineSettingsContribution<
 export const themeSettingsContribution = defineSettingsContribution<'theme', Theme>({
   key: 'theme',
   schema: themeSchema,
-  defaults: null,
+  defaults: DEFAULT_THEME_PROFILE_SELECTION,
 });
 
 export const openInSettingsContribution = defineSettingsContribution<'openIn', OpenInSettings>({

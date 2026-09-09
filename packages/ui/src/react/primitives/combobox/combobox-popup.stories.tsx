@@ -6,15 +6,15 @@
  * are forwarded through the imperative handle.
  */
 
-import { Box } from '@react/primitives/box';
+import { tokens } from '@emdash/theme';
+import { Devicon } from '@react/components/devicon/devicon';
 import { Button } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
-import * as s from '@react/story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/ComboboxPopup',
@@ -26,35 +26,50 @@ type Story = StoryObj;
 const FILE_ITEMS: ComboboxPopupItem[] = [
   {
     id: 'src/components/chat-composer.tsx',
-    icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />,
+    icon: <Devicon iconClass="devicon-react-original colored" size={13} />,
     label: 'chat-composer.tsx',
     description: 'src/components',
   },
   {
     id: 'src/lib/file-icons.ts',
-    icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />,
+    icon: <Devicon iconClass="devicon-typescript-plain colored" size={13} />,
     label: 'file-icons.ts',
     description: 'src/lib',
   },
   {
     id: 'package.json',
-    icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />,
+    icon: <Devicon iconClass="devicon-npm-original-wordmark colored" size={13} />,
     label: 'package.json',
     description: '',
   },
   {
     id: 'README.md',
-    icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />,
+    icon: <Devicon iconClass="devicon-markdown-original" size={13} />,
     label: 'README.md',
     description: '',
   },
 ];
 
 const MIXED_ITEMS: ComboboxPopupItem[] = [
-  { id: 'f1', icon: <File className={s.size35} />, label: 'src/utils.ts', description: 'file' },
-  { id: 'i1', icon: <CircleDot className={s.size35} />, label: 'Issue #42', description: 'issue' },
-  { id: 's1', icon: <Braces className={s.size35} />, label: 'handleSubmit', description: 'symbol' },
-  { id: 'c1', icon: <AtSign className={s.size35} />, label: 'custom item', description: 'custom' },
+  { id: 'f1', icon: <Icon source={File} size="sm" />, label: 'src/utils.ts', description: 'file' },
+  {
+    id: 'i1',
+    icon: <Icon source={CircleDot} size="sm" />,
+    label: 'Issue #42',
+    description: 'issue',
+  },
+  {
+    id: 's1',
+    icon: <Icon source={Braces} size="sm" />,
+    label: 'handleSubmit',
+    description: 'symbol',
+  },
+  {
+    id: 'c1',
+    icon: <Icon source={AtSign} size="sm" />,
+    label: 'custom item',
+    description: 'custom',
+  },
 ];
 
 function AnchoredPopup({
@@ -90,11 +105,25 @@ function AnchoredPopup({
   }, [anchorRect]);
 
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: tokens.space.step2,
+      })}
+    >
       <Button ref={buttonRef} variant="ghost" size="xs" onClick={toggle}>
         {anchorRect ? 'Close popup' : 'Open popup'}
       </Button>
-      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+      <p
+        className={cx(
+          sx({
+            fontSize: tokens.typography.size.xs,
+            color: tokens.foreground.muted,
+          })
+        )}
+      >
         {anchorRect ? 'Arrow keys to navigate, Enter to select, Esc to dismiss' : ''}
       </p>
       <ComboboxPopup
@@ -108,7 +137,7 @@ function AnchoredPopup({
         emptyLabel={emptyLabel}
         header={header}
       />
-    </Box>
+    </div>
   );
 }
 
@@ -124,7 +153,7 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={<span className={cx(sx({ color: 'foreground' }))}>Context files</span>}
+      header={<span className={cx(sx({ color: tokens.foreground.default }))}>Context files</span>}
     />
   ),
 };

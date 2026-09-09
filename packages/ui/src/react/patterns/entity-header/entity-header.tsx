@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import * as styles from './entity-header.css';
 
@@ -16,6 +16,8 @@ export interface EntityHeaderProps extends Omit<React.ComponentPropsWithoutRef<'
  *
  * The slots keep domain-specific identity, editing, and actions with the
  * caller while this pattern owns their shared alignment and overflow behavior.
+ * `className` and remaining header attributes are applied to the rendered
+ * semantic `header` root.
  */
 function EntityHeader({ icon, title, actions, className, ...props }: EntityHeaderProps) {
   return (

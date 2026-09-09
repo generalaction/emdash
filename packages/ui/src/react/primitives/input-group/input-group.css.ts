@@ -1,116 +1,70 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import { svgContainer, svgDefaultSize } from '@styles/effects/svg-helpers.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+
+const inputGroupBase = style({
+  position: 'relative',
+  display: 'flex',
+  width: '100%',
+  minWidth: 0,
+  alignItems: 'center',
+  borderRadius: tokens.radius.md,
+  outline: 'none',
+  selectors: {
+    '&:has(>[data-align="block-end"])': {
+      height: 'auto',
+      flexDirection: 'column',
+    },
+    '&:has(>[data-align="block-start"])': {
+      height: 'auto',
+      flexDirection: 'column',
+    },
+    '&:has(>textarea)': { height: 'auto' },
+  },
+});
 
 export const inputGroup = recipe({
-  base: {
-    position: 'relative',
-    display: 'flex',
-    height: '2.25rem',
-    width: '100%',
-    minWidth: 0,
-    alignItems: 'center',
-    borderRadius: tokenVars.radiusMd,
-    outline: 'none',
-    selectors: {
-      // block-end addon -> column layout
-      '&:has(>[data-align="block-end"])': { height: 'auto', flexDirection: 'column' },
-      '&:has(>[data-align="block-start"])': { height: 'auto', flexDirection: 'column' },
-      // textarea child -> auto height
-      '&:has(>textarea)': { height: 'auto' },
-      // disabled state
-      '&[data-disabled="true"]': { opacity: 0.5 },
-    },
-  },
-
+  base: inputGroupBase,
   variants: {
-    variant: {
-      /**
-       * default — standalone input group with border, shadow, and focus ring.
-       * Use for form fields outside of popup containers.
-       */
-      default: {
-        border: `1px solid ${vars.border}`,
-        boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
-        transition: 'color 150ms, box-shadow 150ms',
-        selectors: {
-          '&:has([data-slot="input-group-control"]:focus-visible)': {
-            borderColor: vars.borderPrimary,
-            boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
-          },
-          '&:has([data-slot][aria-invalid="true"])': {
-            borderColor: vars.borderDestructive,
-            boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderDestructive} 20%, transparent)`,
-          },
-        },
+    size: {
+      base: {
+        height: '2rem',
+        fontSize: tokens.typography.size.sm,
       },
-
-      /**
-       * embedded — for use inside a popup container (e.g. ComboboxInput inside ComboboxContent).
-       * Strips the border to a bottom-only divider, removes the shadow and focus ring since
-       * the surrounding popup provides visual containment.
-       */
+      sm: {
+        height: '1.5rem',
+        fontSize: tokens.typography.size.xs,
+      },
+    },
+    appearance: {
+      standalone: {},
       embedded: {
-        margin: 0,
-        height: '2.25rem',
-        borderTop: 'none',
-        borderLeft: 'none',
-        borderRight: 'none',
-        borderBottom: `1px solid ${vars.border}`,
-        borderRadius: 0,
-        backgroundColor: 'transparent',
-        boxShadow: 'none',
         width: 'auto',
-        selectors: {
-          '&:focus-within': { borderColor: 'inherit', boxShadow: 'none' },
-        },
       },
     },
   },
-
   defaultVariants: {
-    variant: 'default',
+    size: 'base',
+    appearance: 'standalone',
   },
 });
 
-// input padding adjustments when block addons are present (targeting child inputs)
-globalStyle(`${inputGroup.classNames.base}:has(>[data-align="block-end"]) > input`, {
-  paddingTop: '0.75rem',
-});
-globalStyle(`${inputGroup.classNames.base}:has(>[data-align="block-start"]) > input`, {
-  paddingBottom: '0.75rem',
-});
-// inline addon input padding
-globalStyle(`${inputGroup.classNames.base}:has(>[data-align="inline-end"]) > input`, {
-  paddingRight: '0.375rem',
-});
-globalStyle(`${inputGroup.classNames.base}:has(>[data-align="inline-start"]) > input`, {
-  paddingLeft: '0.375rem',
-});
-
-const inputGroupAddonBase = style([
-  svgDefaultSize,
-  {
-    display: 'flex',
-    height: 'auto',
-    cursor: 'text',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    paddingTop: '0.375rem',
-    paddingBottom: '0.375rem',
-    fontSize: tokenVars.textSm,
-    fontWeight: 400,
-    color: vars.foregroundMuted,
-    userSelect: 'none',
-    selectors: {
-      '[data-slot="input-group"][data-disabled="true"] &': { opacity: 0.5 },
-    },
+const inputGroupAddonBase = style({
+  display: 'flex',
+  height: 'auto',
+  cursor: 'text',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.5rem',
+  paddingTop: '0.375rem',
+  paddingBottom: '0.375rem',
+  fontSize: 'inherit',
+  fontWeight: 400,
+  color: tokens.foreground.muted,
+  userSelect: 'none',
+  selectors: {
+    [`${inputGroupBase}[data-disabled] &`]: { opacity: 0.5 },
   },
-]);
-globalStyle(`${inputGroupAddonBase} > kbd`, { borderRadius: `calc(${tokenVars.radiusMd} - 5px)` });
+});
 
 export const inputGroupAddon = recipe({
   base: inputGroupAddonBase,
@@ -156,38 +110,67 @@ export const inputGroupAddon = recipe({
 });
 
 export const inputGroupButton = style({
-  borderRadius: `calc(${tokenVars.radiusMd} - 5px)`,
+  borderRadius: `calc(${tokens.radius.md} - 5px)`,
   boxShadow: 'none',
 });
 
-export const inputGroupText = style([
-  svgContainer,
-  svgDefaultSize,
-  {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: tokenVars.textSm,
-    color: vars.foregroundMuted,
-  },
-]);
+export const inputGroupText = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  fontSize: 'inherit',
+  color: tokens.foreground.muted,
+});
 
 export const inputGroupControl = style({
   flex: 1,
-  borderRadius: 0,
-});
-
-export const inputGroupTextareaControl = style({
-  flex: 1,
-  resize: 'none',
+  width: '100%',
+  minWidth: 0,
+  height: '2rem',
   borderRadius: 0,
   border: 0,
   backgroundColor: 'transparent',
-  paddingTop: '0.5rem',
-  paddingBottom: '0.5rem',
+  color: 'inherit',
+  colorScheme: 'light',
+  paddingTop: '0.25rem',
+  paddingRight: '0.625rem',
+  paddingBottom: '0.25rem',
+  paddingLeft: '0.625rem',
+  font: 'inherit',
+  outline: 'none',
   boxShadow: 'none',
   selectors: {
-    '&:focus-visible': { boxShadow: 'none' },
-    '&[aria-invalid="true"]': { boxShadow: 'none' },
+    '&::placeholder': { color: tokens.foreground.passive },
+    [`${inputGroupBase}[data-size='sm'] &`]: {
+      height: '1.5rem',
+      paddingTop: '0.125rem',
+      paddingRight: '0.5rem',
+      paddingBottom: '0.125rem',
+      paddingLeft: '0.5rem',
+    },
+    [`${inputGroupBase}:has(>[data-align='block-end']) &`]: {
+      paddingTop: '0.75rem',
+    },
+    [`${inputGroupBase}:has(>[data-align='block-start']) &`]: {
+      paddingBottom: '0.75rem',
+    },
+    [`${inputGroupBase}:has(>[data-align='inline-end']) &`]: {
+      paddingRight: '0.375rem',
+    },
+    [`${inputGroupBase}:has(>[data-align='inline-start']) &`]: {
+      paddingLeft: '0.375rem',
+    },
   },
 });
+
+export const inputGroupTextareaControl = style([
+  inputGroupControl,
+  {
+    height: 'auto',
+    minHeight: '4rem',
+    fieldSizing: 'content',
+    paddingTop: '0.5rem',
+    paddingBottom: '0.5rem',
+    resize: 'none',
+  },
+]);

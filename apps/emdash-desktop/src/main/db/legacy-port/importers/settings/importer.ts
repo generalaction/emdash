@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { isValidProviderId } from '@core/features/agents/api/node/plugin-registry';
 import { getDefaultForKey } from '@core/manifests/node/settings-contributions';
+import { normalizeThemeProfileSelection } from '@core/primitives/theme/api/theme-profile-selection';
 import type { AppSettings, AppSettingsKey } from '@core/services/settings/api';
 import { isPlainObject, mergeDeep } from '@core/services/settings/node/utils';
 import {
@@ -81,9 +82,11 @@ async function updateScalarSetting<K extends AppSettingsKey>(
 
 function mapLegacyTheme(theme: unknown): AppSettings['theme'] | undefined {
   const value = theme as LegacyTheme;
-  if (value === 'light') return 'emlight';
-  if (value === 'dark' || value === 'dark-black') return 'emdark';
-  if (value === 'system') return null;
+  if (value === 'light') return normalizeThemeProfileSelection('emlight');
+  if (value === 'dark' || value === 'dark-black') {
+    return normalizeThemeProfileSelection('emdark');
+  }
+  if (value === 'system') return normalizeThemeProfileSelection(null);
   return undefined;
 }
 

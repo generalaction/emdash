@@ -1,4 +1,6 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import {
   CheckCircle2,
   Clock,
@@ -18,6 +20,7 @@ import { WorkspaceIcon } from '../../components/workspace-icon/workspace-icon';
 import { Button } from '../../primitives/button';
 import { Checkbox } from '../../primitives/checkbox';
 import { DropdownMenu } from '../../primitives/dropdown-menu';
+import { Icon } from '../../primitives/icon';
 import { Spinner } from '../../primitives/spinner';
 import { Switch } from '../../primitives/switch';
 import { ToggleGroup } from '../../primitives/toggle';
@@ -102,15 +105,13 @@ const tasksView = createListView({
   selection: { kind: 'multi' },
 });
 
-/** Hover-revealed checkbox cell — authored as a plain column by the consumer. */
+/** Caller-owned checkbox cell authored as a plain collection column. */
 const TaskSelectCell = observer(function TaskSelectCell() {
   const { id } = tasksView.useItem();
   const selection = tasksView.useSelection();
   const checked = selection.isSelected(id);
   return (
     <span
-      className="story-select"
-      data-checked={checked || undefined}
       onClick={(event) => {
         event.stopPropagation();
         selection.toggle(id, event);
@@ -216,11 +217,11 @@ const TasksSelectionBar = observer(function TasksSelectionBar() {
           Archive
         </Button>
         <Button variant="destructive" size="xs">
-          <Trash2 />
+          <Icon source={Trash2} />
           Delete
         </Button>
         <Button variant="ghost" size="xs" aria-label="Clear selection" onClick={selection.clear}>
-          <X />
+          <Icon source={X} />
         </Button>
       </div>
     </ListPopoverCard>
@@ -240,11 +241,6 @@ function TaskViewDemo() {
         gap: '0.75rem',
       }}
     >
-      <style>{`
-        .story-select { opacity: 0; transition: opacity 120ms; }
-        [data-slot='list-row']:hover .story-select,
-        .story-select[data-checked] { opacity: 1; }
-      `}</style>
       <div style={{ minHeight: 0, flex: 1, position: 'relative', display: 'flex' }}>
         <tasksView.Root>
           <CollectionView
@@ -259,7 +255,7 @@ function TaskViewDemo() {
       </div>
       <p style={{ margin: 0, color: 'var(--em-foreground-muted)', fontSize: 'var(--em-text-xs)' }}>
         {clicked === null
-          ? 'Row click navigates (logged here); hover a row for its checkbox; shift-click for range select.'
+          ? 'Row click navigates (logged here); shift-click extends the selection range.'
           : `Would navigate to: ${clicked}`}
       </p>
     </div>
@@ -339,17 +335,17 @@ function WorktreeActionsCell({ row }: { row: WorktreeFixture }) {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
         <Button variant="ghost" size="xs" aria-label={`Actions for ${row.branch}`}>
-          <MoreHorizontal />
+          <Icon source={MoreHorizontal} />
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
         <DropdownMenu.Item>
-          <Paintbrush />
+          <Icon source={Paintbrush} />
           Clean artifacts
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
         <DropdownMenu.Item variant="destructive">
-          <Trash2 />
+          <Icon source={Trash2} />
           Delete worktree
         </DropdownMenu.Item>
       </DropdownMenu.Content>
@@ -448,7 +444,7 @@ const AGENT_COLUMNS: CollectionViewColumn<AgentFixture>[] = [
     width: '6rem',
     cell: (a) =>
       a.installed ? (
-        <Pill variant="info">Installed</Pill>
+        <Pill tone="info">Installed</Pill>
       ) : (
         <span style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}>
           Not installed
@@ -569,7 +565,7 @@ function AutomationRowContent({ automation }: { automation: AutomationFixture })
           </span>
           <span style={{ flex: 1 }} />
           <span style={CHIP_STYLE}>
-            <Clock size={12} />
+            <Icon source={Clock} size="xs" />
             {automation.cronLabel}
           </span>
           <span
@@ -578,7 +574,7 @@ function AutomationRowContent({ automation }: { automation: AutomationFixture })
               color: automation.project ? CHIP_STYLE.color : 'var(--em-foreground-error)',
             }}
           >
-            <Folder size={12} />
+            <Icon source={Folder} size="xs" />
             {automation.project ?? 'No project'}
           </span>
         </div>
@@ -594,9 +590,13 @@ function AutomationRowContent({ automation }: { automation: AutomationFixture })
           {automation.lastRun ? (
             <>
               {automation.lastRun.ok ? (
-                <CheckCircle2 size={12} style={{ color: 'var(--em-foreground-success)' }} />
+                <Icon
+                  source={CheckCircle2}
+                  size="xs"
+                  style={{ color: 'var(--em-foreground-success)' }}
+                />
               ) : (
-                <XCircle size={12} style={{ color: 'var(--em-foreground-error)' }} />
+                <Icon source={XCircle} size="xs" style={{ color: 'var(--em-foreground-error)' }} />
               )}
               <span>{automation.lastRun.label}</span>
             </>
@@ -621,6 +621,39 @@ export const AutomationsFreeform: Story = {
         renderRow={(automation) => <AutomationRowContent automation={automation} />}
         estimateSize={68}
         onItemClick={() => {}}
+      />
+    </div>
+  ),
+};
+
+/**
+ * Caller-owned toolbar/footer structure plus a finite root override through
+ * the documented `className` seam.
+ */
+export const CallerOwnedStructure: Story = {
+  render: () => (
+    <div style={{ width: '48rem', maxWidth: '100%', height: '18rem', display: 'flex' }}>
+      <CollectionView
+        items={AUTOMATIONS}
+        getItemKey={(automation) => automation.id}
+        renderRow={(automation) => <AutomationRowContent automation={automation} />}
+        onItemClick={() => {}}
+        isItemDisabled={(_automation, index) => index === 1}
+        className={sx({ p: tokens.space.step2 })}
+        toolbar={
+          <CollectionToolbar.Root>
+            <CollectionToolbar.Search
+              value=""
+              onValueChange={() => {}}
+              placeholder="Search automations…"
+            />
+            <CollectionToolbar.Spacer />
+            <CollectionToolbar.Group>
+              <span>{AUTOMATIONS.length} automations</span>
+            </CollectionToolbar.Group>
+          </CollectionToolbar.Root>
+        }
+        footer={<ListPopoverCard status="info">Caller-owned footer slot</ListPopoverCard>}
       />
     </div>
   ),

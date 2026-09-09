@@ -42,14 +42,7 @@ export const ProjectHeader = observer(function ProjectHeader({ projectId }: { pr
 
   return (
     <EntityHeader
-      icon={
-        <StatusIcon
-          aria-hidden
-          severity="neutral"
-          size="lg"
-          icon={<ProjectIcon aria-hidden size={20} />}
-        />
-      }
+      icon={<StatusIcon aria-hidden severity="neutral" size="lg" icon={ProjectIcon} />}
       title={
         <Heading level={1} tone="default" className="min-w-0 flex-1 truncate">
           {displayName}

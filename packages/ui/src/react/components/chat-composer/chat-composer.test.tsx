@@ -13,6 +13,34 @@ import { ChatComposer } from './index';
 afterEach(cleanup);
 
 describe('ChatComposer', () => {
+  it('exposes the disabled shell state and disables submission', () => {
+    const { container } = render(<ChatComposer disabled onSubmit={() => {}} />);
+
+    const shell = container.querySelector<HTMLElement>('[data-slot="chat-composer-shell"]');
+    expect(shell).not.toBeNull();
+    expect(shell?.dataset.state).toBe('disabled');
+    expect(shell?.getAttribute('aria-disabled')).toBe('true');
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')?.disabled
+    ).toBe(true);
+  });
+
+  it('announces error notices and marks the shell invalid', () => {
+    const { container } = render(
+      <ChatComposer
+        notice={{ variant: 'error', title: 'Message not sent', message: 'Try again.' }}
+        onSubmit={() => {}}
+      />
+    );
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Message not sent');
+    expect(
+      container
+        .querySelector<HTMLElement>('[data-slot="chat-composer-shell"]')
+        ?.getAttribute('aria-invalid')
+    ).toBe('true');
+  });
+
   it('shows the selected effort beside the model and keeps the MCP trigger compact', () => {
     const { container, getByRole } = render(
       <ChatComposer

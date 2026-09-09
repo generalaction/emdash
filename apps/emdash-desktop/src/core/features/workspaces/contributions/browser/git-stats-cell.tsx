@@ -1,4 +1,7 @@
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import type { ProjectWorkspaceGitStats } from '@core/primitives/workspaces/api';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 export function GitStatsCell({
   stats,
@@ -13,9 +16,9 @@ export function GitStatsCell({
 
     return (
       <span className="inline-flex gap-1">
-        {stats.added > 0 && <span className="text-foreground-diff-added">+{stats.added}</span>}
+        {stats.added > 0 && <span className={diffLine({ kind: 'added' })}>+{stats.added}</span>}
         {stats.removed > 0 && (
-          <span className="text-foreground-diff-deleted">-{stats.removed}</span>
+          <span className={diffLine({ kind: 'deleted' })}>-{stats.removed}</span>
         )}
         {stats.ahead > 0 && <span>↑{stats.ahead}</span>}
         {stats.behind > 0 && <span>↓{stats.behind}</span>}

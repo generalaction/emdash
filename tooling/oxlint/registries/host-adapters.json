@@ -1,0 +1,22 @@
+{
+  "modules": [
+    "apps/emdash-desktop/src/core/features/agents/contributions/browser/plugin-icon.adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/automations/browser/styles/automation-run-status.css.ts",
+    "apps/emdash-desktop/src/core/features/conversations/contributions/chat-host-adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/editor/browser/monaco/monaco-theme-adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/editor/browser/monaco/monaco-theme-integration.ts",
+    "apps/emdash-desktop/src/core/features/mcp/browser/mcp-icon-asset.adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/settings/browser/components/integration-logo.adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/skills/browser/components/skill-icon-asset.adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/source-control/browser/styles/diff-line.css.ts",
+    "apps/emdash-desktop/src/core/features/source-control/browser/styles/monaco-diff-adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/source-control/browser/styles/vcs-state.css.ts",
+    "apps/emdash-desktop/src/core/features/tasks/browser/styles/workflow-status.css.ts",
+    "apps/emdash-desktop/src/core/features/terminals/browser/pty/xterm-theme-adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/terminals/browser/pty/xterm-theme-integration.ts",
+    "apps/emdash-desktop/src/core/features/terminals/contributions/browser/shell-graphic.adapter.css.ts",
+    "apps/emdash-desktop/src/core/features/workspaces/browser/styles/workspace-status.css.ts",
+    "apps/emdash-desktop/src/core/services/pull-requests/browser/styles/pull-request-state.css.ts",
+    "packages/ui/.storybook/chat-host-adapter.css.ts"
+  ]
+}

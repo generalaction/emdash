@@ -3,8 +3,8 @@
  * scale.step reference.  Written once, never branched per theme or polarity.
  *
  * This is the ONLY place semantics are assigned. Scales are hue-named in the
- * palette (green, red, amber, blue, orange, purple); here we say what each hue
- * means (success → green, error → red, merged → purple, conflict → orange, …).
+ * palette (green, red, amber, blue, orange, purple); here we say what each
+ * shared Theme meaning uses (success → green, error → red, and so on).
  *
  * Ref syntax:
  *   "scale.step"         → e.g. "neutral.1", "accent.9", "green.11"
@@ -14,8 +14,8 @@
  *
  * Normalizations applied vs semantic.tokens.json:
  *   - background / foreground-inverse: mapped to neutral.1 (light theme makes neutral.1 = white)
- *   - border / border-* / foreground-passive / status-* / foreground-diff-added:
- *       collapsed to one step; ramp generation ensures perceptual correctness per polarity
+ *   - border / border-* / foreground-passive: collapsed to one step; ramp generation
+ *       ensures perceptual correctness per polarity
  *   - primary-button: unified on accent.9 solid + accent.contrast text (Radix pattern)
  *   - foreground-body: kept as mix expression (resolved by the CSS emitter)
  */
@@ -88,18 +88,6 @@ export const SEMANTIC_TEMPLATE = {
   selection: 'blue.6',
   'selection-foreground': 'blue.12',
 
-  // ── Status ────────────────────────────────────────────────────────────────
-  'status-in-progress': 'amber.11',
-  'status-in-review': 'green.10',
-  'status-done': 'neutral.9',
-  'status-todo': 'neutral.9',
-  'status-cancelled': 'neutral.9',
-
-  // ── Diff ──────────────────────────────────────────────────────────────────
-  'foreground-diff-added': 'green.9',
-  'foreground-diff-modified': 'amber.9',
-  'foreground-diff-deleted': 'red.9',
-
   // ── Semantic state sets ───────────────────────────────────────────────────
   // success → green
   'foreground-success': 'green.9',
@@ -124,11 +112,6 @@ export const SEMANTIC_TEMPLATE = {
   'background-info': 'blue.3',
   'background-info-hover': 'blue.4',
   'border-info': 'blue.7',
-
-  // ── VCS state extras ──────────────────────────────────────────────────────
-  // merge conflict → orange; merged PR → purple (GitHub convention)
-  'foreground-conflict': 'orange.11',
-  'foreground-merged': 'purple.9',
 } as const;
 
 export type SemanticSlot = keyof typeof SEMANTIC_TEMPLATE;

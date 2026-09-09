@@ -186,7 +186,7 @@ export function AgentSignInModal({
         <div className="relative h-full">
           <div
             ref={terminalHostRef}
-            className="h-full rounded-md border border-border bg-(--xterm-bg)"
+            className="h-full rounded-md border border-border bg-background"
           />
           {!ready && !error && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-sm text-foreground-muted">
@@ -254,5 +254,5 @@ function styleLoginTerminal(terminal: Terminal): void {
   element.style.height = '100%';
   element.style.boxSizing = 'border-box';
   element.style.padding = `${TERMINAL_PADDING_PX}px`;
-  element.style.backgroundColor = 'var(--xterm-bg)';
+  element.style.backgroundColor = terminal.options.theme?.background ?? '';
 }

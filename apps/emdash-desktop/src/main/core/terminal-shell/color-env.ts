@@ -1,13 +1,13 @@
 import { nativeTheme } from 'electron';
 import type { Theme } from '@core/primitives/app-settings/api';
+import { resolveThemePolarity } from '@core/primitives/theme/api/theme-profile-selection';
 import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { log } from '@main/lib/logger';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 
 export function resolveEffectiveTheme(theme: Theme, shouldUseDarkColors: boolean): EffectiveTheme {
-  if (theme === 'emlight' || theme === 'emdark') return theme;
-  return shouldUseDarkColors ? 'emdark' : 'emlight';
+  return resolveThemePolarity(theme, shouldUseDarkColors) === 'dark' ? 'emdark' : 'emlight';
 }
 
 export async function getTerminalColorEnv(): Promise<Record<string, string>> {

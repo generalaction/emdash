@@ -1,0 +1,3 @@
+@import 'devicon/devicon.min.css' layer(emdash.vendor);
+@import 'katex/dist/katex.min.css' layer(emdash.vendor);
+@import '@emdash/chat-ui/style.css' layer(emdash.vendor);

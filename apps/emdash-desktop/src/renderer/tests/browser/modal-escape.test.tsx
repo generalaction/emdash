@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -93,7 +92,10 @@ describe('Modal Escape routing', () => {
     detachKeybindings = dispatcher.attach(window);
     await act(async () => {
       root.render(
-        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+        <ThemeProvider
+          theme={{ colorScheme: 'light', density: 'comfortable', typography: 'default' }}
+          onThemeChange={vi.fn()}
+        >
           <ModalRenderer />
         </ThemeProvider>
       );

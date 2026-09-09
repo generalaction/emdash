@@ -171,6 +171,7 @@ export type {
   PageLayoutProps,
   PageSidebarProps,
   PageContentProps,
+  PageContentWidth,
   PageNavItem,
   PageNavDivider,
   PageNavSection,

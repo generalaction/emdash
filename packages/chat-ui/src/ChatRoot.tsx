@@ -85,7 +85,6 @@ import {
   unitRowWrapper,
   widthProbeClass,
 } from './chat-root.css';
-import './chat-fonts.css';
 import { vars } from './styles/theme.css';
 
 // Centered content column. The scroll container stays full width (so the

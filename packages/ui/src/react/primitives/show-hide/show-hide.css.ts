@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { style } from '@styles/index';
 
 /**
  * The wrapper contributes no layout box of its own when visible

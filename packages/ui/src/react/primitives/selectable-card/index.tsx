@@ -7,25 +7,25 @@
  * use passive text.
  */
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the sprinkle prop types.
-import type { Sprinkles } from '../../../styles/utilities/sprinkles.css';
 import { selectableCard } from './selectable-card.css';
-import { sx } from '@styles/utilities/sprinkles.css';
+
+export type SelectableCardJustify = 'flex-start' | 'center' | 'flex-end';
+export type SelectableCardPadding = '2' | '3';
+export type SelectableCardRadius = 'md' | 'lg';
 
 export interface SelectableCardProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Horizontal alignment of the card content. */
-  justifyContent?: Sprinkles['justifyContent'];
+  justifyContent?: SelectableCardJustify;
   /** Selected / active state. */
   selected?: boolean;
   /** Enables hover + selected styling. */
   interactive?: boolean;
   /** Padding scale token. */
-  padding?: Sprinkles['padding'];
+  padding?: SelectableCardPadding;
   /** Border radius scale token. */
-  borderRadius?: Sprinkles['borderRadius'];
+  borderRadius?: SelectableCardRadius;
 }
 
 export const SelectableCard = React.forwardRef<HTMLButtonElement, SelectableCardProps>(
@@ -43,13 +43,6 @@ export const SelectableCard = React.forwardRef<HTMLButtonElement, SelectableCard
     },
     ref
   ) {
-    const sprinkles: Partial<Sprinkles> = {};
-    if (justifyContent != null) sprinkles.justifyContent = justifyContent;
-    if (padding != null) sprinkles.padding = padding;
-    if (borderRadius != null) sprinkles.borderRadius = borderRadius;
-    const sprinkleClass =
-      Object.keys(sprinkles).length > 0 ? sx(sprinkles as Sprinkles) : undefined;
-
     return (
       <button
         ref={ref}
@@ -57,7 +50,7 @@ export const SelectableCard = React.forwardRef<HTMLButtonElement, SelectableCard
         data-selected={selected ? 'true' : undefined}
         aria-selected={selected}
         data-interactive={interactive ? 'true' : 'false'}
-        className={cx(selectableCard, sprinkleClass, className)}
+        className={cx(selectableCard({ justifyContent, padding, borderRadius }), className)}
         {...rest}
       >
         {children}

@@ -1,9 +1,9 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const separator = style({
   flexShrink: 0,
-  backgroundColor: vars.border,
+  backgroundColor: tokens.border.default,
   selectors: {
     '&[data-orientation="horizontal"]': {
       height: '1px',

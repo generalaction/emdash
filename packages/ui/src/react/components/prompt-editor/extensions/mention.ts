@@ -24,6 +24,7 @@ import React from 'react';
 import { MentionPill } from '../mention-pill';
 import { serializeMentionLabel } from '../serialize';
 import type { MentionItem, RenderMentionIcon } from '../types';
+import { serializedEditorChip } from '../chip-classes.css';
 
 export function buildMentionExtension(
   // Omit the Selected generic (defaults to TipTap's internal type) so our richer
@@ -57,7 +58,7 @@ export function buildMentionExtension(
       );
     },
   }).configure({
-    HTMLAttributes: { class: 'mention-chip' },
+    HTMLAttributes: { class: serializedEditorChip },
     renderText({ node }) {
       const serializedText = node.attrs.serializedText as string | null;
       if (serializedText) return serializedText;
@@ -78,7 +79,7 @@ export function buildMentionExtension(
           'data-name': (node.attrs.name as string | null) ?? '',
           'data-kind': node.attrs.kind as string,
           'data-serialized-text': serializedText ?? '',
-          class: 'mention-chip',
+          class: serializedEditorChip,
         },
         serializedText ?? serializeMentionLabel(label, node.attrs.kind as string | null, name),
       ];

@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import { SearchInput, type SearchInputProps } from '../../primitives/search-input';
 import { Separator, type SeparatorProps } from '../../primitives/separator';
@@ -29,7 +29,8 @@ export type CollectionToolbarSeparatorProps = Omit<SeparatorProps, 'orientation'
 /**
  * CollectionToolbar — a composable controls row for any collection renderer.
  * It deliberately does not depend on CollectionView, ListView, or a particular
- * list/grid implementation.
+ * list/grid implementation. Root and search classes are applied to their
+ * respective rendered roots.
  */
 const Root = React.forwardRef<HTMLDivElement, CollectionToolbarRootProps>(
   function CollectionToolbarRoot({ className, ...props }, ref) {

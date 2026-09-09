@@ -3,23 +3,73 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
     <title>Emdash</title>
+    <script id="emdash-theme-prepaint-data" type="application/json">
+      {
+        "colorSchemes": [
+          { "id": "light", "polarity": "light", "className": "emlight" },
+          { "id": "dark", "polarity": "dark", "className": "emdark" },
+          {
+            "id": "solarized-light",
+            "polarity": "light",
+            "className": "emsolarized-light"
+          },
+          {
+            "id": "solarized-dark",
+            "polarity": "dark",
+            "className": "emsolarized-dark"
+          }
+        ],
+        "densities": [
+          { "id": "comfortable", "className": "density-comfortable" },
+          { "id": "compact", "className": "density-compact" }
+        ],
+        "typographies": [{ "id": "default", "className": "typography-default" }]
+      }
+    </script>
     <script>
       (function () {
         try {
+          var profileData = JSON.parse(
+            document.getElementById('emdash-theme-prepaint-data').textContent
+          );
           var raw = localStorage.getItem('emdash-theme');
           var pref = raw ? JSON.parse(raw) : null;
-          var effective =
-            pref === 'emlight' || pref === 'emdark'
+          var selection =
+            pref && typeof pref === 'object'
               ? pref
-              : window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'emdark'
-                : 'emlight';
-          document.documentElement.classList.add(effective);
+              : {
+                  colorScheme: pref === 'emlight' ? 'light' : pref === 'emdark' ? 'dark' : null,
+                };
+          var systemPolarity = window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+          var systemColorScheme = profileData.colorSchemes.find(function (profile) {
+            return profile.polarity === systemPolarity;
+          });
+          var colorScheme = profileData.colorSchemes.find(function (profile) {
+            return profile.id === selection.colorScheme;
+          });
+          if (!colorScheme) colorScheme = systemColorScheme;
+          var density = profileData.densities.find(function (profile) {
+            return profile.id === selection.density;
+          });
+          if (!density) density = profileData.densities[0];
+          var typography = profileData.typographies.find(function (profile) {
+            return profile.id === selection.typography;
+          });
+          if (!typography) typography = profileData.typographies[0];
+          if (!colorScheme || !density || !typography) throw new Error('Incomplete Theme manifest');
+          document.documentElement.classList.add(
+            colorScheme.className,
+            density.className,
+            typography.className
+          );
           // sRGB approximations of the theme --background / --foreground
           // tokens, applied before any stylesheet loads so the very first
           // paint (and the boot splash) match the persisted theme.
-          var dark = effective === 'emdark';
+          var dark = colorScheme.polarity === 'dark';
           var style = document.documentElement.style;
           style.backgroundColor = dark ? '#111111' : '#fcfcfc';
           style.setProperty('--boot-splash-bg', dark ? '#111111' : '#fcfcfc');

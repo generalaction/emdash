@@ -5,11 +5,17 @@ import { Input, type InputProps } from '../../../primitives/input';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
 
-export interface TextFieldProps extends Omit<InputProps, 'value' | 'onChange' | 'id' | 'name'> {
+export interface TextFieldProps extends Omit<
+  InputProps,
+  'className' | 'value' | 'onChange' | 'id' | 'name'
+> {
   label?: React.ReactNode;
   description?: React.ReactNode;
   orientation?: FieldOrientation;
+  /** Applies caller-owned classes to the rendered Field root. */
   className?: string;
+  /** Applies caller-owned classes to the nested Input control slot. */
+  controlClassName?: string;
 }
 
 export function TextField({
@@ -17,6 +23,7 @@ export function TextField({
   description,
   orientation,
   className,
+  controlClassName,
   ...inputProps
 }: TextFieldProps) {
   const field = useFieldContext<string>();
@@ -35,6 +42,7 @@ export function TextField({
           onBlur={field.handleBlur}
           onChange={(e) => field.handleChange(e.target.value)}
           aria-invalid={invalid || undefined}
+          className={controlClassName}
           {...inputProps}
         />
       )}

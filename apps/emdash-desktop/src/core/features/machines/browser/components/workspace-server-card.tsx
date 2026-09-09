@@ -41,9 +41,9 @@ export function WorkspaceRuntimeRow({
               !loading &&
               state &&
               (reconnecting ? (
-                <Pill variant="neutral">Reconnecting</Pill>
+                <Pill tone="neutral">Reconnecting</Pill>
               ) : state.status === 'healthy' && availability?.kind !== 'ready' ? (
-                <Pill variant="neutral">
+                <Pill tone="neutral">
                   {availability?.kind === 'preparing' ? 'Checking' : 'Unverified'}
                 </Pill>
               ) : (

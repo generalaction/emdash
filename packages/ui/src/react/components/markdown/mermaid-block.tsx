@@ -1,11 +1,13 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ExpandIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '@/react/primitives/button';
+import { Icon } from '@/react/primitives/icon';
 import { Tooltip } from '@/react/primitives/tooltip';
 import { ZoomViewerDialog } from '../image-viewer/zoom-viewer-dialog';
 import { renderMermaid } from './mermaid';
 import * as styles from './markdown.css';
+import * as graphicStyles from './mermaid-graphic.adapter.css';
 
 const GENERIC_RENDER_ERROR = 'Unable to render Mermaid diagram.';
 
@@ -66,7 +68,7 @@ export function MermaidBlock({ source, compact }: MermaidBlockProps) {
               className={styles.mermaidExpandButton}
               onClick={expandFromInteraction}
             >
-              <ExpandIcon style={{ width: '0.75rem', height: '0.75rem' }} />
+              <Icon source={ExpandIcon} />
             </Button>
           }
         />
@@ -78,7 +80,12 @@ export function MermaidBlock({ source, compact }: MermaidBlockProps) {
         role="button"
         tabIndex={0}
         aria-label="Expand Mermaid diagram preview"
-        className={cx(styles.mermaidPreview, compact && styles.mermaidPreviewCompact)}
+        className={cx(
+          graphicStyles.mermaidPreviewGraphicAdapter,
+          styles.mermaidPreview,
+          compact && styles.mermaidPreviewCompact
+        )}
+        data-foreign-adapter="mermaid"
         onClick={expandFromInteraction}
         onKeyDown={handlePreviewKeyDown}
         dangerouslySetInnerHTML={{ __html: result.svg }}
@@ -90,7 +97,8 @@ export function MermaidBlock({ source, compact }: MermaidBlockProps) {
         contentKey={source}
       >
         <div
-          className={styles.mermaidDialogContent}
+          className={cx(graphicStyles.mermaidDialogGraphicAdapter, styles.mermaidDialogContent)}
+          data-foreign-adapter="mermaid"
           dangerouslySetInnerHTML={{ __html: result.svg }}
         />
       </ZoomViewerDialog>

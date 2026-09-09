@@ -41,11 +41,7 @@ export const DiffTabBarItem = observer(function DiffTabBarItem({
       ctx={ctx}
       label={fileName}
       tooltip={`${resource.path} ${suffix}`}
-      preSlot={
-        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-          <FileIcon filename={fileName} />
-        </span>
-      }
+      preSlot={<FileIcon filename={fileName} size={12} />}
       labelSlot={
         <TabTitle isActive={tab.isActive} isPreview={tab.isPreview}>
           {fileName}
@@ -69,11 +65,7 @@ export function DiffTabBarItemDragPreview({ tab }: { tab: ResolvedTab<DiffTabRes
   const suffix = diffGroupSuffix(resource.diffGroup);
   return (
     <GenericTabDragPreview
-      preSlot={
-        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-          <FileIcon filename={fileName} />
-        </span>
-      }
+      preSlot={<FileIcon filename={fileName} size={12} />}
       label={`${fileName} ${suffix}`}
     />
   );

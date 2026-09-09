@@ -1,6 +1,8 @@
 import { useDroppable } from '@dnd-kit/core';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { PaneDimensionProvider } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { usePaneContext } from '../tabs/pane-context';
 import { paneDropTargetId } from './pane-drop-target';
@@ -52,7 +54,7 @@ export const PaneContent = observer(function PaneContent({
 
   if (!hasAnyTab) {
     return (
-      <div ref={setContentRef} className="surface-paper relative h-full bg-(--em-surface)">
+      <div ref={setContentRef} className={cn(surface({ role: 'paper' }), 'relative h-full')}>
         {isOverContent && (
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
         )}
@@ -64,7 +66,10 @@ export const PaneContent = observer(function PaneContent({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TabBar trailingSlot={trailingSlot} />
-      <div ref={setContentRef} className="surface-paper relative min-h-0 flex-1 bg-(--em-surface)">
+      <div
+        ref={setContentRef}
+        className={cn(surface({ role: 'paper' }), 'relative min-h-0 flex-1')}
+      >
         <PaneSplitDropZones paneId={paneId} />
         {/*
          * PaneDimensionProvider is placed here (below the TabBar, not around

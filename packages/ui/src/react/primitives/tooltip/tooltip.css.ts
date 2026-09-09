@@ -1,7 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { popupShadowSm, popupSurfaceInverted } from '@styles/recipes/popup-surface.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { popup } from '@styles/recipes/popup';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -9,8 +8,7 @@ export const positioner = style({
 });
 
 export const content = style([
-  popupSurfaceInverted,
-  popupShadowSm,
+  popup({ appearance: 'inverted' }),
   {
     display: 'inline-flex',
     width: 'fit-content',
@@ -18,14 +16,14 @@ export const content = style([
     alignItems: 'center',
     gap: '0.375rem',
     padding: '0.375rem 0.75rem',
-    fontSize: tokenVars.textXs,
-    lineHeight: tokenVars.textXsLineHeight,
+    fontSize: tokens.typography.size.xs,
+    lineHeight: tokens.typography.lineHeight.xs,
     vars: {
       // Adapt Kbd keycaps rendered inside tooltip content to the inverted
       // surface via the custom-property hooks kbd.css exposes.
-      '--kbd-bg': `color-mix(in srgb, ${vars.foregroundNeutral} 15%, transparent)`,
-      '--kbd-border': `color-mix(in srgb, ${vars.foregroundNeutral} 20%, transparent)`,
-      '--kbd-color': vars.foregroundNeutral,
+      '--_kbd-bg': `color-mix(in srgb, ${tokens.palette.neutral.step1} 15%, transparent)`,
+      '--_kbd-border': `color-mix(in srgb, ${tokens.palette.neutral.step1} 20%, transparent)`,
+      '--_kbd-color': tokens.palette.neutral.step1,
     },
   },
 ]);
@@ -35,7 +33,7 @@ export const arrow = style({
   width: '0.625rem',
   height: '0.625rem',
   borderRadius: '2px',
-  backgroundColor: vars.backgroundNeutral,
+  backgroundColor: tokens.palette.neutral.step12,
   transform: 'translateY(calc(-50% - 2px)) rotate(45deg)',
   selectors: {
     '&[data-side="bottom"]': { top: '0.25rem' },

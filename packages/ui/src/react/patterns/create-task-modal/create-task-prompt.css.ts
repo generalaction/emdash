@@ -1,7 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { svgContainer, svgSmSize } from '@styles/effects/svg-helpers.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
 export const root = style({
   position: 'relative',
@@ -16,54 +15,52 @@ export const editor = style({
   minHeight: '7rem',
   flex: 1,
   overflowY: 'auto',
-  paddingBlock: tokenVars.space2,
+  paddingBlock: tokens.space.step2,
 });
 
 export const readOnlyReason = style({
   flexShrink: 0,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });
 
-export const completionStatus = style([
-  svgContainer,
-  svgSmSize,
-  {
-    display: 'flex',
-    flexShrink: 0,
-    alignItems: 'center',
-    gap: tokenVars.space2,
-    borderRadius: tokenVars.radiusSm,
-    backgroundColor: vars.surfaceHover,
-    padding: tokenVars.space2,
-    color: vars.foregroundMuted,
-    fontSize: tokenVars.textXs,
+export const completionStatus = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: tokens.space.step2,
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.surface.current.hover,
+  padding: tokens.space.step2,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
+  vars: {
+    [iconSizeVar]: '0.75rem',
   },
-]);
+});
 
 export const fileMentions = style({
   display: 'flex',
   flexShrink: 0,
   flexWrap: 'wrap',
-  gap: tokenVars.space1,
-  paddingBlockEnd: tokenVars.space1,
+  gap: tokens.space.step1,
+  paddingBlockEnd: tokens.space.step1,
 });
 
-export const fileMention = style([
-  svgContainer,
-  svgSmSize,
-  {
-    display: 'inline-flex',
-    maxWidth: '14rem',
-    alignItems: 'center',
-    gap: tokenVars.space1,
-    borderRadius: tokenVars.radiusSm,
-    backgroundColor: vars.surfaceHover,
-    padding: `${tokenVars.space1} ${tokenVars.space2}`,
-    color: vars.foreground,
-    fontSize: tokenVars.textXs,
+export const fileMention = style({
+  display: 'inline-flex',
+  maxWidth: '14rem',
+  alignItems: 'center',
+  gap: tokens.space.step1,
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.surface.current.hover,
+  padding: `${tokens.space.step1} ${tokens.space.step2}`,
+  color: tokens.foreground.default,
+  fontSize: tokens.typography.size.xs,
+  vars: {
+    [iconSizeVar]: '0.75rem',
   },
-]);
+});
 
 export const resourceName = style({
   minWidth: 0,
@@ -73,16 +70,16 @@ export const resourceName = style({
 });
 
 export const resourceError = style({
-  color: vars.surfaceDestructiveForeground,
+  color: tokens.surface.tone.destructive.foreground,
 });
 
 export const imageShelf = style({
   display: 'flex',
   minHeight: 0,
   flexShrink: 0,
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
   overflowX: 'auto',
-  paddingBlock: tokenVars.space1,
+  paddingBlock: tokens.space.step1,
 });
 
 export const image = style({
@@ -93,54 +90,53 @@ export const image = style({
   flexShrink: 0,
   gridTemplateColumns: '3.25rem minmax(0, 1fr)',
   alignItems: 'center',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
   overflow: 'hidden',
-  border: `1px solid ${vars.border}`,
-  borderRadius: tokenVars.radiusMd,
-  backgroundColor: vars.surface,
-  padding: tokenVars.space1,
-  color: vars.foreground,
+  border: `1px solid ${tokens.border.default}`,
+  borderRadius: tokens.radius.md,
+  backgroundColor: tokens.surface.current.background,
+  padding: tokens.space.step1,
+  color: tokens.foreground.default,
 });
 
 export const thumbnail = style({
   width: '3.25rem',
   height: '3.25rem',
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: tokens.radius.sm,
   objectFit: 'cover',
 });
 
-export const imagePlaceholder = style([
-  svgContainer,
-  svgSmSize,
-  {
-    display: 'grid',
-    width: '3.25rem',
-    height: '3.25rem',
-    placeItems: 'center',
-    borderRadius: tokenVars.radiusSm,
-    backgroundColor: vars.surfaceHover,
-    color: vars.foregroundMuted,
+export const imagePlaceholder = style({
+  display: 'grid',
+  width: '3.25rem',
+  height: '3.25rem',
+  placeItems: 'center',
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.surface.current.hover,
+  color: tokens.foreground.muted,
+  vars: {
+    [iconSizeVar]: '0.75rem',
   },
-]);
+});
 
 export const imageActions = style({
   position: 'absolute',
-  insetBlockStart: tokenVars.space1,
-  insetInlineEnd: tokenVars.space1,
+  insetBlockStart: tokens.space.step1,
+  insetInlineEnd: tokens.space.step1,
   display: 'flex',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
 });
 
 export const dropOverlay = style({
   pointerEvents: 'none',
   position: 'absolute',
   zIndex: 2,
-  inset: tokenVars.space1,
+  inset: tokens.space.step1,
   display: 'grid',
   placeItems: 'center',
-  border: `1px dashed ${vars.borderPrimary}`,
-  borderRadius: tokenVars.radiusMd,
-  backgroundColor: `color-mix(in srgb, ${vars.surface} 88%, transparent)`,
-  color: vars.foreground,
-  fontSize: tokenVars.textSm,
+  border: `1px dashed ${tokens.border.focus}`,
+  borderRadius: tokens.radius.md,
+  backgroundColor: `color-mix(in srgb, ${tokens.surface.current.background} 88%, transparent)`,
+  color: tokens.foreground.default,
+  fontSize: tokens.typography.size.sm,
 });

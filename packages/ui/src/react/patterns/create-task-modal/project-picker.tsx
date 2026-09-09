@@ -1,6 +1,7 @@
 import { ChevronDown, Laptop, Server } from 'lucide-react';
 import type { RefObject } from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import type { CreateTaskModalProps } from './create-task-modal.types';
 import { SearchableChoicePicker } from './searchable-choice-picker';
 import * as styles from './create-task-modal.css';
@@ -33,9 +34,9 @@ export function ProjectPicker({
       }
       renderTrigger={(selected) => (
         <>
-          {selected?.location.kind === 'ssh' ? <Server /> : <Laptop />}
+          <Icon source={selected?.location.kind === 'ssh' ? Server : Laptop} />
           <span className={styles.selectorText}>{selected?.label ?? 'Select a Project'}</span>
-          <ChevronDown />
+          <Icon source={ChevronDown} />
         </>
       )}
       renderFooter={() => (

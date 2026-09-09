@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { ExtraProps, Options as ReactMarkdownOptions } from 'react-markdown';
@@ -370,7 +370,11 @@ export function Markdown({
   const normalizedContent = React.useMemo(() => normalizeLatexDelimiters(content), [content]);
 
   return (
-    <div className={className}>
+    <div
+      className={cx(styles.markdownAdapter, className)}
+      data-foreign-adapter="markdown"
+      data-variant={variant}
+    >
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={rehypePlugins}

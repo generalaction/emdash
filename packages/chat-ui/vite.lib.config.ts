@@ -26,7 +26,9 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
+        'host-styles': resolve(__dirname, 'src/host-styles.ts'),
         index: resolve(__dirname, 'src/index.tsx'),
+        styles: resolve(__dirname, 'src/styles-entry.ts'),
       },
       formats: ['es'],
     },

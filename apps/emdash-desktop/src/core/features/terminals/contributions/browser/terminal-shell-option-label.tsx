@@ -1,8 +1,9 @@
 import type { TerminalShellAvailability } from '@emdash/core/primitives/terminal-shell/api';
-import { Badge } from '@emdash/ui/react/primitives';
+import { Devicon } from '@emdash/ui/react/components';
+import { Badge, Icon } from '@emdash/ui/react/primitives';
 import { Terminal } from 'lucide-react';
 import fishIcon from '@/assets/images/shells/fish.svg?raw';
-import { cn } from '@core/primitives/styling/browser/cn';
+import { shellGraphicAdapter } from './shell-graphic.adapter.css';
 const SHELL_DEVICON_CLASS: Partial<Record<string, string>> = {
   bash: 'devicon-bash-plain',
   cmd: 'devicon-windows11-plain',
@@ -22,7 +23,8 @@ function TerminalShellIcon({ shell }: { shell: string }) {
   if (svgIcon) {
     return (
       <span
-        className="size-4 shrink-0 text-foreground-muted [&>svg]:size-4"
+        className={shellGraphicAdapter}
+        data-foreign-adapter="shell-graphic"
         dangerouslySetInnerHTML={{ __html: svgIcon }}
         aria-hidden="true"
       />
@@ -31,18 +33,10 @@ function TerminalShellIcon({ shell }: { shell: string }) {
 
   const deviconClass = SHELL_DEVICON_CLASS[shellKey];
   if (deviconClass) {
-    return (
-      <i
-        className={cn(
-          deviconClass,
-          'size-4 shrink-0 text-[15px] leading-none text-foreground-muted'
-        )}
-        aria-hidden="true"
-      />
-    );
+    return <Devicon iconClass={deviconClass} size={16} className="text-foreground-muted" />;
   }
 
-  return <Terminal className="size-4 shrink-0 text-foreground-muted" aria-hidden="true" />;
+  return <Icon source={Terminal} size="md" className="text-foreground-muted" />;
 }
 
 export function TerminalShellOptionLabel({

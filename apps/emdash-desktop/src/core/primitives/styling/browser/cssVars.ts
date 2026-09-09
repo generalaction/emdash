@@ -9,11 +9,14 @@ export function cssVar(name: string): string {
  * Returns the original string unchanged if the canvas context is unavailable.
  */
 export function cssColorToHex(cssColor: string): string {
+  const normalizedColor = cssColor.trim();
+  if (/^#[\da-f]{3,8}$/i.test(normalizedColor)) return normalizedColor;
+
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 1;
   const ctx = canvas.getContext('2d');
   if (!ctx) return cssColor;
-  ctx.fillStyle = cssColor.trim();
+  ctx.fillStyle = normalizedColor;
   ctx.fillRect(0, 0, 1, 1);
   const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
   const hex = (n: number) => n.toString(16).padStart(2, '0');

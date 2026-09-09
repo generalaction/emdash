@@ -10,9 +10,10 @@
  * once per window by the host application.
  */
 
+import { COLOR_SCHEME_MANIFEST, type ColorSchemeId } from '@emdash/theme/profiles';
 import type * as React from 'react';
 import { Toaster as SonnerToaster, toast as sonnerToast, type ExternalToast } from 'sonner';
-import { THEME_MANIFEST, useThemeOptional, type ThemeId } from '../theme-provider';
+import { useThemeOptional } from '../../theme-runtime';
 import * as styles from './toast.css';
 
 export type ToastId = string | number;
@@ -90,7 +91,7 @@ export interface ToasterProps {
    * Fallback theme for hosts rendering outside a ThemeProvider. Inside a
    * provider the context theme wins and this prop is ignored.
    */
-  theme?: ThemeId;
+  theme?: ColorSchemeId;
 }
 
 /**
@@ -100,7 +101,7 @@ export interface ToasterProps {
  */
 export function Toaster({ theme }: ToasterProps) {
   const themeCtx = useThemeOptional();
-  const themeId = themeCtx?.themeId ?? theme;
-  const polarity = THEME_MANIFEST.find((e) => e.id === themeId)?.polarity ?? 'light';
+  const themeId = themeCtx?.colorScheme.id ?? theme;
+  const polarity = COLOR_SCHEME_MANIFEST.find((entry) => entry.id === themeId)?.polarity ?? 'light';
   return <SonnerToaster theme={polarity} className={styles.toaster} />;
 }

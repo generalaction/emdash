@@ -1,6 +1,6 @@
 'use client';
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { useRef } from 'react';
 import * as ResizablePrimitive from 'react-resizable-panels';
 import * as styles from './resizable.css';

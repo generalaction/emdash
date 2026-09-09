@@ -10,10 +10,11 @@
  * keyboard navigation. Matches the visual treatment of MentionPill.
  */
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { X } from 'lucide-react';
 import React from 'react';
+import { Icon } from '../../primitives/icon';
 import * as styles from './mention-pill.css';
 
 export function SlashCommandPill({ node, deleteNode }: NodeViewProps) {
@@ -40,7 +41,7 @@ export function SlashCommandPill({ node, deleteNode }: NodeViewProps) {
             aria-label={`Remove /${name}`}
             className={styles.pillRemoveBtn}
           >
-            <X style={{ width: '0.625rem', height: '0.625rem' }} />
+            <Icon source={X} />
           </button>
         </span>
         {/* Command name */}

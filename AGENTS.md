@@ -24,8 +24,8 @@ Repo root:
 - `packages/core/` - Transport-agnostic runtime primitives, including ACP session logic.
 - `packages/plugins/` - Agent provider plugin definitions, hooks, and ACP adapters.
 - `packages/shared/` - Shared primitives such as result types, logging, and markdown helpers.
-- `packages/theme/` - Theme token codegen that emits the generated theme CSS.
-- `packages/ui/` - Shared React UI components, theme tokens, recipes, and primitives.
+- `packages/theme/` - Canonical Tokens, Profile Definitions/manifests, Theme Compiler, and generated Theme CSS.
+- `packages/ui/` - Shared React components plus layer-aware styling interfaces and Recipes.
 - `packages/wire/` - Typed wire protocol contracts shared by app and workspace server.
 - `pnpm-workspace.yaml` - Workspace package globs for `apps/*` and `packages/**`.
 - Root config files - `package.json`, `nx.json`, `.nvmrc`, `.oxfmtrc.json`,
@@ -381,6 +381,12 @@ pnpm run test
   `@main/*`, `@root/*`, and `@tooling/*`) and mirrored where needed in
   `electron.vite.config.ts`; workspace packages resolve through their `exports` maps with a
   `development` condition, not aliases.
+- Theme and styling ownership is documented in `agents/architecture/styling.md`. Import Tokens
+  from `@emdash/theme`, ordinary authoring APIs from `@emdash/ui/styles`, and the reviewed public
+  Recipes from their explicit subpaths. Every host imports `@emdash/ui/styles.css` exactly once
+  before vendor and host CSS; React and TypeScript modules never load CSS.
+- Host Styling Adapter APIs from `@emdash/ui/styles/host` are restricted to registered host-owned
+  adapter modules. Product meanings stay in owning-slice Recipes; they are not Theme Tokens.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
   `@emdash/core/primitives/versioned-schema/api`
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle

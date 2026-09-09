@@ -1,4 +1,6 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import {
   Activity,
   Brain,
@@ -12,6 +14,7 @@ import {
   User,
 } from 'lucide-react';
 import { useState } from 'react';
+import { Icon } from '../../primitives/icon';
 import { PillTabs, type PillTab, type PillTabsLabelVisibility } from './pill-tabs';
 
 const meta: Meta = {
@@ -25,18 +28,20 @@ type Story = StoryObj;
 type ProjectSection = 'tasks' | 'pull-requests' | 'workspaces' | 'settings';
 
 const projectTabs: readonly PillTab<ProjectSection>[] = [
-  { value: 'tasks', label: 'Tasks', icon: <ListTodo /> },
-  { value: 'pull-requests', label: 'Pull Requests', icon: <GitPullRequest /> },
-  { value: 'workspaces', label: 'Workspaces', icon: <PanelsTopLeft /> },
-  { value: 'settings', label: 'Settings', icon: <Settings /> },
+  { value: 'tasks', label: 'Tasks', icon: <Icon source={ListTodo} /> },
+  { value: 'pull-requests', label: 'Pull Requests', icon: <Icon source={GitPullRequest} /> },
+  { value: 'workspaces', label: 'Workspaces', icon: <Icon source={PanelsTopLeft} /> },
+  { value: 'settings', label: 'Settings', icon: <Icon source={Settings} /> },
 ];
 
 function ProjectTabsExample({
   labelVisibility = 'always',
   disabled,
+  className,
 }: {
   labelVisibility?: PillTabsLabelVisibility;
   disabled?: ProjectSection;
+  className?: string;
 }) {
   const [value, setValue] = useState<ProjectSection>('tasks');
   const items = projectTabs.map((item) => ({
@@ -50,6 +55,7 @@ function ProjectTabsExample({
       onValueChange={setValue}
       ariaLabel="Project sections"
       labelVisibility={labelVisibility}
+      className={className}
     />
   );
 }
@@ -74,15 +80,20 @@ export const NarrowWidth: Story = {
   ),
 };
 
+/** Caller-owned block padding through the documented tablist root seam. */
+export const SxOverride: Story = {
+  render: () => <ProjectTabsExample className={sx({ p: tokens.space.step2 })} />,
+};
+
 type MachineSection = 'system' | 'workspaces' | 'conversations' | 'agents' | 'mcp' | 'skills';
 
 const machineTabs: readonly PillTab<MachineSection>[] = [
-  { value: 'system', label: 'System', icon: <Activity /> },
-  { value: 'workspaces', label: 'Workspaces', icon: <Folder /> },
-  { value: 'conversations', label: 'Conversations', icon: <MessageSquare /> },
-  { value: 'agents', label: 'Agents', icon: <User /> },
-  { value: 'mcp', label: 'MCP', icon: <Server /> },
-  { value: 'skills', label: 'Skills', icon: <Brain /> },
+  { value: 'system', label: 'System', icon: <Icon source={Activity} /> },
+  { value: 'workspaces', label: 'Workspaces', icon: <Icon source={Folder} /> },
+  { value: 'conversations', label: 'Conversations', icon: <Icon source={MessageSquare} /> },
+  { value: 'agents', label: 'Agents', icon: <Icon source={User} /> },
+  { value: 'mcp', label: 'MCP', icon: <Icon source={Server} /> },
+  { value: 'skills', label: 'Skills', icon: <Icon source={Brain} /> },
 ];
 
 function MachineTabsExample() {

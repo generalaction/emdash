@@ -106,7 +106,7 @@ describe('CollectionView shortcut mode', () => {
 
   it('makes interactive rows keyboard-operable buttons', () => {
     const onItemClick = vi.fn();
-    const { container } = render(
+    render(
       <CollectionView
         items={ITEMS}
         getItemKey={(item) => item.id}
@@ -115,8 +115,7 @@ describe('CollectionView shortcut mode', () => {
       />
     );
 
-    const rows = container.querySelectorAll('[data-slot="list-row"]');
-    expect(rows[0]?.getAttribute('role')).toBe('button');
+    const rows = screen.getAllByRole('button');
     expect(rows[0]?.getAttribute('tabindex')).toBe('0');
 
     fireEvent.keyDown(rows[1]!, { key: 'Enter' });
@@ -125,17 +124,13 @@ describe('CollectionView shortcut mode', () => {
   });
 
   it('leaves non-interactive rows without button semantics', () => {
-    const { container } = render(
-      <CollectionView items={ITEMS} getItemKey={(item) => item.id} columns={NAME_COLUMNS} />
-    );
+    render(<CollectionView items={ITEMS} getItemKey={(item) => item.id} columns={NAME_COLUMNS} />);
 
-    const row = container.querySelector('[data-slot="list-row"]');
-    expect(row?.getAttribute('role')).toBeNull();
-    expect(row?.getAttribute('tabindex')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('renders freeform rows through renderRow inside the row shell', () => {
-    const { container } = render(
+    render(
       <CollectionView
         items={ITEMS}
         getItemKey={(item) => item.id}
@@ -144,7 +139,7 @@ describe('CollectionView shortcut mode', () => {
     );
 
     expect(screen.getByText('Alpha').tagName).toBe('EM');
-    expect(container.querySelectorAll('[data-slot="list-row"]')).toHaveLength(3);
+    expect(screen.getAllByText(/Alpha|Beta|Gamma/)).toHaveLength(3);
   });
 
   it('renders the empty slot when there are no items', () => {
@@ -168,16 +163,38 @@ describe('CollectionView shortcut mode', () => {
     expect(slot?.className).toContain(emptyStateStyles.bare);
   });
 
-  it('exposes the density on the root element', () => {
+  it('applies caller className to the rendered collection root', () => {
     const { container } = render(
       <CollectionView
         items={ITEMS}
         getItemKey={(item) => item.id}
         columns={NAME_COLUMNS}
         density="compact"
+        className="caller-collection"
       />
     );
     expect(container.querySelector('[data-density="compact"]')).toBeTruthy();
+    expect(container.firstElementChild?.classList.contains('caller-collection')).toBe(true);
+  });
+
+  it('keeps disabled items out of the click and keyboard paths', () => {
+    const onItemClick = vi.fn();
+    render(
+      <CollectionView
+        items={ITEMS}
+        getItemKey={(item) => item.id}
+        columns={NAME_COLUMNS}
+        onItemClick={onItemClick}
+        isItemDisabled={(item) => item.id === 'b'}
+      />
+    );
+
+    const disabledRow = screen.getByText('Beta').closest('[role="button"]');
+    expect(disabledRow?.getAttribute('aria-disabled')).toBe('true');
+    expect(disabledRow?.getAttribute('tabindex')).toBe('-1');
+    fireEvent.click(disabledRow!);
+    fireEvent.keyDown(disabledRow!, { key: 'Enter' });
+    expect(onItemClick).not.toHaveBeenCalled();
   });
 });
 
@@ -207,9 +224,10 @@ describe('CollectionView state mode', () => {
     function SelectCell() {
       const { id } = view.useItem();
       const selection = view.useSelection();
+      const selected = selection.isSelected(id);
       return (
-        <button type="button" onClick={() => selection.toggle(id)}>
-          sel-{id}
+        <button type="button" aria-pressed={selected} onClick={() => selection.toggle(id)}>
+          {selected ? `selected-${id}` : `sel-${id}`}
         </button>
       );
     }
@@ -219,15 +237,14 @@ describe('CollectionView state mode', () => {
       ...NAME_COLUMNS,
     ];
 
-    const { container } = render(
+    render(
       <view.Root>
         <CollectionView view={view} columns={columns} />
       </view.Root>
     );
 
-    expect(container.querySelector('[data-slot="list-row"][data-selected]')).toBeNull();
     fireEvent.click(screen.getByText('sel-a'));
-    expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(1);
+    expect(screen.getByText('selected-a')).not.toBeNull();
   });
 
   it('applies universal selection mechanics: modifier-click toggles, shift-click ranges', () => {
@@ -238,23 +255,37 @@ describe('CollectionView state mode', () => {
     });
     const onItemClick = vi.fn();
 
-    const { container } = render(
+    function SelectionName() {
+      const { id, item } = view.useItem();
+      const selection = view.useSelection();
+      return <span>{`${selection.isSelected(id) ? 'selected' : 'idle'}-${item.name}`}</span>;
+    }
+
+    const columns: CollectionViewColumn<Fixture>[] = [
+      {
+        id: 'name',
+        width: 'minmax(0, 1fr)',
+        cell: () => <SelectionName />,
+      },
+    ];
+
+    render(
       <view.Root>
-        <CollectionView view={view} columns={NAME_COLUMNS} onItemClick={onItemClick} />
+        <CollectionView view={view} columns={columns} onItemClick={onItemClick} />
       </view.Root>
     );
 
     // Modifier-click toggles selection without navigating.
-    fireEvent.click(screen.getByText('Alpha'), { metaKey: true });
+    fireEvent.click(screen.getByText('idle-Alpha'), { metaKey: true });
     expect(onItemClick).not.toHaveBeenCalled();
-    expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(1);
+    expect(screen.getByText('selected-Alpha')).not.toBeNull();
 
     // Shift-click extends the range from the anchor.
-    fireEvent.click(screen.getByText('Gamma'), { shiftKey: true });
-    expect(container.querySelectorAll('[data-slot="list-row"][data-selected]')).toHaveLength(3);
+    fireEvent.click(screen.getByText('idle-Gamma'), { shiftKey: true });
+    expect(screen.getAllByText(/^selected-/)).toHaveLength(3);
 
     // A plain click stays navigation.
-    fireEvent.click(screen.getByText('Beta'));
+    fireEvent.click(screen.getByText('selected-Beta'));
     expect(onItemClick).toHaveBeenCalledTimes(1);
     expect(onItemClick.mock.calls[0][0]).toEqual(ITEMS[1]);
   });

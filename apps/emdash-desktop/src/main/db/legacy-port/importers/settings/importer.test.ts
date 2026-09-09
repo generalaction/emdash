@@ -228,7 +228,7 @@ describe('portLegacySettings', () => {
         prompt: 'Review this worktree carefully.',
       },
     ]);
-    expect(readRawSetting(appSqlite, 'theme')).toBe('emdark');
+    expect(readRawSetting(appSqlite, 'theme')).toEqual({ colorScheme: 'dark' });
 
     const terminal = readRawSetting(appSqlite, 'terminal') as Record<string, unknown>;
     expect(terminal.autoCopyOnSelection).toBe(true);

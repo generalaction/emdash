@@ -1,87 +1,59 @@
-import '@styles/layers.css';
-import { recipe } from '@vanilla-extract/recipes';
-import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe } from '@styles/index';
+import type { VariantProps } from '@styles/index';
+import { iconSizeVar } from '../../../styles/recipes/icon-contract';
 
 export const statusIcon = recipe({
   base: {
-    '@layer': {
-      recipes: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: tokenVars.radiusMd,
-        flexShrink: 0,
-      },
-    },
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: tokens.radius.md,
+    flexShrink: 0,
   },
   variants: {
     severity: {
       success: {
-        '@layer': {
-          recipes: {
-            backgroundColor: vars.backgroundSuccess,
-            color: vars.foregroundSuccess,
-          },
-        },
+        backgroundColor: tokens.feedback.success.background,
+        color: tokens.feedback.success.foreground,
       },
       error: {
-        '@layer': {
-          recipes: {
-            backgroundColor: vars.backgroundError,
-            color: vars.foregroundError,
-          },
-        },
+        backgroundColor: tokens.feedback.error.background,
+        color: tokens.feedback.error.foreground,
       },
       warning: {
-        '@layer': {
-          recipes: {
-            backgroundColor: vars.backgroundWarning,
-            color: vars.foregroundWarning,
-          },
-        },
+        backgroundColor: tokens.feedback.warning.background,
+        color: tokens.feedback.warning.foreground,
       },
       info: {
-        '@layer': {
-          recipes: {
-            backgroundColor: vars.backgroundInfo,
-            color: vars.foregroundInfo,
-          },
-        },
+        backgroundColor: tokens.feedback.info.background,
+        color: tokens.feedback.info.foreground,
       },
       neutral: {
-        '@layer': {
-          recipes: {
-            backgroundColor: `color-mix(in srgb, ${vars.foregroundMuted} 12%, transparent)`,
-            color: vars.foregroundMuted,
-          },
-        },
+        backgroundColor: `color-mix(in srgb, ${tokens.foreground.muted} 12%, transparent)`,
+        color: tokens.foreground.muted,
       },
     },
     size: {
       sm: {
-        '@layer': {
-          recipes: {
-            width: '1.25rem',
-            height: '1.25rem',
-          },
+        width: '1.25rem',
+        height: '1.25rem',
+        vars: {
+          [iconSizeVar]: '0.75rem',
         },
       },
       md: {
-        '@layer': {
-          recipes: {
-            width: '1.5rem',
-            height: '1.5rem',
-          },
+        width: '1.5rem',
+        height: '1.5rem',
+        vars: {
+          [iconSizeVar]: '0.875rem',
         },
       },
       lg: {
-        '@layer': {
-          recipes: {
-            width: '2.25rem',
-            height: '2.25rem',
-          },
+        width: '2.25rem',
+        height: '2.25rem',
+        vars: {
+          [iconSizeVar]: '1.25rem',
         },
       },
     },
@@ -92,48 +64,4 @@ export const statusIcon = recipe({
   },
 });
 
-export type StatusIconVariants = NonNullable<RecipeVariants<typeof statusIcon>>;
-
-export const icon = recipe({
-  base: {
-    '@layer': {
-      recipes: {
-        display: 'block',
-        color: 'currentColor',
-      },
-    },
-  },
-  variants: {
-    size: {
-      sm: {
-        '@layer': {
-          recipes: {
-            width: '0.75rem',
-            height: '0.75rem',
-          },
-        },
-      },
-      md: {
-        '@layer': {
-          recipes: {
-            width: '0.875rem',
-            height: '0.875rem',
-          },
-        },
-      },
-      lg: {
-        '@layer': {
-          recipes: {
-            width: '1.25rem',
-            height: '1.25rem',
-          },
-        },
-      },
-    },
-  },
-  defaultVariants: {
-    size: 'md',
-  },
-});
-
-export type StatusIconIconVariants = NonNullable<RecipeVariants<typeof icon>>;
+export type StatusIconVariants = NonNullable<VariantProps<typeof statusIcon>>;

@@ -1,54 +1,56 @@
 import {
-  THEME_MANIFEST,
-  ThemeProvider as UiThemeProvider,
-  type ThemeId,
-} from '@emdash/ui/react/primitives';
-import {
-  createContext,
-  useEffect,
-  useLayoutEffect,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+  resolveTheme,
+  THEME_PREPAINT_CLASS_DATA,
+  type Theme as ResolvedTheme,
+  type ThemePrepaintClassEntry,
+  type ThemeProfileIds,
+} from '@emdash/theme/runtime';
+import { ThemeProvider as ControlledThemeProvider } from '@emdash/ui/react/theme-runtime';
+import { createContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type { Theme } from '@core/primitives/app-settings/api';
 import {
-  THEME_CLASS_DARK,
-  THEME_CLASS_LIGHT,
-  THEME_CLASSES,
-  THEME_STORAGE_KEY,
-} from './theme-classes';
+  normalizeThemeProfileSelection,
+  resolveThemeProfileIds,
+} from '@core/primitives/theme/api/theme-profile-selection';
+import { THEME_STORAGE_KEY } from './theme-classes';
 import { getNextTheme } from './theme-toggle-model';
 
-export type EffectiveTheme = (typeof THEME_CLASSES)[number];
+export type EffectiveTheme = ResolvedTheme['classNames'][0];
 
-function getSystemTheme(): EffectiveTheme {
-  if (typeof window === 'undefined') return THEME_CLASS_LIGHT;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? THEME_CLASS_DARK
-    : THEME_CLASS_LIGHT;
+function getSystemPrefersDark(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-/**
- * Map the app's effective theme class to the @emdash/ui theme id, via the
- * manifest selectors so a rename fails loudly instead of drifting.
- */
-function uiThemeId(effective: EffectiveTheme): ThemeId {
-  const entry = THEME_MANIFEST.find((e) => e.selector === `.${effective}`);
-  if (!entry) throw new Error(`No @emdash/theme entry for selector ".${effective}"`);
-  return entry.id as ThemeId;
+/** Resolves the complete desktop Theme through the public profile manifests. */
+export function resolveDesktopTheme(value: unknown, systemPrefersDark: boolean): ResolvedTheme {
+  return resolveTheme(resolveThemeProfileIds(value, systemPrefersDark));
 }
 
-function subscribeToSystemTheme(onChange: () => void) {
+function subscribeToSystemTheme(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   mq.addEventListener('change', onChange);
   return () => mq.removeEventListener('change', onChange);
 }
 
-function applyTheme(effective: EffectiveTheme) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.classList.remove(...THEME_CLASSES);
-  root.classList.add(effective);
+function activePrepaintProfileId<Id extends string>(
+  entries: readonly ThemePrepaintClassEntry<Id>[]
+): Id | null {
+  const entry = entries.find(({ className }) =>
+    document.documentElement.classList.contains(className)
+  );
+  return entry?.id ?? null;
+}
+
+function getPrepaintTheme(): ResolvedTheme | null {
+  if (typeof document === 'undefined') return null;
+  const profileIds = {
+    colorScheme: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.colorSchemes),
+    density: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.densities),
+    typography: activePrepaintProfileId(THEME_PREPAINT_CLASS_DATA.typographies),
+  };
+  if (!profileIds.colorScheme || !profileIds.density || !profileIds.typography) return null;
+  return resolveTheme(profileIds as ThemeProfileIds);
 }
 
 export interface ThemeContextType {
@@ -56,13 +58,14 @@ export interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   effectiveTheme: EffectiveTheme;
+  resolvedTheme: ResolvedTheme;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export interface ThemeProviderProps {
   readonly children: ReactNode;
-  readonly theme: Theme;
+  readonly theme: Theme | null;
   readonly isLoading?: boolean;
   readonly onThemeChange: (theme: Theme) => void;
   readonly onThemeApplied?: (effectiveTheme: EffectiveTheme) => void;
@@ -75,29 +78,35 @@ export function ThemeProvider({
   onThemeChange,
   onThemeApplied,
 }: ThemeProviderProps) {
-  const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
-  const effectiveTheme: EffectiveTheme = theme ?? systemTheme;
-
-  useLayoutEffect(() => {
-    if (isLoading) return;
-    applyTheme(effectiveTheme);
-  }, [effectiveTheme, isLoading]);
+  const systemPrefersDark = useSyncExternalStore(
+    subscribeToSystemTheme,
+    getSystemPrefersDark,
+    getSystemPrefersDark
+  );
+  const selectedTheme = useMemo(() => normalizeThemeProfileSelection(theme), [theme]);
+  const resolvedTheme = useMemo(
+    () =>
+      (isLoading ? getPrepaintTheme() : null) ??
+      resolveDesktopTheme(selectedTheme, systemPrefersDark),
+    [isLoading, selectedTheme, systemPrefersDark]
+  );
+  const effectiveTheme = resolvedTheme.classNames[0];
 
   useEffect(() => {
     if (isLoading) return;
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme));
+      localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(selectedTheme));
     } catch {
       // Local storage is only a startup paint cache; persisted settings remain authoritative.
     }
-  }, [theme, isLoading]);
+  }, [selectedTheme, isLoading]);
 
   const setTheme = (newTheme: Theme) => {
     onThemeChange(newTheme);
   };
 
   const toggleTheme = () => {
-    const next = getNextTheme(theme, effectiveTheme);
+    const next = getNextTheme(selectedTheme, effectiveTheme);
     setTheme(next);
   };
 
@@ -106,13 +115,12 @@ export function ThemeProvider({
   }, [effectiveTheme, isLoading, onThemeApplied]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme }}>
-      {/* Context-only @emdash/ui provider: the app's applyTheme above stays the
-          sole DOM class writer; this makes @emdash/ui's useTheme() (needed by
-          theme-aware components like markdown/shiki) work app-wide. */}
-      <UiThemeProvider target="none" theme={uiThemeId(effectiveTheme)}>
+    <ThemeContext.Provider
+      value={{ theme: selectedTheme, setTheme, toggleTheme, effectiveTheme, resolvedTheme }}
+    >
+      <ControlledThemeProvider target="document" theme={resolvedTheme}>
         {children}
-      </UiThemeProvider>
+      </ControlledThemeProvider>
     </ThemeContext.Provider>
   );
 }

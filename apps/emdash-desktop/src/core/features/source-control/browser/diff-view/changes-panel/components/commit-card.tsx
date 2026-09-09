@@ -1,5 +1,5 @@
 import { Input, SplitButton, Textarea, toast } from '@emdash/ui/react/primitives';
-import { card } from '@emdash/ui/styles/recipes/card';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -7,6 +7,7 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
@@ -16,6 +17,8 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
+
+const { vcsState } = sourceControlHostStylesContribution.exports;
 
 type CommitPhase =
   | 'idle'
@@ -160,8 +163,8 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   return (
     <div
       className={cn(
-        card({ level: 'elevated-emphasis', radius: 'lg', padding: 'sm' }),
-        'mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2'
+        surface({ level: 'overlay' }),
+        'mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 overflow-hidden rounded-xl border border-border p-2'
       )}
     >
       <Input
@@ -200,7 +203,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       )}
       {(phase === 'commit-only-done' || phase === 'committed') && (
         <StatusRow
-          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          icon={<CheckCircle className={cn('size-4', vcsState({ state: 'completed' }))} />}
           label="Committed"
         />
       )}
@@ -209,7 +212,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       )}
       {phase === 'pushed' && (
         <StatusRow
-          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          icon={<CheckCircle className={cn('size-4', vcsState({ state: 'completed' }))} />}
           label="Pushed"
         />
       )}

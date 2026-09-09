@@ -1,6 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const root = style({
   display: 'flex',
@@ -8,9 +7,9 @@ export const root = style({
   height: '22.5rem',
   minHeight: '18rem',
   flexDirection: 'column',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
   overflow: 'hidden',
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const header = style({
@@ -19,14 +18,14 @@ export const header = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
 });
 
 export const headerEnd = style({
   display: 'flex',
   minWidth: 0,
   alignItems: 'center',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
 });
 
 export const selector = style({
@@ -46,34 +45,47 @@ export const taskName = style({
   flexShrink: 0,
   gridTemplateColumns: 'auto minmax(0, 1fr)',
   alignItems: 'center',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
 });
 
 export const taskNameLabel = style({
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
   fontWeight: 500,
 });
 
 export const taskNameInput = style({
+  appearance: 'none',
   flex: 1,
+  width: '100%',
+  minWidth: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  color: tokens.foreground.default,
+  padding: 0,
+  font: 'inherit',
+  fontSize: tokens.typography.size.sm,
   fontWeight: 500,
+  outline: 'none',
+  selectors: {
+    '&::placeholder': { color: tokens.foreground.passive },
+  },
 });
 
 export const taskNameControl = style({
   display: 'flex',
   minWidth: 0,
   alignItems: 'center',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
 });
 
 export const taskNameError = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
-  gap: tokenVars.space1,
-  color: vars.foregroundDestructive,
-  fontSize: tokenVars.textXs,
+  gap: tokens.space.step1,
+  color: tokens.palette.red.step11,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const footer = style({
@@ -82,7 +94,7 @@ export const footer = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
 });
 
 export const footerStart = style({
@@ -90,14 +102,14 @@ export const footerStart = style({
   minWidth: 0,
   flex: 1,
   alignItems: 'center',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
 });
 
 export const footerEnd = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
 });
 
 export const flexibleSelector = style({
@@ -122,15 +134,15 @@ export const popupHeader = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: tokenVars.space2,
-  padding: tokenVars.space2,
+  gap: tokens.space.step2,
+  padding: tokens.space.step2,
 });
 
 export const popupBody = style({
   minHeight: 0,
   flex: 1,
   overflowY: 'auto',
-  padding: tokenVars.space1,
+  padding: tokens.space.step1,
 });
 
 export const popupFooter = style({
@@ -138,23 +150,23 @@ export const popupFooter = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: tokenVars.space1,
+  padding: tokens.space.step1,
 });
 
 export const comboboxHeader = style({
-  padding: tokenVars.space2,
-  color: vars.foreground,
-  fontSize: tokenVars.textSm,
+  padding: tokens.space.step2,
+  color: tokens.foreground.default,
+  fontSize: tokens.typography.size.sm,
   fontWeight: 600,
 });
 
 export const comboboxFooter = style({
   display: 'flex',
-  padding: tokenVars.space1,
+  padding: tokens.space.step1,
 });
 
 export const search = style({
-  margin: tokenVars.space1,
+  margin: tokens.space.step1,
 });
 
 export const itemContent = style({
@@ -174,8 +186,8 @@ export const itemLabel = style({
 export const itemDescription = style({
   minWidth: 0,
   overflow: 'hidden',
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
@@ -184,10 +196,10 @@ export const state = style({
   display: 'grid',
   minHeight: '6rem',
   placeItems: 'center',
-  gap: tokenVars.space2,
-  padding: tokenVars.space4,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textSm,
+  gap: tokens.space.step2,
+  padding: tokens.space.step4,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.sm,
   textAlign: 'center',
 });
 
@@ -207,7 +219,7 @@ export const presetRail = style({
   width: '100%',
   minHeight: 0,
   overflowY: 'auto',
-  padding: tokenVars.space1,
+  padding: tokens.space.step1,
 });
 
 export const preset = style({
@@ -222,53 +234,53 @@ export const presetLabel = style({
 export const detail = style({
   minHeight: 0,
   overflowY: 'auto',
-  padding: tokenVars.space3,
+  padding: tokens.space.step3,
 });
 
 export const detailStack = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: tokenVars.space3,
+  gap: tokens.space.step3,
 });
 
 export const field = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: tokenVars.space1,
+  gap: tokens.space.step1,
 });
 
 export const fieldLabel = style({
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const inline = style({
   display: 'flex',
   alignItems: 'center',
-  gap: tokenVars.space2,
+  gap: tokens.space.step2,
 });
 
 export const notice = style({
-  borderRadius: tokenVars.radiusSm,
-  backgroundColor: vars.surfaceHover,
-  padding: tokenVars.space2,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  borderRadius: tokens.radius.sm,
+  backgroundColor: tokens.surface.current.hover,
+  padding: tokens.space.step2,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const error = style({
-  color: vars.surfaceDestructiveForeground,
+  color: tokens.surface.tone.destructive.foreground,
 });
 
 export const destination = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
-  gap: tokenVars.space2,
-  padding: tokenVars.space2,
-  backgroundColor: vars.surfaceHover,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  gap: tokens.space.step2,
+  padding: tokens.space.step2,
+  backgroundColor: tokens.surface.current.hover,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const destinationStatus = style({
@@ -277,9 +289,9 @@ export const destinationStatus = style({
 
 export const setupList = style({
   margin: 0,
-  paddingInlineStart: tokenVars.space4,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textXs,
+  paddingInlineStart: tokens.space.step4,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.xs,
 });
 
 export const radioDock = style({

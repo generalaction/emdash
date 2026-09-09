@@ -225,10 +225,9 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         title={
           isRenaming ? (
             <Input
-              bare
               ref={renameFieldRef}
               value={name}
-              className="min-w-0 flex-1 px-0 text-lg!"
+              className="min-w-0 flex-1 border-0 bg-transparent px-0 text-lg! shadow-none"
               onChange={(e) => setName(e.target.value)}
               onBlur={(event) => void commitName(event.currentTarget.value)}
               onKeyDown={(event) => {

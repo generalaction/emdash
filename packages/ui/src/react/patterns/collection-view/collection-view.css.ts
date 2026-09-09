@@ -1,35 +1,26 @@
-import '@styles/layers.css';
-import { style, styleVariants } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe, style } from '@styles/index';
+
+export const columnTemplateVar = '--_collection-view-template';
 
 export const wrapper = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      height: '100%',
-      minHeight: 0,
-      flexDirection: 'column',
-      gap: tokenVars.space3,
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  height: '100%',
+  minHeight: 0,
+  flexDirection: 'column',
+  gap: tokens.space.step3,
 });
 
 export const root = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      minHeight: 0,
-      flex: '1 1 0%',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      borderRadius: tokenVars.radiusLg,
-      border: `1px solid ${vars.surfaceBorder}`,
-      backgroundColor: vars.surface,
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  minHeight: 0,
+  flex: '1 1 0%',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  borderRadius: tokens.radius.lg,
+  backgroundColor: tokens.surface.current.background,
 });
 
 /**
@@ -37,153 +28,125 @@ export const root = style({
  * one bordered card per section with its title on the page background.
  */
 export const wrapperGrouped = style({
-  '@layer': {
-    recipes: {
-      // Positioned so overlay footers (ListPopoverCard) anchor to the wrapper.
-      position: 'relative',
-      display: 'flex',
-      width: '100%',
-      minHeight: 0,
-      flexDirection: 'column',
-      gap: tokenVars.space3,
-    },
-  },
+  // Positioned so overlay footers (ListPopoverCard) anchor to the wrapper.
+  position: 'relative',
+  display: 'flex',
+  width: '100%',
+  minHeight: 0,
+  flexDirection: 'column',
+  gap: tokens.space.step3,
 });
 
 export const groupStack = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      flexDirection: 'column',
-      gap: '1.25rem',
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  flexDirection: 'column',
+  gap: '1.25rem',
 });
 
 export const group = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      flexDirection: 'column',
-      gap: '0.375rem',
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  flexDirection: 'column',
+  gap: '0.375rem',
 });
 
 export const groupCard = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      borderRadius: tokenVars.radiusLg,
-      border: `1px solid ${vars.surfaceBorder}`,
-      backgroundColor: vars.surface,
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  borderRadius: tokens.radius.lg,
+  border: `1px solid ${tokens.surface.current.border}`,
+  backgroundColor: tokens.surface.current.background,
 });
 
 /** Default loading slot: centered spinner. */
 export const loading = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      padding: '2rem',
-    },
-  },
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  padding: '2rem',
 });
 
 export const rowGrid = style({
-  '@layer': {
-    recipes: {
-      display: 'grid',
-      width: '100%',
-      gridTemplateColumns: 'var(--collection-view-template)',
-      alignItems: 'center',
-      columnGap: tokenVars.space3,
-      paddingInline: '1rem',
-    },
-  },
+  display: 'grid',
+  width: '100%',
+  gridTemplateColumns: `var(${columnTemplateVar})`,
+  alignItems: 'center',
+  columnGap: tokens.space.step3,
+  paddingInline: '0.75rem',
 });
 
 const bodyCellBase = style({
-  '@layer': {
-    recipes: {
-      minWidth: 0,
-      selectors: {
-        "&[data-align='start']": {
-          alignSelf: 'start',
-        },
-        "&[data-align='end']": {
-          alignSelf: 'end',
-        },
-      },
+  minWidth: 0,
+  selectors: {
+    "&[data-align='start']": {
+      alignSelf: 'start',
+    },
+    "&[data-align='end']": {
+      alignSelf: 'end',
     },
   },
 });
 
-export const bodyCell = styleVariants({
-  default: [bodyCellBase, { '@layer': { recipes: { paddingBlock: '0.75rem' } } }],
-  compact: [bodyCellBase, { '@layer': { recipes: { paddingBlock: '0.375rem' } } }],
+export const bodyCell = recipe({
+  base: bodyCellBase,
+  variants: {
+    density: {
+      default: { paddingBlock: '0.75rem' },
+      compact: { paddingBlock: '0.375rem' },
+    },
+  },
+  defaultVariants: {
+    density: 'default',
+  },
 });
 
 const freeformBase = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '100%',
-      minWidth: 0,
-      alignItems: 'center',
-      gap: tokenVars.space3,
-      paddingInline: '1rem',
-    },
-  },
+  display: 'flex',
+  width: '100%',
+  minWidth: 0,
+  alignItems: 'center',
+  gap: tokens.space.step3,
+  paddingInline: '0.75rem',
 });
 
-export const freeform = styleVariants({
-  default: [freeformBase, { '@layer': { recipes: { paddingBlock: '0.75rem' } } }],
-  compact: [freeformBase, { '@layer': { recipes: { paddingBlock: '0.375rem' } } }],
+export const freeform = recipe({
+  base: freeformBase,
+  variants: {
+    density: {
+      default: { paddingBlock: '0.75rem' },
+      compact: { paddingBlock: '0.375rem' },
+    },
+  },
+  defaultVariants: {
+    density: 'default',
+  },
 });
 
 export const cell = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      minWidth: 0,
-      flexDirection: 'column',
-      gap: '0.125rem',
-    },
-  },
+  display: 'flex',
+  minWidth: 0,
+  flexDirection: 'column',
+  gap: '0.125rem',
 });
 
 export const cellPrimary = style({
-  '@layer': {
-    recipes: {
-      overflow: 'hidden',
-      fontSize: tokenVars.textSm,
-      lineHeight: tokenVars.textSmLineHeight,
-      color: vars.foreground,
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    },
-  },
+  overflow: 'hidden',
+  fontSize: tokens.typography.size.sm,
+  lineHeight: tokens.typography.lineHeight.sm,
+  color: tokens.foreground.default,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 export const cellSecondary = style({
-  '@layer': {
-    recipes: {
-      overflow: 'hidden',
-      fontSize: tokenVars.textXs,
-      lineHeight: tokenVars.textXsLineHeight,
-      color: vars.foregroundMuted,
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    },
-  },
+  overflow: 'hidden',
+  fontSize: tokens.typography.size.xs,
+  lineHeight: tokens.typography.lineHeight.xs,
+  color: tokens.foreground.muted,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });

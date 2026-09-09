@@ -1,6 +1,8 @@
+import { cx } from '@styles/index';
 import { CopyMinusIcon, FilePlusIcon, FolderPlusIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { SearchInput, type SearchInputProps } from '../../primitives/search-input';
 import * as styles from './file-tree.css';
 
@@ -35,11 +37,27 @@ export const FileTreeToolbarSearch = React.forwardRef<
   return <SearchInput ref={ref} {...props} size="sm" bare />;
 });
 
-export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTreeHeaderContext) {
+export interface FileTreeHeaderProps extends FileTreeHeaderContext {
+  /** Applied to the rendered semantic header root. */
+  className?: string;
+}
+
+/**
+ * Default FileTree command header.
+ *
+ * The target label and action layout are owned here; commands remain
+ * caller-owned callbacks. `className` is applied to the rendered `header`.
+ */
+export function FileTreeHeader({
+  targetPath,
+  startDraft,
+  collapseAll,
+  className,
+}: FileTreeHeaderProps) {
   const targetLabel = targetPath ? `New items in ${targetPath}` : 'New items in root';
 
   return (
-    <header className={styles.header}>
+    <header className={cx(styles.header, className)}>
       <div className={styles.headerTarget} title={targetLabel}>
         {targetLabel}
       </div>
@@ -52,7 +70,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
           aria-label="New file"
           onClick={() => startDraft('file')}
         >
-          <FilePlusIcon aria-hidden size={14} />
+          <Icon source={FilePlusIcon} />
         </Button>
         <Button
           type="button"
@@ -62,7 +80,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
           aria-label="New folder"
           onClick={() => startDraft('directory')}
         >
-          <FolderPlusIcon aria-hidden size={14} />
+          <Icon source={FolderPlusIcon} />
         </Button>
         <Button
           type="button"
@@ -72,7 +90,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
           aria-label="Collapse all"
           onClick={collapseAll}
         >
-          <CopyMinusIcon aria-hidden size={14} />
+          <Icon source={CopyMinusIcon} />
         </Button>
       </div>
     </header>

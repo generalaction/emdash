@@ -1,51 +1,37 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 /**
- * Input-appearance layout for TriggerButton.
- * Provides the structural (non-visual) properties when appearance="input".
- * fieldShellBase (imported at runtime in trigger-button.tsx) handles border/bg/focus.
+ * TriggerButton anatomy composed with fieldControl() for input appearance.
  */
-export const triggerInputLayoutBase = style({
+export const triggerButtonInputExtra = style({
   display: 'flex',
-  width: '100%',
-  height: '2rem',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.375rem',
-  paddingLeft: '0.625rem',
-  paddingRight: '0.375rem',
-  fontSize: tokenVars.textSm,
-  selectors: {
-    '&[data-placeholder]': { color: vars.foregroundPassive },
-  },
-});
-
-export const triggerInputLayoutSm = style({
-  height: '1.5rem',
-  paddingLeft: '0.5rem',
-  fontSize: tokenVars.textXs,
 });
 
 /** Trailing chevron icon inside TriggerButton. */
 export const triggerButtonChevron = style({
   pointerEvents: 'none',
   flexShrink: 0,
-  color: vars.foregroundPassive,
+  color: tokens.foreground.passive,
 });
 
-/** Extra styles applied on top of controlVariants for TriggerButton. */
+/** TriggerButton anatomy applied on top of the shared control Recipe. */
 export const triggerButtonExtra = style({
   width: 'fit-content',
   justifyContent: 'space-between',
   gap: '0.375rem',
   selectors: {
-    '&[data-placeholder]': { color: vars.foregroundPassive },
+    '&[data-placeholder]': { color: tokens.foreground.passive },
   },
 });
-globalStyle(`${triggerButtonExtra} > [data-slot="trigger-value"]`, {
+
+/** Component-owned wrapper for trigger label/value content. */
+export const triggerButtonValue = style({
   display: 'flex',
+  minWidth: 0,
   alignItems: 'center',
   gap: '0.375rem',
   overflow: 'hidden',

@@ -8,6 +8,7 @@ import { FileIcon } from '@core/features/editor/contributions/browser/file-icon'
 import { StickyDiffEditor } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
@@ -20,6 +21,7 @@ import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-dif
 import { useDiffFacets } from './use-diff-facets';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
+const { diffLine } = sourceControlHostStylesContribution.exports;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const { projectId } = useTaskViewContext();
@@ -222,8 +224,12 @@ const StackedFileSlot = observer(function StackedFileSlot({
           {dirPath && <span className="truncate text-xs text-foreground-muted">{dirPath}</span>}
         </button>
         <span className="shrink-0 text-xs">
-          <span className="text-foreground-success">+{formatDiffLineCount(file.additions)}</span>{' '}
-          <span className="text-foreground-error">-{formatDiffLineCount(file.deletions)}</span>
+          <span className={diffLine({ kind: 'added' })}>
+            +{formatDiffLineCount(file.additions)}
+          </span>{' '}
+          <span className={diffLine({ kind: 'deleted' })}>
+            -{formatDiffLineCount(file.deletions)}
+          </span>
         </span>
       </div>
 

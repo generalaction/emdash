@@ -7,7 +7,7 @@
  *
  * Scales are named by HUE IDENTITY (green, red, amber, …), not by semantic
  * role (success, danger, …). Meaning is assigned exactly once, in
- * semantic-template.ts (e.g. success → green, merged → purple). This keeps the
+ * semantic-template.ts for shared Theme roles (e.g. success → green). This keeps the
  * palette free of semantics and lets new colors be added without inventing a
  * role name. `neutral` (gray) and `accent` (the swappable brand color) are the
  * two role-level scales that stay.
@@ -103,20 +103,15 @@ export type SurfaceLevel = {
 };
 
 /** Named elevation levels, ordered from darkest to lightest. */
-export type SurfaceLevelName =
-  | 'sunken'
-  | 'base'
-  | 'base-emphasis'
-  | 'elevated'
-  | 'elevated-emphasis';
+export type SurfaceLevelName = 'sunken' | 'base' | 'raised' | 'elevated' | 'overlay';
 
 /** Canonical ordered list of all surface levels (darkest → lightest). */
 export const SURFACE_LEVELS = [
   'sunken',
   'base',
-  'base-emphasis',
+  'raised',
   'elevated',
-  'elevated-emphasis',
+  'overlay',
 ] as const satisfies readonly SurfaceLevelName[];
 
 /**
@@ -141,21 +136,21 @@ export const SURFACE_SCOPES = [...SURFACE_LEVELS, ...SURFACE_ROLES] as const;
 
 export type Surfaces = Record<SurfaceScopeName, SurfaceLevel>;
 
-// ── Status surface names ───────────────────────────────────────────────────────
+// ── Surface Tone names ────────────────────────────────────────────────────────
 
-/** Named status surfaces that produce tinted colored "rooms". */
-export type SurfaceStatusName = 'destructive' | 'warning' | 'info' | 'success';
+/** Neutral-status intents that tint a Surface within its Level or Role. */
+export type SurfaceToneName = 'destructive' | 'warning' | 'info' | 'success';
 
-/** Canonical ordered list of status surface names. */
-export const SURFACE_STATUSES = [
+/** Canonical ordered list of Surface Tones. */
+export const SURFACE_TONES = [
   'destructive',
   'warning',
   'info',
   'success',
-] as const satisfies readonly SurfaceStatusName[];
+] as const satisfies readonly SurfaceToneName[];
 
-/** Maps each status surface to the palette scale it derives its colors from. */
-export const STATUS_SCALE: Record<SurfaceStatusName, ScaleName> = {
+/** Maps each Surface Tone to the palette scale it derives its colors from. */
+export const TONE_SCALE: Record<SurfaceToneName, ScaleName> = {
   destructive: 'red',
   warning: 'amber',
   info: 'blue',
@@ -163,10 +158,10 @@ export const STATUS_SCALE: Record<SurfaceStatusName, ScaleName> = {
 };
 
 /**
- * Non-base elevation scopes that get per-level status surface variants.
+ * Non-base elevation scopes that get per-Level Surface Tone variants.
  * The `base` scope is the default (unsuffixed) token, so it is excluded here.
  */
-export const STATUS_LEVEL_SCOPES = SURFACE_SCOPES.filter((s) => s !== 'base') as readonly Exclude<
+export const TONE_SCOPES = SURFACE_SCOPES.filter((s) => s !== 'base') as readonly Exclude<
   SurfaceScopeName,
   'base'
 >[];
@@ -174,10 +169,9 @@ export const STATUS_LEVEL_SCOPES = SURFACE_SCOPES.filter((s) => s !== 'base') as
 // ── Surface cascade vars ────────────────────────────────────────────────────────
 
 /**
- * Generic cascade-relative vars that are rebound by every .surface-* scope class.
- * These are the only surface vars that change depending on context; the level-
- * specific vars (--surface-base, --surface-elevated, …) are theme-level and are
- * always resolved from the .em<id> class.
+ * Generic cascade-relative vars rebound by the public Surface Recipe. These are
+ * the only Surface vars that change with visual context; Level- and Role-specific
+ * vars are Theme-level values resolved from the active profile classes.
  */
 export const SURFACE_CASCADE_VARS = [
   'surface',
@@ -217,23 +211,23 @@ export function allSurfaceVarNames(): string[] {
     names.push(`surface-${scope}-selected`);
   }
 
-  // Status surfaces (each has base/hover/selected/border/foreground)
-  for (const status of SURFACE_STATUSES) {
-    names.push(`surface-${status}`);
-    names.push(`surface-${status}-hover`);
-    names.push(`surface-${status}-selected`);
-    names.push(`surface-${status}-border`);
-    names.push(`surface-${status}-foreground`);
+  // Surface Tones (each has base/hover/selected/border/foreground)
+  for (const tone of SURFACE_TONES) {
+    names.push(`surface-${tone}`);
+    names.push(`surface-${tone}-hover`);
+    names.push(`surface-${tone}-selected`);
+    names.push(`surface-${tone}-border`);
+    names.push(`surface-${tone}-foreground`);
   }
 
-  // Per-level status variants (every non-base scope)
-  for (const status of SURFACE_STATUSES) {
-    for (const scope of STATUS_LEVEL_SCOPES) {
-      names.push(`surface-${status}-${scope}`);
-      names.push(`surface-${status}-${scope}-hover`);
-      names.push(`surface-${status}-${scope}-selected`);
-      names.push(`surface-${status}-${scope}-border`);
-      names.push(`surface-${status}-${scope}-foreground`);
+  // Per-context Tone variants (every non-base Level and every Role)
+  for (const tone of SURFACE_TONES) {
+    for (const scope of TONE_SCOPES) {
+      names.push(`surface-${tone}-${scope}`);
+      names.push(`surface-${tone}-${scope}-hover`);
+      names.push(`surface-${tone}-${scope}-selected`);
+      names.push(`surface-${tone}-${scope}-border`);
+      names.push(`surface-${tone}-${scope}-foreground`);
     }
   }
 

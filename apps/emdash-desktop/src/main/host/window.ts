@@ -4,6 +4,10 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import type { Theme } from '@core/primitives/app-settings/api';
+import {
+  normalizeThemeProfileSelection,
+  resolveThemePolarity,
+} from '@core/primitives/theme/api/theme-profile-selection';
 import { recordWindowVisible } from '@main/bootstrap/core/boot-report';
 import { reportBootSuccessSignal } from '@main/bootstrap/core/boot-status';
 import {
@@ -26,7 +30,11 @@ let mainWindow: BrowserWindow | null = null;
 
 export function applyNativeTheme(theme: Theme): void {
   if (process.platform !== 'win32') return;
-  nativeTheme.themeSource = theme === 'emdark' ? 'dark' : theme === 'emlight' ? 'light' : 'system';
+  const selection = normalizeThemeProfileSelection(theme);
+  nativeTheme.themeSource =
+    selection.colorScheme === null
+      ? 'system'
+      : resolveThemePolarity(selection, nativeTheme.shouldUseDarkColors);
 }
 
 export function createMainWindow(): BrowserWindow {

@@ -5,7 +5,7 @@
  * This file covers scrolling, borders, and background decoration.
  */
 
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { TABLE_BORDER, TABLE_SCROLLBAR_SIZE } from './geometry';
 import { vars } from '@styles/theme.css';
 
@@ -19,10 +19,11 @@ export const tableScroll = style({
   overflowY: 'hidden',
   boxSizing: 'border-box',
   scrollbarWidth: 'thin',
-});
-
-globalStyle(`${tableScroll}::-webkit-scrollbar`, {
-  height: `${TABLE_SCROLLBAR_SIZE}px`,
+  selectors: {
+    '&::-webkit-scrollbar': {
+      height: `${TABLE_SCROLLBAR_SIZE}px`,
+    },
+  },
 });
 
 /** Applied to <th> cells for visual decoration. */

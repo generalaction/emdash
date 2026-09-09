@@ -15,8 +15,8 @@ const KEYCAP_KBD_BASE_CLASS =
 const KEYCAP_KBD_CLASS = cn(
   KEYCAP_KBD_BASE_CLASS,
   'border-border/60 bg-background-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
-  // Primary action buttons (Create, Save, etc.). Primary buttons opt in via data-variant="primary".
-  'in-data-[variant=primary]:border-primary-button-foreground/22 in-data-[variant=primary]:bg-primary-button-foreground/16 in-data-[variant=primary]:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]',
+  // High-emphasis controls (Create, Save, etc.) expose their semantic emphasis.
+  'in-data-[emphasis=high]:border-primary-button-foreground/22 in-data-[emphasis=high]:bg-primary-button-foreground/16 in-data-[emphasis=high]:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]',
   'in-data-[slot=combobox-trigger]:border-border/50 in-data-[slot=combobox-trigger]:bg-background-secondary in-data-[slot=combobox-trigger]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
   'in-data-[slot=tooltip-content]:border-background/20 in-data-[slot=tooltip-content]:bg-background/15 in-data-[slot=tooltip-content]:text-background in-data-[slot=tooltip-content]:shadow-none',
   'in-data-[slot=dropdown-menu-item]:border-border/50 in-data-[slot=dropdown-menu-item]:bg-background-secondary in-data-[slot=dropdown-menu-item]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]'

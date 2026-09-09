@@ -1,9 +1,8 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { ExternalLink } from 'lucide-react';
 import * as React from 'react';
-import { Icon, type IconName } from '../../primitives/icon';
+import { Icon, IconSlot, type StaticSvgComponent } from '../../primitives/icon';
 import * as styles from './page-sidebar-menu.css';
-
-type CSSExtra = { [key: string]: string };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -12,10 +11,12 @@ export interface PageNavItem {
   kind?: undefined;
   id: string;
   label: string;
-  /** Optional kebab-case Lucide icon name or a custom icon element. */
-  icon?: IconName | React.ReactNode;
+  /** Optional owned static SVG source or opaque custom icon element. */
+  icon?: StaticSvgComponent | React.ReactElement;
   /** When true an external-link icon is shown and the active state is suppressed. */
   isExternal?: boolean;
+  /** Keeps the item visible while preventing selection. */
+  disabled?: boolean;
   /** Optional compact value displayed at the trailing edge. */
   badge?: string;
 }
@@ -73,6 +74,10 @@ export interface PageSidebarMenuProps {
  *   …
  * </PageLayout>
  * ```
+ *
+ * `className` is applied to the rendered sticky sidebar root. Item selection,
+ * focus, disabled state, label overflow, and the caller-owned header/footer
+ * slots are styled by this component.
  */
 function PageSidebarMenu({
   items,
@@ -84,12 +89,8 @@ function PageSidebarMenu({
   footer,
   emptyMessage,
 }: PageSidebarMenuProps) {
-  // Inline style type-cast for Electron drag region so vanilla-extract is not
-  // involved (no CSS file needed for this runtime-conditional style).
-  const wrapperStyle: React.CSSProperties & CSSExtra = draggable ? { WebkitAppRegion: 'drag' } : {};
-
   return (
-    <div className={cx(styles.wrapper, className)} style={wrapperStyle}>
+    <div className={cx(styles.wrapper, draggable && styles.dragRegion, className)}>
       {header && <div className={styles.header}>{header}</div>}
       <nav className={styles.nav}>
         {items.length === 0 && emptyMessage && (
@@ -104,25 +105,33 @@ function PageSidebarMenu({
             return <NavSection key={`section-${item.id}`} label={item.label} />;
           }
 
-          const { id, label, icon, isExternal, badge } = item;
+          const { id, label, icon, isExternal, disabled = false, badge } = item;
           const isActive = id === activeId && !isExternal;
           return (
             <button
               key={id}
               type="button"
+              disabled={disabled}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => onSelect(item)}
-              className={styles.navItem({ active: isActive })}
+              className={styles.navItem({ selected: isActive, disabled })}
             >
               {icon &&
-                (typeof icon === 'string' ? (
-                  <Icon name={icon as IconName} size="sm" className={styles.navItemIcon} />
+                (React.isValidElement(icon) ? (
+                  <IconSlot size="sm" className={styles.navItemIcon}>
+                    {icon}
+                  </IconSlot>
                 ) : (
-                  <span className={styles.navItemIcon}>{icon}</span>
+                  <Icon
+                    source={icon as StaticSvgComponent}
+                    size="sm"
+                    className={styles.navItemIcon}
+                  />
                 ))}
               <span className={styles.navItemLabel}>{label}</span>
               {badge && <span className={styles.badge}>{badge}</span>}
               {isExternal && (
-                <Icon name="external-link" size="xs" className={styles.externalIcon} />
+                <Icon source={ExternalLink} size="xs" className={styles.externalIcon} />
               )}
             </button>
           );

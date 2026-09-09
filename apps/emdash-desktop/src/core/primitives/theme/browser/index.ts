@@ -4,7 +4,9 @@ export {
   THEME_CLASSES,
   THEME_STORAGE_KEY,
 } from './theme-classes';
+export { PREPAINT_THEME_CLASS_DATA, resolvePrepaintThemeClasses } from './prepaint-theme';
 export {
+  resolveDesktopTheme,
   ThemeContext,
   ThemeProvider,
   type EffectiveTheme,

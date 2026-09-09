@@ -1,0 +1,12 @@
+{
+  "modules": [
+    "packages/chat-ui/src/components/rows/markdown/mermaid/mermaid-graphic.adapter.css.ts",
+    "packages/chat-ui/src/styles/shiki-tokens.adapter.css.ts",
+    "packages/ui/src/react/components/markdown/mermaid-graphic.adapter.css.ts",
+    "packages/ui/src/react/components/mermaid-viewer/generated-diagram.adapter.css.ts",
+    "packages/ui/src/react/primitives/icon/icon-slot.adapter.css.ts",
+    "packages/ui/src/react/primitives/radio-group/radio-hidden-input.adapter.css.ts",
+    "packages/ui/src/react/primitives/switch/switch-hidden-input.adapter.css.ts",
+    "packages/ui/src/react/primitives/toast/toast.css.ts"
+  ]
+}

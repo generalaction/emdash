@@ -1,12 +1,12 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import * as React from 'react';
 import * as styles from './list-popover-card.css';
-import { card } from '@styles/recipes/card.css';
 
 export type ListPopoverCardStatus = 'destructive' | 'warning' | 'info' | 'success';
 
 export interface ListPopoverCardProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Optional status tint applied through the card recipe's status rooms. */
+  /** Optional status tint applied as the floating Surface's Tone. */
   status?: ListPopoverCardStatus;
 }
 
@@ -14,6 +14,9 @@ export interface ListPopoverCardProps extends React.HTMLAttributes<HTMLDivElemen
  * ListPopoverCard — a floating card pinned above the bottom edge of a list
  * container (which must be positioned). Used for selection action bars and
  * sync status banners that hover over list content.
+ *
+ * Children are caller-owned. `className` and remaining HTML attributes are
+ * applied to the rendered painted card root; the outer positioner is private.
  */
 function ListPopoverCard({ status, className, children, ...props }: ListPopoverCardProps) {
   return (
@@ -21,7 +24,7 @@ function ListPopoverCard({ status, className, children, ...props }: ListPopoverC
       <div
         data-status={status}
         className={cx(
-          card({ level: 'elevated-emphasis', radius: 'md', padding: 'sm', status }),
+          surface({ level: 'elevated', emphasis: true, tone: status }),
           styles.inner,
           className
         )}

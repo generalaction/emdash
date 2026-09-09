@@ -17,7 +17,14 @@ const items: readonly PillTab<Section>[] = [
 afterEach(cleanup);
 
 describe('PillTabs', () => {
-  it('updates controlled selection while visually collapsing inactive labels', () => {
+  it('renders opaque item icons through a decorative authoritative-size slot', () => {
+    render(<PillTabs items={items} value="system" onValueChange={() => {}} ariaLabel="Sections" />);
+
+    const icon = screen.getByTestId('system-icon');
+    expect(icon.parentElement?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('updates controlled selection in active-only label mode', () => {
     const onValueChange = vi.fn();
 
     function Harness() {
@@ -43,9 +50,6 @@ describe('PillTabs', () => {
     const workspaces = screen.getByRole('tab', { name: 'Workspaces' });
     expect(screen.getByRole('tablist', { name: 'Machine sections' })).not.toBeNull();
     expect(system.getAttribute('aria-selected')).toBe('true');
-    expect(system.parentElement?.hasAttribute('data-compact')).toBe(false);
-    expect(workspaces.parentElement?.getAttribute('data-compact')).toBe('true');
-    expect(workspaces.querySelector('[data-hidden="true"]')).not.toBeNull();
     expect(workspaces.getAttribute('aria-controls')).toBe('machine-panel');
     expect(workspaces.id).toBe(getPillTabId('machine-panel', 'workspaces'));
 
@@ -53,8 +57,6 @@ describe('PillTabs', () => {
 
     expect(onValueChange).toHaveBeenLastCalledWith('workspaces');
     expect(workspaces.getAttribute('aria-selected')).toBe('true');
-    expect(workspaces.parentElement?.hasAttribute('data-compact')).toBe(false);
-    expect(system.parentElement?.getAttribute('data-compact')).toBe('true');
   });
 
   it('uses Base UI keyboard navigation', async () => {
@@ -97,12 +99,19 @@ describe('PillTabs', () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
-  it('keeps every label visible by default', () => {
-    render(<PillTabs items={items} value="system" onValueChange={() => {}} ariaLabel="Sections" />);
+  it('applies caller className to the rendered tablist root', () => {
+    render(
+      <PillTabs
+        items={items}
+        value="system"
+        onValueChange={() => {}}
+        ariaLabel="Sections"
+        className="caller-tabs"
+      />
+    );
 
     expect(
-      screen.getAllByRole('tab').every((tab) => !tab.parentElement?.hasAttribute('data-compact'))
+      screen.getByRole('tablist', { name: 'Sections' }).classList.contains('caller-tabs')
     ).toBe(true);
-    expect(document.querySelector('[data-hidden="true"]')).toBeNull();
   });
 });

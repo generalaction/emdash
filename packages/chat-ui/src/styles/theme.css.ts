@@ -15,10 +15,9 @@
  *   Specificity is zero (:where() selectors) so any host override wins
  *   regardless of stylesheet load order.
  *
- * HOST OVERRIDE (chat-theme.css)
- *   The optional chat-theme.css preset rebinds --chat-font-sans, colors and
- *   radii to the emdash design-system tokens (system sans on desktop). It
- *   inherits everything not explicitly overridden from this default theme.
+ * HOST OVERRIDE
+ *   Hosts can rebind --chat-font-sans, colors, and radii through their owned
+ *   styling adapter. Unmapped values inherit from this default theme.
  */
 
 import { DEFAULT_CONFIG, toThemeVars } from '@core/config';

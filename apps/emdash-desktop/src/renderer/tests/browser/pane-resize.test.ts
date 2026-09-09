@@ -20,6 +20,7 @@ import {
 } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { createResizeScheduler } from '@core/features/terminals/browser/pty/resize-scheduler';
 import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
+import { setXtermThemeFixture } from './xterm-theme-fixture';
 
 // ── Minimal observable sink ───────────────────────────────────────────────────
 
@@ -290,17 +291,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
       invoke: vi.fn(() => Promise.resolve({ success: true, data: { buffer: '' } })),
     });
 
-    // Minimal xterm CSS variables so FrontendPty doesn't log colour errors.
-    for (const v of [
-      '--xterm-bg',
-      '--xterm-fg',
-      '--xterm-cursor',
-      '--xterm-cursor-accent',
-      '--xterm-selection-bg',
-      '--xterm-selection-fg',
-    ]) {
-      document.documentElement.style.setProperty(v, v.includes('bg') ? '#101010' : '#f0f0f0');
-    }
+    setXtermThemeFixture();
   });
 
   afterEach(async () => {

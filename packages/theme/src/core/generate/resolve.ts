@@ -12,12 +12,7 @@
 
 import Color from 'colorjs.io';
 import { nsName, nsVar } from '../contract/namespace';
-import {
-  SURFACE_SCOPES,
-  SURFACE_STATUSES,
-  STATUS_SCALE,
-  STATUS_LEVEL_SCOPES,
-} from '../contract/roles';
+import { SURFACE_SCOPES, SURFACE_TONES, TONE_SCALE, TONE_SCOPES } from '../contract/roles';
 import type { Scales, Surfaces, Polarity } from '../contract/roles';
 import { SEMANTIC_TEMPLATE } from '../contract/semantic-template';
 import { toP3String } from './color-format';
@@ -82,27 +77,27 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   return vars;
 }
 
-// ── Status surface vars (--surface-destructive, --surface-warning, etc.) ──────
+// ── Surface Tone vars (--surface-destructive, --surface-warning, etc.) ───────
 
 /**
- * Derives tinted status surface tokens from the named palette ramps.
+ * Derives Surface Tone Tokens from the named palette ramps.
  * Steps follow the Radix semantic convention:
  *   3 = subtle background, 4 = hover, 5 = selected/active,
  *   6 = border, 11 = readable foreground text.
  *
  * Also emits per-elevation-scope variants for every non-base scope.
  * Each variant is the base token shifted by the OKLab L delta between that
- * scope's neutral surface and the neutral base surface, so status rooms
+ * scope's neutral Surface and the neutral base Surface, so tinted regions
  * track the canvas lightness without losing internal hover/selected contrast.
  */
-function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<string, string> {
+function buildToneSurfaceVars(scales: Scales, surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
 
   // Pre-compute the OKLab L of the neutral base surface once.
   const neutralBaseL = new Color(surfaces['base'].base).to('oklab').coords[0];
 
-  for (const status of SURFACE_STATUSES) {
-    const scaleName = STATUS_SCALE[status];
+  for (const tone of SURFACE_TONES) {
+    const scaleName = TONE_SCALE[tone];
     const ramp = scales[scaleName];
 
     // Base (default, unsuffixed) tokens — these remain the effective cascade defaults.
@@ -112,14 +107,14 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
     const borderColor = ramp.steps[5]; // step 6
     const fgColor = ramp.steps[10]; // step 11
 
-    vars[nsName(`surface-${status}`)] = baseColor;
-    vars[nsName(`surface-${status}-hover`)] = hoverColor;
-    vars[nsName(`surface-${status}-selected`)] = selectedColor;
-    vars[nsName(`surface-${status}-border`)] = borderColor;
-    vars[nsName(`surface-${status}-foreground`)] = fgColor;
+    vars[nsName(`surface-${tone}`)] = baseColor;
+    vars[nsName(`surface-${tone}-hover`)] = hoverColor;
+    vars[nsName(`surface-${tone}-selected`)] = selectedColor;
+    vars[nsName(`surface-${tone}-border`)] = borderColor;
+    vars[nsName(`surface-${tone}-foreground`)] = fgColor;
 
     // Per-scope variants: shift every sub-token by the neutral elevation delta.
-    for (const scope of STATUS_LEVEL_SCOPES) {
+    for (const scope of TONE_SCOPES) {
       const neutralScopeL = new Color(surfaces[scope].base).to('oklab').coords[0];
       const deltaL = neutralScopeL - neutralBaseL;
 
@@ -131,11 +126,11 @@ function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<stri
         return toP3String(p3.to('p3') as Color);
       };
 
-      vars[nsName(`surface-${status}-${scope}`)] = shift(baseColor);
-      vars[nsName(`surface-${status}-${scope}-hover`)] = shift(hoverColor);
-      vars[nsName(`surface-${status}-${scope}-selected`)] = shift(selectedColor);
-      vars[nsName(`surface-${status}-${scope}-border`)] = shift(borderColor);
-      vars[nsName(`surface-${status}-${scope}-foreground`)] = shift(fgColor);
+      vars[nsName(`surface-${tone}-${scope}`)] = shift(baseColor);
+      vars[nsName(`surface-${tone}-${scope}-hover`)] = shift(hoverColor);
+      vars[nsName(`surface-${tone}-${scope}-selected`)] = shift(selectedColor);
+      vars[nsName(`surface-${tone}-${scope}-border`)] = shift(borderColor);
+      vars[nsName(`surface-${tone}-${scope}-foreground`)] = shift(fgColor);
     }
   }
   return vars;
@@ -174,8 +169,8 @@ export function resolveCssVars(
   // 2. Surface elevation vars (--surface-base, --surface-base-hover, etc.)
   Object.assign(vars, buildSurfaceVars(surfaces));
 
-  // 3. Status surface vars (--surface-destructive, --surface-warning, etc.)
-  Object.assign(vars, buildStatusSurfaceVars(scales, surfaces));
+  // 3. Surface Tone vars (--surface-destructive, --surface-warning, etc.)
+  Object.assign(vars, buildToneSurfaceVars(scales, surfaces));
 
   // 4. Semantic slot vars (--em-background, --em-foreground, etc.)
   for (const [slot, ref] of Object.entries(SEMANTIC_TEMPLATE)) {

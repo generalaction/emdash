@@ -2,16 +2,13 @@
  * story-layout.css.ts — escape-hatch VE classes for Storybook stories.
  *
  * Only exports that cannot be expressed via the `sx()` sprinkles (off-scale
- * sizes, grid templates, child-combinator selectors, transforms, effects, and
- * the composite storyTabButton) live here. Everything else uses Box props or
- * inline sx({...}).
+ * sizes, grid templates, transforms, effects, and the composite
+ * storyTabButton) live here. Everything else uses `sx({...})`.
  *
  * NOT shipped in the production build (tree-shaken; only story files import this).
  */
-
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 // ── Escape-hatch transforms / positioning ─────────────────────────────────────
 
@@ -36,6 +33,9 @@ export const w80 = style({ width: '20rem' });
 export const w96 = style({ width: '24rem' });
 export const maxW2xl = style({ maxWidth: '42rem' });
 export const maxWProse = style({ maxWidth: '65ch' });
+export const borderLeft = style({
+  borderLeft: `1px solid ${tokens.border.default}`,
+});
 
 // ── Fixed-px heights ──────────────────────────────────────────────────────────
 
@@ -76,23 +76,6 @@ export const lgCols7 = style({
   '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' } },
 });
 
-// ── Child-combinator selectors (cannot be expressed in sprinkles) ─────────────
-
-export const divideX = style({});
-globalStyle(`${divideX} > * + *`, { borderLeftWidth: '1px', borderLeftStyle: 'solid' });
-
-export const divideBorder = style({});
-globalStyle(`${divideBorder} > * + *`, { borderColor: vars.border });
-
-export const spaceY15 = style({});
-globalStyle(`${spaceY15} > * + *`, { marginTop: '0.375rem' });
-
-export const spaceY4 = style({});
-globalStyle(`${spaceY4} > * + *`, { marginTop: '1rem' });
-
-export const spaceY6 = style({});
-globalStyle(`${spaceY6} > * + *`, { marginTop: '1.5rem' });
-
 // ── Effects ───────────────────────────────────────────────────────────────────
 
 export const shadowMd = style({
@@ -114,7 +97,7 @@ export const outlineNone = style({ outline: 'none' });
 
 /** color-mix transparency not expressible in sprinkles */
 export const bgSurface80 = style({
-  backgroundColor: `color-mix(in srgb, ${vars.surface} 80%, transparent)`,
+  backgroundColor: `color-mix(in srgb, ${tokens.surface.current.background} 80%, transparent)`,
 });
 
 // ── Composite: story tab strip button ────────────────────────────────────────
@@ -124,21 +107,21 @@ export const storyTabButton = style({
   height: '1.75rem',
   alignItems: 'center',
   gap: '0.375rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   border: '1px solid transparent',
   paddingLeft: '0.625rem',
   paddingRight: '0.625rem',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
   transition: 'all 150ms',
   ':hover': {
-    backgroundColor: vars.surfaceHover,
-    color: vars.foreground,
+    backgroundColor: tokens.surface.current.hover,
+    color: tokens.foreground.default,
   },
   selectors: {
     '&[data-active="true"]': {
-      backgroundColor: vars.surfaceSelected,
-      color: vars.foreground,
+      backgroundColor: tokens.surface.current.selected,
+      color: tokens.foreground.default,
     },
   },
 });

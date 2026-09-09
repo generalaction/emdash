@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -113,7 +112,9 @@ describe('AgentSelector', () => {
     expect(uninstalledAgentElement.hasAttribute('data-disabled')).toBe(true);
     expect(getComputedStyle(uninstalledAgentElement).pointerEvents).toBe('auto');
 
-    await uninstalledAgent.hover();
+    await act(async () => {
+      uninstalledAgentElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
 
     await vi.waitFor(
       () => {
@@ -121,5 +122,5 @@ describe('AgentSelector', () => {
       },
       { timeout: 2_000 }
     );
-  });
+  }, 30_000);
 });

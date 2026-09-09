@@ -1,4 +1,5 @@
 import { Button } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { BoldIcon, CopyIcon, ItalicIcon, ScissorsIcon, UnderlineIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -21,12 +22,12 @@ export const Default: Story = {
       <DropdownMenu.Content>
         <DropdownMenu.Group>
           <DropdownMenu.Item>
-            <CopyIcon />
+            <Icon source={CopyIcon} />
             Copy
             <DropdownMenu.Shortcut>⌘C</DropdownMenu.Shortcut>
           </DropdownMenu.Item>
           <DropdownMenu.Item>
-            <ScissorsIcon />
+            <Icon source={ScissorsIcon} />
             Cut
             <DropdownMenu.Shortcut>⌘X</DropdownMenu.Shortcut>
           </DropdownMenu.Item>
@@ -49,17 +50,17 @@ export const WithLabel: Story = {
           <DropdownMenu.Label>Text formatting</DropdownMenu.Label>
           <DropdownMenu.Separator />
           <DropdownMenu.Item>
-            <BoldIcon />
+            <Icon source={BoldIcon} />
             Bold
             <DropdownMenu.Shortcut>⌘B</DropdownMenu.Shortcut>
           </DropdownMenu.Item>
           <DropdownMenu.Item>
-            <ItalicIcon />
+            <Icon source={ItalicIcon} />
             Italic
             <DropdownMenu.Shortcut>⌘I</DropdownMenu.Shortcut>
           </DropdownMenu.Item>
           <DropdownMenu.Item>
-            <UnderlineIcon />
+            <Icon source={UnderlineIcon} />
             Underline
             <DropdownMenu.Shortcut>⌘U</DropdownMenu.Shortcut>
           </DropdownMenu.Item>
@@ -130,6 +131,32 @@ export const WithSubMenu: Story = {
         </DropdownMenu.Sub>
         <DropdownMenu.Separator />
         <DropdownMenu.Item variant="destructive">Log out</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  ),
+};
+
+/**
+ * Open-state reference for the shared menu-item contract: focused, checked,
+ * disabled, destructive, and nested rows are visible in one popup.
+ */
+export const InteractionStates: Story = {
+  render: () => (
+    <DropdownMenu.Root defaultOpen>
+      <DropdownMenu.Trigger>
+        <Button variant="ghost">Interaction states</Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content width="content">
+        <DropdownMenu.Item autoFocus>Focused action</DropdownMenu.Item>
+        <DropdownMenu.CheckboxItem checked>Selected preference</DropdownMenu.CheckboxItem>
+        <DropdownMenu.Item disabled>Disabled action</DropdownMenu.Item>
+        <DropdownMenu.Item variant="destructive">Destructive action</DropdownMenu.Item>
+        <DropdownMenu.Sub defaultOpen>
+          <DropdownMenu.SubTrigger>Nested actions</DropdownMenu.SubTrigger>
+          <DropdownMenu.SubContent>
+            <DropdownMenu.Item>Nested child</DropdownMenu.Item>
+          </DropdownMenu.SubContent>
+        </DropdownMenu.Sub>
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   ),

@@ -90,7 +90,24 @@ describe('SettingsStore contributions', () => {
   it('adopts legacy scalar values', async () => {
     rows.set('theme', JSON.stringify('emdark'));
     const settings = new SettingsStore(db, appSettingsContributions);
-    await expect(settings.get('theme')).resolves.toBe('emdark');
+    await expect(settings.get('theme')).resolves.toEqual({
+      ...getDefaultForKey('theme'),
+      colorScheme: 'dark',
+    });
+  });
+
+  it('falls back unknown Theme profile ids by dimension', async () => {
+    rows.set(
+      'theme',
+      JSON.stringify({
+        colorScheme: 'unknown-color',
+        density: 'unknown-density',
+        typography: 'unknown-typography',
+      })
+    );
+    const settings = new SettingsStore(db, appSettingsContributions);
+
+    await expect(settings.get('theme')).resolves.toEqual(getDefaultForKey('theme'));
   });
 
   it('treats a single value field as a setting delta, not a storage envelope', async () => {
@@ -113,11 +130,12 @@ describe('SettingsStore contributions', () => {
   it('reports scalar overrides without returning the scalar as an overrides object', async () => {
     rows.set('theme', JSON.stringify('emdark'));
     const settings = new SettingsStore(db, appSettingsContributions);
+    const defaults = getDefaultForKey('theme');
 
     await expect(settings.getWithMeta('theme')).resolves.toEqual({
-      value: 'emdark',
-      defaults: null,
-      overrides: {},
+      value: { ...defaults, colorScheme: 'dark' },
+      defaults,
+      overrides: { colorScheme: 'dark' },
     });
   });
 });

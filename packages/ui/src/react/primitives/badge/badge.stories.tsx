@@ -1,11 +1,10 @@
 import { Badge, type BadgeTone, type BadgeVariant } from '@react/primitives/badge';
-import { Box } from '@react/primitives/box';
+import { Icon } from '@react/primitives/icon';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { GitBranchIcon } from 'lucide-react';
-
 const TONES: BadgeTone[] = ['neutral', 'success', 'warning', 'error', 'info'];
 const VARIANTS: BadgeVariant[] = ['soft', 'outline'];
-
 const meta: Meta<typeof Badge> = {
   title: 'Primitives/Badge',
   component: Badge,
@@ -14,37 +13,45 @@ const meta: Meta<typeof Badge> = {
     children: 'Badge',
   },
 };
-
 export default meta;
 type Story = StoryObj<typeof Badge>;
-
 export const Default: Story = {};
-
 export const Matrix: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '3',
+      })}
+    >
       {VARIANTS.map((variant) => (
-        <Box key={variant} display="flex" alignItems="center" gap="2">
+        <div
+          key={variant}
+          className={sx({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2',
+          })}
+        >
           {TONES.map((tone) => (
             <Badge key={tone} variant={variant} tone={tone}>
               {tone}
             </Badge>
           ))}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 export const WithIcon: Story = {
   render: () => (
     <Badge>
-      <GitBranchIcon />
+      <Icon source={GitBranchIcon} />
       main
     </Badge>
   ),
 };
-
 export const PolymorphicRender: Story = {
   render: () => (
     <Badge tone="info" render={<a href="#docs" />}>
@@ -52,12 +59,17 @@ export const PolymorphicRender: Story = {
     </Badge>
   ),
 };
-
 export const CountBadge: Story = {
   render: () => (
-    <Box display="flex" alignItems="center" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2',
+      })}
+    >
       <span style={{ fontSize: 'var(--em-text-sm)' }}>Local</span>
       <Badge>12</Badge>
-    </Box>
+    </div>
   ),
 };

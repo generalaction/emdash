@@ -18,7 +18,7 @@
  *   yellow #b58900 H86  orange #cb4b16 H40  violet #6c71c4 H279
  */
 
-import { defineTheme } from '../core/index';
+import { defineTheme } from '../core/define-theme';
 
 export const solarizedDarkTheme = defineTheme({
   id: 'solarized-dark',
@@ -67,9 +67,9 @@ export const solarizedDarkTheme = defineTheme({
   surfaceLightness: {
     sunken: 0.235,
     base: 0.267, //                 base03 — primary background
-    'base-emphasis': 0.295,
+    raised: 0.295,
     elevated: 0.309, //             base02 — raised panels
-    'elevated-emphasis': 0.345,
+    overlay: 0.345,
     paper: 0.267, //                base03 — primary content background
   },
 

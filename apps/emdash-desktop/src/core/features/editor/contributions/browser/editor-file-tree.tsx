@@ -22,6 +22,7 @@ import {
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import {
   ClipboardPaste,
   Circle,
@@ -76,6 +77,7 @@ import {
   setDraggedWorkspaceFile,
 } from '@core/primitives/drag-files/browser/drag-files';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 
@@ -930,7 +932,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   return (
     <div
       ref={attachFileTreeScope}
-      className="surface-paper flex h-full flex-col overflow-hidden bg-(--em-surface)"
+      className={cn(surface({ role: 'paper' }), 'flex h-full flex-col overflow-hidden')}
     >
       <FileTreeHeaderBar
         context={headerContext}

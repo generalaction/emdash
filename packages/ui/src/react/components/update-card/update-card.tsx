@@ -1,5 +1,8 @@
+import { tokens } from '@emdash/theme';
+import { sx } from '@styles/index';
+import { cx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import * as React from 'react';
-import { Box } from '../../primitives/box';
 import { Button } from '../../primitives/button';
 import { useAsyncAction } from '../../primitives/hooks/use-async-action';
 import { Pill } from '../pill/pill';
@@ -146,14 +149,24 @@ export function UpdateCard({
   };
 
   return (
-    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
+    <div
+      className={cx(
+        surface({ level: 'sunken' }),
+        styles.card,
+        sx({
+          borderRadius: tokens.radius.md,
+          p: tokens.space.step2,
+          px: tokens.space.step3,
+        })
+      )}
+    >
       <div className={styles.row}>
         <StatusIcon size="lg" severity={getStatusSeverity()} />
         <div className={styles.rowBody}>
           <div className={styles.rowTitle}>
             {renderStatusLabel()}
             {error && (
-              <Pill variant="error" className={styles.errorPill} title={error.message}>
+              <Pill tone="error" truncate className={styles.errorPill} title={error.message}>
                 {error.message}
               </Pill>
             )}
@@ -162,7 +175,7 @@ export function UpdateCard({
         </div>
         <div className={styles.rowControls}>{renderActionButton()}</div>
       </div>
-    </Box>
+    </div>
   );
 }
 

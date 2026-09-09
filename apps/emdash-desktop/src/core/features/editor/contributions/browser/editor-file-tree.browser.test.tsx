@@ -11,7 +11,6 @@ import {
   FileTreeHeaderBar,
   fileTreeGitStatusTone,
 } from './editor-file-tree';
-import '@emdash/ui/style.css';
 
 beforeAll(() => {
   (

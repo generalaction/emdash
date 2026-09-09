@@ -1,19 +1,19 @@
-import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_SCOPES, SURFACE_STATUSES } from '@emdash/theme';
-import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
+import { tokens } from '@emdash/theme';
+import type { SurfaceLevelName, SurfaceScopeName, SurfaceToneName } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
 import { Alert } from '../primitives/alert';
-import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
+import { Icon } from '../primitives/icon';
 import { Input } from '../primitives/input';
 import { Select } from '../primitives/select';
 import { Surface } from '../primitives/surface/surface';
-import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
+import { StoryThemeScope } from '../story-theme';
 import * as s from '../story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Examples/Surface Cascade',
@@ -23,68 +23,95 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-/** Base / hover / selected swatches for a given direct-elevation CSS var prefix. */
-function ElevationSwatch({ level, label }: { level: string; label: string }) {
-  const isEmphasis = level.includes('emphasis');
+const SURFACE_LEVELS = Object.keys(tokens.surface.level) as SurfaceLevelName[];
+const SURFACE_ROLES = Object.keys(tokens.surface.role) as SurfaceScopeName[];
+const SURFACE_SCOPES = [...SURFACE_LEVELS, ...SURFACE_ROLES];
+const SURFACE_TONES = Object.keys(tokens.surface.tone) as SurfaceToneName[];
+
+function surfaceScopeTokens(scope: SurfaceScopeName) {
+  return scope === 'paper' ? tokens.surface.role.paper : tokens.surface.level[scope];
+}
+
+function toneScopeTokens(tone: SurfaceToneName, scope: SurfaceScopeName) {
+  const toneTokens = tokens.surface.tone[tone];
+  if (scope === 'base') return toneTokens;
+  if (scope === 'paper') return toneTokens.role.paper;
+  return toneTokens.level[scope];
+}
+
+/** Base / hover / selected Token swatches for one Surface scope. */
+function ElevationSwatch({ level, label }: { level: SurfaceScopeName; label: string }) {
+  const isEmphasis = level === 'raised' || level === 'overlay';
+  const levelTokens = surfaceScopeTokens(level);
   return (
-    <Box display="flex" flexDirection="column" gap="1.5">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: tokens.space.step1_5,
+      })}
+    >
       <p className={cx(sx({ fontFamily: 'mono', color: 'foreground' }), s.text10px)}>{label}</p>
-      <Box
-        className={s.h10}
-        width="full"
-        rounded="sm"
-        borderWidth="1"
-        borderStyle="solid"
-        borderColor="border"
-        style={{ background: `var(--em-surface-${level})` }}
-        title={`--surface-${level}`}
+      <div
+        className={cx(
+          s.h10,
+          sx({
+            width: 'full',
+            borderRadius: tokens.radius.sm,
+            borderWidth: '1',
+            borderStyle: 'solid',
+            borderColor: 'border',
+          })
+        )}
+        style={{ background: levelTokens.background }}
+        title={`tokens.surface.${level === 'paper' ? 'role.paper' : `level.${level}`}.background`}
       />
-      <Box
-        className={s.h6}
-        width="full"
-        rounded="sm"
-        style={{ background: `var(--em-surface-${level}-hover)` }}
-        title={`--surface-${level}-hover`}
+      <div
+        className={cx(s.h6, sx({ width: 'full', borderRadius: tokens.radius.sm }))}
+        style={{ background: levelTokens.hover }}
+        title={`tokens.surface.${level === 'paper' ? 'role.paper' : `level.${level}`}.hover`}
       />
-      <Box
-        className={s.h6}
-        width="full"
-        rounded="sm"
+      <div
+        className={cx(s.h6, sx({ width: 'full', borderRadius: tokens.radius.sm }))}
         style={{
-          background: `var(--em-surface-${level}-selected)`,
-          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--em-border-primary)' : undefined,
+          background: levelTokens.selected,
+          boxShadow: isEmphasis ? `inset 0 0 0 1px ${tokens.border.focus}` : undefined,
         }}
-        title={`--surface-${level}-selected`}
+        title={`tokens.surface.${level === 'paper' ? 'role.paper' : `level.${level}`}.selected`}
       />
-    </Box>
+    </div>
   );
 }
 
-function SurfaceCard({ level }: { level: SurfaceScopeName }) {
+function SurfaceCard({ level }: { level: SurfaceLevelName }) {
   return (
-    <Box
-      surface={level}
-      display="flex"
-      flexDirection="column"
-      gap="3"
-      rounded="lg"
-      borderWidth="1"
-      borderStyle="solid"
-      borderColor="border"
-      padding="4"
+    <div
+      className={cx(
+        surface({ level }),
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: tokens.space.step3,
+          borderRadius: tokens.radius.lg,
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          p: tokens.space.step4,
+        })
+      )}
     >
       <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
-        .surface-{level}
+        surface level: {level}
       </p>
       <Input placeholder="Search…" />
-      <Box display="flex" gap="2">
+      <div className={sx({ display: 'flex', gap: tokens.space.step2 })}>
         <Button variant="ghost" size="base">
           Ghost
         </Button>
         <Button variant="primary" size="base">
           Primary
         </Button>
-      </Box>
+      </div>
       <Select.Root>
         <Select.Trigger className={cx(sx({ width: 'full' }))}>
           <Select.Value placeholder="Pick one…" />
@@ -94,12 +121,14 @@ function SurfaceCard({ level }: { level: SurfaceScopeName }) {
           <Select.Item value="b">Option B</Select.Item>
         </Select.Content>
       </Select.Root>
-    </Box>
+    </div>
   );
 }
 
-function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
+function SurfaceTabs({ scope }: { scope: SurfaceScopeName }) {
   const [active, setActive] = useState('first');
+  const surfaceProps =
+    scope === 'paper' ? ({ role: 'paper' } as const) : ({ level: scope } as const);
   const tabs = [
     { id: 'first', label: 'First' },
     { id: 'second', label: 'Second' },
@@ -107,29 +136,31 @@ function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
   ];
   return (
     <Surface
-      level={level}
+      {...surfaceProps}
       className={cx(
         sx({
           display: 'flex',
           flexDirection: 'column',
-          gap: '0',
-          rounded: 'lg',
+          gap: tokens.space.step0,
+          borderRadius: tokens.radius.lg,
           borderWidth: '1',
           borderStyle: 'solid',
           borderColor: 'border',
         })
       )}
     >
-      <Box
-        background="surface"
-        display="flex"
-        alignItems="center"
-        gap="1"
-        borderBottomWidth="1"
-        borderStyle="solid"
-        borderColor="border"
-        px="1"
-        paddingTop="1"
+      <div
+        className={sx({
+          background: tokens.surface.current.background,
+          display: 'flex',
+          alignItems: 'center',
+          gap: tokens.space.step1,
+          borderBottomWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          px: tokens.space.step1,
+          paddingTop: tokens.space.step1,
+        })}
       >
         {tabs.map((tab) => (
           <button
@@ -142,18 +173,27 @@ function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
             {tab.label}
           </button>
         ))}
-      </Box>
-      <Box surface="emphasis" roundedBottom="lg" padding="4">
+      </div>
+      <div
+        className={cx(
+          surface({ emphasis: true }),
+          sx({
+            borderBottomLeftRadius: tokens.radius.lg,
+            borderBottomRightRadius: tokens.radius.lg,
+            p: tokens.space.step4,
+          })
+        )}
+      >
         <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
           Content for <strong className={cx(sx({ color: 'foreground' }))}>{active}</strong> tab on{' '}
-          <code className={cx(sx({ fontFamily: 'mono', fontSize: 'xs' }))}>.surface-{level}</code>
+          <code className={cx(sx({ fontFamily: 'mono', fontSize: 'xs' }))}>{scope}</code>
         </p>
-      </Box>
+      </div>
     </Surface>
   );
 }
 
-function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
+function SurfaceButtons({ level }: { level: SurfaceLevelName }) {
   return (
     <Surface
       level={level}
@@ -161,19 +201,25 @@ function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
         sx({
           display: 'flex',
           flexDirection: 'column',
-          gap: '2',
-          rounded: 'lg',
+          gap: tokens.space.step2,
+          borderRadius: tokens.radius.lg,
           borderWidth: '1',
           borderStyle: 'solid',
           borderColor: 'border',
-          padding: '4',
+          p: tokens.space.step4,
         })
       )}
     >
       <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
-        .surface-{level}
+        surface level: {level}
       </p>
-      <Box display="flex" flexWrap="wrap" gap="2">
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: tokens.space.step2,
+        })}
+      >
         <Button variant="ghost">Ghost</Button>
         <Button variant="ghost" tone="destructive">
           Destructive
@@ -187,13 +233,19 @@ function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
         <Button variant="ghost" tone="success">
           Success
         </Button>
-      </Box>
-      <Box display="flex" flexWrap="wrap" gap="2">
+      </div>
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: tokens.space.step2,
+        })}
+      >
         <Button variant="primary">Primary</Button>
         <Button variant="primary" tone="destructive">
           Primary Destructive
         </Button>
-      </Box>
+      </div>
     </Surface>
   );
 }
@@ -201,127 +253,181 @@ function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
 /** One swatch per elevation step (base / hover / selected). */
 export const Ladder: Story = {
   render: () => (
-    <Box className={s.spaceY4} padding="6">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: tokens.space.step4,
+        p: tokens.space.step6,
+      })}
+    >
       <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
         Swatches: base → hover → selected for each elevation.
       </p>
-      <Box display="grid" className={s.cols5} gap="4">
+      <div className={cx(s.cols5, sx({ display: 'grid', gap: tokens.space.step4 }))}>
         {SURFACE_LEVELS.map((level) => (
           <ElevationSwatch key={level} level={level} label={level} />
         ))}
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
 
-/** Cascade proof: surface-emphasis card on each surface. */
+/** Cascade proof: context-relative emphasis on each Surface. */
 export const Cascade: Story = {
   render: () => (
-    <Box display="grid" className={s.cols3} gap="4" padding="6">
+    <div
+      className={cx(
+        s.cols3,
+        sx({ display: 'grid', gap: tokens.space.step4, p: tokens.space.step6 })
+      )}
+    >
       {(['sunken', 'base', 'elevated'] as const).map((level) => (
-        <Box
+        <div
           key={level}
-          surface={level}
-          display="flex"
-          flexDirection="column"
-          gap="3"
-          rounded="xl"
-          padding="4"
+          className={cx(
+            surface({ level }),
+            sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: tokens.space.step3,
+              borderRadius: tokens.radius.xl,
+              p: tokens.space.step4,
+            })
+          )}
         >
           <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
-            .surface-{level}
+            surface level: {level}
           </p>
-          <Box surface="emphasis" rounded="lg" padding="3">
+          <div
+            className={cx(
+              surface({ emphasis: true }),
+              sx({ borderRadius: tokens.radius.lg, p: tokens.space.step3 })
+            )}
+          >
             <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
-              .surface-emphasis (card)
+              context-relative emphasis
             </p>
             <p className={cx(sx({ marginTop: '1', fontSize: 'sm', color: 'foreground' }))}>
               Card content adapts automatically.
             </p>
-          </Box>
-        </Box>
+          </div>
+        </div>
       ))}
-    </Box>
+    </div>
   ),
 };
 
 /** Components (Input, Button, Select) on every surface level. */
 export const ComponentsOnAllSurfaces: Story = {
   render: () => (
-    <Box display="grid" gap="4" padding="6" className={cx(s.cols2, s.lgCols3)}>
+    <div
+      className={cx(
+        s.cols2,
+        s.lgCols3,
+        sx({ display: 'grid', gap: tokens.space.step4, p: tokens.space.step6 })
+      )}
+    >
       {SURFACE_LEVELS.map((level) => (
         <SurfaceCard key={level} level={level} />
       ))}
-    </Box>
+    </div>
   ),
 };
 
 /** Tab strips demonstrating hover and selected states on each surface. */
 export const Tabs: Story = {
   render: () => (
-    <Box display="grid" gap="4" padding="6" className={cx(s.cols1, s.lgCols2)}>
+    <div
+      className={cx(
+        s.cols1,
+        s.lgCols2,
+        sx({ display: 'grid', gap: tokens.space.step4, p: tokens.space.step6 })
+      )}
+    >
       {SURFACE_LEVELS.map((level) => (
-        <SurfaceTabs key={level} level={level} />
+        <SurfaceTabs key={level} scope={level} />
       ))}
-    </Box>
+    </div>
   ),
 };
 
 /** Buttons demonstrating hover, selected, and destructive across every surface. */
 export const Buttons: Story = {
   render: () => (
-    <Box display="grid" gap="4" padding="6" className={cx(s.cols1, s.lgCols2)}>
+    <div
+      className={cx(
+        s.cols1,
+        s.lgCols2,
+        sx({ display: 'grid', gap: tokens.space.step4, p: tokens.space.step6 })
+      )}
+    >
       {SURFACE_LEVELS.map((level) => (
         <SurfaceButtons key={level} level={level} />
       ))}
-    </Box>
+    </div>
   ),
 };
 
-const STATUS_ICON: Record<SurfaceStatusName, React.ReactNode> = {
-  info: <InfoIcon />,
-  warning: <AlertTriangleIcon />,
-  destructive: <AlertCircleIcon />,
-  success: <CheckCircle2Icon />,
+const STATUS_ICON: Record<SurfaceToneName, React.ReactNode> = {
+  info: <Icon source={InfoIcon} />,
+  warning: <Icon source={AlertTriangleIcon} />,
+  destructive: <Icon source={AlertCircleIcon} />,
+  success: <Icon source={CheckCircle2Icon} />,
 };
 
-const STATUS_LABEL: Record<SurfaceStatusName, string> = {
+const STATUS_LABEL: Record<SurfaceToneName, string> = {
   info: 'Info',
   warning: 'Warning',
   destructive: 'Destructive',
   success: 'Success',
 };
 
-const STATUS_MESSAGE: Record<SurfaceStatusName, string> = {
+const STATUS_MESSAGE: Record<SurfaceToneName, string> = {
   info: 'This is an informational message. Ghost controls inside adapt to the tinted surface.',
   warning: 'Something needs your attention. Controls inherit the tinted hover/selected states.',
   destructive: 'This action cannot be undone. All controls respond to the destructive surface.',
   success: 'Operation completed successfully. Controls inherit the tinted hover/selected states.',
 };
 
-function StatusRoom({ status }: { status: SurfaceStatusName }) {
+function StatusRoom({ status }: { status: SurfaceToneName }) {
   const [pressed, setPressed] = useState(false);
   return (
-    <Box display="flex" flexDirection="column" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: tokens.space.step3,
+      })}
+    >
       <Alert.Root status={status} icon={STATUS_ICON[status]}>
         <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
       </Alert.Root>
-      <Box
-        surface={status}
-        display="flex"
-        alignItems="center"
-        gap="2"
-        rounded="lg"
-        borderWidth="1"
-        borderStyle="solid"
-        padding="3"
-        style={{ borderColor: `var(--em-surface-${status}-border)` }}
+      <div
+        className={cx(
+          surface({ tone: status }),
+          sx({
+            display: 'flex',
+            alignItems: 'center',
+            gap: tokens.space.step2,
+            borderRadius: tokens.radius.lg,
+            borderWidth: '1',
+            borderStyle: 'solid',
+            borderColor: tokens.surface.current.border,
+            p: tokens.space.step3,
+          })
+        )}
       >
         <span
-          className={cx(sx({ flex: '1', fontSize: 'sm' }))}
-          style={{ color: `var(--em-surface-${status}-foreground)` }}
+          className={cx(
+            sx({
+              flex: '1',
+              fontSize: 'sm',
+              color: tokens.surface.current.foreground,
+            })
+          )}
         >
-          Controls inside a status surface
+          Controls inside a toned Surface
         </span>
         <Toggle
           pressed={pressed}
@@ -336,34 +442,39 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
         <Button variant="ghost" tone="destructive">
           Delete
         </Button>
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
 /**
- * Status surface variants (destructive / warning / info). Each is a tinted
+ * Surface Tone variants (destructive / warning / info). Each is a tinted
  * "room" — ghost controls inside automatically pick up the tinted hover/selected
  * states from the cascade without any per-component override.
  */
-export const StatusSurfaces: Story = {
+export const ToneSurfaces: Story = {
   render: () => (
-    <Box display="grid" className={s.cols1} gap="6" padding="6">
-      <Box>
+    <div
+      className={cx(
+        s.cols1,
+        sx({ display: 'grid', gap: tokens.space.step6, p: tokens.space.step6 })
+      )}
+    >
+      <div>
         <p className={cx(sx({ marginBottom: '1', fontSize: 'sm', color: 'foreground' }))}>
-          Status surfaces — tinted rooms using the cascade
+          Surface Tones — tinted regions using inherited context
         </p>
         <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
           Each status box rebinds{' '}
-          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-hover</code> and{' '}
-          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-selected</code> so any ghost
-          Button / Toggle inside already hovers/selects with the correct tint.
+          <code className={cx(sx({ fontFamily: 'mono' }))}>tokens.surface.current.hover</code> and{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>tokens.surface.current.selected</code> so
+          any ghost Button / Toggle inside already hovers/selects with the correct tint.
         </p>
-      </Box>
-      {SURFACE_STATUSES.map((status) => (
+      </div>
+      {SURFACE_TONES.map((status) => (
         <StatusRoom key={status} status={status} />
       ))}
-      <Box>
+      <div>
         <p
           className={cx(
             sx({
@@ -375,50 +486,65 @@ export const StatusSurfaces: Story = {
         >
           Swatches — base / hover / selected per status
         </p>
-        <Box display="grid" className={s.cols3} gap="4">
-          {SURFACE_STATUSES.map((status) => (
-            <Box key={status} display="flex" flexDirection="column" gap="1.5">
+        <div className={cx(s.cols3, sx({ display: 'grid', gap: tokens.space.step4 }))}>
+          {SURFACE_TONES.map((status) => (
+            <div
+              key={status}
+              className={sx({
+                display: 'flex',
+                flexDirection: 'column',
+                gap: tokens.space.step1_5,
+              })}
+            >
               <p className={cx(sx({ fontFamily: 'mono', color: 'foreground' }), s.text10px)}>
                 {status}
               </p>
-              <Box
-                className={s.h10}
-                width="full"
-                rounded="sm"
-                borderWidth="1"
-                borderStyle="solid"
+              <div
+                className={cx(
+                  s.h10,
+                  sx({
+                    width: 'full',
+                    borderRadius: tokens.radius.sm,
+                    borderWidth: '1',
+                    borderStyle: 'solid',
+                  })
+                )}
                 style={{
-                  background: `var(--em-surface-${status})`,
-                  borderColor: `var(--em-surface-${status}-border)`,
+                  background: tokens.surface.tone[status].background,
+                  borderColor: tokens.surface.tone[status].border,
                 }}
-                title={`--surface-${status}`}
+                title={`tokens.surface.tone.${status}.background`}
               />
-              <Box
-                className={s.h6}
-                width="full"
-                rounded="sm"
-                style={{ background: `var(--em-surface-${status}-hover)` }}
-                title={`--surface-${status}-hover`}
+              <div
+                className={cx(s.h6, sx({ width: 'full', borderRadius: tokens.radius.sm }))}
+                style={{ background: tokens.surface.tone[status].hover }}
+                title={`tokens.surface.tone.${status}.hover`}
               />
-              <Box
-                className={s.h6}
-                width="full"
-                rounded="sm"
-                style={{ background: `var(--em-surface-${status}-selected)` }}
-                title={`--surface-${status}-selected`}
+              <div
+                className={cx(s.h6, sx({ width: 'full', borderRadius: tokens.radius.sm }))}
+                style={{ background: tokens.surface.tone[status].selected }}
+                title={`tokens.surface.tone.${status}.selected`}
               />
-            </Box>
+            </div>
           ))}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   ),
 };
 
 function PaperRoom() {
   return (
-    <Box background="background" padding="6" className={s.spaceY6}>
-      <Box>
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: tokens.space.step6,
+        background: tokens.palette.neutral.step1,
+        p: tokens.space.step6,
+      })}
+    >
+      <div>
         <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>
           Paper — primary content / tab background
         </p>
@@ -432,18 +558,24 @@ function PaperRoom() {
           <code className={cx(sx({ fontFamily: 'mono' }))}>elevated</code>) and flat with{' '}
           <code className={cx(sx({ fontFamily: 'mono' }))}>base</code> in dark mode. Use it for the
           surface tabbed content sits on. Cards/tabs on paper use{' '}
-          <code className={cx(sx({ fontFamily: 'mono' }))}>base-emphasis</code>.
+          <code className={cx(sx({ fontFamily: 'mono' }))}>raised</code>.
         </p>
-      </Box>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '12rem 1fr', gap: '1.5rem' }}>
-        <Box display="flex" flexDirection="column" gap="4">
+        <div
+          className={sx({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: tokens.space.step4,
+          })}
+        >
           {SURFACE_ROLES.map((role) => (
             <ElevationSwatch key={role} level={role} label={role} />
           ))}
-        </Box>
-        <SurfaceTabs level="paper" />
+        </div>
+        <SurfaceTabs scope="paper" />
       </div>
-    </Box>
+    </div>
   );
 }
 
@@ -453,14 +585,14 @@ function PaperRoom() {
  */
 export const Paper: Story = {
   render: () => (
-    <Box display="flex" className={s.minHScreen}>
-      <ThemeProvider theme="light" className={cx(sx({ flex: '1' }))}>
+    <div className={cx(s.minHScreen, sx({ display: 'flex' }))}>
+      <StoryThemeScope colorScheme="light" className={cx(sx({ flex: '1' }))}>
         <PaperRoom />
-      </ThemeProvider>
-      <ThemeProvider theme="dark" className={cx(sx({ flex: '1' }))}>
+      </StoryThemeScope>
+      <StoryThemeScope colorScheme="dark" className={cx(sx({ flex: '1' }))}>
         <PaperRoom />
-      </ThemeProvider>
-    </Box>
+      </StoryThemeScope>
+    </div>
   ),
 };
 
@@ -475,10 +607,22 @@ export const Paper: Story = {
  */
 export const StatusLevelMatrix: Story = {
   render: () => (
-    <Box display="flex" className={s.minHScreen}>
+    <div className={cx(s.minHScreen, sx({ display: 'flex' }))}>
       {(['light', 'dark'] as const).map((theme) => (
-        <ThemeProvider key={theme} theme={theme} className={cx(sx({ flex: '1', padding: '4' }))}>
-          <Box background="background" padding="4" className={s.spaceY4}>
+        <StoryThemeScope
+          key={theme}
+          colorScheme={theme}
+          className={cx(sx({ flex: '1', p: tokens.space.step4 }))}
+        >
+          <div
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: tokens.space.step4,
+              background: tokens.palette.neutral.step1,
+              p: tokens.space.step4,
+            })}
+          >
             <p
               className={cx(
                 sx({
@@ -490,8 +634,15 @@ export const StatusLevelMatrix: Story = {
             >
               {theme} — status × elevation
             </p>
-            {SURFACE_STATUSES.map((status) => (
-              <Box key={status} className={s.spaceY4}>
+            {SURFACE_TONES.map((status) => (
+              <div
+                key={status}
+                className={sx({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: tokens.space.step4,
+                })}
+              >
                 <p
                   className={cx(
                     sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' })
@@ -499,94 +650,124 @@ export const StatusLevelMatrix: Story = {
                 >
                   {status}
                 </p>
-                <Box
-                  display="grid"
-                  gap="2"
+                <div
+                  className={sx({ display: 'grid', gap: tokens.space.step2 })}
                   style={{
                     gridTemplateColumns: `repeat(${SURFACE_SCOPES.length}, minmax(0, 1fr))`,
                   }}
                 >
                   {SURFACE_SCOPES.map((scope) => {
-                    const tokenBase =
-                      scope === 'base' ? `--surface-${status}` : `--surface-${status}-${scope}`;
+                    const scopeTokens = toneScopeTokens(status, scope);
                     return (
-                      <Box key={scope} display="flex" flexDirection="column" gap="1.5">
+                      <div
+                        key={scope}
+                        className={sx({
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: tokens.space.step1_5,
+                        })}
+                      >
                         <p className={cx(sx({ fontFamily: 'mono' }), s.text10px)}>{scope}</p>
-                        <Box
-                          className={s.h10}
-                          width="full"
-                          rounded="sm"
-                          borderWidth="1"
-                          borderStyle="solid"
+                        <div
+                          className={cx(
+                            s.h10,
+                            sx({
+                              width: 'full',
+                              borderRadius: tokens.radius.sm,
+                              borderWidth: '1',
+                              borderStyle: 'solid',
+                            })
+                          )}
                           style={{
-                            background: `var(${tokenBase})`,
-                            borderColor: `var(${tokenBase}-border)`,
+                            background: scopeTokens.background,
+                            borderColor: scopeTokens.border,
                           }}
-                          title={tokenBase}
+                          title={`tokens.surface.tone.${status}.${scope}.background`}
                         />
-                        <Box
-                          className={s.h6}
-                          width="full"
-                          rounded="sm"
-                          style={{ background: `var(${tokenBase}-hover)` }}
-                          title={`${tokenBase}-hover`}
+                        <div
+                          className={cx(
+                            s.h6,
+                            sx({ width: 'full', borderRadius: tokens.radius.sm })
+                          )}
+                          style={{ background: scopeTokens.hover }}
+                          title={`tokens.surface.tone.${status}.${scope}.hover`}
                         />
-                        <Box
-                          className={s.h6}
-                          width="full"
-                          rounded="sm"
-                          style={{ background: `var(${tokenBase}-selected)` }}
-                          title={`${tokenBase}-selected`}
+                        <div
+                          className={cx(
+                            s.h6,
+                            sx({ width: 'full', borderRadius: tokens.radius.sm })
+                          )}
+                          style={{ background: scopeTokens.selected }}
+                          title={`tokens.surface.tone.${status}.${scope}.selected`}
                         />
-                      </Box>
+                      </div>
                     );
                   })}
-                </Box>
-              </Box>
+                </div>
+              </div>
             ))}
-          </Box>
-        </ThemeProvider>
+          </div>
+        </StoryThemeScope>
       ))}
-    </Box>
+    </div>
   ),
 };
 
 /** Light and dark modes side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
-      <ThemeProvider
-        defaultTheme="light"
-        className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
+    <div className={cx(s.minHScreen, sx({ display: 'flex' }))}>
+      <StoryThemeScope
+        colorScheme="light"
+        className={cx(
+          sx({
+            display: 'flex',
+            flex: '1',
+            flexDirection: 'column',
+            gap: tokens.space.step6,
+            background: tokens.palette.neutral.step1,
+            p: tokens.space.step6,
+          })
+        )}
       >
         <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Light mode</p>
-        <Box display="grid" className={s.cols3} gap="4">
+        <div className={cx(s.cols3, sx({ display: 'grid', gap: tokens.space.step4 }))}>
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
           ))}
-        </Box>
-        <Box display="grid" className={s.cols2} gap="3">
+        </div>
+        <div className={cx(s.cols2, sx({ display: 'grid', gap: tokens.space.step3 }))}>
           {SURFACE_LEVELS.map((level) => (
             <SurfaceCard key={level} level={level} />
           ))}
-        </Box>
-      </ThemeProvider>
-      <ThemeProvider
-        defaultTheme="dark"
-        className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
+        </div>
+      </StoryThemeScope>
+      <StoryThemeScope
+        colorScheme="dark"
+        className={cx(
+          s.borderLeft,
+          sx({
+            display: 'flex',
+            flex: '1',
+            flexDirection: 'column',
+            gap: tokens.space.step6,
+            background: tokens.palette.neutral.step1,
+            p: tokens.space.step6,
+          })
+        )}
       >
         <p className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Dark mode</p>
-        <Box display="grid" className={s.cols3} gap="4">
+        <div className={cx(s.cols3, sx({ display: 'grid', gap: tokens.space.step4 }))}>
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
           ))}
-        </Box>
-        <Box display="grid" className={s.cols2} gap="3">
+        </div>
+        <div className={cx(s.cols2, sx({ display: 'grid', gap: tokens.space.step3 }))}>
           {SURFACE_LEVELS.map((level) => (
             <SurfaceCard key={level} level={level} />
           ))}
-        </Box>
-      </ThemeProvider>
-    </Box>
+        </div>
+      </StoryThemeScope>
+    </div>
   ),
 };

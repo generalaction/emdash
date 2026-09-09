@@ -1,6 +1,6 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
 /**
  * Alert root — a prominent, dismissible notification banner.
@@ -13,16 +13,16 @@ export const alertRoot = style({
   display: 'flex',
   alignItems: 'flex-start',
   gap: '0.75rem',
-  borderRadius: tokenVars.radiusLg,
+  borderRadius: tokens.radius.lg,
   border: '1px solid',
   paddingTop: '0.875rem',
   paddingBottom: '0.875rem',
   paddingLeft: '1rem',
   paddingRight: '2.5rem',
-  fontSize: tokenVars.textSm,
-  backgroundColor: vars.surface,
-  borderColor: vars.surfaceBorder,
-  color: vars.surfaceForeground,
+  fontSize: tokens.typography.size.sm,
+  backgroundColor: tokens.surface.current.background,
+  borderColor: tokens.surface.current.border,
+  color: tokens.surface.current.foreground,
   selectors: {
     // Reserve room for the top-right action slot so text never runs under it.
     '&:has([data-slot=alert-action])': { paddingRight: '4.5rem' },
@@ -32,8 +32,10 @@ export const alertRoot = style({
 export const alertIcon = style({
   marginTop: '0.0625rem',
   flexShrink: 0,
+  vars: {
+    [iconSizeVar]: '1rem',
+  },
 });
-globalStyle(`${alertIcon} svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
 
 export const alertBody = style({
   display: 'flex',
@@ -73,24 +75,22 @@ export const alertDismiss = style({
   justifyContent: 'center',
   width: '1.5rem',
   height: '1.5rem',
-  borderRadius: tokenVars.radiusMd,
+  borderRadius: tokens.radius.md,
   border: 'none',
   backgroundColor: 'transparent',
   color: 'inherit',
   opacity: 0.6,
   cursor: 'pointer',
   transition: 'opacity 150ms, background-color 150ms',
+  vars: {
+    [iconSizeVar]: '0.875rem',
+  },
   selectors: {
-    '&:hover': { opacity: 1, backgroundColor: vars.surfaceHover },
+    '&:hover': { opacity: 1, backgroundColor: tokens.surface.current.hover },
     '&:focus-visible': {
       outline: 'none',
       opacity: 1,
-      boxShadow: `0 0 0 2px ${vars.borderPrimary}`,
+      boxShadow: `0 0 0 2px ${tokens.border.focus}`,
     },
   },
-});
-globalStyle(`${alertDismiss} svg`, {
-  pointerEvents: 'none',
-  width: '0.875rem',
-  height: '0.875rem',
 });

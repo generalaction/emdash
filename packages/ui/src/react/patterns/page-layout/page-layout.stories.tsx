@@ -1,7 +1,29 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { PlusIcon, WrenchIcon } from 'lucide-react';
+import { sx } from '@styles/index';
+import {
+  ArchiveIcon,
+  BookOpenIcon,
+  BotIcon,
+  ExternalLinkIcon,
+  FolderGit2Icon,
+  FolderIcon,
+  GitBranchIcon,
+  GlobeIcon,
+  PanelLeftIcon,
+  PlugIcon,
+  PlusIcon,
+  ServerIcon,
+  SettingsIcon,
+  SparklesIcon,
+  TerminalIcon,
+  UserIcon,
+  WrenchIcon,
+  ZapIcon,
+} from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { SearchInput } from '../../primitives/search-input';
 import { PageLayout, type PageNavItem, type PageSidebarMenuItem } from './index';
 
@@ -59,9 +81,9 @@ function PlaceholderList({ count = 5 }: { count?: number }) {
 // ── 1. Library style — sidebar + content (max-w-3xl) ─────────────────────────
 
 const LIBRARY_ITEMS = [
-  { id: 'prompts', label: 'Prompts', icon: 'book-open' },
-  { id: 'skills', label: 'Skills', icon: 'wrench' },
-  { id: 'mcp', label: 'MCP', icon: 'terminal' },
+  { id: 'prompts', label: 'Prompts', icon: BookOpenIcon },
+  { id: 'skills', label: 'Skills', icon: WrenchIcon },
+  { id: 'mcp', label: 'MCP', icon: TerminalIcon },
 ] satisfies PageNavItem[];
 
 function LibraryDemo() {
@@ -71,6 +93,7 @@ function LibraryDemo() {
   return (
     <div style={{ height: '40rem', display: 'flex', flexDirection: 'column' }}>
       <PageLayout
+        className={sx({ background: tokens.surface.level.sunken.background })}
         sidebar={
           <PageLayout.SidebarMenu
             items={LIBRARY_ITEMS}
@@ -101,7 +124,7 @@ function LibraryDemo() {
                   style={{ flex: 1 }}
                 />
                 <Button size="xs">
-                  <PlusIcon size={14} />
+                  <Icon source={PlusIcon} />
                   New Prompt
                 </Button>
               </div>
@@ -124,19 +147,19 @@ export const LibraryStyle: Story = {
 // ── 2. Settings style — sidebar + content (default max-w-4xl) ────────────────
 
 const SETTINGS_ITEMS = [
-  { id: 'general', label: 'General', icon: 'settings' },
-  { id: 'account', label: 'Account', icon: 'user' },
-  { id: 'agents', label: 'Agents', icon: 'bot' },
+  { id: 'general', label: 'General', icon: SettingsIcon },
+  { id: 'account', label: 'Account', icon: UserIcon },
+  { id: 'agents', label: 'Agents', icon: BotIcon },
   {
     id: 'integrations',
     label: 'Integrations',
-    icon: 'globe',
+    icon: GlobeIcon,
   },
-  { id: 'connections', label: 'Connections', icon: 'zap' },
+  { id: 'connections', label: 'Connections', icon: ZapIcon },
   {
     id: 'docs',
     label: 'Docs',
-    icon: 'external-link',
+    icon: ExternalLinkIcon,
     isExternal: true,
   },
 ] satisfies PageNavItem[];
@@ -232,7 +255,7 @@ function AutomationsDemo() {
                     style={{ flex: 1 }}
                   />
                   <Button size="xs" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-                    <PlusIcon style={{ width: '0.875rem', height: '0.875rem' }} />
+                    <Icon source={PlusIcon} />
                     New Automation
                   </Button>
                 </div>
@@ -296,7 +319,7 @@ function CustomSidebarDemo() {
                     textAlign: 'left',
                   }}
                 >
-                  <WrenchIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                  <Icon source={WrenchIcon} size="sm" />
                   {name}
                 </button>
               ))}
@@ -335,20 +358,20 @@ export const CustomSidebar: Story = {
 
 const SECTIONED_ITEMS = [
   { kind: 'section', id: 'account-section', label: 'Account' },
-  { id: 'general', label: 'General', icon: 'settings' },
-  { id: 'account', label: 'Account', icon: 'user' },
-  { id: 'integrations', label: 'Integrations', icon: 'plug' },
+  { id: 'general', label: 'General', icon: SettingsIcon },
+  { id: 'account', label: 'Account', icon: UserIcon },
+  { id: 'integrations', label: 'Integrations', icon: PlugIcon },
   { kind: 'section', id: 'application-section', label: 'Application' },
-  { id: 'interface', label: 'Interface', icon: 'panel-left' },
-  { id: 'browser', label: 'Browser', icon: 'globe' },
-  { id: 'repository', label: 'Repository', icon: 'git-branch' },
+  { id: 'interface', label: 'Interface', icon: PanelLeftIcon },
+  { id: 'browser', label: 'Browser', icon: GlobeIcon },
+  { id: 'repository', label: 'Repository', icon: GitBranchIcon },
   { kind: 'section', id: 'workspace-section', label: 'Workspace' },
-  { id: 'agents', label: 'Agents', icon: 'bot' },
-  { id: 'workspaces', label: 'Workspaces (local)', icon: 'folder-git-2' },
+  { id: 'agents', label: 'Agents', icon: BotIcon },
+  { id: 'workspaces', label: 'Workspaces (local)', icon: FolderGit2Icon },
   { kind: 'section', id: 'remote-section', label: 'Remote' },
-  { id: 'remote-machines', label: 'Remote Machines', icon: 'server' },
+  { id: 'remote-machines', label: 'Remote Machines', icon: ServerIcon },
   { kind: 'divider' } satisfies PageSidebarMenuItem,
-  { id: 'docs', label: 'Docs', icon: 'external-link', isExternal: true },
+  { id: 'docs', label: 'Docs', icon: ExternalLinkIcon, isExternal: true },
 ] satisfies PageSidebarMenuItem[];
 
 function SectionedSidebarDemo() {
@@ -408,14 +431,14 @@ const SIDEBAR_WITH_FOOTER_ITEMS: PageSidebarMenuItem[] = [
       ({
         id: `project-${index + 1}`,
         label: `Project ${index + 1}`,
-        icon: 'folder',
+        icon: FolderIcon,
         badge: String(index + 2),
       }) satisfies PageNavItem
   ),
   { kind: 'divider' },
   { kind: 'section', id: 'resources-section', label: 'Resources' },
-  { id: 'templates', label: 'Templates', icon: 'sparkles' },
-  { id: 'archive', label: 'Archive', icon: 'archive' },
+  { id: 'templates', label: 'Templates', icon: SparklesIcon },
+  { id: 'archive', label: 'Archive', icon: ArchiveIcon },
 ];
 
 function SidebarWithFooterDemo() {

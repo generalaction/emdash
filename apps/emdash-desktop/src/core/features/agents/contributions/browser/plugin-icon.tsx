@@ -1,7 +1,9 @@
 import type { PluginIconAsset } from '@emdash/shared/plugins';
+import type { CSSProperties } from 'react';
 import { pickIconVariant } from '@core/primitives/agents/browser/agent-icon-variant';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useTheme } from '@core/primitives/theme/browser';
+import { pluginAssetAdapter } from './plugin-icon.adapter.css';
 
 type PluginIconProps = {
   id: string;
@@ -12,8 +14,8 @@ type PluginIconProps = {
 };
 
 export function PluginIcon({ id, icon, size = 16, className, grayscale }: PluginIconProps) {
-  const { effectiveTheme } = useTheme();
-  const mode = effectiveTheme === 'emdark' ? 'dark' : 'light';
+  const { resolvedTheme } = useTheme();
+  const mode = resolvedTheme.colorScheme.polarity;
   const variant = pickIconVariant(icon.variants, size);
   if (!variant) return null;
 
@@ -21,15 +23,18 @@ export function PluginIcon({ id, icon, size = 16, className, grayscale }: Plugin
   const content = mode === 'dark' && variant.dark ? variant.dark : variant.light;
 
   const wrapperClass = cn(
-    'inline-flex shrink-0 items-center justify-center [&>svg]:h-full [&>svg]:w-full',
+    pluginAssetAdapter,
     grayscale && 'grayscale',
     shouldInvert && 'invert',
     className
   );
+  const wrapperStyle = {
+    '--_plugin-icon-size': `${size}px`,
+  } as CSSProperties;
 
   if (icon.kind === 'image') {
     return (
-      <span className={wrapperClass} style={{ width: size, height: size }}>
+      <span className={wrapperClass} style={wrapperStyle} data-foreign-adapter="plugin-asset">
         <img src={content} alt={icon.alt ?? id} width={size} height={size} />
       </span>
     );
@@ -38,7 +43,8 @@ export function PluginIcon({ id, icon, size = 16, className, grayscale }: Plugin
   return (
     <span
       className={wrapperClass}
-      style={{ width: size, height: size }}
+      style={wrapperStyle}
+      data-foreign-adapter="plugin-asset"
       // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: content }}
     />

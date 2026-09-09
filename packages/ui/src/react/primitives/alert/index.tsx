@@ -1,17 +1,18 @@
-import type { SurfaceStatusName } from '@emdash/theme';
-import { cx } from '@styles/utilities/cx';
+import type { SurfaceToneName } from '@emdash/theme';
+import { cx } from '@styles/index';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircleIcon, InfoIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, IconSlot, type StaticSvgComponent } from '../icon';
 import { Surface } from '../surface/surface';
 import * as styles from './alert.css';
 
 // ── Status icon map ───────────────────────────────────────────────────────────
 
-const STATUS_ICONS: Record<SurfaceStatusName, React.ReactNode> = {
-  info: <InfoIcon />,
-  success: <CheckCircleIcon />,
-  warning: <AlertTriangleIcon />,
-  destructive: <AlertCircleIcon />,
+const STATUS_ICONS: Record<SurfaceToneName, StaticSvgComponent> = {
+  info: InfoIcon,
+  success: CheckCircleIcon,
+  warning: AlertTriangleIcon,
+  destructive: AlertCircleIcon,
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -41,27 +42,26 @@ function AlertAction({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
-  status: SurfaceStatusName;
+  status: SurfaceToneName;
+  /**
+   * Decorative caller-owned icon content. Omit for the status default or pass
+   * `null` to suppress the icon.
+   */
   icon?: React.ReactNode | null;
   onDismiss?: () => void;
 }
 
 function AlertRoot({ status, icon, onDismiss, className, children, ...props }: AlertProps) {
-  const resolvedIcon = icon === null ? null : (icon ?? STATUS_ICONS[status]);
-
   return (
     <Surface
       role="alert"
-      status={status}
+      tone={status}
       data-slot="alert"
       className={cx(styles.alertRoot, className)}
       {...props}
     >
-      {resolvedIcon != null && (
-        <span className={styles.alertIcon} aria-hidden>
-          {resolvedIcon}
-        </span>
-      )}
+      {icon === undefined && <Icon source={STATUS_ICONS[status]} className={styles.alertIcon} />}
+      {icon != null && <IconSlot className={styles.alertIcon}>{icon}</IconSlot>}
       <div className={styles.alertBody}>{children}</div>
       {onDismiss != null && (
         <button
@@ -70,7 +70,7 @@ function AlertRoot({ status, icon, onDismiss, className, children, ...props }: A
           className={styles.alertDismiss}
           onClick={onDismiss}
         >
-          <XIcon aria-hidden />
+          <Icon source={XIcon} />
         </button>
       )}
     </Surface>

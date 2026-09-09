@@ -1,6 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const agoSuffix = style({
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });

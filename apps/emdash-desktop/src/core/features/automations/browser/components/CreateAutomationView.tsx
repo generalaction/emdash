@@ -117,12 +117,11 @@ export const CreateAutomationView = observer(function CreateAutomationView({
           <Field.Root>
             <Label>Name</Label>
             <Input
-              bare
               autoFocus={name.trim().length === 0}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Daily Pull Request Review"
-              className="h-9 px-0 text-lg!"
+              className="h-9 border-0 bg-transparent px-0 text-lg! shadow-none"
             />
           </Field.Root>
           <AutomationSettingsFields

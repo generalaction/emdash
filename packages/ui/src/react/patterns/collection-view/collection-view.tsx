@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { observer } from 'mobx-react-lite';
 import * as React from 'react';
 import { EmptyState } from '../../components/empty-state/empty-state';
@@ -79,6 +79,8 @@ export interface CollectionViewProps<T> {
   /** Override the density's row-height estimate when content is taller. */
   estimateSize?: number;
   onItemClick?: (item: T, index: number, event: React.MouseEvent<HTMLDivElement>) => void;
+  /** Marks rows unavailable while preserving their place in the collection. */
+  isItemDisabled?: (item: T, index: number) => boolean;
   /** Shown when the list is empty. Defaults to a generic `EmptyState`. */
   emptySlot?: React.ReactNode;
   /** State mode only: shown while the view's source is loading. Defaults to a `Spinner`. */
@@ -95,7 +97,10 @@ export interface CollectionViewCellProps extends React.HTMLAttributes<HTMLDivEle
   secondary?: React.ReactNode;
 }
 
-/** Two-line (primary/secondary) truncating text cell for `columns` mode. */
+/**
+ * Two-line (primary/secondary) truncating text cell for `columns` mode.
+ * `className` and remaining div attributes are applied to the rendered cell root.
+ */
 export function CollectionViewCell({
   primary,
   secondary,
@@ -142,21 +147,22 @@ function RowContent({ item, index, columns, renderRow, template, density }: RowC
     return (
       <div
         className={styles.rowGrid}
-        style={{ '--collection-view-template': template } as React.CSSProperties}
+        style={{ [styles.columnTemplateVar]: template } as React.CSSProperties}
       >
         {columns.map((column) => (
-          <div key={column.id} className={styles.bodyCell[density]} data-align={column.align}>
+          <div key={column.id} className={styles.bodyCell({ density })} data-align={column.align}>
             {column.cell(item, index)}
           </div>
         ))}
       </div>
     );
   }
-  return <div className={styles.freeform[density]}>{renderRow?.(item, index)}</div>;
+  return <div className={styles.freeform({ density })}>{renderRow?.(item, index)}</div>;
 }
 
 interface ShellRowProps {
   selected?: boolean;
+  disabled?: boolean;
   isLast: boolean;
   interactive: boolean;
   onClick?: React.MouseEventHandler<HTMLDivElement>;
@@ -173,17 +179,27 @@ function handleRowKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
 }
 
 /** The canonical row shell shared by both data modes. */
-function ShellRow({ selected = false, isLast, interactive, onClick, children }: ShellRowProps) {
+function ShellRow({
+  selected = false,
+  disabled = false,
+  isLast,
+  interactive,
+  onClick,
+  children,
+}: ShellRowProps) {
   return (
     <ListView.Row
       bare
       divider="subtle"
       interactive={interactive}
       selected={selected}
+      disabled={disabled}
       isLast={isLast}
       onClick={onClick}
       // Interactive rows are keyboard-operable buttons, not bare divs.
-      {...(interactive ? { role: 'button', tabIndex: 0, onKeyDown: handleRowKeyDown } : {})}
+      {...(interactive
+        ? { role: 'button', tabIndex: disabled ? -1 : 0, onKeyDown: handleRowKeyDown }
+        : {})}
     >
       {children}
     </ListView.Row>
@@ -195,6 +211,7 @@ interface StateRowProps extends RowContentProps {
   /** Id of the visually last item — suppresses the final divider. */
   lastId: string | undefined;
   onItemClick?: (item: AnyItem, index: number, event: React.MouseEvent<HTMLDivElement>) => void;
+  isItemDisabled?: (item: AnyItem, index: number) => boolean;
 }
 
 /**
@@ -212,14 +229,17 @@ const StateRow = observer(function StateRow({
   template,
   density,
   onItemClick,
+  isItemDisabled,
 }: StateRowProps) {
   const { id } = view.useItem();
   const selection = view.useSelection?.();
   const selected = selection?.isSelected(id) ?? false;
+  const disabled = isItemDisabled?.(item, index) ?? false;
 
   const handleClick =
     selection !== undefined || onItemClick !== undefined
       ? (event: React.MouseEvent<HTMLDivElement>) => {
+          if (disabled) return;
           if (selection !== undefined && (event.metaKey || event.ctrlKey || event.shiftKey)) {
             event.preventDefault();
             selection.toggle(id, event);
@@ -233,6 +253,7 @@ const StateRow = observer(function StateRow({
     <ShellRow
       interactive={handleClick !== undefined}
       selected={selected}
+      disabled={disabled}
       isLast={id === lastId}
       onClick={handleClick}
     >
@@ -256,6 +277,7 @@ interface StateBodyProps {
   density: CollectionViewDensity;
   estimateSize: number;
   onItemClick?: (item: AnyItem, index: number, event: React.MouseEvent<HTMLDivElement>) => void;
+  isItemDisabled?: (item: AnyItem, index: number) => boolean;
   emptySlot?: React.ReactNode;
   loadingSlot?: React.ReactNode;
   errorSlot?: React.ReactNode;
@@ -270,6 +292,7 @@ const StateBody = observer(function StateBody({
   density,
   estimateSize,
   onItemClick,
+  isItemDisabled,
   emptySlot,
   loadingSlot,
   errorSlot,
@@ -300,6 +323,7 @@ const StateBody = observer(function StateBody({
           template={template}
           density={density}
           onItemClick={onItemClick}
+          isItemDisabled={isItemDisabled}
         />
       )}
     />
@@ -318,6 +342,7 @@ const GroupedStateBody = observer(function GroupedStateBody({
   template,
   density,
   onItemClick,
+  isItemDisabled,
   emptySlot,
   loadingSlot,
   errorSlot,
@@ -373,6 +398,7 @@ const GroupedStateBody = observer(function GroupedStateBody({
                       template={template}
                       density={density}
                       onItemClick={onItemClick}
+                      isItemDisabled={isItemDisabled}
                     />
                   </view.Item>
                 );
@@ -409,7 +435,9 @@ const GroupedStateBody = observer(function GroupedStateBody({
  *
  * In state mode, selection (row `selected` state), sections, pagination, and
  * loading/error status auto-wire from the view. See the "Page-level lists"
- * section of the agents UI-kit conventions for the full pattern.
+ * section of the agents UI-kit conventions for the full pattern. The toolbar,
+ * footer, row content, and state slots are caller-owned. `className` is applied
+ * to the rendered collection root; use `sx()` there for non-owned overrides.
  */
 export function CollectionView<T>(props: CollectionViewProps<T>) {
   const {
@@ -425,6 +453,7 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
     density = 'default',
     estimateSize,
     onItemClick,
+    isItemDisabled,
     emptySlot,
     loadingSlot,
     errorSlot,
@@ -451,8 +480,6 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
   }
 
   const estimate = estimateSize ?? DENSITY_ESTIMATE[density];
-  // ListViewRoot spreads onto its div; typed via Record because HTMLAttributes
-  // does not model data-* props on components.
   const rootDataProps: Record<string, string> = { 'data-density': density };
 
   if (layout === 'grouped' && view !== undefined) {
@@ -466,6 +493,7 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
           template={template}
           density={density}
           onItemClick={onItemClick}
+          isItemDisabled={isItemDisabled}
           emptySlot={emptySlot}
           loadingSlot={loadingSlot}
           errorSlot={errorSlot}
@@ -491,6 +519,7 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
               density={density}
               estimateSize={estimate}
               onItemClick={onItemClick}
+              isItemDisabled={isItemDisabled}
               emptySlot={emptySlot}
               loadingSlot={loadingSlot}
               errorSlot={errorSlot}
@@ -505,10 +534,13 @@ export function CollectionView<T>(props: CollectionViewProps<T>) {
               renderItem={(item, index) => (
                 <ShellRow
                   interactive={onItemClick !== undefined}
+                  disabled={isItemDisabled?.(item, index) ?? false}
                   isLast={index === listItems.length - 1}
                   onClick={
                     onItemClick !== undefined
-                      ? (event) => onItemClick(item, index, event)
+                      ? (event) => {
+                          if (!isItemDisabled?.(item, index)) onItemClick(item, index, event);
+                        }
                       : undefined
                   }
                 >

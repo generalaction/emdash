@@ -8,6 +8,9 @@ import {
 import { type ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { type PullRequest } from '@core/services/pull-requests/api';
+import { pullRequestsHostStylesContribution } from '@core/services/pull-requests/contributions/host-styles';
+
+const { pullRequestState } = pullRequestsHostStylesContribution.exports;
 
 type PrStatusIconInput = Pick<PullRequest, 'status' | 'isDraft'>;
 
@@ -33,24 +36,32 @@ export function StatusIcon({
 
   if (status === 'merged') {
     return renderTooltip(
-      <GitMerge className={cn('size-4 shrink-0 text-foreground-merged', className)} />,
+      <GitMerge
+        className={cn('size-4 shrink-0', pullRequestState({ state: 'merged' }), className)}
+      />,
       'Merged'
     );
   }
   if (status === 'closed') {
     return renderTooltip(
-      <GitPullRequestClosed className={cn('size-4 shrink-0 text-foreground-error', className)} />,
+      <GitPullRequestClosed
+        className={cn('size-4 shrink-0', pullRequestState({ state: 'closed' }), className)}
+      />,
       'Closed'
     );
   }
   if (status === 'open' && isDraft) {
     return renderTooltip(
-      <GitPullRequestDraft className={cn('size-4 shrink-0 text-foreground-muted', className)} />,
+      <GitPullRequestDraft
+        className={cn('size-4 shrink-0', pullRequestState({ state: 'draft' }), className)}
+      />,
       'Draft'
     );
   }
   return renderTooltip(
-    <GitPullRequestArrow className={cn('size-4 shrink-0 text-foreground-success', className)} />,
+    <GitPullRequestArrow
+      className={cn('size-4 shrink-0', pullRequestState({ state: 'open' }), className)}
+    />,
     'Open'
   );
 }

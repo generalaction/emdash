@@ -17,6 +17,10 @@
       "import": "./dist/index.js",
       "types": "./dist/src/index.d.ts"
     },
+    "./host-styles": {
+      "import": "./dist/host-styles.js",
+      "types": "./dist/src/host-styles.d.ts"
+    },
     "./style.css": "./dist/style.css"
   },
   "scripts": {

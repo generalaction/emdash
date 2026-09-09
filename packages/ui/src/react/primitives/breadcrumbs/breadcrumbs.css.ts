@@ -1,6 +1,6 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { iconSizeVar } from '@styles/recipes/icon-contract';
 
 export const root = style({
   minWidth: 0,
@@ -22,17 +22,18 @@ export const item = style({
 });
 
 export const separator = style({
-  width: '0.75rem',
-  height: '0.75rem',
   marginInline: '0.375rem',
   flexShrink: 0,
-  color: vars.foregroundPassive,
+  color: tokens.foreground.passive,
+  vars: {
+    [iconSizeVar]: '0.75rem',
+  },
 });
 
 export const label = style({
   overflow: 'hidden',
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textSm,
+  color: tokens.foreground.muted,
+  fontSize: tokens.typography.size.sm,
   lineHeight: 1.25,
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -41,29 +42,29 @@ export const label = style({
 export const current = style([
   label,
   {
-    color: vars.foreground,
+    color: tokens.foreground.default,
   },
 ]);
 
 export const link = style({
   overflow: 'hidden',
   border: 0,
-  borderRadius: tokenVars.radiusSm,
+  borderRadius: tokens.radius.sm,
   padding: 0,
   background: 'transparent',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   cursor: 'pointer',
   font: 'inherit',
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   lineHeight: 1.25,
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   selectors: {
     '&:hover': {
-      color: vars.foreground,
+      color: tokens.foreground.default,
     },
     '&:focus-visible': {
-      outline: `2px solid ${vars.borderPrimary}`,
+      outline: `2px solid ${tokens.border.focus}`,
       outlineOffset: '2px',
     },
   },

@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon, Link2Icon, Loader2Icon } from 'lucide-react';
 import * as React from 'react';
 import { resolveFileIconClass } from '../../lib/file-icons';
@@ -10,6 +10,8 @@ import {
   type TreeViewHandle,
 } from '../../patterns/tree-view';
 import { ContextMenu } from '../../primitives/context-menu';
+import { Icon, IconSlot } from '../../primitives/icon';
+import { Devicon } from '../devicon/devicon';
 import {
   FileTreeHeader,
   type FileTreeDraftKind,
@@ -99,6 +101,7 @@ export interface FileTreeProps {
   compactChains?: boolean;
   defaultExpanded?: 'all' | 'none';
   dnd?: FileTreeDndSpec;
+  /** Applied to the rendered FileTree root. */
   className?: string;
   renamePath?: string | null;
   onCollapseAll?: () => void;
@@ -281,7 +284,7 @@ function FileTreeInner(
       <section className={cx(styles.root, className)} aria-label="File tree">
         {header}
         <FileTreeState>
-          <Loader2Icon aria-hidden className={styles.spinner} />
+          <Icon source={Loader2Icon} className={styles.spinner} />
           Loading files
         </FileTreeState>
       </section>
@@ -344,7 +347,7 @@ function FileTreeInner(
                 variant={item.variant}
                 onClick={item.onSelect}
               >
-                {item.icon}
+                {item.icon && <IconSlot>{item.icon}</IconSlot>}
                 {item.label}
               </ContextMenu.Item>
             ))}
@@ -425,12 +428,16 @@ function FileTreeInner(
         ))}
         {isExpandableFileTreeNode(node) ? (
           <span className={styles.chevron} aria-hidden>
-            {isExpanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+            {isExpanded ? (
+              <Icon source={ChevronDownIcon} size="sm" />
+            ) : (
+              <Icon source={ChevronRightIcon} size="sm" />
+            )}
           </span>
         ) : (
-          <span className={styles.chevron} aria-hidden>
+          <IconSlot className={styles.chevron} size="sm">
             {icon}
-          </span>
+          </IconSlot>
         )}
         <span className={styles.label}>
           <span
@@ -465,7 +472,7 @@ function FileTreeInner(
               variant={item.variant}
               onClick={() => item.onSelect(node, contextSelection)}
             >
-              {item.icon}
+              {item.icon && <IconSlot>{item.icon}</IconSlot>}
               {item.label}
             </ContextMenu.Item>
           ))}
@@ -686,6 +693,11 @@ function FileTreeInner(
   }
 }
 
+/**
+ * Virtualized file collection with caller-owned icon, header, decoration, and
+ * context-menu content. The component owns row layout, selection, focus,
+ * drag/drop, and overflow. `className` is applied to the rendered tree root.
+ */
 export const FileTree = React.forwardRef(FileTreeInner);
 
 function DraftRow({
@@ -735,7 +747,11 @@ function DraftRow({
         />
       ))}
       <span className={styles.chevron} aria-hidden>
-        {kind === 'directory' ? <ChevronRightIcon size={14} /> : <FileIcon size={12} />}
+        {kind === 'directory' ? (
+          <Icon source={ChevronRightIcon} size="sm" />
+        ) : (
+          <Icon source={FileIcon} size="xs" />
+        )}
       </span>
       <input
         ref={inputRef}
@@ -773,10 +789,10 @@ function FileTreeState({
 
 function defaultIcon(node: FileTreeNode) {
   if (node.type === 'directory') return null;
-  if (node.type === 'symlink') return <Link2Icon size={12} />;
+  if (node.type === 'symlink') return <Icon source={Link2Icon} size="xs" />;
   const iconClass = resolveFileIconClass(node.name);
-  if (iconClass) return <i className={cx(styles.devicon, iconClass)} />;
-  return <FileIcon className={styles.fileIcon} size={12} />;
+  if (iconClass) return <Devicon iconClass={iconClass} size={12} />;
+  return <Icon source={FileIcon} size="xs" />;
 }
 
 function displayName(row: TreeRow<RenderableData>): string {
@@ -872,7 +888,7 @@ function normalizePathSet(paths: ReadonlySet<string>): ReadonlySet<string> {
 
 function rowIndentStyle(depth: number): React.CSSProperties {
   return {
-    '--file-tree-row-indent': `${depth * 12 + 4}px`,
+    '--_file-tree-row-indent': `${depth * 12 + 4}px`,
   } as React.CSSProperties;
 }
 

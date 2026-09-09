@@ -1,5 +1,7 @@
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 
@@ -28,7 +30,10 @@ export const TabBar = observer(function TabBar({ trailingSlot }: { trailingSlot?
     // carry no fills — the active tab is marked by text contrast plus an
     // underline drawn inside the strip, just above the bottom border.
     <div
-      className="task-tab-bar surface-paper flex h-[41px] shrink-0 items-center border-b border-border bg-(--em-surface)"
+      className={cn(
+        surface({ role: 'paper' }),
+        'task-tab-bar flex h-[41px] shrink-0 items-center border-b border-border'
+      )}
       onClick={() => pane.focusActiveContent()}
     >
       <div
@@ -42,7 +47,12 @@ export const TabBar = observer(function TabBar({ trailingSlot }: { trailingSlot?
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
         {trailingSlot && (
-          <div className="sticky right-0 z-20 flex h-full shrink-0 items-center bg-(--em-surface) px-1">
+          <div
+            className={cn(
+              surface({ role: 'paper' }),
+              'sticky right-0 z-20 flex h-full shrink-0 items-center px-1'
+            )}
+          >
             {trailingSlot}
           </div>
         )}

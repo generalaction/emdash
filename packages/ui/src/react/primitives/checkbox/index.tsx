@@ -1,8 +1,13 @@
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { CheckIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, type StaticSvgComponent } from '../icon';
 import * as styles from './checkbox.css';
+
+const CheckboxCheckmark: StaticSvgComponent = (props) => (
+  <CheckIcon absoluteStrokeWidth strokeWidth={3} {...props} />
+);
 
 export interface CheckboxProps extends Omit<CheckboxPrimitive.Root.Props, 'className'> {
   className?: string;
@@ -26,7 +31,7 @@ const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(function Che
       {...props}
     >
       <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className={styles.indicator}>
-        <CheckIcon absoluteStrokeWidth strokeWidth={3} />
+        <Icon source={CheckboxCheckmark} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

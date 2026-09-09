@@ -1,28 +1,32 @@
-import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx, cx } from '@styles/index';
+import { surface } from '@styles/recipes/surface';
 import { TriggerButton } from '.';
 import { DropdownMenu } from '../dropdown-menu';
 import { Select } from '../select';
 import * as s from '@react/story-layout.css';
-
 const meta: Meta = {
   title: 'Primitives/TriggerButton',
   parameters: { layout: 'centered' },
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Bare: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '3',
+      })}
+    >
       <TriggerButton>Choose an option</TriggerButton>
       <TriggerButton size="xs">Small trigger</TriggerButton>
       <TriggerButton showChevron={false}>No chevron</TriggerButton>
-    </Box>
+    </div>
   ),
 };
-
 export const AsSelectTrigger: Story = {
   render: () => (
     <Select.Root>
@@ -37,7 +41,31 @@ export const AsSelectTrigger: Story = {
     </Select.Root>
   ),
 };
-
+export const InputAppearance: Story = {
+  render: () => (
+    <div
+      className={cx(
+        s.w48,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3',
+        })
+      )}
+    >
+      <TriggerButton appearance="input">Default field trigger</TriggerButton>
+      <TriggerButton appearance="input" size="sm" tone="warning">
+        Small warning trigger
+      </TriggerButton>
+      <TriggerButton appearance="input" aria-invalid>
+        Invalid field trigger
+      </TriggerButton>
+      <TriggerButton appearance="input" disabled>
+        Disabled field trigger
+      </TriggerButton>
+    </div>
+  ),
+};
 export const AsDropdownTrigger: Story = {
   render: () => (
     <DropdownMenu.Root>
@@ -50,47 +78,50 @@ export const AsDropdownTrigger: Story = {
     </DropdownMenu.Root>
   ),
 };
-
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box
-      background="surfaceSunken"
-      display="flex"
-      flexDirection="column"
-      gap="4"
-      rounded="xl"
-      padding="4"
+    <div
+      className={sx({
+        background: 'surfaceSunken',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4',
+        rounded: 'xl',
+        padding: '4',
+      })}
     >
-      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
-        (level) => (
-          <Box
-            key={level}
-            surface={level}
-            display="flex"
-            flexWrap="wrap"
-            alignItems="center"
-            gap="2"
-            rounded="lg"
-            padding="3"
+      {(['sunken', 'base', 'raised', 'elevated', 'overlay'] as const).map((level) => (
+        <div
+          key={level}
+          className={cx(
+            surface({ level }),
+            sx({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '2',
+              rounded: 'lg',
+              padding: '3',
+            })
+          )}
+        >
+          <span
+            className={s.w36}
+            style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
           >
-            <span
-              className={s.w36}
-              style={{ fontSize: 'var(--em-text-xs)', color: 'var(--em-foreground-muted)' }}
-            >
-              {level}
-            </span>
-            <Select.Root>
-              <Select.Trigger className={s.w40}>
-                <Select.Value placeholder="Select…" />
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="a">Alpha</Select.Item>
-                <Select.Item value="b">Beta</Select.Item>
-              </Select.Content>
-            </Select.Root>
-          </Box>
-        )
-      )}
-    </Box>
+            {level}
+          </span>
+          <Select.Root>
+            <Select.Trigger className={s.w40}>
+              <Select.Value placeholder="Select…" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="a">Alpha</Select.Item>
+              <Select.Item value="b">Beta</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+      ))}
+    </div>
   ),
 };

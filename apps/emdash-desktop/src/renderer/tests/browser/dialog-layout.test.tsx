@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { Button, Dialog } from '@emdash/ui/react/primitives';
 import { page } from '@vitest/browser/context';
 import { act } from 'react';

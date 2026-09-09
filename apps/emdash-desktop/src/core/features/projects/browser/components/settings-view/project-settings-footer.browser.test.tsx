@@ -2,7 +2,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectSettingsFooter } from './project-settings-footer';
-import '@emdash/ui/style.css';
 
 beforeAll(() => {
   (

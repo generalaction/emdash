@@ -7,6 +7,7 @@ import {
 } from 'react-zoom-pan-pinch';
 import { Button } from '@/react/primitives/button';
 import { Dialog } from '@/react/primitives/dialog';
+import { Icon } from '@/react/primitives/icon';
 import * as styles from './image-viewer.css';
 
 const TOOLBAR_ZOOM_STEP = 0.25;
@@ -84,11 +85,11 @@ function zoomBoundsForFitScale(fitScale: number): ZoomBounds {
 function ToolbarButton({
   label,
   onClick,
-  children,
+  source,
 }: {
   label: string;
   onClick: () => void;
-  children: React.ReactNode;
+  source: React.ComponentProps<typeof Icon>['source'];
 }) {
   return (
     <Button
@@ -101,12 +102,10 @@ function ToolbarButton({
       className={styles.toolbarButton}
       onClick={onClick}
     >
-      {children}
+      <Icon source={source} />
     </Button>
   );
 }
-
-const toolbarIconStyle: React.CSSProperties = { width: '1rem', height: '1rem' };
 
 function ZoomToolbar({
   controls,
@@ -120,18 +119,18 @@ function ZoomToolbar({
   return (
     <div className={styles.toolbarRow}>
       <div className={styles.toolbarGroup}>
-        <ToolbarButton label="Zoom in" onClick={() => controls.zoomIn(TOOLBAR_ZOOM_STEP)}>
-          <PlusIcon style={toolbarIconStyle} />
-        </ToolbarButton>
-        <ToolbarButton label="Zoom out" onClick={() => controls.zoomOut(TOOLBAR_ZOOM_STEP)}>
-          <MinusIcon style={toolbarIconStyle} />
-        </ToolbarButton>
-        <ToolbarButton label="Fit to view" onClick={onFit}>
-          <RotateCcwIcon style={toolbarIconStyle} />
-        </ToolbarButton>
-        <ToolbarButton label="Close" onClick={onClose}>
-          <XIcon style={toolbarIconStyle} />
-        </ToolbarButton>
+        <ToolbarButton
+          label="Zoom in"
+          onClick={() => controls.zoomIn(TOOLBAR_ZOOM_STEP)}
+          source={PlusIcon}
+        />
+        <ToolbarButton
+          label="Zoom out"
+          onClick={() => controls.zoomOut(TOOLBAR_ZOOM_STEP)}
+          source={MinusIcon}
+        />
+        <ToolbarButton label="Fit to view" onClick={onFit} source={RotateCcwIcon} />
+        <ToolbarButton label="Close" onClick={onClose} source={XIcon} />
       </div>
     </div>
   );

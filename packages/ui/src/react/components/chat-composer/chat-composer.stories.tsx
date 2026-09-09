@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
-import { useEffect, useState } from 'react';
-import { Box } from '@/react/primitives/box';
+import { cx, sx } from '@styles/index';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/react/primitives/button';
 import { ChatComposer } from '.';
 import type {
@@ -18,29 +17,27 @@ import type {
   ContextMentionProvider,
   MentionItem,
   CommandItem,
+  PromptEditorRef,
 } from '.';
 import { PermissionBand, type ComposerPermissionRequest } from './permission-band';
 import * as s from '@react/story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
   'claude-opus-4': {
     name: 'Claude Opus 4',
     description: 'Most capable model for complex reasoning and nuanced tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1 },
+    modelFeatures: { contextWindowSize: 200000, speed: 0.4, intelligence: 1 },
   },
   'claude-sonnet-4-5': {
     name: 'Claude Sonnet 4.5',
     description: 'Excellent balance of speed and intelligence for everyday tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
+    modelFeatures: { contextWindowSize: 200000, speed: 0.75, intelligence: 0.85 },
   },
   'gpt-4o': {
     name: 'GPT-4o',
     description: 'OpenAI flagship multimodal model.',
-    modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
+    modelFeatures: { contextWindowSize: 128000, speed: 0.7, intelligence: 0.9 },
   },
 };
-
 function AgentDot({ color }: { color: string }) {
   return (
     <span
@@ -55,7 +52,6 @@ function AgentDot({ color }: { color: string }) {
     />
   );
 }
-
 const MOCK_AGENTS: ComposerAgentOption[] = [
   {
     id: 'claude',
@@ -80,9 +76,7 @@ const MOCK_AGENTS: ComposerAgentOption[] = [
     groupLabel: 'Not installed',
   },
 ];
-
 // ── Mock @ mentions ───────────────────────────────────────────────────────────
-
 const MOCK_FILES: MentionItem[] = [
   {
     id: 'src/components/chat-composer.tsx',
@@ -121,7 +115,6 @@ const MOCK_FILES: MentionItem[] = [
     description: 'chat-composer.tsx',
   },
 ];
-
 const mockMentionProvider: ContextMentionProvider = {
   async search(query: string) {
     await new Promise((r) => setTimeout(r, 80));
@@ -136,9 +129,7 @@ const mockMentionProvider: ContextMentionProvider = {
       : MOCK_FILES;
   },
 };
-
 // ── Mock / commands ───────────────────────────────────────────────────────────
-
 const MOCK_COMMANDS: CommandItem[] = [
   {
     id: 'clear',
@@ -193,7 +184,6 @@ const MOCK_COMMANDS: CommandItem[] = [
     section: 'Prompts',
   },
 ];
-
 async function queryCommands(query: string): Promise<CommandItem[]> {
   await new Promise((r) => setTimeout(r, 60));
   const q = query.toLowerCase();
@@ -207,9 +197,7 @@ async function queryCommands(query: string): Promise<CommandItem[]> {
       )
     : MOCK_COMMANDS;
 }
-
 // ── Mock permission modes (approveSettings) ───────────────────────────────────
-
 const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
   default: { name: 'Default', description: 'Prompt for each sensitive action.' },
   acceptEdits: {
@@ -219,14 +207,12 @@ const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
   readOnly: { name: 'Read only', description: 'Allow inspection without writing files.' },
   bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
 };
-
 const MOCK_COLLABORATION_MODES: Record<string, ComposerCollaborationModeOption> = {
   default: { name: 'Default', description: 'Work directly on the task.' },
   plan: { name: 'Plan', description: 'Create a plan before making changes.' },
 };
 
 // ── Mock permission requests ──────────────────────────────────────────────────
-
 const MOCK_PERMISSION_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'req-1',
@@ -246,7 +232,6 @@ const MOCK_PERMISSION_REQUESTS: ComposerPermissionRequest[] = [
     ],
   },
 ];
-
 const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-shell-command',
@@ -301,7 +286,6 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
     ],
   },
 ];
-
 const MOCK_QUEUED_PROMPTS: ComposerQueuedPrompt[] = [
   {
     id: 'queued-1',
@@ -316,25 +300,21 @@ const MOCK_QUEUED_PROMPTS: ComposerQueuedPrompt[] = [
     text: 'Summarize the implementation tradeoffs before editing files.',
   },
 ];
-
 const MOCK_CONTEXT_USAGE: ContextUsage = {
-  used: 100_000,
-  size: 200_000,
+  used: 100000,
+  size: 200000,
   cost: { amount: 0.42, currency: 'USD' },
 };
-
 const MOCK_HIGH_CONTEXT_USAGE: ContextUsage = {
-  used: 185_000,
-  size: 200_000,
+  used: 185000,
+  size: 200000,
   cost: { amount: 1.36, currency: 'USD' },
 };
-
 const MOCK_MCP_SERVERS: ComposerMcpServer[] = [
   { name: 'filesystem', transport: 'stdio' },
   { name: 'docs', transport: 'http' },
   { name: 'linear', transport: 'sse' },
 ];
-
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -352,7 +332,6 @@ interface PlaygroundArgs {
   showPermissionRequest: boolean;
   showQueuedPrompts: boolean;
 }
-
 function ComposerPlayground(args: PlaygroundArgs) {
   const {
     disabled,
@@ -371,7 +350,6 @@ function ComposerPlayground(args: PlaygroundArgs) {
     showPermissionRequest,
     showQueuedPrompts,
   } = args;
-
   const [selectedAgent, setSelectedAgent] = useState('claude');
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
@@ -379,19 +357,15 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [selectedCollaborationMode, setSelectedCollaborationMode] = useState('default');
   const [permissionQueue, setPermissionQueue] = useState<ComposerPermissionRequest[]>([]);
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>([]);
-
   useEffect(() => {
     if (showNotice) setDismissed(false);
   }, [showNotice]);
-
   useEffect(() => {
     setPermissionQueue(showPermissionRequest ? MOCK_PERMISSION_REQUESTS : []);
   }, [showPermissionRequest]);
-
   useEffect(() => {
     setQueuedPrompts(showQueuedPrompts ? MOCK_QUEUED_PROMPTS : []);
   }, [showQueuedPrompts]);
-
   const noticeVisible = showNotice && !dismissed;
   const notice: ComposerNotice | null = noticeVisible
     ? {
@@ -401,10 +375,23 @@ function ComposerPlayground(args: PlaygroundArgs) {
         onDismiss: () => setDismissed(true),
       }
     : null;
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
-      <Box marginBottom="3" display="flex" alignItems="center" gap="3">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
+      <div
+        className={sx({
+          marginBottom: '3',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '3',
+        })}
+      >
         <Button
           size="xs"
           variant="ghost"
@@ -417,7 +404,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
         <span className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
           Toggle <code>showNotice</code> in Controls to watch the band transition in and out.
         </span>
-      </Box>
+      </div>
 
       <ChatComposer
         disabled={disabled}
@@ -468,10 +455,9 @@ function ComposerPlayground(args: PlaygroundArgs) {
           setQueuedPrompts((prompts) => prompts.filter((prompt) => prompt.id !== id));
         }}
       />
-    </Box>
+    </div>
   );
 }
-
 const meta: Meta<PlaygroundArgs> = {
   title: 'Components/ChatComposer',
   parameters: { layout: 'centered' },
@@ -550,17 +536,65 @@ const meta: Meta<PlaygroundArgs> = {
     showQueuedPrompts: false,
   },
 };
-
 export default meta;
-
 type Story = StoryObj<PlaygroundArgs>;
-
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
-
+function FocusedComposer() {
+  const editorRef = useRef<PromptEditorRef | null>(null);
+  useEffect(() => {
+    editorRef.current?.focus();
+  }, []);
+  return <ChatComposer editorApiRef={editorRef} onSubmit={() => {}} />;
+}
+export const InteractionStates: Story = {
+  render: () => (
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        <section style={{ display: 'grid', gap: '0.25rem' }}>
+          <span className={sx({ color: 'foregroundMuted', fontSize: 'xs' })}>Default</span>
+          <ChatComposer onSubmit={() => {}} />
+        </section>
+        <section style={{ display: 'grid', gap: '0.25rem' }}>
+          <span className={sx({ color: 'foregroundMuted', fontSize: 'xs' })}>Focused</span>
+          <FocusedComposer />
+        </section>
+        <section style={{ display: 'grid', gap: '0.25rem' }}>
+          <span className={sx({ color: 'foregroundMuted', fontSize: 'xs' })}>Disabled</span>
+          <ChatComposer disabled onSubmit={() => {}} />
+        </section>
+        <section style={{ display: 'grid', gap: '0.25rem' }}>
+          <span className={sx({ color: 'foregroundMuted', fontSize: 'xs' })}>Error</span>
+          <ChatComposer
+            notice={{
+              variant: 'error',
+              title: 'Message not sent',
+              message: 'Check the connection and try again.',
+            }}
+            onSubmit={() => {}}
+          />
+        </section>
+      </div>
+    </div>
+  ),
+};
 export const WithMcpServers: Story = {
   render: () => (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         canSubmit
         modelOptions={MOCK_MODELS}
@@ -572,15 +606,20 @@ export const WithMcpServers: Story = {
         queryCommands={queryCommands}
         onSubmit={() => {}}
       />
-    </Box>
+    </div>
   ),
 };
-
 function QueuedPromptsDemo() {
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         isWorking
         canSubmit
@@ -611,21 +650,25 @@ function QueuedPromptsDemo() {
         onSubmit={() => {}}
         onStop={() => {}}
       />
-    </Box>
+    </div>
   );
 }
-
 export const WithQueuedPrompts: Story = {
   render: () => <QueuedPromptsDemo />,
 };
-
 function QueuedPromptsWithPermissionRequestsDemo() {
   const [permissionQueue, setPermissionQueue] =
     useState<ComposerPermissionRequest[]>(MOCK_PERMISSION_REQUESTS);
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         isWorking
         canSubmit
@@ -659,19 +702,23 @@ function QueuedPromptsWithPermissionRequestsDemo() {
         onSubmit={() => {}}
         onStop={() => {}}
       />
-    </Box>
+    </div>
   );
 }
-
 export const WithQueuedPromptsAndPermissionRequests: Story = {
   render: () => <QueuedPromptsWithPermissionRequestsDemo />,
 };
-
 function PermissionBandOverflowStatesDemo() {
   const [lastAction, setLastAction] = useState<string | null>(null);
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <div style={{ display: 'grid', gap: '1rem' }}>
         {[
           {
@@ -714,19 +761,23 @@ function PermissionBandOverflowStatesDemo() {
           Last action: {lastAction ?? 'none'}
         </div>
       </div>
-    </Box>
+    </div>
   );
 }
-
 export const PermissionBandOverflowStates: Story = {
   render: () => <PermissionBandOverflowStatesDemo />,
 };
-
 function ContextUsageDemo({ usage }: { usage: ContextUsage }) {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         modelOptions={MOCK_MODELS}
         selectedModel={selectedModel}
@@ -734,26 +785,21 @@ function ContextUsageDemo({ usage }: { usage: ContextUsage }) {
         contextUsage={usage}
         onSubmit={() => {}}
       />
-    </Box>
+    </div>
   );
 }
-
 export const WithContextUsage: Story = {
   render: () => <ContextUsageDemo usage={MOCK_CONTEXT_USAGE} />,
 };
-
 export const WithHighContextUsage: Story = {
   render: () => <ContextUsageDemo usage={MOCK_HIGH_CONTEXT_USAGE} />,
 };
-
 // ── Effort selector story ─────────────────────────────────────────────────────
-
 const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
   low: { name: 'Low', description: 'Faster, lighter reasoning.' },
   medium: { name: 'Medium', description: 'Balanced speed and depth.' },
   high: { name: 'High', description: 'Deepest reasoning, slower.' },
 };
-
 /**
  * WithEffortSelector — demonstrates the effort/thought-level submenu rendered
  * in the model popover footer. Click the model name in the toolbar, then hover
@@ -763,9 +809,15 @@ const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
 function EffortSelectorDemo() {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         modelOptions={MOCK_MODELS}
         selectedModel={selectedModel}
@@ -775,23 +827,27 @@ function EffortSelectorDemo() {
         onEffortChange={setSelectedEffort}
         onSubmit={() => {}}
       />
-    </Box>
+    </div>
   );
 }
-
 export const WithEffortSelector: Story = {
   render: () => <EffortSelectorDemo />,
 };
-
 /**
  * WithoutEffortSelector — baseline confirming the effort row is absent when
  * `effortOptions` is null (agent doesn't advertise a thought_level option).
  */
 function WithoutEffortSelectorDemo() {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
-
   return (
-    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+    <div
+      className={cx(
+        cx(s.mxAuto, s.maxW2xl),
+        sx({
+          width: 'full',
+        })
+      )}
+    >
       <ChatComposer
         modelOptions={MOCK_MODELS}
         selectedModel={selectedModel}
@@ -799,10 +855,9 @@ function WithoutEffortSelectorDemo() {
         effortOptions={null}
         onSubmit={() => {}}
       />
-    </Box>
+    </div>
   );
 }
-
 export const WithoutEffortSelector: Story = {
   render: () => <WithoutEffortSelectorDemo />,
 };

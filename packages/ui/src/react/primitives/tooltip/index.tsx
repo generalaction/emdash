@@ -1,7 +1,7 @@
 'use client';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import * as styles from './tooltip.css';
 
 /**
@@ -21,6 +21,7 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+/** Tooltip popup. `className` is applied to the rendered content root. */
 function TooltipContent({
   className,
   side = 'top',
@@ -49,7 +50,9 @@ function TooltipContent({
           {...props}
         >
           {children}
-          {showArrow ? <TooltipPrimitive.Arrow className={styles.arrow} /> : null}
+          {showArrow ? (
+            <TooltipPrimitive.Arrow data-slot="tooltip-arrow" className={styles.arrow} />
+          ) : null}
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>

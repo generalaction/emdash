@@ -1,5 +1,5 @@
-import { recipe } from '@vanilla-extract/recipes';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { recipe } from '@styles/index';
 
 export const radioOptions = recipe({
   variants: {
@@ -23,7 +23,7 @@ export const radioOption = recipe({
     minWidth: 0,
     alignItems: 'center',
     gap: '0.5rem',
-    fontSize: tokenVars.textSm,
+    fontSize: tokens.typography.size.sm,
     fontWeight: 400,
   },
   variants: {

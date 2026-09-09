@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { style } from '@styles/index';
 import { HEIGHT_TRANSITION_DURATION_MS } from './constants';
 
 /**

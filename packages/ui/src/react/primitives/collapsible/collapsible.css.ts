@@ -1,31 +1,27 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { controlVariants } from '@styles/recipes/control.css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 /**
  * Full-width trigger button: ghost control + space-between so the chevron
  * always pins to the trailing edge.
  */
-export const trigger = style([
-  controlVariants({ variant: 'ghost' }),
-  {
-    width: '100%',
-    justifyContent: 'space-between',
-    gap: '0.5rem',
-    paddingLeft: '0.5rem',
-    paddingRight: '0.5rem',
-    fontWeight: 400,
-    color: vars.foreground,
-    selectors: {
-      '&:hover': { color: vars.foreground },
-    },
+export const trigger = style({
+  width: '100%',
+  justifyContent: 'space-between',
+  gap: '0.5rem',
+  paddingLeft: '0.5rem',
+  paddingRight: '0.5rem',
+  fontWeight: 400,
+  color: tokens.foreground.default,
+  selectors: {
+    '&:hover': { color: tokens.foreground.default },
   },
-]);
-
-globalStyle(`${trigger} svg`, { pointerEvents: 'none', flexShrink: 0 });
+});
 
 /** Chevron rotates 180° when the panel is open. */
 export const chevron = style({
+  pointerEvents: 'none',
+  flexShrink: 0,
   transition: 'transform 200ms ease',
   selectors: {
     '[data-panel-open] &': { transform: 'rotate(180deg)' },

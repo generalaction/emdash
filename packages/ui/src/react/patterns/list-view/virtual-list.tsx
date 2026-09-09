@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as React from 'react';
 import * as styles from './virtual-list.css';
@@ -48,6 +48,7 @@ export interface VirtualListProps<T> {
   /** Rendered when an error is present (pass `null` items to keep the slot visible). */
   errorSlot?: React.ReactNode;
 
+  /** Applied to the rendered scroll-container root in every state. */
   className?: string;
 }
 
@@ -93,6 +94,12 @@ function buildFlatRows<T>(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+/**
+ * Always-virtualized collection body with caller-owned item and state slots.
+ *
+ * This component owns scrolling, measurement, and item positioning.
+ * `className` is applied to the rendered scroll-container root.
+ */
 function VirtualListInner<T>(
   {
     items,

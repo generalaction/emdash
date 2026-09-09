@@ -17,6 +17,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { SlashCommandPill } from '../slash-command-pill';
 import type { CommandItem } from '../types';
+import { serializedEditorChip } from '../chip-classes.css';
 
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
@@ -44,7 +45,7 @@ export function buildSlashCommandExtension(
       return ReactNodeViewRenderer(SlashCommandPill, { as: 'span' });
     },
   }).configure({
-    HTMLAttributes: { class: 'slash-command-chip' },
+    HTMLAttributes: { class: serializedEditorChip },
     renderText({ node }) {
       return `/${(node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? ''}`;
     },
@@ -55,7 +56,7 @@ export function buildSlashCommandExtension(
           'data-type': 'slash-command',
           'data-id': node.attrs.id as string,
           'data-name': node.attrs.name as string,
-          class: 'slash-command-chip',
+          class: serializedEditorChip,
         },
         `/${(node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? ''}`,
       ];

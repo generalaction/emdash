@@ -18,6 +18,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - [`acp-runtime.md`](architecture/acp-runtime.md) — ACP runtime, session manager, connection pool, cells, live models, and API contract ownership
   - [`git-runtime.md`](architecture/git-runtime.md) — Git contract/runtime ownership, session lifecycle, and nested wire composition
   - [`path-system.md`](architecture/path-system.md) — host-aware path identity, resource URI ownership, and future migration boundaries
+  - [`styling.md`](architecture/styling.md) — Theme and Token ownership, CSS loading and layers, Surfaces, Host Adapters, integrations, and debugging
 - `workflows/`
   - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`
@@ -26,8 +27,8 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - places where incorrect changes are expensive
 - `conventions/`
   - coding contracts and repo rules
-  - [`ui-kit.md`](conventions/ui-kit.md) — which UI kit to use: `@emdash/ui` for components, feature Tailwind for layout one-offs, where new primitives go, `cn()` location, theming
-  - [`ui-styling.md`](conventions/ui-styling.md) — vanilla-extract styling rules for `packages/ui`
+  - [`ui-kit.md`](conventions/ui-kit.md) — component selection, ownership, popup/list/settings patterns, and theming entry points
+  - [`ui-styling.md`](conventions/ui-styling.md) — import homes, authoring decisions, ownership rules, review checks, and focused commands
 
 ## Maintenance Rules
 

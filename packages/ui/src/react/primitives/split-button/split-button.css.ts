@@ -1,6 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const splitButtonRoot = style({
   display: 'inline-flex',
@@ -55,9 +54,9 @@ export const splitButtonMenuItemStacked = style({
 });
 
 export const splitButtonMenuDescription = style({
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
   whiteSpace: 'normal',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 /** Chevron face: left side rounded corners removed to butt against primary face. */

@@ -1,13 +1,28 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
 import { Button } from '@react/primitives/button';
+import { Icon } from '@react/primitives/icon';
 import { InputGroup } from '@react/primitives/input-group';
 import { ScrollContainer } from '@react/primitives/scroll-container';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import { CheckIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
+import { menuItem } from '../../../styles/recipes/menu-item';
+import { popupVars } from '../../../styles/recipes/popup-contract';
 import * as styles from './combobox.css';
+import { fieldShell } from '@styles/recipes/field-shell.css';
 
 const ComboboxRoot = ComboboxPrimitive.Root;
+
+interface ComboboxChipsState {
+  invalid: boolean;
+  readOnly: boolean;
+}
+
+const ComboboxChipsContext = React.createContext<ComboboxChipsState>({
+  invalid: false,
+  readOnly: false,
+});
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />;
@@ -33,32 +48,59 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
       className={cx(className)}
       {...props}
     >
-      <XIcon style={{ pointerEvents: 'none' }} />
+      <Icon source={XIcon} />
     </ComboboxPrimitive.Clear>
   );
 }
 
+interface ComboboxInputProps extends Omit<ComboboxPrimitive.Input.Props, 'className' | 'size'> {
+  /** Applies caller-owned classes to the rendered InputGroup root. */
+  className?: string;
+  /** Shared text-entry size. @default 'base' */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
+  /** Marks the composed field shell invalid. @default false */
+  invalid?: boolean;
+  /** Makes the text-entry slot readonly. @default false */
+  readOnly?: boolean;
+  showTrigger?: boolean;
+  showClear?: boolean;
+  /** Caller-owned leading adornment slot. */
+  leftAddon?: React.ReactNode;
+  /** Caller-owned trailing adornment slot. */
+  rightAddon?: React.ReactNode;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+}
+
+/**
+ * Composed combobox text field. `className` is applied to the InputGroup root;
+ * addon values are caller-owned slots.
+ */
 function ComboboxInput({
   className,
   children,
   disabled = false,
+  invalid = false,
+  readOnly = false,
+  size = 'base',
+  tone = 'neutral',
   showTrigger = true,
   showClear = false,
   leftAddon,
   rightAddon,
   inputRef,
   ...props
-}: ComboboxPrimitive.Input.Props & {
-  showTrigger?: boolean;
-  showClear?: boolean;
-  leftAddon?: React.ReactNode;
-  rightAddon?: React.ReactNode;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-}) {
+}: ComboboxInputProps) {
   return (
     <InputGroup.Root
-      variant="embedded"
-      className={typeof className === 'string' ? className : undefined}
+      appearance="embedded"
+      className={className}
+      disabled={disabled}
+      invalid={invalid}
+      readOnly={readOnly}
+      size={size}
+      tone={tone}
     >
       {leftAddon && <InputGroup.Addon align="inline-start">{leftAddon}</InputGroup.Addon>}
       <ComboboxPrimitive.Input
@@ -71,7 +113,7 @@ function ComboboxInput({
           <InputGroup.Button
             render={<ComboboxTrigger />}
             data-slot="input-group-button"
-            className={styles.triggerButtonHideIfClear}
+            className={cx(styles.triggerButton, showClear && styles.triggerButtonHidden)}
             disabled={disabled}
           />
         )}
@@ -82,6 +124,7 @@ function ComboboxInput({
   );
 }
 
+/** Combobox popup. `className` is applied to the rendered listbox content root. */
 function ComboboxContent({
   className,
   side = 'bottom',
@@ -116,7 +159,7 @@ function ComboboxContent({
           data-chips={!!anchor}
           data-width={width}
           finalFocus={finalFocus}
-          className={cx('surface-elevated', styles.comboboxContent, className)}
+          className={cx(styles.comboboxContent, className)}
           {...props}
         />
       </ComboboxPrimitive.Positioner>
@@ -127,7 +170,7 @@ function ComboboxContent({
 function ComboboxList({ className, children, ...props }: ComboboxPrimitive.List.Props) {
   return (
     <ScrollContainer
-      maxHeight="min(18rem, calc(var(--available-height) - 2.25rem))"
+      maxHeight={`min(18rem, calc(${popupVars.availableHeight} - 2.25rem))`}
       padding={2}
       className={styles.comboboxListScroller}
       viewportClassName={styles.comboboxListViewport}
@@ -143,6 +186,7 @@ function ComboboxList({ className, children, ...props }: ComboboxPrimitive.List.
   );
 }
 
+/** Selectable row whose interaction states are owned by `menuItem()`. */
 function ComboboxItem({
   className,
   children,
@@ -158,14 +202,16 @@ function ComboboxItem({
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       data-hoverable-when-disabled={hoverableWhenDisabled || undefined}
-      className={cx(styles.comboboxItem, className)}
+      className={cx(menuItem({ fullWidth: true, trailingIndicator: true }), className)}
       {...props}
     >
       {children}
-      <ComboboxPrimitive.ItemIndicator render={<span className={styles.comboboxItemIndicator} />}>
-        {showCheck && (
-          <CheckIcon style={{ pointerEvents: 'none' }} absoluteStrokeWidth strokeWidth={3} />
-        )}
+      <ComboboxPrimitive.ItemIndicator
+        render={
+          <span data-slot="combobox-item-indicator" className={styles.comboboxItemIndicator} />
+        }
+      >
+        {showCheck && <Icon source={CheckIcon} strokeWidth={3} size="sm" />}
       </ComboboxPrimitive.ItemIndicator>
     </ComboboxPrimitive.Item>
   );
@@ -211,16 +257,50 @@ function ComboboxSeparator({ className, ...props }: ComboboxPrimitive.Separator.
   );
 }
 
+interface ComboboxChipsProps extends Omit<
+  React.ComponentPropsWithRef<typeof ComboboxPrimitive.Chips> & ComboboxPrimitive.Chips.Props,
+  'className' | 'size'
+> {
+  /** Applies caller-owned classes to the rendered chips root. */
+  className?: string;
+  /** Shared text-entry size. @default 'base' */
+  size?: FieldControlSize;
+  /** Semantic status intent. Invalid state still takes precedence. @default 'neutral' */
+  tone?: FieldControlTone;
+  /** Marks the composed field shell invalid. @default false */
+  invalid?: boolean;
+  /** Makes the nested chips input readonly. @default false */
+  readOnly?: boolean;
+}
+
+/**
+ * State-owning multi-value field shell. `className` is applied to the rendered
+ * chips root and state is inherited by `Combobox.ChipsInput`.
+ */
 function ComboboxChips({
   className,
+  size = 'base',
+  tone = 'neutral',
+  invalid = false,
+  readOnly = false,
   ...props
-}: React.ComponentPropsWithRef<typeof ComboboxPrimitive.Chips> & ComboboxPrimitive.Chips.Props) {
+}: ComboboxChipsProps) {
   return (
-    <ComboboxPrimitive.Chips
-      data-slot="combobox-chips"
-      className={cx(styles.comboboxChips, className)}
-      {...props}
-    />
+    <ComboboxChipsContext.Provider value={{ invalid, readOnly }}>
+      <ComboboxPrimitive.Chips
+        {...props}
+        data-slot="combobox-chips"
+        data-size={size}
+        data-tone={tone}
+        data-invalid={invalid || undefined}
+        data-readonly={readOnly || undefined}
+        className={cx(
+          fieldShell({ interaction: 'within', containment: 'standalone', tone }),
+          styles.comboboxChips({ size }),
+          className
+        )}
+      />
+    </ComboboxChipsContext.Provider>
   );
 }
 
@@ -245,17 +325,25 @@ function ComboboxChip({
           className={styles.comboboxChipRemove}
           data-slot="combobox-chip-remove"
         >
-          <XIcon style={{ pointerEvents: 'none' }} />
+          <Icon source={XIcon} />
         </ComboboxPrimitive.ChipRemove>
       )}
     </ComboboxPrimitive.Chip>
   );
 }
 
-function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
+function ComboboxChipsInput({
+  className,
+  readOnly,
+  'aria-invalid': ariaInvalid,
+  ...props
+}: ComboboxPrimitive.Input.Props) {
+  const chips = React.useContext(ComboboxChipsContext);
   return (
     <ComboboxPrimitive.Input
       data-slot="combobox-chip-input"
+      readOnly={readOnly ?? chips.readOnly}
+      aria-invalid={(ariaInvalid ?? chips.invalid) || undefined}
       className={cx(styles.comboboxChipsInput, className)}
       {...props}
     />

@@ -1,23 +1,18 @@
 {
   "name": "@emdash/ui",
   "version": "1.0.0",
-  "description": "Shared UI components and theme system for Emdash",
+  "description": "Shared UI components and styling interfaces for Emdash",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
     "email": "support@emdash.sh"
   },
   "files": [
-    "dist",
-    "src/theme",
-    "src/styles",
-    "src/react/chat-ui/chat-theme.css"
+    "dist"
   ],
   "type": "module",
   "sideEffects": [
-    "./dist/style.css",
-    "./src/react/chat-ui/chat-theme.css",
-    "./src/styles/base.css"
+    "./dist/styles.css"
   ],
   "exports": {
     "./react": {
@@ -27,6 +22,10 @@
     "./react/primitives": {
       "types": "./dist/src/react/primitives/index.d.ts",
       "default": "./dist/react/primitives.js"
+    },
+    "./react/theme-runtime": {
+      "types": "./dist/src/react/theme-runtime.d.ts",
+      "default": "./dist/react/theme-runtime.js"
     },
     "./react/components": {
       "types": "./dist/src/react/components/index.d.ts",
@@ -44,55 +43,37 @@
       "types": "./dist/src/react/chat-ui/index.d.ts",
       "default": "./dist/react/chat-ui.js"
     },
-    "./react/chat-ui/chat-theme.css": "./src/react/chat-ui/chat-theme.css",
-    "./style.css": "./dist/style.css",
-    "./styles/utilities": {
-      "types": "./dist/src/styles/utilities/index.d.ts",
-      "default": "./dist/styles/utilities.js"
+    "./styles.css": "./dist/styles.css",
+    "./styles": {
+      "types": "./dist/src/styles/index.d.ts",
+      "default": "./dist/styles.js"
     },
-    "./styles/sprinkles": {
-      "types": "./dist/src/styles/utilities/sprinkles.css.d.ts",
-      "default": "./dist/styles/utilities/sprinkles.js"
+    "./styles/host": {
+      "types": "./dist/src/styles/host.d.ts",
+      "default": "./dist/styles/host.js"
     },
     "./styles/recipes/control": {
       "types": "./dist/src/styles/recipes/control.d.ts",
       "default": "./dist/styles/recipes/control.js"
     },
-    "./styles/recipes/input": {
-      "types": "./dist/src/styles/recipes/input.d.ts",
-      "default": "./dist/styles/recipes/input.js"
+    "./styles/recipes/field-control": {
+      "types": "./dist/src/styles/recipes/field-control.d.ts",
+      "default": "./dist/styles/recipes/field-control.js"
     },
     "./styles/recipes/surface": {
-      "types": "./dist/src/styles/recipes/surface.css.d.ts",
+      "types": "./dist/src/styles/recipes/surface.d.ts",
       "default": "./dist/styles/recipes/surface.js"
     },
-    "./styles/recipes/card": {
-      "types": "./dist/src/styles/recipes/card.css.d.ts",
-      "default": "./dist/styles/recipes/card.js"
-    },
-    "./styles/recipes/box": {
-      "types": "./dist/src/styles/recipes/box.d.ts",
-      "default": "./dist/styles/recipes/box.js"
-    },
     "./styles/recipes/menu-item": {
-      "types": "./dist/src/styles/recipes/menu-item.css.d.ts",
+      "types": "./dist/src/styles/recipes/menu-item.d.ts",
       "default": "./dist/styles/recipes/menu-item.js"
     },
-    "./styles/tokens.css": "./src/styles/tokens.css",
-    "./styles/global": {
-      "types": "./dist/src/styles/global.css.d.ts",
-      "default": "./dist/styles/global.js"
-    },
-    "./styles/base.css": "./src/styles/theme.base.css",
-    "./styles/global-base.css": "./src/styles/base.css",
-    "./styles/effects.css": "./src/styles/effects/effects.css",
-    "./styles/overflow-fade.css": "./src/styles/effects/overflow-fade.css",
-    "./styles/typography.css": "./src/styles/typography.css",
     "./package.json": "./package.json"
   },
   "scripts": {
-    "dev": "vite build --config vite.lib.config.ts --watch",
-    "build": "vite build --config vite.lib.config.ts",
+    "dev": "tsx watch scripts/build-library.ts",
+    "build": "tsx scripts/build-library.ts && pnpm run build:css",
+    "build:css": "tsx scripts/build-styles.ts",
     "test": "vitest run",
     "build:theme": "pnpm --filter @emdash/theme run build:theme",
     "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
@@ -117,6 +98,7 @@
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
     "@tiptap/suggestion": "^3.26.1",
+    "@vanilla-extract/css": "^1.20.1",
     "beautiful-mermaid": "^1.1.3",
     "date-fns": "^4.1.0",
     "katex": "^0.16.45",
@@ -141,25 +123,25 @@
     "@types/node": "^20.19.42",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vanilla-extract/css": "^1.20.1",
     "@vanilla-extract/dynamic": "^2.1.5",
     "@vanilla-extract/recipes": "^0.5.7",
+    "@vanilla-extract/rollup-plugin": "^1.5.4",
     "@vanilla-extract/sprinkles": "^1.6.5",
     "@vanilla-extract/vite-plugin": "^5.2.2",
-    "@vitejs/plugin-react": "^4.7.0",
     "devicon": "^2.17.0",
     "jsdom": "^29.1.1",
+    "lightningcss": "^1.33.0",
     "mobx": "^6.16.1",
     "mobx-react-lite": "^4.1.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "rollup": "^4.62.5",
     "storybook": "^10.4.6",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vite": "^7.1.11",
-    "vite-plugin-dts": "5.0.2",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
@@ -170,5 +152,15 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
+  }
 }

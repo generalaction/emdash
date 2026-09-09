@@ -15,6 +15,7 @@
  */
 
 import { useCommands } from '@components/contexts/CommandsContext';
+import { Devicon } from '@components/primitives/Devicon';
 import { GenericFileIcon, IconError } from '@components/primitives/icons';
 import { resolveFileIconClass } from '@lib/file-icons';
 import { Show } from 'solid-js';
@@ -94,7 +95,7 @@ export function ResourceLink(props: ResourceLinkProps) {
     >
       <div class={iconWrap}>
         <Show when={iconName()} fallback={<GenericFileIcon />}>
-          <span class={iconName()!} />
+          <Devicon iconClass={iconName()!} size={12} />
         </Show>
       </div>
       <span class={titleText}>{displayName()}</span>

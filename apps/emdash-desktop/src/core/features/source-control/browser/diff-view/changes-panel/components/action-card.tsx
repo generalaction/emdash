@@ -1,4 +1,4 @@
-import { card } from '@emdash/ui/styles/recipes/card';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { type ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -13,8 +13,8 @@ export function ActionCard({ selectedCount, selectionActions, generalActions }: 
   return (
     <div
       className={cn(
-        card({ level: 'elevated-emphasis', radius: 'md', padding: 'sm' }),
-        'mx-2 flex shrink-0 items-center justify-between'
+        surface({ level: 'overlay' }),
+        'mx-2 flex shrink-0 items-center justify-between overflow-hidden rounded-lg border border-border p-2'
       )}
     >
       <span className="min-w-0 truncate text-xs text-foreground-muted">

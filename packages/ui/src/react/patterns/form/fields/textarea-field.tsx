@@ -7,12 +7,15 @@ import { useFieldContext } from '../form-context';
 
 export interface TextareaFieldProps extends Omit<
   TextareaProps,
-  'value' | 'onChange' | 'id' | 'name'
+  'className' | 'value' | 'onChange' | 'id' | 'name'
 > {
   label?: React.ReactNode;
   description?: React.ReactNode;
   orientation?: FieldOrientation;
+  /** Applies caller-owned classes to the rendered Field root. */
   className?: string;
+  /** Applies caller-owned classes to the nested Textarea control slot. */
+  controlClassName?: string;
 }
 
 export function TextareaField({
@@ -20,6 +23,7 @@ export function TextareaField({
   description,
   orientation,
   className,
+  controlClassName,
   ...textareaProps
 }: TextareaFieldProps) {
   const field = useFieldContext<string>();
@@ -38,6 +42,7 @@ export function TextareaField({
           onBlur={field.handleBlur}
           onChange={(e) => field.handleChange(e.target.value)}
           aria-invalid={invalid || undefined}
+          className={controlClassName}
           {...textareaProps}
         />
       )}

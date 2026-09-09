@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import { Text } from '../../primitives/typography/Text';
 import * as styles from './page-header.css';
@@ -49,6 +49,10 @@ export interface PageHeaderProps {
  *   actions={<SearchInput ... />}
  * />
  * ```
+ *
+ * `className` is applied to the rendered semantic `header` root. The title,
+ * description, and actions remain caller-owned content while this component
+ * owns sticky positioning, overflow, and Electron drag-region behavior.
  */
 function PageHeader({
   title,
@@ -58,20 +62,9 @@ function PageHeader({
   draggable = false,
   className,
 }: PageHeaderProps) {
-  // The title block always gets the drag class if draggable; it is reset on
-  // the actions slot so interactive controls inside remain clickable.
-  // When not draggable the extra inline style is omitted entirely.
-  const titleBlockStyle: React.CSSProperties = draggable
-    ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties)
-    : {};
-
-  const actionsStyle: React.CSSProperties = draggable
-    ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties)
-    : {};
-
-  const body = (
-    <div className={styles.header}>
-      <div className={styles.titleBlock} style={titleBlockStyle}>
+  return (
+    <header className={cx(styles.root({ sticky }), className)}>
+      <div className={cx(styles.titleBlock, draggable && styles.dragRegion)}>
         <Text as="h2" variant="h1" tone="default">
           {title}
         </Text>
@@ -83,16 +76,10 @@ function PageHeader({
       </div>
       <div className={styles.separator} />
       {actions && (
-        <div className={styles.actions} style={actionsStyle}>
-          {actions}
-        </div>
+        <div className={cx(styles.actions, draggable && styles.noDragRegion)}>{actions}</div>
       )}
-    </div>
+    </header>
   );
-
-  if (!sticky) return body;
-
-  return <div className={cx(styles.headerSticky, className)}>{body}</div>;
 }
 
 export { PageHeader };

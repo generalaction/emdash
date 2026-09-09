@@ -2,8 +2,8 @@
  * typography.css — semantic role classes for prose text.
  *
  * Each class applies the full typography role (family, size, weight, line-height)
- * from the composite type.* design tokens emitted by theme.css. Import this file
- * alongside theme.css to make the role classes available.
+ * from canonical Theme Token Values. Import this file through the aggregate
+ * @emdash/ui/styles.css entrypoint.
  *
  * Usage (React via textVariants or raw className):
  *   <p className="text-role-body">…</p>
@@ -12,102 +12,104 @@
  * Override individual properties after applying a role class as normal.
  */
 
-/* ── Body ─────────────────────────────────────────────────────────────────── */
+@layer emdash.recipes {
+  /* ── Body ───────────────────────────────────────────────────────────────── */
 
-.text-role-body {
-  font-family: var(--em-type-body-font-family);
-  font-size: var(--em-type-body-font-size);
-  font-weight: var(--em-type-body-font-weight);
-  line-height: var(--em-type-body-line-height);
-}
+  .text-role-body {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-base);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 20px;
+  }
 
-.text-role-body-italic {
-  font-family: var(--em-type-body-italic-font-family);
-  font-size: var(--em-type-body-italic-font-size);
-  font-weight: var(--em-type-body-italic-font-weight);
-  font-style: var(--em-type-body-italic-font-style, italic);
-  line-height: var(--em-type-body-italic-line-height);
-}
+  .text-role-body-italic {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-base);
+    font-weight: var(--em-font-weight-normal);
+    font-style: italic;
+    line-height: 20px;
+  }
 
-.text-role-body-link {
-  font-family: var(--em-type-body-link-font-family);
-  font-size: var(--em-type-body-link-font-size);
-  font-weight: var(--em-type-body-link-font-weight);
-  line-height: var(--em-type-body-link-line-height);
-}
+  .text-role-body-link {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-base);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 20px;
+  }
 
-.text-role-caption {
-  font-family: var(--em-type-caption-font-family);
-  font-size: var(--em-type-caption-font-size);
-  font-weight: var(--em-type-caption-font-weight);
-  line-height: var(--em-type-caption-line-height);
-}
+  .text-role-caption {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-xs);
+    font-weight: var(--em-font-weight-medium);
+    line-height: 16px;
+  }
 
-.text-role-description {
-  font-family: var(--em-type-description-font-family);
-  font-size: var(--em-type-description-font-size);
-  font-weight: var(--em-type-description-font-weight);
-  line-height: var(--em-type-description-line-height);
-}
+  .text-role-description {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-sm);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 18px;
+  }
 
-/* ── Headings ─────────────────────────────────────────────────────────────── */
+  /* ── Headings ───────────────────────────────────────────────────────────── */
 
-.text-role-h1 {
-  font-family: var(--em-type-h1-font-family);
-  font-size: var(--em-type-h1-font-size);
-  font-weight: var(--em-type-h1-font-weight);
-  line-height: var(--em-type-h1-line-height);
-}
+  .text-role-h1 {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-xl);
+    font-weight: var(--em-font-weight-medium);
+    line-height: 28px;
+  }
 
-.text-role-h2 {
-  font-family: var(--em-type-h2-font-family);
-  font-size: var(--em-type-h2-font-size);
-  font-weight: var(--em-type-h2-font-weight);
-  line-height: var(--em-type-h2-line-height);
-}
+  .text-role-h2 {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-lg);
+    font-weight: var(--em-font-weight-medium);
+    line-height: 25px;
+  }
 
-.text-role-h3 {
-  font-family: var(--em-type-h3-font-family);
-  font-size: var(--em-type-h3-font-size);
-  font-weight: var(--em-type-h3-font-weight);
-  line-height: var(--em-type-h3-line-height);
-}
+  .text-role-h3 {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-base);
+    font-weight: var(--em-font-weight-medium);
+    line-height: 22px;
+  }
 
-.text-role-section {
-  font-family: var(--em-type-section-font-family);
-  font-size: var(--em-type-section-font-size);
-  font-weight: var(--em-type-section-font-weight);
-  line-height: var(--em-type-section-line-height);
-}
+  .text-role-section {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-sm);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 18px;
+  }
 
-/* ── Code ─────────────────────────────────────────────────────────────────── */
+  /* ── Code ───────────────────────────────────────────────────────────────── */
 
-.text-role-inline-code {
-  font-family: var(--em-type-inline-code-font-family);
-  font-size: var(--em-type-inline-code-font-size);
-  font-weight: var(--em-type-inline-code-font-weight);
-  line-height: var(--em-type-inline-code-line-height);
-}
+  .text-role-inline-code {
+    font-family: var(--em-font-mono);
+    font-size: var(--em-text-xs);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 20px;
+  }
 
-.text-role-code {
-  font-family: var(--em-type-code-font-family);
-  font-size: var(--em-type-code-font-size);
-  font-weight: var(--em-type-code-font-weight);
-  line-height: var(--em-type-code-line-height);
-}
+  .text-role-code {
+    font-family: var(--em-font-mono);
+    font-size: var(--em-text-sm);
+    font-weight: var(--em-font-weight-normal);
+    line-height: 20px;
+  }
 
-.text-role-code-lang {
-  font-family: var(--em-type-code-lang-font-family);
-  font-size: var(--em-type-code-lang-font-size);
-  font-weight: var(--em-type-code-lang-font-weight);
-  line-height: var(--em-type-code-lang-line-height);
-}
+  .text-role-code-lang {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-tiny);
+    font-weight: var(--em-font-weight-medium);
+    line-height: 16px;
+  }
 
-/* ── Mention ──────────────────────────────────────────────────────────────── */
+  /* ── Mention ────────────────────────────────────────────────────────────── */
 
-.text-role-mention {
-  font-family: var(--em-type-mention-font-family);
-  font-size: var(--em-type-mention-font-size);
-  font-weight: var(--em-type-mention-font-weight);
-  line-height: var(--em-type-mention-line-height);
+  .text-role-mention {
+    font-family: var(--em-font-sans);
+    font-size: var(--em-text-base);
+    font-weight: var(--em-font-weight-semibold);
+    line-height: 20px;
+  }
 }

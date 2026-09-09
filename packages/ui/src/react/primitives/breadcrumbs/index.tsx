@@ -1,6 +1,7 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ChevronRightIcon } from 'lucide-react';
 import type { HTMLAttributes } from 'react';
+import { Icon } from '../icon';
 import * as styles from './breadcrumbs.css';
 
 export interface BreadcrumbItem {
@@ -36,7 +37,7 @@ export function Breadcrumbs({
           return (
             <li key={item.id} className={styles.item}>
               {index > 0 && (
-                <ChevronRightIcon aria-hidden className={styles.separator} strokeWidth={1.5} />
+                <Icon source={ChevronRightIcon} className={styles.separator} strokeWidth={1.5} />
               )}
               {current || !item.onSelect ? (
                 <span

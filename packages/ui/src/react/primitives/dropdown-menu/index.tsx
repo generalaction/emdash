@@ -1,8 +1,14 @@
 import { Menu as MenuPrimitive } from '@base-ui/react/menu';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import { CheckIcon, ChevronRightIcon } from 'lucide-react';
 import * as React from 'react';
+import { menuItem } from '../../../styles/recipes/menu-item';
+import { Icon } from '../icon';
 import * as styles from './dropdown-menu.css';
+
+function MenuCheckIcon(props: React.ComponentPropsWithRef<'svg'>) {
+  return <CheckIcon {...props} strokeWidth={3} absoluteStrokeWidth />;
+}
 
 function DropdownMenuRoot({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -16,6 +22,7 @@ function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
   return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
 }
 
+/** Action-menu popup. `className` is applied to the rendered content root. */
 function DropdownMenuContent({
   align = 'start',
   alignOffset = 0,
@@ -40,7 +47,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           data-width={width}
-          className={cx('surface-elevated', styles.menuContent, className)}
+          className={cx(styles.menuContent, className)}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -83,7 +90,10 @@ function DropdownMenuItem({
       data-slot="dropdown-menu-item"
       data-inset={inset}
       data-variant={variant}
-      className={cx(styles.menuItem, className)}
+      className={cx(
+        menuItem({ inset, tone: variant === 'destructive' ? variant : 'neutral' }),
+        className
+      )}
       {...props}
     />
   );
@@ -105,11 +115,11 @@ function DropdownMenuSubTrigger({
     <MenuPrimitive.SubmenuTrigger
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
-      className={cx(styles.menuSubTrigger, className)}
+      className={cx(menuItem({ inset }), className)}
       {...props}
     >
       {children}
-      <ChevronRightIcon style={{ marginLeft: 'auto' }} />
+      <Icon source={ChevronRightIcon} className={styles.menuSubTriggerIndicator} />
     </MenuPrimitive.SubmenuTrigger>
   );
 }
@@ -149,13 +159,13 @@ function DropdownMenuCheckboxItem({
     <MenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       data-inset={inset}
-      className={cx(styles.menuCheckboxItem, className)}
+      className={cx(menuItem({ inset, muted: true, trailingIndicator: true }), className)}
       checked={checked}
       {...props}
     >
       <span className={styles.menuItemIndicator} data-slot="dropdown-menu-checkbox-item-indicator">
         <MenuPrimitive.CheckboxItemIndicator>
-          <CheckIcon strokeWidth={3} absoluteStrokeWidth />
+          <Icon source={MenuCheckIcon} />
         </MenuPrimitive.CheckboxItemIndicator>
       </span>
       {children}
@@ -179,12 +189,12 @@ function DropdownMenuRadioItem({
     <MenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       data-inset={inset}
-      className={cx(styles.menuRadioItem, className)}
+      className={cx(menuItem({ inset, muted: true, trailingIndicator: true }), className)}
       {...props}
     >
       <span className={styles.menuItemIndicator} data-slot="dropdown-menu-radio-item-indicator">
         <MenuPrimitive.RadioItemIndicator>
-          <CheckIcon strokeWidth={3} absoluteStrokeWidth />
+          <Icon source={MenuCheckIcon} />
         </MenuPrimitive.RadioItemIndicator>
       </span>
       {children}
@@ -212,6 +222,24 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'spa
   );
 }
 
+/**
+ * Action-menu parts with a private popup shell and shared menu-item states.
+ *
+ * `Content.className` targets the popup root and item `className` targets the
+ * interactive row. Prefer semantic item props; use `sx()` only for
+ * caller-owned layout that those roots do not already own.
+ *
+ * @example
+ * ```tsx
+ * <DropdownMenu.Root>
+ *   <DropdownMenu.Trigger render={<Button>Actions</Button>} />
+ *   <DropdownMenu.Content width="content">
+ *     <DropdownMenu.Item>Rename</DropdownMenu.Item>
+ *     <DropdownMenu.Item variant="destructive">Delete</DropdownMenu.Item>
+ *   </DropdownMenu.Content>
+ * </DropdownMenu.Root>
+ * ```
+ */
 export const DropdownMenu = {
   Root: DropdownMenuRoot,
   Portal: DropdownMenuPortal,

@@ -1,6 +1,7 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, IconSlot } from '../../primitives/icon';
 import * as styles from './filter-pill.css';
 
 // ── FilterPill ────────────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ export interface FilterPillProps extends React.HTMLAttributes<HTMLSpanElement> {
  *
  * Modelled on the `FilterPill` in `pr-view.tsx`. Supports an optional avatar
  * or color swatch prefix and a "×" remove button.
+ * `className` and span attributes are applied to the rendered pill root.
  */
 function FilterPill({
   label,
@@ -47,7 +49,7 @@ function FilterPill({
           onClick={onRemove}
           aria-label={removeLabel}
         >
-          <XIcon aria-hidden />
+          <Icon source={XIcon} />
         </button>
       )}
     </span>
@@ -68,6 +70,7 @@ export interface FilterButtonProps extends React.ButtonHTMLAttributes<HTMLButton
  *
  * Modelled on the `FilterButton` in `pr-view.tsx`. Visually equivalent to a
  * ghost link — low-profile until it is active or hovered.
+ * `className` and button attributes are applied to the rendered button root.
  */
 function FilterButton({ active = false, icon, children, className, ...props }: FilterButtonProps) {
   return (
@@ -77,7 +80,7 @@ function FilterButton({ active = false, icon, children, className, ...props }: F
       className={cx(styles.filterButton, className)}
       {...props}
     >
-      {icon}
+      {icon && <IconSlot>{icon}</IconSlot>}
       {children}
     </button>
   );

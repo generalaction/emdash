@@ -5,7 +5,7 @@
  * Keep the shared geometry constants in sync through geometry.ts.
  */
 
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { TABLE_CELL_PAD_X, TABLE_CELL_PAD_Y } from './geometry';
 import { vars } from '@styles/theme.css';
 
@@ -20,13 +20,11 @@ export const pchatTable = style({
 });
 
 // Cell geometry — padding plus the configured body line-height defines row height.
-// Uses globalStyle with the parent class selector to mirror the old
-// `.pchat-table th, .pchat-table td` rule without touching Tailwind cascade.
-globalStyle(`${pchatTable} th, ${pchatTable} td`, {
+export const tableCell = style({
   padding: `${TABLE_CELL_PAD_Y}px ${TABLE_CELL_PAD_X}px`,
   textAlign: 'left',
 });
 
-globalStyle(`${pchatTable} th`, {
+export const tableHeaderCell = style({
   fontWeight: vars.typeBodyBoldFontWeight,
 });

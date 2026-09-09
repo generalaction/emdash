@@ -1,5 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 export const root = style({
   display: 'flex',
@@ -15,23 +15,71 @@ export const viewport = style({
   padding: '0 0.5rem 0.5rem',
 });
 
-export const fileIcon = style({
+export const row = style({
+  position: 'relative',
+  display: 'flex',
+  width: '100%',
+  height: '28px',
+  alignItems: 'center',
+  gap: '0.5rem',
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  padding: '0 8px 0 var(--_search-result-row-indent, 4px)',
+  color: tokens.foreground.default,
+  font: 'inherit',
+  outline: 'none',
+  textAlign: 'left',
+  userSelect: 'none',
+  cursor: 'default',
+  selectors: {
+    '&:hover': {
+      backgroundColor: tokens.palette.neutral.step2,
+    },
+    '&:focus-visible': {
+      boxShadow: `inset 0 0 0 1px ${tokens.border.focus}`,
+    },
+  },
+});
+
+export const chevron = style({
   display: 'inline-flex',
   width: '14px',
   height: '14px',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
-export const devicon = style({
-  display: 'inline-block',
-  width: '12px',
-  height: '12px',
+export const label = style({
+  display: 'flex',
+  minWidth: 0,
+  flex: '1 1 auto',
+  alignItems: 'baseline',
+  gap: '0.375rem',
+});
+
+export const name = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: tokens.typography.size.sm,
+});
+
+export const secondary = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
+});
+
+export const fileIcon = style({
   flexShrink: 0,
-  fontSize: '12px',
-  lineHeight: '12px',
+  color: tokens.foreground.muted,
 });
 
 export const fileName = style({
@@ -42,12 +90,12 @@ export const fileName = style({
 export const count = style({
   marginLeft: 'auto',
   flexShrink: 0,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   fontVariantNumeric: 'tabular-nums',
 });
 
 export const matchRow = style({
-  fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
+  fontFamily: tokens.typography.family.mono,
   fontSize: '12px',
 });
 
@@ -56,7 +104,7 @@ export const lineNumber = style({
   flexShrink: 0,
   paddingRight: '0.5rem',
   textAlign: 'right',
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
   fontVariantNumeric: 'tabular-nums',
 });
 

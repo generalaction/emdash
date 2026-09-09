@@ -1,11 +1,22 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field';
 import { Fieldset as FieldsetPrimitive } from '@base-ui/react/fieldset';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import * as React from 'react';
 import * as styles from './field.css';
-import type { FieldLegendVariants, FieldVariants } from './field.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
+
+export type FieldOrientation = 'vertical' | 'horizontal';
+
+export interface FieldRootProps extends Omit<FieldPrimitive.Root.Props, 'className'> {
+  /**
+   * Applies caller-owned classes to the rendered Field root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Semantic field layout. @default 'vertical' */
+  orientation?: FieldOrientation;
+}
 
 /**
  * Field — wraps a form control with accessible label/description/error wiring.
@@ -17,11 +28,7 @@ import type { FieldLegendVariants, FieldVariants } from './field.css';
  *  - `horizontal`: label/description on the left, control pinned to the right —
  *    used for settings-style rows.
  */
-function FieldRoot({
-  className,
-  orientation = 'vertical',
-  ...props
-}: FieldPrimitive.Root.Props & FieldVariants) {
+function FieldRoot({ className, orientation = 'vertical', ...props }: FieldRootProps) {
   return (
     <FieldPrimitive.Root
       data-slot="field"
@@ -103,6 +110,15 @@ function FieldError({ className, ...props }: FieldPrimitive.Error.Props) {
 
 // ── Grouping ──────────────────────────────────────────────────────────────────
 
+export type FieldLegendVariant = 'legend' | 'label';
+
+export interface FieldLegendProps extends Omit<FieldsetPrimitive.Legend.Props, 'className'> {
+  /** Applies caller-owned classes to the rendered legend slot. */
+  className?: string;
+  /** Semantic typography treatment. @default 'legend' */
+  variant?: FieldLegendVariant;
+}
+
 /**
  * FieldSet — a semantic `<fieldset>` grouping related fields; pair with
  * FieldLegend. Disabling the fieldset disables every field inside it.
@@ -121,11 +137,7 @@ function FieldSet({ className, ...props }: FieldsetPrimitive.Root.Props) {
  * FieldLegend — the heading of a FieldSet. The `label` variant drops it to
  * label-size typography for compact groups.
  */
-function FieldLegend({
-  className,
-  variant = 'legend',
-  ...props
-}: FieldsetPrimitive.Legend.Props & FieldLegendVariants) {
+function FieldLegend({ className, variant = 'legend', ...props }: FieldLegendProps) {
   return (
     <FieldsetPrimitive.Legend
       data-slot="field-legend"
@@ -155,5 +167,3 @@ export const Field = {
   Legend: FieldLegend,
   Group: FieldGroup,
 };
-
-export type { FieldLegendVariants, FieldVariants };

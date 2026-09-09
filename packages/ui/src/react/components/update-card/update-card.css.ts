@@ -1,11 +1,10 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
-import '@styles/layers.css';
-import { label as pillLabel } from '../pill/pill.css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import { kfSpin } from '@styles/effects/animations.css';
 
 export const card = style({
   display: 'grid',
+  minWidth: 0,
   gap: '0.75rem',
 });
 
@@ -15,7 +14,7 @@ export const row = style({
   alignItems: 'center',
   gap: '0.75rem',
   width: '100%',
-  borderRadius: tokenVars.radiusLg,
+  borderRadius: tokens.radius.lg,
 });
 
 export const rowBody = style({
@@ -30,16 +29,16 @@ export const rowTitle = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
-  fontSize: tokenVars.textBase,
+  fontSize: tokens.typography.size.base,
   fontWeight: 400,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const rowDescription = style({
   display: 'flex',
   alignItems: 'center',
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
 });
 
 export const rowControls = style({
@@ -57,39 +56,34 @@ export const versionBadge = style({
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   borderRadius: '999px',
-  border: `1px solid ${vars.border}`,
-  fontFamily: tokenVars.fontMono,
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundMuted,
+  border: `1px solid ${tokens.border.default}`,
+  fontFamily: tokens.typography.family.mono,
+  fontSize: tokens.typography.size.xs,
+  color: tokens.foreground.muted,
   whiteSpace: 'nowrap',
 });
 
 export const statusSuccess = style({
-  color: vars.foregroundSuccess,
+  color: tokens.feedback.success.foreground,
 });
 
 export const statusWarning = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: '0.25rem',
-  borderRadius: tokenVars.radiusSm,
-  border: `1px solid ${vars.borderWarning}`,
-  backgroundColor: vars.backgroundWarning,
+  borderRadius: tokens.radius.sm,
+  border: `1px solid ${tokens.feedback.warning.border}`,
+  backgroundColor: tokens.feedback.warning.background,
   paddingLeft: '0.5rem',
   paddingRight: '0.5rem',
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
-  fontSize: tokenVars.textXs,
-  color: vars.foregroundWarning,
-});
-
-const spinKeyframes = keyframes({
-  from: { transform: 'rotate(0deg)' },
-  to: { transform: 'rotate(360deg)' },
+  fontSize: tokens.typography.size.xs,
+  color: tokens.feedback.warning.foreground,
 });
 
 export const iconSpin = style({
-  animationName: spinKeyframes,
+  animationName: kfSpin,
   animationDuration: '1s',
   animationTimingFunction: 'linear',
   animationIterationCount: 'infinite',
@@ -100,28 +94,16 @@ export const progressTrack = style({
   width: '4.5rem',
   overflow: 'hidden',
   borderRadius: '999px',
-  backgroundColor: vars.background2,
+  backgroundColor: tokens.palette.neutral.step3,
 });
 
 export const progressFill = style({
   height: '100%',
   borderRadius: '999px',
-  backgroundColor: vars.foreground,
+  backgroundColor: tokens.foreground.default,
   transition: 'width 300ms ease-out',
 });
 
 export const errorPill = style({
-  '@layer': {
-    recipes: {
-      maxWidth: '12rem',
-      overflow: 'hidden',
-    },
-  },
-});
-
-globalStyle(`${errorPill} .${pillLabel}`, {
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  minWidth: 0,
+  maxWidth: '12rem',
 });

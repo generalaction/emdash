@@ -1,6 +1,9 @@
-import { keyframes, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
+import {
+  kfSteppedLoaderEnterFromBottom,
+  kfSteppedLoaderExitUp,
+} from '@styles/effects/animations.css';
 
 export const root = style({
   display: 'flex',
@@ -9,30 +12,30 @@ export const root = style({
   flex: 1,
   minHeight: 0,
   gap: '0.5rem',
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const label = style({
-  fontSize: tokenVars.textXs,
+  fontSize: tokens.typography.size.xs,
   fontWeight: 400,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 export const progressHeader = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  fontSize: tokenVars.textSm,
+  fontSize: tokens.typography.size.sm,
   fontWeight: 400,
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 export const progressContainer = style({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.5rem',
-  border: `1px solid ${vars.border}`,
-  borderRadius: tokenVars.radiusLg,
+  border: `1px solid ${tokens.border.default}`,
+  borderRadius: tokens.radius.lg,
   padding: '1rem',
 });
 
@@ -61,15 +64,15 @@ export const iconSlot = style({
 });
 
 export const iconPending = style({
-  color: vars.foregroundPassive,
+  color: tokens.foreground.passive,
 });
 
 export const iconLoading = style({
-  color: vars.foregroundMuted,
+  color: tokens.foreground.muted,
 });
 
 export const iconError = style({
-  color: vars.foregroundError,
+  color: tokens.feedback.error.foreground,
 });
 
 export const stepName = style({
@@ -77,9 +80,9 @@ export const stepName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: tokenVars.textLg,
+  fontSize: tokens.typography.size.lg,
   fontWeight: 400,
-  color: vars.foreground,
+  color: tokens.foreground.default,
 });
 
 export const stepChildren = style({});
@@ -93,16 +96,16 @@ export const footer = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '1rem',
-  borderRadius: tokenVars.radiusLg,
-  border: `1px solid ${vars.border}`,
-  backgroundColor: vars.background1,
+  borderRadius: tokens.radius.lg,
+  border: `1px solid ${tokens.border.default}`,
+  backgroundColor: tokens.palette.neutral.step2,
   padding: '0.375rem 0.375rem 0.375rem 0.75rem',
 });
 
 export const footerProgress = style({
-  fontFamily: tokenVars.fontMono,
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
+  fontFamily: tokens.typography.family.mono,
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.muted,
   whiteSpace: 'nowrap',
 });
 
@@ -112,30 +115,8 @@ export const footerActions = style({
   gap: '0.25rem',
 });
 
-const stepExitUpKeyframes = keyframes({
-  from: {
-    opacity: 1,
-    transform: 'translateY(0)',
-  },
-  to: {
-    opacity: 0,
-    transform: 'translateY(-8px)',
-  },
-});
-
-const stepEnterFromBottomKeyframes = keyframes({
-  from: {
-    opacity: 0,
-    transform: 'translateY(8px)',
-  },
-  to: {
-    opacity: 1,
-    transform: 'translateY(0)',
-  },
-});
-
 export const stepExit = style({
-  animationName: stepExitUpKeyframes,
+  animationName: kfSteppedLoaderExitUp,
   animationDuration: '220ms',
   animationTimingFunction: 'ease-in',
   animationFillMode: 'forwards',
@@ -148,7 +129,7 @@ export const stepExit = style({
 });
 
 export const stepEnter = style({
-  animationName: stepEnterFromBottomKeyframes,
+  animationName: kfSteppedLoaderEnterFromBottom,
   animationDuration: '180ms',
   animationTimingFunction: 'ease-out',
   animationFillMode: 'both',
@@ -165,12 +146,12 @@ export const progressTrack = style({
   width: '100%',
   overflow: 'hidden',
   borderRadius: '999px',
-  backgroundColor: vars.background2,
+  backgroundColor: tokens.palette.neutral.step3,
 });
 
 export const progressFill = style({
   height: '100%',
   borderRadius: '999px',
-  backgroundColor: vars.foreground,
+  backgroundColor: tokens.foreground.default,
   transition: 'width 300ms ease-out',
 });

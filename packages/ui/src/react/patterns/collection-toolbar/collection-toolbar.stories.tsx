@@ -1,7 +1,10 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { PlusIcon, RefreshCwIcon, WifiOffIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { ToggleGroup } from '../../primitives/toggle';
 import { SortSelect } from '../collection-view';
 import { CollectionToolbar } from './collection-toolbar';
@@ -31,10 +34,10 @@ export const WithActions: Story = {
         <CollectionToolbar.Spacer />
         <CollectionToolbar.Group>
           <Button variant="secondary" icon aria-label="Refresh skills">
-            <RefreshCwIcon />
+            <Icon source={RefreshCwIcon} />
           </Button>
           <Button variant="primary">
-            <PlusIcon />
+            <Icon source={PlusIcon} />
             New Skill
           </Button>
         </CollectionToolbar.Group>
@@ -58,7 +61,7 @@ export const WithMetadata: Story = {
         <CollectionToolbar.Group>
           <span>9 conversations</span>
           <span>
-            <WifiOffIcon aria-hidden size={12} />
+            <Icon source={WifiOffIcon} size="xs" />
             Offline
           </span>
         </CollectionToolbar.Group>
@@ -129,4 +132,24 @@ export const TaskControls: Story = {
 
 export const ResponsiveWrap: Story = {
   render: () => <TaskToolbarExample width="20rem" />,
+};
+
+/** Caller-owned root padding uses `sx`; search disabled state remains semantic. */
+export const DisabledSearchWithSxOverride: Story = {
+  render: () => (
+    <div style={storyWidth}>
+      <CollectionToolbar.Root className={sx({ p: tokens.space.step2 })}>
+        <CollectionToolbar.Search
+          value="Unavailable while syncing"
+          onValueChange={() => {}}
+          placeholder="Search agents…"
+          disabled
+        />
+        <CollectionToolbar.Spacer />
+        <CollectionToolbar.Group>
+          <span>Syncing collection…</span>
+        </CollectionToolbar.Group>
+      </CollectionToolbar.Root>
+    </div>
+  ),
 };

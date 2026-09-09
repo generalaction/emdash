@@ -2,11 +2,12 @@ import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import React, { useState } from 'react';
 import { useTheme } from '@core/primitives/theme/browser';
 import { resolveSkillIcon } from './skillIcons';
+import { skillIconAssetAdapter } from './skill-icon-asset.adapter.css';
 
 function processSvg(raw: string, fillColor: string): string {
   let svg = raw.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
   svg = svg.replace('<svg ', `<svg fill="${fillColor}" `);
-  return svg.replace('<svg ', '<svg class="h-full w-full" ');
+  return svg;
 }
 
 interface SkillIconRendererProps {
@@ -15,8 +16,8 @@ interface SkillIconRendererProps {
 
 export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme.colorScheme.polarity === 'dark';
 
   const letter = skill.displayName.charAt(0).toUpperCase();
 
@@ -29,14 +30,15 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
           ? 'brightness(0) invert(1)'
           : 'brightness(0)';
     return (
-      <img
-        src={skill.iconUrl}
-        alt=""
-        className="h-full w-full rounded-lg object-contain"
-        style={{ filter }}
-        onError={() => setImgError(true)}
-        loading="lazy"
-      />
+      <span className={skillIconAssetAdapter} data-foreign-adapter="skill-icon-asset">
+        <img
+          src={skill.iconUrl}
+          alt=""
+          style={{ filter }}
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+      </span>
     );
   };
 
@@ -49,7 +51,13 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
     const svg = resolveSkillIcon(skill.catalogSkillId ?? skill.id, skill.source);
     if (svg) {
       const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
-      return <div dangerouslySetInnerHTML={{ __html: html }} />;
+      return (
+        <span
+          className={skillIconAssetAdapter}
+          data-foreign-adapter="skill-icon-asset"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
     }
 
     return renderImageIcon() ?? letter;

@@ -1,5 +1,5 @@
 import { SegmentedSpinnerIcon } from '@react/primitives/segmented-spinner';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { AlertCircleIcon, CircleIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './stepped-loader.css';

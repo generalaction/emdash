@@ -3,8 +3,12 @@ import { Button } from '@emdash/ui/react/primitives';
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState, type ReactNode } from 'react';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
+import { pullRequestsHostStylesContribution } from '@root/src/core/services/pull-requests/contributions/host-styles';
+
+const { pullRequestState } = pullRequestsHostStylesContribution.exports;
 
 const KIND_LABELS: Record<string, string> = {
   full: 'Full sync',
@@ -85,7 +89,9 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   if (showSuccess) {
     return (
       <SyncStatusCard
-        icon={<CheckCircle2 className="size-3.5 shrink-0 text-green-500" />}
+        icon={
+          <CheckCircle2 className={cn('size-3.5 shrink-0', pullRequestState({ state: 'ready' }))} />
+        }
         content="Sync complete"
       />
     );

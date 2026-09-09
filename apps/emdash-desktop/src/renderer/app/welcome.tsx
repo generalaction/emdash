@@ -17,7 +17,7 @@ interface WelcomeScreenProps {
 }
 
 export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
-  const { effectiveTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const confirmHotkey = confirmCommand.keybinding
     ? resolveEffectiveChord(confirmCommand.keybinding, keyboard ?? {}, detectPlatformContext())
@@ -138,7 +138,9 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
               onClick={handleGetStarted}
               size="sm"
               className={
-                effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
+                resolvedTheme.colorScheme.polarity === 'dark'
+                  ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                  : ''
               }
             >
               <span className="flex items-center gap-2">

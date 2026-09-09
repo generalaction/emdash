@@ -1,23 +1,10 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { style } from '@styles/index';
+import { kfSegmentFade } from '@styles/effects/animations.css';
 
 // ── Segment count and timing ───────────────────────────────────────────────────
 
 const SEGMENTS = 8;
 const PERIOD_MS = 900;
-
-// ── Fade keyframe ─────────────────────────────────────────────────────────────
-//
-// Each segment runs this same fade. Because every segment is offset by an equal
-// fraction of the period (via a negative animation-delay), the "bright head"
-// appears to sweep clockwise around the icon without the SVG itself rotating.
-
-const segmentFade = keyframes({
-  '0%': { opacity: 1 },
-  '25%': { opacity: 0.55 },
-  '50%': { opacity: 0.25 },
-  '75%': { opacity: 0.12 },
-  '100%': { opacity: 0.08 },
-});
 
 // ── Per-segment styles (generated at build time) ──────────────────────────────
 //
@@ -26,7 +13,7 @@ const segmentFade = keyframes({
 
 export const segment = Array.from({ length: SEGMENTS }, (_, i) =>
   style({
-    animationName: segmentFade,
+    animationName: kfSegmentFade,
     animationDuration: `${PERIOD_MS}ms`,
     animationTimingFunction: 'linear',
     animationIterationCount: 'infinite',

@@ -1,9 +1,12 @@
+import { tokens } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { FolderOpenIcon, MoreHorizontalIcon } from 'lucide-react';
 import * as React from 'react';
 import { MachineStatus, StatusIcon } from '../../components';
-import { Button, Heading, Input } from '../../primitives';
+import { Button, Heading, Icon } from '../../primitives';
 import { EntityHeader } from './entity-header';
+import * as styles from './entity-header.css';
 
 const meta: Meta<typeof EntityHeader> = {
   title: 'Patterns/EntityHeader',
@@ -20,17 +23,11 @@ const meta: Meta<typeof EntityHeader> = {
 export default meta;
 type Story = StoryObj<typeof EntityHeader>;
 
-const projectIcon = (
-  <StatusIcon
-    severity="neutral"
-    size="lg"
-    icon={<FolderOpenIcon aria-hidden style={{ width: '1.25rem', height: '1.25rem' }} />}
-  />
-);
+const projectIcon = <StatusIcon severity="neutral" size="lg" icon={FolderOpenIcon} />;
 
 const actionButton = (
   <Button type="button" variant="secondary" size="xs" icon aria-label="Entity actions">
-    <MoreHorizontalIcon aria-hidden />
+    <Icon source={MoreHorizontalIcon} />
   </Button>
 );
 
@@ -80,12 +77,11 @@ function EditableTitleExample() {
     <EntityHeader
       icon={<MachineStatus size="2rem" status="successful" />}
       title={
-        <Input
-          bare
+        <input
           aria-label="Machine name"
+          className={styles.editableTitleInput}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
-          style={{ width: '100%', paddingInline: 0 }}
         />
       }
       actions={actionButton}
@@ -95,4 +91,14 @@ function EditableTitleExample() {
 
 export const EditableTitle: Story = {
   render: () => <EditableTitleExample />,
+};
+
+/** Caller-owned padding through the documented semantic header root. */
+export const SxOverride: Story = {
+  args: {
+    icon: projectIcon,
+    title: <Heading level={1}>Caller-owned title structure</Heading>,
+    actions: actionButton,
+    className: sx({ p: tokens.space.step3 }),
+  },
 };

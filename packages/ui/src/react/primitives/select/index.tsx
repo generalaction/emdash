@@ -1,10 +1,11 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
+import type { ControlSize, ControlTone } from '../../../styles/recipes/control';
+import type { FieldControlSize, FieldControlTone } from '../../../styles/recipes/field-control';
+import { menuItem } from '../../../styles/recipes/menu-item';
+import { Icon } from '../icon';
 import { TriggerButton } from '../trigger-button';
 import * as styles from './select.css';
 
@@ -30,36 +31,65 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   );
 }
 
+type SelectTriggerProps = Omit<SelectPrimitive.Trigger.Props, 'className'> &
+  (
+    | {
+        appearance?: 'control';
+        size?: ControlSize;
+        tone?: ControlTone;
+      }
+    | {
+        appearance: 'input';
+        size?: FieldControlSize;
+        tone?: FieldControlTone;
+      }
+  ) & {
+    /** Applies caller-owned classes to the rendered trigger root. */
+    className?: string;
+    /** Shows the caller-owned trailing chevron slot. @default true */
+    showChevron?: boolean;
+  };
+
+/**
+ * Select trigger whose `className` is applied to the rendered button root.
+ * Input appearance delegates its field states to `fieldControl()`.
+ */
 function SelectTrigger({
   className,
   size = 'base',
+  tone = 'neutral',
   showChevron = true,
   appearance = 'control',
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & {
-  size?: ControlVariantProps['size'];
-  showChevron?: boolean;
-  appearance?: 'control' | 'input';
-}) {
+}: SelectTriggerProps) {
+  const trigger =
+    appearance === 'input' ? (
+      <TriggerButton
+        appearance="input"
+        size={size as FieldControlSize}
+        tone={tone as FieldControlTone}
+        showChevron={showChevron}
+        className={className}
+      />
+    ) : (
+      <TriggerButton
+        appearance="control"
+        size={size as ControlSize}
+        tone={tone as ControlTone}
+        showChevron={showChevron}
+        className={className}
+      />
+    );
+
   return (
-    <SelectPrimitive.Trigger
-      data-slot="select-trigger"
-      render={
-        <TriggerButton
-          size={size}
-          showChevron={showChevron}
-          appearance={appearance}
-          className={cx(styles.triggerInvalidOverride, className)}
-        />
-      }
-      {...props}
-    >
+    <SelectPrimitive.Trigger data-slot="select-trigger" render={trigger} {...props}>
       {children}
     </SelectPrimitive.Trigger>
   );
 }
 
+/** Select popup. `className` is applied to the rendered listbox content root. */
 function SelectContent({
   className,
   children,
@@ -91,7 +121,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           data-width={width}
-          className={cx('surface-elevated', styles.selectContent, className)}
+          className={cx(styles.selectContent, className)}
           {...props}
         >
           <SelectScrollUpButton />
@@ -113,18 +143,21 @@ function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) 
   );
 }
 
+/** Selectable row whose interaction states are owned by `menuItem()`. */
 function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      className={cx(styles.selectItem, className)}
+      className={cx(menuItem({ fullWidth: true, trailingIndicator: true }), className)}
       {...props}
     >
-      <SelectPrimitive.ItemText className={styles.selectItemText}>
+      <SelectPrimitive.ItemText data-slot="select-item-text" className={styles.selectItemText}>
         {children}
       </SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator render={<span className={styles.selectItemIndicator} />}>
-        <CheckIcon style={{ pointerEvents: 'none' }} />
+      <SelectPrimitive.ItemIndicator
+        render={<span data-slot="select-item-indicator" className={styles.selectItemIndicator} />}
+      >
+        <Icon source={CheckIcon} />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   );
@@ -150,7 +183,7 @@ function SelectScrollUpButton({
       className={cx(styles.scrollButton, className)}
       {...props}
     >
-      <ChevronUpIcon />
+      <Icon source={ChevronUpIcon} />
     </SelectPrimitive.ScrollUpArrow>
   );
 }
@@ -165,7 +198,7 @@ function SelectScrollDownButton({
       className={cx(styles.scrollButton, className)}
       {...props}
     >
-      <ChevronDownIcon />
+      <Icon source={ChevronDownIcon} />
     </SelectPrimitive.ScrollDownArrow>
   );
 }

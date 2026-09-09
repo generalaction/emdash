@@ -12,11 +12,11 @@
  *   other    → neutral
  */
 
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { ShieldAlertIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon } from '@/react/primitives/icon';
 import { SplitButton, type SplitButtonOption } from '@/react/primitives/split-button';
-import { composerThemeScope } from './composer-contract.css';
 import * as styles from './permission-band.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ export function PermissionBand({
 
   return (
     <div className={cx(styles.band, className)}>
-      <ShieldAlertIcon className={styles.bandIcon} aria-hidden />
+      <Icon source={ShieldAlertIcon} className={styles.bandIcon} />
 
       {/* Context label */}
       <span className={styles.bandLabel}>
@@ -99,8 +99,6 @@ export function PermissionBand({
         )}
       </span>
 
-      {/* Split button — its option menu portals out of the composer root and
-          must carry the theme-bridge scope. */}
       <SplitButton
         options={splitOptions}
         selectedId={selectedId}
@@ -109,7 +107,6 @@ export function PermissionBand({
         size="xs"
         variant="secondary"
         className={styles.bandAction}
-        menuClassName={composerThemeScope}
       />
     </div>
   );

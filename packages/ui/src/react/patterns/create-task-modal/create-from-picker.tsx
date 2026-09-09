@@ -2,6 +2,7 @@ import { ChevronDown, GitBranch } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 import { Button } from '../../primitives/button';
 import { Combobox } from '../../primitives/combobox/combobox';
+import { Icon } from '../../primitives/icon';
 import { Popover } from '../../primitives/popover';
 import { Select } from '../../primitives/select';
 import { Tabs } from '../../primitives/tabs/tabs';
@@ -130,9 +131,9 @@ export function CreateFromPicker({
           />
         }
       >
-        <GitBranch />
+        <Icon source={GitBranch} />
         <span className={styles.selectorText}>{originSummary(state)}</span>
-        <ChevronDown />
+        <Icon source={ChevronDown} />
       </Popover.Trigger>
       <Popover.Content align="end" className={styles.popup}>
         <div className={styles.popupHeader}>

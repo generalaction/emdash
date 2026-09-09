@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import * as React from 'react';
 import * as styles from './list-row.css';
 
@@ -9,6 +9,8 @@ export interface RowProps extends React.HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;
   /** Whether this row is in a selected state. */
   selected?: boolean;
+  /** Whether interaction is unavailable while the row remains visible. */
+  disabled?: boolean;
   /** Suppresses the bottom border on the final row of a list. */
   isLast?: boolean;
   /** Divider color: 'default' (border) or 'subtle' (borderSubtle). */
@@ -21,8 +23,9 @@ export interface RowProps extends React.HTMLAttributes<HTMLDivElement> {
  * ListView.Row — a bordered, optionally interactive list row.
  *
  * Generalizes the `MultiLineListItem` pattern used throughout the desktop app:
- * border-bottom divider, hover state, selected state, and optional bare mode
- * for custom inner layout.
+ * border-bottom divider, hover/focus state, selected/disabled state, and
+ * optional bare mode for custom inner layout. `className` is applied to the
+ * rendered row root.
  *
  * Usage:
  *   <ListView.Row interactive onClick={...}>
@@ -32,19 +35,59 @@ export interface RowProps extends React.HTMLAttributes<HTMLDivElement> {
 function Row({
   interactive = false,
   selected = false,
+  disabled = false,
   isLast = false,
   divider = 'default',
   bare = false,
   className,
   children,
+  onClick,
+  onKeyDown,
+  role,
+  tabIndex,
   ...props
 }: RowProps) {
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> | undefined =
+    interactive || disabled || onKeyDown
+      ? (event) => {
+          if (disabled) {
+            if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+            return;
+          }
+
+          onKeyDown?.(event);
+          if (
+            event.defaultPrevented ||
+            !interactive ||
+            event.target !== event.currentTarget ||
+            (event.key !== 'Enter' && event.key !== ' ')
+          ) {
+            return;
+          }
+          event.preventDefault();
+          event.currentTarget.click();
+        }
+      : undefined;
+
   return (
     <div
+      {...props}
       data-slot="list-row"
       data-selected={selected || undefined}
-      className={cx(styles.row({ interactive, selected, isLast, divider }), className)}
-      {...props}
+      data-disabled={disabled || undefined}
+      aria-disabled={disabled || undefined}
+      role={interactive ? (role ?? 'button') : role}
+      tabIndex={interactive ? (disabled ? -1 : (tabIndex ?? 0)) : tabIndex}
+      className={cx(styles.row({ interactive, selected, disabled, isLast, divider }), className)}
+      onClick={
+        disabled
+          ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          : onClick
+      }
+      onKeyDown={handleKeyDown}
     >
       {bare ? children : <div className={styles.rowInner}>{children}</div>}
     </div>
@@ -66,6 +109,9 @@ export interface SectionHeaderProps extends React.HTMLAttributes<HTMLDivElement>
  * Mirrors the `SectionLabel` pattern from `CliAgentsList.tsx`:
  *   <SectionHeader label="Recommended" count={4} />
  *   → "Recommended (4)"
+ *
+ * `className` and remaining div attributes are applied to the rendered
+ * section-header root.
  */
 function SectionHeader({ label, count, className, ...props }: SectionHeaderProps) {
   return (

@@ -1,4 +1,3 @@
-import '@emdash/ui/style.css';
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { act } from 'react';
@@ -36,7 +35,10 @@ describe('MCP drawer Escape routing', () => {
   ): Promise<void> {
     await act(async () => {
       root.render(
-        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+        <ThemeProvider
+          theme={{ colorScheme: 'light', density: 'comfortable', typography: 'default' }}
+          onThemeChange={vi.fn()}
+        >
           <McpDrawer
             open
             mode={{ type: 'edit', server }}
@@ -88,7 +90,10 @@ describe('MCP drawer Escape routing', () => {
 
     await act(async () => {
       root.render(
-        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+        <ThemeProvider
+          theme={{ colorScheme: 'light', density: 'comfortable', typography: 'default' }}
+          onThemeChange={vi.fn()}
+        >
           <ViewScopeInstanceProvider instance={settingsInstance}>
             <McpDrawer
               open

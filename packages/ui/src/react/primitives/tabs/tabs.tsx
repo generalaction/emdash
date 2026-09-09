@@ -1,33 +1,42 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
-import { controlVariants } from '@styles/recipes/control';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
+import { control } from '@styles/recipes/control';
 import * as React from 'react';
-// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
-// dangling relative path, silently degrading the variant prop types.
-import type { ControlVariantProps } from '../../../styles/recipes/control';
+import type { ControlSize, ControlTone } from '../../../styles/recipes/control';
 import * as styles from './tabs.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-const TabsRoot = TabsPrimitive.Root;
+/** `className` is applied to the rendered Tabs state root. */
+function TabsRoot({ className, ...props }: TabsPrimitive.Root.Props) {
+  return <TabsPrimitive.Root {...props} data-slot="tabs" className={className} />;
+}
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
+/** `className` is applied to the rendered tab-list root. */
 function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
+      {...props}
       data-slot="tabs-list"
       className={cx(styles.tabsList, className)}
-      {...props}
     />
   );
 }
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
-export interface TabsTabProps extends TabsPrimitive.Tab.Props {
-  size?: ControlVariantProps['size'];
-  tone?: ControlVariantProps['tone'];
+export interface TabsTabProps extends Omit<TabsPrimitive.Tab.Props, 'className'> {
+  /**
+   * Applies caller-owned classes to the rendered tab root. Use `sx()` for
+   * finite static layout overrides.
+   */
+  className?: string;
+  /** Shared four-step control size. @default 'xs' */
+  size?: ControlSize;
+  /** Semantic status intent. @default 'neutral' */
+  tone?: ControlTone;
 }
 
 const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsTab(
@@ -37,21 +46,25 @@ const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsT
   return (
     <TabsPrimitive.Tab
       ref={ref}
-      data-slot="tabs-tab"
-      className={cx(controlVariants({ variant: 'ghost', tone, size }), styles.tab, className)}
       {...props}
+      data-slot="tabs-tab"
+      data-emphasis="minimal"
+      data-size={size}
+      data-tone={tone}
+      className={cx(control({ emphasis: 'minimal', tone, size }), className)}
     />
   );
 });
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+/** `className` is applied to the rendered panel root. */
 function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
+      {...props}
       data-slot="tabs-panel"
       className={cx(styles.tabsPanel, className)}
-      {...props}
     />
   );
 }

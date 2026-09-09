@@ -1,12 +1,11 @@
 /**
- * namespace.ts — Single source of truth for the @emdash/ui CSS custom-property namespace.
+ * namespace.ts — Single source of truth for the @emdash/theme CSS custom-property namespace.
  *
- * Every CSS custom property emitted by @emdash/ui is prefixed with `--em-` so the
+ * Every CSS custom property emitted by @emdash/theme is prefixed with `--em-` so the
  * library can coexist with a host app's own unprefixed vars without collision.
  *
- * Components and styles keep referencing tokens through VE typed accessors
- * (vars.background, tokenVars.radiusMd); the prefix is applied transparently
- * here, under the hood in the contract name functions and codegen key builders.
+ * Components and styles reference the literal public `tokens` tree. The prefix
+ * is applied here, under the hood in the codegen key builders.
  *
  * Usage:
  *   import { nsName, nsVar } from './namespace';

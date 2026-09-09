@@ -36,6 +36,7 @@ export {
   type DirectoryListing,
   type DirectorySelectorProps,
 } from './directory-selector/directory-selector';
+export { Devicon, type DeviconProps } from './devicon/devicon';
 export {
   FileTree,
   type FileTreeContextMenuItem,
@@ -53,6 +54,7 @@ export {
   FileTreeToolbarSearch,
   type FileTreeDraftKind,
   type FileTreeHeaderContext,
+  type FileTreeHeaderProps,
 } from './file-tree/file-tree-header';
 export {
   SearchResultsTree,
@@ -122,6 +124,7 @@ export {
   CardGrid,
   CardGridItem,
   CardGridSection,
+  type CardGridItemProps,
   type CardGridSectionProps,
 } from './card-grid/card-grid';
 export { EmptyState, type EmptyStateProps } from './empty-state/empty-state';
@@ -130,7 +133,7 @@ export {
   type ListPopoverCardProps,
   type ListPopoverCardStatus,
 } from './list-popover-card/list-popover-card';
-export { Pill, type PillProps, type PillVariant } from './pill/pill';
+export { Pill, type PillProps, type PillTone } from './pill/pill';
 export {
   ScriptStatus,
   type ScriptStatusKind,

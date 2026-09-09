@@ -1,33 +1,27 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
-// Side-effect import so the @layer order declaration is emitted before these
-// rules; otherwise `recipes` gets registered first and loses to app layers.
-import '@styles/layers.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
 /**
  * Anchors the card just above the bottom edge of the nearest positioned
  * ancestor (the list container), inset from both sides.
  */
 export const positioner = style({
-  '@layer': {
-    recipes: {
-      position: 'absolute',
-      right: '1.5rem',
-      bottom: '1rem',
-      left: '1.5rem',
-    },
-  },
+  position: 'absolute',
+  right: '1.5rem',
+  bottom: '1rem',
+  left: '1.5rem',
 });
 
 export const inner = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      fontSize: tokenVars.textSm,
-      boxShadow: vars.shadowSm,
-    },
-  },
+  display: 'flex',
+  overflow: 'hidden',
+  alignItems: 'center',
+  gap: '0.5rem',
+  border: `1px solid ${tokens.surface.current.border}`,
+  borderRadius: tokens.radius.md,
+  backgroundColor: tokens.surface.current.background,
+  padding: '0.5rem',
+  fontSize: tokens.typography.size.sm,
+  color: tokens.foreground.default,
+  boxShadow: tokens.shadow.sm,
 });

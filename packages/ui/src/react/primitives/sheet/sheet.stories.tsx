@@ -1,18 +1,13 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import { Sheet } from '@react/primitives/sheet';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
-
+import { cx, sx } from '@styles/index';
 const meta: Meta = {
   title: 'Primitives/Sheet',
   parameters: { layout: 'centered' },
 };
 export default meta;
-
 type Story = StoryObj;
-
 export const Default: Story = {
   render: () => (
     <Sheet.Root>
@@ -35,7 +30,6 @@ export const Default: Story = {
     </Sheet.Root>
   ),
 };
-
 export const LeftSide: Story = {
   render: () => (
     <Sheet.Root>
@@ -49,7 +43,14 @@ export const LeftSide: Story = {
             This sheet slides in from the left. Use it for navigation drawers, sidebars, or
             secondary panels.
           </p>
-          <Box marginTop="4" display="flex" flexDirection="column" gap="1">
+          <div
+            className={sx({
+              marginTop: '4',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1',
+            })}
+          >
             {['Overview', 'Tasks', 'Settings', 'Members', 'Integrations'].map((item) => (
               <button
                 key={item}
@@ -69,7 +70,7 @@ export const LeftSide: Story = {
                 {item}
               </button>
             ))}
-          </Box>
+          </div>
         </Sheet.Body>
         <Sheet.Footer>
           <Sheet.Close render={<Button variant="ghost">Close</Button>} />
@@ -78,7 +79,6 @@ export const LeftSide: Story = {
     </Sheet.Root>
   ),
 };
-
 export const TopSide: Story = {
   render: () => (
     <Sheet.Root>
@@ -97,7 +97,6 @@ export const TopSide: Story = {
     </Sheet.Root>
   ),
 };
-
 export const BottomSide: Story = {
   render: () => (
     <Sheet.Root>
@@ -119,7 +118,6 @@ export const BottomSide: Story = {
     </Sheet.Root>
   ),
 };
-
 export const ScrollableBody: Story = {
   render: () => (
     <Sheet.Root>
@@ -143,7 +141,6 @@ export const ScrollableBody: Story = {
     </Sheet.Root>
   ),
 };
-
 export const WithoutFooter: Story = {
   render: () => (
     <Sheet.Root>
@@ -157,19 +154,21 @@ export const WithoutFooter: Story = {
             This sheet has no footer — the close button in the header is the only dismiss
             affordance. Useful for detail panels, previews, or read-only views.
           </p>
-          <Box
-            marginTop="4"
-            rounded="lg"
-            borderWidth="1"
-            borderStyle="solid"
-            borderColor="border"
-            padding="3"
-            fontSize="xs"
+          <div
             style={{ color: 'var(--em-foreground-muted)' }}
+            className={sx({
+              marginTop: '4',
+              rounded: 'lg',
+              borderWidth: '1',
+              borderStyle: 'solid',
+              borderColor: 'border',
+              padding: '3',
+              fontSize: 'xs',
+            })}
           >
             <p className={cx(sx({ color: 'foreground' }))}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>
-          </Box>
+          </div>
         </Sheet.Body>
       </Sheet.Content>
     </Sheet.Root>

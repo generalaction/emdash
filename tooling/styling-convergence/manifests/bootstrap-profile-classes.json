@@ -1,0 +1,26 @@
+{
+  "dark/compact/default": ["emdark", "density-compact", "typography-default"],
+  "dark/comfortable/default": ["emdark", "density-comfortable", "typography-default"],
+  "light/compact/default": ["emlight", "density-compact", "typography-default"],
+  "light/comfortable/default": ["emlight", "density-comfortable", "typography-default"],
+  "solarized-dark/compact/default": [
+    "emsolarized-dark",
+    "density-compact",
+    "typography-default"
+  ],
+  "solarized-dark/comfortable/default": [
+    "emsolarized-dark",
+    "density-comfortable",
+    "typography-default"
+  ],
+  "solarized-light/compact/default": [
+    "emsolarized-light",
+    "density-compact",
+    "typography-default"
+  ],
+  "solarized-light/comfortable/default": [
+    "emsolarized-light",
+    "density-comfortable",
+    "typography-default"
+  ]
+}

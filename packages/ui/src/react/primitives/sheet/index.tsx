@@ -1,9 +1,10 @@
 import { Drawer } from '@base-ui/react/drawer';
 import { Button } from '@react/primitives/button';
 import { ScrollContainer } from '@react/primitives/scroll-container';
-import { cx } from '@styles/utilities/cx';
+import { joinClassNames as cx } from '@styles/classnames';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon } from '../icon';
 import * as styles from './sheet.css';
 
 export type SheetSide = 'right' | 'left' | 'top' | 'bottom';
@@ -38,6 +39,7 @@ function SheetBackdrop({ className, ...props }: Drawer.Backdrop.Props) {
 
 // ── Content shell ─────────────────────────────────────────────────────────────
 
+/** Modal drawer popup. `className` is applied to the rendered sheet root. */
 function SheetContent({
   className,
   children,
@@ -49,7 +51,7 @@ function SheetContent({
       <SheetBackdrop />
       <Drawer.Popup
         data-slot="sheet-content"
-        className={cx('surface-base', styles.sheetContent({ side }), className)}
+        className={cx(styles.sheetContent({ side }), className)}
         {...props}
       >
         {children}
@@ -81,7 +83,7 @@ function SheetHeader({
             />
           }
         >
-          <XIcon style={{ width: '1rem', height: '1rem' }} />
+          <Icon source={XIcon} />
         </Drawer.Close>
       )}
     </div>

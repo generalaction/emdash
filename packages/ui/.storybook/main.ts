@@ -22,7 +22,6 @@ const config: StorybookConfig = {
           '@': root,
           '@react': resolve(root, 'react'),
           '@styles': resolve(root, 'styles'),
-          '@theme': resolve(root, 'theme'),
         },
       },
       // Pre-bundle VE runtime modules so Vite doesn't re-optimize them mid-render

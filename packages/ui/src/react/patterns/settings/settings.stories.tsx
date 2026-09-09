@@ -1,10 +1,12 @@
-import { Box } from '@react/primitives/box';
+import { tokens } from '@emdash/theme';
 import { Button } from '@react/primitives/button';
 import { Input } from '@react/primitives/input';
 import { Select } from '@react/primitives/select';
 import { SeparatedList } from '@react/primitives/separated-list';
+import { Surface } from '@react/primitives/surface/surface';
 import { Switch } from '@react/primitives/switch';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { useState } from 'react';
 import { useAppForm } from '../form/use-app-form';
 import { PageLayout } from '../page-layout';
@@ -28,7 +30,7 @@ function DefaultSettings() {
   const [automaticUpdates, setAutomaticUpdates] = useState(true);
 
   return (
-    <Box className={s.maxW2xl} style={storyWidth}>
+    <div className={s.maxW2xl} style={storyWidth}>
       <SettingsCard>
         <SeparatedList gap="0.75rem" direction="column">
           <SettingsRow
@@ -71,12 +73,23 @@ function DefaultSettings() {
           />
         </SeparatedList>
       </SettingsCard>
-    </Box>
+    </div>
   );
 }
 
 export const Default: Story = {
   render: () => <DefaultSettings />,
+};
+
+/** Static caller override on the documented SettingsCard root. */
+export const SxOverride: Story = {
+  render: () => (
+    <div className={s.maxW2xl} style={storyWidth}>
+      <SettingsCard className={sx({ p: tokens.space.step3 })}>
+        Caller-owned settings content
+      </SettingsCard>
+    </div>
+  ),
 };
 
 function FormSettings() {
@@ -90,7 +103,7 @@ function FormSettings() {
   });
 
   return (
-    <Box className={s.maxW2xl} style={storyWidth}>
+    <div className={s.maxW2xl} style={storyWidth}>
       <SettingsCard>
         <form
           onSubmit={(event) => {
@@ -166,7 +179,7 @@ function FormSettings() {
           </SeparatedList>
         </form>
       </SettingsCard>
-    </Box>
+    </div>
   );
 }
 
@@ -245,8 +258,11 @@ export const PageAnatomyStory: Story = {
 
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box background="surfaceSunken" rounded="xl" padding="4">
-      <Box className={s.maxW2xl} style={storyWidth}>
+    <Surface
+      level="sunken"
+      className={sx({ borderRadius: tokens.radius.xl, p: tokens.space.step4 })}
+    >
+      <div className={s.maxW2xl} style={storyWidth}>
         <SettingsCard>
           <SeparatedList gap="0.75rem" direction="column">
             <SettingsRow
@@ -266,7 +282,7 @@ export const AcrossSurfaces: Story = {
             />
           </SeparatedList>
         </SettingsCard>
-      </Box>
-    </Box>
+      </div>
+    </Surface>
   ),
 };

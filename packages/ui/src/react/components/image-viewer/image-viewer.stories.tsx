@@ -1,21 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { useState } from 'react';
-import { Box } from '@/react/primitives/box';
 import { Button } from '@/react/primitives/button';
 import { ContainedImage } from './contained-image';
 import { ExpandableImage } from './expandable-image';
 import { ImageViewerDialog } from './image-viewer-dialog';
 import { ZoomViewerDialog } from './zoom-viewer-dialog';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const meta: Meta = {
   title: 'Components/ImageViewer',
   parameters: { layout: 'centered' },
 };
 export default meta;
-
 type Story = StoryObj;
-
 const sampleSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
   <defs>
@@ -31,20 +27,24 @@ const sampleSvg = `
     640 x 400 sample image
   </text>
 </svg>`;
-
 const sampleImageSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sampleSvg)}`;
-
 function ExpandableStory() {
   return (
-    <Box display="flex" flexDirection="column" alignItems="center" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3',
+      })}
+    >
       <p className={sx({ fontSize: 'xs', color: 'foregroundMuted' })}>
         Hover the image to reveal the expand affordance; expanding opens the zoom dialog.
       </p>
       <ExpandableImage src={sampleImageSrc} alt="Sample gradient" style={{ width: 320 }} />
-    </Box>
+    </div>
   );
 }
-
 function ImageDialogStory({ src }: { src?: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -56,7 +56,6 @@ function ImageDialogStory({ src }: { src?: string }) {
     </>
   );
 }
-
 function ArbitraryContentStory() {
   const [open, setOpen] = useState(false);
   return (
@@ -75,7 +74,6 @@ function ArbitraryContentStory() {
     </>
   );
 }
-
 function ContainedStory() {
   return (
     <div style={{ width: 240, height: 120, border: '1px dashed currentColor' }}>
@@ -87,7 +85,6 @@ function ContainedStory() {
     </div>
   );
 }
-
 export const Expandable: Story = { render: () => <ExpandableStory /> };
 export const ImageDialog: Story = {
   name: 'Image dialog',

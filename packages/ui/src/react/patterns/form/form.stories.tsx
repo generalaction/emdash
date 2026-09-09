@@ -1,11 +1,11 @@
-import { Box } from '@react/primitives/box';
+import { tokens } from '@emdash/theme';
 import { SeparatedList } from '@react/primitives/separated-list';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { useState } from 'react';
+import { SettingsCard } from '../settings/settings-card';
 import { useAppForm } from './use-app-form';
 import * as s from '@react/story-layout.css';
-import { card } from '@styles/recipes/card.css';
 
 const meta: Meta = {
   title: 'Form/useAppForm',
@@ -46,15 +46,24 @@ function VerticalFormDemo() {
   });
 
   return (
-    <Box display="flex" flexDirection="column" gap="4" className={s.w72}>
+    <div
+      className={cx(
+        s.w72,
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: tokens.space.step4,
+        })
+      )}
+    >
       {submitted && (
         <pre
-          style={{
-            fontSize: 'var(--em-text-xs)',
-            background: 'var(--em-surface-hover)',
-            padding: '0.5rem',
-            borderRadius: 'var(--em-radius-md)',
-          }}
+          className={sx({
+            fontSize: 'xs',
+            background: tokens.surface.current.hover,
+            p: tokens.space.step2,
+            borderRadius: tokens.radius.md,
+          })}
         >
           {JSON.stringify(submitted, null, 2)}
         </pre>
@@ -65,7 +74,13 @@ function VerticalFormDemo() {
           void form.handleSubmit();
         }}
       >
-        <Box display="flex" flexDirection="column" gap="3">
+        <div
+          className={sx({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: tokens.space.step3,
+          })}
+        >
           <form.AppField name="name">
             {(f) => <f.TextField label="Name" placeholder="My Server" />}
           </form.AppField>
@@ -113,9 +128,9 @@ function VerticalFormDemo() {
           <form.AppForm>
             <form.SubmitButton>Save</form.SubmitButton>
           </form.AppForm>
-        </Box>
+        </div>
       </form>
-    </Box>
+    </div>
   );
 }
 
@@ -140,14 +155,20 @@ function InvalidFormDemo() {
   });
 
   return (
-    <Box className={s.w72}>
+    <div className={s.w72}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void form.handleSubmit();
         }}
       >
-        <Box display="flex" flexDirection="column" gap="3">
+        <div
+          className={sx({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: tokens.space.step3,
+          })}
+        >
           <form.AppField name="name">
             {(f) => <f.TextField label="Name" placeholder="Required" />}
           </form.AppField>
@@ -157,9 +178,9 @@ function InvalidFormDemo() {
           <form.AppForm>
             <form.SubmitButton>Submit</form.SubmitButton>
           </form.AppForm>
-        </Box>
+        </div>
       </form>
-    </Box>
+    </div>
   );
 }
 
@@ -181,7 +202,7 @@ function SettingsPanelDemo() {
   });
 
   return (
-    <div className={cx(s.w96, card({ level: 'elevated', padding: 'md' }), 'surface-elevated')}>
+    <SettingsCard className={s.w96}>
       <form onSubmit={(e) => e.preventDefault()}>
         <SeparatedList gap="0.75rem">
           <form.AppField name="telemetry">
@@ -228,7 +249,7 @@ function SettingsPanelDemo() {
           </form.AppField>
         </SeparatedList>
       </form>
-    </div>
+    </SettingsCard>
   );
 }
 

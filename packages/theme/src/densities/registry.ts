@@ -20,8 +20,10 @@ export type DensityManifestEntry = {
   selector: string;
 };
 
-export const DENSITY_MANIFEST: readonly DensityManifestEntry[] = ALL_DENSITIES.map(
-  ({ id, label, selector }) => ({ id, label, selector })
-);
+export const DENSITY_MANIFEST = ALL_DENSITIES.map(({ id, label, selector }) => ({
+  id,
+  label,
+  selector,
+})) satisfies readonly DensityManifestEntry[];
 
 export type DensityId = (typeof ALL_DENSITIES)[number]['id'];

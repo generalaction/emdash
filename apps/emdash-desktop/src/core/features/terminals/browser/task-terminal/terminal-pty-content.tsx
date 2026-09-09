@@ -152,9 +152,6 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                       pty={activeSession.pty}
                       onFind={openSearch}
                       className="h-full w-full"
-                      themeOverride={{
-                        background: 'var(--em-surface-paper)',
-                      }}
                       paddingBottom={terminalPaddingBottom}
                       onEnterPress={onEnterPress}
                       onInterruptPress={onInterruptPress}

@@ -14,6 +14,7 @@ import {
   useCollapsiblePanelBinding,
   useResizableDefaultLayout,
 } from '@emdash/ui/react/primitives';
+import { surface } from '@emdash/ui/styles/recipes/surface';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import {
@@ -28,6 +29,7 @@ import { TerminalsPanel } from '@core/features/terminals/contributions/browser/t
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { PaneProvider } from '@core/features/workbench/contributions/browser/tabs/pane-provider';
 import { createLayoutStorage, type MementoLayoutStorage } from '@core/primitives/mementos/browser';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
 import { isPaneSplitDropTargetId } from '@core/primitives/workbench-shell/browser/tabs/pane-drop-target';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
@@ -234,7 +236,12 @@ const SplitPaneLayout = observer(function SplitPaneLayout({
 
 function TerminalDragPreview({ label }: { label: string }) {
   return (
-    <div className="surface-paper flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-(--em-surface) px-2 py-1 text-sm opacity-80 shadow-lg">
+    <div
+      className={cn(
+        surface({ role: 'paper' }),
+        'flex cursor-grabbing items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm opacity-80 shadow-lg'
+      )}
+    >
       <span className="max-w-[200px] truncate">{label}</span>
     </div>
   );

@@ -1,5 +1,6 @@
 import { Select } from '@react/primitives/select';
 import * as React from 'react';
+import type { FieldControlSize, FieldControlTone } from '../../../../styles/recipes/field-control';
 import { FormFieldShell, type FieldOrientation } from '../field-shell';
 import { useFieldContext } from '../form-context';
 
@@ -13,9 +14,14 @@ export interface SelectFieldProps {
   label?: React.ReactNode;
   description?: React.ReactNode;
   orientation?: FieldOrientation;
+  /** Applies caller-owned classes to the rendered Field root. */
   className?: string;
+  /** Applies caller-owned classes to the nested Select trigger slot. */
+  controlClassName?: string;
   placeholder?: string;
   disabled?: boolean;
+  size?: FieldControlSize;
+  tone?: FieldControlTone;
 }
 
 export function SelectField({
@@ -24,8 +30,11 @@ export function SelectField({
   description,
   orientation,
   className,
+  controlClassName,
   placeholder,
   disabled,
+  size = 'base',
+  tone = 'neutral',
 }: SelectFieldProps) {
   const field = useFieldContext<string>();
   return (
@@ -35,7 +44,7 @@ export function SelectField({
       orientation={orientation}
       className={className}
     >
-      {({ id }) => (
+      {({ id, invalid }) => (
         <Select.Root
           value={field.state.value}
           onValueChange={(value) => {
@@ -43,7 +52,15 @@ export function SelectField({
           }}
           disabled={disabled}
         >
-          <Select.Trigger id={id} onBlur={field.handleBlur} appearance="input">
+          <Select.Trigger
+            id={id}
+            onBlur={field.handleBlur}
+            appearance="input"
+            aria-invalid={invalid || undefined}
+            className={controlClassName}
+            size={size}
+            tone={tone}
+          >
             <Select.Value placeholder={placeholder} />
           </Select.Trigger>
           <Select.Content>

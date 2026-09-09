@@ -7,12 +7,18 @@ import { MermaidBlock } from './mermaid-block';
 
 const VALID_SOURCE = 'graph TD\n  A --> B';
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  // Base UI schedules portal cleanup through React's immediate scheduler.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+});
 
 describe('MermaidBlock', () => {
   it('renders the diagram SVG synchronously', () => {
     const { container } = render(<MermaidBlock source={VALID_SOURCE} />);
-    expect(container.querySelector('svg')).not.toBeNull();
+    const graphic = container.querySelector('[data-foreign-adapter="mermaid"]');
+    expect(graphic).not.toBeNull();
+    expect(graphic?.firstElementChild?.tagName.toLowerCase()).toBe('svg');
   });
 
   it('expands without triggering parent click handlers', () => {

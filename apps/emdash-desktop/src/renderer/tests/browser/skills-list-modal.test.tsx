@@ -67,7 +67,10 @@ describe('SkillsList details modal', () => {
 
     await act(async () => {
       root.render(
-        <ThemeProvider theme="emlight" onThemeChange={vi.fn()}>
+        <ThemeProvider
+          theme={{ colorScheme: 'light', density: 'comfortable', typography: 'default' }}
+          onThemeChange={vi.fn()}
+        >
           <SkillsList skills={skills} />
         </ThemeProvider>
       );

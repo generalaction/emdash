@@ -1,11 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createRef, useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CollectionToolbar } from '.';
 import { Button } from '../../primitives/button';
+
+afterEach(cleanup);
 
 function ControlledToolbar() {
   const [searchValue, setSearchValue] = useState('agent');
@@ -80,5 +82,16 @@ describe('CollectionToolbar', () => {
         '[data-slot="collection-toolbar-separator"] [data-orientation="vertical"]'
       )
     ).not.toBeNull();
+  });
+
+  it('applies className to the toolbar root and owns search availability', () => {
+    const { container } = render(
+      <CollectionToolbar.Root className="caller-toolbar">
+        <CollectionToolbar.Search value="" onValueChange={() => {}} placeholder="Search" disabled />
+      </CollectionToolbar.Root>
+    );
+
+    expect(container.firstElementChild?.classList.contains('caller-toolbar')).toBe(true);
+    expect(screen.getByRole('searchbox').hasAttribute('disabled')).toBe(true);
   });
 });

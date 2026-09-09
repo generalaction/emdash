@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
+import { Icon, IconSlot } from '../../primitives/icon';
 import { Select } from '../../primitives/select';
 import type {
   CreateTaskChoice,
@@ -108,9 +109,9 @@ export function FooterChoicePicker<T extends CreateTaskOptionLike>({
       getDescription={getDescription}
       renderTrigger={(current) => (
         <>
-          {icon}
+          {icon && <IconSlot>{icon}</IconSlot>}
           <span className={styles.selectorText}>{current ? getLabel(current) : label}</span>
-          <ChevronDown />
+          <Icon source={ChevronDown} />
         </>
       )}
       onOpenChange={(nextOpen) =>

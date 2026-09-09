@@ -1,4 +1,4 @@
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -12,6 +12,7 @@ import {
 import * as React from 'react';
 import { Breadcrumbs, type BreadcrumbItem } from '../../primitives/breadcrumbs';
 import { Button } from '../../primitives/button';
+import { Icon } from '../../primitives/icon';
 import { ScrollContainer } from '../../primitives/scroll-container';
 import { SearchInput } from '../../primitives/search-input';
 import * as styles from './directory-selector.css';
@@ -95,7 +96,7 @@ export function DirectorySelector({
             aria-label="Go back"
             onClick={onBack}
           >
-            <ChevronLeftIcon aria-hidden />
+            <Icon source={ChevronLeftIcon} />
           </Button>
           <Button
             type="button"
@@ -106,7 +107,7 @@ export function DirectorySelector({
             aria-label="Go forward"
             onClick={onForward}
           >
-            <ChevronRightIcon aria-hidden />
+            <Icon source={ChevronRightIcon} />
           </Button>
         </div>
         <div className={styles.currentFolder} title={path}>
@@ -144,7 +145,7 @@ export function DirectorySelector({
         )}
         {listing.status === 'loading' ? (
           <DirectoryState>
-            <Loader2Icon aria-hidden className={styles.spinner} />
+            <Icon source={Loader2Icon} className={styles.spinner} />
             Loading folder
           </DirectoryState>
         ) : listing.status === 'error' ? (
@@ -189,7 +190,7 @@ export function DirectorySelector({
                 disabled={isCreatingFolder}
                 onClick={() => setIsCreatingFolder(true)}
               >
-                <FolderPlusIcon aria-hidden />
+                <Icon source={FolderPlusIcon} />
                 New Folder
               </Button>
             )}
@@ -285,7 +286,7 @@ function DraftFolderRow({
 
   return (
     <div className={styles.draftRow}>
-      <FolderIcon className={styles.rowIcon} aria-hidden />
+      <Icon source={FolderIcon} className={styles.rowIcon} />
       <input
         ref={inputRef}
         className={styles.draftInput}
@@ -331,16 +332,15 @@ function DirectoryState({
 }
 
 function EntryIcon({ entry }: { entry: DirectoryEntry }) {
-  const props = { className: styles.rowIcon, 'aria-hidden': true } as const;
   switch (entry.kind) {
     case 'directory':
-      return <FolderIcon {...props} />;
+      return <Icon source={FolderIcon} className={styles.rowIcon} />;
     case 'repository':
-      return <FolderGit2Icon {...props} />;
+      return <Icon source={FolderGit2Icon} className={styles.rowIcon} />;
     case 'file':
-      return <FileIcon {...props} />;
+      return <Icon source={FileIcon} className={styles.rowIcon} />;
     case 'symlink':
-      return <Link2Icon {...props} />;
+      return <Icon source={Link2Icon} className={styles.rowIcon} />;
   }
 }
 

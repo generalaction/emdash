@@ -1,19 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import React from 'react';
-import { Box } from '../primitives/box';
 import * as s from '../story-layout.css';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const meta: Meta = {
   title: 'Theme/Rounding',
   parameters: { layout: 'padded' },
 };
-
 export default meta;
 type Story = StoryObj;
-
-const RADIUS_TOKENS: Array<{ name: string; var: string; label: string }> = [
+const RADIUS_TOKENS: Array<{
+  name: string;
+  var: string;
+  label: string;
+}> = [
   { name: 'xs', var: '--radius-xs', label: '0.25rem / 4px' },
   { name: 'sm', var: '--radius-sm', label: '0.375rem / 6px' },
   { name: 'md', var: '--radius-md', label: '0.5rem / 8px' },
@@ -22,12 +21,18 @@ const RADIUS_TOKENS: Array<{ name: string; var: string; label: string }> = [
   { name: '2xl', var: '--radius-2xl', label: '1.25rem / 20px' },
   { name: 'full', var: '--radius-full', label: '9999px' },
 ];
-
 /** All radius tokens with swatches showing the curvature. */
 export const Scale: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="6" padding="4">
-      <Box>
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6',
+        padding: '4',
+      })}
+    >
+      <div>
         <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Radius scale</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Each swatch uses{' '}
@@ -35,19 +40,43 @@ export const Scale: Story = {
           The anchor is <code className={cx(sx({ fontFamily: 'mono' }))}>--radius: 0.5rem</code>;
           change it to rescale the whole system.
         </p>
-      </Box>
-      <Box display="grid" gap="6" className={cx(s.cols4, s.lgCols7)}>
+      </div>
+      <div
+        className={cx(
+          cx(s.cols4, s.lgCols7),
+          sx({
+            display: 'grid',
+            gap: '6',
+          })
+        )}
+      >
         {RADIUS_TOKENS.map(({ name, var: cssVar, label }) => (
-          <Box key={name} display="flex" flexDirection="column" alignItems="center" gap="3">
-            <Box
-              background="surfaceBaseEmphasis"
-              borderWidth="2"
-              borderStyle="solid"
-              borderColor="border"
-              className={cx(s.h16, s.w16)}
+          <div
+            key={name}
+            className={sx({
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '3',
+            })}
+          >
+            <div
               style={{ borderRadius: `var(${cssVar})` }}
+              className={cx(
+                cx(s.h16, s.w16),
+                sx({
+                  background: 'surfaceBaseEmphasis',
+                  borderWidth: '2',
+                  borderStyle: 'solid',
+                  borderColor: 'border',
+                })
+              )}
             />
-            <Box textAlign="center">
+            <div
+              className={sx({
+                textAlign: 'center',
+              })}
+            >
               <p
                 className={cx(
                   sx({
@@ -67,27 +96,40 @@ export const Scale: Story = {
               >
                 {label}
               </p>
-            </Box>
-          </Box>
+            </div>
+          </div>
         ))}
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };
-
 /** Controls and inputs use the token scale. */
 export const InContext: Story = {
   render: () => (
-    <Box display="flex" flexDirection="column" gap="6" padding="4">
-      <Box>
+    <div
+      className={sx({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6',
+        padding: '4',
+      })}
+    >
+      <div>
         <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Tokens in use</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Buttons use <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-lg</code> (base) and{' '}
           <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-md</code> (sm). Inputs use{' '}
           <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-md</code>.
         </p>
-      </Box>
-      <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
+      </div>
+      <div
+        className={sx({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '3',
+        })}
+      >
         <button
           type="button"
           className={cx(
@@ -148,7 +190,7 @@ export const InContext: Story = {
             s.outlineNone
           )}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   ),
 };

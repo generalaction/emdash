@@ -10,21 +10,23 @@
  * highlight, Enter / Tab confirm, Escape returns false so the caller can dismiss.
  *
  * Visual language mirrors ComboboxContent / ComboboxItem from combobox.tsx:
- * surface-elevated, ring-1, shadow, rounded-md, text-sm items with bg-surface-hover
+ * elevated Surface, ring, shadow, rounded rows, and Surface-relative hover
  * on highlight and text-foreground-muted descriptions.
  */
 
-import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
-import { cx } from '@styles/utilities/cx';
+import { cx } from '@styles/index';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
+import { createPortal } from 'react-dom';
+import { menuItem } from '../../../styles/recipes/menu-item';
+import { Icon, IconSlot } from '../icon';
 import * as styles from './combobox-popup.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
 export interface ComboboxPopupItem {
   id: string;
-  /** Optional icon node rendered before the label (e.g. a devicon <i> or lucide svg). */
+  /** Decorative caller-owned content rendered before the label in an icon slot. */
   icon?: React.ReactNode;
   /** Primary display text. */
   label: string;
@@ -51,6 +53,7 @@ interface ComboboxPopupProps {
   stacked?: boolean;
   /** Give path-heavy suggestion lists additional horizontal space. */
   wide?: boolean;
+  /** Applies caller-owned classes to the rendered listbox popup root. */
   className?: string;
 }
 
@@ -99,102 +102,137 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
       },
     }));
 
-    const virtualAnchor = React.useMemo(
-      () => (anchorRect ? { getBoundingClientRect: () => anchorRect } : null),
-      [anchorRect]
-    );
-
     // Nothing to render.
     if (!anchorRect) return null;
     if (items.length === 0 && !emptyLabel) return null;
 
-    return (
-      <PopoverPrimitive.Root open modal={false}>
-        <PopoverPrimitive.Portal>
-          <PopoverPrimitive.Positioner
-            anchor={virtualAnchor}
-            positionMethod="fixed"
-            side="bottom"
-            align="start"
-            sideOffset={4}
-            collisionPadding={8}
-            collisionAvoidance={{ side: 'flip', align: 'shift', fallbackAxisSide: 'none' }}
-            className={styles.popupPositioner}
-          >
-            <PopoverPrimitive.Popup
-              role="listbox"
-              initialFocus={false}
-              finalFocus={false}
-              className={cx(
-                'surface-elevated',
-                styles.popupRoot,
-                wide && styles.popupRootWide,
-                className
-              )}
-            >
-              {header && <div className={styles.popupHeader}>{header}</div>}
-              <ul ref={listRef} className={styles.popupList}>
-                {items.length === 0 && emptyLabel ? (
-                  <li className={cx(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
-                ) : (
-                  items.map((item, index) => {
-                    const showSection = item.section && item.section !== items[index - 1]?.section;
-                    return (
-                      <React.Fragment key={item.id}>
-                        {showSection && (
-                          <li className={styles.popupSectionHeader} role="presentation">
-                            {item.section}
-                          </li>
-                        )}
-                        <li
-                          role="option"
-                          aria-selected={index === selectedIndex}
-                          data-popup-item-index={index}
-                          onMouseDown={(e) => {
-                            // Prevent editor blur before select fires.
-                            e.preventDefault();
-                            onSelect(item);
-                          }}
-                          onMouseEnter={() => setSelectedIndex(index)}
-                          className={cx(
-                            styles.popupItem,
-                            stacked && styles.popupItemStacked,
-                            index === selectedIndex
-                              ? styles.popupItemHighlighted
-                              : styles.popupItemHover
-                          )}
+    // Position above or below the caret depending on available space.
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const spaceAbove = anchorRect.top;
+    const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow;
+    const viewportPadding = 8;
+    const availableWidth = Math.max(window.innerWidth - viewportPadding * 2, 1);
+    const preferredWidth = wide ? 30 * 16 : 340;
+    const popupWidth = Math.min(preferredWidth, availableWidth);
+    const maximumLeft = Math.max(viewportPadding, window.innerWidth - viewportPadding - popupWidth);
+    const left = Math.min(Math.max(anchorRect.left, viewportPadding), maximumLeft);
+
+    const style: React.CSSProperties & { [styles.popupAvailableWidthVar]: string } = openAbove
+      ? {
+          position: 'fixed',
+          left,
+          bottom: window.innerHeight - anchorRect.top + 4,
+          [styles.popupAvailableWidthVar]: `${availableWidth}px`,
+        }
+      : {
+          position: 'fixed',
+          left,
+          top: anchorRect.bottom + 4,
+          [styles.popupAvailableWidthVar]: `${availableWidth}px`,
+        };
+
+    const popup = (
+      <div
+        role="listbox"
+        data-slot="combobox-popup"
+        data-side={openAbove ? 'top' : 'bottom'}
+        style={style}
+        className={cx(styles.popupRoot, wide && styles.popupRootWide, className)}
+      >
+        {header && (
+          <div data-slot="combobox-popup-header" className={styles.popupHeader}>
+            {header}
+          </div>
+        )}
+        <ul ref={listRef} data-slot="combobox-popup-list" className={styles.popupList}>
+          {items.length === 0 && emptyLabel ? (
+            <li data-slot="combobox-popup-empty" className={styles.popupEmpty}>
+              {emptyLabel}
+            </li>
+          ) : (
+            items.map((item, index) => {
+              const showSection = item.section && item.section !== items[index - 1]?.section;
+              return (
+                <React.Fragment key={item.id}>
+                  {showSection && (
+                    <li
+                      data-slot="combobox-popup-section"
+                      className={styles.popupSectionHeader}
+                      role="presentation"
+                    >
+                      {item.section}
+                    </li>
+                  )}
+                  <li
+                    role="option"
+                    data-slot="combobox-popup-item"
+                    aria-selected={index === selectedIndex}
+                    data-selected={index === selectedIndex || undefined}
+                    data-popup-item-index={index}
+                    onMouseDown={(e) => {
+                      // Prevent editor blur before select fires.
+                      e.preventDefault();
+                      onSelect(item);
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={cx(
+                      menuItem({ fullWidth: true, trailingIndicator: !stacked }),
+                      stacked && styles.popupItemStacked
+                    )}
+                  >
+                    {item.icon && (
+                      <IconSlot className={styles.popupItemIcon} size="sm">
+                        {item.icon}
+                      </IconSlot>
+                    )}
+                    {stacked ? (
+                      <span
+                        data-slot="combobox-popup-item-text"
+                        className={styles.popupItemTextStack}
+                      >
+                        <span
+                          data-slot="combobox-popup-item-label"
+                          className={styles.popupItemLabel}
                         >
-                          {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
-                          {stacked ? (
-                            <span className={styles.popupItemTextStack}>
-                              <span className={styles.popupItemLabel}>{item.label}</span>
-                              {item.description && (
-                                <span className={styles.popupItemDescription}>
-                                  {item.description}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <>
-                              <span className={styles.popupItemLabel}>{item.label}</span>
-                              {item.description && (
-                                <span className={styles.popupItemDescription}>
-                                  {item.description}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </li>
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </ul>
-            </PopoverPrimitive.Popup>
-          </PopoverPrimitive.Positioner>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
+                          {item.label}
+                        </span>
+                        {item.description && (
+                          <span
+                            data-slot="combobox-popup-item-description"
+                            className={styles.popupItemDescription}
+                          >
+                            {item.description}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        <span
+                          data-slot="combobox-popup-item-label"
+                          className={styles.popupItemLabel}
+                        >
+                          {item.label}
+                        </span>
+                        {item.description && (
+                          <span
+                            data-slot="combobox-popup-item-description"
+                            className={styles.popupItemDescription}
+                          >
+                            {item.description}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </li>
+                </React.Fragment>
+              );
+            })
+          )}
+        </ul>
+      </div>
     );
+
+    return createPortal(popup, document.body);
   }
 );
 
@@ -217,8 +255,9 @@ export function ComboboxPopupDismiss({
       }}
       className={cx(styles.popupDismiss, className)}
       aria-label="Dismiss"
+      data-slot="combobox-popup-dismiss"
     >
-      <XIcon style={{ width: '0.75rem', height: '0.75rem' }} />
+      <Icon source={XIcon} size="xs" />
     </button>
   );
 }

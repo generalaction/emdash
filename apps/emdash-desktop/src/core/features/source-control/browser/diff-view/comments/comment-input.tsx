@@ -1,7 +1,10 @@
 import { Button } from '@emdash/ui/react/primitives';
 import { Check, X } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import { Comment, useTextareaAutoFocus } from './comment-card';
+
+const { vcsState } = sourceControlHostStylesContribution.exports;
 
 interface CommentInputProps {
   lineNumber: number;
@@ -66,7 +69,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             title="Submit (Cmd/Ctrl+Enter)"
             aria-label="Submit comment"
           >
-            <Check className="h-4 w-4 text-foreground-success" />
+            <Check className={`h-4 w-4 ${vcsState({ state: 'completed' })}`} />
           </Button>
         </Comment.Actions>
       </Comment.Header>

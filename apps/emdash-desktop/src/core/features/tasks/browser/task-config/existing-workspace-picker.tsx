@@ -2,8 +2,13 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
+import { sourceControlHostStylesContribution } from '@core/features/source-control/contributions/host-styles';
 import type { ProjectWorkspaceOption } from '@core/features/tasks/api/browser/create-task-modal/project-workspace-options';
+import { tasksHostStylesContribution } from '@core/features/tasks/contributions/host-styles';
 import { cn } from '@core/primitives/styling/browser/cn';
+
+const { diffLine } = sourceControlHostStylesContribution.exports;
+const { workflowStatus } = tasksHostStylesContribution.exports;
 
 function workspaceLabel(ws: ProjectWorkspaceOption): string {
   if (ws.kind === 'repository') return 'Repository root';
@@ -27,17 +32,22 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspaceOption }) {
         {hasDiff && (
           <span className="ml-1 text-xs text-foreground-muted">
             {ws.linesAdded != null && (
-              <span className="text-foreground-diff-added">+{ws.linesAdded}</span>
+              <span className={diffLine({ kind: 'added' })}>+{ws.linesAdded}</span>
             )}
             {ws.linesDeleted != null && (
-              <span className="ml-1 text-foreground-diff-deleted">−{ws.linesDeleted}</span>
+              <span className={cn('ml-1', diffLine({ kind: 'deleted' }))}>−{ws.linesDeleted}</span>
             )}
           </span>
         )}
         {ws.linkedTaskCount > 0 && (
           <Tooltip.Provider>
             <Tooltip.Root>
-              <Tooltip.Trigger className="ml-1 flex items-center gap-0.5 text-xs text-foreground-info">
+              <Tooltip.Trigger
+                className={cn(
+                  'ml-1 flex items-center gap-0.5 text-xs',
+                  workflowStatus({ status: 'linked' })
+                )}
+              >
                 <Link className="size-3" />
                 {ws.linkedTaskCount}
               </Tooltip.Trigger>

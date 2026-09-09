@@ -7,12 +7,15 @@ import { useFieldContext } from '../form-context';
 
 export interface NumberFieldProps extends Omit<
   InputProps,
-  'value' | 'onChange' | 'id' | 'name' | 'type'
+  'className' | 'value' | 'onChange' | 'id' | 'name' | 'type'
 > {
   label?: React.ReactNode;
   description?: React.ReactNode;
   orientation?: FieldOrientation;
+  /** Applies caller-owned classes to the rendered Field root. */
   className?: string;
+  /** Applies caller-owned classes to the nested Input control slot. */
+  controlClassName?: string;
 }
 
 export function NumberField({
@@ -20,6 +23,7 @@ export function NumberField({
   description,
   orientation,
   className,
+  controlClassName,
   ...inputProps
 }: NumberFieldProps) {
   const field = useFieldContext<number>();
@@ -39,6 +43,7 @@ export function NumberField({
           onBlur={field.handleBlur}
           onChange={(e) => field.handleChange(Number(e.target.value))}
           aria-invalid={invalid || undefined}
+          className={controlClassName}
           {...inputProps}
         />
       )}

@@ -1,9 +1,8 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { sx } from '@styles/index';
 import { RocketIcon } from 'lucide-react';
 import { toast, Toaster } from '.';
-
 const meta: Meta = {
   title: 'Primitives/Toast',
   parameters: { layout: 'centered' },
@@ -16,13 +15,16 @@ const meta: Meta = {
     ),
   ],
 };
-
 export default meta;
 type Story = StoryObj;
-
 export const Tones: Story = {
   render: () => (
-    <Box display="flex" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '2',
+      })}
+    >
       <Button variant="secondary" onClick={() => toast('Task created')}>
         Neutral
       </Button>
@@ -46,10 +48,9 @@ export const Tones: Story = {
       <Button variant="secondary" onClick={() => toast.info('Update available')}>
         Info
       </Button>
-    </Box>
+    </div>
   ),
 };
-
 export const WithDescription: Story = {
   render: () => (
     <Button
@@ -64,7 +65,6 @@ export const WithDescription: Story = {
     </Button>
   ),
 };
-
 export const WithAction: Story = {
   render: () => (
     <Button
@@ -72,7 +72,7 @@ export const WithAction: Story = {
       onClick={() =>
         toast('Update Available', {
           description: 'Version 1.2.3 is ready to download and install.',
-          duration: 10_000,
+          duration: 10000,
           action: { label: 'Update', onClick: () => toast.success('Updating…') },
         })
       }
@@ -81,7 +81,6 @@ export const WithAction: Story = {
     </Button>
   ),
 };
-
 export const WithCustomIcon: Story = {
   render: () => (
     <Button
@@ -92,10 +91,14 @@ export const WithCustomIcon: Story = {
     </Button>
   ),
 };
-
 export const PromiseToast: Story = {
   render: () => (
-    <Box display="flex" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '2',
+      })}
+    >
       <Button
         variant="secondary"
         onClick={() =>
@@ -123,16 +126,20 @@ export const PromiseToast: Story = {
       >
         Rejecting promise
       </Button>
-    </Box>
+    </div>
   ),
 };
-
 export const UpdateInPlaceAndDismiss: Story = {
   render: () => (
-    <Box display="flex" gap="2">
+    <div
+      className={sx({
+        display: 'flex',
+        gap: '2',
+      })}
+    >
       <Button
         variant="secondary"
-        onClick={() => toast('Working…', { id: 'progress', duration: 60_000 })}
+        onClick={() => toast('Working…', { id: 'progress', duration: 60000 })}
       >
         Raise (id: progress)
       </Button>
@@ -142,6 +149,6 @@ export const UpdateInPlaceAndDismiss: Story = {
       <Button variant="secondary" onClick={() => toast.dismiss()}>
         Dismiss all
       </Button>
-    </Box>
+    </div>
   ),
 };

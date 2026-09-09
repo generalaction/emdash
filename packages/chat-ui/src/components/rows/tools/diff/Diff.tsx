@@ -1,6 +1,7 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { Devicon } from '@components/primitives/Devicon';
 import { GenericFileIcon, IconError, IconShieldAlert } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
@@ -62,15 +63,7 @@ export function DiffHeader(props: DiffHeaderProps) {
       role="button"
       onClick={handleClick}
     >
-      {iconClass() ? (
-        <i
-          class={`${iconClass()} shrink-0`}
-          style={{ 'font-size': '12px', 'line-height': '1' }}
-          aria-hidden="true"
-        />
-      ) : (
-        <GenericFileIcon />
-      )}
+      {iconClass() ? <Devicon iconClass={iconClass()!} size={12} /> : <GenericFileIcon />}
       <span class={diffFileName} classList={{ [textShimmer]: running() }} title={props.item.path}>
         {name()}
       </span>

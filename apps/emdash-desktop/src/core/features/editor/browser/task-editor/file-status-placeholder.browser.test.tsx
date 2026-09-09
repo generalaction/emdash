@@ -11,7 +11,6 @@ import type {
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { FileStatusPlaceholder } from './file-status-placeholder';
-import '@emdash/ui/style.css';
 
 beforeAll(() => {
   (

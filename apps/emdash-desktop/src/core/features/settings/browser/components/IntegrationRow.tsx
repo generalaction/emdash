@@ -2,6 +2,7 @@ import { Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@core/primitives/theme/browser';
+import { integrationLogoAdapter } from './integration-logo.adapter.css';
 
 type IntegrationStatus =
   | 'connected'
@@ -82,8 +83,8 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   showStatusPill = true,
   installCommand,
 }) => {
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme.colorScheme.polarity === 'dark';
   const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
   const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
@@ -107,15 +108,17 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       {themedLogoSrc ? (
         isSvg ? (
           <span
-            className={`${shouldInvertLogo ? 'invert' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
+            className={`${integrationLogoAdapter} ${shouldInvertLogo ? 'invert' : ''}`}
+            data-foreign-adapter="integration-logo"
             dangerouslySetInnerHTML={{ __html: themedLogoSrc }}
           />
         ) : (
-          <img
-            src={themedLogoSrc}
-            alt=""
-            className={`${shouldInvertLogo ? 'invert' : ''} h-5 w-5 object-contain`}
-          />
+          <span
+            className={`${integrationLogoAdapter} ${shouldInvertLogo ? 'invert' : ''}`}
+            data-foreign-adapter="integration-logo"
+          >
+            <img src={themedLogoSrc} alt="" />
+          </span>
         )
       ) : icon ? (
         icon

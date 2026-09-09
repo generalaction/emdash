@@ -5,6 +5,7 @@ import {
   type PageSidebarMenuItem,
 } from '@emdash/ui/react/patterns';
 import { Breadcrumbs, Icon, Kbd, SearchInput } from '@emdash/ui/react/primitives';
+import { ExternalLinkIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -177,7 +178,7 @@ export const SettingsPage = observer(function SettingsPage({
                 className="flex h-8 w-full items-center gap-2 rounded-md px-3 text-sm font-normal text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
                 onClick={() => void openExternal('https://docs.emdash.sh')}
               >
-                <Icon name="external-link" size="sm" />
+                <Icon source={ExternalLinkIcon} size="sm" />
                 <span>View Docs</span>
               </button>
             }

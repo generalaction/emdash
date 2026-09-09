@@ -1,39 +1,65 @@
-import { style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
+import { tokens } from '@emdash/theme';
+import { style } from '@styles/index';
 
-// Scoped class applied to every Button. The selectors read the data-variant and
-// data-tone attributes set by the Button component, then set Kbd CSS variables so
-// any nested Kbd (via the `kbd` prop or children) inherits the right background,
-// border, and foreground for the button variant/tone.
-export const kbdHost = style({
+/**
+ * Button-owned presentation that is intentionally outside the shared control
+ * contract: link geometry and trailing Kbd alignment/theme.
+ */
+export const root = style({
   selectors: {
-    '&[data-variant="primary"][data-tone="neutral"]': {
+    '&[data-presentation="link"]': {
+      height: 'auto',
+      gap: '0.25rem',
+      border: 'none',
+      backgroundColor: 'transparent',
+      padding: 0,
+      color: tokens.foreground.default,
+    },
+    '&[data-presentation="link"]:hover': {
+      backgroundColor: 'transparent',
+      textDecoration: 'underline',
+      textUnderlineOffset: '2px',
+    },
+    '&[data-emphasis="high"][data-tone="neutral"]': {
       vars: {
-        '--kbd-bg': 'color-mix(in srgb, black 20%, transparent)',
-        '--kbd-border': 'transparent',
-        '--kbd-color': `color-mix(in srgb, ${vars.primaryButtonForeground} 70%, transparent)`,
+        '--_kbd-bg': 'color-mix(in srgb, black 20%, transparent)',
+        '--_kbd-border': 'transparent',
+        '--_kbd-color': `color-mix(in srgb, ${tokens.palette.accent.contrast} 70%, transparent)`,
       },
     },
-    '&[data-variant="primary"][data-tone="destructive"]': {
+    '&[data-emphasis="high"][data-tone="destructive"]': {
       vars: {
-        '--kbd-bg': vars.backgroundDestructive1,
-        '--kbd-border': 'transparent',
-        '--kbd-color': `color-mix(in srgb, ${vars.foregroundDestructive} 70%, transparent)`,
+        '--_kbd-bg': tokens.palette.red.step2,
+        '--_kbd-border': 'transparent',
+        '--_kbd-color': `color-mix(in srgb, ${tokens.palette.red.step11} 70%, transparent)`,
       },
     },
-    '&[data-variant="secondary"]': {
+    '&[data-emphasis="medium"]': {
       vars: {
-        '--kbd-bg': vars.backgroundTertiary2,
-        '--kbd-border': 'transparent',
-        '--kbd-color': `color-mix(in srgb, ${vars.foregroundMuted} 70%, transparent)`,
+        '--_kbd-bg': tokens.palette.neutral.step5,
+        '--_kbd-border': 'transparent',
+        '--_kbd-color': `color-mix(in srgb, ${tokens.foreground.muted} 70%, transparent)`,
       },
     },
-    '&[data-variant="ghost"]': {
+    '&[data-emphasis="low"], &[data-emphasis="minimal"]': {
       vars: {
-        '--kbd-bg': vars.backgroundTertiary2,
-        '--kbd-border': 'transparent',
-        '--kbd-color': `color-mix(in srgb, ${vars.foregroundMuted} 70%, transparent)`,
+        '--_kbd-bg': tokens.palette.neutral.step5,
+        '--_kbd-border': 'transparent',
+        '--_kbd-color': `color-mix(in srgb, ${tokens.foreground.muted} 70%, transparent)`,
       },
+    },
+    '&[data-kbd]:not([data-presentation="link"])[data-size="base"], &[data-kbd]:not([data-presentation="link"])[data-size="lg"]':
+      {
+        gap: tokens.space.step2,
+        paddingRight: tokens.space.step1_5,
+      },
+    '&[data-kbd]:not([data-presentation="link"])[data-size="xs"]': {
+      gap: '6px',
+      paddingRight: '2.5px',
+    },
+    '&[data-kbd]:not([data-presentation="link"])[data-size="sm"]': {
+      gap: '6px',
+      paddingRight: tokens.space.step1,
     },
   },
 });

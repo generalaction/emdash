@@ -1,18 +1,13 @@
-import { Box } from '@react/primitives/box';
 import { Button } from '@react/primitives/button';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { cx } from '@styles/utilities/cx';
+import { cx, sx } from '@styles/index';
 import { Dialog, type DialogSize } from '.';
-import { sx } from '@styles/utilities/sprinkles.css';
-
 const meta: Meta = {
   title: 'Primitives/Dialog',
   parameters: { layout: 'centered' },
 };
 export default meta;
-
 type Story = StoryObj;
-
 export const Default: Story = {
   render: () => (
     <Dialog.Root>
@@ -35,18 +30,26 @@ export const Default: Story = {
     </Dialog.Root>
   ),
 };
-
-const SIZES: { size: DialogSize; label: string; width: string }[] = [
+const SIZES: {
+  size: DialogSize;
+  label: string;
+  width: string;
+}[] = [
   { size: 'xs', label: 'Extra small', width: '20rem (320px)' },
   { size: 'sm', label: 'Small', width: '24rem (384px)' },
   { size: 'md', label: 'Medium (default)', width: '32rem (512px)' },
   { size: 'lg', label: 'Large', width: '42rem (672px)' },
   { size: 'xl', label: 'Extra large', width: '80% width / 80vh tall' },
 ];
-
 export const Sizes: Story = {
   render: () => (
-    <Box display="flex" flexWrap="wrap" gap="3">
+    <div
+      className={sx({
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '3',
+      })}
+    >
       {SIZES.map(({ size, label, width }) => (
         <Dialog.Root key={size}>
           <Dialog.Trigger render={<Button variant="ghost">{label}</Button>} />
@@ -66,10 +69,9 @@ export const Sizes: Story = {
           </Dialog.Content>
         </Dialog.Root>
       ))}
-    </Box>
+    </div>
   ),
 };
-
 export const WithDescription: Story = {
   render: () => (
     <Dialog.Root>
@@ -78,8 +80,9 @@ export const WithDescription: Story = {
         <Dialog.Header>
           <Dialog.Title>Connect account</Dialog.Title>
           <Dialog.Description>
-            Authorize access to your <a href="#github">GitHub</a> account to enable pull-request
-            integration.
+            Authorize access to your{' '}
+            <Dialog.DescriptionLink href="#github">GitHub</Dialog.DescriptionLink> account to enable
+            pull-request integration.
           </Dialog.Description>
         </Dialog.Header>
         <Dialog.Body>
@@ -96,7 +99,6 @@ export const WithDescription: Story = {
     </Dialog.Root>
   ),
 };
-
 /** Footer `showCloseButton` appends a secondary Close button that dismisses the dialog. */
 export const FooterCloseButton: Story = {
   render: () => (
@@ -117,7 +119,6 @@ export const FooterCloseButton: Story = {
     </Dialog.Root>
   ),
 };
-
 export const Confirmation: Story = {
   render: () => (
     <Dialog.Root>
@@ -145,7 +146,6 @@ export const Confirmation: Story = {
     </Dialog.Root>
   ),
 };
-
 export const ExtraLarge: Story = {
   render: () => (
     <Dialog.Root>
@@ -172,7 +172,6 @@ export const ExtraLarge: Story = {
     </Dialog.Root>
   ),
 };
-
 /**
  * Body `height` pins the body to a fixed size regardless of content, unlike `maxHeight`
  * which only caps growth. Useful when the body hosts a measured surface (e.g. an
@@ -204,7 +203,6 @@ export const FixedHeightBody: Story = {
     </Dialog.Root>
   ),
 };
-
 export const ScrollableBody: Story = {
   render: () => (
     <Dialog.Root>
