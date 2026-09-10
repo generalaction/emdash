@@ -49,6 +49,7 @@ export type TerminalSettings = {
 export type Theme = 'emlight' | 'emdark' | null;
 
 export type InterfaceSettings = {
+  showTrayIcon: boolean;
   taskHoverAction: 'delete' | 'archive';
   autoRightSidebarBehavior: boolean;
   showLeftSidebarLineChanges: boolean;

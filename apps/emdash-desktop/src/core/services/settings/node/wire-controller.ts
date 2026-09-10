@@ -6,6 +6,7 @@ export type SettingsRuntimePort = {
   setKeyboardSettings(settings: AppSettings['keyboard']): void;
   setBrowserSettings(settings: AppSettings['browser']): void;
   setTheme(theme: AppSettings['theme']): void;
+  setTrayVisible(visible: boolean): void;
 };
 
 async function reconcileSettingsRuntimeState(
@@ -21,6 +22,9 @@ async function reconcileSettingsRuntimeState(
   }
   if (key === 'browser') {
     runtime.setBrowserSettings(await service.get('browser'));
+  }
+  if (key === 'interface') {
+    runtime.setTrayVisible((await service.get('interface')).showTrayIcon);
   }
 }
 
