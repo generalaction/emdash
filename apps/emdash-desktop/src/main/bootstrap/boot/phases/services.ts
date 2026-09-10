@@ -134,6 +134,7 @@ import { HostAttachmentRegistry } from '@main/host/host-attachment-registry';
 import { createSystemNotificationSink } from '@main/host/notifications/system-notification-sink';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { toPlaintextSecretStore } from '@main/host/secrets/plaintext-secret-store';
+import { setTrayVisible } from '@main/host/tray';
 import { installUpdateNotifications } from '@main/host/updates/update-notifications';
 import { applyNativeTheme, isAppFocused } from '@main/host/window';
 import { log } from '@main/lib/logger';
@@ -650,6 +651,7 @@ export async function bootServices(
     emitHostEvent: (event) => desktopHostEvents.emit(undefined, event),
   });
   await step('services:app-settings-init', () => appSettingsService.initialize());
+  setTrayVisible((await appSettingsService.get('interface')).showTrayIcon);
   applyNativeTheme(await appSettingsService.get('theme'));
   await step('services:automations-init', () => automationsService.initialize());
   await step('services:notifications-init', () => notificationService.initialize());

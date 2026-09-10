@@ -52,6 +52,12 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 
 ## When Editing Here
 
+The menu bar/system tray icon is controlled by the desktop app setting
+`interface.showTrayIcon` (Settings → Interface → Application icon, enabled by default).
+Create it only after settings load in the services boot phase; Wire settings updates and resets
+apply visibility immediately through `SettingsRuntimePort`. Hiding it leaves the app running;
+activation or launching the app again restores the main window.
+
 - Check `agents/conventions/main-patterns.md` for controller, service, Result type, and event patterns.
 - Check `agents/conventions/ipc.md` for the RPC controller pattern and typing rules.
 - Check `agents/risky-areas/pty.md` before touching PTY or provider spawn behavior.

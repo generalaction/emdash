@@ -1,5 +1,6 @@
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import { settingsPageContributions } from '@core/manifests/browser/settings-page-contributions';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 
 export type SettingsSearchEntry = {
   /** Stable kebab-case id; for SettingRow-backed settings it equals slugifySettingLabel(label). */
@@ -19,6 +20,11 @@ export function slugifySettingLabel(label: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+const trayIconLabel =
+  detectPlatformContext().os === 'mac'
+    ? 'Show Emdash in the menu bar'
+    : 'Show Emdash in the system tray';
 
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // General
@@ -226,6 +232,13 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
 
   // Interface
+  {
+    id: slugifySettingLabel(trayIconLabel),
+    label: trayIconLabel,
+    tab: 'interface',
+    description: 'Keep quick access to Emdash while agents run in the background.',
+    keywords: ['menu bar', 'system tray', 'task bar', 'icon', 'hide', 'disable'],
+  },
   {
     id: 'color-mode',
     label: 'Color mode',
