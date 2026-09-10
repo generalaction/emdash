@@ -443,20 +443,19 @@ export class PullRequestStore {
     );
   }
 
-  getChecksCommitSha(pullRequestUrl: string): string | null {
-    return (
-      this.handle.connection.get<{ commitSha: string }>(
-        `SELECT commit_sha AS commitSha
-        FROM pull_request_checks
-        WHERE pull_request_url = ?
-        LIMIT 1`,
+  replaceChecksForHead(
+    pullRequestUrl: string,
+    headRefOid: string,
+    checks: PullRequestCheck[]
+  ): boolean {
+    return this.handle.transaction(() => {
+      const current = this.handle.connection.get<{ headRefOid: string }>(
+        `SELECT head_ref_oid AS headRefOid
+        FROM pull_requests
+        WHERE url = ?`,
         [pullRequestUrl]
-      )?.commitSha ?? null
-    );
-  }
-
-  replaceChecks(pullRequestUrl: string, checks: PullRequestCheck[]): void {
-    this.handle.transaction(() => {
+      );
+      if (current?.headRefOid !== headRefOid) return false;
       this.handle.connection.run('DELETE FROM pull_request_checks WHERE pull_request_url = ?', [
         pullRequestUrl,
       ]);
@@ -482,13 +481,8 @@ export class PullRequestStore {
           ]
         );
       }
+      return true;
     });
-  }
-
-  clearChecks(pullRequestUrl: string): void {
-    this.handle.connection.run('DELETE FROM pull_request_checks WHERE pull_request_url = ?', [
-      pullRequestUrl,
-    ]);
   }
 
   replaceComments(pullRequestUrl: string, comments: PullRequestComment[]): void {
@@ -695,9 +689,9 @@ export class PullRequestStore {
           app_name AS appName,
           app_logo_url AS appLogoUrl
         FROM pull_request_checks
-        WHERE pull_request_url = ?
+        WHERE pull_request_url = ? AND commit_sha = ?
         ORDER BY name`,
-        [row.url]
+        [row.url, row.headRefOid]
       );
       return {
         url: row.url,

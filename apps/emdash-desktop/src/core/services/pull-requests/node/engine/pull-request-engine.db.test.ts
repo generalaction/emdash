@@ -8,7 +8,7 @@ import {
   type ScheduledRequest,
 } from '@emdash/shared/requests';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { createStubLogger } from '@emdash/shared/testing';
+import { createStubLogger, deferred } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -633,7 +633,7 @@ describe('PullRequestEngine', () => {
     expect(github.paginate).not.toHaveBeenCalled();
   });
 
-  it('keeps check IDs stable across refreshes', async () => {
+  it('uses the returned head for stable check IDs across refreshes', async () => {
     const handle = await pullRequestSqliteStore.openTemp();
     closeHandles.push(() => handle.close());
     const store = new PullRequestStore(handle);
@@ -641,37 +641,7 @@ describe('PullRequestEngine', () => {
     const pullRequestUrl = `${repositoryUrl}/pull/42`;
     store.registerRepository(repositoryUrl);
     store.savePullRequest(pullRequestFixture());
-    const graphql = vi.fn(async () => ({
-      repository: {
-        pullRequest: {
-          commits: {
-            nodes: [
-              {
-                commit: {
-                  statusCheckRollup: {
-                    contexts: {
-                      pageInfo: { hasNextPage: false, endCursor: null },
-                      nodes: [
-                        {
-                          __typename: 'CheckRun',
-                          name: 'CI',
-                          status: 'COMPLETED',
-                          conclusion: 'SUCCESS',
-                          detailsUrl: 'https://github.com/checks/1',
-                          startedAt: '2026-01-01T00:00:00.000Z',
-                          completedAt: '2026-01-01T00:01:00.000Z',
-                          checkSuite: null,
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      },
-    }));
+    const graphql = vi.fn(async () => gqlCheckRunsResponse('head'));
     const { logger } = createStubLogger();
     const states: SyncState[] = [];
     const engine = createEngine({
@@ -682,13 +652,23 @@ describe('PullRequestEngine', () => {
       onSyncState: (_repositoryUrl, state) => states.push(state),
     });
 
-    await engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal);
+    await engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'caller-head',
+      new AbortController().signal
+    );
     const firstId = store.listPullRequests({
       repositoryUrls: [repositoryUrl],
       cursor: null,
       limit: 10,
     }).prs[0]?.checks[0]?.id;
-    await engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal);
+    await engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'caller-head',
+      new AbortController().signal
+    );
     const secondId = store.listPullRequests({
       repositoryUrls: [repositoryUrl],
       cursor: null,
@@ -712,37 +692,9 @@ describe('PullRequestEngine', () => {
     const pullRequestUrl = `${repositoryUrl}/pull/42`;
     store.registerRepository(repositoryUrl);
     store.savePullRequest(pullRequestFixture());
-    const graphql = vi.fn(async () => ({
-      repository: {
-        pullRequest: {
-          commits: {
-            nodes: [
-              {
-                commit: {
-                  statusCheckRollup: {
-                    contexts: {
-                      pageInfo: { hasNextPage: false, endCursor: null },
-                      nodes: [
-                        {
-                          __typename: 'CheckRun',
-                          name: 'CI',
-                          status: 'REQUESTED',
-                          conclusion: null,
-                          detailsUrl: 'https://github.com/checks/1',
-                          startedAt: null,
-                          completedAt: null,
-                          checkSuite: null,
-                        },
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      },
-    }));
+    const graphql = vi.fn(async () =>
+      gqlCheckRunsResponse('head', { status: 'REQUESTED', conclusion: null })
+    );
     const { logger } = createStubLogger();
     const engine = createEngine({
       store,
@@ -754,6 +706,348 @@ describe('PullRequestEngine', () => {
     await expect(
       engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
     ).resolves.toEqual(ok(true));
+  });
+
+  it('invalidates cached checks when the pull request head changes', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi.fn(async () => gqlCheckRunsResponse('head', { name: 'Old CI' }));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
+    ).resolves.toEqual(ok(false));
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toHaveLength(1);
+
+    store.savePullRequest({ ...pullRequestFixture(), title: 'Refreshed feature' });
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toHaveLength(1);
+
+    store.savePullRequest({ ...pullRequestFixture(), headRefOid: 'new-head' });
+
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toEqual([]);
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
+    ).resolves.toMatchObject({ success: false, error: { type: 'checks_failed' } });
+  });
+
+  it('rejects check pages from different pull request heads', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        gqlCheckRunsResponse('head', {
+          name: 'First page',
+          hasNextPage: true,
+          endCursor: 'next',
+        })
+      )
+      .mockResolvedValueOnce(gqlCheckRunsResponse('new-head', { name: 'Second page' }));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    const result = await engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'head',
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({ success: false, error: { type: 'checks_failed' } });
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toEqual([]);
+  });
+
+  it('rejects check results without a pull request head', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi.fn(async () => ({ repository: { pullRequest: null } }));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
+    ).resolves.toMatchObject({ success: false, error: { type: 'checks_failed' } });
+  });
+
+  it('rejects check results requested for a different repository', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi.fn(async () => gqlCheckRunsResponse('head'));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    await expect(
+      engine.syncChecks(
+        'https://github.com/other/project',
+        pullRequestUrl,
+        'head',
+        new AbortController().signal
+      )
+    ).resolves.toMatchObject({ success: false, error: { type: 'checks_failed' } });
+    expect(graphql).not.toHaveBeenCalled();
+  });
+
+  it('accepts matching repository URLs with different casing', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const graphql = vi.fn(async () => gqlCheckRunsResponse('head'));
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    await expect(
+      engine.syncChecks(
+        'https://github.com/Emdash/Emdash',
+        pullRequestUrl,
+        'head',
+        new AbortController().signal
+      )
+    ).resolves.toEqual(ok(false));
+    expect(graphql).toHaveBeenCalledOnce();
+  });
+
+  it('does not let an older check sync overwrite newer results', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest({ ...pullRequestFixture(), headRefOid: 'new-head' });
+    const oldResponse = deferred<ReturnType<typeof gqlCheckRunsResponse>>();
+    const oldRequestStarted = deferred<void>();
+    let requestCount = 0;
+    const graphql = vi.fn(async () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        oldRequestStarted.resolve(undefined);
+        return await oldResponse.promise;
+      }
+      return gqlCheckRunsResponse('new-head');
+    });
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    const oldSync = engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'old-caller-head',
+      new AbortController().signal
+    );
+    await oldRequestStarted.promise;
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'new-head', new AbortController().signal)
+    ).resolves.toEqual(ok(false));
+    oldResponse.resolve(
+      gqlCheckRunsResponse('new-head', { status: 'IN_PROGRESS', conclusion: null })
+    );
+
+    await expect(oldSync).resolves.toMatchObject({
+      success: false,
+      error: { type: 'checks_failed' },
+    });
+    const pullRequest = store.listPullRequests({
+      repositoryUrls: [repositoryUrl],
+      cursor: null,
+      limit: 10,
+    }).prs[0];
+    expect(pullRequest).toMatchObject({
+      headRefOid: 'new-head',
+      checks: [{ name: 'CI', status: 'COMPLETED', commitSha: 'new-head' }],
+    });
+  });
+
+  it('keeps an older valid check sync when a newer attempt fails', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequestFixture());
+    const oldResponse = deferred<ReturnType<typeof gqlCheckRunsResponse>>();
+    const oldRequestStarted = deferred<void>();
+    const graphql = vi.fn(async () => {
+      oldRequestStarted.resolve(undefined);
+      return await oldResponse.promise;
+    });
+    let authCalls = 0;
+    const githubAuth: ContractClient<GitHubAuthContract> = {
+      resolveAuth: async () => {
+        authCalls += 1;
+        return authCalls === 1
+          ? ok({
+              token: 'test-token',
+              host: 'github.com',
+              apiBaseUrl: 'https://api.github.com',
+            })
+          : err({
+              type: 'account_unresolvable',
+              host: 'github.com',
+              message: 'The GitHub account is unavailable.',
+            });
+      },
+    };
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth,
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    const oldSync = engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'head',
+      new AbortController().signal
+    );
+    await oldRequestStarted.promise;
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head', new AbortController().signal)
+    ).resolves.toMatchObject({ success: false });
+    oldResponse.resolve(gqlCheckRunsResponse('head'));
+
+    await expect(oldSync).resolves.toEqual(ok(false));
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toHaveLength(1);
+  });
+
+  it('tracks successful check syncs separately for each pull request head', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequestUrl = `${repositoryUrl}/pull/42`;
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest({ ...pullRequestFixture(), headRefOid: 'head-a' });
+    const firstHeadResponse = deferred<ReturnType<typeof gqlCheckRunsResponse>>();
+    const firstRequestStarted = deferred<void>();
+    let graphqlCalls = 0;
+    const graphql = vi.fn(async () => {
+      graphqlCalls += 1;
+      if (graphqlCalls === 1) {
+        firstRequestStarted.resolve(undefined);
+        return await firstHeadResponse.promise;
+      }
+      return gqlCheckRunsResponse('head-b', { name: 'Head B CI' });
+    });
+    let authCalls = 0;
+    const githubAuth: ContractClient<GitHubAuthContract> = {
+      resolveAuth: async () => {
+        authCalls += 1;
+        return authCalls < 3
+          ? ok({
+              token: 'test-token',
+              host: 'github.com',
+              apiBaseUrl: 'https://api.github.com',
+            })
+          : err({
+              type: 'account_unresolvable',
+              host: 'github.com',
+              message: 'The GitHub account is unavailable.',
+            });
+      },
+    };
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth,
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+    });
+
+    const firstHeadSync = engine.syncChecks(
+      repositoryUrl,
+      pullRequestUrl,
+      'head-a',
+      new AbortController().signal
+    );
+    await firstRequestStarted.promise;
+    store.savePullRequest({ ...pullRequestFixture(), headRefOid: 'head-b' });
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head-b', new AbortController().signal)
+    ).resolves.toEqual(ok(false));
+    store.savePullRequest({ ...pullRequestFixture(), headRefOid: 'head-a' });
+    await expect(
+      engine.syncChecks(repositoryUrl, pullRequestUrl, 'head-a', new AbortController().signal)
+    ).resolves.toMatchObject({ success: false });
+    firstHeadResponse.resolve(gqlCheckRunsResponse('head-a', { name: 'Head A CI' }));
+
+    await expect(firstHeadSync).resolves.toEqual(ok(false));
+    expect(
+      store.listPullRequests({ repositoryUrls: [repositoryUrl], cursor: null, limit: 10 }).prs[0]
+        ?.checks
+    ).toEqual([expect.objectContaining({ name: 'Head A CI', commitSha: 'head-a' })]);
   });
 
   it('schedules background sync pages with retry through one account lane', async () => {
@@ -964,6 +1258,57 @@ function fakeOctokit(graphql: (...args: never[]) => Promise<unknown>): Octokit {
     rest: {},
     paginate: vi.fn(),
   } as unknown as Octokit;
+}
+
+function gqlCheckRunsResponse(
+  headRefOid: string,
+  options: {
+    name?: string;
+    status?: string;
+    conclusion?: string | null;
+    hasNextPage?: boolean;
+    endCursor?: string | null;
+  } = {}
+) {
+  const {
+    name = 'CI',
+    status = 'COMPLETED',
+    conclusion = 'SUCCESS',
+    hasNextPage = false,
+    endCursor = null,
+  } = options;
+  return {
+    repository: {
+      pullRequest: {
+        commits: {
+          nodes: [
+            {
+              commit: {
+                oid: headRefOid,
+                statusCheckRollup: {
+                  contexts: {
+                    pageInfo: { hasNextPage, endCursor },
+                    nodes: [
+                      {
+                        __typename: 'CheckRun',
+                        name,
+                        status,
+                        conclusion,
+                        detailsUrl: 'https://github.com/checks/1',
+                        startedAt: '2026-01-01T00:00:00.000Z',
+                        completedAt: status === 'COMPLETED' ? '2026-01-01T00:01:00.000Z' : null,
+                        checkSuite: null,
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
 }
 
 function fakeCommentsOctokit(options: {
