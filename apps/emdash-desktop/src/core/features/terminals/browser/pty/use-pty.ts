@@ -23,11 +23,13 @@ import {
   shouldPasteToTerminal,
 } from './pty-keybindings';
 import { getTerminalContextLink } from './terminal-context-link';
+import { isXtermCapabilityReply } from './xterm-auto-replies';
 
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
+const ATTACH_CAPABILITY_REPLY_GUARD_MS = 2_500;
 
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
@@ -458,10 +460,12 @@ export function usePty(
       });
 
       // ── Handle terminal input ──────────────────────────────────────────────
+      const attachGuardUntil = Date.now() + ATTACH_CAPABILITY_REPLY_GUARD_MS;
       const handleTerminalInput = (data: string) => {
         onActivityRef.current?.();
 
         if (!data) return;
+        if (Date.now() < attachGuardUntil && isXtermCapabilityReply(data)) return;
 
         // First-message capture
         if (!firstMessageSentRef.current && onFirstMessageRef.current) {
