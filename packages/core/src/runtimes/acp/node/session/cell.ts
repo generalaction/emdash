@@ -67,6 +67,8 @@ export class SessionCell {
   readonly machine: SessionMachine;
   readonly transcript: AcpTranscriptParser;
   readonly rawLog: RawAcpLog;
+  /** Diagnostics belong to this activation, not to transcript history or retained config. */
+  readonly mcpStartupFailures = new Map<string, string>();
   private readonly permissions = new PermissionBroker();
   private _acpSessionId: string;
   private configCatalogState: SessionConfigCatalog['kind'] = 'pending';
@@ -207,6 +209,11 @@ export class SessionCell {
 
   push(event: NormalizedEvent): void {
     if (event.kind === 'ignored') return;
+    if (event.kind === 'mcp_startup_failure') {
+      this.mcpStartupFailures.set(event.server, event.error);
+      this.deps.callbacks?.onSessionStateChanged?.();
+      return;
+    }
 
     const idleTranscriptEvent = this.isIdleAgentTranscriptEvent(event);
     if (idleTranscriptEvent) this.applyEvent({ type: 'AgentActivity', active: true });

@@ -816,12 +816,12 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const unavailableWithoutTranscript =
     store.loadError?.kind === 'unavailable' && store.messageCount === 0;
+  const showComposer = store.historyKnown || store.messageCount > 0;
   const showBlockingOverlay =
-    store.session === null &&
+    !showComposer &&
     (store.historyLoading ||
       (store.loadError !== null && store.loadError.kind !== 'unavailable') ||
       unavailableWithoutTranscript);
-  const showComposer = store.session !== null;
   const showHero = showComposer && store.isEmpty && store.loadError === null;
 
   return (
@@ -840,8 +840,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Before attach, loading/errors own the content area. Once attached, activation errors are
-          non-blocking and render beside the still-usable composer. */}
+      {/* Unknown restored history owns the content area until it can be laid out. Fresh chats
+          render their centered composer immediately, independently of provider activation. */}
       {overlaySlot &&
         showBlockingOverlay &&
         createPortal(

@@ -18,6 +18,36 @@ import type { SessionRecord } from './conversation-types';
 import { SessionsListProjector } from './sessions-list-projector';
 
 describe('ConversationHandle', () => {
+  it('projects MCP failures without persisting them into the next activation', () => {
+    const setup = makeHandle();
+    const first = setup.handle.beginMaterialization()!;
+    const record = makeRecord(setup.handle, first.epoch);
+    record.mcpServers = [{ name: 'docs', transport: 'http' }];
+    record.cell.mcpStartupFailures.set('docs', 'Connection refused');
+    record.cell.mcpStartupFailures.set('extra', 'Startup cancelled');
+    setup.handle.attachProvisional(record);
+    setup.handle.activate(record);
+    expect(peek(setup.projection.source)).toMatchObject({
+      snapshot: {
+        mcpServers: [
+          { name: 'docs', transport: 'http', startupError: 'Connection refused' },
+          { name: 'extra', startupError: 'Startup cancelled' },
+        ],
+      },
+    });
+    expect(JSON.stringify(setup.handle.intentPayload())).not.toContain('Connection refused');
+
+    const next = setup.handle.beginMaterialization()!;
+    const replacement = makeRecord(setup.handle, next.epoch);
+    replacement.mcpServers = [{ name: 'docs', transport: 'http' }];
+    setup.handle.attachProvisional(replacement);
+    setup.handle.activate(replacement);
+    setup.handle.syncRecord(record);
+    expect(peek(setup.projection.source)).toMatchObject({
+      snapshot: { mcpServers: [{ name: 'docs', transport: 'http' }] },
+    });
+  });
+
   it('invalidates provisional records from superseded materialization epochs', () => {
     const setup = makeHandle();
     const first = setup.handle.beginMaterialization();
@@ -307,6 +337,7 @@ function makeRecord(handle: ConversationHandle, epoch: number): SessionRecord {
       config: initialSessionConfigState,
       configCatalog: { kind: 'pending' },
       usage: null,
+      mcpStartupFailures: new Map(),
       transcript: { title: null, plan: null, agents: [], activeTurn: null },
     } as unknown as SessionRecord['cell'],
     mcpServers: [],
