@@ -576,6 +576,33 @@ export const WithMcpServers: Story = {
   ),
 };
 
+export const WithMcpStartupFailure: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        onSubmit={() => {}}
+        mcpServers={[
+          { name: 'openaiDeveloperDocs', transport: 'http' },
+          {
+            name: 'node_repl',
+            transport: 'stdio',
+            startupError:
+              '[codex-acp forwarded startup error] MCP server `node_repl` failed to start: MCP client for `node_repl` failed to start: MCP startup failed: No such file or directory (os error 2)',
+          },
+        ]}
+      />
+    </Box>
+  ),
+};
+
+export const AwaitingProviderControls: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer canSubmit={false} onSubmit={() => {}} />
+    </Box>
+  ),
+};
+
 function QueuedPromptsDemo() {
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);
 

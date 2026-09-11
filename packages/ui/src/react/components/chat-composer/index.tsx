@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronRight,
   CircleAlert,
+  Info,
   ListTodo,
   Paperclip,
   ShieldCheck,
@@ -14,6 +15,7 @@ import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { Popover } from '@/react/primitives/popover';
 import { Select } from '@/react/primitives/select';
+import { Tooltip } from '@/react/primitives/tooltip';
 import { ComboboxPopover } from '../combobox-popover';
 import { McpIcon } from '../mcp-icon/mcp-icon';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
@@ -165,7 +167,8 @@ export interface ComposerCollaborationModeOption {
 
 export interface ComposerMcpServer {
   name: string;
-  transport: string;
+  transport?: string;
+  startupError?: string;
 }
 
 // ── Agent option types ────────────────────────────────────────────────────────
@@ -702,6 +705,7 @@ export function ChatComposer({
   onSendQueuedPromptNow,
   className,
 }: ChatComposerProps) {
+  const mcpFailureCount = mcpServers.filter((server) => server.startupError).length;
   const editorRef = useRef<PromptEditorRef | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [editorText, setEditorText] = useState('');
@@ -1116,10 +1120,11 @@ export function ChatComposer({
               <Popover.Root>
                 <Popover.Trigger
                   className={styles.mcpTrigger}
-                  disabled={disabled}
+                  data-failed={mcpFailureCount > 0 ? '' : undefined}
+                  openOnHover
                   aria-label={`${mcpServers.length} session MCP ${
                     mcpServers.length === 1 ? 'server' : 'servers'
-                  }`}
+                  }${mcpFailureCount ? `, ${mcpFailureCount} startup ${mcpFailureCount === 1 ? 'failure' : 'failures'}` : ''}`}
                 >
                   <McpIcon size={12} />
                   {mcpServers.length}
@@ -1128,12 +1133,39 @@ export function ChatComposer({
                   align="start"
                   className={cx(styles.mcpPopoverContent, composerThemeScope)}
                   aria-label="Session MCP servers"
+                  initialFocus={false}
                 >
                   <div className={styles.mcpList}>
                     {mcpServers.map((server) => (
-                      <div key={`${server.transport}:${server.name}`} className={styles.mcpRow}>
-                        <span className={styles.mcpName}>{server.name}</span>
-                        <span className={styles.mcpBadge}>{server.transport}</span>
+                      <div
+                        key={`${server.transport}:${server.name}`}
+                        className={styles.mcpRow}
+                        data-failed={server.startupError ? '' : undefined}
+                      >
+                        <div className={styles.mcpNameGroup}>
+                          <span className={styles.mcpName}>{server.name}</span>
+                          {server.startupError && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger
+                                render={<Button variant="ghost" size="xs" icon />}
+                                aria-label={`${server.name} startup error`}
+                              >
+                                <Info className={styles.mcpInfoIcon} aria-hidden="true" />
+                              </Tooltip.Trigger>
+                              <Tooltip.Content role="tooltip" side="right" align="start">
+                                <span className={styles.mcpErrorText}>{server.startupError}</span>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                          )}
+                        </div>
+                        {server.transport && (
+                          <span
+                            className={styles.mcpBadge}
+                            data-failed={server.startupError ? '' : undefined}
+                          >
+                            {server.transport}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
