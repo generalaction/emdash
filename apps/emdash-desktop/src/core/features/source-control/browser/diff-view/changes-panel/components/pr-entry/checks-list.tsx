@@ -11,7 +11,6 @@ import {
 } from '@core/features/github/api/browser/checks';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
-import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
@@ -96,11 +95,12 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 export const PrChecksList = observer(function PrChecksList({
   projectId,
   pr,
+  checks,
 }: {
   projectId: string;
   pr: PullRequest;
+  checks: CheckRun[];
 }) {
-  const { checks } = useSyncCheckRuns(pr);
   const commentsQuery = usePullRequestComments(projectId, pr);
   const comments = commentsQuery.data ?? EMPTY_COMMENTS;
   const conversationItems = useMemo(
