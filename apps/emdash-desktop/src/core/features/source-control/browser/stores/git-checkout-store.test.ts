@@ -5,8 +5,11 @@ import type {
 } from '@emdash/core/runtimes/git/api';
 import { localBranchRefSchema, remoteBranchRefSchema } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
-import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { createScope } from '@emdash/shared/concurrency';
+import { createManualClock } from '@emdash/shared/testing';
+import { cell, expose, flushStateTurn, query, type Query } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
+import { autorun } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
@@ -230,6 +233,72 @@ describe('GitCheckoutStore', () => {
     store.dispose();
   });
 
+  it.each(['stage', 'unstage'] as const)(
+    'keeps optimistic membership throughout %s when a watcher invalidates the status read',
+    async (direction) => {
+      await wire?.dispose();
+      const scope = createScope();
+      const clock = createManualClock();
+      const fetchStarted = deferred<void>();
+      const fetched = deferred<CheckoutStatusState>();
+      const statusQuery = query({
+        initial: direction === 'stage' ? status('src/index.ts') : stagedStatus('src/index.ts'),
+        fetch: () => {
+          fetchStarted.resolve();
+          return fetched.promise;
+        },
+        scope,
+        clock,
+        debounceMs: 100,
+      });
+      wire = createSourceControlWire(statusQuery);
+      const store = new GitCheckoutStore('project-1', 'workspace-1', '/repo');
+      store.start();
+      await waitFor(() => store.hasData && store.fileChanges.length > 0);
+      const membership = () => ({
+        staged: hasPath(store.stagedFileChanges, 'src/index.ts'),
+        unstaged: hasPath(store.unstagedFileChanges, 'src/index.ts'),
+      });
+      const transitions: ReturnType<typeof membership>[] = [];
+      const stop = autorun(() => {
+        const current = membership();
+        const previous = transitions.at(-1);
+        if (current.staged !== previous?.staged || current.unstaged !== previous?.unstaged) {
+          transitions.push(current);
+        }
+      });
+      const before = { staged: direction === 'unstage', unstaged: direction === 'stage' };
+      const after = { staged: direction === 'stage', unstaged: direction === 'unstage' };
+      try {
+        const operation =
+          direction === 'stage'
+            ? store.stageFiles(['src/index.ts'])
+            : store.unstageFiles(['src/index.ts']);
+        releaseStage.resolve();
+        releaseUnstage.resolve();
+        await fetchStarted.promise;
+        expect(membership()).toEqual(after);
+        statusQuery.invalidate();
+        flushStateTurn();
+        fetched.resolve(
+          direction === 'stage' ? stagedStatus('src/index.ts') : status('src/index.ts')
+        );
+        await operation;
+        expect(membership()).toEqual(after);
+
+        // Let the watcher's debounced follow-up read complete as well.
+        await clock.advanceBy(100);
+        await statusQuery.refresh();
+        await waitFor(() => membership().staged === after.staged);
+        expect(transitions).toEqual([before, after]);
+      } finally {
+        stop();
+        store.dispose();
+        await scope.dispose();
+      }
+    }
+  );
+
   it('rolls optimistic staged membership back when the mutation fails', async () => {
     failStage = true;
     statusState.set(status('src/index.ts'));
@@ -268,7 +337,7 @@ describe('GitCheckoutStore', () => {
   });
 });
 
-function createSourceControlWire() {
+function createSourceControlWire(statusQuery?: Query<CheckoutStatusState>) {
   const repositoryProvider = expose(sourceControlContract.repository.model, {
     refs: cell({ branches: [], tags: [], remoteHeads: [] }),
     remotes: cell({ remotes: [] }),
@@ -276,7 +345,7 @@ function createSourceControlWire() {
   const checkoutProvider = expose(
     sourceControlContract.checkout.model,
     {
-      status: statusState,
+      status: statusQuery ?? statusState,
       head: headState,
     },
     {
@@ -287,9 +356,9 @@ function createSourceControlWire() {
           if (failStage) return err({ type: 'git_error', message: 'stage failed' });
           const path = context.input.paths[0];
           if (!path) return ok<void>();
-          const revision = statusState.set(stagedStatus(path), {
-            mutationIds: [context.mutationId],
-          });
+          const revision = statusQuery
+            ? statusQuery.refresh({ mutationIds: [context.mutationId] })
+            : statusState.set(stagedStatus(path), { mutationIds: [context.mutationId] });
           await context.observed('status', revision);
           return ok<void>();
         },
@@ -298,9 +367,9 @@ function createSourceControlWire() {
           await releaseUnstage.promise;
           const path = context.input.paths[0];
           if (!path) return ok<void>();
-          const revision = statusState.set(status(path), {
-            mutationIds: [context.mutationId],
-          });
+          const revision = statusQuery
+            ? statusQuery.refresh({ mutationIds: [context.mutationId] })
+            : statusState.set(status(path), { mutationIds: [context.mutationId] });
           await context.observed('status', revision);
           return ok<void>();
         },
