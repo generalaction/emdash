@@ -1,4 +1,5 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import { toast } from '@emdash/ui/react/primitives';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import {
   asProvisioned,
@@ -8,6 +9,8 @@ import { openFile } from '@core/features/workbench/api/browser/open-file';
 import { openWithOS } from '@core/features/workbench/api/browser/open-with-os';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import {
   absoluteRuntimePath,
   hostFileRefFromNativePath,
@@ -116,4 +119,77 @@ export function makeFileLinkHandlers(
       if (ref) void openWithOS(ref);
     },
   };
+}
+
+/**
+ * Session-scoped terminal link actions over the same resolution path as
+ * {@link makeFileLinkHandlers}. `rawPath` is the path spelling seen in the
+ * terminal; :line suffixes open the file at that line. Show-in-Explorer is a
+ * workspace-scoped reveal via the host contract, so it never receives an
+ * un-validated absolute path.
+ */
+export function makeTerminalLinkActions(
+  projectId: string,
+  taskId: string,
+  options: { openInBrowser?: (url: string) => void } = {}
+): {
+  openFileInEditor: (rawPath: string) => void;
+  showInFileManager: (rawPath: string) => void;
+  openInBrowser?: (url: string) => void;
+} {
+  const resolveWorkspace = () => {
+    const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+    if (!provisioned) return null;
+    return workspaceRegistry.get(provisioned.workspaceId) ?? null;
+  };
+
+  return {
+    openFileInEditor: (rawPath) => {
+      void openFileInTaskEditor(projectId, taskId, rawPath);
+    },
+    showInFileManager: (rawPath) => {
+      const workspace = resolveWorkspace();
+      if (!workspace) return;
+      if (workspace.sshConnectionId !== undefined) {
+        toast.error('Show in Explorer is only available for local workspaces');
+        return;
+      }
+      const ref = resolveTaskFileRef(workspace.path, workspace.sshConnectionId, rawPath);
+      if (!ref) {
+        log.warn('[makeTerminalLinkActions] Unresolvable file path:', rawPath);
+        return;
+      }
+      void revealTaskFile(workspace.workspaceId, workspace.path, nativePathFromHost(ref.path));
+    },
+    openInBrowser: options.openInBrowser,
+  };
+}
+
+/**
+ * Reveals a resolved task file through the workspace reveal procedure. The
+ * workspace-relative spelling keeps main-side validation intact; files outside
+ * the workspace come back as an invalid-path error and surface as a toast.
+ */
+async function revealTaskFile(
+  workspaceId: string,
+  workspacePath: string,
+  resolvedNativePath: string
+): Promise<void> {
+  try {
+    const result = await (
+      await getHostClient()
+    ).showWorkspaceItemInFolder({
+      workspaceId,
+      relativePath: relativeToWorkspace(workspacePath, resolvedNativePath),
+    });
+    if (!result.success) {
+      toast.error('Show failed', {
+        description: result.error ?? 'The item could not be shown.',
+      });
+    }
+  } catch (error) {
+    toast.error('Show failed', {
+      description: error instanceof Error ? error.message : 'The item could not be shown.',
+    });
+  }
 }

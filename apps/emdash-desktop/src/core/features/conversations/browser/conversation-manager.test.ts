@@ -16,8 +16,12 @@ const frontendDispose = vi.hoisted(() => vi.fn());
 
 vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({
-    onOpenExternal: vi.fn(),
     onOpenFile: vi.fn(),
+    onOpenExternal: vi.fn(),
+  }),
+  makeTerminalLinkActions: () => ({
+    openFileInEditor: vi.fn(),
+    showInFileManager: vi.fn(),
   }),
 }));
 

@@ -17,6 +17,10 @@ const getAppSettingValueSnapshot = vi.hoisted(() => vi.fn());
 
 vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({}),
+  makeTerminalLinkActions: () => ({
+    openFileInEditor: vi.fn(),
+    showInFileManager: vi.fn(),
+  }),
 }));
 
 vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({

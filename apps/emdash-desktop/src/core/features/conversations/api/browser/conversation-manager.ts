@@ -8,7 +8,10 @@ import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { conversationsContract } from '@core/features/conversations/api';
 // TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
-import { makeFileLinkHandlers } from '@core/features/editor/api/browser/open-file-in-file-editor';
+import {
+  makeFileLinkHandlers,
+  makeTerminalLinkActions,
+} from '@core/features/editor/api/browser/open-file-in-file-editor';
 import {
   classifyLiveRuntimeObservation,
   type LiveRuntimeObservation,
@@ -17,6 +20,7 @@ import type { ProjectHostAccess } from '@core/features/projects/api/browser/stor
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
+import { openTerminalUrl } from '@core/features/workbench/api/browser/open-terminal-url';
 import { type AgentStatus, type NotificationType } from '@core/primitives/agents/api';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import {
@@ -533,7 +537,10 @@ export class ConversationManagerStore implements Disposable {
       handlers.onOpenFile,
       handlers.onOpenExternal,
       connector,
-      () => this.hostAccess?.liveAction.kind !== 'disabled'
+      () => this.hostAccess?.liveAction.kind !== 'disabled',
+      makeTerminalLinkActions(conversation.projectId, conversation.taskId, {
+        openInBrowser: openTerminalUrl,
+      })
     );
   }
 }

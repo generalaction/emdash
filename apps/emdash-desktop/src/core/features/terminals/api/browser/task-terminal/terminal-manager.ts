@@ -3,7 +3,10 @@ import type { Disposable } from '@emdash/shared/concurrency';
 import { ReplicaLog } from '@emdash/wire/live';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { makeFileLinkHandlers } from '@core/features/editor/api/browser/open-file-in-file-editor';
+import {
+  makeFileLinkHandlers,
+  makeTerminalLinkActions,
+} from '@core/features/editor/api/browser/open-file-in-file-editor';
 import {
   classifyLiveRuntimeObservation,
   type LiveRuntimeObservation,
@@ -18,6 +21,7 @@ import {
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
+import { openTerminalUrl } from '@core/features/workbench/api/browser/open-terminal-url';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
@@ -271,7 +275,10 @@ export class TerminalManagerStore implements Disposable {
           return !state ? 0 : state.kind === 'ready' ? state.hostGeneration : undefined;
         }
       ),
-      () => this.hostAccess?.liveAction.kind !== 'disabled'
+      () => this.hostAccess?.liveAction.kind !== 'disabled',
+      makeTerminalLinkActions(terminal.projectId, terminal.taskId, {
+        openInBrowser: openTerminalUrl,
+      })
     );
   }
 

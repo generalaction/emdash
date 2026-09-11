@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
   makeFileLinkHandlers,
+  makeTerminalLinkActions,
   openFileInAdjacentPane,
   openFileInTaskEditor,
 } from './open-file-in-file-editor';
@@ -13,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   openFile: vi.fn(),
   openPath: vi.fn(),
   requestSelection: vi.fn(),
+  showWorkspaceItemInFolder: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
@@ -33,7 +36,16 @@ vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () =>
 }));
 
 vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
-  getHostClient: async () => ({ openPath: mocks.openPath }),
+  getHostClient: async () => ({
+    openPath: mocks.openPath,
+    showWorkspaceItemInFolder: mocks.showWorkspaceItemInFolder,
+  }),
+}));
+
+vi.mock('@emdash/ui/react/primitives', () => ({
+  toast: {
+    error: mocks.toastError,
+  },
 }));
 
 async function flushMicrotasks() {
@@ -224,5 +236,67 @@ describe('makeFileLinkHandlers', () => {
     await flushMicrotasks();
 
     expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+});
+
+describe('makeTerminalLinkActions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getTaskStore.mockReturnValue({ workspaceId: 'workspace-1' });
+    mocks.getWorkspace.mockReturnValue({ workspaceId: 'workspace-1', path: '/repo' });
+    mocks.showWorkspaceItemInFolder.mockResolvedValue({ success: true, data: undefined });
+  });
+
+  it('opens the editor through the task seam without a reveal precheck', async () => {
+    const actions = makeTerminalLinkActions('project-1', 'task-1');
+    actions.openFileInEditor('src/terminal-link.ts');
+    await flushMicrotasks();
+
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/repo/src/terminal-link.ts'),
+      expect.anything()
+    );
+  });
+
+  it('reveals through the workspace-relative host procedure', async () => {
+    const actions = makeTerminalLinkActions('project-1', 'task-1');
+    actions.showInFileManager('reports/summary.md');
+    await flushMicrotasks();
+
+    expect(mocks.showWorkspaceItemInFolder).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      relativePath: 'reports/summary.md',
+    });
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it('does not reveal for remote workspaces', async () => {
+    mocks.getWorkspace.mockReturnValue({
+      workspaceId: 'workspace-1',
+      path: '/home/dev/repo',
+      sshConnectionId: 'ssh-1',
+    });
+    const actions = makeTerminalLinkActions('project-1', 'task-1');
+    actions.showInFileManager('reports/summary.md');
+    await flushMicrotasks();
+
+    expect(mocks.showWorkspaceItemInFolder).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      'Show in Explorer is only available for local workspaces'
+    );
+  });
+
+  it('surfaces a visible error when the reveal procedure rejects the path', async () => {
+    mocks.showWorkspaceItemInFolder.mockResolvedValue({
+      success: false,
+      error: 'Path must be relative',
+    });
+    const actions = makeTerminalLinkActions('project-1', 'task-1');
+    actions.showInFileManager('/etc/passwd');
+    await flushMicrotasks();
+
+    expect(mocks.toastError).toHaveBeenCalledWith('Show failed', {
+      description: 'Path must be relative',
+    });
   });
 });
