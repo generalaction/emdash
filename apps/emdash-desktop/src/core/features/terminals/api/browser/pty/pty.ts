@@ -40,6 +40,29 @@ export type FrontendPtyConnector = {
   resize?(cols: number, rows: number): void;
 };
 
+/**
+ * Session-scoped actions the renderer performs for terminal file-link
+ * overlays. Resolution (strip :line, relative→absolute) happens through the
+ * workspace-aware seam in `makeFileLinkHandlers`; the overlays only hand over
+ * the raw path spelling seen in the terminal.
+ */
+export type TerminalLinkActions = {
+  /** Open a terminal path in the task editor (honors an attached :line). */
+  openFileInEditor: (rawPath: string) => void;
+  /** Reveal a resolved file in the OS file manager. Local-host only. */
+  showInFileManager: (rawPath: string) => void;
+  /** Open a URL through Emdash's browser affordance or the external-link gate. */
+  openInBrowser?: (url: string) => void;
+};
+
+export type TerminalLinkOverlayEvent =
+  | { type: 'file-link-hover'; path: string }
+  | { type: 'file-link-hover-end' }
+  | { type: 'file-link-popover'; path: string }
+  | { type: 'selection-change'; text: string };
+
+type LinkOverlayListener = (event: TerminalLinkOverlayEvent) => void;
+
 export function readXtermCssVars(): ITerminalOptions['theme'] {
   const color = (name: string) => cssColorToHex(cssVar(name));
   return {
@@ -94,15 +117,18 @@ export class FrontendPty {
   static readonly bySession = new Map<string, FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
+  readonly linkActions?: TerminalLinkActions;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private linkOverlayListeners = new Set<LinkOverlayListener>();
 
   constructor(
     readonly sessionId: string,
     theme?: SessionTheme,
     onOpenFile?: (filePath: string) => void,
     onOpenExternal?: (filePath: string) => void,
-    private readonly connector: FrontendPtyConnector = noopConnector()
+    private readonly connector: FrontendPtyConnector = noopConnector(),
+    linkActions?: TerminalLinkActions
   ) {
     this.theme = theme;
     this.ownedContainer = document.createElement('div');
@@ -147,11 +173,21 @@ export class FrontendPty {
     });
 
     this.terminal.loadAddon(webLinksAddon);
-    if (onOpenFile && onOpenExternal) {
-      this.terminal.registerLinkProvider(
-        new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
-      );
-    }
+    this.terminal.registerLinkProvider(
+      new FileLinkProvider(
+        this.terminal,
+        onOpenFile ?? noopFileOpen,
+        onOpenExternal ?? noopFileOpen,
+        undefined,
+        linkActions
+          ? (filePath) => this.emitLinkOverlay({ type: 'file-link-popover', path: filePath })
+          : undefined,
+        linkActions
+          ? (filePath) => this.emitLinkOverlay({ type: 'file-link-hover', path: filePath })
+          : undefined,
+        linkActions ? () => this.emitLinkOverlay({ type: 'file-link-hover-end' }) : undefined
+      )
+    );
 
     this.terminal.parser.registerOscHandler(52, (data) => {
       const text = decodeOsc52ClipboardData(data);
@@ -212,6 +248,28 @@ export class FrontendPty {
     this.offData?.();
     this.offData = null;
     this.offData = await this.connector.connect(this.terminal);
+  }
+
+  /** Subscribe to link-overlay events (hover/tooltip, popovers, selection). */
+  onLinkOverlay(listener: LinkOverlayListener): () => void {
+    this.linkOverlayListeners.add(listener);
+    return () => {
+      this.linkOverlayListeners.delete(listener);
+    };
+  }
+
+  emitLinkOverlay(event: TerminalLinkOverlayEvent): void {
+    for (const listener of this.linkOverlayListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        log.warn('FrontendPty: link overlay listener failed', { error });
+      }
+    }
+  }
+
+  disposeLinkOverlayListeners(): void {
+    this.linkOverlayListeners.clear();
   }
 
   sendInput(data: string): void {
@@ -285,6 +343,8 @@ function noopConnector(): FrontendPtyConnector {
     },
   };
 }
+
+function noopFileOpen(_filePath: string): void {}
 
 // ── Session lookup ────────────────────────────────────────────────────────────
 

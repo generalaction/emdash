@@ -2,6 +2,7 @@ import { makeAutoObservable, onBecomeObserved, runInAction } from 'mobx';
 import {
   FrontendPty,
   type FrontendPtyConnector,
+  type TerminalLinkActions,
 } from '@core/features/terminals/api/browser/pty/pty';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
@@ -22,7 +23,8 @@ export class PtySession {
     private readonly onOpenFile?: (filePath: string) => void,
     private readonly onOpenExternal?: (filePath: string) => void,
     private readonly connector: FrontendPtyConnector = noopConnector(),
-    private readonly canConnect: () => boolean = () => true
+    private readonly canConnect: () => boolean = () => true,
+    private readonly linkActions?: TerminalLinkActions
   ) {
     makeAutoObservable(this, {
       pty: false,
@@ -85,7 +87,8 @@ export class PtySession {
                   resize: (cols, rows) => {
                     if (this.canConnect()) this.connector.resize?.(cols, rows);
                   },
-                }
+                },
+                this.linkActions
               );
               runInAction(() => {
                 this.pty = pty;
