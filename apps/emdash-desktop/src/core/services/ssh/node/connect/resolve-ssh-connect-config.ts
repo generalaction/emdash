@@ -30,6 +30,7 @@ export type PersistedConnectInput = { kind: 'persisted'; row: SshConnectionRow }
 export type TransientConnectInput = {
   kind: 'transient';
   config: SshConfig & { password?: string; passphrase?: string };
+  previous?: SshConfig;
 };
 export type SshConnectInput = PersistedConnectInput | TransientConnectInput;
 

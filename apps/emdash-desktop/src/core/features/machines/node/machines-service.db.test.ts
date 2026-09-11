@@ -1,3 +1,4 @@
+import { secret } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -43,17 +44,33 @@ describe('MachinesService', () => {
   const deleteAllCredentials = vi.fn();
   const dropConnection = vi.fn();
   const removeRuntimeState = vi.fn();
+  const getPassword = vi.fn();
+  const getPassphrase = vi.fn();
+  const storePassword = vi.fn();
+  const storePassphrase = vi.fn();
+  const deletePassword = vi.fn();
+  const deletePassphrase = vi.fn();
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
     deleteAllCredentials.mockReset();
     dropConnection.mockReset().mockResolvedValue(undefined);
     removeRuntimeState.mockReset();
+    getPassword.mockReset().mockResolvedValue(secret('saved-password'));
+    getPassphrase.mockReset().mockResolvedValue(secret('saved-passphrase'));
+    storePassword.mockReset();
+    storePassphrase.mockReset();
+    deletePassword.mockReset();
+    deletePassphrase.mockReset();
     service = new MachinesService({
       db: fixture.db,
       credentials: {
-        storePassword: vi.fn(),
-        storePassphrase: vi.fn(),
+        getPassword,
+        getPassphrase,
+        storePassword,
+        storePassphrase,
+        deletePassword,
+        deletePassphrase,
         deleteAllCredentials,
       },
       ssh: {
@@ -66,6 +83,135 @@ describe('MachinesService', () => {
 
   afterEach(() => {
     fixture.close();
+  });
+
+  it('rejects retaining a password after changing the destination without mutating the saved machine', async () => {
+    await insertSshConnection(fixture.db);
+    await fixture.db
+      .update(sshConnections)
+      .set({ authType: 'password' })
+      .where(eq(sshConnections.id, 'ssh-1'));
+    await expect(
+      service.saveMachine({
+        id: 'ssh-1',
+        name: 'Existing SSH',
+        host: 'different.example.com',
+        port: 22,
+        username: 'jona',
+        authType: 'password',
+        password: '',
+      })
+    ).rejects.toThrow('Enter a password');
+    expect(getPassword).not.toHaveBeenCalled();
+    expect(storePassword).not.toHaveBeenCalled();
+    expect(deletePassword).not.toHaveBeenCalled();
+    expect(dropConnection).not.toHaveBeenCalled();
+    const [saved] = await fixture.db
+      .select()
+      .from(sshConnections)
+      .where(eq(sshConnections.id, 'ssh-1'));
+    expect(saved.host).toBe('example.com');
+  });
+
+  it('clears the old passphrase when switching keys', async () => {
+    await insertSshConnection(fixture.db);
+    await fixture.db
+      .update(sshConnections)
+      .set({ authType: 'key', privateKeyPath: '/keys/old' })
+      .where(eq(sshConnections.id, 'ssh-1'));
+    await service.saveMachine({
+      id: 'ssh-1',
+      name: 'Existing SSH',
+      host: 'example.com',
+      port: 22,
+      username: 'jona',
+      authType: 'key',
+      privateKeyPath: '/keys/new',
+      passphrase: '',
+    });
+    expect(getPassphrase).not.toHaveBeenCalled();
+    expect(deletePassphrase).toHaveBeenCalledWith('ssh-1');
+  });
+
+  it.each(['password', 'key'] as const)(
+    'retains compatible %s credentials without returning them',
+    async (authType) => {
+      await insertSshConnection(fixture.db);
+      await fixture.db
+        .update(sshConnections)
+        .set({ authType, privateKeyPath: '/keys/work' })
+        .where(eq(sshConnections.id, 'ssh-1'));
+      const saved = await service.saveMachine({
+        id: 'ssh-1',
+        name: 'Renamed',
+        host: 'example.com',
+        port: 22,
+        username: 'jona',
+        authType,
+        privateKeyPath: '/keys/work',
+        password: '',
+        passphrase: '',
+      });
+      const get = authType === 'password' ? getPassword : getPassphrase;
+      const store = authType === 'password' ? storePassword : storePassphrase;
+      expect(get).toHaveBeenCalledWith('ssh-1');
+      expect(store.mock.calls[0][1].expose()).toBe(
+        authType === 'password' ? 'saved-password' : 'saved-passphrase'
+      );
+      expect(saved).not.toHaveProperty('password');
+      expect(saved).not.toHaveProperty('passphrase');
+    }
+  );
+
+  it.each(['password', 'key'] as const)(
+    'stores replacement %s credentials and clears inactive secrets',
+    async (authType) => {
+      await insertSshConnection(fixture.db);
+      const saved = await service.saveMachine({
+        id: 'ssh-1',
+        name: 'Existing SSH',
+        host: 'new.example.com',
+        port: 22,
+        username: 'jona',
+        authType,
+        privateKeyPath: '/keys/new',
+        password: 'new password',
+        passphrase: 'new passphrase',
+      });
+      expect(getPassword).not.toHaveBeenCalled();
+      expect(getPassphrase).not.toHaveBeenCalled();
+      const store = authType === 'password' ? storePassword : storePassphrase;
+      expect(store.mock.calls[0][1].expose()).toBe(
+        authType === 'password' ? 'new password' : 'new passphrase'
+      );
+      expect(authType === 'password' ? deletePassphrase : deletePassword).toHaveBeenCalledWith(
+        'ssh-1'
+      );
+      expect(saved).not.toHaveProperty('password');
+      expect(saved).not.toHaveProperty('passphrase');
+    }
+  );
+
+  it('rejects a missing retained password before writing or disconnecting', async () => {
+    await insertSshConnection(fixture.db);
+    await fixture.db
+      .update(sshConnections)
+      .set({ authType: 'password' })
+      .where(eq(sshConnections.id, 'ssh-1'));
+    getPassword.mockResolvedValue(null);
+    await expect(
+      service.saveMachine({
+        id: 'ssh-1',
+        name: 'Existing SSH',
+        host: 'example.com',
+        port: 22,
+        username: 'jona',
+        authType: 'password',
+        password: '',
+      })
+    ).rejects.toThrow('Enter a password');
+    expect(storePassword).not.toHaveBeenCalled();
+    expect(dropConnection).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate machine names with a user-facing error', async () => {

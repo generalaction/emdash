@@ -21,3 +21,9 @@
   across outages, but never across destination identity edits.
 - Do not automatically restart a healthy-but-unresponsive workspace daemon to repair transport;
   sessions and other desktop clients may still depend on it.
+- Test and Save share credential-draft resolution. Blank secrets can retain stored credentials
+  only for an unchanged destination/account/authentication method (and unchanged key selection
+  for passphrases). Changing identity must not silently carry an old secret forward.
+- An edit test loads the saved identity in the main process, tests the draft on a separate
+  ephemeral connection, and never writes secrets or disconnects the saved connection.
+  Stored secrets remain wrapped until SSH connect-config assembly; never send them to the UI.

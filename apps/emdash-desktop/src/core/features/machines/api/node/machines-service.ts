@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { secret, type Secret } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import {
   createConversationRegistry,
@@ -23,13 +22,20 @@ import {
   sshConnections as sshConnectionsTable,
   type SshConnectionInsert,
 } from '@core/services/app-db/node/schema';
+import { resolveCredentialDraft } from '@core/services/ssh/node/credentials/resolve-credential-draft';
+import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import type { SaveMachineInput } from '..';
 
-type MachinesCredentials = {
-  storePassword(connectionId: string, password: Secret<string>): Promise<void>;
-  storePassphrase(connectionId: string, passphrase: Secret<string>): Promise<void>;
-  deleteAllCredentials(connectionId: string): Promise<void>;
-};
+type MachinesCredentials = Pick<
+  SshCredentialService,
+  | 'getPassword'
+  | 'getPassphrase'
+  | 'storePassword'
+  | 'storePassphrase'
+  | 'deletePassword'
+  | 'deletePassphrase'
+  | 'deleteAllCredentials'
+>;
 
 type MachinesSshRuntime = {
   dropConnection(connectionId: string): Promise<void>;
@@ -131,28 +137,13 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       );
     }
 
-    // Wrap wire-fresh credential strings into Secret at first touch; they
-    // stay wrapped through the credential service and secrets store.
-    if (config.password) {
-      await this.deps.credentials.storePassword(
-        connectionId,
-        secret(config.password, 'ssh-password')
-      );
-    }
-    if (config.passphrase) {
-      await this.deps.credentials.storePassphrase(
-        connectionId,
-        secret(config.passphrase, 'ssh-passphrase')
-      );
-    }
-
     const { password: _password, passphrase: _passphrase, ...dbConfig } = config;
 
     const existingRows =
       config.id === undefined
         ? []
         : await this.deps.db
-            .select({ metadata: sshConnectionsTable.metadata })
+            .select()
             .from(sshConnectionsTable)
             .where(eq(sshConnectionsTable.id, connectionId))
             .limit(1);
@@ -169,6 +160,23 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       metadataUpdate.proxyJump = config.proxyJump;
     }
     const metadata = mergeSshConnectionMetadata(existingMetadata, metadataUpdate);
+
+    const previous = existingRows[0] ? sshConfigFromRow(existingRows[0]) : undefined;
+    const credentials = await resolveCredentialDraft(
+      { ...config, sshConfigAlias: metadata.sshConfigAlias, proxyJump: metadata.proxyJump },
+      previous,
+      this.deps.credentials
+    );
+    if (credentials.password) {
+      await this.deps.credentials.storePassword(connectionId, credentials.password);
+    } else if (previous) {
+      await this.deps.credentials.deletePassword(connectionId);
+    }
+    if (credentials.passphrase) {
+      await this.deps.credentials.storePassphrase(connectionId, credentials.passphrase);
+    } else if (previous) {
+      await this.deps.credentials.deletePassphrase(connectionId);
+    }
 
     const insertData: SshConnectionInsert = {
       id: connectionId,

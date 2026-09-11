@@ -13,6 +13,7 @@ import {
   resolveAgentSocketFromResolved,
   type ResolvedSshConfig,
 } from '../config/resolve-ssh-config';
+import { resolveCredentialDraft } from '../credentials/resolve-credential-draft';
 import type { SshConnectDeps, SshConnectInput } from './resolve-ssh-connect-config';
 
 const { utils } = ssh2;
@@ -124,14 +125,18 @@ export async function buildAuthConfig(
   resolved: ResolvedSshConfig | undefined,
   deps: SshConnectDeps
 ): Promise<AuthResult> {
+  const draftCredentials =
+    input.kind === 'transient'
+      ? await resolveCredentialDraft(input.config, input.previous, deps)
+      : undefined;
   switch (base.authType) {
     case 'password': {
       // Boundary disclosure: stored credentials leave Secret via .expose()
-      // only here, where the ssh2 connect config is assembled. Transient
-      // credentials arrive as plain strings straight off the wire.
+      // only here, where the ssh2 connect config is assembled. Draft
+      // credentials are wrapped or retained by resolveCredentialDraft.
       const password =
         input.kind === 'transient'
-          ? input.config.password
+          ? draftCredentials?.password?.expose()
           : (await deps.getPassword(input.row.id))?.expose();
       if (!password) throw new Error(`No password found for SSH connection '${base.name}'`);
       return { config: { password } };
@@ -145,7 +150,7 @@ export async function buildAuthConfig(
       // Boundary disclosure: same contract as the password case above.
       const passphrase =
         input.kind === 'transient'
-          ? input.config.passphrase
+          ? draftCredentials?.passphrase?.expose()
           : (await deps.getPassphrase(input.row.id))?.expose();
       return { config: { privateKey, ...(passphrase ? { passphrase } : {}) } };
     }
