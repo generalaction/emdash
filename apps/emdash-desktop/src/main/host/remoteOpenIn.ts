@@ -51,6 +51,21 @@ function buildVsCodeRemoteAuthority(host: string, username: string): string {
   ).toString('hex');
 }
 
+export function buildRemoteEditorFolderUri(
+  host: string,
+  username: string,
+  targetPath: string
+): string {
+  const vscodeAuthority = buildVsCodeRemoteAuthority(host, username);
+  return `vscode-remote://ssh-remote+${vscodeAuthority}${encodeRemotePath(targetPath)}`;
+}
+
+export function buildRemoteEditorCli(scheme: Exclude<RemoteEditorScheme, 'zed'>): string {
+  if (scheme === 'vscodium') return 'codium';
+  if (scheme === 'cursor') return 'cursor';
+  return 'code';
+}
+
 export function buildRemoteEditorUrl(
   scheme: RemoteEditorScheme,
   host: string,

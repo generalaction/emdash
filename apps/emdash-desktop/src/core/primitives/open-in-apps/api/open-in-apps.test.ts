@@ -112,5 +112,6 @@ describe('OPEN_IN_APPS', () => {
       'rider {{path}}',
       'rider.sh {{path}}',
     ]);
+    expect(OPEN_IN_APPS.vscode.platforms.darwin?.openCommands?.[0]).toContain('code -n');
   });
 });

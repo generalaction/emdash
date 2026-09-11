@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRemoteEditorUrl,
+  buildRemoteEditorFolderUri,
+  buildRemoteEditorCli,
   buildRemoteSshAuthority,
   buildRemoteTerminalExecArgs,
 } from './remoteOpenIn';
@@ -40,6 +42,15 @@ describe('remoteOpenIn', () => {
     it('encodes remote path segments in editor URLs', () => {
       expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo with space/#1')).toBe(
         'zed://ssh/dev@localhost/repo%20with%20space/%231'
+      );
+    });
+  });
+
+  describe('buildRemoteEditorFolderUri', () => {
+    it('builds a vscode-remote folder uri for a new window', () => {
+      expect(buildRemoteEditorCli('vscode')).toBe('code');
+      expect(buildRemoteEditorFolderUri('localhost', 'dev', '/repo')).toBe(
+        'vscode-remote://ssh-remote+7b22686f73744e616d65223a226c6f63616c686f7374222c2275736572223a22646576227d/repo'
       );
     });
   });

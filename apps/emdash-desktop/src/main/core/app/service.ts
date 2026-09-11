@@ -23,6 +23,8 @@ import { getAppDb } from '@main/db/instance';
 import type { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import {
   buildRemoteEditorUrl,
+  buildRemoteEditorFolderUri,
+  buildRemoteEditorCli,
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/host/remoteOpenIn';
@@ -404,7 +406,26 @@ class AppService implements Disposable {
 
     const { host, username, port } = connection;
 
-    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor' || appId === 'zed') {
+    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor') {
+      const folderUri = buildRemoteEditorFolderUri(host, username, target);
+      try {
+        await execFileCommand(buildRemoteEditorCli(appId), [
+          '--new-window',
+          '--folder-uri',
+          folderUri,
+        ]);
+        return;
+      } catch (error) {
+        log.warn('open-in: remote editor CLI failed, falling back to url', {
+          appId,
+          error: String(error),
+        });
+      }
+      await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target, port));
+      return;
+    }
+
+    if (appId === 'zed') {
       await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target, port));
       return;
     }
