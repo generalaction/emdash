@@ -55,6 +55,7 @@ export function createFaultPeer() {
   const gates: Deferred<void>[] = [];
   let openGate: Deferred<void> | undefined;
   let initializeGate: Deferred<void> | undefined;
+  let healthGate: Deferred<void> | undefined;
   let disposed = false;
   let offline = false;
   let daemonId = 'daemon-1';
@@ -111,12 +112,15 @@ export function createFaultPeer() {
           server: { daemonId: connectedDaemonId, appVersion: '1.0.0', startedAt: 0 },
         });
       },
-      health: () => ({
-        status: 'ok' as const,
-        version: '1.0.0',
-        uptimeMs: 0,
-        protocolVersion: connectedProtocolVersion,
-      }),
+      health: async () => {
+        if (healthGate) await healthGate.promise;
+        return {
+          status: 'ok' as const,
+          version: '1.0.0',
+          uptimeMs: 0,
+          protocolVersion: connectedProtocolVersion,
+        };
+      },
       observation: provider,
       increment: () => ++executions,
     });
@@ -181,6 +185,15 @@ export function createFaultPeer() {
       initializeGate = gate;
       return () => {
         if (initializeGate === gate) initializeGate = undefined;
+        gate.resolve();
+      };
+    },
+    stallHealth() {
+      const gate = deferred<void>();
+      gates.push(gate);
+      healthGate = gate;
+      return () => {
+        if (healthGate === gate) healthGate = undefined;
         gate.resolve();
       };
     },
