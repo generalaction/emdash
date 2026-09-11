@@ -467,9 +467,12 @@ export class AcpChatStore {
         attachments: attachments.map(toPendingAttachment),
       });
       this._syncMessageCount();
-      const pinMode = getChatUiRuntime().pinTopMode(optimisticId);
-      this._view?.setScrollMode(pinMode);
-      this.chatState.scroll.set(pinMode);
+      const currentScroll = this.chatState.scroll.get?.() ?? { kind: 'tail' as const };
+      if (currentScroll.kind !== 'anchor') {
+        const pinMode = getChatUiRuntime().pinTopMode(optimisticId);
+        this._view?.setScrollMode(pinMode);
+        this.chatState.scroll.set(pinMode);
+      }
     }
 
     void this._submitPrompt(promptId, text, promptAttachments, hiddenContext).then((outcome) => {

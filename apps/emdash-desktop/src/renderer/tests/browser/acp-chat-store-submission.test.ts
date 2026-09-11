@@ -373,7 +373,7 @@ describe('AcpChatStore prompt submission', () => {
             state: transcriptTestState,
             history: { seed: historySeed },
           },
-          scroll: { set: vi.fn() },
+          scroll: { get: () => ({ kind: 'tail' }), set: vi.fn() },
           dispose: vi.fn(),
         }) as never,
       createChatView: vi.fn() as never,
