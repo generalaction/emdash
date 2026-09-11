@@ -308,6 +308,72 @@ describe('workspace registry deleteWorktree', () => {
     expect((await listRecords())['wt-torn']).toBeUndefined();
   });
 
+  it('deleting a worktree that was never activated still runs its teardown script once', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'unactivated');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({ scripts: { teardown: 'exit 9' } })
+    );
+    await wire.client.refresh({ workspaceId: 'wt-unactivated' });
+
+    // No activation this run: the delete verbs own the orphan-teardown settle.
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-unactivated',
+      deleteBranch: false,
+    });
+    expect(deleted).toMatchObject({ success: false, error: { type: 'remove-failed' } });
+    expect((await listRecords())['wt-unactivated']?.lastRemovalAttempt).toMatchObject({
+      stage: 'teardown',
+      class: 'transient',
+    });
+    await expect(fs.stat(worktree.path)).resolves.toBeDefined();
+
+    // The orphan teardown settles at most once: the retry proceeds past it.
+    const retried = await wire.client.deleteWorktree({
+      workspaceId: 'wt-unactivated',
+      deleteBranch: false,
+    });
+    expect(retried).toEqual({ success: true, data: undefined });
+    await expect(fs.stat(worktree.path)).rejects.toThrow();
+    expect((await listRecords())['wt-unactivated']).toBeUndefined();
+  });
+
+  it('deleting an orphaned worktree still settles its own .emdash.json teardown', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'orphan');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({ scripts: { teardown: 'exit 9' } })
+    );
+    await wire.client.refresh({ workspaceId: 'wt-orphan' });
+
+    // The parent repository record goes away while the worktree stays on disk.
+    expect((await wire.client.deleteWorkspace({ workspaceId: 'ws-repo' })).success).toBe(true);
+
+    // Removal still resolves the repository from disk, so the worktree's own config
+    // must govern its teardown even though layered resolution has no project root.
+    const deleted = await wire.client.deleteWorktree({
+      workspaceId: 'wt-orphan',
+      deleteBranch: false,
+    });
+    expect(deleted).toMatchObject({
+      success: false,
+      error: { type: 'remove-failed', stage: 'teardown', class: 'transient' },
+    });
+    await expect(fs.stat(worktree.path)).resolves.toBeDefined();
+
+    // Settled once: the retry converges.
+    const retried = await wire.client.deleteWorktree({
+      workspaceId: 'wt-orphan',
+      deleteBranch: false,
+    });
+    expect(retried).toEqual({ success: true, data: undefined });
+    await expect(fs.stat(worktree.path)).rejects.toThrow();
+  });
+
   it('deleteWorkspace records a failing teardown as a removal attempt and stays retryable', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
