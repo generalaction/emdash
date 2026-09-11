@@ -10,6 +10,28 @@ export type TmuxSessionInventoryEntry = {
   identity: string | null;
 };
 
+/**
+ * Thrown when tmux cannot be queried because the executable is unavailable
+ * (missing from PATH, unresolvable, or a shell command-not-found exit). This
+ * is distinct from a successful enumeration that finds zero sessions: unknown
+ * liveness must not be mistaken for dead sessions.
+ */
+export class TmuxUnavailableError extends Error {
+  constructor(message = 'tmux is not available', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'TmuxUnavailableError';
+  }
+}
+
+/** Reusable capability check: is this failure just a missing tmux executable? */
+export function isTmuxMissingError(error: unknown): boolean {
+  if (error instanceof TmuxUnavailableError) return true;
+  const failure = readExecFailure(error);
+  if (!failure) return false;
+  if (failure.executableMissing) return true;
+  return failure.exitCode === 127;
+}
+
 export function buildTmuxShellLine(
   sessionName: string,
   commandLine: string,
@@ -42,7 +64,12 @@ export async function listTmuxSessions(
     const result = await ctx.exec('tmux', ['list-sessions', '-F', TMUX_LIST_FORMAT]);
     return parseTmuxSessionInventory(result.stdout);
   } catch (error) {
-    if (isExpectedTmuxListFailure(error)) return [];
+    if (isNoTmuxServerFailure(error)) return [];
+    if (isTmuxMissingError(error)) {
+      throw new TmuxUnavailableError('tmux list-sessions: tmux executable is not available', {
+        cause: error,
+      });
+    }
     throw error;
   }
 }
@@ -76,10 +103,10 @@ export function parseTmuxSessionInventory(output: string): TmuxSessionInventoryE
   return sessions;
 }
 
-function isExpectedTmuxListFailure(error: unknown): boolean {
+/** A running tmux client that reports no server: successful enumeration, zero sessions. */
+function isNoTmuxServerFailure(error: unknown): boolean {
   const failure = readExecFailure(error);
   if (!failure) return false;
-  if (failure.executableMissing) return true;
   if (
     failure.exitCode === 1 &&
     /no server running|failed to connect to server|error connecting to .*\(no such file or directory\)/i.test(
@@ -88,7 +115,7 @@ function isExpectedTmuxListFailure(error: unknown): boolean {
   ) {
     return true;
   }
-  return failure.exitCode === 127;
+  return false;
 }
 
 /** Normalize the two execution-error shapes currently exposed by IExecutionContext. */
