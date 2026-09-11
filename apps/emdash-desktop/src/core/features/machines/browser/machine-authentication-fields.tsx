@@ -114,7 +114,7 @@ export function MachineAuthenticationFields({
                     label="Passphrase (optional)"
                     type="password"
                     autoComplete="off"
-                    placeholder={reuse.passphrase ? 'Leave blank to keep existing' : 'Optional'}
+                    placeholder={reuse.passphrase ? 'Leave blank to reuse if verified' : 'Optional'}
                   />
                 )}
               </form.AppField>

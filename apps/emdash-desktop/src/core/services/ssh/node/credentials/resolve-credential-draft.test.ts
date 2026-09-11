@@ -51,7 +51,7 @@ describe('resolveCredentialDraft', () => {
     );
     expect(result.password?.expose()).toBe('saved password');
     expect(result.passphrase).toBeNull();
-    expect(store.getPassword).toHaveBeenCalledWith('saved');
+    expect(store.getPassword).toHaveBeenCalledWith('saved', expect.any(String));
   });
 
   it('uses an entered password without looking up the old secret or trimming it', async () => {
@@ -85,14 +85,15 @@ describe('resolveCredentialDraft', () => {
   it('retains a passphrase only for the same key selection', async () => {
     const store = credentials();
     const key = { ...saved, authType: 'key' as const, privateKeyPath: '/keys/old' };
-    expect((await resolveCredentialDraft(key, key, store)).passphrase?.expose()).toBe(
-      'saved passphrase'
-    );
+    expect(
+      (await resolveCredentialDraft(key, key, store, 'key-fingerprint')).passphrase?.expose()
+    ).toBe('saved passphrase');
     store.getPassphrase.mockClear();
     const result = await resolveCredentialDraft(
       { ...key, privateKeyPath: '/keys/new' },
       key,
-      store
+      store,
+      'new-key-fingerprint'
     );
     expect(result.passphrase).toBeNull();
     expect(store.getPassphrase).not.toHaveBeenCalled();
@@ -102,8 +103,12 @@ describe('resolveCredentialDraft', () => {
     const store = credentials();
     const inherited = { ...saved, sshConfigAlias: 'work', authType: 'key' as const };
     const overridden = { ...inherited, privateKeyPath: '/keys/custom' };
-    expect((await resolveCredentialDraft(overridden, inherited, store)).passphrase).toBeNull();
-    expect((await resolveCredentialDraft(inherited, overridden, store)).passphrase).toBeNull();
+    expect(
+      (await resolveCredentialDraft(overridden, inherited, store, 'override')).passphrase
+    ).toBeNull();
+    expect(
+      (await resolveCredentialDraft(inherited, overridden, store, 'inherited')).passphrase
+    ).toBeNull();
     expect(store.getPassphrase).not.toHaveBeenCalled();
   });
 
@@ -112,7 +117,8 @@ describe('resolveCredentialDraft', () => {
     const result = await resolveCredentialDraft(
       { ...saved, authType: 'key', privateKeyPath: '/keys/new', passphrase: ' new phrase ' },
       saved,
-      store
+      store,
+      'new-key-fingerprint'
     );
     expect(result.passphrase?.expose()).toBe(' new phrase ');
     expect(store.getPassphrase).not.toHaveBeenCalled();
@@ -125,7 +131,7 @@ describe('resolveCredentialDraft', () => {
       saved,
       store
     );
-    expect(result).toEqual({ password: null, passphrase: null });
+    expect(result).toMatchObject({ password: null, passphrase: null });
     expect(store.getPassword).not.toHaveBeenCalled();
     expect(store.getPassphrase).not.toHaveBeenCalled();
   });

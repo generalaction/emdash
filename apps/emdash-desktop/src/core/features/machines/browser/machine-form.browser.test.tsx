@@ -691,7 +691,9 @@ it('only offers passphrase retention for the saved key and requires a password w
     privateKeyPath: '/keys/old',
   });
   const passphrase = page.getByLabelText('Passphrase (optional)', { exact: true });
-  await expect.element(passphrase).toHaveAttribute('placeholder', 'Leave blank to keep existing');
+  await expect
+    .element(passphrase)
+    .toHaveAttribute('placeholder', 'Leave blank to reuse if verified');
   await page.getByRole('textbox', { name: 'Private key', exact: true }).fill('/keys/new');
   await expect.element(passphrase).toHaveAttribute('placeholder', 'Optional');
   await selectAuthentication('Password');
@@ -700,6 +702,44 @@ it('only offers passphrase retention for the saved key and requires a password w
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect.element(password).toHaveAttribute('aria-invalid', 'true');
   expect(store.saveConnection).not.toHaveBeenCalled();
+});
+
+it('shows a legacy passphrase re-entry request and lets the user retry without losing the draft', async () => {
+  await render({
+    id: 'legacy-key',
+    name: 'Work',
+    host: 'work.internal',
+    port: 22,
+    username: 'alice',
+    authType: 'key',
+    privateKeyPath: '/keys/work',
+  });
+  store.saveConnection.mockRejectedValueOnce(
+    new Error(
+      'Re-enter your SSH key passphrase once to verify it for this key. Your saved passphrase has not been changed.'
+    )
+  );
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect
+    .element(page.getByRole('alert'))
+    .toHaveTextContent('Re-enter your SSH key passphrase');
+  await expect
+    .element(page.getByRole('textbox', { name: 'Private key', exact: true }))
+    .toHaveValue('/keys/work');
+  await expect
+    .element(page.getByRole('textbox', { name: 'Host', exact: true }))
+    .toHaveValue('work.internal');
+  await page.getByLabelText('Passphrase (optional)', { exact: true }).fill('re-entered passphrase');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => store.saveConnection.mock.calls.length).toBe(2);
+  expect(store.saveConnection).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      id: 'legacy-key',
+      privateKeyPath: '/keys/work',
+      passphrase: 're-entered passphrase',
+    })
+  );
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument();
 });
 
 it('keeps resolution failures visible and offers an explicit manual path', async () => {

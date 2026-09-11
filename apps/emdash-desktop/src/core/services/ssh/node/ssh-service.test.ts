@@ -271,7 +271,7 @@ describe('SshService.testConnection', () => {
           password: '',
         })
       ).resolves.toMatchObject({ success: true });
-      expect(getPassword).toHaveBeenCalledWith('ssh-1');
+      expect(getPassword).toHaveBeenCalledWith('ssh-1', expect.any(String));
       expect(manager.getAllConnectionStates()).toEqual({ 'ssh-1': 'connected' });
       expect(fixture.updateSets).toEqual([]);
     } finally {

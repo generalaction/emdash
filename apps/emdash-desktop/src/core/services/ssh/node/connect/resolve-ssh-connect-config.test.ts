@@ -25,6 +25,33 @@ function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
 }
 
 describe('testing edited credentials', () => {
+  it.each([{ hostname: 'replacement.example.com' }, { user: 'other' }, { port: 2222 }])(
+    'rejects a stale alias destination before retrieving a password: %j',
+    async (change) => {
+      const config = baseConfig({ sshConfigAlias: 'work' });
+      const getPassword = vi.fn(async () => secret('original password'));
+      await expect(
+        resolveSshConnectConfig(
+          { kind: 'transient', config, previous: config },
+          deps({
+            getPassword,
+            resolveSshConfig: async () => ({
+              hostname: config.host,
+              user: config.username,
+              port: config.port,
+              identityFile: [],
+              identityAgentDisabled: false,
+              identitiesOnly: false,
+              forwardAgent: false,
+              ...change,
+            }),
+          })
+        )
+      ).rejects.toThrow('SSH config changed');
+      expect(getPassword).not.toHaveBeenCalled();
+    }
+  );
+
   it('uses a stored password for an unchanged connection with a blank draft password', async () => {
     const config = baseConfig();
     const getPassword = vi.fn(async () => secret('stored-password'));
@@ -33,7 +60,7 @@ describe('testing edited credentials', () => {
       deps({ getPassword })
     );
     expect(result.config.password).toBe('stored-password');
-    expect(getPassword).toHaveBeenCalledWith(config.id);
+    expect(getPassword).toHaveBeenCalledWith(config.id, expect.any(String));
   });
 
   it('uses a stored passphrase for the same key', async () => {
@@ -499,7 +526,11 @@ describe('resolveSshConnectConfig', () => {
         {
           kind: 'transient',
           config: {
-            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            ...baseConfig({
+              sshConfigAlias: 'corp-dev',
+              authType: 'password',
+              host: 'dev.internal',
+            }),
             password: 'pw',
           },
         },
@@ -534,7 +565,7 @@ describe('resolveSshConnectConfig', () => {
         { kind: 'persisted', row: row({ authType: 'password' }) },
         deps({ getPassword: async () => null })
       )
-    ).rejects.toThrow('No password found');
+    ).rejects.toThrow('Enter a password');
 
     await expect(
       resolveSshConnectConfig(
@@ -691,7 +722,11 @@ describe('resolveSshConnectConfig', () => {
         {
           kind: 'transient',
           config: {
-            ...baseConfig({ sshConfigAlias: 'corp-dev', authType: 'password' }),
+            ...baseConfig({
+              sshConfigAlias: 'corp-dev',
+              authType: 'password',
+              host: 'dev.internal',
+            }),
             password: 'pw',
           },
         },
@@ -843,6 +878,9 @@ describe('resolveSshConnectConfig', () => {
         kind: 'persisted',
         row: row({
           authType: 'key',
+          host: 'dev.internal',
+          username: 'deploy',
+          port: 2222,
           privateKeyPath: null,
           metadata: { sshConfigAlias: 'corp-dev' },
         }),

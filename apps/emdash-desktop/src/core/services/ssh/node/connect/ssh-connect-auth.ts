@@ -13,6 +13,12 @@ import {
   resolveAgentSocketFromResolved,
   type ResolvedSshConfig,
 } from '../config/resolve-ssh-config';
+import {
+  assertPasswordDestination,
+  effectiveSshConfig,
+  expandSshKeyPath,
+  readSshPrivateKey,
+} from '../credentials/credential-identity';
 import { resolveCredentialDraft } from '../credentials/resolve-credential-draft';
 import type { SshConnectDeps, SshConnectInput } from './resolve-ssh-connect-config';
 
@@ -21,12 +27,6 @@ const { utils } = ssh2;
 export interface AuthResult {
   config: Partial<ConnectConfig>;
   agentSocketPath?: string;
-}
-
-function expandTilde(filePath: string): string {
-  if (filePath === '~') return process.env.HOME ?? filePath;
-  if (filePath.startsWith('~/')) return `${process.env.HOME ?? ''}${filePath.slice(1)}`;
-  return filePath;
 }
 
 type AgentPublicKey = ParsedKey | Buffer | string | PublicKeyEntry;
@@ -90,7 +90,7 @@ class IdentityFilteredAgent extends BaseAgent {
 }
 
 async function readIdentityKey(path: string, deps: SshConnectDeps): Promise<ParsedKey | undefined> {
-  const data = await deps.readFile(expandTilde(path), 'utf-8').catch(() => undefined);
+  const data = await deps.readFile(expandSshKeyPath(path), 'utf-8').catch(() => undefined);
   if (!data) return undefined;
   const parsed = utils.parseKey(data);
   return parsed instanceof Error ? undefined : parsed;
@@ -125,33 +125,22 @@ export async function buildAuthConfig(
   resolved: ResolvedSshConfig | undefined,
   deps: SshConnectDeps
 ): Promise<AuthResult> {
-  const draftCredentials =
-    input.kind === 'transient'
-      ? await resolveCredentialDraft(input.config, input.previous, deps)
-      : undefined;
+  const effective = effectiveSshConfig(input.kind === 'transient' ? input.config : base, resolved);
+  const previous = input.kind === 'transient' ? input.previous : base;
+  assertPasswordDestination(base, effective);
   switch (base.authType) {
     case 'password': {
-      // Boundary disclosure: stored credentials leave Secret via .expose()
-      // only here, where the ssh2 connect config is assembled. Draft
-      // credentials are wrapped or retained by resolveCredentialDraft.
-      const password =
-        input.kind === 'transient'
-          ? draftCredentials?.password?.expose()
-          : (await deps.getPassword(input.row.id))?.expose();
+      const credentials = await resolveCredentialDraft(effective, previous, deps);
+      const password = credentials.password?.expose();
       if (!password) throw new Error(`No password found for SSH connection '${base.name}'`);
       return { config: { password } };
     }
 
     case 'key': {
-      const keyPath = base.privateKeyPath?.trim() || resolved?.identityFile[0];
-      if (!keyPath)
-        throw new Error(`Private key path is required for SSH connection '${base.name}'`);
-      const privateKey = await deps.readFile(expandTilde(keyPath), 'utf-8');
+      const { privateKey, fingerprint } = await readSshPrivateKey(base, resolved, deps.readFile);
+      const credentials = await resolveCredentialDraft(effective, previous, deps, fingerprint);
       // Boundary disclosure: same contract as the password case above.
-      const passphrase =
-        input.kind === 'transient'
-          ? draftCredentials?.passphrase?.expose()
-          : (await deps.getPassphrase(input.row.id))?.expose();
+      const passphrase = credentials.passphrase?.expose();
       return { config: { privateKey, ...(passphrase ? { passphrase } : {}) } };
     }
 

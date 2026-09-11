@@ -36,8 +36,8 @@ export type SshConnectInput = PersistedConnectInput | TransientConnectInput;
 
 export interface SshConnectDeps {
   readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
-  getPassword: (connectionId: string) => Promise<Secret<string> | null>;
-  getPassphrase: (connectionId: string) => Promise<Secret<string> | null>;
+  getPassword: (connectionId: string, identity: string) => Promise<Secret<string> | null>;
+  getPassphrase: (connectionId: string, identity: string) => Promise<Secret<string> | null>;
   resolveSshConfig: (alias: string) => Promise<ResolvedSshConfig>;
   findSshConfigByHostName: (hostname: string) => Promise<ResolvedSshConfig | undefined>;
   spawnProxyCommand: (command: string, tokens: ProxyTokens) => Omit<TransportResult, 'process'>;

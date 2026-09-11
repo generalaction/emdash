@@ -5,7 +5,10 @@ type CredentialIdentity = Pick<
   'host' | 'port' | 'username' | 'sshConfigAlias' | 'authType' | 'privateKeyPath' | 'proxyJump'
 >;
 
-/** A blank credential may retain a secret only for the same connection identity. */
+/**
+ * Form-level eligibility, not proof that a secret is reusable. The main process must
+ * also verify the resolved destination and the stored credential's effective-key binding.
+ */
 export function sshCredentialReuse(next: CredentialIdentity, previous?: CredentialIdentity) {
   const sameConnection =
     !!previous &&
