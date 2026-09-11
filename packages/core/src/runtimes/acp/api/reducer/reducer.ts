@@ -394,6 +394,7 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
       return { ...s, usage: event.usage };
     case 'title':
       return { ...s, title: event.title };
+    case 'mcp_startup_failure':
     case 'ignored':
       return s;
     case 'subagent_update': {

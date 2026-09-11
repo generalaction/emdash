@@ -36,6 +36,7 @@ export type NormalizedToolLocation = {
 export type NormalizedToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export type NormalizedEvent =
+  | { kind: 'mcp_startup_failure'; server: string; error: string }
   | {
       kind: 'message';
       promptId?: string;

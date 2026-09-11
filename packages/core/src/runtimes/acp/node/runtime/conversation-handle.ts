@@ -481,11 +481,29 @@ export class ConversationHandle {
       agents: record.cell.transcript.agents,
       activeTurn: record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
-      mcpServers:
+      mcpServers: this.withMcpStartupFailures(
+        record,
         this.stateValue === 'materializing' && record.mcpServers.length === 0
           ? this.retainedValue.lastKnownMcpServers
-          : record.mcpServers,
+          : record.mcpServers
+      ),
     };
+  }
+
+  private withMcpStartupFailures(
+    record: SessionRecord,
+    servers: ActivationSnapshot['mcpServers']
+  ): ActivationSnapshot['mcpServers'] {
+    const failures = record.cell.mcpStartupFailures;
+    if (failures.size === 0) return servers;
+    const result = servers.map((server) => ({
+      ...server,
+      startupError: failures.get(server.name),
+    }));
+    for (const [name, startupError] of failures) {
+      if (!servers.some((server) => server.name === name)) result.push({ name, startupError });
+    }
+    return result;
   }
 
   private releaseProjection(): void {

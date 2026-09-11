@@ -1,8 +1,7 @@
 /**
  * Fixture-driven snapshot tests for Codex ACP transcript parsing.
  *
- * The fixture stores raw ACP output and Codex currently has no provider-specific
- * enrichment hook, so this exercises the parser's baseline decoding.
+ * The fixture stores raw ACP output; use the same enrichment as the live provider.
  */
 
 import {
@@ -14,11 +13,12 @@ import {
 } from '@emdash/core/runtimes/acp/api';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { driveParser, loadFixture } from '../../../../tooling/fixtures/acp/drive-parser';
+import { enrichCodexUpdate } from './acp-enrich';
 
 const fixture = loadFixture(new URL('./fixtures/acp-transcript.json', import.meta.url));
 
 function createParser() {
-  return driveParser(fixture);
+  return driveParser(fixture, { enrich: enrichCodexUpdate });
 }
 
 beforeAll(() => {

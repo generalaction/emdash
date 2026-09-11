@@ -6,6 +6,7 @@ import { observe, peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import {
   FakeAcpTerminalProcess,
+  FakeAcpAgent,
   makeAcpHarness,
   makeStartInput,
 } from '#runtimes/acp/node/acp-test-support';
@@ -26,6 +27,56 @@ async function launchHarness(conversationId = 'conv-1') {
 }
 
 describe('AcpRuntime session manager', () => {
+  it('publishes adapter startup diagnostics through MCP live state without starting a turn', async () => {
+    const agent = new FakeAcpAgent();
+    const h = makeAcpHarness({
+      acpBehavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: agent.behavior.connect,
+        enrich: (event) =>
+          event.kind === 'tool_call' && event.toolCallId === 'startup-diagnostic'
+            ? { kind: 'mcp_startup_failure', server: 'docs', error: 'Connection refused' }
+            : event,
+      },
+    });
+    vi.spyOn(h.deps.agentHost, 'readMcpServers').mockResolvedValueOnce(
+      ok([{ name: 'docs', command: 'docs-mcp' }])
+    );
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-mcp-diagnostic' });
+    await rt.launchSession(input);
+    await agent.capturedClient!.sessionUpdate({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'startup-diagnostic',
+        title: 'Startup',
+        status: 'failed',
+        kind: 'other',
+      },
+    });
+    const live = rt.sessionLiveModels(input.conversationId)!;
+    expect(peek(live.states.mcpServers)).toEqual([
+      { name: 'docs', transport: 'stdio', startupError: 'Connection refused' },
+    ]);
+    expect(peek(live.states.activeTurn)).toBeNull();
+    expect(peek(live.states.state)).toMatchObject({ agentTurnActive: false, isGenerating: false });
+
+    // An ordinary failed tool call is still conversational content.
+    await agent.capturedClient!.sessionUpdate({
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'ordinary-call',
+        title: 'Search docs',
+        status: 'failed',
+        kind: 'other',
+      },
+    });
+    expect(peek(live.states.activeTurn)).not.toBeNull();
+    await rt.dispose();
+  });
+
   it('attaches and exposes a suspended projection without spawning, then activates separately', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

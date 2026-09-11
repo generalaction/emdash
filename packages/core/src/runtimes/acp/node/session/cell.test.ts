@@ -25,6 +25,16 @@ function makeCell(agent = new FakeAcpAgent()) {
 }
 
 describe('SessionCell prompts', () => {
+  it('keeps MCP startup failures out of transcript and agent activity', () => {
+    const { cell } = makeCell();
+    cell.push({ kind: 'mcp_startup_failure', server: 'docs', error: 'Connection refused' });
+    expect(cell.mcpStartupFailures.get('docs')).toBe('Connection refused');
+    expect(cell.history()).toEqual({ committed: [], active: null });
+    expect(cell.sessionState.agentTurnActive).toBe(false);
+    expect(cell.sessionState.isGenerating).toBe(false);
+    expect(makeCell().cell.mcpStartupFailures.size).toBe(0);
+  });
+
   it('synthesizes a user message and settles the turn', async () => {
     const { cell, agent } = makeCell();
     agent.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });

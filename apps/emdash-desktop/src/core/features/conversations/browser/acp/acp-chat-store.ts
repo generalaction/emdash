@@ -103,6 +103,7 @@ export class AcpChatStore {
 
   session: AcpLiveSession | null = null;
   historyLoading = true;
+  historyKnown: boolean;
   loadError: AcpLoadError | null = null;
   messageCount = 0;
   draftText = '';
@@ -132,6 +133,8 @@ export class AcpChatStore {
     readonly taskId: string,
     readonly hostAccess?: ProjectHostAccess
   ) {
+    const conversation = conversationRegistry.get(taskId)?.conversations.get(conversationId)?.data;
+    this.historyKnown = conversation !== undefined && !conversation.sessionId;
     this.chatContext = getSharedChatContext();
     this._scope = createScope({ label: `acp-chat:${conversationId}` });
     this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
@@ -146,6 +149,7 @@ export class AcpChatStore {
     makeObservable(this, {
       session: observable.ref,
       historyLoading: observable,
+      historyKnown: observable,
       loadError: observable,
       messageCount: observable,
       draftText: observable,
@@ -360,7 +364,7 @@ export class AcpChatStore {
   }
 
   get isEmpty(): boolean {
-    return !this.historyLoading && this.messageCount === 0;
+    return this.historyKnown && this.messageCount === 0;
   }
 
   bootstrap(): void {
@@ -684,6 +688,7 @@ export class AcpChatStore {
         }
         this.historyLoading = false;
         this.loadError = null;
+        this.historyKnown = true;
         this._bootstrapFailed = false;
         this._syncMessageCount();
       });

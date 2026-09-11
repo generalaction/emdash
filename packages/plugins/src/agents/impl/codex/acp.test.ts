@@ -3,6 +3,7 @@ import type { Agent } from '@agentclientprotocol/sdk';
 import type { AcpClientFactory } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { pluginRegistry } from '../../registry';
+import { enrichCodexUpdate } from './acp-enrich';
 
 describe('codex acp capability', () => {
   it('declares acp: { kind: supported }', () => {
@@ -18,6 +19,11 @@ describe('codex acp behavior', () => {
 
   it('behavior.acp is defined', () => {
     expect(acpBehavior()).toBeDefined();
+  });
+
+  it('registers startup diagnostic enrichment only for Codex', () => {
+    expect(acpBehavior().enrich).toBe(enrichCodexUpdate);
+    expect(pluginRegistry.get('claude')!.behavior.acp!.enrich).not.toBe(enrichCodexUpdate);
   });
 
   describe('buildSpawn', () => {

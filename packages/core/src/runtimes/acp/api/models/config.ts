@@ -43,7 +43,8 @@ export type SessionCommand = z.infer<typeof sessionCommandSchema>;
 
 export const sessionMcpServerSchema = z.object({
   name: z.string(),
-  transport: z.enum(['stdio', 'http', 'sse']),
+  transport: z.enum(['stdio', 'http', 'sse']).optional(),
+  startupError: z.string().optional(),
 });
 export type SessionMcpServer = z.infer<typeof sessionMcpServerSchema>;
 
