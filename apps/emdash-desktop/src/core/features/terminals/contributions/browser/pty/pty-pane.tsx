@@ -1,3 +1,4 @@
+import { FileEdit, FolderOpen } from 'lucide-react';
 import React, {
   forwardRef,
   useCallback,
@@ -15,15 +16,25 @@ import {
   formatTerminalImagePaths,
   isNearDuplicatePaste,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { classifySelectionLink } from '@core/features/terminals/browser/pty/selection-link';
+import { TerminalLinkTooltip } from '@core/features/terminals/browser/pty/terminal-link-tooltip';
+import {
+  PopoverButton,
+  TerminalPopover,
+} from '@core/features/terminals/browser/pty/terminal-popover';
+import { TerminalSelectionPopover } from '@core/features/terminals/browser/pty/terminal-selection-popover';
 import {
   type PasteFromClipboardHandler,
   usePty,
 } from '@core/features/terminals/browser/pty/use-pty';
+import { useTerminalLinkOverlays } from '@core/features/terminals/browser/pty/use-terminal-link-overlays';
 import {
   PaneSizingContextProvider,
   usePaneSizingContext,
 } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
+import { openTerminalUrl } from '@core/features/workbench/api/browser/open-terminal-url';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
+import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { getDraggedWorkspaceFile } from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -52,6 +63,8 @@ type Props = {
   themeOverride?: SessionTheme['override'];
   /** Overrides only the bottom of xterm's otherwise uniform internal padding. */
   paddingBottom?: number;
+  /** Gates the Show in Explorer affordances to local hosts. */
+  isLocalWorkspace?: boolean;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -140,6 +153,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       workspaceId,
       themeOverride,
       paddingBottom,
+      isLocalWorkspace = true,
       onActivity,
       onFirstMessage,
       onEnterPress,
@@ -190,7 +204,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       [remoteConnectionId, sessionId]
     );
 
-    const { focus, sendInput } = usePty(
+    const { focus, sendInput, onMouseMove } = usePty(
       {
         sessionId,
         pty,
@@ -204,6 +218,59 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         onPasteFromClipboard: readOnly ? undefined : handleSystemPaste,
       },
       containerRef
+    );
+
+    const pointerRef = useRef({ x: 0, y: 0 });
+    const getPointer = useCallback(() => pointerRef.current, []);
+    const trackPointer = useCallback((event: { clientX: number; clientY: number }) => {
+      pointerRef.current = { x: event.clientX, y: event.clientY };
+    }, []);
+    const handlePointerMove = useCallback(
+      (event: React.MouseEvent<HTMLDivElement>) => {
+        trackPointer(event);
+        onMouseMove(event);
+      },
+      [onMouseMove, trackPointer]
+    );
+
+    const overlays = useTerminalLinkOverlays({
+      subscribe: pty.onLinkOverlay.bind(pty),
+      getPointer,
+      linkActions: pty.linkActions,
+    });
+
+    const handleCopySelection = useCallback(async (text: string) => {
+      try {
+        const result = await copyTextToClipboard(text);
+        return result.success;
+      } catch (error) {
+        log.warn('Terminal selection copy failed', { error });
+        return false;
+      }
+    }, []);
+
+    const linkActions = pty.linkActions;
+
+    const handleSelectionOpenFile = useCallback(
+      (rawPath: string) => {
+        linkActions?.openFileInEditor(rawPath);
+      },
+      [linkActions]
+    );
+
+    const handleSelectionShowInFileManager = useCallback(
+      (rawPath: string) => {
+        linkActions?.showInFileManager(rawPath);
+      },
+      [linkActions]
+    );
+
+    const selectionLinkKind = useMemo(
+      () =>
+        overlays.selectionPopover.visible
+          ? classifySelectionLink(overlays.selectionPopover.text)
+          : { kind: 'other' as const },
+      [overlays.selectionPopover.visible, overlays.selectionPopover.text]
     );
 
     useEffect(() => {
@@ -368,9 +435,58 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
           }}
           onClick={handleFocus}
           onMouseDown={handleFocus}
+          onMouseMove={handlePointerMove}
           onPasteCapture={handlePaste}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
+        />
+        <TerminalLinkTooltip
+          visible={overlays.tooltip.visible}
+          x={overlays.tooltip.x}
+          y={overlays.tooltip.y}
+          linkText={overlays.tooltip.text}
+          hint={overlays.tooltip.hint}
+        />
+        <TerminalPopover
+          visible={overlays.filePopover.visible}
+          x={overlays.filePopover.x}
+          y={overlays.filePopover.y}
+          onClose={overlays.closeFilePopover}
+        >
+          <PopoverButton
+            onClick={() => {
+              linkActions?.openFileInEditor(overlays.filePopover.path);
+              overlays.closeFilePopover();
+            }}
+          >
+            <FileEdit className="size-4 shrink-0" />
+            Open in Editor
+          </PopoverButton>
+          <PopoverButton
+            onClick={() => {
+              linkActions?.showInFileManager(overlays.filePopover.path);
+              overlays.closeFilePopover();
+            }}
+            disabled={!isLocalWorkspace}
+            title={!isLocalWorkspace ? 'Only available for local workspaces' : undefined}
+          >
+            <FolderOpen className="size-4 shrink-0" />
+            Show in Explorer{!isLocalWorkspace ? ' (local only)' : ''}
+          </PopoverButton>
+        </TerminalPopover>
+        <TerminalSelectionPopover
+          visible={overlays.selectionPopover.visible}
+          x={overlays.selectionPopover.x}
+          y={overlays.selectionPopover.y}
+          text={overlays.selectionPopover.text}
+          linkKind={selectionLinkKind}
+          isLocalWorkspace={isLocalWorkspace}
+          onCopy={handleCopySelection}
+          onOpenFile={handleSelectionOpenFile}
+          onShowInFileManager={handleSelectionShowInFileManager}
+          onOpenInBrowser={openTerminalUrl}
+          onOpenUrl={openTerminalUrl}
+          onClose={overlays.closeSelectionPopover}
         />
       </div>
     );

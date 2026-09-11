@@ -60,6 +60,7 @@ export interface UseTerminalReturn {
   focus: () => void;
   setTheme: (theme: SessionTheme) => void;
   sendInput: (data: string, options?: { track?: boolean }) => void;
+  onMouseMove: (event: React.MouseEvent) => void;
 }
 
 export type PasteFromClipboardHandler = (helpers: {
@@ -143,6 +144,12 @@ export function usePty(
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
   const contextMenuRequestIdRef = useRef<string | null>(null);
+  const contextMenuLinkRef = useRef<string | null>(null);
+  const mousePositionRef = useRef({ x: 0, y: 0 });
+
+  const onMouseMove = useCallback((event: React.MouseEvent) => {
+    mousePositionRef.current = { x: event.clientX, y: event.clientY };
+  }, []);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -488,6 +495,11 @@ export function usePty(
           lastSelectionRef.current = { text: selection, capturedAt: Date.now() };
         }
 
+        frontendPty.emitLinkOverlay({
+          type: 'selection-change',
+          text: selection ?? '',
+        });
+
         if (!autoCopyOnSelectionRef.current) return;
         if (!terminal.hasSelection()) return;
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
@@ -517,6 +529,7 @@ export function usePty(
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
+        contextMenuLinkRef.current = linkText;
         void getHostClient().then((client) =>
           client.showTerminalContextMenu({
             requestId,
@@ -543,6 +556,15 @@ export function usePty(
             if (event.action === 'paste') pasteFromClipboard();
             else if (event.action === 'select-all') terminal.selectAll();
             else if (event.action === 'clear') frontendPty.clear();
+            else if (event.action === 'open-in-pane' || event.action === 'show-in-explorer') {
+              const linkText = contextMenuLinkRef.current;
+              contextMenuLinkRef.current = null;
+              if (!linkText) return;
+              const actions = frontendPty.linkActions;
+              if (!actions) return;
+              if (event.action === 'open-in-pane') actions.openFileInEditor(linkText);
+              else actions.showInFileManager(linkText);
+            }
           },
           onGap: () => {},
         });
@@ -650,5 +672,5 @@ export function usePty(
     applyTheme(theme);
   }, [theme, applyTheme]);
 
-  return { focus, setTheme, sendInput };
+  return { focus, setTheme, sendInput, onMouseMove };
 }
