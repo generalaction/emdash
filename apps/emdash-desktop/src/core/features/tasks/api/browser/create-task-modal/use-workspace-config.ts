@@ -1,8 +1,9 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import type { DefaultWorkspacePresetSetting } from '@core/primitives/project-settings/api';
 import { buildWorkspaceConfigFromPreset } from '@core/primitives/workspaces/api';
 import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import { describeWorktreeGitPlan } from '@core/primitives/workspaces/api';
@@ -79,10 +80,14 @@ function stripRemotePrefix(name: string): string {
   return slash !== -1 ? name.slice(slash + 1) : name;
 }
 
-function defaultPresetForMode(mode: WorkspaceMode, hasPR: boolean): WorkspacePresetId {
+function defaultPresetForMode(
+  mode: WorkspaceMode,
+  hasPR: boolean,
+  projectDefault: DefaultWorkspacePresetSetting | undefined
+): WorkspacePresetId {
   switch (mode) {
     case 'existing':
-      return 'use-existing';
+      return projectDefault === 'repo-root' ? 'repo-root' : 'use-existing';
     case 'new-worktree':
       return hasPR ? 'checkout-pr' : 'new-worktree';
   }
@@ -92,18 +97,27 @@ function presetRequiresCommits(id: WorkspacePresetId): boolean {
   return id === 'new-worktree' || id === 'checkout-pr' || id === 'pr-new-branch';
 }
 
-function defaultMode(
-  worktreesDisabled: boolean,
-  initialMode: WorkspaceMode | undefined
-): WorkspaceMode {
-  if (worktreesDisabled) return 'existing';
-  return initialMode ?? 'new-worktree';
+/**
+ * The mode a fresh modal opens in. A linked PR always needs a worktree, so the
+ * project's `repo-root` preference only applies when no PR is selected.
+ */
+function defaultMode(opts: {
+  worktreesDisabled: boolean;
+  hasPR: boolean;
+  projectDefault: DefaultWorkspacePresetSetting | undefined;
+  initialMode?: WorkspaceMode;
+}): WorkspaceMode {
+  if (opts.worktreesDisabled) return 'existing';
+  if (opts.initialMode) return opts.initialMode;
+  if (!opts.hasPR && opts.projectDefault === 'repo-root') return 'existing';
+  return 'new-worktree';
 }
 
 function defaultPreset(opts: {
   mode: WorkspaceMode;
   hasPR: boolean;
   worktreesDisabled: boolean;
+  projectDefault: DefaultWorkspacePresetSetting | undefined;
   initialPresetId?: WorkspacePresetId;
 }): WorkspacePresetId {
   if (opts.worktreesDisabled) {
@@ -112,7 +126,7 @@ function defaultPreset(opts: {
     }
     return 'repo-root';
   }
-  return opts.initialPresetId ?? defaultPresetForMode(opts.mode, opts.hasPR);
+  return opts.initialPresetId ?? defaultPresetForMode(opts.mode, opts.hasPR, opts.projectDefault);
 }
 
 /** Derives the WorkspaceMode that owns a given preset. */
@@ -152,6 +166,11 @@ export function useWorkspaceConfig(opts: {
   createBranchAndWorktreeDefault?: boolean;
   resetKey?: unknown;
   initial?: WorkspaceConfigInitial;
+  /**
+   * The project's stored default preset; undefined while project settings are
+   * still loading (treated as the built-in `new-worktree` until they arrive).
+   */
+  defaultWorkspacePreset?: DefaultWorkspacePresetSetting;
 }): WorkspaceConfigState {
   const {
     projectId,
@@ -166,32 +185,56 @@ export function useWorkspaceConfig(opts: {
     createBranchAndWorktreeDefault = true,
     resetKey,
     initial,
+    defaultWorkspacePreset: projectDefault,
   } = opts;
 
   const hasPR = !!pr;
   const worktreesDisabled = isUnborn || !hasRepository;
-  const initialMode = defaultMode(worktreesDisabled, initial?.mode);
+  const initialMode = defaultMode({
+    worktreesDisabled,
+    hasPR,
+    projectDefault,
+    initialMode: initial?.mode,
+  });
   const [mode, setModeRaw] = useState<WorkspaceMode>(initialMode);
   const [presetId, setPresetIdRaw] = useState<WorkspacePresetId>(() =>
     defaultPreset({
       mode: initialMode,
       hasPR,
       worktreesDisabled,
+      projectDefault,
       initialPresetId: initial?.presetId,
     })
   );
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     initial?.selectedWorkspaceId ?? null
   );
+  // Set once the user picks a mode or preset; a late-arriving project default
+  // must not override an explicit choice.
+  const userPickedRef = useRef(false);
+
+  const applyDefaults = () => {
+    const nextMode = defaultMode({ worktreesDisabled, hasPR, projectDefault });
+    setModeRaw(nextMode);
+    setPresetIdRaw(defaultPreset({ mode: nextMode, hasPR, worktreesDisabled, projectDefault }));
+    setSelectedWorkspaceId(null);
+  };
 
   // Reset when the project changes.
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
-    const nextMode = defaultMode(worktreesDisabled, undefined);
-    setModeRaw(nextMode);
-    setPresetIdRaw(defaultPreset({ mode: nextMode, hasPR, worktreesDisabled }));
-    setSelectedWorkspaceId(null);
+    userPickedRef.current = false;
+    applyDefaults();
+  }
+
+  // Project settings usually load after the modal mounts; adopt the stored
+  // default when it arrives unless the caller pinned an initial config or the
+  // user already chose.
+  const [prevProjectDefault, setPrevProjectDefault] = useState(projectDefault);
+  if (projectDefault !== prevProjectDefault) {
+    setPrevProjectDefault(projectDefault);
+    if (!initial && !userPickedRef.current) applyDefaults();
   }
 
   const [prevWorktreesDisabled, setPrevWorktreesDisabled] = useState(worktreesDisabled);
@@ -214,20 +257,26 @@ export function useWorkspaceConfig(opts: {
         setPresetIdRaw('checkout-pr');
       }
     } else if (presetId === 'checkout-pr' || presetId === 'pr-new-branch') {
-      const nextMode = defaultMode(worktreesDisabled, undefined);
+      const nextMode = defaultMode({ worktreesDisabled, hasPR: false, projectDefault });
       setModeRaw(nextMode);
-      setPresetIdRaw(defaultPreset({ mode: nextMode, hasPR: false, worktreesDisabled }));
+      setPresetIdRaw(
+        defaultPreset({ mode: nextMode, hasPR: false, worktreesDisabled, projectDefault })
+      );
     }
   }
 
   const setMode = (next: WorkspaceMode) => {
+    userPickedRef.current = true;
     const normalizedMode = worktreesDisabled && next === 'new-worktree' ? 'existing' : next;
     setModeRaw(normalizedMode);
-    setPresetIdRaw(defaultPreset({ mode: normalizedMode, hasPR, worktreesDisabled }));
+    setPresetIdRaw(
+      defaultPreset({ mode: normalizedMode, hasPR, worktreesDisabled, projectDefault })
+    );
     if (normalizedMode !== 'existing') setSelectedWorkspaceId(null);
   };
 
   const setPresetId = (id: WorkspacePresetId) => {
+    userPickedRef.current = true;
     const normalizedId = worktreesDisabled && presetRequiresCommits(id) ? 'repo-root' : id;
     setPresetIdRaw(normalizedId);
     setModeRaw(modeForPreset(normalizedId));

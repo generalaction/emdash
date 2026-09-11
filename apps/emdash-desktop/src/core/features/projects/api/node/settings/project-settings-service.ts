@@ -26,6 +26,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import { getProjectById } from '../../../node/operations/getProjects';
 import {
   createDesktopProjectSettingsAuthority,
+  DURABLE_PLACEMENT_FIELDS,
   type DurableProjectSettingsAuthority,
 } from '../../../node/settings/durable-project-settings';
 import {
@@ -43,6 +44,7 @@ import {
   type MigrateProjectConfigResult,
   type ProjectDurableSettingsDomains,
   type ProjectHostSettingsSnapshot,
+  type ProjectPlacementStoredPatch,
   type ProjectSettingsDomainPatch,
   type ProjectSettingsError,
   type ProjectSettingsPage,
@@ -130,12 +132,11 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
         : undefined;
     if (project && !project.success) return project;
 
-    if (patch.gitIdentity || patch.placement?.stored.tmux !== undefined) {
+    const durablePlacement = durablePlacementPatch(patch);
+    if (patch.gitIdentity || durablePlacement) {
       const durable = await this.durableSettings.patch(projectId, {
         ...(patch.gitIdentity ? { gitIdentity: patch.gitIdentity } : {}),
-        ...(patch.placement && Object.hasOwn(patch.placement.stored, 'tmux')
-          ? { placement: { stored: { tmux: patch.placement.stored.tmux } } }
-          : {}),
+        ...(durablePlacement ? { placement: { stored: durablePlacement } } : {}),
       });
       if (!durable.success) return durable;
     }
@@ -369,6 +370,19 @@ function projectHostSettingsDomains(
       },
     },
   };
+}
+
+/** The placement fields the desktop DB owns; `worktreeRoot` routes to the host provider instead. */
+function durablePlacementPatch(
+  patch: ProjectSettingsDomainPatch
+): ProjectPlacementStoredPatch | undefined {
+  const stored = patch.placement?.stored;
+  if (!stored) return undefined;
+  const durable: ProjectPlacementStoredPatch = {};
+  for (const field of DURABLE_PLACEMENT_FIELDS) {
+    if (Object.hasOwn(stored, field)) durable[field] = stored[field] as never;
+  }
+  return Object.keys(durable).length > 0 ? durable : undefined;
 }
 
 function hostSettingsPatch(patch: ProjectSettingsDomainPatch): ProjectSettingsDomainPatch {

@@ -100,11 +100,13 @@ function Probe({
   isUnborn = false,
   hasRepository = true,
   pr = null,
+  defaultWorkspacePreset,
 }: {
   initial: Parameters<typeof useWorkspaceConfig>[0]['initial'];
   isUnborn?: boolean;
   hasRepository?: boolean;
   pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
+  defaultWorkspacePreset?: Parameters<typeof useWorkspaceConfig>[0]['defaultWorkspacePreset'];
 }) {
   latestState = useWorkspaceConfig({
     projectId: 'project-1',
@@ -119,6 +121,7 @@ function Probe({
     createBranchAndWorktreeDefault: true,
     resetKey: 'project-1',
     initial,
+    defaultWorkspacePreset,
   });
   return null;
 }
@@ -158,6 +161,7 @@ describe('useWorkspaceConfig branch selection', () => {
       isUnborn?: boolean;
       hasRepository?: boolean;
       pr?: Parameters<typeof useWorkspaceConfig>[0]['pr'];
+      defaultWorkspacePreset?: Parameters<typeof useWorkspaceConfig>[0]['defaultWorkspacePreset'];
     } = {}
   ) {
     await act(async () => {
@@ -349,6 +353,74 @@ describe('useWorkspaceConfig branch selection', () => {
 
     expect(latestState?.setupSteps).toEqual([]);
     expect(latestState?.isValid).toBe(false);
+  });
+
+  it('starts in the repository root when the project defaults to it', async () => {
+    await renderProbe(undefined, { defaultWorkspacePreset: 'repo-root' });
+
+    expect(latestState?.mode).toBe('existing');
+    expect(latestState?.presetId).toBe('repo-root');
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig).toEqual({
+      version: '2',
+      git: { kind: 'none' },
+      workspace: { kind: 'repository-instance', workspaceId: 'repo-workspace-1' },
+    });
+  });
+
+  it('keeps the worktree default when the project setting is new-worktree', async () => {
+    await renderProbe(undefined, { defaultWorkspacePreset: 'new-worktree' });
+
+    expect(latestState?.mode).toBe('new-worktree');
+    expect(latestState?.presetId).toBe('new-worktree');
+  });
+
+  it('still checks out a linked PR into a worktree when the project defaults to the root', async () => {
+    await renderProbe(undefined, { defaultWorkspacePreset: 'repo-root', pr: makePr() });
+
+    expect(latestState?.mode).toBe('new-worktree');
+    expect(latestState?.presetId).toBe('checkout-pr');
+  });
+
+  it('adopts a late-arriving project default unless the user already chose', async () => {
+    await renderProbe(undefined);
+    expect(latestState?.presetId).toBe('new-worktree');
+
+    await renderProbe(undefined, { defaultWorkspacePreset: 'repo-root' });
+    expect(latestState?.mode).toBe('existing');
+    expect(latestState?.presetId).toBe('repo-root');
+
+    await act(async () => latestState?.setPresetId('new-worktree'));
+    expect(latestState?.presetId).toBe('new-worktree');
+
+    // A later change to the stored default no longer overrides the explicit pick.
+    await renderProbe(undefined, { defaultWorkspacePreset: 'new-worktree' });
+    await renderProbe(undefined, { defaultWorkspacePreset: 'repo-root' });
+    expect(latestState?.presetId).toBe('new-worktree');
+  });
+
+  it('keeps a preselected workspace over the project default', async () => {
+    workspaceOptionsMock.current = [
+      {
+        key: 'project-1\0workspace-existing-1',
+        workspaceId: 'workspace-existing-1',
+        kind: 'worktree',
+        path: '/repo/workspace-existing-1',
+        branchName: 'existing-branch',
+        linesAdded: null,
+        linesDeleted: null,
+        taskName: null,
+        isLive: false,
+        linkedTaskCount: 0,
+      },
+    ];
+    await renderProbe(
+      { mode: 'existing', presetId: 'use-existing', selectedWorkspaceId: 'workspace-existing-1' },
+      { defaultWorkspacePreset: 'repo-root' }
+    );
+
+    expect(latestState?.presetId).toBe('use-existing');
+    expect(latestState?.selectedWorkspaceId).toBe('workspace-existing-1');
   });
 
   it('defaults non-git projects to the repository root workspace', async () => {

@@ -6,6 +6,7 @@ import type {
 } from '@emdash/core/runtimes/workspace-registry/api';
 import type {
   AgentGitCredentialsSetting,
+  DefaultWorkspacePresetSetting,
   PlacementContext,
   ProjectConfigMigration,
   ProjectSettingsWriteTargetOption,
@@ -70,6 +71,7 @@ export type ProjectPlacementDomainSnapshot = {
   stored: {
     worktreeRoot?: string;
     tmux?: boolean;
+    defaultWorkspacePreset?: DefaultWorkspacePresetSetting;
   };
   layers: PlacementContext;
   resolved: {
@@ -111,6 +113,7 @@ export type ProjectGitIdentityStoredPatch = {
 export type ProjectPlacementStoredPatch = {
   worktreeRoot?: string | null;
   tmux?: boolean | null;
+  defaultWorkspacePreset?: DefaultWorkspacePresetSetting | null;
 };
 
 export type ProjectSettingsDomainPatch = {
