@@ -63,7 +63,10 @@ export class FileLinkProvider implements ILinkProvider {
     private readonly terminal: Terminal,
     private readonly onOpenFile: (filePath: string) => void,
     private readonly onOpenExternal: (filePath: string) => void,
-    private readonly tracker = activationModifierTracker
+    private readonly tracker = activationModifierTracker,
+    private readonly onPopover?: (filePath: string) => void,
+    private readonly onTooltip?: (filePath: string) => void,
+    private readonly onTooltipLeave?: () => void
   ) {
     attachActivationModifierListeners();
   }
@@ -77,27 +80,35 @@ export class FileLinkProvider implements ILinkProvider {
 
   private toXtermLink(match: FileLinkMatch): ILink {
     const decorations = this.tracker.decorations();
+    const normalizedPath = normalizeFilePath(match.text);
     const link: ILink = {
       range: match.range,
       text: match.text,
       decorations,
       hover: (event) => {
         this.tracker.hover(link.decorations ?? decorations, event);
+        this.onTooltip?.(normalizedPath);
       },
       leave: () => {
         this.tracker.leave(link.decorations ?? decorations);
+        this.onTooltipLeave?.();
       },
       activate: (event, linkText) => {
         if (!isPrimaryMouseButton(event)) return;
         if (!this.tracker.isPressed(event)) return;
+        if (this.onPopover) {
+          this.onPopover(normalizedPath);
+          return;
+        }
         if (match.isExternal) {
           this.onOpenExternal(linkText);
         } else {
-          this.onOpenFile(normalizeFilePath(linkText));
+          this.onOpenFile(normalizedPath);
         }
       },
       dispose: () => {
         this.tracker.leave(link.decorations ?? decorations);
+        this.onTooltipLeave?.();
       },
     };
     return link;
@@ -143,6 +154,10 @@ export function isActivationModifierPressed(
 
 export function isPrimaryMouseButton(event: LinkActivationEvent): boolean {
   return event.button === undefined || event.button === 0;
+}
+
+export function activationModifierKeyName(isMac = isMacPlatform()): string {
+  return isMac ? '⌘' : 'Ctrl';
 }
 
 function isMacPlatform(): boolean {

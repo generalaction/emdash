@@ -1,8 +1,9 @@
 import type { ILink } from '@xterm/xterm';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ActivationModifierTracker,
   FileLinkProvider,
+  activationModifierKeyName,
   isActivationModifierPressed,
   isPrimaryMouseButton,
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
@@ -210,5 +211,60 @@ describe('file link provider', () => {
 
     expect(openedFiles).toEqual(['src/app.ts']);
     expect(openedExternal).toEqual(['/tmp/report.md']);
+  });
+
+  it('opens the popover instead of the file when a popover callback is present', () => {
+    const buffer = makeBuffer([new MockBufferLine('open ./src/app.ts and /tmp/report.md')]);
+    const popoverPaths: string[] = [];
+    const openedFiles: string[] = [];
+    const provider = new FileLinkProvider(
+      { buffer: { active: buffer } } as never,
+      (filePath) => openedFiles.push(filePath),
+      (filePath) => openedFiles.push(`external:${filePath}`),
+      new ActivationModifierTracker(true),
+      (filePath) => popoverPaths.push(filePath)
+    );
+
+    let links: ILink[] = [];
+    provider.provideLinks(1, (providedLinks) => {
+      links = providedLinks ?? [];
+    });
+
+    links[0]!.activate({ button: 0, metaKey: true, ctrlKey: false } as MouseEvent, links[0]!.text);
+
+    expect(popoverPaths).toEqual(['src/app.ts']);
+    expect(openedFiles).toEqual([]);
+  });
+
+  it('fires tooltip callbacks on hover and leave', () => {
+    const buffer = makeBuffer([new MockBufferLine('open ./src/app.ts')]);
+    const hovered: string[] = [];
+    const left = vi.fn();
+    const provider = new FileLinkProvider(
+      { buffer: { active: buffer } } as never,
+      () => {},
+      () => {},
+      new ActivationModifierTracker(true),
+      undefined,
+      (filePath) => hovered.push(filePath),
+      left
+    );
+
+    let links: ILink[] = [];
+    provider.provideLinks(1, (providedLinks) => {
+      links = providedLinks ?? [];
+    });
+
+    const link = links[0]!;
+    link.hover?.({ metaKey: false, ctrlKey: false } as MouseEvent, undefined as never);
+    link.leave?.(undefined as never, undefined as never);
+
+    expect(hovered).toEqual(['src/app.ts']);
+    expect(left).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the activation modifier per platform', () => {
+    expect(activationModifierKeyName(true)).toBe('⌘');
+    expect(activationModifierKeyName(false)).toBe('Ctrl');
   });
 });
