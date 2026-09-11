@@ -5,7 +5,8 @@
  * a unified pipeline:
  *   1. remarkParse  — tokenise / parse the string into an mdast Root
  *   2. remarkGfm    — tables, strikethrough, task-lists, autolinks
- *   3. remarkMath   — block-level and inline LaTeX / KaTeX
+ *   3. remarkMath   — block-level and inline LaTeX, `$$`-delimited only. Single-dollar
+ *      inline math is disabled so prose like "$580 … $685" keeps its text.
  *   4. remarkInlineMentions — fold `@[label](target)` links and split `@bare` /
  *      `/command` text spans into `MdastMention` nodes (reads per-call data
  *      from the VFile so the processor can be built once at module scope)
@@ -66,7 +67,7 @@ import { remarkResolveReferences } from './remark-resolve-references';
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkMath)
+  .use(remarkMath, { singleDollarTextMath: false })
   .use(remarkResolveReferences)
   .use(remarkInlineMentions)
   .freeze();
@@ -181,10 +182,10 @@ function phrasingsToRuns(
         break;
       }
 
-      // mdast extension — math inline (remark-math attaches 'inlineMath' type)
+      // mdast extension — math inline (remark-math attaches 'inlineMath' type).
+      // Rendered as inline code showing the LaTeX source; nothing is hidden.
       case 'inlineMath': {
-        const run: InlineMention = { kind: 'mention', label: '∑ math', tone: 'math' };
-        runs.push(run);
+        runs.push({ kind: 'code', text: (node as { value: string }).value } satisfies ICode);
         break;
       }
 
