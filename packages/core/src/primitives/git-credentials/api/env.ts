@@ -90,15 +90,24 @@ export function gitCredentialOperationEnv(
   channel: GitCredentialChannel,
   host: string
 ): Record<string, string> {
-  return applyGitCredentialsToEnv({}, { mode: 'effective-account', channel, hosts: [host] });
+  // This is an overlay onto the Git runtime's env, not a complete session env.
+  // Keep indexed config here so we do not replace inherited PARAMETERS. These
+  // commands launch Git directly and do not cross an editor's env filtering.
+  const env: Record<string, string> = {
+    [GIT_CREDENTIAL_PORT_ENV_VAR]: String(channel.port),
+    [GIT_CREDENTIAL_NONCE_ENV_VAR]: channel.nonce,
+    GIT_CONFIG_COUNT: '2',
+  };
+  helperConfigPairs([host]).forEach((pair, index) => {
+    env[`GIT_CONFIG_KEY_${index}`] = pair.key;
+    env[`GIT_CONFIG_VALUE_${index}`] = pair.value;
+  });
+  return env;
 }
 
-function injectEmdashHelper(
-  env: Record<string, string>,
-  spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>
-): Record<string, string> {
-  const pairs = readGitConfigPairs(env);
-  for (const host of spec.hosts) {
+function helperConfigPairs(hosts: string[]): GitConfigPair[] {
+  const pairs: GitConfigPair[] = [];
+  for (const host of hosts) {
     const key = `credential.https://${host}.helper`;
     // An empty entry resets previously-configured helpers for this host so
     // the session authenticates as exactly the effective account there;
@@ -106,11 +115,22 @@ function injectEmdashHelper(
     pairs.push({ key, value: '' });
     pairs.push({ key, value: GIT_CREDENTIAL_HELPER_COMMAND });
   }
+  return pairs;
+}
+
+function injectEmdashHelper(
+  env: Record<string, string>,
+  spec: Extract<GitCredentialsSessionSpec, { mode: 'effective-account' }>
+): Record<string, string> {
   return {
     ...withoutGitConfigEntries(env),
     [GIT_CREDENTIAL_PORT_ENV_VAR]: String(spec.channel.port),
     [GIT_CREDENTIAL_NONCE_ENV_VAR]: spec.channel.nonce,
-    ...gitConfigEnv(pairs),
+    ...gitConfigEnv(
+      readGitConfigPairs(env),
+      env.GIT_CONFIG_PARAMETERS,
+      helperConfigPairs(spec.hosts)
+    ),
   };
 }
 
@@ -118,10 +138,6 @@ function scrubCredentialHelpers(env: Record<string, string>): Record<string, str
   const pairs = readGitConfigPairs(env).filter(
     (pair) => !CREDENTIAL_HELPER_CONFIG_KEY.test(pair.key)
   );
-  // A single empty credential.helper entry resets every helper configured in
-  // system/global/local git config (the decision ticket's scrub semantics).
-  pairs.push({ key: 'credential.helper', value: '' });
-
   const scrubbed = withoutGitConfigEntries(env);
   delete scrubbed[GIT_CREDENTIAL_PORT_ENV_VAR];
   delete scrubbed[GIT_CREDENTIAL_NONCE_ENV_VAR];
@@ -131,7 +147,8 @@ function scrubCredentialHelpers(env: Record<string, string>): Record<string, str
     // env-level empty wins over core.askpass config.
     GIT_ASKPASS: '',
     SSH_ASKPASS: '',
-    ...gitConfigEnv(pairs),
+    // Reset helpers after all inherited config, including PARAMETERS.
+    ...gitConfigEnv(pairs, env.GIT_CONFIG_PARAMETERS, [{ key: 'credential.helper', value: '' }]),
   };
 }
 
@@ -157,11 +174,28 @@ function withoutGitConfigEntries(env: Record<string, string>): Record<string, st
   return next;
 }
 
-function gitConfigEnv(pairs: GitConfigPair[]): Record<string, string> {
-  const env: Record<string, string> = { GIT_CONFIG_COUNT: String(pairs.length) };
-  pairs.forEach((pair, index) => {
-    env[`GIT_CONFIG_KEY_${index}`] = pair.key;
-    env[`GIT_CONFIG_VALUE_${index}`] = pair.value;
-  });
-  return env;
+function gitConfigEnv(
+  inheritedPairs: GitConfigPair[],
+  inheritedParameters: string | undefined,
+  pairs: GitConfigPair[]
+): Record<string, string> {
+  // Use Git's -c propagation format: a logical empty value is encoded inside
+  // a non-empty variable. VS Code's extension host can drop empty env values,
+  // leaving indexed GIT_CONFIG_KEY_n entries without their required VALUE_n.
+  // Git reads indexed entries before PARAMETERS; preserve that ordering, then
+  // apply our reset/helper policy last. Keep inherited parameter quoting intact.
+  const encode = (pair: GitConfigPair) =>
+    `${quoteGitParameter(pair.key)}=${quoteGitParameter(pair.value)}`;
+  return {
+    GIT_CONFIG_PARAMETERS: [
+      ...inheritedPairs.map(encode),
+      ...(inheritedParameters ? [inheritedParameters] : []),
+      ...pairs.map(encode),
+    ].join(' '),
+  };
+}
+
+function quoteGitParameter(value: string): string {
+  // Git's sq_dequote parser accepts escaped apostrophes outside quoted spans.
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
