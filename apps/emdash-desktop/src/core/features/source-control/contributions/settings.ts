@@ -6,6 +6,7 @@ const changesViewModeSchema = z.object({
   unstaged: z.enum(['flat', 'tree']),
   staged: z.enum(['flat', 'tree']),
   pr: z.enum(['flat', 'tree']),
+  commits: z.enum(['flat', 'tree']),
 });
 
 export const changesViewModeSettingsContribution = defineSettingsContribution<
@@ -18,5 +19,6 @@ export const changesViewModeSettingsContribution = defineSettingsContribution<
     unstaged: 'flat',
     staged: 'flat',
     pr: 'flat',
+    commits: 'flat',
   },
 });
