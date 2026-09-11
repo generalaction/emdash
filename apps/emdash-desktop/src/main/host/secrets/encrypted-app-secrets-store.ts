@@ -1,7 +1,7 @@
 import { secret, type Secret } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { safeStorage } from 'electron';
-import type { AppDb } from '@core/services/app-db/node/db';
+import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appSecrets } from '@core/services/app-db/node/schema';
 import { getAppDb } from '@main/db/instance';
 
@@ -33,12 +33,32 @@ export class EncryptedAppSecretsStore {
   }
 
   async setSecret(key: string, value: Secret<string>): Promise<void> {
+    await this.setEncryptedSecret(key, this.encrypt(value));
+  }
+
+  /** Encrypt before entering the caller's synchronous SQLite transaction. */
+  prepareChanges(changes: ReadonlyMap<string, Secret<string> | null>): (tx: DrizzleTx) => void {
+    const prepared = [...changes].map(([key, value]) => ({
+      key,
+      encrypted: value ? this.encrypt(value) : null,
+    }));
+    return (tx) => {
+      for (const { key, encrypted } of prepared) {
+        if (encrypted === null) tx.delete(appSecrets).where(eq(appSecrets.key, key)).run();
+        else
+          tx.insert(appSecrets)
+            .values({ key, secret: encrypted })
+            .onConflictDoUpdate({ target: appSecrets.key, set: { secret: encrypted } })
+            .run();
+      }
+    };
+  }
+
+  private encrypt(value: Secret<string>): string {
     this.assertSecureStorageAvailable();
     // Boundary disclosure: the Electron safeStorage write is a documented
     // .expose() site — plaintext leaves the Secret only to be encrypted.
-    const encryptedSecret = this.safeStorageApi.encryptString(value.expose()).toString('base64');
-
-    await this.setEncryptedSecret(key, encryptedSecret);
+    return this.safeStorageApi.encryptString(value.expose()).toString('base64');
   }
 
   async setEncryptedSecret(key: string, encryptedSecret: string): Promise<void> {
