@@ -54,6 +54,7 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
   private controller: AbortController | undefined;
   private inFlight: Promise<Revision> | undefined;
   private queued: Promise<Revision> | undefined;
+  private settleVersion = 0;
   /** Mutation ids that have not yet reached a committed snapshot. */
   private readonly pendingAckIds = new Set<string>();
 
@@ -109,6 +110,7 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
     if (typeof update === 'function' && previous === undefined) return this.currentRevision();
     const next =
       typeof update === 'function' ? (update as (previous: T | undefined) => T)(previous) : update;
+    this.settleVersion += 1;
     this.initialized = true;
     this.dirty = false;
     // The settled value is authoritative write-through: it reflects every
@@ -142,7 +144,7 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
   private runNow(): Promise<Revision> {
     this.queued = undefined;
     this.clearDebounce();
-    const startedAtRevision = this.currentSnapshot().revision;
+    const startedAtSettleVersion = this.settleVersion;
     // Every pending id was requested before this fetch starts, so the fetched
     // value reflects those mutations and may acknowledge them.
     const captured = [...this.pendingAckIds];
@@ -155,7 +157,7 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
           this.queryOptions.fetch({ signal: controller.signal })
         );
         this.assertActive();
-        if (this.currentSnapshot().revision > startedAtRevision) {
+        if (this.settleVersion !== startedAtSettleVersion) {
           // Superseded: the fetched value is discarded, but its mutation ids
           // must still reach a committed snapshot.
           return this.publishPendingAcks(captured);

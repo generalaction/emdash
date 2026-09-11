@@ -141,10 +141,14 @@ Lifecycle and scheduling (all inherited from `ComputedLiveState`, renamed):
 The two write channels ([01-concepts.md §8](./01-concepts.md#8-two-write-channels-into-a-query)):
 
 - `invalidate()` / pokes: "truth may have changed" — refetch, maybe publish.
+  An invalidation during a read requests a follow-up read; it does not
+  supersede the in-flight result. That result publishes with the mutation
+  acknowledgements captured before the read started.
 - `settle()`: "truth changed; here is the result" — publish now, without IO.
   Ordering rules: refreshes run on the query's `lane`; `settle` is a
-  synchronous write-through that bumps the revision, and any fetch *started
-  before* the settle is discarded when it resolves (stale-fetch guard). A
+  synchronous write-through, and any fetch *started before* the settle is
+  discarded when it resolves, even if the settled value is equal to the
+  current value. Freshness-only revision changes do not trigger this guard. A
   reducer-style `settle(prev => ...)` on a cold query (no `prev`) is dropped —
   there is nothing to patch, and the next observation fetches anyway.
 
