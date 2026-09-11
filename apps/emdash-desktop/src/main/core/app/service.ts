@@ -63,10 +63,17 @@ type RemoteTerminalLaunchAttempt = {
   args: string[];
 };
 
+type TerminalContextMenuAction =
+  | 'paste'
+  | 'select-all'
+  | 'clear'
+  | 'open-in-pane'
+  | 'show-in-explorer';
+
 type TerminalContextMenuEvent = {
   type: 'terminal-context-menu-action';
   requestId: string;
-  action: 'paste' | 'select-all' | 'clear';
+  action: TerminalContextMenuAction;
 };
 
 type WorkspaceRuntimeAcquirer = ReturnType<typeof createDesktopWorkspaceRuntimeAcquirer>;
@@ -281,7 +288,7 @@ class AppService implements Disposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
+    const emitAction = (action: TerminalContextMenuAction) => {
       this.emitHostEvent({
         type: 'terminal-context-menu-action',
         requestId: args.requestId,
@@ -300,6 +307,18 @@ class AppService implements Disposable {
             {
               label: 'Copy Link',
               click: () => clipboard.writeText(linkText),
+            },
+          ]
+        : []),
+      ...(hasLink
+        ? [
+            {
+              label: 'Open in Pane',
+              click: () => emitAction('open-in-pane'),
+            },
+            {
+              label: 'Show in Explorer',
+              click: () => emitAction('show-in-explorer'),
             },
           ]
         : []),

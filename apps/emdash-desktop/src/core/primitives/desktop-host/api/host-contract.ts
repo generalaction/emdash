@@ -59,7 +59,7 @@ export type DesktopHostEvent =
   | {
       type: 'terminal-context-menu-action';
       requestId: string;
-      action: 'paste' | 'select-all' | 'clear';
+      action: 'paste' | 'select-all' | 'clear' | 'open-in-pane' | 'show-in-explorer';
     };
 
 type ActionResult = { success: boolean; error?: string };

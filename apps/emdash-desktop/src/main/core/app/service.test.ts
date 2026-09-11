@@ -339,4 +339,59 @@ describe('AppService.showTerminalContextMenu', () => {
 
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith('   ');
   });
+
+  it('includes Open in Pane and Show in Explorer only when a link sits under the cursor', () => {
+    appService.showTerminalContextMenu({
+      requestId: 'request-1',
+      selectionText: 'src/app.ts',
+      linkText: 'src/app.ts',
+      x: 10,
+      y: 20,
+    });
+
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
+    expect(template?.find((item) => item.label === 'Open in Pane')).toBeDefined();
+    expect(template?.find((item) => item.label === 'Show in Explorer')).toBeDefined();
+  });
+
+  it('omits the file-link items without a link under the cursor', () => {
+    appService.showTerminalContextMenu({
+      requestId: 'request-1',
+      selectionText: 'src/app.ts',
+      x: 10,
+      y: 20,
+    });
+
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
+    expect(template?.find((item) => item.label === 'Open in Pane')).toBeUndefined();
+    expect(template?.find((item) => item.label === 'Show in Explorer')).toBeUndefined();
+  });
+
+  it('emits open-in-pane and show-in-explorer actions for the renderer to resolve', () => {
+    appService.showTerminalContextMenu({
+      requestId: 'request-1',
+      linkText: 'src/app.ts',
+      x: 10,
+      y: 20,
+    });
+
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0];
+    template
+      ?.find((item) => item.label === 'Open in Pane')
+      ?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
+    template
+      ?.find((item) => item.label === 'Show in Explorer')
+      ?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
+
+    expect(mocks.eventEmit).toHaveBeenCalledWith({
+      type: 'terminal-context-menu-action',
+      requestId: 'request-1',
+      action: 'open-in-pane',
+    });
+    expect(mocks.eventEmit).toHaveBeenCalledWith({
+      type: 'terminal-context-menu-action',
+      requestId: 'request-1',
+      action: 'show-in-explorer',
+    });
+  });
 });
