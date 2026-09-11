@@ -67,11 +67,14 @@ describe('MachinesService', () => {
       credentials: {
         getPassword,
         getPassphrase,
-        storePassword,
-        storePassphrase,
-        deletePassword,
-        deletePassphrase,
         deleteAllCredentials,
+      },
+      readFile: async () => 'test key',
+      prepareCredentials: (id, credentials) => () => {
+        if (credentials.password) storePassword(id, credentials.password);
+        else deletePassword(id);
+        if (credentials.passphrase) storePassphrase(id, credentials.passphrase);
+        else deletePassphrase(id);
       },
       ssh: {
         dropConnection,
@@ -83,6 +86,25 @@ describe('MachinesService', () => {
 
   afterEach(() => {
     fixture.close();
+  });
+
+  it('does not write credentials when the connection row write fails', async () => {
+    await insertSshConnection(fixture.db);
+    fixture.sqlite.exec(`CREATE TRIGGER fail_connection_write BEFORE INSERT ON ssh_connections
+      BEGIN SELECT RAISE(ABORT, 'database write failed'); END`);
+    await expect(
+      service.saveMachine({
+        id: 'ssh-1',
+        name: 'Existing SSH',
+        host: 'new.example.com',
+        port: 22,
+        username: 'jona',
+        authType: 'password',
+        password: 'replacement',
+      })
+    ).rejects.toThrow('database write failed');
+    expect(storePassword).not.toHaveBeenCalled();
+    expect(deletePassphrase).not.toHaveBeenCalled();
   });
 
   it('rejects retaining a password after changing the destination without mutating the saved machine', async () => {
@@ -154,7 +176,7 @@ describe('MachinesService', () => {
       });
       const get = authType === 'password' ? getPassword : getPassphrase;
       const store = authType === 'password' ? storePassword : storePassphrase;
-      expect(get).toHaveBeenCalledWith('ssh-1');
+      expect(get).toHaveBeenCalledWith('ssh-1', expect.any(String));
       expect(store.mock.calls[0][1].expose()).toBe(
         authType === 'password' ? 'saved-password' : 'saved-passphrase'
       );
