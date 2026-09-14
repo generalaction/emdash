@@ -835,6 +835,7 @@ export async function bootServices(
       logger: log,
       runtimes,
       taskSessions: taskSessionManager,
+      sessionLaunchContexts,
       telemetry: telemetryService,
       workspaceIdentity,
       getProviderEnv: async (providerId) =>

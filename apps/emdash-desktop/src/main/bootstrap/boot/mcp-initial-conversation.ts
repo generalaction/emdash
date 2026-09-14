@@ -3,6 +3,7 @@ import type { Logger } from '@emdash/shared/logger';
 import { resolveConversationRuntimeTarget } from '@core/features/conversations/node/conversation-runtime-target';
 import { hydrateConversation } from '@core/features/conversations/node/hydrateConversation';
 import type { StartInitialConversation } from '@core/features/mcp/node/server/dependencies';
+import type { TaskSessionLaunchContextResolver } from '@core/features/tasks/api/node/task-session-launch-context';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -13,6 +14,7 @@ export type StartInitialConversationDependencies = Readonly<{
   logger: Logger;
   runtimes: RuntimeBroker;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
+  sessionLaunchContexts: Pick<TaskSessionLaunchContextResolver, 'resolve'>;
   telemetry: Pick<TelemetryService, 'capture'>;
   workspaceIdentity: WorkspaceIdentityService;
   getProviderEnv: (providerId: string) => Promise<Record<string, string> | undefined>;
@@ -62,7 +64,8 @@ async function attachAcpSession(
     conversationId,
     dependencies.workspaceIdentity,
     dependencies.db,
-    dependencies.getProviderEnv
+    dependencies.getProviderEnv,
+    dependencies.sessionLaunchContexts
   );
   if (!target.acpInput) {
     return { started: false, message: 'the conversation has no resolvable ACP session' };
