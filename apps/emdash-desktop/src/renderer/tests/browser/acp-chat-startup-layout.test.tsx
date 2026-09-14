@@ -4,6 +4,9 @@ import type {
   SessionConfigState,
   SessionMcpServer,
   SessionState,
+  SessionUsage,
+  PlanState,
+  TerminalState,
   TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api/client';
 import { ok } from '@emdash/shared';
@@ -328,3 +331,153 @@ it.each([
     css.remove();
   }
 });
+
+it.each([
+  'history',
+  'config',
+  'usage',
+  'plan',
+  'terminals',
+  'mcpServers',
+  'activeTurn',
+  'mcp-acquisition',
+  'mcp-failure',
+] as const)(
+  'shows the initial live turn while %s is still loading, without requiring another chunk',
+  async (delayed) => {
+    fixture.restored = true;
+    installChatUiRuntime(chatUi);
+    const context = chatUi.createChatContext();
+    fixture.context = context;
+    const current: TranscriptTurn = {
+      id: 'current',
+      seq: 0,
+      initiator: 'user',
+      items: [
+        { kind: 'message', id: 'current-user', seq: 0, role: 'user', text: 'My current request' },
+        {
+          kind: 'message',
+          id: 'current-answer',
+          seq: 1,
+          role: 'assistant',
+          text: 'Work currently in progress',
+        },
+      ],
+    };
+    const position = {
+      generation: 'current-generation',
+      historyRevision: 0,
+      lastCommittedTurnSeq: null,
+    };
+    const state = cell<SessionState>({
+      lifecycle: 'working',
+      activeTurnId: 'control-turn',
+      pendingPermissions: [],
+      lastStopReason: null,
+      lastTurnErrored: false,
+      queuedPrompts: [],
+      agentTurnActive: false,
+      backgroundAgentCount: 0,
+      isGenerating: true,
+      canSubmit: true,
+      canCancel: true,
+      transcript: { ...position, activeTurn: current },
+    });
+    const configValue: SessionConfigState = {
+      modelOptions: null,
+      efforts: null,
+      modeOptions: null,
+      availableCommands: [],
+    };
+    const states = {
+      config: cell<SessionConfigState | undefined>(configValue),
+      usage: cell<SessionUsage | null | undefined>(null),
+      plan: cell<PlanState | null | undefined>(null),
+      terminals: cell<TerminalState[] | undefined>([]),
+      mcpServers: cell<SessionMcpServer[] | undefined>([]),
+      activeTurn: cell<TranscriptTurn | null | undefined>(current),
+    };
+    if (delayed !== 'history' && delayed !== 'mcp-acquisition' && delayed !== 'mcp-failure')
+      states[delayed].set(undefined);
+    const contract = defineContract({
+      acp: defineContract({
+        attach: conversationsContract.acp.attach,
+        session: conversationsContract.acp.session,
+        loadHistory: conversationsContract.acp.loadHistory,
+      }),
+    });
+    const gate = deferred<void>();
+    const session = expose(contract.acp.session, {
+      ...states,
+      state,
+      agents: cell([]),
+      mcpServers:
+        delayed === 'mcp-acquisition' || delayed === 'mcp-failure'
+          ? async () => {
+              await gate.promise;
+              if (delayed === 'mcp-failure') throw new Error('MCP metadata unavailable');
+              return states.mcpServers;
+            }
+          : states.mcpServers,
+    });
+    const loadHistory = vi.fn(async () => {
+      if (delayed === 'history') await gate.promise;
+      return ok({
+        turns: [],
+        nextCursor: null,
+        position,
+        coverage: { fromSeq: null, beforeSeq: null },
+      });
+    });
+    const hub = createWireSessionHub(
+      createController(
+        contract,
+        {
+          acp: { attach: async () => ok(undefined), session, loadHistory },
+        },
+        { validate: 'full' }
+      )
+    );
+    const pair = memoryTransportPair();
+    hub.open('live-readiness', pair.right);
+    const connection = connect(pair.left);
+    fixture.client = client(contract, connection);
+    const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+    fixture.store = store;
+    const parent = document.createElement('div');
+    parent.style.cssText = 'width:1000px;height:700px;position:relative';
+    document.body.append(parent);
+    const root = createRoot(parent);
+    try {
+      await act(async () => root.render(<AcpChatPanel />));
+      store.bootstrap();
+      await vi.waitFor(() => expect(store.messageCount).toBe(2));
+      await vi.waitFor(() => expect(parent.textContent).toContain('Work currently in progress'));
+      await vi.waitFor(() => expect(parent.textContent).not.toContain('Loading chat...'));
+      expect(store.session?.usable).toBe(true);
+      expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull();
+      if (delayed === 'history') expect(store.historyLoading).toBe(true);
+
+      gate.resolve();
+      states.config.set(configValue);
+      states.usage.set(null);
+      states.plan.set(null);
+      states.terminals.set([]);
+      states.mcpServers.set([]);
+      states.activeTurn.set(current);
+      flushStateTurn();
+      await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+      expect(store.loadError).toBeNull();
+      expect(store.messageCount).toBe(2);
+    } finally {
+      gate.resolve();
+      await act(async () => root.unmount());
+      store.dispose();
+      connection.dispose();
+      await hub.dispose();
+      await session.dispose();
+      context.dispose();
+      parent.remove();
+    }
+  }
+);

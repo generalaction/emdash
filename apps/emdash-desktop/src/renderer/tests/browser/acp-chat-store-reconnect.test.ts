@@ -249,7 +249,9 @@ it.each([
         historyGate.resolve();
         await vi.waitFor(() => expect(loadHistory).toHaveResolvedTimes(2));
         expect(store.chatState.transcript.state.activeTurnSnapshot?.id).toBe('next-turn');
-        expect(store.chatState.transcript.state.committedTurns).toEqual([]);
+        await vi.waitFor(() =>
+          expect(store.chatState.transcript.state.committedTurns).toEqual([completed])
+        );
         history = { turns: [completed, nextTurn], nextCursor: null };
         activeTurn.set(null);
         flushStateTurn();

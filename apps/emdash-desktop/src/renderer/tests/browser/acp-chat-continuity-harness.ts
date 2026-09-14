@@ -60,6 +60,13 @@ export function createContinuityHarness(
   installChatUiRuntime(chatUi);
   const context = chatUi.createChatContext();
   fixture.context = context;
+  const transcriptGeneration = crypto.randomUUID();
+  let historyRevision = 0;
+  const position = () => ({
+    generation: transcriptGeneration,
+    historyRevision,
+    lastCommittedTurnSeq: history.turns.at(-1)?.seq ?? null,
+  });
   const state = cell<SessionState>(idleSession);
   const activeTurn = cell<TranscriptTurn | null>(null);
   const contract = defineContract({
@@ -81,8 +88,24 @@ export function createContinuityHarness(
     mcpServers: cell([]),
   });
   let history: HistoryPage = { turns: [...initialHistory], nextCursor: null };
+  history.position = position();
+  history.coverage = { fromSeq: null, beforeSeq: null };
+  state.set({ ...idleSession, transcript: { ...position(), activeTurn: null } });
   const heldReads: Array<ReturnType<typeof deferred<void>>> = [];
-  const loadHistory = vi.fn(async () => ok(structuredClone(history)));
+  function historyPage(before?: number, limit = 100): HistoryPage {
+    const candidates = history.turns.filter((turn) => before === undefined || turn.seq < before);
+    const turns = candidates.slice(-limit);
+    const nextCursor = turns.length === limit ? turns[0].seq : null;
+    return structuredClone({
+      ...history,
+      turns,
+      nextCursor,
+      coverage: { fromSeq: nextCursor, beforeSeq: before ?? null },
+    });
+  }
+  const loadHistory = vi.fn(async (input: { before?: number; limit: number }) =>
+    ok(historyPage(input.before, input.limit))
+  );
   const attach = vi.fn(async () => ok(undefined));
   const sendPrompt = vi.fn(async () => ok({ queued: peek(state).isGenerating }));
   const hub = createWireSessionHub(
@@ -159,18 +182,26 @@ export function createContinuityHarness(
       store.bootstrap();
     },
     setHistory(turns: readonly TranscriptTurn[], unavailable = false) {
+      historyRevision += 1;
       history = {
         turns: structuredClone([...turns]),
         nextCursor: null,
         ...(unavailable && { unavailable: true }),
       };
+      history.position = position();
+      history.coverage = { fromSeq: null, beforeSeq: null };
+      state.set({
+        ...peek(state),
+        historyRevision,
+        transcript: { ...position(), activeTurn: peek(activeTurn) },
+      });
     },
     holdNextHistory() {
       const started = deferred<void>();
       const gate = deferred<void>();
       heldReads.push(gate);
-      loadHistory.mockImplementationOnce(async () => {
-        const captured = structuredClone(history);
+      loadHistory.mockImplementationOnce(async (input) => {
+        const captured = historyPage(input.before, input.limit);
         started.resolve();
         await gate.promise;
         return ok(captured);
@@ -191,6 +222,7 @@ export function createContinuityHarness(
         agentTurnActive: turn !== null,
         canCancel: turn !== null,
         ...patch,
+        transcript: { ...position(), activeTurn: turn },
       });
     },
     flush() {

@@ -244,6 +244,29 @@ describe('history response ordering', () => {
     expect(harness.store.loadError).toBeNull();
   });
 
+  it('fills a multi-page reconnect gap and refreshes amendments beyond the latest page', async () => {
+    harness = createContinuityHarness(fixture, [makeTurn(0)]);
+    await harness.bootstrap();
+    harness.disconnect();
+    const completed = Array.from({ length: 205 }, (_, seq) => makeTurn(seq));
+    completed[0] = makeTurn(0, 'Amended oldest prompt');
+    harness.setHistory(completed);
+    harness.publish(makeTurn(205));
+    harness.reconnect();
+    await vi.waitFor(() => expect(harness.committed).toHaveLength(205));
+    expect(harness.committed.map((turn) => turn.seq)).toEqual(completed.map((turn) => turn.seq));
+    expect(harness.committed[0].items[0]).toMatchObject({ text: 'Amended oldest prompt' });
+    expect(harness.active?.id).toBe('turn-205');
+    expect(harness.loadHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ before: 105 }),
+      expect.anything()
+    );
+    expect(harness.loadHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ before: 5 }),
+      expect.anything()
+    );
+  });
+
   it('does not duplicate a live turn already present in the initial history response', async () => {
     const first = makeTurn(1);
     harness = createContinuityHarness(fixture, [{ ...first, outcome: { kind: 'done' } }]);
