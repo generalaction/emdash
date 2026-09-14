@@ -315,12 +315,32 @@ describe('math delimiters', () => {
     expect(text).toBe('A $580 fee means the customer pays $685 in total.');
   });
 
-  it('renders $$-delimited inline math as inline code with its source', () => {
+  it('renders $$-delimited inline math as plain text with its delimiters', () => {
     const runs = firstProseRuns('Energy is $$E = mc^2$$ here.', nullProvider);
+    // One run: separate rich-inline items would widen the spaces around the formula.
+    expect(runs).toEqual([{ kind: 'text', text: 'Energy is $$E = mc^2$$ here.' }]);
+  });
+
+  it('emits long inline math as wrappable text, never an atomic code or mention run', () => {
+    const formula = Array.from({ length: 40 }, (_, i) => `a_{${i}} x^{${i}}`).join(' + ');
+    const runs = firstProseRuns(`The series $$${formula}$$ diverges.`, nullProvider);
+    expect(runs.every((r) => r.kind === 'text')).toBe(true);
+    expect(runs.map((r) => (r as InlineText).text).join('')).toBe(
+      `The series $$${formula}$$ diverges.`
+    );
+  });
+
+  it('flattens newlines inside inline math and keeps surrounding emphasis', () => {
+    const runs = firstProseRuns('**sum $$a +\nb$$ done**', nullProvider);
+    expect(runs).toEqual([{ kind: 'text', text: 'sum $$a + b$$ done', bold: true }]);
+  });
+
+  it('does not merge text runs whose styles differ', () => {
+    const runs = firstProseRuns('plain **bold** $$x$$ tail', nullProvider);
     expect(runs).toEqual([
-      { kind: 'text', text: 'Energy is ' },
-      { kind: 'code', text: 'E = mc^2' },
-      { kind: 'text', text: ' here.' },
+      { kind: 'text', text: 'plain ' },
+      { kind: 'text', text: 'bold', bold: true },
+      { kind: 'text', text: ' $$x$$ tail' },
     ]);
   });
 });

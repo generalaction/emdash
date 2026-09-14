@@ -183,9 +183,20 @@ function phrasingsToRuns(
       }
 
       // mdast extension — math inline (remark-math attaches 'inlineMath' type).
-      // Rendered as inline code showing the LaTeX source; nothing is hidden.
+      // The transcript does not typeset math, so show the `$$` source as plain
+      // text. A text run wraps like prose; an atomic code chip would overflow the
+      // column for long expressions. Newlines are flattened because prose
+      // fragments render with `white-space: pre` and breaks are explicit runs.
       case 'inlineMath': {
-        runs.push({ kind: 'code', text: (node as { value: string }).value } satisfies ICode);
+        const source = (node as { value: string }).value.replace(/\s*\n\s*/g, ' ');
+        runs.push({
+          kind: 'text',
+          text: `$$${source}$$`,
+          bold: opts.bold,
+          italic: opts.italic,
+          strike: opts.strike,
+          href: opts.href,
+        } satisfies InlineText);
         break;
       }
 
@@ -195,7 +206,33 @@ function phrasingsToRuns(
     }
   }
 
-  return runs;
+  return mergeAdjacentTextRuns(runs);
+}
+
+/**
+ * Join neighbouring text runs that share every style flag. Pretext pays a
+ * collapsed boundary gap between rich-inline items, so a split such as
+ * `formula ` + `$$x^2$$` + ` here` would render visibly wider spaces than the
+ * same sentence laid out as one run.
+ */
+function mergeAdjacentTextRuns(runs: InlineRun[]): InlineRun[] {
+  const merged: InlineRun[] = [];
+  for (const run of runs) {
+    const prev = merged[merged.length - 1];
+    if (
+      run.kind === 'text' &&
+      prev?.kind === 'text' &&
+      prev.bold === run.bold &&
+      prev.italic === run.italic &&
+      prev.strike === run.strike &&
+      prev.href === run.href
+    ) {
+      merged[merged.length - 1] = { ...prev, text: prev.text + run.text };
+      continue;
+    }
+    merged.push(run);
+  }
+  return merged;
 }
 
 // ── mdast node → Block[] ────────────────────────────────────────────────────
