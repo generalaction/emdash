@@ -136,15 +136,17 @@ export class MonacoFacetBinder implements FacetHandleBinder {
   /**
    * Restores a previously saved diff-editor viewport state. Call after
    * `editor.setModel()` so the editor has a layout target; no-ops silently
-   * if nothing was saved for this pair.
+   * if nothing was saved for this pair. Returns whether a saved state existed.
    */
   restoreDiffViewState(
     originalUri: string,
     modifiedUri: string,
     editor: monaco.editor.IStandaloneDiffEditor
-  ): void {
+  ): boolean {
     const viewState = this.diffViewStates.get(diffKey(originalUri, modifiedUri));
-    if (viewState) editor.restoreViewState(viewState);
+    if (!viewState) return false;
+    editor.restoreViewState(viewState);
+    return true;
   }
 
   private saveViewState(uri: string, editor: monaco.editor.IStandaloneCodeEditor): void {
