@@ -24,18 +24,14 @@ import type {
   PullRequestMergeOptions,
   PullRequestUser,
 } from '../../api';
-import {
-  isNetworkError,
-  mapApiError,
-  mapAuthError,
-  type PullRequestOperationErrorType,
-} from './errors';
+import { isNetworkError, type PullRequestOperationErrorType } from './errors';
 import type {
   GitHubPullRequestRepository,
   Observed,
   PullRequestMetadata,
   PullRequestPage,
 } from './observation';
+import { mapApiError, mapGitHubAuthError } from './providers/github/github-provider-errors';
 import {
   GET_PR_BY_NUMBER_QUERY,
   GET_PR_CHECK_RUNS_BY_URL_QUERY,
@@ -828,7 +824,7 @@ export class PullRequestEngine {
       { repositoryUrl: repository.repositoryUrl },
       { signal }
     );
-    if (!auth.success) return err(mapAuthError(auth.error));
+    if (!auth.success) return err(mapGitHubAuthError(auth.error));
     const lane = this.getRequestLane(repository.host, auth.data.accountId);
     const octokit =
       this.options.createOctokit?.({
