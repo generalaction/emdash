@@ -7,7 +7,8 @@ import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitPlatformAuthContract, PullRequest, PullRequestError } from '../api';
 import type { PullRequestEngine } from './engine';
-import type { GitHubPullRequestRepository, PullRequestPage } from './engine/observation';
+import type { PullRequestPage } from './engine/observation';
+import type { GitPlatformPullRequestRepository } from './engine/providers/git-platform-provider';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
 
@@ -33,28 +34,28 @@ async function harness(maxSyncCount = 300) {
   const context = {
     identity: 'github.com:account-1',
     repositoryUrl,
-    fetchOpenPage: vi.fn<GitHubPullRequestRepository['fetchOpenPage']>(
+    fetchOpenPage: vi.fn<GitPlatformPullRequestRepository['fetchOpenPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchHistoryPage: vi.fn<GitHubPullRequestRepository['fetchHistoryPage']>(
+    fetchHistoryPage: vi.fn<GitPlatformPullRequestRepository['fetchHistoryPage']>(
       async (_cursor: string | null, _signal: AbortSignal, _priority?: number) => observed(page())
     ),
-    fetchPullRequest: vi.fn<GitHubPullRequestRepository['fetchPullRequest']>(
+    fetchPullRequest: vi.fn<GitPlatformPullRequestRepository['fetchPullRequest']>(
       async (number: number, _signal: AbortSignal, _priority?: number) =>
         observed(
           pullRequestFixture({ identifier: `#${number}`, url: `${repositoryUrl}/pull/${number}` })
         )
     ),
-    fetchChecks: vi.fn<GitHubPullRequestRepository['fetchChecks']>(
+    fetchChecks: vi.fn<GitPlatformPullRequestRepository['fetchChecks']>(
       async (_number: number, _signal: AbortSignal) => observed({ headRefOid: 'head', checks: [] })
     ),
-    fetchComments: vi.fn<GitHubPullRequestRepository['fetchComments']>(
+    fetchComments: vi.fn<GitPlatformPullRequestRepository['fetchComments']>(
       async (_number: number, _signal: AbortSignal) => observed([])
     ),
   };
   const engine = {
     openRepository: vi.fn<PullRequestEngine['openRepository']>(async () =>
-      ok(context as GitHubPullRequestRepository)
+      ok(context as GitPlatformPullRequestRepository)
     ),
     createPullRequest: vi.fn(async () => ok({ url: `${repositoryUrl}/pull/42`, number: 42 })),
     mergePullRequest: vi.fn(async () => ok({ sha: 'abc', merged: true })),

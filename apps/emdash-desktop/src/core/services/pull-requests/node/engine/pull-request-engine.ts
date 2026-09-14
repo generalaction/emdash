@@ -25,12 +25,8 @@ import type {
   PullRequestUser,
 } from '../../api';
 import { isNetworkError, type PullRequestOperationErrorType } from './errors';
-import type {
-  GitHubPullRequestRepository,
-  Observed,
-  PullRequestMetadata,
-  PullRequestPage,
-} from './observation';
+import type { Observed, PullRequestMetadata, PullRequestPage } from './observation';
+import type { GitPlatformPullRequestRepository } from './providers/git-platform-provider';
 import { mapApiError, mapGitHubAuthError } from './providers/github/github-provider-errors';
 import {
   GET_PR_BY_NUMBER_QUERY,
@@ -187,7 +183,7 @@ export class PullRequestEngine {
   async openRepository(
     repositoryUrl: string,
     signal: AbortSignal
-  ): Promise<Result<GitHubPullRequestRepository, PullRequestError>> {
+  ): Promise<Result<GitPlatformPullRequestRepository, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
     try {
