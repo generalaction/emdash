@@ -266,7 +266,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     setSelectedAssigneeLogin,
     handleStatusChange,
     handleRefresh,
-    handleForceFullSync,
+    handleRefreshHistory,
     removeLabel,
     prs,
     error,
@@ -286,7 +286,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
       syncing={syncing}
       onStatusChange={handleStatusChange}
       onRefresh={handleRefresh}
-      onForceFullSync={handleForceFullSync}
+      onRefreshHistory={handleRefreshHistory}
       authorItems={authorItems}
       selectedAuthorLogin={selectedAuthorLogin}
       onAuthorChange={setSelectedAuthorLogin}
@@ -345,7 +345,7 @@ const PrToolbar = observer(function PrToolbar({
   syncing,
   onStatusChange,
   onRefresh,
-  onForceFullSync,
+  onRefreshHistory,
   authorItems,
   selectedAuthorLogin,
   onAuthorChange,
@@ -366,7 +366,7 @@ const PrToolbar = observer(function PrToolbar({
   syncing: boolean;
   onStatusChange: (status: StatusFilter) => void;
   onRefresh: () => void;
-  onForceFullSync: () => void;
+  onRefreshHistory: () => void;
   authorItems: UserItem[];
   selectedAuthorLogin: string | null;
   onAuthorChange: (value: string | null) => void;
@@ -419,9 +419,9 @@ const PrToolbar = observer(function PrToolbar({
               </Button>
             </ContextMenu.Trigger>
             <ContextMenu.Content>
-              <ContextMenu.Item onClick={onForceFullSync} disabled={syncing}>
+              <ContextMenu.Item onClick={onRefreshHistory} disabled={syncing}>
                 <RefreshCw className="size-4" />
-                Force full sync
+                Refresh PR history
               </ContextMenu.Item>
             </ContextMenu.Content>
           </ContextMenu.Root>

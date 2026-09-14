@@ -41,7 +41,7 @@ export const pullRequestsComponent = defineWireComponent({
     });
     return instance({
       scope,
-      controller: createPullRequestsWireController(service),
+      controller: createPullRequestsWireController(service, scope),
     });
   },
 });

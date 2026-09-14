@@ -160,7 +160,7 @@ export const PullRequestsSectionHeader = observer(function PullRequestsSectionHe
     onSyncError(null);
     try {
       const client = await getPullRequestsRuntimeClient();
-      const result = await client.sync({ repositoryUrl });
+      const result = await client.refreshRepository({ repositoryUrl, policy: 'force' });
       if (!result.success) {
         const message = pullRequestErrorMessage(result.error);
         onSyncError(message);
