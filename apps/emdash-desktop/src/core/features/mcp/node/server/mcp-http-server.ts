@@ -70,10 +70,12 @@ export class McpHttpServer {
   constructor(private readonly options: McpHttpServerOptions) {}
 
   async start(): Promise<void> {
-    if (this.server) return;
     // Share one in-flight start: a concurrent second call would otherwise race
     // token loading and double-listen, and must not resolve before listen does.
-    this.startPromise ??= this.doStart().finally(() => {
+    // Checked before `this.server`, which is assigned while listen is pending.
+    if (this.startPromise) return this.startPromise;
+    if (this.server) return;
+    this.startPromise = this.doStart().finally(() => {
       this.startPromise = null;
     });
     return this.startPromise;
@@ -152,6 +154,10 @@ export class McpHttpServer {
   }
 
   async stop(): Promise<void> {
+    // Let an in-flight start finish binding first: closing the not-yet-listening
+    // server would be a no-op and its pending listen callback would leave a
+    // socket bound with nothing holding a reference to close it.
+    if (this.startPromise) await this.startPromise.catch(() => {});
     const server = this.server;
     if (!server) return;
     this.server = null;

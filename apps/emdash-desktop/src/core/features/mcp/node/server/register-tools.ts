@@ -67,45 +67,69 @@ type DeleteConfirmationGate = Readonly<{
   changes?: WorktreeChangeCounts | null;
 }>;
 
+type DeleteDecision = Readonly<{
+  /**
+   * Artifact removal is only requested for a worktree the preflight says this
+   * delete owns — the same condition the delete dialog puts its "Delete
+   * worktree" checkbox behind. Asking for it outside that case would destroy a
+   * checkout the gate below never inspected.
+   */
+  deleteWorktree: boolean;
+  /** Why the delete needs confirmation, or null when it is verifiably safe. */
+  gate: DeleteConfirmationGate | null;
+}>;
+
 /**
- * Returns why deleting a task needs the user's explicit confirmation, or null
- * when its worktree is verifiably safe to remove.
+ * Decides whether deleting a task removes its worktree, and why that needs the
+ * user's explicit confirmation.
  *
  * Fails closed: a worktree whose state cannot be read counts as needing
  * confirmation, because refusing a delete is recoverable and deleting
  * uncommitted work is not.
  */
-async function deleteConfirmationGate(
+async function resolveDeleteDecision(
   dependencies: McpToolDependencies,
   projectId: string,
   taskId: string
-): Promise<DeleteConfirmationGate | null> {
+): Promise<DeleteDecision> {
   const preflight = await dependencies.tasks.getDeletePreflight([taskId]);
   const item = preflight.tasks.find((task) => task.taskId === taskId);
   if (!item) {
-    return { reason: 'Emdash could not determine what deleting this task would remove.' };
+    return {
+      deleteWorktree: true,
+      gate: { reason: 'Emdash could not determine what deleting this task would remove.' },
+    };
   }
-  // Nothing to lose: either the task has no worktree, or another task still uses
-  // it and the delete leaves it in place.
-  if (!item.hasWorktree) return null;
+  // Nothing to lose: either the task has no worktree of its own, or another task
+  // still uses it and the delete leaves it in place.
+  if (!item.hasWorktree) return { deleteWorktree: false, gate: null };
 
   const workspaceId = await resolveTaskWorkspaceId(dependencies, { projectId, taskId });
   if (!workspaceId.success) {
-    return { reason: `Emdash could not locate the task's worktree (${workspaceId.error}).` };
+    return {
+      deleteWorktree: true,
+      gate: { reason: `Emdash could not locate the task's worktree (${workspaceId.error}).` },
+    };
   }
 
   const changes = await inspectWorktreeChanges(dependencies, workspaceId.data);
-  if (changes.kind === 'clean') return null;
+  if (changes.kind === 'clean') return { deleteWorktree: true, gate: null };
   if (changes.kind === 'unknown') {
     return {
-      reason:
-        'Emdash could not check the worktree for uncommitted changes ' +
-        `(${changes.reason}), so it may contain work that would be lost.`,
+      deleteWorktree: true,
+      gate: {
+        reason:
+          'Emdash could not check the worktree for uncommitted changes ' +
+          `(${changes.reason}), so it may contain work that would be lost.`,
+      },
     };
   }
   return {
-    reason: 'The task worktree has uncommitted changes that will be permanently lost.',
-    changes: changes.counts,
+    deleteWorktree: true,
+    gate: {
+      reason: 'The task worktree has uncommitted changes that will be permanently lost.',
+      changes: changes.counts,
+    },
   };
 }
 
@@ -377,7 +401,11 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
       const attached = await attachProject(dependencies.projects, projectId);
       if (!attached.success) return errorResult(attached.error);
       try {
-        const gate = await deleteConfirmationGate(dependencies, projectId, taskId);
+        const { deleteWorktree, gate } = await resolveDeleteDecision(
+          dependencies,
+          projectId,
+          taskId
+        );
         if (gate && confirm !== true) {
           // An ordinary (non-error) result: the agent is expected to relay this
           // to its user and retry with confirm, not to treat it as a failure and
@@ -395,7 +423,7 @@ export function buildEmdashMcpServer(dependencies: McpToolDependencies): McpServ
         }
 
         await dependencies.tasks.deleteTask(projectId, taskId, {
-          deleteWorktree: true,
+          deleteWorktree,
           deleteBranch: false,
         });
       } finally {
