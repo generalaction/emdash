@@ -371,7 +371,7 @@ describe('AcpChatStore prompt submission', () => {
           },
           transcript: {
             state: transcriptTestState,
-            history: { seed: historySeed },
+            history: { replace: historySeed },
           },
           scroll: { set: vi.fn() },
           dispose: vi.fn(),

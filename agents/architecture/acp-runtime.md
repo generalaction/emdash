@@ -178,6 +178,14 @@ without ending its content. When idle, unmatched tool notifications are retained
 are evicted. This fallback cannot infer ownership absent provider evidence. No status notification
 alone is treated as proof of a new foreground turn.
 
+Committed history, live turns, and pending submissions have separate ownership. The desktop
+installs history with `history.replace`, which preserves the independently observed live turn
+unless that same turn is now committed; `history.seed` remains an explicit transcript reset. Initial history reads are fenced to the
+attachment just like subsequent refreshes. A missing history page never establishes that a
+restored conversation is empty. Pending rows reconcile against the matching `promptId` in their
+own conversation's active or committed turns, even without a mounted view; switching the view
+between conversations never acknowledges or removes a submission.
+
 ## Suspension and Rematerialization
 
 The public identity is always `conversationId`; provider process activations are internal. A

@@ -646,6 +646,8 @@ export class AcpChatStore {
   }
 
   private async _runBootstrap(): Promise<void> {
+    const epoch = ++this._historyEpoch;
+    if (this._disposed) return;
     if (this.hostAccess?.liveAction.kind === 'disabled') {
       runInAction(() => {
         this.historyLoading = false;
@@ -662,6 +664,10 @@ export class AcpChatStore {
     try {
       const attachedSession = await AcpLiveSession.create(this.conversationId);
       clientSession = attachedSession;
+      if (this._disposed || this._historyEpoch !== epoch) {
+        attachedSession.dispose();
+        return;
+      }
 
       runInAction(() => {
         this.session?.dispose();
@@ -670,7 +676,12 @@ export class AcpChatStore {
       });
 
       const history = await attachedSession.loadHistory(undefined, 100);
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       if (!history.success) throw new AcpStartError(history.error);
+      if (history.data.unavailable && !this.historyKnown && this.messageCount === 0) {
+        throw new Error('Conversation history is unavailable. Retry loading this conversation.');
+      }
       if (history.data.clearedConfiguration?.length) {
         await this._rememberPreference(
           Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
@@ -682,18 +693,25 @@ export class AcpChatStore {
         );
       }
 
+      if (this._disposed || this._historyEpoch !== epoch || this.session !== attachedSession)
+        return;
       runInAction(() => {
         if (!history.data.unavailable) {
-          this.chatState.transcript.history.seed(history.data.turns);
+          this.chatState.transcript.history.replace(history.data.turns);
         }
         this.historyLoading = false;
         this.loadError = null;
-        this.historyKnown = true;
+        if (!history.data.unavailable) this.historyKnown = true;
         this._bootstrapFailed = false;
         this._syncMessageCount();
       });
+      if (this._historyRefreshRequested) this._requestHistoryRefresh();
       void this._rehydrateDraftAttachmentPreviews();
     } catch (error) {
+      if (this._disposed || this._historyEpoch !== epoch) {
+        if (clientSession && this.session !== clientSession) clientSession.dispose();
+        return;
+      }
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
         projectId: this.projectId,
@@ -733,8 +751,11 @@ export class AcpChatStore {
             this._attachedHostGeneration = generation;
             runInAction(() => {
               // Reattachment alone cannot recover a failed history/bootstrap load.
-              if (this._bootstrapFailed) this.retry();
-              else {
+              if (this._bootstrapFailed || (this._bootstrapped && this.historyLoading)) {
+                this.historyLoading = true;
+                this.loadError = null;
+                void this._runBootstrap();
+              } else {
                 this.loadError = null;
                 this._requestHistoryRefresh();
               }
@@ -914,7 +935,8 @@ export class AcpChatStore {
         runInAction(() => {
           this._syncMessageCount();
         });
-        if (replayCompleted || historyChanged) this._requestHistoryRefresh();
+        if (historyChanged || (replayCompleted && !this.historyLoading))
+          this._requestHistoryRefresh();
       }),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount()))
     );
@@ -979,12 +1001,12 @@ export class AcpChatStore {
 
   private _requestHistoryRefresh(): void {
     this._historyRefreshRequested = true;
-    if (this._historyRefreshTask) return;
+    if (this._historyRefreshTask || this.historyLoading) return;
 
     const task = Promise.resolve()
       .then(async () => {
         let attempt = 0;
-        while (this._historyRefreshRequested && !this._disposed) {
+        while (this._historyRefreshRequested && !this._disposed && !this.historyLoading) {
           this._historyRefreshRequested = false;
           if (await this._refreshHistory()) {
             attempt = 0;
@@ -1016,19 +1038,22 @@ export class AcpChatStore {
       if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
       if (!history.success) throw new AcpStartError(history.error);
       if (history.data.unavailable) return true;
-      // A waking prompt may begin between replay completion and this response. Do not let a
-      // replay-history seed reset the newly active turn; its normal completion refresh will seed
-      // the authoritative history instead.
+      // A waking prompt may begin between replay completion and this response. Do not let an
+      // older history response replace newer committed turns; the active turn's
+      // completion refresh will install the authoritative history instead.
       if (this.chatState.transcript.state.activeTurnSnapshot !== null) return true;
       runInAction(() => {
         const pendingPrompt = this.chatState.session.state.pendingPrompt;
-        this.chatState.transcript.history.seed(history.data.turns);
+        this.chatState.transcript.history.replace(history.data.turns);
         if (pendingPrompt) {
           const committed = history.data.turns.some((turn) =>
             turn.items.some((item) => item.kind === 'message' && item.promptId === pendingPrompt.id)
           );
           this.chatState.session.setPendingPrompt(committed ? null : pendingPrompt);
         }
+        this.historyKnown = true;
+        this.loadError = null;
+        this._bootstrapFailed = false;
         this._syncMessageCount();
       });
       return true;

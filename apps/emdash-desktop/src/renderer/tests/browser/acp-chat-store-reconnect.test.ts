@@ -129,7 +129,7 @@ it.each([
     expect(store.loadError).toBeNull();
     const live = store.session!;
     const revalidate = vi.spyOn(live, 'revalidate');
-    const seed = vi.spyOn(store.chatState.transcript.history, 'seed');
+    const seed = vi.spyOn(store.chatState.transcript.history, 'replace');
     const send = vi.spyOn(live, 'sendPrompt');
     store.submitPrompt('continue');
     await vi.waitFor(() => expect(send).toHaveResolvedWith(ok({ queued: false })));
