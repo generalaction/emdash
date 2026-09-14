@@ -8,7 +8,7 @@ import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { err, ok } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { peek } from '@emdash/wire/state';
-import { app } from 'electron';
+import { app, powerMonitor } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import { AccountAuthServerClient } from '@core/features/account/node/services/account-auth-server-client';
 import { AccountOAuthClient } from '@core/features/account/node/services/account-oauth-client';
@@ -532,9 +532,18 @@ export async function bootServices(
   });
   const pullRequestsRegistration = new PullRequestsRegistration({
     getClient: getPullRequestsRuntimeClient,
+    onResume: (handler) => {
+      powerMonitor.on('resume', handler);
+      return () => {
+        powerMonitor.off('resume', handler);
+      };
+    },
+    onWorkerReady: (handler) =>
+      desktopRuntimes.workers.pullRequests.onStateChanged((state) => {
+        if (state.kind === 'ready') handler();
+      }),
     onProjectOpened: (handler) => projectManager.on('projectOpened', handler),
     onProjectClosed: (handler) => projectManager.on('projectClosed', handler),
-    onTaskProvisioned: (handler) => taskSessionManager.hooks.on('task:provisioned', handler),
     subscribeToProjectRemotes: (projectId, handler) => {
       const attached = projectManager.requireAttached(projectId);
       if (!attached.success || !attached.data.hasRepository) return undefined;

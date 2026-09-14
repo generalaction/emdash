@@ -7,11 +7,7 @@ import type { PullRequestSyncIdentity } from './sync-identity';
 
 type PullRequestsRegistrationClient = Pick<
   PullRequestsRuntimeClient,
-  | 'registerRepository'
-  | 'unregisterRepository'
-  | 'cancelSync'
-  | 'getPullRequestsForBranch'
-  | 'syncSingle'
+  'registerRepository' | 'unregisterRepository' | 'releaseRepository' | 'refreshRepository'
 >;
 
 /**
@@ -33,9 +29,8 @@ type PullRequestsRegistrationOptions = {
   getClient: () => Promise<PullRequestsRegistrationClient>;
   onProjectOpened(handler: (projectId: string) => void): () => void;
   onProjectClosed(handler: (projectId: string) => void): () => void;
-  onTaskProvisioned(
-    handler: (event: { projectId: string; branchName: string | undefined }) => void
-  ): () => void;
+  onWorkerReady(handler: () => void): () => void;
+  onResume(handler: () => void): () => void;
   subscribeToProjectRemotes(projectId: string, handler: () => void): (() => void) | undefined;
   resolveProjectRepositoryUrls(projectId: string): Promise<string[]>;
   resolveProjectAuthContext(projectId: string): Promise<ProjectAccountResolution>;
@@ -52,35 +47,71 @@ export class PullRequestsRegistration implements Disposable {
   private readonly projectRepositoryUrls = new Map<string, string[]>();
   private readonly repositoryUnsubscribes = new Map<string, () => void>();
   private unsubscribes: Array<() => void> = [];
+  private replayGeneration = 0;
 
   constructor(private readonly options: PullRequestsRegistrationOptions) {}
 
   initialize(): void {
     if (this.unsubscribes.length > 0) return;
     this.unsubscribes = [
+      this.options.onResume(() => {
+        void this.refreshAfterResume().catch((error) => {
+          log.warn('PullRequestsRegistration: failed to refresh after resume', {
+            error: String(error),
+          });
+        });
+      }),
+      this.options.onWorkerReady(() => {
+        void this.replayRegistrations(++this.replayGeneration).catch((error) => {
+          log.warn('PullRequestsRegistration: failed to restore repository interest', {
+            error: String(error),
+          });
+        });
+      }),
       this.options.onProjectOpened((projectId) => {
         void this.onProjectOpened(projectId);
       }),
       this.options.onProjectClosed((projectId) => {
         void this.onProjectClosed(projectId);
       }),
-      this.options.onTaskProvisioned(({ projectId, branchName }) => {
-        void this.onTaskProvisioned(projectId, branchName).catch((error) => {
-          log.warn('PullRequestsRegistration: failed to refresh a provisioned task', {
-            projectId,
-            error: String(error),
-          });
-        });
-      }),
     ];
   }
 
   dispose(): void {
+    this.replayGeneration++;
     for (const unsubscribe of this.unsubscribes) unsubscribe();
     this.unsubscribes = [];
     for (const unsubscribe of this.repositoryUnsubscribes.values()) unsubscribe();
     this.repositoryUnsubscribes.clear();
     this.projectRepositoryUrls.clear();
+  }
+
+  private async replayRegistrations(generation: number): Promise<void> {
+    const client = await this.options.getClient();
+    const urls = new Set([...this.projectRepositoryUrls.values()].flat());
+    for (const repositoryUrl of urls) {
+      if (generation !== this.replayGeneration) return;
+      if (!this.isReferenced(repositoryUrl)) continue;
+      const result = await client.registerRepository({ repositoryUrl });
+      if (!result.success) {
+        log.warn('PullRequestsRegistration: failed to restore repository interest', {
+          repositoryUrl,
+          error: result.error,
+        });
+      }
+      if (!this.isReferenced(repositoryUrl)) await client.releaseRepository({ repositoryUrl });
+    }
+  }
+
+  private async refreshAfterResume(): Promise<void> {
+    const client = await this.options.getClient();
+    if (this.unsubscribes.length === 0) return;
+    const urls = new Set([...this.projectRepositoryUrls.values()].flat());
+    await Promise.all(
+      [...urls].map((repositoryUrl) =>
+        client.refreshRepository({ repositoryUrl, policy: 'if-stale' })
+      )
+    );
   }
 
   async onProjectOpened(projectId: string): Promise<void> {
@@ -152,24 +183,6 @@ export class PullRequestsRegistration implements Disposable {
     return err(mapProjectAccountError(host, failure));
   }
 
-  async onTaskProvisioned(projectId: string, branchName: string | undefined): Promise<void> {
-    if (!branchName) return;
-    const repositoryUrls =
-      this.projectRepositoryUrls.get(projectId) ?? (await this.resolveRepositoryUrls(projectId));
-    const client = await this.options.getClient();
-    for (const repositoryUrl of repositoryUrls) {
-      const result = await client.getPullRequestsForBranch({ repositoryUrl, branch: branchName });
-      if (!result.success) continue;
-      for (const pullRequest of result.data.prs) {
-        const number = pullRequest.identifier
-          ? Number.parseInt(pullRequest.identifier.replace('#', ''), 10)
-          : Number.NaN;
-        if (Number.isNaN(number)) continue;
-        await client.syncSingle({ repositoryUrl, number });
-      }
-    }
-  }
-
   async deleteProjectData(projectId: string): Promise<void> {
     const repositoryUrls =
       this.projectRepositoryUrls.get(projectId) ?? (await this.resolveRepositoryUrls(projectId));
@@ -218,7 +231,7 @@ export class PullRequestsRegistration implements Disposable {
     const client = await this.options.getClient();
     for (const repositoryUrl of repositoryUrls) {
       if (this.isReferenced(repositoryUrl)) continue;
-      await client.cancelSync({ repositoryUrl });
+      await client.releaseRepository({ repositoryUrl });
     }
   }
 
