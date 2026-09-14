@@ -4,6 +4,11 @@ import { computed, makeAutoObservable, observable, reaction, runInAction, when }
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { EditorViewStore } from '@core/features/editor/api/browser/task-editor/stores/editor-view-store';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import {
+  asAvailableProject,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { workspaceChromeStoreToken } from '@core/features/projects/contributions/project-stores';
 import { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
@@ -241,6 +246,24 @@ export class TaskComposition {
     return this.chrome.state.sidebarCollapsed;
   }
 
+  get isPrPanelVisible(): boolean {
+    const ref = getNavigation().currentRef;
+    const params = ref.params as { projectId?: string; taskId?: string };
+    const project = asAvailableProject(getProjectStore(this.projectId));
+    return (
+      ref.viewId === taskViewDef.id &&
+      params.projectId === this.projectId &&
+      params.taskId === this.taskId &&
+      this.space.isHydrated &&
+      project !== undefined &&
+      !!this._workspace?.get(gitCheckoutStoreToken).hasData &&
+      !this.isSidebarCollapsed &&
+      this.sidebarTab === 'changes' &&
+      !project.get(workspaceChromeStoreToken).state.zen.active &&
+      this.diffView?.changesView.expandedSections.pullRequests === true
+    );
+  }
+
   get isTerminalDrawerOpen(): boolean {
     return this.chrome.state.terminalDrawerOpen;
   }
@@ -402,6 +425,10 @@ export class TaskComposition {
       this._diffPreferencesHandle,
       diffSelectionHandle
     );
+    this.prStore.bindDetails(() => ({
+      visible: this.isPrPanelVisible,
+      comments: this.diffView?.effectivePrTab === 'checks',
+    }));
     workspace.get(diffTabManagerStoreToken).bindSession({
       gitCheckout,
       pr: this.prStore,

@@ -89,7 +89,17 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
         canBypassRequirements: true,
       };
     case 'UNSTABLE':
-      switch (deriveMergeCheckState(pr.checks)) {
+      switch (
+        pr.checkSummary === undefined
+          ? deriveMergeCheckState(pr.checks)
+          : pr.checkSummary === 'SUCCESS'
+            ? 'passing'
+            : pr.checkSummary === 'FAILURE' || pr.checkSummary === 'ERROR'
+              ? 'failed'
+              : pr.checkSummary === 'PENDING' || pr.checkSummary === 'EXPECTED'
+                ? 'pending'
+                : 'unknown'
+      ) {
         case 'pending':
           return {
             kind: 'unstable',

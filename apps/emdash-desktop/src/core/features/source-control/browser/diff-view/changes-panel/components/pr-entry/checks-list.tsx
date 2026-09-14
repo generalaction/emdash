@@ -10,10 +10,14 @@ import {
   type CheckRunBucket,
 } from '@core/features/github/api/browser/checks';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
-import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
+import {
+  pullRequestErrorMessage,
+  type PullRequest,
+  type PullRequestComment,
+  type PullRequestDetails,
+} from '@core/services/pull-requests/api';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
-import { usePullRequestComments } from './use-pull-request-comments';
 
 const EMPTY_COMMENTS: PullRequestComment[] = [];
 
@@ -93,22 +97,25 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 }
 
 export const PrChecksList = observer(function PrChecksList({
-  projectId,
   pr,
   checks,
+  details,
 }: {
-  projectId: string;
   pr: PullRequest;
   checks: CheckRun[];
+  details: PullRequestDetails | null;
 }) {
-  const commentsQuery = usePullRequestComments(projectId, pr);
-  const comments = commentsQuery.data ?? EMPTY_COMMENTS;
+  const comments = details?.comments ?? EMPTY_COMMENTS;
+  const isLoading = !details || (details.refreshing && details.commentsFetchedAt === null);
+  const error = details?.errors.comments
+    ? new Error(pullRequestErrorMessage(details.errors.comments))
+    : null;
   const conversationItems = useMemo(
     () => buildPullRequestConversationItems(pr, comments),
     [pr, comments]
   );
 
-  if (checks.length === 0 && conversationItems.length === 0 && !commentsQuery.isLoading) {
+  if (checks.length === 0 && conversationItems.length === 0 && !isLoading && !error) {
     return <EmptyState label="No checks or comments" description="Nothing available yet" />;
   }
 
@@ -124,11 +131,7 @@ export const PrChecksList = observer(function PrChecksList({
         <div className="px-3 pb-1 text-[11px] font-medium text-foreground-passive uppercase">
           Comments
         </div>
-        <CommentsList
-          comments={conversationItems}
-          isLoading={commentsQuery.isLoading}
-          error={commentsQuery.error}
-        />
+        <CommentsList comments={conversationItems} isLoading={isLoading} error={error} />
       </section>
     </div>
   );

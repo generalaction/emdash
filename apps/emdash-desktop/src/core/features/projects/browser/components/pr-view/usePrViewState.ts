@@ -1,3 +1,4 @@
+import { WireError } from '@emdash/wire/rpc';
 import { useEffect, useMemo, useState } from 'react';
 import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
@@ -76,7 +77,7 @@ export function usePrViewState(repositoryUrl: string) {
     setSyncing(true);
     setRefreshError(null);
     try {
-      const result = await store.sync(repositoryUrl);
+      const result = await store.refreshRepository(repositoryUrl);
       if (!result.success) captureRefreshError(pullRequestErrorMessage(result.error));
     } catch (error) {
       captureRefreshError(error);
@@ -85,16 +86,16 @@ export function usePrViewState(repositoryUrl: string) {
     }
   };
 
-  const handleForceFullSync = async () => {
+  const handleRefreshHistory = async () => {
     setSyncing(true);
     setRefreshError(null);
     try {
-      const result = await store.sync(repositoryUrl, true);
+      const result = await store.refreshHistory(repositoryUrl);
       if (!result.success) {
         captureRefreshError(pullRequestErrorMessage(result.error));
       }
     } catch (error) {
-      captureRefreshError(error);
+      if (!(error instanceof WireError && error.code === 'CANCELLED')) captureRefreshError(error);
     } finally {
       setSyncing(false);
     }
@@ -129,7 +130,7 @@ export function usePrViewState(repositoryUrl: string) {
     // handlers
     handleStatusChange,
     handleRefresh,
-    handleForceFullSync,
+    handleRefreshHistory,
     removeLabel,
     // data
     prs: listView.visibleItems,

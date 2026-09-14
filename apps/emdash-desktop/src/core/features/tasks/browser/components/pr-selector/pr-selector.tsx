@@ -1,5 +1,6 @@
 import { ListPopoverCard } from '@emdash/ui/react/components';
 import { Button, Combobox, Select } from '@emdash/ui/react/primitives';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -11,14 +12,25 @@ import {
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import {
   pullRequestErrorMessage,
+  pullRequestsContract,
   type PullRequest,
 } from '@root/src/core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@root/src/core/services/pull-requests/api/client';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 
 type StatusFilter = 'open' | 'not-open';
+
+let syncRemotePromise: Promise<RemoteModel<typeof pullRequestsContract.syncState>> | undefined;
+
+function getSyncRemote() {
+  syncRemotePromise ??= getPullRequestsRuntimeClient().then((client) =>
+    remote(pullRequestsContract.syncState, client.syncState, { lingerMs: 15_000 })
+  );
+  return syncRemotePromise;
+}
 
 export interface PrSelectorProps {
   value: PullRequest | null;
@@ -83,20 +95,25 @@ export const PrSelector = observer(function PrSelector({
   // unresolvable pin must not trigger syncs — fail closed instead of
   // proceeding as another identity.
   const accountState = useBlockingGitHubAccountState(projectId);
+  const enabled = !!projectId && !!repositoryUrl && !accountState;
+  // Inventory owns provider reads. Subscribe only to its local cache revision/status.
+  const sync = useRemoteModelState(
+    pullRequestsContract.syncState,
+    getSyncRemote,
+    { repositoryUrl },
+    'state',
+    { enabled }
+  );
 
-  // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
-  const syncQuery = useQuery({
-    queryKey: ['pr-sync', projectId],
-    queryFn: async () => {
-      const client = await getPullRequestsRuntimeClient();
-      return await client.sync({ repositoryUrl });
-    },
-    enabled: !!projectId && !!repositoryUrl && !accountState,
-    staleTime: 60_000,
-  });
-
-  const { data: listResult } = useQuery({
-    queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, searchQuery],
+  const { data: listResult, isLoading } = useQuery({
+    queryKey: [
+      'pull-requests-selector',
+      projectId,
+      repositoryUrl,
+      statusFilter,
+      searchQuery,
+      sync.value?.revision,
+    ],
     queryFn: async () => {
       const client = await getPullRequestsRuntimeClient();
       return await client.listPullRequests({
@@ -107,12 +124,12 @@ export const PrSelector = observer(function PrSelector({
         searchQuery: searchQuery || undefined,
       });
     },
-    enabled: !!projectId && !!repositoryUrl && !accountState,
+    enabled,
     staleTime: 30_000,
   });
 
   const prs = listResult?.success ? listResult.data.prs : [];
-  const syncError = syncQuery.data && !syncQuery.data.success ? syncQuery.data.error : null;
+  const syncError = enabled ? sync.value?.error : null;
   const listError = listResult && !listResult.success ? listResult.error : null;
   const error = syncError ?? listError;
   const errorMessage = error ? pullRequestErrorMessage(error) : null;
@@ -235,7 +252,11 @@ export const PrSelector = observer(function PrSelector({
             ) : (
               <span className={cn(errorMessage && 'text-foreground-error')}>
                 {errorMessage ??
-                  (statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests')}
+                  (enabled && (isLoading || sync.isLoading || sync.value?.phase === 'running')
+                    ? 'Loading pull requests…'
+                    : statusFilter === 'open'
+                      ? 'No open pull requests'
+                      : 'No closed pull requests')}
               </span>
             )}
           </Combobox.Empty>

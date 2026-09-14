@@ -2,7 +2,6 @@ import { ToggleGroup, toast } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -11,7 +10,6 @@ import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/compo
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 import { PrUrlCopyButton } from '@root/src/core/services/pull-requests/browser/components/pr-url-copy-button';
-import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { PrCheckoutDriftLine } from './checkout-drift-line';
 import { PrChecksList } from './checks-list';
 import { CommitRangeCommitsList } from './commits-list';
@@ -47,8 +45,11 @@ const bypassMergeDescriptions: Record<MergeMode, string> = {
   rebase: 'Bypass unmet requirements and rebase all commits onto the base branch.',
 };
 
-export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
-  const { projectId } = useTaskViewContext();
+export const PullRequestEntry = observer(function PullRequestEntry({
+  pr: cachedPr,
+}: {
+  pr: PullRequest;
+}) {
   const taskView = useTaskComposition();
   const prStore = taskView.prStore!;
   const diffView = taskView.diffView;
@@ -56,7 +57,9 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [bypassRequirements, setBypassRequirements] = useState(false);
   const [isUpdatingCheckout, setIsUpdatingCheckout] = useState(false);
-  const { checks } = useSyncCheckRuns(pr);
+  const details = prStore.details;
+  const pr = details?.pr ?? cachedPr;
+  const checks = pr.checks;
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -166,7 +169,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
           {tab === 'commits' && <CommitRangeCommitsList range={commitRangeForPullRequest(pr)} />}
-          {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} checks={checks} />}
+          {tab === 'checks' && <PrChecksList pr={pr} checks={checks} details={details} />}
         </div>
       </div>
       {pr.status === 'open' && (
