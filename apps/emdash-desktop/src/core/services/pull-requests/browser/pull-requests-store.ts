@@ -18,7 +18,12 @@ type SyncRemote = RemoteModel<typeof pullRequestsContract.syncState>;
 type ModelEntry = {
   scope: Scope;
   state: SyncState | undefined;
-  previousLastSyncedAt: number | undefined;
+  previousRevision: number | undefined;
+};
+type HistoryRun = {
+  controller: AbortController;
+  promise: ReturnType<ContractClient<PullRequestsContract>['refreshHistory']>;
+  cancelling: boolean;
 };
 
 const EMPTY_FILTER_OPTIONS: PullRequestFilterOptions = {
@@ -36,6 +41,7 @@ export class PullRequestsStore {
   private readonly scope = createScope({ label: 'pull-requests-store' });
   private readonly syncRemote: SyncRemote;
   private readonly syncModels = new Map<string, ModelEntry>();
+  private readonly historyRuns = new Map<string, HistoryRun>();
   private filterOptionsRequest = 0;
   private disposed = false;
 
@@ -52,10 +58,11 @@ export class PullRequestsStore {
       client,
       getRepositoryUrls: () => this.repositoryUrls,
     });
-    makeObservable<this, 'syncModels'>(this, {
+    makeObservable<this, 'syncModels' | 'historyRuns'>(this, {
       repositoryUrls: observable.ref,
       filterOptions: observable.ref,
       syncModels: observable.shallow,
+      historyRuns: observable.shallow,
       setRepositoryUrls: action,
     });
     this.ready = this.initialize();
@@ -94,25 +101,44 @@ export class PullRequestsStore {
     return result;
   }
 
-  async sync(repositoryUrl: string, forceFull = false) {
+  async refreshRepository(repositoryUrl: string) {
     const normalizedUrl = normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl;
-    return forceFull
-      ? await this.client.forceFullSync({ repositoryUrl: normalizedUrl })
-      : await this.client.sync({ repositoryUrl: normalizedUrl });
+    return await this.client.refreshRepository({ repositoryUrl: normalizedUrl, policy: 'force' });
   }
 
-  async syncAll(): Promise<void> {
-    await Promise.all(
-      this.repositoryUrls.map(async (repositoryUrl) => {
-        await this.client.sync({ repositoryUrl });
-      })
-    );
-  }
-
-  async cancelSync(repositoryUrl: string) {
-    return await this.client.cancelSync({
-      repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
+  refreshHistory(repositoryUrl: string): HistoryRun['promise'] {
+    if (this.disposed) return Promise.reject(new Error('Pull request store is disposed'));
+    const normalizedUrl = normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl;
+    const existing = this.historyRuns.get(normalizedUrl);
+    if (existing) return existing.promise;
+    const controller = new AbortController();
+    const promise = this.client
+      .refreshHistory({ repositoryUrl: normalizedUrl }, { signal: controller.signal })
+      .finally(() => {
+        runInAction(() => {
+          if (this.historyRuns.get(normalizedUrl)?.controller === controller)
+            this.historyRuns.delete(normalizedUrl);
+        });
+      });
+    runInAction(() => {
+      this.historyRuns.set(normalizedUrl, { controller, promise, cancelling: false });
     });
+    return promise;
+  }
+
+  canCancelHistory(repositoryUrl: string): boolean {
+    const run = this.historyRuns.get(normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl);
+    return run !== undefined && !run.cancelling;
+  }
+
+  cancelHistory(repositoryUrl: string): void {
+    const normalizedUrl = normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl;
+    const run = this.historyRuns.get(normalizedUrl);
+    if (!run) return;
+    runInAction(() => {
+      this.historyRuns.set(normalizedUrl, { ...run, cancelling: true });
+    });
+    run.controller.abort();
   }
 
   async getPullRequestsForBranch(repositoryUrl: string, branch: string) {
@@ -124,28 +150,6 @@ export class PullRequestsStore {
 
   async getPullRequestFiles(repositoryUrl: string, number: number) {
     return await this.client.getPullRequestFiles({
-      repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
-      number,
-    });
-  }
-
-  async getPullRequestComments(repositoryUrl: string, number: number) {
-    return await this.client.getPullRequestComments({
-      repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
-      number,
-    });
-  }
-
-  async syncChecks(repositoryUrl: string, pullRequestUrl: string, headRefOid: string) {
-    return await this.client.syncChecks({
-      repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
-      pullRequestUrl,
-      headRefOid,
-    });
-  }
-
-  async refresh(repositoryUrl: string, number: number) {
-    return await this.client.syncSingle({
       repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
       number,
     });
@@ -182,6 +186,8 @@ export class PullRequestsStore {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    for (const run of this.historyRuns.values()) run.controller.abort();
+    runInAction(() => this.historyRuns.clear());
     this.filterOptionsRequest++;
     this.listView.store.dispose();
     const entries = [...this.syncModels.values()];
@@ -209,7 +215,7 @@ export class PullRequestsStore {
       const entry: ModelEntry = {
         scope,
         state: undefined,
-        previousLastSyncedAt: undefined,
+        previousRevision: undefined,
       };
       this.syncModels.set(repositoryUrl, entry);
       const member = this.syncRemote({ repositoryUrl });
@@ -219,23 +225,16 @@ export class PullRequestsStore {
           const current = this.syncModels.get(repositoryUrl);
           if (!current) return;
           const state = snapshot.value;
-          const previousLastSyncedAt = current.previousLastSyncedAt;
+          const previousRevision = current.previousRevision;
           const nextEntry = {
             ...current,
             state,
-            previousLastSyncedAt:
-              state?.phase === 'idle' && state.lastSyncedAt !== undefined
-                ? state.lastSyncedAt
-                : current.previousLastSyncedAt,
+            previousRevision: state?.revision ?? current.previousRevision,
           };
           runInAction(() => {
             this.syncModels.set(repositoryUrl, nextEntry);
           });
-          if (
-            state?.phase === 'idle' &&
-            state.lastSyncedAt !== undefined &&
-            state.lastSyncedAt !== previousLastSyncedAt
-          ) {
+          if (state?.revision !== undefined && state.revision !== previousRevision) {
             void this.reload();
           }
         },

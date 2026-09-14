@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest } from '@core/services/pull-requests/api';
+import type { PullRequest, SyncState } from '@core/services/pull-requests/api';
 import { PrSelector } from './pr-selector';
 
 (
@@ -12,14 +12,19 @@ import { PrSelector } from './pr-selector';
 
 const mocks = vi.hoisted(() => ({
   listPullRequests: vi.fn(),
-  sync: vi.fn(),
+  refreshRepository: vi.fn(),
   accountState: vi.fn(),
+  syncState: vi.fn(),
+}));
+
+vi.mock('@core/primitives/wire/browser/use-remote-model-state', () => ({
+  useRemoteModelState: () => ({ value: mocks.syncState(), isLoading: false }),
 }));
 
 vi.mock('@core/services/pull-requests/api/client', () => ({
   getPullRequestsRuntimeClient: async () => ({
     listPullRequests: mocks.listPullRequests,
-    sync: mocks.sync,
+    refreshRepository: mocks.refreshRepository,
   }),
 }));
 
@@ -206,8 +211,9 @@ describe('PrSelector', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
-    mocks.sync.mockResolvedValue({ success: true });
+    mocks.refreshRepository.mockResolvedValue({ success: true });
     mocks.accountState.mockReturnValue(null);
+    mocks.syncState.mockReturnValue({ phase: 'idle', kind: null, revision: 0 } satisfies SyncState);
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -268,6 +274,33 @@ describe('PrSelector', () => {
     );
   });
 
+  it('reloads cached selector results on inventory revisions without triggering refresh', async () => {
+    mocks.syncState.mockReturnValue({ phase: 'running', kind: 'repository', revision: 0 });
+    mocks.listPullRequests.mockResolvedValueOnce({ success: true, data: { prs: [] } });
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(PrSelector, {
+            value: null,
+            onValueChange: vi.fn(),
+            projectId: PROJECT_ID,
+            repositoryUrl: REPOSITORY_URL,
+          })
+        )
+      );
+    });
+    expect(mocks.listPullRequests).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Loading pull requests…');
+    mocks.syncState.mockReturnValue({ phase: 'idle', kind: null, revision: 1 });
+    await renderSelector();
+    expect(mocks.listPullRequests).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(container.textContent).toContain('Search PR'));
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
+  });
+
   it('clears the active search query immediately when the status filter changes', async () => {
     await act(async () => {
       root.render(
@@ -316,8 +349,9 @@ describe('PrSelector', () => {
   });
 
   it('shows background sync errors instead of the empty pull request message', async () => {
-    mocks.sync.mockResolvedValue({
-      success: false,
+    mocks.syncState.mockReturnValue({
+      phase: 'error',
+      kind: null,
       error: {
         type: 'github_not_found_or_no_access',
         host: 'github.com',
@@ -351,8 +385,9 @@ describe('PrSelector', () => {
   });
 
   it('shows background sync errors above cached pull request results', async () => {
-    mocks.sync.mockResolvedValue({
-      success: false,
+    mocks.syncState.mockReturnValue({
+      phase: 'error',
+      kind: null,
       error: {
         type: 'sync_failed',
         message: 'GitHub sync failed for this repository.',
@@ -414,7 +449,7 @@ describe('PrSelector', () => {
     expect(container.querySelector('[data-testid="account-state-disabled"]')).not.toBeNull();
     expect(container.textContent).toContain('GitHub is disabled for this project.');
     expect(container.querySelector('[data-status="destructive"]')).toBeNull();
-    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
@@ -428,7 +463,7 @@ describe('PrSelector', () => {
 
     expect(container.querySelector('[data-testid="account-state-unresolvable"]')).not.toBeNull();
     expect(container.textContent).toContain('The selected GitHub account is no longer connected.');
-    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
     expect(mocks.listPullRequests).not.toHaveBeenCalled();
   });
 
@@ -442,6 +477,6 @@ describe('PrSelector', () => {
 
     expect(container.querySelector('[data-testid="account-state-connect"]')).not.toBeNull();
     expect(container.textContent).toContain('Connect a GitHub account to get started.');
-    expect(mocks.sync).not.toHaveBeenCalled();
+    expect(mocks.refreshRepository).not.toHaveBeenCalled();
   });
 });
