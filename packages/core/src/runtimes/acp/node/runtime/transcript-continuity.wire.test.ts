@@ -75,6 +75,52 @@ const messageTexts = (turn: TranscriptTurn) =>
   turn.items.flatMap((item) => (item.kind === 'message' ? [item.text] : []));
 
 describe('completed history through real runtime and Wire', () => {
+  it('publishes a coherent transcript position across streaming, queue handoff and reconnect', async () => {
+    h = await createHarness();
+    await h.session.states.state.refresh();
+    const initial = snapshot(h.session.states.state).value?.transcript;
+    expect(initial).toMatchObject({
+      historyRevision: 0,
+      lastCommittedTurnSeq: null,
+      activeTurn: null,
+    });
+    const first = h.gate();
+    h.gate();
+    await h.send('first');
+    await vi.waitFor(() =>
+      expect(snapshot(h.session.states.state).value?.transcript?.activeTurn).toBeTruthy()
+    );
+    await h.update({
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: 'response' },
+    });
+    await h.send('second');
+    expect(snapshot(h.session.states.state).value?.transcript?.historyRevision).toBe(0);
+    first.resolve({ stopReason: 'end_turn' });
+    await vi.waitFor(() =>
+      expect(snapshot(h.session.states.state).value?.transcript?.historyRevision).toBe(1)
+    );
+    const head = snapshot(h.session.states.state).value?.transcript;
+    expect(head).toMatchObject({
+      generation: initial?.generation,
+      historyRevision: 1,
+      lastCommittedTurnSeq: 0,
+      activeTurn: { seq: 1 },
+    });
+    const page = await h.history();
+    expect(page.position).toEqual({
+      generation: head?.generation,
+      historyRevision: 1,
+      lastCommittedTurnSeq: 0,
+    });
+    expect(page.coverage).toEqual({ fromSeq: null, beforeSeq: null });
+    await h.client.attach(makeStartInput({ conversationId: h.conversationId }));
+    await h.session.states.state.refresh();
+    expect(snapshot(h.session.states.state).value?.transcript?.generation).toBe(
+      initial?.generation
+    );
+  });
+
   it.each([
     'end_turn',
     'max_tokens',

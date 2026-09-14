@@ -545,7 +545,12 @@ export class SessionManager {
     const filtered = before === undefined ? turns : turns.filter((turn) => turn.seq < before);
     const page = [...filtered].sort((a, b) => b.seq - a.seq).slice(0, limit);
     const nextCursor = page.length === limit ? page.at(-1)!.seq : null;
-    return { turns: page.reverse(), nextCursor };
+    return {
+      turns: page.reverse(),
+      nextCursor,
+      position: this.readyRecord(conversationId)?.cell.transcript.position,
+      coverage: { fromSeq: nextCursor, beforeSeq: before ?? null },
+    };
   }
 
   getSessionState(conversationId: string): SessionState {
