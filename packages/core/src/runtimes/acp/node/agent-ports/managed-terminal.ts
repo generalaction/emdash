@@ -43,16 +43,28 @@ export class ManagedAgentTerminal {
     this.cwd = cwd;
     this.proc = proc;
     this.byteLimit = byteLimit ?? DEFAULT_OUTPUT_BYTE_LIMIT;
+  }
 
+  /** Subscribe only after the manager has registered and published this terminal. */
+  observe(): void {
+    const proc = this.proc;
     const handleData = (d: Buffer) => this.append(d);
     proc.stdout.on('data', handleData);
     proc.stderr?.on('data', handleData);
 
-    proc.onExit((status) => {
-      this._exitStatus = status;
-      this.waiters.splice(0).forEach((w) => w(status));
-      this.onExitCb(status);
+    proc.onError((error) => {
+      if (this._exitStatus) return;
+      this.append(Buffer.from(`Terminal process failed: ${error.message}\n`));
+      this.finish({ exitCode: 1, signal: null });
     });
+    proc.onExit((status) => this.finish(status));
+  }
+
+  private finish(status: AcpTerminalExit): void {
+    if (this._exitStatus) return;
+    this._exitStatus = status;
+    this.waiters.splice(0).forEach((w) => w(status));
+    this.onExitCb(status);
   }
 
   private append(d: Buffer): void {

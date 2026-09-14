@@ -22,8 +22,7 @@ async function createTerminal(
 ): Promise<string> {
   if (proc) host.nextTerminal = proc;
   return manager.create(conversationId, {
-    command,
-    args: [],
+    command: { kind: 'argv', command, args: [] },
     env: {},
     cwd: '/tmp',
   });
@@ -67,7 +66,11 @@ describe('AgentTerminalManager.create()', () => {
     const manager = new AgentTerminalManager(host, recording.listener);
 
     await expect(
-      manager.create('conv-1', { command: 'ls', args: [], env: {}, cwd: '/tmp' })
+      manager.create('conv-1', {
+        command: { kind: 'argv', command: 'ls', args: [] },
+        env: {},
+        cwd: '/tmp',
+      })
     ).rejects.toThrow('does not support terminal spawning');
   });
 
@@ -98,6 +101,43 @@ describe('AgentTerminalManager.create()', () => {
       terminalId,
       exitStatus: { exitCode: 0, signal: null },
     });
+  });
+
+  it('settles terminal errors once without affecting another conversation', async () => {
+    const { host, recording, manager } = makeManager();
+    const failed = new FakeAcpTerminalProcess();
+    const other = new FakeAcpTerminalProcess();
+    const failedId = await createTerminal(manager, host, 'conv-1', 'missing', failed);
+    const otherId = await createTerminal(manager, host, 'conv-2', 'echo', other);
+    const terminal = manager.get(failedId)!;
+    const waiting = terminal.waitForExit();
+
+    failed.emit('error', new Error('spawn missing ENOENT'));
+
+    await expect(waiting).resolves.toEqual({ exitCode: 1, signal: null });
+    expect(terminal.outputSnapshot().output).toContain('spawn missing ENOENT');
+    failed.triggerExit({ exitCode: 0, signal: null });
+    expect(recording.terminalExit).toHaveLength(1);
+    expect(terminal.snapshot().exitStatus).toEqual({ exitCode: 1, signal: null });
+    expect(manager.get(otherId)!.snapshot().exitStatus).toBeNull();
+    other.triggerExit({ exitCode: 0, signal: null });
+    await expect(manager.get(otherId)!.waitForExit()).resolves.toEqual({
+      exitCode: 0,
+      signal: null,
+    });
+  });
+
+  it('publishes creation before replaying an early process failure', async () => {
+    const { host, recording, manager } = makeManager();
+    const proc = new FakeAcpTerminalProcess();
+    proc.onError = (callback) => {
+      expect(recording.terminalCreated).toHaveLength(1);
+      callback(new Error('early failure'));
+    };
+    proc.onExit = (callback) => callback({ exitCode: 0, signal: null });
+    const id = await createTerminal(manager, host, 'conv-1', 'command', proc);
+    expect(manager.get(id)!.snapshot().exitStatus).toEqual({ exitCode: 1, signal: null });
+    expect(recording.terminalExit).toHaveLength(1);
   });
 });
 
