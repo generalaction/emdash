@@ -15,3 +15,4 @@ export {
   type ProcessTreeTerminatorOptions,
   type TaskkillRunner,
 } from './process-tree-terminator';
+export { planShellLaunch } from './shell-launch';

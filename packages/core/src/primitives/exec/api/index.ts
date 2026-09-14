@@ -6,3 +6,4 @@ export type {
   IExecutionContext,
 } from './execution-context';
 export type { NativeInvocation } from './native-invocation';
+export type { CommandSpec } from './command-spec';

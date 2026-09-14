@@ -1276,6 +1276,32 @@ describe('AcpRuntime session manager', () => {
     );
   });
 
+  it('adapts provider terminal commands at the connection boundary', async () => {
+    const agent = new FakeAcpAgent();
+    const h = makeAcpHarness({
+      acpBehavior: {
+        buildSpawn: () => ({ command: '/fake/agent', args: [] }),
+        connect: agent.behavior.connect,
+        terminalCommand: ({ command }) => ({ kind: 'shell-line', commandLine: command }),
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    try {
+      await rt.launchSession(makeStartInput());
+      await agent.capturedClient!.createTerminal!({
+        sessionId: 'session-1',
+        command: 'ls && ls src',
+      });
+      expect(h.fakeHost.spawnTerminalFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: { kind: 'shell-line', commandLine: 'ls && ls src' },
+        })
+      );
+    } finally {
+      await rt.dispose();
+    }
+  });
+
   it('suspends sessions when the process closes', async () => {
     const { h, rt } = await launchHarness('conv-close');
     const live = rt.sessionLiveModels('conv-close');

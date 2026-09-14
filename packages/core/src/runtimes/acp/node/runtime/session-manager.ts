@@ -624,7 +624,8 @@ export class SessionManager {
       conversationId,
       connection.cwd,
       connection.env,
-      params
+      params,
+      connection.terminalCommand?.(params)
     );
   }
 

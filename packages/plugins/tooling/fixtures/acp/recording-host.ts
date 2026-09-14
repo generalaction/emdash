@@ -11,16 +11,15 @@
  *   3. `which <binaryName>` via node:child_process
  */
 import { spawn, execSync } from 'node:child_process';
-import { EventEmitter } from 'node:events';
 import { realpathSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type {
   AcpFs,
   AcpProcessHandle,
   AcpProcessHost,
-  AcpTerminalExit,
   AcpTerminalProcess,
 } from '@emdash/core/runtimes/acp/api/transport';
+import { ChildAcpProcessHost } from '@emdash/core/runtimes/acp/node';
 
 class RecordingProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}
@@ -49,44 +48,6 @@ class RecordingProcessHandle implements AcpProcessHandle {
 
   onError(cb: (err: Error) => void): void {
     this.child.on('error', cb);
-  }
-
-  kill(signal?: NodeJS.Signals): void {
-    this.child.kill(signal ?? 'SIGTERM');
-  }
-}
-
-class RecordingTerminalProcess extends EventEmitter implements AcpTerminalProcess {
-  private _exitCode: number | null = null;
-
-  constructor(private readonly child: ReturnType<typeof spawn>) {
-    super();
-    child.on('exit', (code, signal) => {
-      this._exitCode = code;
-      this.emit('exit', { exitCode: code, signal: signal ?? null } satisfies AcpTerminalExit);
-    });
-    child.on('error', (err) => this.emit('error', err));
-  }
-
-  get stdout() {
-    if (!this.child.stdout) throw new Error('RecordingTerminalProcess: no stdout');
-    return this.child.stdout;
-  }
-
-  get stderr() {
-    return this.child.stderr ?? undefined;
-  }
-
-  get exitCode() {
-    return this._exitCode;
-  }
-
-  onExit(cb: (status: AcpTerminalExit) => void): void {
-    this.on('exit', cb);
-  }
-
-  onError(cb: (err: Error) => void): void {
-    this.on('error', cb);
   }
 
   kill(signal?: NodeJS.Signals): void {
@@ -213,22 +174,9 @@ export class RecordingHost implements AcpProcessHost {
     return new RecordingProcessHandle(child);
   }
 
-  async spawnTerminal(spec: {
-    command: string;
-    args: string[];
-    env: Record<string, string>;
-    cwd: string;
-  }): Promise<AcpTerminalProcess> {
-    const child = spawn(spec.command, spec.args, {
-      cwd: spec.cwd,
-      env: spec.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    if (!child.stdout) {
-      throw new Error('RecordingHost: failed to spawn terminal — no stdout');
-    }
-
-    return new RecordingTerminalProcess(child);
+  spawnTerminal(
+    spec: Parameters<NonNullable<AcpProcessHost['spawnTerminal']>>[0]
+  ): Promise<AcpTerminalProcess> {
+    return new ChildAcpProcessHost().spawnTerminal(spec);
   }
 }
