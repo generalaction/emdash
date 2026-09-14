@@ -1,4 +1,5 @@
 import { DEFAULT_THEME } from '@core/theme';
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { describe, expect, it } from 'vitest';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
@@ -65,6 +66,32 @@ describe('conversation restoration', () => {
       b.dispose();
       context.dispose();
       parent.remove();
+    }
+  });
+
+  it('keeps coherent state authoritative when replay temporarily omits the transcript', () => {
+    const context = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(context);
+    const activeTurn = source<TranscriptTurn | null>(userTurn('legacy'));
+    const sessionState = source<{ pendingPermissions: []; transcript?: TranscriptSnapshot }>({
+      pendingPermissions: [],
+      transcript: {
+        generation: 'one',
+        historyRevision: 0,
+        lastCommittedTurnSeq: null,
+        activeTurn: userTurn('current'),
+      },
+    });
+    const disconnect = connectSession(state, { activeTurn, sessionState, plan: source(null) });
+    try {
+      expect(state.transcript.state.activeTurnSnapshot?.id).toBe('turn-current');
+      sessionState.set({ pendingPermissions: [] });
+      activeTurn.set(userTurn('stale'));
+      expect(state.transcript.state.activeTurnSnapshot?.id).toBe('turn-current');
+    } finally {
+      disconnect();
+      state.dispose();
+      context.dispose();
     }
   });
 

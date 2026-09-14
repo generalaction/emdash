@@ -202,9 +202,13 @@ describe('streamDiff', () => {
         },
         state: {
           committedTurns: [],
+          displayTurns: [],
           activeTurnSnapshot: null,
           turnStatus: 'done' as TurnStatus,
         },
+        observe: () => false,
+        applyPage: () => true,
+        needsHistory: false,
         findItemById: () => undefined,
         reset: () => {},
       });

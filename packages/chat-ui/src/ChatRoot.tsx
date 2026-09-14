@@ -520,7 +520,7 @@ export function ChatRoot(props: ChatRootProps) {
   // rebuild from the incoming model — all within the same synchronous run.
   createEffect(() => {
     const s = state();
-    const next = s.transcript.state.committedTurns;
+    const next = s.transcript.state.displayTurns;
 
     if (s !== lastState) {
       // Model swap: snapshot the outgoing model's heights while committedUnitsArr
@@ -581,24 +581,25 @@ export function ChatRoot(props: ChatRootProps) {
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    const activeTurn =
-      at ??
-      ({
-        id: `pending:${pendingPrompt!.id}:turn`,
-        seq: 0,
-        initiator: 'user',
-        items: [
-          {
-            kind: 'message',
-            id: pendingPrompt!.id,
-            seq: 0,
-            role: 'user',
-            text: pendingPrompt!.text,
-            attachments: pendingPrompt!.attachments,
-          } as TranscriptTurn['items'][number],
-        ],
-      } satisfies TranscriptTurn);
-    return flattenTier([activeTurn], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
+    const pendingTurn = pendingPrompt
+      ? ({
+          id: `pending:${pendingPrompt.id}:turn`,
+          seq: 0,
+          initiator: 'user',
+          items: [
+            {
+              kind: 'message',
+              id: pendingPrompt.id,
+              seq: 0,
+              role: 'user',
+              text: pendingPrompt.text,
+              attachments: pendingPrompt.attachments,
+            } as TranscriptTurn['items'][number],
+          ],
+        } satisfies TranscriptTurn)
+      : null;
+    const turns = [...(at ? [at] : []), ...(pendingTurn ? [pendingTurn] : [])];
+    return flattenTier(turns, segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
   });
 
   const units = createMemo<UnitsView>(() => {
@@ -694,7 +695,7 @@ export function ChatRoot(props: ChatRootProps) {
   const userTurns = createMemo(() => {
     committedUnitsVersion();
     return collectUserTurnUnits(
-      state().transcript.state.committedTurns,
+      state().transcript.state.displayTurns,
       makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
     );
   });
@@ -1633,7 +1634,7 @@ export function ChatRoot(props: ChatRootProps) {
   });
 
   const currentMessageId = createMemo<string | null>(() => {
-    return findLastUserMessageId(state().transcript.state.committedTurns);
+    return findLastUserMessageId(state().transcript.state.displayTurns);
   });
 
   const turnStatus = () => state().transcript.state.turnStatus;

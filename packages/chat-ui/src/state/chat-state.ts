@@ -32,6 +32,7 @@
  * conversationId in AcpChatPanel) — this assumption is intentional.
  */
 
+import type { TranscriptSnapshot } from '@emdash/core/runtimes/acp/api/client';
 import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';
@@ -105,7 +106,10 @@ type LiveReadable<T> = {
 export type ConnectSessionSource = {
   activeTurn: LiveReadable<TranscriptTurn | null>;
   plan: LiveReadable<PlanState | null>;
-  sessionState: LiveReadable<{ pendingPermissions: readonly AcpPermissionRequest[] }>;
+  sessionState: LiveReadable<{
+    pendingPermissions: readonly AcpPermissionRequest[];
+    transcript?: TranscriptSnapshot;
+  }>;
 };
 
 export type ConnectSessionOptions = {
@@ -214,7 +218,7 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
       const active = transcript.state.activeTurnSnapshot;
       if (
         (active && containsPrompt(active)) ||
-        transcript.state.committedTurns.some(containsPrompt)
+        transcript.state.displayTurns.some(containsPrompt)
       ) {
         session.setPendingPrompt(null);
       }
@@ -327,11 +331,16 @@ export function connectSession(
   source: ConnectSessionSource,
   options: ConnectSessionOptions = {}
 ): () => void {
-  let hadActiveTurn = source.activeTurn.getSnapshot() !== null;
+  let previousTurnId = state.transcript.state.activeTurnSnapshot?.id ?? null;
+  let usesVersionedTranscript = false;
 
   const syncSessionState = (): void => {
     const snapshot = source.sessionState.getSnapshot();
     state.session.setPermissions(snapshot?.pendingPermissions ?? []);
+    if (snapshot?.transcript) {
+      usesVersionedTranscript = true;
+      if (state.transcript.observe(snapshot.transcript)) options.onTurnCommitted?.();
+    }
   };
 
   const syncPlan = (): void => {
@@ -339,10 +348,11 @@ export function connectSession(
   };
 
   const syncActiveTurn = (): void => {
+    if (usesVersionedTranscript) return;
     const turn = source.activeTurn.getSnapshot() ?? null;
     state.transcript.activeTurn.set(turn);
-    if (!turn && hadActiveTurn) options.onTurnCommitted?.();
-    hadActiveTurn = turn !== null;
+    if (previousTurnId && previousTurnId !== turn?.id) options.onTurnCommitted?.();
+    previousTurnId = turn?.id ?? null;
   };
   syncSessionState();
   syncPlan();
