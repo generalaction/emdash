@@ -35,6 +35,7 @@ export function createPullRequestsGitHubAuthController(
       const credentials = await readCredentials(identity.data.accountId, repository.host);
       if (!credentials.success) return credentials;
       return ok({
+        provider: 'github',
         token: credentials.data.accessToken,
         host: repository.host,
         apiBaseUrl: credentials.data.apiBaseUrl,

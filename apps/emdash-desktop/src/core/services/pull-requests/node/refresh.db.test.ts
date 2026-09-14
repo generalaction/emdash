@@ -149,6 +149,7 @@ async function harness() {
   const auth = {
     resolveAuth: async () =>
       ok({
+        provider: 'github',
         accountId: 'account',
         token: 'test',
         host: 'github.com',

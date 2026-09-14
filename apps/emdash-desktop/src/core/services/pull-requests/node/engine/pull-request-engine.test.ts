@@ -446,6 +446,7 @@ function fakeGitHubAuth(accountId?: string): ContractClient<GitHubAuthContract> 
   return {
     resolveAuth: async () =>
       ok({
+        provider: 'github',
         token: 'test-token',
         host: 'github.com',
         apiBaseUrl: 'https://api.github.com',

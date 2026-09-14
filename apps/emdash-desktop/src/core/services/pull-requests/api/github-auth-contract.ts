@@ -63,6 +63,7 @@ export const githubAuthContract = defineContract({
       repositoryUrl: z.string(),
     }),
     data: z.object({
+      provider: z.enum(['github']),
       token: z.string(),
       host: z.string(),
       apiBaseUrl: z.string(),

@@ -37,6 +37,7 @@ describe('pull requests GitHub auth controller', () => {
       })
     ).resolves.toEqual(
       ok({
+        provider: 'github',
         token: 'secret-token',
         host: 'github.com',
         apiBaseUrl: 'https://api.github.com',
