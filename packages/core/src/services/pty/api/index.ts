@@ -10,7 +10,6 @@ export {
   logLocalPtySpawnWarnings,
   resolveLocalPtySpawn,
   type LocalPtySpawnWarning,
-  type PtyCommandSpec,
   type PtySpawnIntent,
   type ResolvedLocalPtySpawn,
   type ResolvedPtyShellProfile,
