@@ -160,6 +160,11 @@ export async function createTaskFromPrompt(
   const resolvedBranch = await resolveBranchName(appSettings, taskName, input.branchName);
   if (!resolvedBranch.success) return resolvedBranch;
   const branchName = resolvedBranch.data;
+  // The new-task modal's push toggle defaults to this setting ("Auto-push on
+  // create"), so an MCP-created task pushes its branch and sets upstream on the
+  // same terms a task created in the UI does. Defaulted like the modal does,
+  // since the preset would otherwise read an absent value as "push".
+  const pushBranch = (await appSettings.get('project')).pushOnCreate ?? true;
 
   // Matches the new-task modal: chat UI is opt-in and only available when the
   // provider supports ACP; otherwise the agent runs in a terminal session.
@@ -202,7 +207,7 @@ export async function createTaskFromPrompt(
         workspaceConfig: buildWorkspaceConfigFromPreset(
           'new-worktree',
           {},
-          { fromBranch: fromBranch.data, branchName, pushBranch: false }
+          { fromBranch: fromBranch.data, branchName, pushBranch }
         ),
       };
 
