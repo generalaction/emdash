@@ -275,6 +275,8 @@ export class SessionManager {
     entry: ConversationHandle,
     scope: Scope
   ): Promise<Result<SessionRecord, ActivationStartError>> {
+    const closed = await entry.waitForProviderClose();
+    if (!closed.success) return closed;
     const materialization = entry.beginMaterialization();
     if (!materialization) return acpErr.conversationNotFound(entry.conversationId);
     const input = entry.materializationInput();
@@ -417,7 +419,7 @@ export class SessionManager {
       const materializingRecord =
         entry.state === 'materializing' ? entry.currentRecord() : undefined;
       entry.kill();
-      if (materializingRecord) this.interruptRecord(materializingRecord);
+      if (materializingRecord) await entry.interrupt(materializingRecord);
       await entry.waitForEviction();
       await entry.runEviction(() =>
         this.lifecycle.evict(conversationId, { cause: 'user', intent: 'remove' })
@@ -586,11 +588,13 @@ export class SessionManager {
         params.sessionId,
         conversationId
       );
-      record.conversation.updateProviderSessionId(params.sessionId);
-      this.lifecycle.providerSessionId(conversationId, {
-        conversationId,
-        providerSessionId: params.sessionId,
-      });
+      if (record.conversation.state === 'active') {
+        record.conversation.updateProviderSessionId(params.sessionId);
+        this.lifecycle.providerSessionId(conversationId, {
+          conversationId,
+          providerSessionId: params.sessionId,
+        });
+      }
     }
     record.cell.recordRaw({
       kind: 'session_update',
@@ -772,6 +776,15 @@ export class SessionManager {
           });
         },
         now: () => this.clock.now(),
+        clock: this.clock,
+        isConnectionCurrent: (record) => {
+          const connection = this.connections.peek({
+            providerId: record.input.providerId,
+            cwd: record.input.cwd,
+            env: record.input.env,
+          });
+          return connection?.generation === record.processGeneration;
+        },
       },
       input,
       options.configOverrides ??
@@ -781,7 +794,7 @@ export class SessionManager {
           ...(input.collaborationMode ? { collaborationMode: input.collaborationMode } : {}),
         } satisfies ConfigOverrides),
       options.consumed ?? false,
-      options.everMaterialized ?? options.suspended,
+      options.everMaterialized ?? (options.suspended || input.sessionId !== null),
       options.retained
     );
     this.retained.set(input.conversationId, entry);
@@ -926,7 +939,7 @@ export class SessionManager {
     }
   }
 
-  private interruptRecord(record: SessionRecord): void {
+  private async interruptRecord(record: SessionRecord): Promise<void> {
     void record.cell
       .cancel()
       .then((result) => {
@@ -942,12 +955,15 @@ export class SessionManager {
           error: String(error),
         });
       });
-    void record.cell.closeSession().catch((error) => {
+    try {
+      await record.cell.closeSession();
+    } catch (error) {
       this.deps.logger.warn('SessionManager: failed to close provider session during teardown', {
         conversationId: record.input.conversationId,
         error: String(error),
       });
-    });
+      throw error;
+    }
   }
 
   private async teardownRecord(record: SessionRecord): Promise<void> {

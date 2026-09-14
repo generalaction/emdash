@@ -210,6 +210,18 @@ one. If a provider cannot replay history, `loadHistory` returns a successful pag
 `unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
 one.
 
+Provider replay reconstructs committed history internally. While the session is replaying, its
+public projection exposes no active turn, so partial historical messages cannot briefly enter and
+leave the live renderer. A successful load publishes any rebound provider session identity; a
+failed or unsupported load preserves the original identity and returns a retryable error instead
+of creating a replacement session. Failures log the original serialized exception.
+
+Provider close acknowledgement is part of teardown. The conversation retains a pending close
+across the bounded teardown timeout; subsequent activation must await it or return a recovery
+error. A rejected close can be retried, while an outstanding close is never duplicated. If the
+provider connection generation has gone away, the old close no longer blocks restoration on a
+new connection. Cancellation still starts promptly before waiting for closure and lease drainage.
+
 Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
 while materializing joins that activation and dispatches once after the latest desired configuration
 has been applied. Active mode and config changes use shorter leases. Eviction, termination, and runtime

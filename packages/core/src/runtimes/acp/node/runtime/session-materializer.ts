@@ -88,9 +88,14 @@ export class SessionMaterializer {
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
-    let resumeOutcome: SessionRecord['resumeOutcome'] = input.sessionId ? 'replaced-by-new' : null;
+    let resumeOutcome: SessionRecord['resumeOutcome'] = null;
 
     try {
+      if (input.sessionId && (!connection.supportsLoadSession || !connection.agent.loadSession)) {
+        return acpErr.invalidState(
+          'This provider cannot restore the existing conversation. Its saved session has been preserved.'
+        );
+      }
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
         let releaseHandshake: () => void;
         try {
@@ -136,17 +141,18 @@ export class SessionMaterializer {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           if (isAuthRequiredError(error)) throw error;
-          this.deps.logger.warn('SessionMaterializer: loadSession failed, starting a new session', {
+          this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
             conversationId: input.conversationId,
+            sessionId: input.sessionId,
+            error: toSerializedError(error),
           });
+          return acpErr.invalidState(
+            'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
+          );
         } finally {
           endLoad();
           releaseHandshake();
-        }
-
-        if (!loaded) {
-          this.callbacks.discardRecord(record);
-          record = null;
+          if (!loaded) this.callbacks.discardRecord(record);
         }
       }
 
