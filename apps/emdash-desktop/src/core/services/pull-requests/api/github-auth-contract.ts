@@ -57,7 +57,7 @@ export const githubAuthErrorSchema = z.discriminatedUnion('type', [
  * through the blessed resolver and returns the matching token. Account changes
  * apply on the next request — no persisted binding, no refresh events.
  */
-export const githubAuthContract = defineContract({
+export const gitPlatformAuthContract = defineContract({
   resolveAuth: fallible({
     input: z.object({
       repositoryUrl: z.string(),
@@ -74,5 +74,5 @@ export const githubAuthContract = defineContract({
   }),
 });
 
-export type GitHubAuthContract = typeof githubAuthContract;
+export type GitPlatformAuthContract = typeof gitPlatformAuthContract;
 export type GitHubAuthError = z.infer<typeof githubAuthErrorSchema>;

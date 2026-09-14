@@ -4,7 +4,7 @@ import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract, PullRequest, PullRequestComment } from '../api';
+import type { GitPlatformAuthContract, PullRequest, PullRequestComment } from '../api';
 import type { PullRequestEngine } from './engine';
 import type { GitHubPullRequestRepository, PullRequestPage } from './engine/observation';
 import { PullRequestService } from './pull-request-service';
@@ -77,7 +77,7 @@ async function harness(urls = [repositoryUrl]) {
     store,
     logger,
     engine: engine as unknown as PullRequestEngine,
-    githubAuth: {} as ContractClient<GitHubAuthContract>,
+    githubAuth: {} as ContractClient<GitPlatformAuthContract>,
     incrementalIntervalMs: 60_000,
   });
   const observe = (url = repositoryUrl, comments = false) => {

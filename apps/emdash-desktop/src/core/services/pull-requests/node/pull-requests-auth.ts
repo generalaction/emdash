@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { githubAuthContract, type GitHubAuthError } from '@core/services/pull-requests/api';
+import { gitPlatformAuthContract, type GitHubAuthError } from '@core/services/pull-requests/api';
 import type { PullRequestSyncIdentityResolver } from './sync-identity';
 
 type ReadGitHubCredentials = (
@@ -20,7 +20,7 @@ export function createPullRequestsGitHubAuthController(
   readCredentials: ReadGitHubCredentials,
   resolveSyncIdentity: PullRequestSyncIdentityResolver
 ): Controller {
-  return createController(githubAuthContract, {
+  return createController(gitPlatformAuthContract, {
     resolveAuth: async (input) => {
       const repository = parseRepositoryRef(input.repositoryUrl);
       if (!repository) {

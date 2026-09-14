@@ -5,7 +5,7 @@ import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { snapshot } from '@emdash/wire/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract, PullRequest, PullRequestError } from '../api';
+import type { GitPlatformAuthContract, PullRequest, PullRequestError } from '../api';
 import type { PullRequestEngine } from './engine';
 import type { GitHubPullRequestRepository, PullRequestPage } from './engine/observation';
 import { PullRequestService } from './pull-request-service';
@@ -706,7 +706,7 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
   };
 }
 
-function fakeGitHubAuth(): ContractClient<GitHubAuthContract> {
+function fakeGitHubAuth(): ContractClient<GitPlatformAuthContract> {
   return {
     resolveAuth: async () =>
       ok({

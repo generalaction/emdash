@@ -12,7 +12,7 @@ import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract } from '../../api';
+import type { GitPlatformAuthContract } from '../../api';
 import { PullRequestEngine, type PullRequestEngineOptions } from './pull-request-engine';
 
 const scopes: Scope[] = [];
@@ -70,7 +70,7 @@ describe('GitHub pull request adapter (without persistence)', () => {
       githubAuth: {
         resolveAuth: async () =>
           err({ type: authType, host: 'github.com', message: 'Account unavailable' }),
-      } as ContractClient<GitHubAuthContract>,
+      } as ContractClient<GitPlatformAuthContract>,
       logger,
       createOctokit: () => fakeOctokit(graphql),
     });
@@ -442,7 +442,7 @@ function fakeRateGate(): RateGate {
   };
 }
 
-function fakeGitHubAuth(accountId?: string): ContractClient<GitHubAuthContract> {
+function fakeGitHubAuth(accountId?: string): ContractClient<GitPlatformAuthContract> {
   return {
     resolveAuth: async () =>
       ok({

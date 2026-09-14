@@ -15,7 +15,7 @@ import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import type {
-  GitHubAuthContract,
+  GitPlatformAuthContract,
   PullRequest,
   PullRequestCheck,
   PullRequestComment,
@@ -58,7 +58,7 @@ const defaultRetrySchedule = retrySchedules.jitter(
 );
 
 export type PullRequestEngineOptions = {
-  githubAuth: ContractClient<GitHubAuthContract>;
+  githubAuth: ContractClient<GitPlatformAuthContract>;
   scope: Scope;
   logger: Logger;
   createOctokit?: (options: { token: string; baseUrl: string }) => Octokit;

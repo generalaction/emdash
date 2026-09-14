@@ -16,7 +16,7 @@ import {
 import {
   normalizeRepositoryUrl,
   type CreatePullRequestInput,
-  type GitHubAuthContract,
+  type GitPlatformAuthContract,
   type ListPullRequestsInput,
   type ListPullRequestsResult,
   type PullRequest,
@@ -75,7 +75,7 @@ type DetailEntry = {
 
 export type PullRequestServiceOptions = {
   store: PullRequestStore;
-  githubAuth: ContractClient<GitHubAuthContract>;
+  githubAuth: ContractClient<GitPlatformAuthContract>;
   scope: Scope;
   logger: Logger;
   incrementalIntervalMs?: number;
