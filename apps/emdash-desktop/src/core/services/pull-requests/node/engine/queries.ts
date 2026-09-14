@@ -18,6 +18,7 @@ export const PR_SUMMARY_FRAGMENT = `
     changedFiles
     mergeable
     mergeStateStatus
+    statusCheckRollup { state }
     author {
       login avatarUrl url
       ... on User { databaseId createdAt updatedAt }
@@ -28,8 +29,9 @@ export const PR_SUMMARY_FRAGMENT = `
       owner { login }
     }
     baseRepository { url }
-    labels(first: 10) { nodes { name color } }
-    assignees(first: 10) {
+    labels(first: 100) { pageInfo { hasNextPage endCursor } nodes { name color } }
+    assignees(first: 100) {
+      pageInfo { hasNextPage endCursor }
       nodes {
         login avatarUrl url
         ... on User { databaseId createdAt updatedAt }
@@ -39,12 +41,11 @@ export const PR_SUMMARY_FRAGMENT = `
   }
 `;
 
-export const SYNC_PRS_QUERY = `
-  query syncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+export const OPEN_PRS_QUERY = `
+  query openPullRequests($owner: String!, $repo: String!, $cursor: String) {
     rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
-      pullRequests(first: 25, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
-        totalCount
+      pullRequests(states: OPEN, first: 50, after: $cursor, orderBy: { field: CREATED_AT, direction: ASC }) {
         pageInfo { hasNextPage endCursor }
         nodes { ...PrSummaryFields }
       }
@@ -53,11 +54,27 @@ export const SYNC_PRS_QUERY = `
   ${PR_SUMMARY_FRAGMENT}
 `;
 
-export const INCREMENTAL_SYNC_PRS_QUERY = `
-  query incrementalSyncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+export const PR_COLLECTIONS_QUERY = `
+  query pullRequestCollections($owner: String!, $repo: String!, $number: Int!, $labelsCursor: String, $assigneesCursor: String) {
     rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
-      pullRequests(first: 50, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      pullRequest(number: $number) {
+        labels(first: 100, after: $labelsCursor) { pageInfo { hasNextPage endCursor } nodes { name color } }
+        assignees(first: 100, after: $assigneesCursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { login avatarUrl url ... on User { databaseId createdAt updatedAt } }
+        }
+      }
+    }
+  }
+`;
+
+export const SYNC_PRS_QUERY = `
+  query syncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+    rateLimit { cost remaining resetAt }
+    repository(owner: $owner, name: $repo) {
+      pullRequests(first: 25, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        totalCount
         pageInfo { hasNextPage endCursor }
         nodes { ...PrSummaryFields }
       }

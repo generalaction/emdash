@@ -23,25 +23,27 @@ import type {
   PullRequestFile,
   PullRequestMergeOptions,
   PullRequestUser,
-  SyncState,
 } from '../../api';
-import type { PullRequestStore, SyncCursor } from '../store';
 import {
-  isAbortError,
   isNetworkError,
   mapApiError,
   mapAuthError,
   type PullRequestOperationErrorType,
 } from './errors';
+import type {
+  GitHubPullRequestRepository,
+  Observed,
+  PullRequestMetadata,
+  PullRequestPage,
+} from './observation';
 import {
   GET_PR_BY_NUMBER_QUERY,
   GET_PR_CHECK_RUNS_BY_URL_QUERY,
-  INCREMENTAL_SYNC_PRS_QUERY,
   SYNC_PRS_QUERY,
+  OPEN_PRS_QUERY,
+  PR_COLLECTIONS_QUERY,
 } from './queries';
 
-const DEFAULT_MAX_SYNC_COUNT = 300;
-const DEFAULT_ARCHIVE_AGE_MONTHS = 6;
 const DEFAULT_REQUEST_CONCURRENCY = 3;
 const DEFAULT_REQUEST_CAPACITY = 20;
 const DEFAULT_REQUEST_REFILL_PER_SEC = 10;
@@ -56,13 +58,9 @@ const defaultRetrySchedule = retrySchedules.jitter(
 );
 
 export type PullRequestEngineOptions = {
-  store: PullRequestStore;
   githubAuth: ContractClient<GitHubAuthContract>;
   scope: Scope;
   logger: Logger;
-  maxSyncCount?: number;
-  archiveAgeMonths?: number;
-  onSyncState?: (repositoryUrl: string, state: SyncState) => void;
   createOctokit?: (options: { token: string; baseUrl: string }) => Octokit;
   createScheduler?: (options: CreateRequestSchedulerOptions) => RequestScheduler;
   createRateGate?: (resource: GitHubRateResource) => RateGate;
@@ -74,15 +72,10 @@ type RequestLane = {
   gates: Record<GitHubRateResource, RateGate>;
 };
 
-type CheckSyncState = {
-  nextGeneration: number;
-  latestStoredGenerations: Map<string, number>;
-  active: number;
-};
-
 type GitHubRateResource = 'graphql' | 'rest';
 
 type GitHubClient = {
+  identity: string;
   octokit: Octokit;
   lane: RequestLane;
 };
@@ -126,6 +119,7 @@ interface GqlUser {
   url?: string;
 }
 
+type PageInfo = { hasNextPage: boolean; endCursor: string | null };
 interface GqlPrNode {
   number: number;
   title: string;
@@ -148,9 +142,10 @@ interface GqlPrNode {
   author: GqlUser | null;
   headRepository: { url: string } | null;
   baseRepository: { url: string } | null;
-  labels: { nodes: Array<{ name: string; color: string }> };
-  assignees: { nodes: GqlUser[] };
+  labels: { nodes: Array<{ name: string; color: string }>; pageInfo?: PageInfo };
+  assignees: { nodes: GqlUser[]; pageInfo?: PageInfo };
   reviewDecision: string | null;
+  statusCheckRollup?: { state: NonNullable<PullRequest['checkSummary']> } | null;
 }
 
 interface GqlCheckRunNode {
@@ -176,268 +171,225 @@ interface GqlStatusContextNode {
 }
 
 type GqlCheckNode = GqlCheckRunNode | GqlStatusContextNode;
+type OpenPrResponse = {
+  repository: {
+    pullRequests: {
+      nodes: GqlPrNode[];
+      totalCount?: number;
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  };
+  rateLimit?: GraphQlRateLimit;
+};
 
+/** GitHub transport adapter: authenticated observations and mutations, never cache policy. */
 export class PullRequestEngine {
   private readonly requestLanes = new Map<string, RequestLane>();
-  private readonly checkSyncStates = new Map<string, CheckSyncState>();
-  /**
-   * Last identity each repository was accessed as, keyed by repository URL and
-   * held in memory only — the store no longer persists an account binding.
-   * Cursors track what one identity has seen, so an identity change invalidates
-   * them; the next sync rebuilds the repository's view from scratch.
-   */
-  private readonly lastAccessIdentities = new Map<string, string>();
 
   constructor(private readonly options: PullRequestEngineOptions) {}
 
-  async sync(
+  async openRepository(
     repositoryUrl: string,
-    signal: AbortSignal,
-    priority: number = requestPriorities.task
-  ): Promise<Result<void, PullRequestError>> {
-    const fullCursor = this.options.store.getCursor(repositoryUrl, 'full');
-    return fullCursor?.done
-      ? await this.runIncrementalSync(repositoryUrl, signal, priority)
-      : await this.runFullSync(repositoryUrl, signal, priority);
-  }
-
-  async forceFullSync(
-    repositoryUrl: string,
-    signal: AbortSignal,
-    priority: number = requestPriorities.task
-  ): Promise<Result<void, PullRequestError>> {
-    this.options.store.clearCursors(repositoryUrl);
-    return await this.runFullSync(repositoryUrl, signal, priority);
-  }
-
-  async syncSingle(
-    repositoryUrl: string,
-    number: number,
-    signal: AbortSignal,
-    options: { emit?: boolean } = {}
-  ): Promise<Result<PullRequest, PullRequestError>> {
-    const emitProgress = options.emit !== false;
+    signal: AbortSignal
+  ): Promise<Result<GitHubPullRequestRepository, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const github = await this.getOctokit(repository.data, signal);
-    if (!github.success) {
-      if (emitProgress) {
-        this.emit(repositoryUrl, {
-          phase: 'error',
-          kind: 'single',
-          error: github.error,
-        });
-      }
-      return github;
+    try {
+      const github = await this.getOctokit(repository.data, signal);
+      if (!github.success) return github;
+      signal.throwIfAborted();
+      const ref = repository.data;
+      const client = github.data;
+      return ok({
+        identity: client.identity,
+        repositoryUrl: ref.repositoryUrl,
+        fetchOpenPage: (cursor, requestSignal, priority) =>
+          this.fetchPage(ref, client, OPEN_PRS_QUERY, 'open', cursor, requestSignal, priority),
+        fetchHistoryPage: (cursor, requestSignal, priority) =>
+          this.fetchPage(ref, client, SYNC_PRS_QUERY, 'history', cursor, requestSignal, priority),
+        fetchPullRequest: (number, requestSignal, priority) =>
+          this.fetchPullRequest(ref, client, number, requestSignal, priority),
+        fetchChecks: (number, requestSignal) =>
+          this.fetchChecks(ref, client, number, requestSignal),
+        fetchComments: (number, requestSignal) =>
+          this.fetchComments(ref, client, number, requestSignal),
+      });
+    } catch (error) {
+      return this.handleError(
+        error,
+        repository.data,
+        'Unable to access repository',
+        'refresh_failed'
+      );
     }
-    const { lane, octokit } = github.data;
-    if (emitProgress) {
-      this.emit(repositoryUrl, { phase: 'running', kind: 'single', synced: 0 });
-    }
+  }
+
+  private async fetchPage(
+    repository: RepositoryRef,
+    github: GitHubClient,
+    query: string,
+    kind: 'open' | 'history',
+    cursor: string | null,
+    signal: AbortSignal,
+    priority: number = requestPriorities.background
+  ): Promise<Result<Observed<PullRequestPage>, PullRequestError>> {
+    const fetchedAt = Date.now();
+    const { lane, octokit } = github;
     try {
       const response = await this.request(
         lane,
         signal,
-        {
-          priority: requestPriorities.interactive,
-          key: `pr:${repository.data.repositoryUrl}:${number}`,
-        },
+        { priority, key: `${kind}:${repository.repositoryUrl}:${cursor ?? ''}` },
+        (requestSignal) =>
+          octokit.graphql<OpenPrResponse>(query, {
+            owner: repository.owner,
+            repo: repository.repo,
+            cursor,
+            request: { signal: requestSignal },
+          })
+      );
+      lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
+      const page = response.repository.pullRequests;
+      if (
+        page.pageInfo.hasNextPage &&
+        (!page.pageInfo.endCursor || page.pageInfo.endCursor === cursor)
+      ) {
+        throw new Error('Incomplete PR inventory pagination');
+      }
+      const prs: PullRequestMetadata[] = [];
+      for (const rawNode of page.nodes) {
+        // Scheduler coalescing can share a response between callers; pagination must
+        // never append into that shared response's connection arrays.
+        const node = cloneNodeCollections(rawNode);
+        await this.completeCollections(repository, github, node, signal, priority);
+        prs.push(this.mapNode(repository.repositoryUrl, node));
+      }
+      signal.throwIfAborted();
+      return ok({ fetchedAt, data: { prs, pageInfo: page.pageInfo, totalCount: page.totalCount } });
+    } catch (error) {
+      return this.handleError(error, repository, 'Unable to read pull requests', 'sync_failed');
+    }
+  }
+
+  private async fetchPullRequest(
+    repository: RepositoryRef,
+    github: GitHubClient,
+    number: number,
+    signal: AbortSignal,
+    priority: number = requestPriorities.interactive
+  ): Promise<Result<Observed<PullRequestMetadata>, PullRequestError>> {
+    const fetchedAt = Date.now();
+    const { lane, octokit } = github;
+    try {
+      const response = await this.request(
+        lane,
+        signal,
+        { priority, key: `pr:${repository.repositoryUrl}:${number}` },
         (requestSignal) =>
           octokit.graphql<{
             repository: { pullRequest: GqlPrNode | null };
             rateLimit?: GraphQlRateLimit;
           }>(GET_PR_BY_NUMBER_QUERY, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
+            owner: repository.owner,
+            repo: repository.repo,
             number,
             request: { signal: requestSignal },
           })
       );
       lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
-      const node = response.repository.pullRequest;
-      if (!node) {
-        const notFound: PullRequestError = {
+      const rawNode = response.repository.pullRequest;
+      if (!rawNode)
+        return err({
           type: 'github_not_found_or_no_access',
-          host: repository.data.host,
+          host: repository.host,
           message: `Pull request #${number} was not found`,
-        };
-        if (emitProgress) {
-          this.emit(repositoryUrl, {
-            phase: 'error',
-            kind: 'single',
-            error: notFound,
-          });
-        }
-        return err(notFound);
-      }
-      const pr = this.saveNode(repositoryUrl, node);
-      this.emit(repositoryUrl, {
-        phase: 'idle',
-        kind: 'single',
-        synced: 1,
-        lastSyncedAt: Date.now(),
-      });
-      return ok(pr);
-    } catch (error) {
-      if (signal.aborted || isAbortError(error)) {
-        if (emitProgress) {
-          this.emit(repositoryUrl, { phase: 'idle', kind: 'single' });
-        }
-        return err({ type: 'refresh_failed', message: 'Operation cancelled' });
-      }
-      const result = this.handleError<PullRequest>(
-        error,
-        repository.data,
-        'Unable to refresh pull request',
-        'refresh_failed'
-      );
-      if (!result.success && emitProgress) {
-        this.emit(repositoryUrl, {
-          phase: 'error',
-          kind: 'single',
-          error: result.error,
         });
-      }
-      return result;
+      const node = cloneNodeCollections(rawNode);
+      await this.completeCollections(repository, github, node, signal, priority);
+      signal.throwIfAborted();
+      return ok({ fetchedAt, data: this.mapNode(repository.repositoryUrl, node) });
+    } catch (error) {
+      return this.handleError(error, repository, 'Unable to read pull request', 'refresh_failed');
     }
   }
 
-  async syncChecks(
-    repositoryUrl: string,
-    pullRequestUrl: string,
-    headRefOid: string,
+  private async fetchChecks(
+    repository: RepositoryRef,
+    github: GitHubClient,
+    number: number,
     signal: AbortSignal
-  ): Promise<Result<boolean, PullRequestError>> {
-    const requestedRepository = this.parseRepository(repositoryUrl);
-    if (!requestedRepository.success) return requestedRepository;
-    const identity = this.options.store.getPullRequestIdentity(pullRequestUrl);
-    if (!identity) return ok(false);
-    const repository = parseRepositoryRef(identity.repositoryUrl);
-    if (
-      repository?.repositoryUrl.toLowerCase() !==
-      requestedRepository.data.repositoryUrl.toLowerCase()
-    ) {
-      return err({
-        type: 'checks_failed',
-        message: 'The pull request does not belong to the requested repository.',
-      });
-    }
-    const number = identity.identifier
-      ? Number.parseInt(identity.identifier.replace('#', ''), 10)
-      : Number.NaN;
-    if (!Number.isFinite(number)) return ok(false);
-    const syncState = this.checkSyncStates.get(pullRequestUrl) ?? {
-      nextGeneration: 0,
-      latestStoredGenerations: new Map<string, number>(),
-      active: 0,
-    };
-    this.checkSyncStates.set(pullRequestUrl, syncState);
-    const syncGeneration = ++syncState.nextGeneration;
-    syncState.active += 1;
+  ): Promise<
+    Result<Observed<{ headRefOid: string; checks: PullRequestCheck[] }>, PullRequestError>
+  > {
+    const fetchedAt = Date.now();
+    const { lane, octokit } = github;
     try {
-      const github = await this.getOctokit(repository, signal);
-      if (!github.success) return github;
-      const { lane, octokit } = github.data;
       const nodes: GqlCheckNode[] = [];
-      let checksHeadRefOid: string | undefined;
-      let cursor: string | undefined;
+      let cursor: string | null = null;
+      let headRefOid: string | undefined;
+      const visited = new Set<string>();
       for (;;) {
-        const response = await this.request(
+        const response: {
+          repository: {
+            pullRequest: {
+              commits: {
+                nodes: Array<{
+                  commit: {
+                    oid: string;
+                    statusCheckRollup: {
+                      contexts: { pageInfo: PageInfo; nodes: GqlCheckNode[] };
+                    } | null;
+                  };
+                }>;
+              };
+            } | null;
+          };
+          rateLimit?: GraphQlRateLimit;
+        } = await this.request(
           lane,
           signal,
           {
             priority: requestPriorities.interactive,
-            key: `checks:${repository.repositoryUrl}:${number}:${headRefOid}:${cursor ?? ''}`,
+            key: `checks:${repository.repositoryUrl}:${number}:${cursor ?? ''}`,
           },
           (requestSignal) =>
-            octokit.graphql<{
-              repository: {
-                pullRequest: {
-                  commits: {
-                    nodes: Array<{
-                      commit: {
-                        oid: string;
-                        statusCheckRollup: {
-                          contexts: {
-                            pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                            nodes: GqlCheckNode[];
-                          };
-                        } | null;
-                      };
-                    }>;
-                  };
-                } | null;
-              };
-              rateLimit?: GraphQlRateLimit;
-            }>(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
+            octokit.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
               owner: repository.owner,
               repo: repository.repo,
               number,
-              cursor: cursor ?? null,
+              cursor,
               request: { signal: requestSignal },
             })
         );
         lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
         const commit = response.repository.pullRequest?.commits.nodes[0]?.commit;
-        if (!commit) {
-          return err({
-            type: 'checks_failed',
-            message: 'GitHub did not return a pull request head for the check runs.',
-          });
+        if (!commit?.oid) throw new Error('Pull request head was not returned');
+        if (headRefOid !== undefined && commit.oid !== headRefOid) {
+          throw new Error('The PR head changed while refreshing checks');
         }
-        if (checksHeadRefOid && commit.oid !== checksHeadRefOid) {
-          return err({
-            type: 'checks_failed',
-            message: 'The pull request head changed while check runs were loading.',
-          });
-        }
-        checksHeadRefOid = commit.oid;
+        headRefOid = commit.oid;
         const contexts = commit.statusCheckRollup?.contexts;
         if (!contexts) break;
         nodes.push(...contexts.nodes);
         if (!contexts.pageInfo.hasNextPage) break;
-        cursor = contexts.pageInfo.endCursor ?? undefined;
+        const next = contexts.pageInfo.endCursor;
+        if (!next || visited.has(next)) throw new Error('Incomplete checks pagination');
+        visited.add(next);
+        cursor = next;
       }
-      if (!checksHeadRefOid) return ok(false);
-      if ((syncState.latestStoredGenerations.get(checksHeadRefOid) ?? 0) > syncGeneration) {
-        return err({
-          type: 'checks_failed',
-          message: 'A newer check run sync completed before this one.',
-        });
-      }
-      const replaced = this.options.store.replaceChecksForHead(
-        pullRequestUrl,
-        checksHeadRefOid,
-        nodes.map((node, index) =>
-          checkNodeToPullRequestCheck(node, pullRequestUrl, checksHeadRefOid, index)
-        )
-      );
-      if (!replaced) {
-        return err({
-          type: 'checks_failed',
-          message: 'The pull request head changed while check runs were loading.',
-        });
-      }
-      syncState.latestStoredGenerations.set(checksHeadRefOid, syncGeneration);
-      this.emit(repository.repositoryUrl, {
-        phase: 'idle',
-        kind: 'single',
-        lastSyncedAt: Date.now(),
+      signal.throwIfAborted();
+      const pullRequestUrl = `${repository.repositoryUrl}/pull/${number}`;
+      return ok({
+        fetchedAt,
+        data: {
+          headRefOid,
+          checks: nodes.map((node, index) =>
+            checkNodeToPullRequestCheck(node, pullRequestUrl, headRefOid, index)
+          ),
+        },
       });
-      return ok(
-        nodes.some((node) =>
-          node.__typename === 'CheckRun'
-            ? ['IN_PROGRESS', 'QUEUED', 'WAITING', 'PENDING', 'REQUESTED'].includes(node.status)
-            : node.state === 'PENDING'
-        )
-      );
     } catch (error) {
-      return this.handleError(error, repository, 'Unable to sync check runs', 'checks_failed');
-    } finally {
-      syncState.active -= 1;
-      if (syncState.active === 0 && this.checkSyncStates.get(pullRequestUrl) === syncState) {
-        this.checkSyncStates.delete(pullRequestUrl);
-      }
+      return this.handleError(error, repository, 'Unable to read check runs', 'checks_failed');
     }
   }
 
@@ -584,69 +536,29 @@ export class PullRequestEngine {
     }
   }
 
-  async getPullRequestComments(
-    repositoryUrl: string,
+  private async fetchComments(
+    repository: RepositoryRef,
+    github: GitHubClient,
     number: number,
     signal: AbortSignal
-  ): Promise<Result<PullRequestComment[], PullRequestError>> {
-    const repository = this.parseRepository(repositoryUrl);
-    if (!repository.success) return repository;
-    const pullRequestUrl = `${repository.data.repositoryUrl}/pull/${number}`;
-    const canPersist = this.options.store.getPullRequestByUrl(pullRequestUrl) !== null;
-    const state = canPersist ? this.options.store.getCommentState(pullRequestUrl) : null;
-    const cachedComments = state ? this.options.store.getComments(pullRequestUrl) : [];
-    const github = await this.getOctokit(repository.data, signal);
-    if (!github.success) return state ? ok(cachedComments) : github;
-    const { lane, octokit } = github.data;
+  ): Promise<Result<Observed<PullRequestComment[]>, PullRequestError>> {
+    const fetchedAt = Date.now();
     try {
-      const pullRequestResponse = await this.request(
-        lane,
-        signal,
-        {
-          priority: requestPriorities.interactive,
-          key: `comments:etag:${repository.data.repositoryUrl}:${number}`,
-        },
-        (requestSignal) =>
-          octokit.rest.pulls.get({
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            pull_number: number,
-            ...(state?.etag ? { headers: { 'if-none-match': state.etag } } : {}),
-            request: { signal: requestSignal },
-          })
-      );
-      const comments = await this.fetchPullRequestComments(
-        repository.data,
-        github.data,
-        pullRequestUrl,
+      // PR ETags do not validate the independent comment and review collections.
+      const data = await this.fetchPullRequestComments(
+        repository,
+        github,
+        `${repository.repositoryUrl}/pull/${number}`,
         number,
         signal
       );
-      if (canPersist) {
-        this.options.store.replaceComments(pullRequestUrl, comments);
-        this.options.store.setCommentState(
-          pullRequestUrl,
-          pullRequestResponse.headers.etag ?? null
-        );
-      }
-      return ok(comments);
+      signal.throwIfAborted();
+      return ok({ data, fetchedAt });
     } catch (error) {
-      if (isNotModifiedError(error)) {
-        if (state) this.options.store.setCommentState(pullRequestUrl, state.etag);
-        return ok(cachedComments);
-      }
-      if (state) {
-        this.options.logger.warn('Unable to refresh cached pull request comments', {
-          repositoryUrl: repository.data.repositoryUrl,
-          number,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return ok(cachedComments);
-      }
       return this.handleError(
         error,
-        repository.data,
-        'Unable to get pull request comments',
+        repository,
+        'Unable to read pull request comments',
         'comments_failed'
       );
     }
@@ -807,183 +719,75 @@ export class PullRequestEngine {
     }
   }
 
-  private async runFullSync(
-    repositoryUrl: string,
+  private async completeCollections(
+    repository: RepositoryRef,
+    github: GitHubClient,
+    node: GqlPrNode,
     signal: AbortSignal,
     priority: number
-  ): Promise<Result<void, PullRequestError>> {
-    const repository = this.parseRepository(repositoryUrl);
-    if (!repository.success) return repository;
-    const github = await this.getOctokit(repository.data, signal);
-    if (!github.success) {
-      this.emit(repositoryUrl, {
-        phase: 'error',
-        kind: 'full',
-        error: github.error,
-      });
-      return github;
-    }
-    const { lane, octokit } = github.data;
-    const existing = this.options.store.getCursor(repositoryUrl, 'full');
-    let pageCursor = existing?.done ? undefined : existing?.pageCursor;
-    let synced = 0;
-    this.emit(repositoryUrl, { phase: 'running', kind: 'full', synced: 0 });
-    try {
-      for (;;) {
-        const response = await this.request(
-          lane,
-          signal,
-          {
-            priority,
-            key: `sync:full:${repositoryUrl}:${pageCursor ?? ''}`,
-          },
-          (requestSignal) =>
-            octokit.graphql<{
-              repository: {
-                pullRequests: {
-                  totalCount: number;
-                  pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                  nodes: GqlPrNode[];
-                };
-              };
-              rateLimit?: GraphQlRateLimit;
-            }>(SYNC_PRS_QUERY, {
-              owner: repository.data.owner,
-              repo: repository.data.repo,
-              cursor: pageCursor ?? null,
-              request: { signal: requestSignal },
-            })
-        );
-        lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
-        const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
-        for (const node of nodes) this.saveNode(repositoryUrl, node);
-        synced += nodes.length;
-        const done =
-          !pageInfo.hasNextPage || synced >= (this.options.maxSyncCount ?? DEFAULT_MAX_SYNC_COUNT);
-        const cursor: SyncCursor = {
-          lastUpdatedAt:
-            this.options.store.getNewestPullRequestUpdatedAt(repositoryUrl) ??
-            existing?.lastUpdatedAt ??
-            new Date().toISOString(),
-          pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
-          done,
-        };
-        this.options.store.setCursor(repositoryUrl, 'full', cursor);
-        this.emit(repositoryUrl, {
-          phase: 'running',
-          kind: 'full',
-          synced,
-          total: Math.min(totalCount, this.options.maxSyncCount ?? DEFAULT_MAX_SYNC_COUNT),
-        });
-        if (done) break;
-        pageCursor = pageInfo.endCursor ?? undefined;
+  ): Promise<void> {
+    let labels = node.labels.pageInfo;
+    let assignees = node.assignees.pageInfo;
+    const labelCursors = new Set<string>();
+    const assigneeCursors = new Set<string>();
+    while (labels?.hasNextPage || assignees?.hasNextPage) {
+      if (
+        (labels?.hasNextPage && !labels.endCursor) ||
+        (assignees?.hasNextPage && !assignees.endCursor)
+      )
+        throw new Error('Incomplete PR metadata pagination');
+      if (labels?.hasNextPage && labels.endCursor) {
+        if (labelCursors.has(labels.endCursor)) throw new Error('Repeated label cursor');
+        labelCursors.add(labels.endCursor);
       }
-      this.archiveOld(repositoryUrl);
-      this.emit(repositoryUrl, {
-        phase: 'idle',
-        kind: 'full',
-        synced,
-        lastSyncedAt: Date.now(),
-      });
-      return ok();
-    } catch (error) {
-      return this.handleSyncError(error, repositoryUrl, repository.data, 'full', signal);
+      if (assignees?.hasNextPage && assignees.endCursor) {
+        if (assigneeCursors.has(assignees.endCursor)) throw new Error('Repeated assignee cursor');
+        assigneeCursors.add(assignees.endCursor);
+      }
+      const response: {
+        repository: { pullRequest: Pick<GqlPrNode, 'labels' | 'assignees'> };
+        rateLimit?: GraphQlRateLimit;
+      } = await this.request(
+        github.lane,
+        signal,
+        {
+          priority,
+          key: `collections:${repository.repositoryUrl}:${node.number}:${labels?.endCursor}:${assignees?.endCursor}`,
+        },
+        (requestSignal) =>
+          github.octokit.graphql(PR_COLLECTIONS_QUERY, {
+            owner: repository.owner,
+            repo: repository.repo,
+            number: node.number,
+            labelsCursor: labels?.endCursor ?? null,
+            assigneesCursor: assignees?.endCursor ?? null,
+            request: { signal: requestSignal },
+          })
+      );
+      github.lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
+      const page = response.repository.pullRequest;
+      if (labels?.hasNextPage) {
+        if (!page.labels.pageInfo) throw new Error('Missing label pagination');
+        node.labels.nodes.push(...page.labels.nodes);
+        labels = page.labels.pageInfo;
+      }
+      if (assignees?.hasNextPage) {
+        if (!page.assignees.pageInfo) throw new Error('Missing assignee pagination');
+        node.assignees.nodes.push(...page.assignees.nodes);
+        assignees = page.assignees.pageInfo;
+      }
     }
+    signal.throwIfAborted();
   }
 
-  private async runIncrementalSync(
-    repositoryUrl: string,
-    signal: AbortSignal,
-    priority: number
-  ): Promise<Result<void, PullRequestError>> {
-    const repository = this.parseRepository(repositoryUrl);
-    if (!repository.success) return repository;
-    const github = await this.getOctokit(repository.data, signal);
-    if (!github.success) {
-      this.emit(repositoryUrl, {
-        phase: 'error',
-        kind: 'incremental',
-        error: github.error,
-      });
-      return github;
-    }
-    const { lane, octokit } = github.data;
-    const fullCursor = this.options.store.getCursor(repositoryUrl, 'full');
-    const existing = this.options.store.getCursor(repositoryUrl, 'incremental');
-    const boundary =
-      existing?.lastUpdatedAt ?? fullCursor?.lastUpdatedAt ?? new Date(0).toISOString();
-    let pageCursor = existing?.done ? undefined : existing?.pageCursor;
-    let synced = 0;
-    this.emit(repositoryUrl, { phase: 'running', kind: 'incremental', synced: 0 });
-    try {
-      for (;;) {
-        const response = await this.request(
-          lane,
-          signal,
-          {
-            priority,
-            key: `sync:incremental:${repositoryUrl}:${pageCursor ?? ''}`,
-          },
-          (requestSignal) =>
-            octokit.graphql<{
-              repository: {
-                pullRequests: {
-                  pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                  nodes: GqlPrNode[];
-                };
-              };
-              rateLimit?: GraphQlRateLimit;
-            }>(INCREMENTAL_SYNC_PRS_QUERY, {
-              owner: repository.data.owner,
-              repo: repository.data.repo,
-              cursor: pageCursor ?? null,
-              request: { signal: requestSignal },
-            })
-        );
-        lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
-        const { nodes, pageInfo } = response.repository.pullRequests;
-        const batch = nodes.filter((node) => node.updatedAt >= boundary);
-        const reachedBoundary = batch.length !== nodes.length;
-        for (const node of batch) this.saveNode(repositoryUrl, node);
-        synced += batch.length;
-        if (synced >= (this.options.maxSyncCount ?? DEFAULT_MAX_SYNC_COUNT)) {
-          // The repository is too far behind for an incremental update; the next sync rebuilds it.
-          this.options.store.clearCursors(repositoryUrl);
-          break;
-        }
-        const done = reachedBoundary || !pageInfo.hasNextPage;
-        this.options.store.setCursor(repositoryUrl, 'incremental', {
-          lastUpdatedAt: done
-            ? (this.options.store.getNewestPullRequestUpdatedAt(repositoryUrl) ?? boundary)
-            : boundary,
-          pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
-          done,
-        });
-        this.emit(repositoryUrl, { phase: 'running', kind: 'incremental', synced });
-        if (done) break;
-        pageCursor = pageInfo.endCursor ?? undefined;
-      }
-      this.emit(repositoryUrl, {
-        phase: 'idle',
-        kind: 'incremental',
-        synced,
-        lastSyncedAt: Date.now(),
-      });
-      return ok();
-    } catch (error) {
-      return this.handleSyncError(error, repositoryUrl, repository.data, 'incremental', signal);
-    }
-  }
-
-  private saveNode(repositoryUrl: string, node: GqlPrNode): PullRequest {
-    const previous = this.options.store.getPullRequestByUrl(node.url);
+  private mapNode(repositoryUrl: string, node: GqlPrNode): PullRequestMetadata {
     const baseRepository =
       parseRepositoryRef(node.baseRepository?.url ?? '') ?? parseRepositoryRef(repositoryUrl);
     const baseRepositoryUrl = baseRepository?.repositoryUrl ?? repositoryUrl;
     const repositoryHost = baseRepository?.host ?? 'unknown';
     const headRepositoryUrl =
       parseRepositoryRef(node.headRepository?.url ?? '')?.repositoryUrl ?? repositoryUrl;
-    return this.options.store.savePullRequest({
+    return {
       url: node.url,
       provider: 'github',
       repositoryUrl: baseRepositoryUrl,
@@ -1004,34 +808,19 @@ export class PullRequestEngine {
       mergeableStatus: node.mergeable,
       mergeStateStatus: node.mergeStateStatus,
       reviewDecision: node.reviewDecision,
+      checkSummary: node.statusCheckRollup?.state ?? null,
       createdAt: node.createdAt,
       updatedAt: node.updatedAt,
       author: node.author ? gqlUserToPullRequestUser(node.author, repositoryHost) : null,
       labels: node.labels.nodes.map((label) => ({ name: label.name, color: label.color ?? null })),
       assignees: node.assignees.nodes.map((user) => gqlUserToPullRequestUser(user, repositoryHost)),
-      checks: previous?.checks ?? [],
-    });
-  }
-
-  private archiveOld(repositoryUrl: string): void {
-    const cutoff = new Date();
-    cutoff.setMonth(
-      cutoff.getMonth() - (this.options.archiveAgeMonths ?? DEFAULT_ARCHIVE_AGE_MONTHS)
-    );
-    this.options.store.archiveOldPullRequests(repositoryUrl, cutoff.toISOString());
+    };
   }
 
   private async getOctokit(
     repository: RepositoryRef,
     signal: AbortSignal
   ): Promise<Result<GitHubClient, PullRequestError>> {
-    const registered = this.options.store.getRegisteredRepository(repository.repositoryUrl);
-    if (!registered) {
-      return err({
-        type: 'repository_not_registered',
-        repositoryUrl: repository.repositoryUrl,
-      });
-    }
     // Identity is a per-request runtime parameter (spec: github-git-settings §8):
     // the desktop resolves "as whom" through the blessed resolver on every call,
     // so account changes apply on the very next sync with no event plumbing.
@@ -1040,7 +829,6 @@ export class PullRequestEngine {
       { signal }
     );
     if (!auth.success) return err(mapAuthError(auth.error));
-    this.resetCursorsOnIdentityChange(repository.repositoryUrl, auth.data.accountId);
     const lane = this.getRequestLane(repository.host, auth.data.accountId);
     const octokit =
       this.options.createOctokit?.({
@@ -1058,16 +846,7 @@ export class PullRequestEngine {
         },
       });
     this.observeOctokitRateLimits(octokit, lane);
-    return ok({ octokit, lane });
-  }
-
-  private resetCursorsOnIdentityChange(repositoryUrl: string, accountId: string | undefined): void {
-    const identity = accountId ?? '';
-    const previous = this.lastAccessIdentities.get(repositoryUrl);
-    if (previous !== undefined && previous !== identity) {
-      this.options.store.clearCursors(repositoryUrl);
-    }
-    this.lastAccessIdentities.set(repositoryUrl, identity);
+    return ok({ octokit, lane, identity: `${repository.host}\u0000${auth.data.accountId ?? ''}` });
   }
 
   private parseRepository(repositoryUrl: string): Result<RepositoryRef, PullRequestError> {
@@ -1161,39 +940,14 @@ export class PullRequestEngine {
       mapApiError(error, fallback, repository.host, repository.nameWithOwner, operationType)
     );
   }
+}
 
-  private handleSyncError(
-    error: unknown,
-    repositoryUrl: string,
-    repository: RepositoryRef,
-    kind: 'full' | 'incremental',
-    signal: AbortSignal
-  ): Result<void, PullRequestError> {
-    if (signal.aborted || isAbortError(error)) {
-      this.emit(repositoryUrl, { phase: 'idle', kind });
-      return err({ type: 'sync_failed', message: 'Pull request sync cancelled' });
-    }
-    const mapped = mapApiError(
-      error,
-      'Unable to sync pull requests',
-      repository.host,
-      repository.nameWithOwner
-    );
-    this.options.logger.warn('Pull request sync failed', {
-      repositoryUrl,
-      error: mapped,
-    });
-    this.emit(repositoryUrl, {
-      phase: 'error',
-      kind,
-      error: mapped,
-    });
-    return err(mapped);
-  }
-
-  private emit(repositoryUrl: string, state: SyncState): void {
-    this.options.onSyncState?.(repositoryUrl, state);
-  }
+function cloneNodeCollections(node: GqlPrNode): GqlPrNode {
+  return {
+    ...node,
+    labels: { ...node.labels, nodes: [...node.labels.nodes] },
+    assignees: { ...node.assignees, nodes: [...node.assignees.nodes] },
+  };
 }
 
 function gqlUserToPullRequestUser(user: GqlUser, host: string): PullRequestUser {
@@ -1277,15 +1031,6 @@ function isRetryableRequestError(error: unknown): boolean {
       ? Number((error as { status?: unknown }).status)
       : undefined;
   return status === 429 || (status !== undefined && status >= 500) || isNetworkError(error);
-}
-
-function isNotModifiedError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    Number((error as { status?: unknown }).status) === 304
-  );
 }
 
 function graphQlRateFeedback(rateLimit: GraphQlRateLimit | undefined): RateFeedback {

@@ -135,6 +135,7 @@ export type WorkerStatusSource = {
 
 export type DesktopRuntimeWorkers = {
   readonly acp: WorkerStatusSource;
+  readonly pullRequests: WorkerStatusSource;
   readonly tuiAgents: WorkerStatusSource;
 };
 
@@ -518,6 +519,7 @@ function startDesktopWorkersWithHost(
     },
     workers: {
       acp: deferredWorkerStatus(acpStart.then((result) => result.worker)),
+      pullRequests: pullRequestsWorker,
       tuiAgents: deferredWorkerStatus(tuiAgentsReady.then((result) => result.worker)),
     },
     runtimeReady: () => runtimeReady,
