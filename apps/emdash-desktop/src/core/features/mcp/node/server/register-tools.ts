@@ -95,8 +95,10 @@ async function resolveDeleteDecision(
   const preflight = await dependencies.tasks.getDeletePreflight([taskId]);
   const item = preflight.tasks.find((task) => task.taskId === taskId);
   if (!item) {
+    // No preflight entry means nothing established that this delete owns the
+    // worktree, so do not ask for artifact removal even once confirmed.
     return {
-      deleteWorktree: true,
+      deleteWorktree: false,
       gate: { reason: 'Emdash could not determine what deleting this task would remove.' },
     };
   }
