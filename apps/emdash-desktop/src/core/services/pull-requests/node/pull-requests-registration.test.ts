@@ -142,6 +142,108 @@ describe('PullRequestsRegistration', () => {
     expect(client.releaseRepository).toHaveBeenCalledWith({ repositoryUrl });
   });
 
+  it.each(['releaseRepository', 'unregisterRepository'] as const)(
+    'waits for a pending %s before registering a reopened repository',
+    async (operation) => {
+      const repositoryUrl = 'https://github.com/acme/repo';
+      mocks.projects.set('project', { remoteUrls: [repositoryUrl] });
+      const client = createClient();
+      const registration = createRegistration(client);
+      const events: string[] = [];
+      client.registerRepository.mockImplementation(async () => {
+        events.push('register');
+        return ok();
+      });
+      await registration.onProjectOpened('project');
+      let finish!: () => void;
+      client[operation].mockImplementationOnce(async () => {
+        events.push('stop started');
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        events.push('stop finished');
+        return ok();
+      });
+      const closing =
+        operation === 'releaseRepository'
+          ? registration.onProjectClosed('project')
+          : registration.deleteProjectData('project');
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      const reopening = registration.onProjectOpened('project');
+      try {
+        await vi.waitFor(async () => {
+          await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
+            ok({ accountId: 'account-1' })
+          );
+        });
+        expect(events).toEqual(['register', 'stop started']);
+      } finally {
+        finish();
+        await Promise.all([closing, reopening]);
+      }
+      expect(events).toEqual(['register', 'stop started', 'stop finished', 'register']);
+    }
+  );
+
+  it('does not block a different repository while a release is pending', async () => {
+    const slow = 'https://github.com/acme/slow';
+    const other = 'https://github.com/acme/other';
+    mocks.projects.set('slow', { remoteUrls: [slow] });
+    mocks.projects.set('other', { remoteUrls: [other] });
+    const client = createClient();
+    const registration = createRegistration(client);
+    await registration.onProjectOpened('slow');
+    let finish!: () => void;
+    client.releaseRepository.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return ok();
+    });
+    const closing = registration.onProjectClosed('slow');
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    try {
+      const opening = registration.onProjectOpened('other');
+      await vi.waitFor(() =>
+        expect(client.registerRepository).toHaveBeenCalledWith({ repositoryUrl: other })
+      );
+      await opening;
+    } finally {
+      finish();
+      await closing;
+    }
+  });
+
+  it('skips a queued release when the repository is referenced again before it runs', async () => {
+    const repositoryUrl = 'https://github.com/acme/repo';
+    mocks.projects.set('project', { remoteUrls: [repositoryUrl] });
+    const client = createClient();
+    const registration = createRegistration(client);
+    await registration.onProjectOpened('project');
+    let finish!: () => void;
+    client.registerRepository.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return ok();
+    });
+    const refreshing = registration.refreshProject('project');
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    const closing = registration.onProjectClosed('project');
+    const reopening = registration.onProjectOpened('project');
+    try {
+      await vi.waitFor(async () => {
+        await expect(registration.resolveSyncIdentity(repositoryUrl)).resolves.toEqual(
+          ok({ accountId: 'account-1' })
+        );
+      });
+    } finally {
+      finish();
+      await Promise.all([refreshing, closing, reopening]);
+    }
+    expect(client.releaseRepository).not.toHaveBeenCalled();
+  });
+
   it('releases replayed interest if the project closes while registration is in flight', async () => {
     const repositoryUrl = 'https://github.com/acme/repo';
     mocks.projects.set('project', { remoteUrls: [repositoryUrl] });
@@ -158,8 +260,9 @@ describe('PullRequestsRegistration', () => {
     });
     for (const ready of mocks.workerReady) ready();
     await vi.waitFor(() => expect(finish).toBeDefined());
-    await registration.onProjectClosed('project');
+    const closing = registration.onProjectClosed('project');
     finish();
+    await closing;
     await vi.waitFor(() => expect(client.releaseRepository).toHaveBeenCalledTimes(2));
     registration.dispose();
   });
