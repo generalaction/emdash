@@ -34,7 +34,7 @@ import {
   SYNC_PRS_QUERY,
   OPEN_PRS_QUERY,
   PR_COLLECTIONS_QUERY,
-} from './queries';
+} from './providers/github/queries';
 
 const DEFAULT_REQUEST_CONCURRENCY = 3;
 const DEFAULT_REQUEST_CAPACITY = 20;
