@@ -27,6 +27,8 @@ export type ChatHistory = {
    * Rebuilds the id map. Prefer for initial load / session replay.
    */
   seed(turns: readonly TranscriptTurn[]): void;
+  /** Replace history, preserving the live turn unless that same turn is now committed. */
+  replace(turns: readonly TranscriptTurn[]): void;
   /**
    * Prepend older turns before the current committed history (pagination).
    * Stable object references required — identity-keyed caches key by ref.
@@ -184,6 +186,17 @@ export function createTranscript(): TranscriptApi {
         setLive({ activeTurn: null, turnStatus: 'done' });
       });
       rebuildItemMap(turns);
+    },
+
+    replace(turns) {
+      assertOrderedTurns(turns, 'history.replace');
+      rebuildItemMap(turns);
+      batch(() => {
+        setCommitted(turns);
+        if (live.activeTurn && turns.some((turn) => turn.id === live.activeTurn?.id)) {
+          setLive({ activeTurn: null, turnStatus: 'done' });
+        }
+      });
     },
 
     prepend(turns) {

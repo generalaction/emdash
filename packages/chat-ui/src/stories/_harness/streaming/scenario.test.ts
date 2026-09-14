@@ -193,7 +193,13 @@ describe('streamDiff', () => {
           set: (turn: TranscriptTurn | null) => sets.push(turn),
           commit: () => {},
         },
-        history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
+        history: {
+          get: () => [],
+          seed: () => {},
+          replace: () => {},
+          prepend: () => {},
+          append: () => {},
+        },
         state: {
           committedTurns: [],
           activeTurnSnapshot: null,
@@ -229,7 +235,13 @@ describe('streamDiff', () => {
         },
         commit: () => {},
       },
-      history: { get: () => [], seed: () => {}, prepend: () => {}, append: () => {} },
+      history: {
+        get: () => [],
+        seed: () => {},
+        replace: () => {},
+        prepend: () => {},
+        append: () => {},
+      },
       state: {
         committedTurns: [],
         activeTurnSnapshot: null,

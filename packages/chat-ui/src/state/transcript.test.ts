@@ -55,6 +55,25 @@ describe('findItemById', () => {
 });
 
 describe('history', () => {
+  it('retires a live snapshot when the response already includes that committed turn', () => {
+    const tx = createTranscript();
+    tx.activeTurn.set(turn('current', 1, msg('current-message')), 'generating');
+    tx.history.replace([turn('current', 1, msg('current-message', 0, 'Final content'))]);
+    expect(tx.state.activeTurnSnapshot).toBeNull();
+    expect(tx.state.committedTurns).toHaveLength(1);
+    expect(tx.findItemById('current-message')).toMatchObject({ text: 'Final content' });
+  });
+
+  it('replaces committed history without clearing an independently received live turn', () => {
+    const tx = createTranscript();
+    tx.activeTurn.set(turn('current', 2, msg('current-message')), 'generating');
+    tx.history.replace([turn('previous', 1, msg('previous-message'))]);
+    expect(tx.state.activeTurnSnapshot?.id).toBe('current');
+    expect(tx.state.turnStatus).toBe('generating');
+    expect(tx.findItemById('current-message')?.id).toBe('current-message');
+    expect(tx.findItemById('previous-message')?.id).toBe('previous-message');
+  });
+
   it('seed replaces committed turns and clears active turn', () => {
     const tx = createTranscript();
     drive(tx, { type: 'message_chunk', id: 'x', role: 'assistant', text: 'live' });

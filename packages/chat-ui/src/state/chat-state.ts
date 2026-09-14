@@ -32,7 +32,7 @@
  * conversationId in AcpChatPanel) — this assumption is intentional.
  */
 
-import { createMemo, createRoot, createSignal } from 'solid-js';
+import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 import type { ChatContext } from '../chat-context';
 import { createParseCaches } from '../core/caches';
 import type { ParseCaches } from '../core/caches';
@@ -206,6 +206,19 @@ export function createChatState(ctx: ChatContext, opts?: ChatStateOptions): Chat
     viewState = createViewState();
     [getExpandedUserId, setExpandedUserId] = createSignal<string | null>(null);
     session = createSessionState();
+    createEffect(() => {
+      const pending = session.state.pendingPrompt;
+      if (!pending) return;
+      const containsPrompt = (turn: TranscriptTurn) =>
+        turn.items.some((item) => item.kind === 'message' && item.promptId === pending.id);
+      const active = transcript.state.activeTurnSnapshot;
+      if (
+        (active && containsPrompt(active)) ||
+        transcript.state.committedTurns.some(containsPrompt)
+      ) {
+        session.setPendingPrompt(null);
+      }
+    });
   });
 
   // Scroll mode — plain mutable value; not reactive (ChatRoot reads it once on
@@ -327,7 +340,6 @@ export function connectSession(
 
   const syncActiveTurn = (): void => {
     const turn = source.activeTurn.getSnapshot() ?? null;
-    if (turn) state.session.setPendingPrompt(null);
     state.transcript.activeTurn.set(turn);
     if (!turn && hadActiveTurn) options.onTurnCommitted?.();
     hadActiveTurn = turn !== null;

@@ -601,18 +601,6 @@ export function ChatRoot(props: ChatRootProps) {
     return flattenTier([activeTurn], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
   });
 
-  let pendingPromptCommittedTurns = state().transcript.state.committedTurns;
-  createEffect(() => {
-    const s = state();
-    const pendingPrompt = s.session.state.pendingPrompt;
-    const committedTurns = s.transcript.state.committedTurns;
-    const hasActiveTurn = s.transcript.state.activeTurnSnapshot !== null;
-    if (pendingPrompt && (hasActiveTurn || committedTurns !== pendingPromptCommittedTurns)) {
-      s.session.setPendingPrompt(null);
-    }
-    pendingPromptCommittedTurns = committedTurns;
-  });
-
   const units = createMemo<UnitsView>(() => {
     committedUnitsVersion();
     return makeUnitsView(committedUnitsArr, activeUnits());
