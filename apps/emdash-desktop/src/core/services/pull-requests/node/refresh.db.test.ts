@@ -8,7 +8,11 @@ import { defineWireComponent } from '@emdash/wire/worker';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { pullRequestsContract, type GitPlatformAuthContract, type PullRequestDetails } from '../api';
+import {
+  pullRequestsContract,
+  type GitPlatformAuthContract,
+  type PullRequestDetails,
+} from '../api';
 import { PullRequestEngine } from './engine';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
