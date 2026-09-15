@@ -12,6 +12,8 @@ export type IssueData = {
   description?: string;
   branchName?: string;
   status?: string;
+  /** Free-form provider labels, lower-cased by convention where the provider allows. */
+  labels?: string[];
   assignees?: string[];
   project?: string;
   updatedAt?: string;
@@ -26,6 +28,8 @@ export type IssueQueryOpts = {
   limit: number;
   /** Resolved repository URL, present when the descriptor requires it. */
   repositoryUrl?: string;
+  /** Absolute local path of the project's repository, present when the descriptor requires it. */
+  repositoryPath?: string;
 };
 
 export type IssueSearchOpts = IssueQueryOpts & {
@@ -37,6 +41,8 @@ export type IssueGetOpts = {
   identifier: string;
   /** Resolved repository URL, present when the descriptor requires it. */
   repositoryUrl?: string;
+  /** Absolute local path of the project's repository, present when the descriptor requires it. */
+  repositoryPath?: string;
 };
 
 /**

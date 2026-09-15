@@ -6,7 +6,11 @@ import { listIssues } from './operations';
 function provider(): IssueProvider {
   return {
     type: 'github',
-    capabilities: { requiresRepositoryUrl: true, supportsIssueContext: true },
+    capabilities: {
+      requiresRepositoryUrl: true,
+      requiresProjectPath: false,
+      supportsIssueContext: true,
+    },
     checkConnection: vi.fn(),
     listIssues: vi.fn(async () => ok([])),
     searchIssues: vi.fn(async () => ok([])),

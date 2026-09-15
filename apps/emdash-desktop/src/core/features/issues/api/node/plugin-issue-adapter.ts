@@ -20,6 +20,7 @@ export function toIssueProviderCapabilities(
   const requiredInputs = plugin.capabilities.issues.requiredInputs;
   return {
     requiresRepositoryUrl: requiredInputs.includes('repositoryUrl'),
+    requiresProjectPath: requiredInputs.includes('repositoryPath'),
     supportsIssueContext: !!plugin.behavior.issues?.getIssue,
   };
 }
@@ -35,6 +36,7 @@ export function toLinkedIssue(provider: IssueProviderType, issue: IssueDetail): 
     context: issue.context,
     branchName: issue.branchName,
     status: issue.status,
+    labels: issue.labels,
     assignees: issue.assignees,
     project: issue.project,
     updatedAt: issue.updatedAt,

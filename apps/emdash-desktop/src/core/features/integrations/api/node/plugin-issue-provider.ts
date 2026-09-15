@@ -41,12 +41,28 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
     return value || undefined;
   }
 
+  function repositoryPath(opts: IssueQueryOpts): string | undefined {
+    const value = opts.projectPath?.trim();
+    return value || undefined;
+  }
+
   function notConnectedError(): Err<IssueListError> {
     return err({ type: 'auth_required', message: `${provider} is not connected.` });
   }
 
   function missingRepositoryError(): Err<IssueListError> {
     return err({ type: 'invalid_input', message: 'Repository URL is required.' });
+  }
+
+  function missingProjectPathError(): Err<IssueListError> {
+    return err({ type: 'invalid_input', message: 'A local repository path is required.' });
+  }
+
+  /** The inputs the plugin declared it needs, refused before any plugin call. */
+  function missingInput(opts: IssueQueryOpts): Err<IssueListError> | undefined {
+    if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) return missingRepositoryError();
+    if (capabilities.requiresProjectPath && !repositoryPath(opts)) return missingProjectPathError();
+    return undefined;
   }
 
   return {
@@ -62,13 +78,13 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       const host = await getConnectedHost();
       if (!host) return notConnectedError();
 
-      if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
-        return missingRepositoryError();
-      }
+      const missing = missingInput(opts);
+      if (missing) return missing;
 
       const result = await plugin.behavior.issues?.listIssues(host, {
         limit: clampIssueProviderLimit(opts.limit, DEFAULT_LIST_LIMIT),
         repositoryUrl: repositoryUrl(opts),
+        repositoryPath: repositoryPath(opts),
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
@@ -82,14 +98,14 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       const host = await getConnectedHost();
       if (!host) return notConnectedError();
 
-      if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
-        return missingRepositoryError();
-      }
+      const missing = missingInput(opts);
+      if (missing) return missing;
 
       const result = await plugin.behavior.issues?.searchIssues(host, {
         limit: clampIssueProviderLimit(opts.limit, DEFAULT_SEARCH_LIMIT),
         searchTerm: term,
         repositoryUrl: repositoryUrl(opts),
+        repositoryPath: repositoryPath(opts),
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
@@ -106,9 +122,13 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
           const host = await getConnectedHost();
           if (!host) return notConnectedError();
 
+          const missing = missingInput(opts);
+          if (missing) return missing;
+
           const result = await plugin.behavior.issues?.getIssue?.(host, {
             identifier: term,
             repositoryUrl: repositoryUrl(opts),
+            repositoryPath: repositoryPath(opts),
           });
           if (!result) {
             return err({

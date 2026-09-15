@@ -7,6 +7,11 @@ export type IssueProviderType = LinkedIssue['provider'];
 
 export type IssueProviderCapabilities = {
   requiresRepositoryUrl: boolean;
+  /**
+   * The provider reads the project's checkout, so every query needs the
+   * project's absolute local repository path rather than a remote URL.
+   */
+  requiresProjectPath: boolean;
   supportsIssueContext: boolean;
 };
 
