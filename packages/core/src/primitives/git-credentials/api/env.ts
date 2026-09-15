@@ -53,15 +53,16 @@ export const GIT_CREDENTIAL_HELPER_URL_PATH = '/git-credential/get';
  * as the TUI hook commands: curl to a loopback port with a nonce header). The
  * port and nonce are read from the session env at invocation time so neither
  * appears in git config values or process argv. Only the `get` action is
- * answered; `store`/`erase` are no-ops. Failures print nothing, so git falls
- * through to its normal prompting behavior.
+ * answered; `store`/`erase` are no-ops. A failed proxy request reports its
+ * loopback endpoint and preserves curl's nonzero status for git.
  */
 export const GIT_CREDENTIAL_HELPER_COMMAND =
   '!f() { if [ "$1" = get ]; then ' +
   'curl -s -f -m 10 -X POST --data-binary @- ' +
   `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
   `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_URL_PATH}" ` +
-  '2>/dev/null || true; fi; }; f';
+  `|| { status=$?; printf '%s\\n' "emdash: credential proxy unreachable at 127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}" >&2; return "$status"; }; ` +
+  'fi; }; f';
 
 const CREDENTIAL_HELPER_CONFIG_KEY = /^credential(\..+)?\.helper$/i;
 

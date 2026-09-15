@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { devNull, tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import {
@@ -89,6 +89,23 @@ describe('applyGitCredentialsToEnv', () => {
     it('does not touch askpass behavior', () => {
       const env = applyGitCredentialsToEnv({ GIT_ASKPASS: '/usr/bin/x' }, helperSpec);
       expect(env.GIT_ASKPASS).toBe('/usr/bin/x');
+    });
+
+    it('reports an unreachable credential proxy instead of swallowing its failure', () => {
+      const env = applyGitCredentialsToEnv({}, { ...helperSpec, channel: { ...channel, port: 1 } });
+      const result = spawnSync('git', ['credential', 'fill'], {
+        input: 'protocol=https\nhost=github.com\n\n',
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...env,
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: devNull,
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('emdash: credential proxy unreachable at 127.0.0.1:1');
     });
   });
 
