@@ -71,8 +71,8 @@ export class AgentConfigRuntime {
     return this.skillsHost;
   }
 
-  async hooksStatus(providerId: string): Promise<HooksStatus> {
-    const status = await this.hooks.hooksStatus(providerId);
+  async hooksStatus(providerId: string, env?: Record<string, string>): Promise<HooksStatus> {
+    const status = await this.hooks.hooksStatus(providerId, env);
     if (!status) throw new Error(`Provider '${providerId}' does not support hooks`);
     return status;
   }

@@ -12,8 +12,8 @@ import type { AgentAuthStatus } from '#services/agent-plugins/api/plugins';
 
 export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {
-    hooksStatus(input: { providerId: string }): Promise<HooksStatus> {
-      return runtime.hooksStatus(input.providerId);
+    hooksStatus(input: { providerId: string; env?: Record<string, string> }): Promise<HooksStatus> {
+      return runtime.hooksStatus(input.providerId, input.env);
     },
     startLogin(input: {
       providerId: string;
