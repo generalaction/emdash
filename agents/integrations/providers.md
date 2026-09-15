@@ -107,6 +107,49 @@ you select an OrcaRouter model from the OpenCode model picker.
   sessions receive those definitions through `session/new`, and Prime exposes them to the model
   through its pre-imported `mcp` Python program.
 
+## Multi-Instance Providers (Configured Agent Instances)
+
+Some plugins (currently Claude) can be instantiated more than once under a different
+provider id — for example, two Claude accounts. The base plugin exposes a
+`createXProvider({ id, name })` factory (see `createClaudeProvider` in
+`packages/plugins/src/agents/impl/claude/index.ts`) and is listed in
+`agentFactories` in `packages/plugins/src/agents/registry.ts`.
+
+A user opts in by declaring extra instances in `agents.json`, placed next to
+`host-settings.json` in the host's emdash data directory — `app.getPath('userData')`
+locally (e.g. `~/.config/emdash/agents.json` on Linux), or a remote workspace's own
+state directory (`workspaceServerRuntimePaths().agentsFile`) for an SSH host:
+
+```json
+{
+  "providers": [{ "id": "claude-work", "name": "Claude (Work)", "extends": "claude" }]
+}
+```
+
+The loader, factory map, and registration logic (`loadConfiguredAgentInstances`,
+`agentFactories`, `applyConfiguredAgentInstances`, `applyConfiguredAgentInstancesFromEnv`)
+live in `packages/plugins/src/agents/configured-instances.ts` (re-exported from
+`registry.ts`) so both the desktop app and `apps/workspace-server` can use them. There is
+no live reload: editing the file requires a restart, matching `host-settings.json`.
+Validation is per-entry lenient — a malformed entry, an unknown `extends`, a factory that
+throws, or an id collision with an already-registered provider is dropped with a logged
+warning; valid entries still register.
+
+Each Wire runtime (`acp`, `tui-agents`, `agent-config`) spawns as its own child process
+with its own `pluginRegistry`, both for the desktop app (`apps/emdash-desktop/src/main/gateway/`)
+and for a remote workspace (`apps/workspace-server/src/gateway/`). Whichever process owns
+the config file (`startDesktopWorkers` / `createWorkspaceServerRuntimeHost`) reads and
+registers it locally, then republishes the resolved instances through the
+`EMDASH_CONFIGURED_AGENTS` env var — inherited by every worker it spawns — so each
+worker's entry file can register the same instances into its own registry before serving
+requests. A configuration declared on the desktop does not cross into a remote
+workspace-server host or vice versa; each reads its own local `agents.json`.
+
+Once registered, a configured instance is a normal provider by id: it gets its own
+host-dependency detection row (Settings → Dependencies), and its own env vars / extra
+args / custom CLI path through the existing per-provider agent Settings UI. No other
+code needs to know the instance was user-declared rather than built in.
+
 ## Adding Or Changing A Provider
 
 1. add or update the plugin in `packages/plugins/src/agents/impl/` and register it in

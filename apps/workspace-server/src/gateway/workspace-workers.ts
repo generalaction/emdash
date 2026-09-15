@@ -39,10 +39,14 @@ import {
   createUserShellEnvController,
   type ShellEnvManager,
 } from '@emdash/core/services/shell-env/node';
-import { pluginRegistry } from '@emdash/plugins/agents';
+import {
+  CONFIGURED_AGENTS_ENV_VAR,
+  loadConfiguredAgentInstances,
+  pluginRegistry,
+} from '@emdash/plugins/agents';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { createController, type ContractClient } from '@emdash/wire/rpc';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
@@ -83,12 +87,26 @@ export async function createWorkspaceServerRuntimeHost(
   options: CreateWorkspaceServerRuntimeHostOptions
 ): Promise<WorkspaceServerRuntimeHost> {
   const env = options.shellEnv.env;
+  const logger = options.logger ?? noopLogger;
   const userShellEnv = createUserShellEnvController(() => options.shellEnv.current());
   const paths = workspaceServerRuntimePaths(options.socketPath);
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
     mkdir(paths.attachmentsDirectory, { recursive: true }),
   ]);
+
+  // Each spawned worker below is its own child process with its own
+  // pluginRegistry, so registering these here only covers this host process.
+  // Republish them through process.env (which every worker spec below
+  // forwards via `env`), so each worker's entry file can register the same
+  // instances into its own registry — mirrors the desktop main process.
+  const configuredAgents = await loadConfiguredAgentInstances(paths.agentsFile);
+  for (const warning of configuredAgents.warnings) {
+    logger.warn('configured agent instance skipped', { warning });
+  }
+  if (configuredAgents.instances.length > 0) {
+    process.env[CONFIGURED_AGENTS_ENV_VAR] = JSON.stringify(configuredAgents.instances);
+  }
 
   const workerHost = createWireWorkerHost({
     scope: options.scope.child('workers'),
