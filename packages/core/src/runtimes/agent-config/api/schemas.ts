@@ -107,6 +107,12 @@ export const startLoginCommandSchema = z.object({
 });
 
 export const providerCommandSchema = z.object({ providerId: z.string() });
+export const hooksStatusCommandSchema = providerCommandSchema.extend({
+  // The caller's per-provider Settings env override (e.g. CLAUDE_CONFIG_DIR for a
+  // second Claude account), so status resolves against that instance's own hook
+  // config root instead of the ambient environment.
+  env: z.record(z.string(), z.string()).optional(),
+});
 export const sendLoginInputCommandSchema = providerCommandSchema.extend({ data: z.string() });
 export const resizeLoginCommandSchema = providerCommandSchema.extend({
   cols: z.number().int().positive(),

@@ -14,8 +14,9 @@ import {
   agentConfigMcpErrorSchema,
   agentConfigSkillsErrorSchema,
   createSkillInputSchema,
-  installedSkillsSchema,
+  hooksStatusCommandSchema,
   hooksStatusSchema,
+  installedSkillsSchema,
   markUrlHandledCommandSchema,
   mcpServerListSchema,
   mcpServerSchema,
@@ -34,7 +35,7 @@ export const agentConfigContract = defineContract({
     },
   }),
   hooksStatus: procedure({
-    input: providerCommandSchema,
+    input: hooksStatusCommandSchema,
     output: hooksStatusSchema,
   }),
 

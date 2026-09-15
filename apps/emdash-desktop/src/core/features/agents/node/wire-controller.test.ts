@@ -10,6 +10,7 @@ import { createAgentsWireController } from './wire-controller';
 
 const legacyOperations = vi.hoisted(() => ({
   list: vi.fn(async () => []),
+  getSettings: vi.fn(async () => ({ value: {}, defaults: {}, overrides: {} })),
 }));
 
 const remoteHost = hostRef('remote', 'ssh-1');
@@ -174,7 +175,7 @@ describe('createAgentsWireController', () => {
     await expect(
       controller.call('hooksStatus', { host: remoteHost, providerId: 'claude' })
     ).resolves.toEqual(ok(status));
-    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
+    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude', env: undefined }, {});
   });
 
   it('forwards local hook status', async () => {
@@ -192,7 +193,31 @@ describe('createAgentsWireController', () => {
     await expect(
       controller.call('hooksStatus', { host: LOCAL_HOST_REF, providerId: 'claude' })
     ).resolves.toEqual(ok(status));
-    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
+    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude', env: undefined }, {});
+  });
+
+  it('resolves hook status against this instance own configured env override', async () => {
+    const status = { state: 'installed' as const, resolvedRoot: '/home/user/axoniq/.claude' };
+    const hooksStatus = vi.fn(async () => status);
+    const client = vi.fn(async () => ok({ agentConfig: { hooksStatus } }));
+    const getSettings = vi.fn(async () => ({
+      value: { env: { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' } },
+      defaults: {},
+      overrides: {},
+    }));
+    const controller = createAgentsWireController({
+      operations: { ...legacyOperations, getSettings } as never,
+      runtimes: { client } as never,
+    });
+
+    await expect(
+      controller.call('hooksStatus', { host: LOCAL_HOST_REF, providerId: 'claude-axoniq' })
+    ).resolves.toEqual(ok(status));
+    expect(getSettings).toHaveBeenCalledWith('claude-axoniq');
+    expect(hooksStatus).toHaveBeenCalledWith(
+      { providerId: 'claude-axoniq', env: { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' } },
+      {}
+    );
   });
 
   it('passes the active host dependency client to install operations', async () => {

@@ -106,10 +106,24 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       ),
 
     auth: createAuthModelProvider(options.runtimes),
-    hooksStatus: ({ host, providerId }, meta) =>
-      withHostRuntime(options.runtimes, host, (runtime) =>
-        runtime.agentConfig.hooksStatus({ providerId }, callOptions(meta))
-      ),
+    hooksStatus: async ({ host, providerId }, meta) => {
+      // Resolves against this specific instance's own Settings env override (e.g.
+      // CLAUDE_CONFIG_DIR for a second Claude account) instead of the ambient
+      // environment, so multiple instances of one plugin don't all report the
+      // same shared hook root. Settings lookup and host resolution are
+      // independent, so run them concurrently rather than serially.
+      const [settings, runtime] = await Promise.all([
+        agentOperations.getSettings(providerId),
+        options.runtimes.client(host),
+      ]);
+      if (!runtime.success) return err(runtime.error);
+      return ok(
+        await runtime.data.agentConfig.hooksStatus(
+          { providerId, env: settings.value.env },
+          callOptions(meta)
+        )
+      );
+    },
     startLogin: (input, meta) =>
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.startLogin(withoutHost(input), callOptions(meta))
