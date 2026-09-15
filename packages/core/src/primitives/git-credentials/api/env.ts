@@ -61,7 +61,7 @@ export const GIT_CREDENTIAL_HELPER_COMMAND =
   'curl -s -f -m 10 -X POST --data-binary @- ' +
   `-H "X-Emdash-Token: $${GIT_CREDENTIAL_NONCE_ENV_VAR}" ` +
   `"http://127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}${GIT_CREDENTIAL_HELPER_URL_PATH}" ` +
-  `|| { status=$?; printf '%s\\n' "emdash: credential proxy unreachable at 127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}" >&2; return "$status"; }; ` +
+  `|| { status=$?; printf '%s\\n' "emdash: credential proxy request failed at 127.0.0.1:$${GIT_CREDENTIAL_PORT_ENV_VAR}" >&2; return "$status"; }; ` +
   'fi; }; f';
 
 const CREDENTIAL_HELPER_CONFIG_KEY = /^credential(\..+)?\.helper$/i;

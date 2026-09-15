@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { devNull, tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import {
   applyGitCredentialsToEnv,
@@ -9,6 +10,15 @@ import {
 } from './env';
 
 const channel = { port: 45678, nonce: 'channel-nonce-1234' };
+
+async function unusedLoopbackPort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('expected TCP address');
+  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  return address.port;
+}
 
 const helperSpec: GitCredentialsSessionSpec = {
   mode: 'effective-account',
@@ -91,8 +101,9 @@ describe('applyGitCredentialsToEnv', () => {
       expect(env.GIT_ASKPASS).toBe('/usr/bin/x');
     });
 
-    it('reports an unreachable credential proxy instead of swallowing its failure', () => {
-      const env = applyGitCredentialsToEnv({}, { ...helperSpec, channel: { ...channel, port: 1 } });
+    it('reports a failed credential proxy request instead of swallowing its failure', async () => {
+      const port = await unusedLoopbackPort();
+      const env = applyGitCredentialsToEnv({}, { ...helperSpec, channel: { ...channel, port } });
       const result = spawnSync('git', ['credential', 'fill'], {
         input: 'protocol=https\nhost=github.com\n\n',
         encoding: 'utf8',
@@ -105,7 +116,7 @@ describe('applyGitCredentialsToEnv', () => {
         },
       });
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain('emdash: credential proxy unreachable at 127.0.0.1:1');
+      expect(result.stderr).toContain("emdash: credential proxy request failed at 127.0.0.1:" + port);
     });
 
     it('leaves store and erase proxy actions as no-ops (control)', () => {
@@ -123,7 +134,7 @@ describe('applyGitCredentialsToEnv', () => {
           },
         });
         expect(result.status).toBe(0);
-        expect(result.stderr).not.toContain('emdash: credential proxy unreachable');
+        expect(result.stderr).not.toContain('emdash: credential proxy request failed');
       }
     });
   });
