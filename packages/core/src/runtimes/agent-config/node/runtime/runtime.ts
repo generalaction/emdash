@@ -77,16 +77,20 @@ export class AgentConfigRuntime {
     return status;
   }
 
-  refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
-    return this.auth.refreshAuthStatus(providerId);
+  refreshAuthStatus(
+    providerId: string,
+    env?: Record<string, string>
+  ): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
+    return this.auth.refreshAuthStatus(providerId, env);
   }
 
   startLogin(
     providerId: string,
     methodId: string,
-    dimensions?: LoginDimensions
+    dimensions?: LoginDimensions,
+    env?: Record<string, string>
   ): Promise<Result<void, AgentConfigAuthError>> {
-    return this.auth.startLogin(providerId, methodId, dimensions);
+    return this.auth.startLogin(providerId, methodId, dimensions, env);
   }
 
   cancelLogin(providerId: string): Promise<Result<void, AgentConfigAuthError>> {

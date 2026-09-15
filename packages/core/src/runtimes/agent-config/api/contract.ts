@@ -21,6 +21,7 @@ import {
   mcpServerListSchema,
   mcpServerSchema,
   providerCommandSchema,
+  refreshAuthStatusCommandSchema,
   resizeLoginCommandSchema,
   sendLoginInputCommandSchema,
   skillInstallPayloadSchema,
@@ -65,7 +66,7 @@ export const agentConfigContract = defineContract({
     error: agentConfigAuthErrorSchema,
   }),
   refreshAuthStatus: fallible({
-    input: providerCommandSchema,
+    input: refreshAuthStatusCommandSchema,
     data: agentAuthStatusSchema,
     error: agentConfigAuthErrorSchema,
   }),

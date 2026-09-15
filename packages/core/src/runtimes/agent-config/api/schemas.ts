@@ -97,8 +97,17 @@ export const hooksStatusSchema = z.object({
   resolvedRoot: z.string(),
 });
 
-export const startLoginCommandSchema = z.object({
-  providerId: z.string(),
+export const providerCommandSchema = z.object({ providerId: z.string() });
+// The caller's per-provider Settings env override (e.g. CLAUDE_CONFIG_DIR for a
+// second Claude account), so a hooks/auth/login call resolves against that
+// instance's own config root and credentials instead of the ambient environment.
+export const providerEnvCommandSchema = providerCommandSchema.extend({
+  env: z.record(z.string(), z.string()).optional(),
+});
+export const hooksStatusCommandSchema = providerEnvCommandSchema;
+export const refreshAuthStatusCommandSchema = providerEnvCommandSchema;
+
+export const startLoginCommandSchema = providerEnvCommandSchema.extend({
   methodId: z.string(),
   // Initial PTY grid, measured by the client's terminal before the login
   // starts. Optional for back-compat; the runtime falls back to its defaults.
@@ -106,13 +115,6 @@ export const startLoginCommandSchema = z.object({
   rows: z.number().int().positive().optional(),
 });
 
-export const providerCommandSchema = z.object({ providerId: z.string() });
-export const hooksStatusCommandSchema = providerCommandSchema.extend({
-  // The caller's per-provider Settings env override (e.g. CLAUDE_CONFIG_DIR for a
-  // second Claude account), so status resolves against that instance's own hook
-  // config root instead of the ambient environment.
-  env: z.record(z.string(), z.string()).optional(),
-});
 export const sendLoginInputCommandSchema = providerCommandSchema.extend({ data: z.string() });
 export const resizeLoginCommandSchema = providerCommandSchema.extend({
   cols: z.number().int().positive(),

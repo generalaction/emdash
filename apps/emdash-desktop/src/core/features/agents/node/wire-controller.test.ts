@@ -118,6 +118,45 @@ describe('createAgentsWireController', () => {
     );
   });
 
+  it('resolves auth status and login against this instance own configured env', async () => {
+    const refreshAuthStatus = vi.fn(async () => ok({ kind: 'unknown' as const }));
+    const startLogin = vi.fn(async () => ok(undefined));
+    const client = vi.fn(async () => ok({ agentConfig: { refreshAuthStatus, startLogin } }));
+    const getSettings = vi.fn(async () => ({
+      value: { env: { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' } },
+      defaults: {},
+      overrides: {},
+    }));
+    const controller = createAgentsWireController({
+      operations: { ...legacyOperations, getSettings } as never,
+      runtimes: { client } as never,
+    });
+
+    await controller.call('refreshAuthStatus', {
+      host: LOCAL_HOST_REF,
+      providerId: 'claude-axoniq',
+    });
+    await controller.call('startLogin', {
+      host: LOCAL_HOST_REF,
+      providerId: 'claude-axoniq',
+      methodId: 'browser',
+    });
+
+    expect(getSettings).toHaveBeenCalledWith('claude-axoniq');
+    expect(refreshAuthStatus).toHaveBeenCalledWith(
+      { providerId: 'claude-axoniq', env: { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' } },
+      {}
+    );
+    expect(startLogin).toHaveBeenCalledWith(
+      {
+        providerId: 'claude-axoniq',
+        methodId: 'browser',
+        env: { CLAUDE_CONFIG_DIR: '/home/user/axoniq/.claude' },
+      },
+      {}
+    );
+  });
+
   it('returns RuntimeResolveError from fallible login procedures', async () => {
     const resolveError = {
       type: 'host-unavailable' as const,
