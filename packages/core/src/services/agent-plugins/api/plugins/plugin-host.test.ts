@@ -1,7 +1,11 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { createScope } from '@emdash/shared/concurrency';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EnvSource, ExecContextOptions, IExecutionContext } from '#primitives/exec/api';
 import type { HostDependencyResolver, Platform } from '#primitives/host-dependencies/api';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { IAcpBehavior } from '#services/agent-plugins/api/plugins/capabilities/acp';
 import type {
   AgentAuthContext,
@@ -13,7 +17,20 @@ import type {
   AgentCommand,
   CommandContext,
 } from '#services/agent-plugins/api/plugins/capabilities/prompt';
+import { envConfigRoot } from './helpers/config-root';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+async function makeTempDir(): Promise<string> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'emdash-plugin-host-'));
+  tempDirs.push(dir);
+  return dir;
+}
 
 describe('AgentPluginHost', () => {
   it('resolves supported ACP providers', () => {
@@ -288,6 +305,93 @@ describe('AgentPluginHost', () => {
     });
   });
 
+  it('merges a caller-supplied env into auth status checks, winning over ambient env', async () => {
+    const checkStatus = vi.fn(async (ctx: AgentAuthContext) => {
+      expect(ctx.env.CLAUDE_CONFIG_DIR).toBe('/home/test/axoniq');
+      expect(ctx.env.HOME).toBe('/home/test');
+      return { kind: 'authenticated' as const };
+    });
+    const host = createHost([
+      plugin({
+        auth: {
+          kind: 'supported',
+          methods: [
+            {
+              kind: 'api-key',
+              id: 'api-key',
+              name: 'API Key',
+              envVars: [{ name: 'TEST_API_KEY', label: 'API key' }],
+            },
+          ],
+        },
+        behavior: { auth: { checkStatus } },
+      }),
+    ]);
+
+    await expect(
+      host.checkAuthStatus('test', { CLAUDE_CONFIG_DIR: '/home/test/axoniq' })
+    ).resolves.toEqual({ success: true, data: { kind: 'authenticated' } });
+    expect(checkStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not coalesce concurrent auth status checks for the same provider with different envs', async () => {
+    const checkStatus = vi.fn(async (ctx: AgentAuthContext) => ({
+      kind: 'authenticated' as const,
+      account: ctx.env.CLAUDE_CONFIG_DIR,
+    }));
+    const host = createHost([
+      plugin({
+        auth: {
+          kind: 'supported',
+          methods: [
+            {
+              kind: 'api-key',
+              id: 'api-key',
+              name: 'API Key',
+              envVars: [{ name: 'TEST_API_KEY', label: 'API key' }],
+            },
+          ],
+        },
+        behavior: { auth: { checkStatus } },
+      }),
+    ]);
+
+    const [resultA, resultB] = await Promise.all([
+      host.checkAuthStatus('test', { CLAUDE_CONFIG_DIR: '/home/test/personal' }),
+      host.checkAuthStatus('test', { CLAUDE_CONFIG_DIR: '/home/test/axoniq' }),
+    ]);
+
+    expect(checkStatus).toHaveBeenCalledTimes(2);
+    expect(resultA).toEqual({
+      success: true,
+      data: { kind: 'authenticated', account: '/home/test/personal' },
+    });
+    expect(resultB).toEqual({
+      success: true,
+      data: { kind: 'authenticated', account: '/home/test/axoniq' },
+    });
+  });
+
+  it('merges a caller-supplied env into the login command, winning over ambient env', async () => {
+    const host = createHost([plugin()]);
+
+    const result = await host.buildLoginCommand('test', 'cli-login', {
+      CLAUDE_CONFIG_DIR: '/home/test/axoniq',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        command: 'test',
+        args: [],
+        env: expect.objectContaining({
+          HOME: '/home/test',
+          CLAUDE_CONFIG_DIR: '/home/test/axoniq',
+        }),
+      },
+    });
+  });
+
   it('runs auth subprocesses with the allowlisted environment', async () => {
     const hostPath = 'C:\\Tools';
     const sourceEnv = {
@@ -365,6 +469,49 @@ describe('AgentPluginHost', () => {
     expect(readServers).toHaveBeenCalledWith(expect.any(Object));
   });
 
+  it('resolves MCP config against a per-instance root when the behavior declares one', async () => {
+    const homeDir = await makeTempDir();
+    const overrideRoot = path.join(homeDir, 'axoniq');
+    const writeServers = vi.fn(async (fs: PluginFs, servers: McpServerRegistration[]) => {
+      await fs.write('.claude.json', JSON.stringify({ mcpServers: servers }));
+    });
+    const host = createHost(
+      [
+        plugin({
+          mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio'] },
+          behavior: {
+            mcp: {
+              readServers: async () => [],
+              writeServers,
+              removeServer: async () => {},
+              resolveConfigRoot: envConfigRoot('CLAUDE_CONFIG_DIR', ''),
+            },
+          },
+        }),
+      ],
+      async () => ({ HOME: homeDir, PATH: '/bin' }),
+      { homeDir }
+    );
+
+    // No env override: resolves to homeDir itself, same as the default root.
+    await host.writeMcpServers('test', [{ name: 'default-server', command: 'x' }]);
+    await expect(readFile(path.join(homeDir, '.claude.json'), 'utf8')).resolves.toContain(
+      'default-server'
+    );
+
+    // Instance env override: resolves to that instance's own root instead.
+    await host.writeMcpServers('test', [{ name: 'axoniq-server', command: 'x' }], {
+      CLAUDE_CONFIG_DIR: overrideRoot,
+    });
+    await expect(readFile(path.join(overrideRoot, '.claude.json'), 'utf8')).resolves.toContain(
+      'axoniq-server'
+    );
+    // The default-rooted file is untouched by the override write.
+    await expect(readFile(path.join(homeDir, '.claude.json'), 'utf8')).resolves.toContain(
+      'default-server'
+    );
+  });
+
   it('loads the current user environment for each agent spawn context', async () => {
     let env = { HOME: '/home/test', PATH: '/tools/old' };
     const host = createHost([plugin()], async () => env);
@@ -381,7 +528,7 @@ describe('AgentPluginHost', () => {
 function createHost(
   plugins: CLIAgentPluginProvider[],
   env: EnvSource = async () => ({ HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' }),
-  options: { exec?: IExecutionContext; platform?: Platform } = {}
+  options: { exec?: IExecutionContext; platform?: Platform; homeDir?: string } = {}
 ): AgentPluginHost {
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   for (const item of plugins) registry.register(item);
@@ -392,7 +539,7 @@ function createHost(
     dependencies: fakeDependencies(),
     fs: memoryFs(),
     env,
-    homeDir: '/home/test',
+    homeDir: options.homeDir ?? '/home/test',
     platform: options.platform,
   });
 }

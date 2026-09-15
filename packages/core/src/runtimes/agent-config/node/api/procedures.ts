@@ -20,12 +20,13 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
       methodId: string;
       cols?: number;
       rows?: number;
+      env?: Record<string, string>;
     }): Promise<Result<void, AgentConfigAuthError>> {
       const dimensions =
         input.cols !== undefined && input.rows !== undefined
           ? { cols: input.cols, rows: input.rows }
           : undefined;
-      return runtime.startLogin(input.providerId, input.methodId, dimensions);
+      return runtime.startLogin(input.providerId, input.methodId, dimensions, input.env);
     },
     cancelLogin(input: { providerId: string }): Promise<Result<void, AgentConfigAuthError>> {
       return runtime.cancelLogin(input.providerId);
@@ -51,8 +52,9 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     },
     refreshAuthStatus(input: {
       providerId: string;
+      env?: Record<string, string>;
     }): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {
-      return runtime.refreshAuthStatus(input.providerId);
+      return runtime.refreshAuthStatus(input.providerId, input.env);
     },
     saveMcpServer(input: { server: McpServer }): Promise<Result<void, AgentConfigMcpError>> {
       return runtime.saveMcpServer(input.server);
