@@ -65,13 +65,15 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     removeMcpForAgent(input: {
       providerId: string;
       name: string;
+      env?: Record<string, string>;
     }): Promise<Result<void, AgentConfigMcpError>> {
-      return runtime.removeMcpForAgent(input.providerId, input.name);
+      return runtime.removeMcpForAgent(input.providerId, input.name, input.env);
     },
     async listMcpForAgent(input: {
       providerId: string;
+      env?: Record<string, string>;
     }): Promise<Result<{ servers: McpServer[] }, AgentConfigMcpError>> {
-      const listed = await runtime.listMcpForAgent(input.providerId);
+      const listed = await runtime.listMcpForAgent(input.providerId, input.env);
       return listed.success ? ok({ servers: listed.data }) : listed;
     },
     async installSkill(

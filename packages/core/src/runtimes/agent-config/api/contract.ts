@@ -21,6 +21,7 @@ import {
   mcpServerListSchema,
   mcpServerSchema,
   providerCommandSchema,
+  providerEnvCommandSchema,
   refreshAuthStatusCommandSchema,
   resizeLoginCommandSchema,
   sendLoginInputCommandSchema,
@@ -89,12 +90,12 @@ export const agentConfigContract = defineContract({
     error: agentConfigMcpErrorSchema,
   }),
   removeMcpForAgent: fallible({
-    input: providerCommandSchema.extend({ name: z.string() }),
+    input: providerEnvCommandSchema.extend({ name: z.string() }),
     data: z.void(),
     error: agentConfigMcpErrorSchema,
   }),
   listMcpForAgent: fallible({
-    input: providerCommandSchema,
+    input: providerEnvCommandSchema,
     data: z.object({ servers: mcpServerListSchema }),
     error: agentConfigMcpErrorSchema,
   }),
