@@ -725,9 +725,9 @@ export function ChatRoot(props: ChatRootProps) {
       }
     }
 
-    // 2. Fall back to the last committed user message.
+    // 2. Include outgoing turns retained while their history page is pending.
     if (targetId === null) {
-      targetId = findLastUserMessageId(transcript.committedTurns);
+      targetId = findLastUserMessageId(transcript.displayTurns);
     }
 
     if (targetId === null) return -1;

@@ -1,11 +1,171 @@
+import type { Serializable } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { peek } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
+import { acpErr } from '#runtimes/acp/api';
 import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
+import { SessionCell } from '#runtimes/acp/node/session/cell';
+import { emptyRetainedPresentation } from '#runtimes/acp/node/state/live-models';
 import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import { AcpRuntime } from './runtime';
 
+const savedConfiguration = {
+  model: 'saved-model',
+  effort: 'high',
+  collaborationMode: 'plan',
+  modeId: 'agent-full-access',
+};
+
+function restorationConfigOptions(includeSaved: boolean) {
+  return [
+    { id: 'model', category: 'model', value: savedConfiguration.model },
+    { id: 'reasoning_effort', category: 'thought_level', value: savedConfiguration.effort },
+    {
+      id: 'collaboration_mode',
+      category: 'collaboration_mode',
+      value: savedConfiguration.collaborationMode,
+    },
+    { id: 'mode', category: 'mode', value: savedConfiguration.modeId },
+  ].map(({ id, category, value }) => ({
+    id,
+    name: id,
+    category,
+    type: 'select',
+    currentValue: 'default',
+    options: [
+      { value: 'default', name: 'Default' },
+      ...(includeSaved ? [{ value, name: value }] : []),
+    ],
+  }));
+}
+
 describe('ACP restoration continuity', () => {
+  it.each(['replay finalization', 'initial queue'] as const)(
+    'preserves saved configuration when %s fails after applying the provider catalog',
+    async (failure) => {
+      const intents = createMemorySessionIntentStore();
+      const h = makeAcpHarness({ intents });
+      const runtime = new AcpRuntime(h.deps);
+      const input = makeStartInput({
+        conversationId: 'failed-configuration-restore',
+        sessionId: 'original',
+        ...savedConfiguration,
+        initialQueue: [{ text: 'continue after restoration' }],
+      });
+      await intents.saveActive({
+        conversationId: input.conversationId,
+        sessionId: input.sessionId,
+        payload: {
+          version: 1,
+          conversationId: input.conversationId,
+          providerId: input.providerId,
+          cwd: input.cwd,
+          sessionId: input.sessionId,
+          configured: savedConfiguration,
+          presentation: emptyRetainedPresentation(savedConfiguration),
+        } as unknown as Serializable,
+      });
+      h.agent.loadSession
+        .mockResolvedValueOnce({ configOptions: restorationConfigOptions(false) })
+        .mockResolvedValueOnce({ configOptions: restorationConfigOptions(true) });
+      const fault =
+        failure === 'replay finalization'
+          ? vi.spyOn(SessionCell.prototype, 'endReplay').mockImplementationOnce(() => {
+              throw new Error('replay finalization failed');
+            })
+          : vi
+              .spyOn(SessionCell.prototype, 'queuePrompt')
+              .mockReturnValueOnce(acpErr.invalidState('initial queue rejected'));
+      try {
+        expect((await runtime.launchSession(input)).success).toBe(false);
+        expect(fault).toHaveBeenCalledOnce();
+        expect(h.agent.prompt).not.toHaveBeenCalled();
+        expect(intents.snapshot()[0]).toMatchObject({
+          sessionId: 'original',
+          payload: { configured: savedConfiguration },
+        });
+
+        // Retry the same handle to verify its in-memory overrides survived too.
+        expect((await runtime.loadHistory(input.conversationId)).success).toBe(true);
+        for (const option of restorationConfigOptions(true)) {
+          expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+            sessionId: 'original',
+            configId: option.id,
+            value: option.options[1]!.value,
+          });
+        }
+        await vi.waitFor(() => expect(h.agent.prompt).toHaveBeenCalledOnce());
+        expect(h.agent.setSessionConfigOption.mock.invocationCallOrder.at(-1)).toBeLessThan(
+          h.agent.prompt.mock.invocationCallOrder[0]!
+        );
+        expect(intents.snapshot()[0]?.payload).toMatchObject({ configured: savedConfiguration });
+      } finally {
+        fault.mockRestore();
+        await runtime.dispose();
+      }
+    }
+  );
+
+  it('persists unsupported selection removals after restoration succeeds', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const runtime = new AcpRuntime(h.deps);
+    const input = makeStartInput({
+      conversationId: 'successful-configuration-restore',
+      sessionId: 'original',
+      ...savedConfiguration,
+    });
+    h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(false) });
+    try {
+      expect(await runtime.launchSession(input)).toMatchObject({
+        success: true,
+        data: { clearedConfiguration: ['model', 'effort', 'collaborationMode', 'modeId'] },
+      });
+      expect(intents.snapshot()[0]?.payload).toMatchObject({
+        configured: { model: null, effort: null, collaborationMode: null, modeId: null },
+      });
+      expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('preserves a newer supported selection made while applying restoration settings', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const runtime = new AcpRuntime(h.deps);
+    const input = makeStartInput({
+      conversationId: 'updated-restoration-settings',
+      sessionId: 'original',
+      ...savedConfiguration,
+      model: 'removed-model',
+    });
+    h.agent.loadSession.mockResolvedValueOnce({ configOptions: restorationConfigOptions(true) });
+    const applying = deferred<Record<string, never>>();
+    h.agent.setSessionConfigOption.mockImplementationOnce(() => applying.promise);
+    const loading = runtime.launchSession(input);
+    try {
+      await vi.waitFor(() => expect(h.agent.setSessionConfigOption).toHaveBeenCalledOnce());
+      expect(
+        (await runtime.setOption(input.conversationId, 'model', savedConfiguration.model)).success
+      ).toBe(true);
+      applying.resolve({});
+      const result = await loading;
+      expect(result).toMatchObject({ success: true });
+      if (result.success) expect(result.data.clearedConfiguration).toBeUndefined();
+      expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+        sessionId: 'original',
+        configId: 'model',
+        value: savedConfiguration.model,
+      });
+      expect(intents.snapshot()[0]?.payload).toMatchObject({ configured: savedConfiguration });
+    } finally {
+      applying.resolve({});
+      await loading;
+      await runtime.dispose();
+    }
+  });
+
   it('does not replace a saved conversation when the provider cannot load sessions', async () => {
     const h = makeAcpHarness();
     h.agent.initialize.mockResolvedValueOnce({ protocolVersion: 1, agentCapabilities: {} });

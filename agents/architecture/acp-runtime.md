@@ -224,6 +224,12 @@ leave the live renderer. A successful load publishes any rebound provider sessio
 failed or unsupported load preserves the original identity and returns a retryable error instead
 of creating a replacement session. Failures log the original serialized exception.
 
+Unsupported saved selections are removed only after replay finalization, initial prompt queuing,
+and route registration succeed. Until then, desired settings remain intact in memory and in the
+saved intent so a failed restoration can retry them. Removal applies only to the validated value;
+a newer user selection must survive. Supported settings still reach the provider before queued
+prompts start.
+
 Provider close acknowledgement is part of teardown. The conversation retains a pending close
 across the bounded teardown timeout; subsequent activation must await it or return a recovery
 error. A rejected close can be retried, while an outstanding close is never duplicated. If the
