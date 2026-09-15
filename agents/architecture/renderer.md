@@ -95,3 +95,27 @@ renderer-facing file runtime access are owned by `src/core/features/editor/brows
 - Add feature views, modals, and task tabs through the owning slice's contributions.
 - The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
   `getPathForFile`; keep application traffic on Wire.
+
+## ACP Transcript Synchronization
+
+`SessionState.transcript` publishes a coherent `{ generation, historyRevision,
+lastCommittedTurnSeq, activeTurn }` snapshot. Generations change when the runtime rebuilds
+history, not when a renderer reconnects. Every committed turn and amendment advances the
+history revision; live chunks do not. The legacy `activeTurn` model remains available for
+older consumers, but new renderers use the coherent snapshot rather than combining independently
+coalesced live models.
+
+History pages carry the same position plus half-open coverage (`fromSeq`, `beforeSeq`, with
+null denoting an unbounded edge). Chat UI merges only that range, rejects obsolete pages, and
+keeps observed outgoing turns visible until authoritative history acknowledges them. Retention
+never invents a turn outcome or finalizes running tools. A generation change keeps the old
+presentation until replacement history arrives, then discards the old generation even if IDs
+repeat. Pending submissions are acknowledged by prompt ID independently of the mounted view.
+
+The conversation store refreshes history on revision changes, including entirely unobserved
+turns and direct A-to-B queue handoffs. Refreshes can run while a successor streams and cover
+the already loaded range, so pagination and old tool amendments survive catch-up. Initial live
+content determines presentation readiness; history, config, usage, plan, terminals, and MCP
+metadata must not block displaying it. Optional metadata has safe defaults while loading.
+Older runtimes without version metadata use the legacy synchronization path and cannot provide
+the same missed-update guarantees.

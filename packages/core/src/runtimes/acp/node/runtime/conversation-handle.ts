@@ -1,6 +1,7 @@
 import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout, type Clock } from '@emdash/shared/scheduling';
 import { acpErr } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { SessionConfigCatalog } from '#runtimes/acp/node/session/cell';
@@ -37,12 +38,14 @@ export interface ConversationHandleDeps {
   terminals: Pick<AgentTerminalManager, 'listByConversation'>;
   saveIntent(): void;
   materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
-  interruptRecord(record: SessionRecord): void;
+  interruptRecord(record: SessionRecord): void | Promise<void>;
   onActivated(record: SessionRecord): void;
   activationDrainTimeoutMs: number;
   onLeaseDrainTimeout(event: { leaseCount: number; timeoutMs: number }): void;
   onActivationObserverError(error: unknown): void;
   now(): number;
+  clock?: Clock;
+  isConnectionCurrent?(record: SessionRecord): boolean;
 }
 
 export class ConversationHandle {
@@ -56,6 +59,11 @@ export class ConversationHandle {
   private evictionPromiseValue: Promise<void> | null = null;
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
+  private providerClose: {
+    record: SessionRecord;
+    task: Promise<void>;
+    failed: boolean;
+  } | null = null;
   private readonly activation: LifecycleCell<
     void,
     SessionRecord,
@@ -78,7 +86,7 @@ export class ConversationHandle {
     this.activation = createLifecycleCell({
       label: `acp-conversation:${this.conversationId}`,
       start: (_input, scope) => this.deps.materialize(scope),
-      interrupt: (record) => this.deps.interruptRecord(record),
+      interrupt: (record) => this.interrupt(record),
       stop: async () => ok(),
       drainTimeoutMs: deps.activationDrainTimeoutMs,
       onLeaseDrainTimeout: (event) => deps.onLeaseDrainTimeout(event),
@@ -175,6 +183,48 @@ export class ConversationHandle {
 
   stopActivation(): Promise<Result<void, never>> {
     return this.activation.stop();
+  }
+
+  async interrupt(record: SessionRecord): Promise<void> {
+    this.startProviderClose(record);
+    await this.waitForProviderClose();
+  }
+
+  async waitForProviderClose(): Promise<Result<void, ActivationStartError>> {
+    const closing = this.providerClose;
+    if (!closing) return ok();
+    if (this.deps.isConnectionCurrent && !this.deps.isConnectionCurrent(closing.record)) {
+      this.providerClose = null;
+      return ok();
+    }
+    if (closing.failed) this.startProviderClose(closing.record);
+    try {
+      await runWithTimeout(() => this.providerClose?.task, {
+        timeoutMs: this.deps.activationDrainTimeoutMs,
+        clock: this.deps.clock,
+      });
+      return ok();
+    } catch {
+      return acpErr.invalidState(
+        'The previous agent session has not finished closing. Retry restoring this conversation.'
+      );
+    }
+  }
+
+  private startProviderClose(record: SessionRecord): void {
+    if (this.providerClose?.record === record && !this.providerClose.failed) return;
+    const closing = { record, task: Promise.resolve(), failed: false };
+    this.providerClose = closing;
+    closing.task = Promise.resolve(this.deps.interruptRecord(record)).then(
+      () => {
+        if (this.providerClose === closing) this.providerClose = null;
+      },
+      (error: unknown) => {
+        closing.failed = true;
+        throw error;
+      }
+    );
+    void closing.task.catch(() => {});
   }
 
   forceRemove(reason?: unknown): Promise<void> {
@@ -479,7 +529,7 @@ export class ConversationHandle {
       usage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
       plan: record.cell.transcript.plan,
       agents: record.cell.transcript.agents,
-      activeTurn: record.cell.transcript.activeTurn,
+      activeTurn: state.lifecycle === 'replaying' ? null : record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
       mcpServers: this.withMcpStartupFailures(
         record,

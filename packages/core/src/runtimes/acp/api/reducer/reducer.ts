@@ -327,6 +327,14 @@ function assertTranscriptInvariants(transcript: TranscriptSlice): void {
  * All state changes return a new ParserState; no mutation occurs.
  */
 export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): ParserState {
+  const next = reduceInput(s, input, deps);
+  if (input.kind === 'replay_start') return next;
+  return next.transcript.committed === s.transcript.committed
+    ? next
+    : { ...next, historyRevision: s.historyRevision + 1 };
+}
+
+function reduceInput(s: ParserState, input: ReducerInput, deps: ReducerDeps): ParserState {
   if (input.kind === 'replay_start') {
     return initialState();
   }
@@ -485,7 +493,9 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
   const updated = items === owner.items ? owner : { ...owner, items };
   const transcript = isActive
     ? { ...t, active: updated }
-    : { ...t, committed: t.committed.map((turn) => (turn.id === turnId ? updated : turn)) };
+    : updated === owner
+      ? t
+      : { ...t, committed: t.committed.map((turn) => (turn.id === turnId ? updated : turn)) };
   let result: ParserState = {
     ...s,
     transcript,
@@ -497,7 +507,6 @@ export function reduce(s: ParserState, input: ReducerInput, deps: ReducerDeps): 
     pendingTools: pendingForCall.length
       ? s.pendingTools.filter((pending) => !pendingForCall.includes(pending))
       : s.pendingTools,
-    historyRevision: s.historyRevision + (!isActive && updated !== owner ? 1 : 0),
   };
   // A parent can establish ownership of previously unseen child calls. Remove
   // them before folding so each retained notification is replayed exactly once.

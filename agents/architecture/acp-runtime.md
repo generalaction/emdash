@@ -178,6 +178,14 @@ without ending its content. When idle, unmatched tool notifications are retained
 are evicted. This fallback cannot infer ownership absent provider evidence. No status notification
 alone is treated as proof of a new foreground turn.
 
+Committed history, live turns, and pending submissions have separate ownership. The desktop
+installs history with `history.replace`, which preserves the independently observed live turn
+unless that same turn is now committed; `history.seed` remains an explicit transcript reset. Initial history reads are fenced to the
+attachment just like subsequent refreshes. A missing history page never establishes that a
+restored conversation is empty. Pending rows reconcile against the matching `promptId` in their
+own conversation's active or committed turns, even without a mounted view; switching the view
+between conversations never acknowledges or removes a submission.
+
 ## Suspension and Rematerialization
 
 The public identity is always `conversationId`; provider process activations are internal. A
@@ -209,6 +217,24 @@ reads, exports, callbacks, cancellation, permission resolution, and queued-promp
 one. If a provider cannot replay history, `loadHistory` returns a successful page marked
 `unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
 one.
+
+Provider replay reconstructs committed history internally. While the session is replaying, its
+public projection exposes no active turn, so partial historical messages cannot briefly enter and
+leave the live renderer. A successful load publishes any rebound provider session identity; a
+failed or unsupported load preserves the original identity and returns a retryable error instead
+of creating a replacement session. Failures log the original serialized exception.
+
+Unsupported saved selections are removed only after replay finalization, initial prompt queuing,
+and route registration succeed. Until then, desired settings remain intact in memory and in the
+saved intent so a failed restoration can retry them. Removal applies only to the validated value;
+a newer user selection must survive. Supported settings still reach the provider before queued
+prompts start.
+
+Provider close acknowledgement is part of teardown. The conversation retains a pending close
+across the bounded teardown timeout; subsequent activation must await it or return a recovery
+error. A rejected close can be retried, while an outstanding close is never duplicated. If the
+provider connection generation has gone away, the old close no longer blocks restoration on a
+new connection. Cancellation still starts promptly before waiting for closure and lease drainage.
 
 Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
 while materializing joins that activation and dispatches once after the latest desired configuration

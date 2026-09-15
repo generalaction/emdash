@@ -79,6 +79,9 @@ const setPendingPrompt = vi.fn((prompt: { id: string; text: string } | null) => 
 });
 const transcriptTestState = {
   committedTurns: [] as HistoryPage['turns'],
+  get displayTurns() {
+    return this.committedTurns;
+  },
   activeTurnSnapshot: null as HistoryPage['turns'][number] | null,
 };
 const historySeed = vi.fn((turns: HistoryPage['turns']) => {
@@ -86,9 +89,22 @@ const historySeed = vi.fn((turns: HistoryPage['turns']) => {
 });
 let connectSessionOptions: { onTurnCommitted?: () => void } | undefined;
 const connectSession = vi.fn(
-  (_state: unknown, _source: unknown, options: { onTurnCommitted?: () => void } | undefined) => {
+  (
+    _state: unknown,
+    source: {
+      activeTurn: {
+        getSnapshot(): HistoryPage['turns'][number] | null;
+        subscribe(cb: () => void): () => void;
+      };
+    },
+    options: { onTurnCommitted?: () => void } | undefined
+  ) => {
     connectSessionOptions = options;
-    return vi.fn();
+    const update = () => {
+      transcriptTestState.activeTurnSnapshot = source.activeTurn.getSnapshot();
+    };
+    update();
+    return source.activeTurn.subscribe(update);
   }
 );
 
@@ -371,7 +387,24 @@ describe('AcpChatStore prompt submission', () => {
           },
           transcript: {
             state: transcriptTestState,
-            history: { seed: historySeed },
+            history: { replace: historySeed },
+            needsHistory: false,
+            applyPage(page: HistoryPage) {
+              if (page.unavailable) return false;
+              const pending = chatSessionTestState.pendingPrompt;
+              historySeed(page.turns);
+              if (pending)
+                setPendingPrompt(
+                  page.turns.some((turn) =>
+                    turn.items.some(
+                      (item) => item.kind === 'message' && item.promptId === pending.id
+                    )
+                  )
+                    ? null
+                    : pending
+                );
+              return true;
+            },
           },
           scroll: { set: vi.fn() },
           dispose: vi.fn(),
@@ -980,7 +1013,7 @@ describe('AcpChatStore prompt submission', () => {
     finishHistory({ success: true, data: historyPage('replayed') });
     await Promise.resolve();
 
-    expect(historySeed).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(historySeed).toHaveBeenCalledWith(historyPage('replayed').turns));
     expect(transcriptTestState.activeTurnSnapshot?.id).toBe('active');
     store.dispose();
   });

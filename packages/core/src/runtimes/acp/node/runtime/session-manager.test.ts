@@ -406,13 +406,12 @@ describe('AcpRuntime session manager', () => {
     if (!live) throw new Error('expected stable live projection');
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockRejectedValueOnce(new Error('replay failed'));
-    h.agent.newSession.mockRejectedValueOnce(new Error('replacement failed'));
 
     const result = await rt.sendPrompt(input.conversationId, { text: 'retry me' });
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'new_session_failed' },
+      error: { type: 'invalid_state' },
     });
     expect(peek(live.states.state)).toMatchObject({ suspended: true, canSubmit: true });
     expect(peek(rt.sessionsListLiveModel().states.list)[input.conversationId]).toMatchObject({
@@ -524,14 +523,10 @@ describe('AcpRuntime session manager', () => {
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
   });
 
-  it('retains fallback session ids and effort overrides across rematerialization', async () => {
+  it('retains the original session id and effort overrides after failed restoration', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents, lifecycle: { connectionIdleTtlMs: 0 } });
     h.agent.loadSession.mockRejectedValueOnce(new Error('old session missing'));
-    h.agent.newSession.mockResolvedValueOnce({
-      sessionId: 'replacement',
-      configOptions: [effortConfigOption('low')],
-    });
     const rt = new AcpRuntime(h.deps);
     const input = {
       ...makeStartInput({ conversationId: 'conv-retained-config' }),
@@ -541,7 +536,7 @@ describe('AcpRuntime session manager', () => {
     await rt.setOption(input.conversationId, 'effort', 'high');
     await vi.waitFor(() =>
       expect(intents.snapshot()[0]?.payload).toMatchObject({
-        sessionId: 'replacement',
+        sessionId: 'old',
         configured: { effort: 'high' },
       })
     );
@@ -556,11 +551,11 @@ describe('AcpRuntime session manager', () => {
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
-      sessionId: 'replacement',
+      sessionId: 'old',
       mcpServers: [],
     });
     expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
-      sessionId: 'replacement',
+      sessionId: 'old',
       configId: 'reasoning_effort',
       value: 'high',
     });
@@ -1376,27 +1371,19 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     ]);
   });
 
-  it("reports resumeOutcome 'replaced-by-new' when loadSession fails and a fresh session starts", async () => {
+  it('does not report a replacement when restoration fails', async () => {
     const reports = createRecordingConversationLifecycleReporter();
     const h = makeAcpHarness({ conversationReports: reports });
     const rt = new AcpRuntime(h.deps);
-    h.agent.loadSession = vi.fn(async () => {
-      throw new Error('session file is gone');
-    });
-
+    h.agent.loadSession.mockRejectedValueOnce(new Error('session file is gone'));
     const result = await rt.launchSession({
       ...makeStartInput({ conversationId: 'conv-fallback' }),
       sessionId: 'session-old',
     });
-
-    expect(isOk(result)).toBe(true);
-    expect(reports.started).toEqual([
-      {
-        conversationId: 'conv-fallback',
-        providerSessionId: 'session-1',
-        resumeOutcome: 'replaced-by-new',
-      },
-    ]);
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_state' } });
+    expect(h.agent.newSession).not.toHaveBeenCalled();
+    expect(reports.started).toEqual([]);
+    await rt.dispose();
   });
 
   it('reports the rebound provider session id when updates arrive under a new id', async () => {
@@ -1421,8 +1408,13 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       sessionId: 'session-old',
     });
 
-    expect(reports.providerIds).toEqual([
-      { conversationId: 'conv-rebind', providerSessionId: 'session-rebound' },
+    expect(reports.providerIds).toEqual([]);
+    expect(reports.started).toEqual([
+      {
+        conversationId: 'conv-rebind',
+        providerSessionId: 'session-rebound',
+        resumeOutcome: 'loaded',
+      },
     ]);
   });
 
@@ -1512,22 +1504,18 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     expectNoSessionResidue('conv-start-fail', leakContainers(rt));
   });
 
-  it('reuses the connection lease across the loadSession fallback (no pool churn)', async () => {
+  it('reuses the provider connection when retrying a failed restoration', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    h.agent.loadSession = vi.fn(async () => {
-      throw new Error('session file is gone');
-    });
-
-    const result = await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-lease' }),
-      sessionId: 'session-old',
-    });
-
-    expect(isOk(result)).toBe(true);
+    h.agent.loadSession.mockRejectedValueOnce(new Error('session is closing'));
+    const input = { ...makeStartInput({ conversationId: 'conv-lease' }), sessionId: 'session-old' };
+    expect((await rt.launchSession(input)).success).toBe(false);
+    expect((await rt.launchSession(input)).success).toBe(true);
+    expect(h.agent.newSession).not.toHaveBeenCalled();
     expect(h.children).toHaveLength(1);
     expect(h.lastChild.kill).not.toHaveBeenCalled();
     expect(rt.sessionLiveModels('conv-lease')).not.toBeNull();
+    await rt.dispose();
   });
 });
 
