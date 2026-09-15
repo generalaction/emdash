@@ -107,6 +107,25 @@ describe('applyGitCredentialsToEnv', () => {
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain('emdash: credential proxy unreachable at 127.0.0.1:1');
     });
+
+    it('leaves store and erase proxy actions as no-ops (control)', () => {
+      const env = applyGitCredentialsToEnv({}, { ...helperSpec, channel: { ...channel, port: 1 } });
+      for (const action of ['approve', 'reject']) {
+        const result = spawnSync('git', ['credential', action], {
+          input: 'protocol=https\nhost=github.com\nusername=user\npassword=secret\n\n',
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            ...env,
+            GIT_CONFIG_NOSYSTEM: '1',
+            GIT_CONFIG_GLOBAL: devNull,
+            GIT_TERMINAL_PROMPT: '0',
+          },
+        });
+        expect(result.status).toBe(0);
+        expect(result.stderr).not.toContain('emdash: credential proxy unreachable');
+      }
+    });
   });
 
   describe('none mode', () => {
