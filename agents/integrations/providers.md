@@ -51,6 +51,7 @@ The global roots used by the built-in integrations are:
 | Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
 | Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
+| Muse Code | `$XDG_CONFIG_HOME/muse`, falling back to `~/.config/muse` on macOS and Linux |
 
 Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
 `agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
@@ -101,6 +102,12 @@ you select an OrcaRouter model from the OpenCode model picker.
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
+- Muse Code installs managed hooks through `managed_hooks_path` in `settings.json`.
+  `managed_hooks_env_vars` forwards hook routing variables and XDG config/data paths.
+  Existing hooks are preserved; paths outside the config root are rejected.
+  Since Muse can omit `Stop`, a submit-time observer also watches `session.jsonl`
+  for completion of the exact session and turn. Its standalone TypeScript helper is bundled
+  with provider assets and installed as `emdash-completion.mjs` in Muse's config directory.
 - Prime Agent uses its native ACP stdio mode (`prime-agent --mode acp`). Its TUI extension reports
   session file paths, turn starts, and turn completion for resume and notification support. Emdash
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP

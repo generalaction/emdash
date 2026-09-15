@@ -5,10 +5,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export type AdapterAsset = {
   readonly name: string;
-  readonly specifier: string;
   readonly format: 'esm' | 'cjs';
   readonly external?: readonly string[];
-};
+} & (
+  | { readonly specifier: string; readonly source?: never }
+  | { readonly source: string; readonly specifier?: never }
+);
 
 export function defineAdapterAsset(asset: AdapterAsset): AdapterAsset {
   return asset;
@@ -28,13 +30,16 @@ export function resolveAdapterAssetFromUrl(asset: AdapterAsset, moduleUrl: strin
   const candidates = [
     join(moduleDirectory, 'adapters', fileName),
     join(moduleDirectory, '..', 'adapters', fileName),
+    // Source-mode development still executes the compiled standalone asset.
+    join(moduleDirectory, '../../../dist/adapters', fileName),
   ];
 
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
 
-  return createRequire(moduleUrl).resolve(asset.specifier);
+  if (asset.specifier) return createRequire(moduleUrl).resolve(asset.specifier);
+  throw new Error(`Missing built helper ${fileName}; build @emdash/plugins first`);
 }
 
 export function adapterAssetFileUrl(asset: AdapterAsset, directory: string): string {
