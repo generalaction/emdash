@@ -13,6 +13,7 @@ export type WorkspaceServerRuntimePaths = {
   workspaceRegistryDatabase: string;
   hostDependenciesStore: string;
   hostSettingsFile: string;
+  agentsFile: string;
 };
 
 export function workspaceServerRuntimePaths(socketPath?: string): WorkspaceServerRuntimePaths {
@@ -33,5 +34,6 @@ export function workspaceServerRuntimePaths(socketPath?: string): WorkspaceServe
     workspaceRegistryDatabase: join(stateDirectory, 'workspace-registry.db'),
     hostDependenciesStore: join(stateDirectory, 'host-dependencies.json'),
     hostSettingsFile: join(stateDirectory, 'host-settings.json'),
+    agentsFile: join(stateDirectory, 'agents.json'),
   };
 }
