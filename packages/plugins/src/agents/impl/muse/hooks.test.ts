@@ -160,6 +160,23 @@ describe('Muse hooks', () => {
     });
   });
 
+  it.each(['stop', 'error'])('ignores untagged %s for a tracked turn', (eventType) => {
+    const hooks = buildMuseHookConfig();
+    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'old' });
+    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'new' });
+
+    expect(hooks.parseHookEvent(eventType, { session_id: 'session' })).toEqual({
+      kind: 'ignore',
+    });
+    expect(hooks.parseHookEvent(eventType, { session_id: 'other-session' })).toMatchObject({
+      kind: 'status',
+      type: eventType,
+    });
+    expect(
+      hooks.parseHookEvent(eventType, { session_id: 'session', turn_id: 'new' })
+    ).toMatchObject({ kind: 'status', type: eventType });
+  });
+
   it('maps verified Muse payloads to session, working, and completion events', () => {
     const sessionId = '01a0a6a1-dcc2-7a11-bccf-a6b774e17021';
     expect(hooks.parseHookEvent('session-start', { session_id: sessionId })).toEqual({

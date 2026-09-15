@@ -110,24 +110,24 @@ export function buildMuseHookConfig() {
     parseHookEvent(eventType: string, body: Record<string, unknown>) {
       const sessionId = extractProviderSessionId(body);
       const turnId = typeof body.turn_id === 'string' ? body.turn_id : undefined;
-      if (sessionId && turnId) {
-        if (eventType === 'start') {
-          activeTurns.delete(sessionId);
-          activeTurns.set(sessionId, turnId);
-          if (activeTurns.size > MAX_TRACKED_SESSIONS)
-            activeTurns.delete(activeTurns.keys().next().value!);
-        } else if (
-          (eventType === 'stop' || eventType === 'error') &&
-          activeTurns.has(sessionId) &&
-          activeTurns.get(sessionId) !== turnId
-        ) {
+      if (eventType === 'start' && sessionId && turnId) {
+        activeTurns.delete(sessionId);
+        activeTurns.set(sessionId, turnId);
+        if (activeTurns.size > MAX_TRACKED_SESSIONS) {
+          const oldestSession = activeTurns.keys().next().value;
+          if (oldestSession !== undefined) activeTurns.delete(oldestSession);
+        }
+      }
+      if (sessionId && (eventType === 'stop' || eventType === 'error')) {
+        const activeTurn = activeTurns.get(sessionId);
+        // Native Stop can omit turn_id; tracked turns require a matching completion event.
+        if (activeTurn !== undefined && activeTurn !== turnId) {
           return { kind: 'ignore' } as const;
         }
       }
       const event = defaultHookEventParser(eventType, body);
       if (event.kind !== 'status') return event;
-      const providerSessionId = extractProviderSessionId(body);
-      return providerSessionId ? { ...event, providerSessionId } : event;
+      return sessionId ? { ...event, providerSessionId: sessionId } : event;
     },
   };
 }
