@@ -3,7 +3,7 @@ import type { Result } from '@emdash/shared';
 import { toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
+import { redactSecrets, type Logger } from '@emdash/shared/logger';
 import type {
   AcpStartError,
   ConversationNotFoundError,
@@ -154,7 +154,9 @@ export class SessionMaterializer {
           this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
             conversationId: input.conversationId,
             sessionId: input.sessionId,
+            operation: 'loadSession',
             error: toSerializedError(error),
+            ...providerErrorDetails(error),
           });
           return acpErr.invalidState(
             'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
@@ -465,4 +467,20 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     signal.addEventListener('abort', onAbort, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
   });
+}
+
+function providerErrorDetails(error: unknown): { code?: number; providerMessage?: string } {
+  if (!error || typeof error !== 'object') return {};
+  const code = 'code' in error && typeof error.code === 'number' ? error.code : undefined;
+  const data = 'data' in error ? error.data : undefined;
+  const message =
+    typeof data === 'string'
+      ? data
+      : data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
+        ? data.message
+        : undefined;
+  return {
+    ...(code !== undefined && { code }),
+    ...(message !== undefined && { providerMessage: redactSecrets(message).slice(0, 2_000) }),
+  };
 }

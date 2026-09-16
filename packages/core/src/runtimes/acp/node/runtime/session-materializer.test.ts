@@ -26,7 +26,42 @@ describe('SessionMaterializer', () => {
     expect(setup.discarded).toHaveLength(1);
     expect(setup.loading).toEqual([]);
     await setup.scope.dispose();
-    expect(setup.release).toHaveBeenCalledTimes(1);
+    expect(setup.release).toHaveBeenCalledOnce();
+  });
+
+  it('logs the sanitized provider explanation carried in JSON-RPC error data', async () => {
+    const h = makeAcpHarness();
+    const warn = vi.fn();
+    h.deps.logger = { ...h.deps.logger, warn };
+    const secret = `ghp_${'a'.repeat(36)}`;
+    h.agent.loadSession.mockRejectedValueOnce(
+      Object.assign(new Error('Internal error'), {
+        code: -32600,
+        data: `no rollout found; token: ${secret}`,
+      })
+    );
+    const setup = materializerHarness(h);
+    try {
+      await setup.materializer.materialize(
+        setup.entry,
+        setup.entry.descriptor,
+        1,
+        setup.scope,
+        setup.controller.signal
+      );
+      expect(warn).toHaveBeenCalledWith(
+        'SessionMaterializer: failed to restore existing session',
+        expect.objectContaining({
+          sessionId: 'retained-session',
+          operation: 'loadSession',
+          code: -32600,
+          providerMessage: expect.stringContaining('no rollout found'),
+        })
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(secret);
+    } finally {
+      await setup.scope.dispose();
+    }
   });
 
   it('loads an existing session without creating a replacement', async () => {

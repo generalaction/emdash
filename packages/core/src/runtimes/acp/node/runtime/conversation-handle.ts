@@ -59,11 +59,10 @@ export class ConversationHandle {
   private evictionPromiseValue: Promise<void> | null = null;
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
-  private providerClose: {
-    record: SessionRecord;
-    task: Promise<void>;
-    failed: boolean;
-  } | null = null;
+  // A timed-out close must continue fencing later activations until it settles or its
+  // provider connection is gone. Disposing the old cell alone cannot prove that.
+  private providerClose: { record: SessionRecord; task: Promise<void>; failed: boolean } | null =
+    null;
   private readonly activation: LifecycleCell<
     void,
     SessionRecord,
@@ -198,8 +197,9 @@ export class ConversationHandle {
       return ok();
     }
     if (closing.failed) this.startProviderClose(closing.record);
+    const task = this.providerClose!.task;
     try {
-      await runWithTimeout(() => this.providerClose?.task, {
+      await runWithTimeout(() => task, {
         timeoutMs: this.deps.activationDrainTimeoutMs,
         clock: this.deps.clock,
       });

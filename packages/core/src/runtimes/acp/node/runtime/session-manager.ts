@@ -212,6 +212,7 @@ export class SessionManager {
   > {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.invalidState(`ACP conversation '${conversationId}' is not attached`);
+    await entry.waitForEviction();
     return this.activateEntry(entry, false);
   }
 
@@ -227,8 +228,15 @@ export class SessionManager {
     await this.retained.get(input.conversationId)?.waitForEviction();
     const existing = this.retained.get(input.conversationId);
     const restored = existing ? null : this.getOrRestoreHandle(input.conversationId);
-    const entry = existing ?? restored ?? this.createHandle(input, { suspended: false });
+    const entry =
+      existing ??
+      restored ??
+      this.createHandle(input, {
+        suspended: false,
+        everMaterialized: input.sessionId !== null,
+      });
     if (restored) entry.refreshDescriptor(input);
+    if (entry.descriptor.sessionId) entry.saveIntent();
     this.lifecycle.recordInput(input.conversationId);
 
     return this.activateEntry(entry, !existing);

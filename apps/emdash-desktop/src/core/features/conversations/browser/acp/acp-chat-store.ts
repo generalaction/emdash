@@ -96,6 +96,7 @@ type PermissionQueueItem = {
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
   | { kind: 'unavailable'; message: string }
+  | { kind: 'history_unavailable'; message: string }
   | { kind: 'generic'; message: string };
 
 export class AcpChatStore {
@@ -690,7 +691,11 @@ export class AcpChatStore {
         return;
       if (!history.success) throw new AcpStartError(history.error);
       if (history.data.unavailable && !this.historyKnown && this.messageCount === 0) {
-        throw new Error('Conversation history is unavailable. Retry loading this conversation.');
+        this._failBootstrap({
+          kind: 'history_unavailable',
+          message: 'Conversation history is unavailable. Retry loading this conversation.',
+        });
+        return;
       }
       if (history.data.clearedConfiguration?.length) {
         await this._rememberPreference(
@@ -727,22 +732,26 @@ export class AcpChatStore {
         taskId: this.taskId,
         error,
       });
-      runInAction(() => {
-        if (clientSession && this.session !== clientSession) clientSession.dispose();
-        this._bootstrapFailed = true;
-        this.historyLoading = false;
-        this.loadError =
-          this.hostAccess?.liveAction.kind === 'disabled'
-            ? {
-                kind: 'unavailable',
-                message: 'Live chat is unavailable until Project access returns.',
-              }
-            : toLoadError(error);
-      });
+      if (clientSession && this.session !== clientSession) clientSession.dispose();
+      this._failBootstrap(toLoadError(error));
       if (this.loadError?.kind === 'auth_required' && providerId) {
         void this._refreshAuthStatus(providerId);
       }
     }
+  }
+
+  private _failBootstrap(error: AcpLoadError): void {
+    runInAction(() => {
+      this._bootstrapFailed = true;
+      this.historyLoading = false;
+      this.loadError =
+        this.hostAccess?.liveAction.kind === 'disabled'
+          ? {
+              kind: 'unavailable',
+              message: 'Live chat is unavailable until Project access returns.',
+            }
+          : error;
+    });
   }
 
   private _recoverAttachment(session: AcpLiveSession, generation: number | undefined): void {
@@ -1090,11 +1099,18 @@ export class AcpChatStore {
       } while (!this._disposed);
       return !transcript.needsHistory;
     } catch (error) {
+      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
       log.warn('Failed to refresh ACP history', {
         conversationId: this.conversationId,
         error,
       });
-      return error instanceof AcpStartError && error.errorType === 'auth_required';
+      if (error instanceof AcpStartError) {
+        runInAction(() => {
+          this.loadError = toLoadError(error);
+        });
+        return true;
+      }
+      return false;
     }
   }
 

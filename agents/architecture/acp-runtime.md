@@ -214,9 +214,11 @@ restricted migration and rewritten in the safe schema.
 Mode, model, and effort changes update desired state and persist without waking when suspended or
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
-one. If a provider cannot replay history, `loadHistory` returns a successful page marked
-`unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
-one.
+one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
+load preserves the saved pointer and returns a retryable error. An unavailable history page is not
+proof of an empty conversation; callers retain existing transcripts, and first loads with unknown
+history expose an error instead of the new-chat state. Provider restoration errors require explicit
+retry, while transient transport failures retain the existing bounded-backoff refresh behavior.
 
 Provider replay reconstructs committed history internally. While the session is replaying, its
 public projection exposes no active turn, so partial historical messages cannot briefly enter and
@@ -243,6 +245,13 @@ disposal abort pending materialization and interrupt the cell and provider sessi
 for leases, then continue after a bounded drain timeout if a provider does not settle. Process-close
 callbacks carry a connection generation so a stale process cannot suspend sessions on its
 replacement.
+
+Provider close acknowledgement is part of teardown. The conversation handle retains a close barrier
+across a bounded timeout; subsequent activation attempts must wait for that same close, retry a
+rejected close, or establish that its connection generation no longer exists. A timeout alone never
+permits reuse of the closing session. Cancellation still starts before lease draining. Restoration
+logs include conversation/session identity and a bounded, redacted JSON-RPC explanation when the
+provider puts it in error data rather than the generic error message.
 
 ## Process Hosting
 
