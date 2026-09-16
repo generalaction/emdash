@@ -3,7 +3,7 @@ import type { Result } from '@emdash/shared';
 import { toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { Logger } from '@emdash/shared/logger';
+import { redactSecrets, type Logger } from '@emdash/shared/logger';
 import type {
   AcpStartError,
   ConversationNotFoundError,
@@ -88,10 +88,15 @@ export class SessionMaterializer {
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
-    let resumeOutcome: SessionRecord['resumeOutcome'] = input.sessionId ? 'replaced-by-new' : null;
+    let resumeOutcome: SessionRecord['resumeOutcome'] = null;
 
     try {
-      if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
+      if (input.sessionId) {
+        if (!connection.supportsLoadSession || !connection.agent.loadSession) {
+          return acpErr.invalidState(
+            'This provider cannot restore the saved conversation. Its saved session has been preserved.'
+          );
+        }
         let releaseHandshake: () => void;
         try {
           releaseHandshake = await this.acquireHandshake(processOwner, signal);
@@ -136,17 +141,20 @@ export class SessionMaterializer {
             return acpErr.conversationNotFound(entry.conversationId);
           }
           if (isAuthRequiredError(error)) throw error;
-          this.deps.logger.warn('SessionMaterializer: loadSession failed, starting a new session', {
+          this.deps.logger.warn('SessionMaterializer: failed to restore existing session', {
             conversationId: input.conversationId,
+            sessionId: input.sessionId,
+            operation: 'loadSession',
+            error: toSerializedError(error),
+            ...providerErrorDetails(error),
           });
+          return acpErr.invalidState(
+            'Could not restore this conversation. Its saved session has been preserved. Retry loading it.'
+          );
         } finally {
           endLoad();
           releaseHandshake();
-        }
-
-        if (!loaded) {
-          this.callbacks.discardRecord(record);
-          record = null;
+          if (!loaded) this.callbacks.discardRecord(record);
         }
       }
 
@@ -434,4 +442,20 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     signal.addEventListener('abort', onAbort, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
   });
+}
+
+function providerErrorDetails(error: unknown): { code?: number; providerMessage?: string } {
+  if (!error || typeof error !== 'object') return {};
+  const code = 'code' in error && typeof error.code === 'number' ? error.code : undefined;
+  const data = 'data' in error ? error.data : undefined;
+  const message =
+    typeof data === 'string'
+      ? data
+      : data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
+        ? data.message
+        : undefined;
+  return {
+    ...(code !== undefined && { code }),
+    ...(message !== undefined && { providerMessage: redactSecrets(message).slice(0, 2_000) }),
+  };
 }

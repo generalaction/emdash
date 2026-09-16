@@ -206,9 +206,10 @@ restricted migration and rewritten in the safe schema.
 Mode, model, and effort changes update desired state and persist without waking when suspended or
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
-one. If a provider cannot replay history, `loadHistory` returns a successful page marked
-`unavailable: true`; callers retain their existing transcript instead of replacing it with an empty
-one.
+one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
+load preserves the saved pointer and returns a retryable error. If a provider cannot replay history,
+`loadHistory` returns a successful page marked `unavailable: true`; callers retain their existing
+transcript instead of replacing it with an empty one.
 
 Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
 while materializing joins that activation and dispatches once after the latest desired configuration
@@ -217,6 +218,9 @@ disposal abort pending materialization and interrupt the cell and provider sessi
 for leases, then continue after a bounded drain timeout if a provider does not settle. Process-close
 callbacks carry a connection generation so a stale process cannot suspend sessions on its
 replacement.
+
+Restoration logs include conversation/session identity and a bounded, redacted JSON-RPC explanation
+when the provider puts it in error data rather than the generic error message.
 
 ## Process Hosting
 

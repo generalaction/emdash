@@ -406,13 +406,12 @@ describe('AcpRuntime session manager', () => {
     if (!live) throw new Error('expected stable live projection');
     await rt.stopSession(input.conversationId);
     h.agent.loadSession.mockRejectedValueOnce(new Error('replay failed'));
-    h.agent.newSession.mockRejectedValueOnce(new Error('replacement failed'));
 
     const result = await rt.sendPrompt(input.conversationId, { text: 'retry me' });
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'new_session_failed' },
+      error: { type: 'invalid_state' },
     });
     expect(peek(live.states.state)).toMatchObject({ suspended: true, canSubmit: true });
     expect(peek(rt.sessionsListLiveModel().states.list)[input.conversationId]).toMatchObject({
@@ -524,12 +523,10 @@ describe('AcpRuntime session manager', () => {
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
   });
 
-  it('retains fallback session ids and effort overrides across rematerialization', async () => {
+  it('retains restored session ids and effort overrides across rematerialization', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents, lifecycle: { connectionIdleTtlMs: 0 } });
-    h.agent.loadSession.mockRejectedValueOnce(new Error('old session missing'));
-    h.agent.newSession.mockResolvedValueOnce({
-      sessionId: 'replacement',
+    h.agent.loadSession.mockResolvedValueOnce({
       configOptions: [effortConfigOption('low')],
     });
     const rt = new AcpRuntime(h.deps);
@@ -541,7 +538,7 @@ describe('AcpRuntime session manager', () => {
     await rt.setOption(input.conversationId, 'effort', 'high');
     await vi.waitFor(() =>
       expect(intents.snapshot()[0]?.payload).toMatchObject({
-        sessionId: 'replacement',
+        sessionId: 'old',
         configured: { effort: 'high' },
       })
     );
@@ -556,11 +553,11 @@ describe('AcpRuntime session manager', () => {
 
     expect(h.agent.loadSession).toHaveBeenCalledWith({
       cwd: '/tmp/workspace',
-      sessionId: 'replacement',
+      sessionId: 'old',
       mcpServers: [],
     });
     expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
-      sessionId: 'replacement',
+      sessionId: 'old',
       configId: 'reasoning_effort',
       value: 'high',
     });
@@ -1350,27 +1347,58 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     ]);
   });
 
-  it("reports resumeOutcome 'replaced-by-new' when loadSession fails and a fresh session starts", async () => {
-    const reports = createRecordingConversationLifecycleReporter();
-    const h = makeAcpHarness({ conversationReports: reports });
+  it.each(['attach', 'launch'] as const)(
+    'preserves the saved session after failed %s and retries the original session',
+    async (start) => {
+      const reports = createRecordingConversationLifecycleReporter();
+      const intents = createMemorySessionIntentStore();
+      const h = makeAcpHarness({ conversationReports: reports, intents });
+      const rt = new AcpRuntime(h.deps);
+      const input = makeStartInput({ conversationId: 'conv-restore', sessionId: 'session-old' });
+      h.agent.loadSession.mockRejectedValueOnce(new Error('temporary provider failure'));
+      if (start === 'attach') await rt.attachSession(input);
+      try {
+        const failed =
+          start === 'attach' ? rt.loadHistory(input.conversationId) : rt.launchSession(input);
+        await expect(failed).resolves.toMatchObject({ success: false });
+        expect(h.agent.newSession).not.toHaveBeenCalled();
+        expect(reports.started).toEqual([]);
+        expect(intents.snapshot()[0]?.sessionId).toBe('session-old');
+        await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({
+          success: true,
+        });
+        expect(h.agent.loadSession.mock.calls.map(([request]) => request.sessionId)).toEqual([
+          'session-old',
+          'session-old',
+        ]);
+        expect(reports.started).toEqual([
+          {
+            conversationId: input.conversationId,
+            providerSessionId: 'session-old',
+            resumeOutcome: 'loaded',
+          },
+        ]);
+      } finally {
+        await rt.dispose();
+      }
+    }
+  );
+
+  it('does not replace saved sessions when the provider cannot load history', async () => {
+    const h = makeAcpHarness();
+    h.agent.initialize.mockResolvedValueOnce({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: false },
+    });
     const rt = new AcpRuntime(h.deps);
-    h.agent.loadSession = vi.fn(async () => {
-      throw new Error('session file is gone');
-    });
-
-    const result = await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-fallback' }),
-      sessionId: 'session-old',
-    });
-
-    expect(isOk(result)).toBe(true);
-    expect(reports.started).toEqual([
-      {
-        conversationId: 'conv-fallback',
-        providerSessionId: 'session-1',
-        resumeOutcome: 'replaced-by-new',
-      },
-    ]);
+    const input = makeStartInput({ conversationId: 'conv-no-history', sessionId: 'original' });
+    await rt.attachSession(input);
+    try {
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: false });
+      expect(h.agent.newSession).not.toHaveBeenCalled();
+    } finally {
+      await rt.dispose();
+    }
   });
 
   it('reports the rebound provider session id when updates arrive under a new id', async () => {
@@ -1486,22 +1514,21 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     expectNoSessionResidue('conv-start-fail', leakContainers(rt));
   });
 
-  it('reuses the connection lease across the loadSession fallback (no pool churn)', async () => {
+  it('retains a usable pooled connection for retry after a failed load', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);
-    h.agent.loadSession = vi.fn(async () => {
-      throw new Error('session file is gone');
-    });
-
-    const result = await rt.launchSession({
-      ...makeStartInput({ conversationId: 'conv-lease' }),
-      sessionId: 'session-old',
-    });
-
-    expect(isOk(result)).toBe(true);
-    expect(h.children).toHaveLength(1);
-    expect(h.lastChild.kill).not.toHaveBeenCalled();
-    expect(rt.sessionLiveModels('conv-lease')).not.toBeNull();
+    h.agent.loadSession.mockRejectedValueOnce(new Error('temporary failure'));
+    const input = makeStartInput({ conversationId: 'conv-lease', sessionId: 'session-old' });
+    await rt.attachSession(input);
+    try {
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: false });
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      expect(h.children).toHaveLength(1);
+      expect(h.lastChild.kill).not.toHaveBeenCalled();
+      expect(h.agent.newSession).not.toHaveBeenCalled();
+    } finally {
+      await rt.dispose();
+    }
   });
 });
 

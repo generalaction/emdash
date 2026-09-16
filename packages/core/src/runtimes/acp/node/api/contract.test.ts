@@ -94,7 +94,6 @@ describe('ACP API contract schemas', () => {
       await rt.stopSession(input.conversationId);
 
       h.agent.loadSession.mockRejectedValue(new Error('replay failed'));
-      h.agent.newSession.mockRejectedValue(new Error('replacement failed'));
 
       await expect(
         wire.client.sendPrompt({
@@ -105,8 +104,8 @@ describe('ACP API contract schemas', () => {
       ).resolves.toMatchObject({
         success: false,
         error: {
-          type: 'new_session_failed',
-          cause: { name: 'Error', message: 'replacement failed' },
+          type: 'invalid_state',
+          message: expect.stringContaining('saved session has been preserved'),
         },
       });
       h.agent.loadSession.mockClear();
