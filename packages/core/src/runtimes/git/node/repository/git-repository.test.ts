@@ -167,6 +167,59 @@ describe('GitRepository', () => {
     }
   });
 
+  it.each(['origin', 'team/upstream'])(
+    'resolves the renamed default branch when %s/HEAD is dangling after pruning',
+    async (remoteName) => {
+      const { repo, repository, cleanup } = await makeRepository();
+      const remoteRepo = await makeRepo();
+      try {
+        await git(repo, ['remote', 'add', remoteName, remoteRepo]);
+        await git(repo, ['fetch', remoteName]);
+        await git(repo, ['remote', 'set-head', remoteName, '--auto']);
+        await git(remoteRepo, ['branch', '-m', 'main', 'prod']);
+        await git(repo, ['fetch', '--prune', remoteName]);
+
+        const headRef = `refs/remotes/${remoteName}/HEAD`;
+        const staleTarget = `refs/remotes/${remoteName}/main`;
+        expect((await git(repo, ['symbolic-ref', headRef])).trim()).toBe(staleTarget);
+        await expect(git(repo, ['rev-parse', '--verify', headRef])).rejects.toThrow();
+
+        await expect(repository.getDefaultBranch(remoteName)).resolves.toBe('prod');
+        // Discovery must not repair or otherwise mutate the user's symbolic ref.
+        expect((await git(repo, ['symbolic-ref', headRef])).trim()).toBe(staleTarget);
+      } finally {
+        await cleanup();
+        await rm(remoteRepo, { recursive: true, force: true });
+      }
+    }
+  );
+
+  it('answers null for a dangling remote HEAD when the remote is unavailable', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    try {
+      await git(repo, ['remote', 'add', 'origin', path.join(repo, 'missing-remote.git')]);
+      await git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
+
+      await expect(repository.getDefaultBranch('origin')).resolves.toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('looks up the remote default branch when the local symbolic ref is missing', async () => {
+    const { repo, repository, cleanup } = await makeRepository();
+    const remoteRepo = await makeRepo();
+    try {
+      await git(remoteRepo, ['branch', '-m', 'main', 'prod']);
+      await git(repo, ['remote', 'add', 'origin', remoteRepo]);
+
+      await expect(repository.getDefaultBranch('origin')).resolves.toBe('prod');
+    } finally {
+      await cleanup();
+      await rm(remoteRepo, { recursive: true, force: true });
+    }
+  });
+
   it('answers null instead of fabricating a default branch when the remote HEAD is unknown', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
