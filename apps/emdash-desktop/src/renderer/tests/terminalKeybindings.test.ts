@@ -3,6 +3,7 @@ import { decodeOsc52ClipboardData } from '@core/features/terminals/browser/pty/p
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
+  getMacOptionArrowSequence,
   shouldCopySelectionFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
@@ -10,6 +11,33 @@ import {
   shouldPasteToTerminal,
   type KeyEventLike,
 } from '@core/features/terminals/browser/pty/pty-keybindings';
+
+describe('macOS Option arrow sequences', () => {
+  it.each([
+    ['ArrowLeft', '\x1bb'],
+    ['ArrowRight', '\x1bf'],
+    ['ArrowUp', '\x01'],
+    ['ArrowDown', '\x05'],
+  ])('maps %s only on macOS keydown with Option alone', (key, sequence) => {
+    const event = { type: 'keydown', key, altKey: true };
+    expect(getMacOptionArrowSequence(event, true)).toBe(sequence);
+    expect(getMacOptionArrowSequence(event, false)).toBeUndefined();
+    for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey', 'isComposing']) {
+      expect(getMacOptionArrowSequence({ ...event, [modifier]: true }, true)).toBeUndefined();
+    }
+    expect(getMacOptionArrowSequence({ ...event, altKey: false }, true)).toBeUndefined();
+    expect(getMacOptionArrowSequence({ ...event, type: 'keyup' }, true)).toBeUndefined();
+    expect(getMacOptionArrowSequence({ ...event, type: 'keypress' }, true)).toBeUndefined();
+  });
+
+  it('does not intercept Option combinations used to type characters', () => {
+    for (const key of ['a', 'b', 'f', 'Dead', 'Alt', 'Home', 'End']) {
+      expect(
+        getMacOptionArrowSequence({ type: 'keydown', key, altKey: true }, true)
+      ).toBeUndefined();
+    }
+  });
+});
 
 describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
   const makeEvent = (overrides: Partial<KeyEventLike> = {}): KeyEventLike => ({
