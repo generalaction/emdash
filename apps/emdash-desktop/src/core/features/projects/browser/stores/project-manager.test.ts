@@ -776,7 +776,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.mementoSubjectRelease).toHaveBeenCalledOnce();
   });
 
-  it('publishes typed desktop context failure without tracking attachment', async () => {
+  it('logs and publishes typed desktop context failure without tracking attachment', async () => {
     const project = localProject();
     mocks.mementoSubject.mockReturnValue({
       ready: Promise.reject(new Error('memento unavailable')),
@@ -799,6 +799,14 @@ describe('ProjectManagerStore project creation', () => {
       })
     );
     expect(mocks.attachmentTrack).not.toHaveBeenCalled();
+    expect(mocks.logError).toHaveBeenCalledWith('Failed to hydrate Project context', {
+      projectId: project.id,
+      error: {
+        type: 'context-initialization-failed',
+        stage: 'memento',
+        message: 'memento unavailable',
+      },
+    });
   });
 
   it('preserves desktop context and record identity when relinking a project', async () => {
