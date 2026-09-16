@@ -107,6 +107,31 @@ you select an OrcaRouter model from the OpenCode model picker.
   sessions receive those definitions through `session/new`, and Prime exposes them to the model
   through its pre-imported `mcp` Python program.
 
+## Multiple Issue-Tracker Accounts (Per-Project)
+
+An issue-tracker integration can connect more than one account (workspace) at once, with each
+project choosing which one it uses. Linear is the first (`supportsMultipleAccounts: true` in its
+plugin metadata); other trackers opt in by returning `account` from `verify()` and setting that flag.
+
+- **Account identity.** `verify()` returns `account: { id, login, host? }`. The connection service
+  keys the stored account as `` `${host ?? integrationId}:${id}` `` (e.g. `linear:<orgId>`);
+  plugins that omit `account` collapse to the single-account `'default'` id. Accounts live in the
+  provider-generic `provider_accounts` registry (`src/main/core/provider-accounts/`); credentials
+  stay in encrypted secret storage behind each row's `credentialRef`.
+- **Per-project pin.** `issueTrackerAccounts?: Record<integrationId, { kind: 'account'; accountId } | { kind: 'none' }>`
+  in stored project settings (absent = infer the default account). GitHub is excluded — it resolves
+  through the separate `githubAccount` git setting.
+- **Resolution.** `createProjectIntegrationAccountResolver`
+  (`src/core/features/integrations/api/node/services/`) maps `(projectId, integrationId)` to an
+  account via the pure `resolveIntegrationAccount` (`effective-settings.ts`): explicit pin → default
+  account → `unresolvable`. A dangling pin fails closed — never another workspace's credential.
+- **Durable linked-issue identity.** Fetched issues are stamped server-side with `sourceAccountId`
+  and the immutable `issueId`; refresh discards a result whose source differs, so re-pointing a
+  project never pulls another workspace's same-identifier issue into an agent.
+- **Legacy migration.** An existing single connection stored under `'default'` re-identifies to its
+  real `linear:<orgId>` on the next successful `verify()`/`checkConnection` — resumable,
+  collision-safe, and fail-open (`IntegrationConnectionService.reidentifyLegacyDefault`).
+
 ## Adding Or Changing A Provider
 
 1. add or update the plugin in `packages/plugins/src/agents/impl/` and register it in
