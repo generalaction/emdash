@@ -32,8 +32,8 @@
   "scripts": {
     "dev": "tsdown --config-loader tsx --watch",
     "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "pnpm exec nx test @emdash/plugins",
+    "test:watch": "pnpm exec nx run @emdash/plugins:test-watch",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "lint": "oxlint src",
@@ -69,5 +69,32 @@
     "tsx": "^4.22.4",
     "vitest": "^3.1.4"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/plugins"
+        }
+      },
+      "test-watch": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^build",
+          "build"
+        ],
+        "cache": false,
+        "options": {
+          "command": "pnpm exec vitest",
+          "cwd": "packages/plugins"
+        }
+      }
+    }
+  }
 }
