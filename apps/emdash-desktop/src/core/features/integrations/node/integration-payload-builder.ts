@@ -50,6 +50,7 @@ export function buildIntegrationListPayload() {
     description: plugin.metadata.description,
     websiteUrl: plugin.metadata.websiteUrl,
     features: features(plugin.metadata.id),
+    supportsMultipleAccounts: plugin.metadata.supportsMultipleAccounts ?? false,
     disconnectCredentialLabel: disconnectCredentialLabel(plugin.capabilities.auth),
     capabilities: issueCapabilities(plugin.metadata.id),
     auth: plugin.capabilities.auth,

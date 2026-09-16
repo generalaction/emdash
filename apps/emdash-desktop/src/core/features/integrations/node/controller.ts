@@ -10,4 +10,13 @@ export const integrationOperations = {
 
   disconnect: async (integrationId: string) =>
     getIntegrationConnectionService().disconnect(integrationId),
+
+  listAccounts: async (integrationId: string) =>
+    getIntegrationConnectionService().listAccounts(integrationId),
+
+  setDefaultAccount: async (integrationId: string, accountId: string) =>
+    getIntegrationConnectionService().setDefaultAccount(integrationId, accountId),
+
+  removeAccount: async (integrationId: string, accountId: string) =>
+    getIntegrationConnectionService().removeAccount(integrationId, accountId),
 };

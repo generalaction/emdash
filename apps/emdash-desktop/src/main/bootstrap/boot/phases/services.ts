@@ -43,6 +43,7 @@ import { githubIdentityClient } from '@core/features/github/node/services/github
 import { LegacyGitHubTokenMigrationStore } from '@core/features/github/node/services/legacy-github-token-migration-store';
 import { clearOctokitCache } from '@core/features/github/node/services/octokit-cache';
 import { createGitHubRepositoryService } from '@core/features/github/node/services/repo-service';
+import { createProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/services/project-integration-account-resolver';
 import {
   IntegrationConnectionService,
   setIntegrationConnectionService,
@@ -523,6 +524,11 @@ export async function bootServices(
     channels: gitCredentialServer,
     logger: log,
   });
+  const resolveProjectIntegrationAccount = createProjectIntegrationAccountResolver({
+    getProjectById: (projectId) => getProjectById(db, projectId),
+    getStoredGitSettings: (projectId) => loadStoredGitSettings(db, projectId),
+    listAccounts: (integrationId) => integrationCredentialStore.listAccounts(integrationId),
+  });
   const issueProviders = createIssueProviderRegistry({
     github: {
       accounts: providerAccountRegistry,
@@ -530,6 +536,7 @@ export async function bootServices(
       logger: log,
       resolveProjectGitHubAccount,
     },
+    resolveProjectIntegrationAccount,
   });
   const pullRequestsRegistration = new PullRequestsRegistration({
     getClient: getPullRequestsRuntimeClient,

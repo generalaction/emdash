@@ -72,6 +72,15 @@ function toProviderAccount(row: ProviderAccountRow): ProviderAccount {
  * partial unique index; a missing default self-heals to the oldest account.
  */
 export class ProviderAccountRegistry {
+  /**
+   * Per-provider serialization. Mutations touch two stores (the DB row and the
+   * secret behind its credentialRef) with `await` points between them, so a
+   * remove/reconnect interleaving could otherwise delete a just-written secret
+   * or misreport created/updated. Crash-safety across the two stores is out of
+   * scope (a partial write is reconciled on the next connect).
+   */
+  private readonly providerLocks = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly database: AppDb | undefined,
     private readonly secretStore: ProviderAccountSecretStore
@@ -81,70 +90,87 @@ export class ProviderAccountRegistry {
     return this.database ?? getAppDb();
   }
 
-  async upsertAccount(input: ProviderAccountUpsert): Promise<ProviderAccountUpsertResult> {
-    const existing = await this.findRow(input.providerId, input.accountId);
-    const credentialRef =
-      existing?.credentialRef ??
-      input.credentialRef ??
-      defaultCredentialRef(input.providerId, input.accountId);
+  private withProviderLock<T>(providerId: string, fn: () => Promise<T>): Promise<T> {
+    const run = (this.providerLocks.get(providerId) ?? Promise.resolve()).then(fn, fn);
+    this.providerLocks.set(
+      providerId,
+      run.then(
+        () => undefined,
+        () => undefined
+      )
+    );
+    return run;
+  }
 
-    if (input.secret !== undefined) {
-      await this.secretStore.setSecret(credentialRef, input.secret);
-    }
+  upsertAccount(input: ProviderAccountUpsert): Promise<ProviderAccountUpsertResult> {
+    return this.withProviderLock(input.providerId, async () => {
+      const existing = await this.findRow(input.providerId, input.accountId);
+      const credentialRef =
+        existing?.credentialRef ??
+        input.credentialRef ??
+        defaultCredentialRef(input.providerId, input.accountId);
 
-    const meta: ProviderAccountMeta | undefined =
-      input.meta === undefined ? undefined : { version: '1', ...input.meta };
-
-    const row = this.db.transaction((tx): ProviderAccountRow => {
-      const now = Date.now();
-      const current = tx
-        .select()
-        .from(providerAccounts)
-        .where(
-          and(
-            eq(providerAccounts.providerId, input.providerId),
-            eq(providerAccounts.accountId, input.accountId)
-          )
-        )
-        .get();
-
-      if (current) {
-        tx.update(providerAccounts)
-          .set({ updatedAt: now, ...(meta !== undefined ? { meta } : {}) })
-          .where(eq(providerAccounts.id, current.id))
-          .run();
-        return { ...current, updatedAt: now, meta: meta !== undefined ? meta : current.meta };
+      if (input.secret !== undefined) {
+        await this.secretStore.setSecret(credentialRef, input.secret);
       }
 
-      const hasDefault = tx
-        .select({ id: providerAccounts.id })
-        .from(providerAccounts)
-        .where(
-          and(
-            eq(providerAccounts.providerId, input.providerId),
-            eq(providerAccounts.isDefault, true)
+      const meta: ProviderAccountMeta | undefined =
+        input.meta === undefined ? undefined : { version: '1', ...input.meta };
+
+      const result = this.db.transaction((tx): { row: ProviderAccountRow; created: boolean } => {
+        const now = Date.now();
+        const current = tx
+          .select()
+          .from(providerAccounts)
+          .where(
+            and(
+              eq(providerAccounts.providerId, input.providerId),
+              eq(providerAccounts.accountId, input.accountId)
+            )
           )
-        )
-        .get();
+          .get();
 
-      const inserted: ProviderAccountRow = {
-        id: randomUUID(),
-        providerId: input.providerId,
-        accountId: input.accountId,
-        credentialRef,
-        isDefault: !hasDefault,
-        meta: meta ?? null,
-        createdAt: now,
-        updatedAt: now,
+        if (current) {
+          tx.update(providerAccounts)
+            .set({ updatedAt: now, ...(meta !== undefined ? { meta } : {}) })
+            .where(eq(providerAccounts.id, current.id))
+            .run();
+          return {
+            row: { ...current, updatedAt: now, meta: meta !== undefined ? meta : current.meta },
+            created: false,
+          };
+        }
+
+        const hasDefault = tx
+          .select({ id: providerAccounts.id })
+          .from(providerAccounts)
+          .where(
+            and(
+              eq(providerAccounts.providerId, input.providerId),
+              eq(providerAccounts.isDefault, true)
+            )
+          )
+          .get();
+
+        const inserted: ProviderAccountRow = {
+          id: randomUUID(),
+          providerId: input.providerId,
+          accountId: input.accountId,
+          credentialRef,
+          isDefault: !hasDefault,
+          meta: meta ?? null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        tx.insert(providerAccounts).values(inserted).run();
+        return { row: inserted, created: true };
+      });
+
+      return {
+        account: toProviderAccount(result.row),
+        status: result.created ? 'created' : 'updated',
       };
-      tx.insert(providerAccounts).values(inserted).run();
-      return inserted;
     });
-
-    return {
-      account: toProviderAccount(row),
-      status: existing ? 'updated' : 'created',
-    };
   }
 
   async listAccounts(providerId: string): Promise<ProviderAccount[]> {
@@ -175,7 +201,13 @@ export class ProviderAccountRegistry {
   }
 
   /** Make an existing account the provider default. Returns null for unknown accounts. */
-  async setDefaultAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
+  setDefaultAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
+    return this.withProviderLock(providerId, async () =>
+      this.setDefaultAccountLocked(providerId, accountId)
+    );
+  }
+
+  private setDefaultAccountLocked(providerId: string, accountId: string): ProviderAccount | null {
     const row = this.db.transaction((tx) => {
       const target = tx
         .select()
@@ -218,7 +250,14 @@ export class ProviderAccountRegistry {
    * the oldest surviving account is promoted in the same transaction.
    * Returns the removed account, or null if it did not exist.
    */
-  async removeAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
+  removeAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
+    return this.withProviderLock(providerId, () => this.removeAccountLocked(providerId, accountId));
+  }
+
+  private async removeAccountLocked(
+    providerId: string,
+    accountId: string
+  ): Promise<ProviderAccount | null> {
     const removed = this.db.transaction((tx) => {
       const target = tx
         .select()
@@ -245,7 +284,11 @@ export class ProviderAccountRegistry {
   }
 
   /** Remove every account (and secret) for a provider. */
-  async removeAllAccounts(providerId: string): Promise<void> {
+  removeAllAccounts(providerId: string): Promise<void> {
+    return this.withProviderLock(providerId, () => this.removeAllAccountsLocked(providerId));
+  }
+
+  private async removeAllAccountsLocked(providerId: string): Promise<void> {
     const rows = this.db.transaction((tx) => {
       const existing = tx
         .select()

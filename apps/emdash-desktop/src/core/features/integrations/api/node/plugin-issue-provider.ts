@@ -1,3 +1,4 @@
+import type { IntegrationCredentials } from '@emdash/plugins/integrations';
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, type Err, ok } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
@@ -22,18 +23,63 @@ import type {
 } from '@core/primitives/issue-providers/api';
 import { getIntegrationConnectionService } from '../../node/integration-connection-service';
 import { getIntegrationCredentialStore } from '../../node/integration-credential-store-instance';
+import type { ProjectIntegrationAccountResolver } from './services/project-integration-account-resolver';
 
-export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssueProvider {
+export type PluginIssueProviderDeps = {
+  resolveProjectAccount?: ProjectIntegrationAccountResolver;
+};
+
+export function createPluginIssueProvider(
+  plugin: IssuesPluginProvider,
+  deps: PluginIssueProviderDeps = {}
+): IssueProvider {
   const provider = plugin.metadata.integrationId as IssueProviderType;
   const capabilities = toIssueProviderCapabilities(plugin);
   const pluginLog = log.child({ integration: provider });
 
-  async function getConnectedHost() {
-    const credentials = await getIntegrationCredentialStore().get(provider);
-    if (!credentials) {
-      return null;
+  type ConnectedHost = {
+    log: typeof pluginLog;
+    credentials: IntegrationCredentials;
+    accountId: string;
+  };
+  type HostResolution = { host: ConnectedHost } | { error: Err<IssueListError> };
+
+  /**
+   * Resolve the account for the request's project (fail closed on a dangling
+   * pin — never another workspace's credential) and load its credentials.
+   */
+  async function resolveConnectedHost(opts: { projectId?: string }): Promise<HostResolution> {
+    let accountId: string | undefined;
+    if (opts.projectId && deps.resolveProjectAccount) {
+      const resolution = await deps.resolveProjectAccount({
+        projectId: opts.projectId,
+        integrationId: provider,
+      });
+      if (resolution.value) {
+        accountId = resolution.value.accountId;
+      } else if (resolution.provenance.kind === 'unresolvable') {
+        return {
+          error: err({
+            type: 'auth_required',
+            message: `The ${provider} workspace pinned to this project is no longer connected. Reconnect it or pick another workspace in project settings.`,
+          }),
+        };
+      } else if (resolution.provenance.kind === 'set') {
+        return {
+          error: err({
+            type: 'auth_required',
+            message: `${provider} is disabled for this project. Pick a workspace in project settings to enable it.`,
+          }),
+        };
+      }
+      // `inferred` with no value falls through to the default account below.
     }
-    return { log: pluginLog, credentials };
+
+    const record = await getIntegrationCredentialStore().getAccount(provider, accountId);
+    if (!record) return { error: notConnectedError() };
+    return {
+      host: { log: pluginLog, credentials: record.credentials, accountId: record.accountId },
+    };
   }
 
   function repositoryUrl(opts: IssueQueryOpts): string | undefined {
@@ -59,8 +105,9 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       getIntegrationConnectionService().checkConnection(provider, capabilities),
 
     async listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
-      const host = await getConnectedHost();
-      if (!host) return notConnectedError();
+      const resolved = await resolveConnectedHost(opts);
+      if ('error' in resolved) return resolved.error;
+      const host = resolved.host;
 
       if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
         return missingRepositoryError();
@@ -72,15 +119,16 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
-      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
+      return ok(result.data.map((issue) => toLinkedIssue(provider, issue, host.accountId)));
     },
 
     async searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
       const term = String(opts.searchTerm || '').trim();
       if (!term) return ok([]);
 
-      const host = await getConnectedHost();
-      if (!host) return notConnectedError();
+      const resolved = await resolveConnectedHost(opts);
+      if ('error' in resolved) return resolved.error;
+      const host = resolved.host;
 
       if (capabilities.requiresRepositoryUrl && !repositoryUrl(opts)) {
         return missingRepositoryError();
@@ -93,7 +141,7 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
-      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
+      return ok(result.data.map((issue) => toLinkedIssue(provider, issue, host.accountId)));
     },
 
     getIssueContext: plugin.behavior.issues?.getIssue
@@ -103,8 +151,9 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
             return err({ type: 'invalid_input', message: 'Issue identifier is required.' });
           }
 
-          const host = await getConnectedHost();
-          if (!host) return notConnectedError();
+          const resolved = await resolveConnectedHost(opts);
+          if ('error' in resolved) return resolved.error;
+          const host = resolved.host;
 
           const result = await plugin.behavior.issues?.getIssue?.(host, {
             identifier: term,
@@ -117,7 +166,7 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
             });
           }
           if (!result.success) return err(result.error);
-          return ok(toLinkedIssue(provider, result.data));
+          return ok(toLinkedIssue(provider, result.data, host.accountId));
         }
       : undefined,
   };

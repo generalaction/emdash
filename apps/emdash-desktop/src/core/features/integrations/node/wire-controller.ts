@@ -8,5 +8,10 @@ export function createIntegrationsWireController(): Controller {
     connect: ({ integrationId, credentials }) =>
       integrationOperations.connect(integrationId, credentials),
     disconnect: ({ integrationId }) => integrationOperations.disconnect(integrationId),
+    listAccounts: ({ integrationId }) => integrationOperations.listAccounts(integrationId),
+    setDefaultAccount: ({ integrationId, accountId }) =>
+      integrationOperations.setDefaultAccount(integrationId, accountId),
+    removeAccount: ({ integrationId, accountId }) =>
+      integrationOperations.removeAccount(integrationId, accountId),
   });
 }

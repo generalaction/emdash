@@ -9,7 +9,11 @@ const { mockGetCredentials, mockCheckConnection } = vi.hoisted(() => ({
 
 vi.mock('./integration-credential-store-instance', () => ({
   getIntegrationCredentialStore: () => ({
-    get: mockGetCredentials,
+    // The provider resolves an account and reads its credentials via getAccount.
+    getAccount: async () => {
+      const credentials = await mockGetCredentials();
+      return credentials ? { accountId: 'default', credentials } : null;
+    },
     isConfigured: vi.fn(async () => true),
   }),
 }));

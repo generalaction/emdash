@@ -1,4 +1,5 @@
 import type { IntegrationCredentials } from '@emdash/plugins/integrations';
+import type { IntegrationAccountSummary } from '@core/primitives/integrations/api';
 
 const LEGACY_SECRET_KEYS = {
   linear: 'emdash-linear-token',
@@ -19,22 +20,30 @@ export const DEFAULT_INTEGRATION_ACCOUNT_ID = 'default';
 export type IntegrationAccountRecord = {
   accountId: string;
   displayName?: string;
+  workspaceLabel?: string;
   credentials: IntegrationCredentials;
 };
 
+type ProviderAccountMetaView = { displayName?: string; workspaceLabel?: string };
+
 type ProviderAccount = {
   accountId: string;
-  meta: { displayName?: string } | null;
+  meta: ProviderAccountMetaView | null;
 };
+
+export type IntegrationAccountUpsertStatus = 'created' | 'updated';
 
 export type IntegrationAccountStore = {
   getAccount(providerId: string, accountId?: string): Promise<ProviderAccount | null>;
+  listAccounts(providerId: string): Promise<ProviderAccount[]>;
+  getDefaultAccountId(providerId: string): Promise<string | null>;
+  setDefaultAccount(providerId: string, accountId: string): Promise<ProviderAccount | null>;
   upsertAccount(input: {
     providerId: string;
     accountId: string;
     secret: string;
-    meta: { displayName?: string };
-  }): Promise<unknown>;
+    meta: ProviderAccountMetaView;
+  }): Promise<{ status: IntegrationAccountUpsertStatus }>;
   resolveSecret(providerId: string, accountId: string): Promise<string | null>;
   removeAccount(providerId: string, accountId: string): Promise<unknown>;
   removeAllAccounts(providerId: string): Promise<unknown>;
@@ -121,13 +130,45 @@ export class IntegrationCredentialStore {
     return account?.credentials ?? null;
   }
 
-  async upsertAccount(integrationId: string, account: IntegrationAccountRecord): Promise<void> {
-    await this.accounts.upsertAccount({
+  async upsertAccount(
+    integrationId: string,
+    account: IntegrationAccountRecord
+  ): Promise<IntegrationAccountUpsertStatus> {
+    const result = await this.accounts.upsertAccount({
       providerId: integrationId,
       accountId: account.accountId,
       secret: JSON.stringify(account.credentials),
-      meta: account.displayName ? { displayName: account.displayName } : {},
+      meta: {
+        ...(account.displayName ? { displayName: account.displayName } : {}),
+        ...(account.workspaceLabel ? { workspaceLabel: account.workspaceLabel } : {}),
+      },
     });
+    return result.status;
+  }
+
+  async listAccounts(integrationId: string): Promise<IntegrationAccountSummary[]> {
+    await this.migrateLegacyOnce(integrationId);
+    const [accounts, defaultId] = await Promise.all([
+      this.accounts.listAccounts(integrationId),
+      this.accounts.getDefaultAccountId(integrationId),
+    ]);
+    return accounts.map((account) => ({
+      accountId: account.accountId,
+      integrationId,
+      ...(account.meta?.displayName ? { displayName: account.meta.displayName } : {}),
+      ...(account.meta?.workspaceLabel ? { workspaceLabel: account.meta.workspaceLabel } : {}),
+      isDefault: account.accountId === defaultId,
+    }));
+  }
+
+  async getDefaultAccountId(integrationId: string): Promise<string | null> {
+    await this.migrateLegacyOnce(integrationId);
+    return this.accounts.getDefaultAccountId(integrationId);
+  }
+
+  async setDefaultAccount(integrationId: string, accountId: string): Promise<boolean> {
+    const updated = await this.accounts.setDefaultAccount(integrationId, accountId);
+    return updated !== null;
   }
 
   /** Remove one account, or every account when no accountId is given. */
@@ -303,6 +344,7 @@ function toIntegrationAccount(
   return {
     accountId: account.accountId,
     ...(account.meta?.displayName ? { displayName: account.meta.displayName } : {}),
+    ...(account.meta?.workspaceLabel ? { workspaceLabel: account.meta.workspaceLabel } : {}),
     credentials,
   };
 }

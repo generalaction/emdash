@@ -24,10 +24,21 @@ export function toIssueProviderCapabilities(
   };
 }
 
-export function toLinkedIssue(provider: IssueProviderType, issue: IssueDetail): LinkedIssue {
+/**
+ * Build the stored linked issue. `sourceAccountId` is the account the issue was
+ * fetched from, resolved server-side by the caller (never renderer-supplied);
+ * with `issue.id` it makes the link durable across project/workspace changes.
+ */
+export function toLinkedIssue(
+  provider: IssueProviderType,
+  issue: IssueDetail,
+  sourceAccountId?: string
+): LinkedIssue {
   return {
     provider,
     identifier: issue.identifier,
+    issueId: issue.id,
+    sourceAccountId,
     displayIdentifier: issue.displayIdentifier,
     title: issue.title,
     url: issue.url ?? '',
