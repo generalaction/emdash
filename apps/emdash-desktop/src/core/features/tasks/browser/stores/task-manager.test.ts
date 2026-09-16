@@ -428,9 +428,10 @@ describe('TaskManagerStore lifecycle', () => {
     manager.dispose();
   });
 
-  it('does not archive an active Task when its teardown cannot reach the Project', async () => {
+  it('archives an active Task even when script and session cleanup cannot reach the host', async () => {
     const manager = makeTaskManager();
     const task = makeTask();
+    taskListState.set({ tasks: [task] });
     const store = createUnprovisionedTask(task);
     store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1');
     manager.tasks.set(task.id, store);
@@ -442,8 +443,8 @@ describe('TaskManagerStore lifecycle', () => {
 
     await manager.archiveTask(task.id);
 
-    expect(store.state).toBe('provisioned');
-    expect(mocks.archiveMutation).not.toHaveBeenCalled();
+    expect(store.state).toBe('unprovisioned');
+    expect(mocks.archiveMutation).toHaveBeenCalledWith({ taskId: task.id });
     manager.dispose();
   });
 });

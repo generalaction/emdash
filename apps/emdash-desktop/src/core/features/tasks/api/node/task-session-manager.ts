@@ -199,8 +199,25 @@ export class TaskSessionManager {
 
   async teardownTask(
     taskId: string,
-    mode: TaskTeardownMode = 'terminate'
+    mode: TaskTeardownMode = 'terminate',
+    workspaceId?: string
   ): Promise<Result<void, TeardownTaskError>> {
+    if (!this._lifecycle.has(taskId) && workspaceId && mode !== 'detach') {
+      try {
+        await runWithTimeout(() => this.deactivateWorkspaceIfUnused(taskId, workspaceId), {
+          timeoutMs: TASK_TIMEOUT_MS,
+        });
+        return ok();
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof TimeoutError
+              ? { type: 'timeout', message: error.message, timeout: error.durationMs }
+              : { type: 'error', message: error instanceof Error ? error.message : String(error) },
+        };
+      }
+    }
     return this._lifecycle.stop(taskId, mode);
   }
 
@@ -348,7 +365,7 @@ export class TaskSessionManager {
   /**
    * Best-effort host-side deactivation (registry verb: kill sessions + teardown
    * script). An unreachable host or an unregistered workspace only warns — desktop
-   * teardown already reaped this task's own sessions.
+   * archive can still complete, including when this task was never mounted.
    */
   private async deactivateOnHost(identity: WorkspaceIdentity): Promise<void> {
     const client = await this.dependencies.runtimes.client(identity.host);
@@ -368,6 +385,14 @@ export class TaskSessionManager {
         error: deactivated.error,
       });
     }
+  }
+
+  private async deactivateWorkspaceIfUnused(taskId: string, workspaceId: string): Promise<void> {
+    if (this.hasOtherTaskForWorkspace(taskId, workspaceId)) return;
+    const identity = await this.dependencies.workspaceIdentity.resolve(workspaceId);
+    if (!identity) return;
+    await this.dependencies.deactivateWorkspaceParticipants(identity);
+    await this.deactivateOnHost(identity);
   }
 
   private hasOtherTaskForWorkspace(taskId: string, workspaceId: string): boolean {
