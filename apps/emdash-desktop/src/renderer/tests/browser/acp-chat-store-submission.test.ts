@@ -529,6 +529,38 @@ describe('AcpChatStore prompt submission', () => {
     await vi.waitFor(() => expect(store.draftText).toBe('retry me'));
   });
 
+  it('restores a rejected draft into the retained editor after the composer detaches', async () => {
+    const delivery = deferred<void>();
+    const sendPrompt = vi.fn(async () => {
+      await delivery.promise;
+      return {
+        success: false as const,
+        error: { type: 'invalid_state' as const, message: 'session unavailable' },
+      };
+    });
+    const store = createStore(idleState(), sendPrompt);
+    store.setDraftText('retry after switching tabs');
+    const view = store.composerModel.attach(document.createElement('div'));
+    try {
+      store.submitPrompt(store.draftText);
+      expect(store.draftText).toBe('');
+      expect(view.editor.getText()).toBe('');
+      view.detach();
+      delivery.resolve();
+
+      await vi.waitFor(() => expect(store.draftText).toBe('retry after switching tabs'));
+      expect(store.composerModel.getText()).toBe(store.draftText);
+      expect(store.composerModel.getSnapshot().editor).toBeNull();
+      const restored = store.composerModel.attach(document.createElement('div'));
+      expect(restored.editor === view.editor).toBe(true);
+      expect(restored.editor.getText()).toBe('retry after switching tabs');
+      restored.detach();
+    } finally {
+      delivery.resolve();
+      store.dispose();
+    }
+  });
+
   it('does not overwrite newer composer input when an earlier delivery is rejected', async () => {
     let rejectDelivery!: (result: {
       success: false;
