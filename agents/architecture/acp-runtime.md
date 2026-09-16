@@ -219,8 +219,12 @@ for leases, then continue after a bounded drain timeout if a provider does not s
 callbacks carry a connection generation so a stale process cannot suspend sessions on its
 replacement.
 
-Restoration logs include conversation/session identity and a bounded, redacted JSON-RPC explanation
-when the provider puts it in error data rather than the generic error message.
+Provider close acknowledgement is part of teardown. The conversation handle retains a close barrier
+across a bounded timeout; subsequent activation attempts must wait for that same close, retry a
+rejected close, or establish that its connection generation no longer exists. A timeout alone never
+permits reuse of the closing session. Cancellation still starts before lease draining. Restoration
+logs include conversation/session identity and a bounded, redacted JSON-RPC explanation when the
+provider puts it in error data rather than the generic error message.
 
 ## Process Hosting
 

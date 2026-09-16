@@ -1,6 +1,7 @@
 import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import { createLifecycleCell, type LifecycleCell, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout, type Clock } from '@emdash/shared/scheduling';
 import { acpErr } from '#runtimes/acp/api';
 import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { SessionConfigCatalog } from '#runtimes/acp/node/session/cell';
@@ -37,7 +38,9 @@ export interface ConversationHandleDeps {
   terminals: Pick<AgentTerminalManager, 'listByConversation'>;
   saveIntent(): void;
   materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
-  interruptRecord(record: SessionRecord): void;
+  interruptRecord(record: SessionRecord): void | Promise<void>;
+  isConnectionCurrent?(record: SessionRecord): boolean;
+  clock?: Clock;
   onActivated(record: SessionRecord): void;
   activationDrainTimeoutMs: number;
   onLeaseDrainTimeout(event: { leaseCount: number; timeoutMs: number }): void;
@@ -56,6 +59,10 @@ export class ConversationHandle {
   private evictionPromiseValue: Promise<void> | null = null;
   private retainedValue: RetainedPresentation;
   private desiredRevisionValue = 0;
+  // A timed-out close must continue fencing later activations until it settles or its
+  // provider connection is gone. Disposing the old cell alone cannot prove that.
+  private providerClose: { record: SessionRecord; task: Promise<void>; failed: boolean } | null =
+    null;
   private readonly activation: LifecycleCell<
     void,
     SessionRecord,
@@ -78,7 +85,10 @@ export class ConversationHandle {
     this.activation = createLifecycleCell({
       label: `acp-conversation:${this.conversationId}`,
       start: (_input, scope) => this.deps.materialize(scope),
-      interrupt: (record) => this.deps.interruptRecord(record),
+      interrupt: async (record) => {
+        this.startProviderClose(record);
+        await this.waitForProviderClose();
+      },
       stop: async () => ok(),
       drainTimeoutMs: deps.activationDrainTimeoutMs,
       onLeaseDrainTimeout: (event) => deps.onLeaseDrainTimeout(event),
@@ -175,6 +185,47 @@ export class ConversationHandle {
 
   stopActivation(): Promise<Result<void, never>> {
     return this.activation.stop();
+  }
+
+  async waitForProviderClose(): Promise<Result<void, ActivationStartError>> {
+    const closing = this.providerClose;
+    if (!closing) return ok();
+    if (this.deps.isConnectionCurrent && !this.deps.isConnectionCurrent(closing.record)) {
+      this.providerClose = null;
+      return ok();
+    }
+    if (closing.failed) this.startProviderClose(closing.record);
+    const task = this.providerClose!.task;
+    try {
+      await runWithTimeout(() => task, {
+        timeoutMs: this.deps.activationDrainTimeoutMs,
+        clock: this.deps.clock,
+      });
+      return ok();
+    } catch {
+      return acpErr.invalidState(
+        'The previous agent session has not finished closing. Retry restoring this conversation.'
+      );
+    }
+  }
+
+  private startProviderClose(record: SessionRecord): void {
+    if (this.providerClose?.record === record && !this.providerClose.failed) return;
+    const closing = { record, task: Promise.resolve(), failed: false };
+    this.providerClose = closing;
+    closing.task = Promise.resolve()
+      .then(() => this.deps.interruptRecord(record))
+      .then(
+        () => {
+          if (this.providerClose === closing) this.providerClose = null;
+        },
+        (error: unknown) => {
+          closing.failed = true;
+          throw error;
+        }
+      );
+    // The close may outlive a bounded stop and have no current waiter.
+    void closing.task.catch(() => {});
   }
 
   forceRemove(reason?: unknown): Promise<void> {

@@ -212,6 +212,7 @@ export class SessionManager {
   > {
     const entry = this.retained.get(conversationId);
     if (!entry) return acpErr.invalidState(`ACP conversation '${conversationId}' is not attached`);
+    await entry.waitForEviction();
     return this.activateEntry(entry, false);
   }
 
@@ -282,6 +283,8 @@ export class SessionManager {
     entry: ConversationHandle,
     scope: Scope
   ): Promise<Result<SessionRecord, ActivationStartError>> {
+    const closed = await entry.waitForProviderClose();
+    if (!closed.success) return closed;
     const materialization = entry.beginMaterialization();
     if (!materialization) return acpErr.conversationNotFound(entry.conversationId);
     const input = entry.materializationInput();
@@ -756,6 +759,13 @@ export class SessionManager {
         saveIntent: () => this.lifecycle.saveIntent(input.conversationId),
         materialize: (scope) => this.startActivation(entry, scope),
         interruptRecord: (record) => this.interruptRecord(record),
+        clock: this.clock,
+        isConnectionCurrent: (record) =>
+          this.connections.peek({
+            providerId: record.input.providerId,
+            cwd: record.input.cwd,
+            env: record.input.env,
+          })?.generation === record.processGeneration,
         onActivated: (record) => {
           this.lifecycle.started(input.conversationId, {
             conversationId: input.conversationId,
@@ -933,7 +943,7 @@ export class SessionManager {
     }
   }
 
-  private interruptRecord(record: SessionRecord): void {
+  private async interruptRecord(record: SessionRecord): Promise<void> {
     void record.cell
       .cancel()
       .then((result) => {
@@ -949,11 +959,12 @@ export class SessionManager {
           error: String(error),
         });
       });
-    void record.cell.closeSession().catch((error) => {
+    await record.cell.closeSession().catch((error: unknown) => {
       this.deps.logger.warn('SessionManager: failed to close provider session during teardown', {
         conversationId: record.input.conversationId,
         error: String(error),
       });
+      throw error;
     });
   }
 

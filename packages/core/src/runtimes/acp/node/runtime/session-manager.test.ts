@@ -1384,6 +1384,128 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     }
   );
 
+  it('waits for the provider close acknowledgement before restoring history', async () => {
+    const { h, rt, conversationId } = await launchHarness('conv-close-barrier');
+    const closing = deferred<void>();
+    h.agent.closeSession.mockImplementationOnce(() => closing.promise);
+    h.agent.loadSession.mockImplementationOnce(async () => {
+      await h.client().sessionUpdate({
+        sessionId: 'session-1',
+        update: {
+          sessionUpdate: 'user_message_chunk',
+          content: { type: 'text', text: 'original question' },
+        },
+      });
+      await h.client().sessionUpdate({
+        sessionId: 'session-1',
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: { type: 'text', text: 'original answer' },
+        },
+      });
+      return {};
+    });
+    let stopped = false;
+    const stop = rt.stopSession(conversationId).then(() => {
+      stopped = true;
+    });
+    await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
+    const history = rt.loadHistory(conversationId);
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(stopped).toBe(false);
+      expect(h.agent.loadSession).not.toHaveBeenCalled();
+      closing.resolve();
+      await stop;
+      await expect(history).resolves.toMatchObject({
+        success: true,
+        data: { turns: [expect.anything()] },
+      });
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      closing.resolve();
+      await Promise.all([stop, history]);
+      await rt.dispose();
+    }
+  });
+
+  it('keeps restoration blocked after a close timeout until the provider acknowledges it', async () => {
+    const clock = createManualClock();
+    const h = makeAcpHarness({ clock, lifecycle: { activationDrainTimeoutMs: 100 } });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-close-timeout' });
+    await rt.launchSession(input);
+    const closing = deferred<void>();
+    h.agent.closeSession.mockImplementationOnce(() => closing.promise);
+    try {
+      const stop = rt.stopSession(input.conversationId);
+      await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
+      await clock.advanceBy(101);
+      await stop;
+      const history = rt.loadHistory(input.conversationId);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await clock.advanceBy(101);
+      await expect(history).resolves.toMatchObject({ success: false });
+      expect(h.agent.loadSession).not.toHaveBeenCalled();
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+      closing.resolve();
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      expect(h.agent.loadSession).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 'session-1' })
+      );
+    } finally {
+      closing.resolve();
+      await rt.dispose();
+    }
+  });
+
+  it('retries a rejected close before resuming the original session', async () => {
+    const { h, rt, conversationId } = await launchHarness('conv-close-rejected');
+    h.agent.closeSession.mockRejectedValueOnce(new Error('temporary close failure'));
+    try {
+      await rt.stopSession(conversationId);
+      await expect(rt.loadHistory(conversationId)).resolves.toMatchObject({ success: true });
+      expect(h.agent.closeSession).toHaveBeenCalledTimes(2);
+      expect(h.agent.loadSession).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 'session-1' })
+      );
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      await rt.dispose();
+    }
+  });
+
+  it('releases a timed-out close barrier when its provider process exits', async () => {
+    const clock = createManualClock();
+    const h = makeAcpHarness({ clock, lifecycle: { activationDrainTimeoutMs: 100 } });
+    const rt = new AcpRuntime(h.deps);
+    const input = makeStartInput({ conversationId: 'conv-close-exited' });
+    await rt.launchSession(input);
+    const closing = deferred<void>();
+    h.agent.closeSession.mockImplementationOnce(() => closing.promise);
+    try {
+      const stop = rt.stopSession(input.conversationId);
+      await vi.waitFor(() => expect(h.agent.closeSession).toHaveBeenCalledOnce());
+      await clock.advanceBy(101);
+      await stop;
+      h.lastChild.emitExit(1);
+      await vi.waitFor(() =>
+        expect(
+          rt.connections.peek({ providerId: input.providerId, cwd: input.cwd, env: input.env })
+        ).toBeUndefined()
+      );
+      await expect(rt.loadHistory(input.conversationId)).resolves.toMatchObject({ success: true });
+      expect(h.children).toHaveLength(2);
+      expect(h.agent.loadSession).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 'session-1' })
+      );
+      expect(h.agent.newSession).toHaveBeenCalledOnce();
+    } finally {
+      closing.resolve();
+      await rt.dispose();
+    }
+  });
+
   it('does not replace saved sessions when the provider cannot load history', async () => {
     const h = makeAcpHarness();
     h.agent.initialize.mockResolvedValueOnce({
