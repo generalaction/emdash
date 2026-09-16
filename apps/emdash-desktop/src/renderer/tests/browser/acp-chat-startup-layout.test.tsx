@@ -31,12 +31,20 @@ import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-panel';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
+import { openModal } from '@core/manifests/browser/modal-api';
+import type { AgentMetadata } from '@core/primitives/agents/api';
 
 const fixture = vi.hoisted(() => ({
   client: undefined as unknown,
   context: undefined as unknown,
   store: undefined as unknown,
   restored: false,
+  providerId: 'codex',
+  agents: [] as Array<
+    Pick<AgentMetadata, 'id' | 'name'> & {
+      capabilities: Pick<AgentMetadata['capabilities'], 'auth'>;
+    }
+  >,
   pane: undefined as { readonly resolvedTabs: unknown[] } | undefined,
 }));
 beforeAll(() => {
@@ -59,7 +67,7 @@ vi.mock('@core/features/conversations/api/browser/stores/conversation-registry',
           {
             seen: true,
             data: {
-              providerId: 'codex',
+              providerId: fixture.providerId,
               sessionId: fixture.restored ? 'existing-session' : undefined,
             },
           },
@@ -89,7 +97,7 @@ vi.mock('@core/primitives/workbench-shell/browser/tabs/pane-context', () => ({
   }),
 }));
 vi.mock('@core/features/agents/api/browser/use-agents', () => ({
-  useAgents: () => ({ data: [] }),
+  useAgents: () => ({ data: fixture.agents }),
 }));
 vi.mock('@core/features/agents/api/browser/use-agent-metadata', () => ({
   useAgentMetadata: () => ({ data: [] }),
@@ -128,6 +136,132 @@ vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
 vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () => ({
   createTranscriptFileCommands: () => ({}),
 }));
+
+it.each([false, true])(
+  'restores the sign-in screen with retained history=%s',
+  async (populated) => {
+    await page.viewport(1100, 800);
+    fixture.restored = populated;
+    fixture.providerId = 'droid';
+    // Droid receives this fallback CLI login method from the host's metadata builder.
+    fixture.agents = [
+      {
+        id: 'droid',
+        name: 'Droid',
+        capabilities: {
+          auth: {
+            kind: 'supported',
+            methods: [
+              {
+                kind: 'cli-login',
+                id: 'cli-login',
+                name: 'Sign in with Droid',
+                args: [],
+                description: 'Open droid in a terminal and complete the provider sign-in flow.',
+              },
+            ],
+          },
+        },
+      },
+    ];
+    installChatUiRuntime(chatUi);
+    const context = chatUi.createChatContext();
+    fixture.context = context;
+    const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+    fixture.store = store;
+    store.setDraftText('Keep this draft');
+    if (populated) {
+      store.chatState.transcript.history.seed([
+        {
+          id: 'previous-turn',
+          seq: 0,
+          initiator: 'user',
+          items: [{ kind: 'message', id: 'previous-message', seq: 0, role: 'user', text: 'Hello' }],
+        },
+      ]);
+      runInAction(() => {
+        store.messageCount = 1;
+      });
+    }
+    const retry = vi.spyOn(store, 'retry').mockImplementation(() => {
+      runInAction(() => {
+        store.loadError = null;
+      });
+    });
+    const parent = document.createElement('div');
+    parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+    parent.className = 'emlight';
+    const css = document.createElement('style');
+    css.textContent =
+      '.relative {position:relative}.absolute {position:absolute}.h-full {height:100%}.overflow-hidden {overflow:hidden}.inset-0 {inset:0}.pointer-events-auto {pointer-events:auto}';
+    document.head.append(css);
+    document.body.append(parent);
+    const root = createRoot(parent);
+    try {
+      await act(async () => root.render(<AcpChatPanel />));
+      await vi.waitFor(() =>
+        expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull()
+      );
+      await act(async () => {
+        runInAction(() => {
+          store.loadError = {
+            kind: 'auth_required',
+            message: 'Authentication required: Click the Login button to authenticate.',
+          };
+        });
+      });
+      await expect.element(page.getByText('Droid needs you to sign in.')).toBeVisible();
+      await expect
+        .element(page.getByText('Open droid in a terminal and complete the provider sign-in flow.'))
+        .toBeVisible();
+      expect(parent.querySelector('[contenteditable="true"]')).toBeNull();
+      expect(store.draftText).toBe('Keep this draft');
+
+      vi.mocked(openModal).mockResolvedValueOnce({
+        success: false,
+        error: { type: 'modal_dismissed', reason: 'explicit' },
+      });
+      await act(async () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
+      expect(openModal).toHaveBeenLastCalledWith('agentSignInModal', {
+        providerId: 'droid',
+        methodId: 'cli-login',
+        providerName: 'Droid',
+        host: { type: 'local', id: 'local' },
+      });
+      expect(retry).not.toHaveBeenCalled();
+      const authError = store.loadError;
+      await act(async () => page.getByRole('button', { name: 'Retry', exact: true }).click());
+      expect(retry).toHaveBeenCalledOnce();
+      await act(async () =>
+        runInAction(() => {
+          store.loadError = authError;
+        })
+      );
+
+      vi.mocked(openModal).mockResolvedValueOnce({ success: true, data: undefined });
+      await act(async () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
+      await vi.waitFor(() => expect(retry).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() =>
+        expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull()
+      );
+      expect(store.draftText).toBe('Keep this draft');
+      if (populated) {
+        expect(store.chatState.transcript.state.displayTurns).toHaveLength(1);
+        expect(parent.textContent).toContain('Hello');
+      }
+    } finally {
+      await act(async () => root.unmount());
+      store.dispose();
+      context.dispose();
+      parent.remove();
+      css.remove();
+      fixture.providerId = 'codex';
+      fixture.restored = false;
+      fixture.agents = [];
+      vi.mocked(openModal).mockReset();
+    }
+  }
+);
 
 it('restores caret, viewport and undo/redo across conversation and non-chat tab switches', async () => {
   await page.viewport(1100, 800);
