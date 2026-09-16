@@ -4,6 +4,8 @@ import type { LinearIssueSearchNode, LinearIssueSummaryNode } from './queries';
 function toIssueBaseData(raw: LinearIssueSearchNode): IssueData {
   return {
     identifier: raw.identifier,
+    // Immutable Linear issue UUID — durable across workspace/project changes.
+    id: raw.id,
     title: raw.title,
     url: raw.url,
     description: raw.description ?? undefined,

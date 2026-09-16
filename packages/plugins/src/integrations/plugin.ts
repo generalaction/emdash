@@ -25,6 +25,8 @@ const metadataSchema = z.object({
   name: z.string(),
   description: z.string(),
   websiteUrl: z.string(),
+  /** The service exposes distinct per-account identities via verify().account. */
+  supportsMultipleAccounts: z.boolean().optional(),
 });
 
 export type IntegrationPluginMetadata = z.infer<typeof metadataSchema>;

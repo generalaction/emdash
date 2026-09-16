@@ -23,6 +23,10 @@ const v0Schema = z.object({
   url: z.string(),
   title: z.string(),
   identifier: z.string(),
+  /** Immutable provider-side id (Linear issue UUID), stable across workspace changes. */
+  issueId: z.string().optional(),
+  /** Source account the issue was fetched from; stamped server-side, never from the renderer. */
+  sourceAccountId: z.string().optional(),
   displayIdentifier: z.string().nullable().optional(),
   description: z.string().optional(),
   context: z.string().optional(),
@@ -66,4 +70,23 @@ export function linkedIssueMentionName(
   issue: Pick<LinkedIssue, 'identifier' | 'displayIdentifier' | 'title'>
 ): string {
   return linkedIssueDisplayIdentifier(issue) ?? (issue.title || 'Linked issue');
+}
+
+/**
+ * True when `refreshed` came from a different workspace than `stored` — used to
+ * reject a cross-workspace fetch of the same issue identifier (WS9), so
+ * re-pointing a project never pulls another workspace's issue into an agent.
+ */
+export function isDifferentSource(
+  stored: Pick<LinkedIssue, 'issueId' | 'sourceAccountId'>,
+  refreshed: Pick<LinkedIssue, 'issueId' | 'sourceAccountId'>
+): boolean {
+  if (
+    stored.sourceAccountId &&
+    refreshed.sourceAccountId &&
+    stored.sourceAccountId !== refreshed.sourceAccountId
+  ) {
+    return true;
+  }
+  return Boolean(stored.issueId && refreshed.issueId && stored.issueId !== refreshed.issueId);
 }

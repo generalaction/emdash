@@ -9,6 +9,7 @@ const plugin = defineIntegrationPlugin(
     name: 'Linear',
     description: 'Work on Linear tickets',
     websiteUrl: 'https://linear.app',
+    supportsMultipleAccounts: true,
   },
   {
     auth: {

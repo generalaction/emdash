@@ -5,6 +5,12 @@ import type { IntegrationError } from '../integrations/types';
  *  at the plugin edge; non-universal concepts stay optional. */
 export type IssueData = {
   identifier: string;
+  /**
+   * Immutable provider-side id (e.g. the Linear issue UUID), distinct from the
+   * human `identifier`. Lets the host bind a linked issue to a stable id that
+   * survives workspace/project changes. Optional: not every provider exposes one.
+   */
+  id?: string;
   /** Override for compact UI display; null hides opaque provider ids. */
   displayIdentifier?: string | null;
   title: string;

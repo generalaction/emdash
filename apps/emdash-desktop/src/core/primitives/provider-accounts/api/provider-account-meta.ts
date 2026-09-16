@@ -16,6 +16,12 @@ const v1Schema = z.object({
   version: z.literal('1'),
   /** Human-readable account label, e.g. "Mona Lisa" or a Jira site name. */
   displayName: z.string().optional(),
+  /**
+   * Workspace/organization label kept separate from the credential owner
+   * (`displayName`), e.g. a Linear workspace name. Lets the account list render
+   * which workspace a project points at without decrypting the credential.
+   */
+  workspaceLabel: z.string().optional(),
   /** Provider login/username, e.g. "octocat". */
   login: z.string().optional(),
   avatarUrl: z.string().optional(),

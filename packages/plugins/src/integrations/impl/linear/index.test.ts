@@ -46,20 +46,26 @@ afterEach(() => {
 });
 
 describe('linear integration verify', () => {
-  it('validates the API key against the Linear API and returns normalized credentials', async () => {
+  it('validates the API key against the Linear API and returns workspace identity', async () => {
     linearSdk.viewer.mockResolvedValueOnce({
       displayName: 'Jona',
       name: 'jona',
-      organization: Promise.resolve({ name: 'Acme Inc' }),
+      organization: Promise.resolve({ id: 'org_123', urlKey: 'acme', name: 'Acme Inc' }),
     });
 
     const result = await auth.verify(host, { apiKey: 'lin_api_test' });
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'org_123', login: 'acme' },
       displayName: 'Jona',
       displayDetail: 'Acme Inc',
-      credentials: { apiKey: 'lin_api_test' },
+      credentials: {
+        apiKey: 'lin_api_test',
+        organizationId: 'org_123',
+        organizationUrlKey: 'acme',
+        organizationName: 'Acme Inc',
+      },
     });
     expect(linearSdk.constructor).toHaveBeenCalledWith({ apiKey: 'lin_api_test' });
   });

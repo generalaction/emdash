@@ -1,4 +1,5 @@
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type { IntegrationAccountSummary } from '@core/primitives/integrations/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { PlacementContext } from './placement';
 import type { AgentGitCredentialsSetting } from './project-settings';
@@ -43,12 +44,21 @@ export type StoredDefaultBranch = { remote: string | null; branch: string };
  */
 export type StoredGithubAccount = { kind: 'account'; accountId: string } | { kind: 'none' };
 
+/**
+ * Stored per-project issue-tracker account choice, shape-identical to
+ * {@link StoredGithubAccount}. `{ kind: 'none' }` disables the tracker for the
+ * project; absence of the integration's key means infer the default account.
+ */
+export type StoredIntegrationAccount = { kind: 'account'; accountId: string } | { kind: 'none' };
+
 /** Stored per-project settings the resolver consumes. Absent field = infer. */
 export type StoredProjectGitSettings = {
   defaultBranch?: StoredDefaultBranch;
   baseRemote?: string;
   pushRemote?: string;
   githubAccount?: StoredGithubAccount;
+  /** Issue-tracker account pins keyed by integrationId (e.g. `linear`). */
+  issueTrackerAccounts?: Record<string, StoredIntegrationAccount>;
   agentGitCredentials?: AgentGitCredentialsSetting;
   /** Per-project worktree root override. */
   worktreeRoot?: string;
@@ -356,6 +366,49 @@ function resolveGithubAccount(
 
   if (host !== null) return resolveAccountForHost(host, accounts);
   return { value: null, provenance: { kind: 'inferred', from: 'no host-matching account' } };
+}
+
+// ---------------------------------------------------------------------------
+// Issue-tracker account: explicit pin → integration default → none.
+// Pins fail closed. No repo-host binding (trackers have no repo relationship).
+// ---------------------------------------------------------------------------
+
+/**
+ * Provenance narrowed for issue-tracker resolution: only `set`, `inferred`, or
+ * `unresolvable`. Unlike the GitHub resolver there is no `broken-setting` arm —
+ * a tracker account has no repo-host to drift against.
+ */
+export type IntegrationAccountResolution = Resolved<IntegrationAccountSummary | null>;
+
+/**
+ * The single per-project issue-tracker account resolver (mirrors
+ * {@link resolveGithubAccount} minus the host arm). `stored` is the project's
+ * pin for `integrationId`; `accounts` are the connected accounts for that same
+ * integration. A dangling pin is `unresolvable` — fail closed, never another
+ * workspace's credential.
+ */
+export function resolveIntegrationAccount(
+  stored: StoredIntegrationAccount | undefined,
+  accounts: IntegrationAccountSummary[]
+): IntegrationAccountResolution {
+  if (stored?.kind === 'none') {
+    return { value: null, provenance: { kind: 'set' } };
+  }
+
+  if (stored?.kind === 'account') {
+    const pinned = accounts.find((account) => account.accountId === stored.accountId);
+    if (!pinned) return { value: null, provenance: { kind: 'unresolvable' } };
+    return { value: pinned, provenance: { kind: 'set' } };
+  }
+
+  const defaultAccount = accounts.find((account) => account.isDefault);
+  if (defaultAccount) {
+    return { value: defaultAccount, provenance: { kind: 'inferred', from: 'default account' } };
+  }
+  if (accounts.length === 1) {
+    return { value: accounts[0], provenance: { kind: 'inferred', from: 'only account' } };
+  }
+  return { value: null, provenance: { kind: 'inferred', from: 'no connected account' } };
 }
 
 // ---------------------------------------------------------------------------

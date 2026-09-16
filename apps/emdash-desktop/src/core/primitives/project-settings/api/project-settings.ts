@@ -54,6 +54,39 @@ export const storedGithubAccountSchema = z.union([
   z.object({ kind: z.literal('none') }),
 ]);
 
+/**
+ * Per-project issue-tracker account choice, shape-identical to
+ * {@link storedGithubAccountSchema}. `{ kind: 'none' }` explicitly disables the
+ * tracker for the project; absence of the integration's key means "infer the
+ * integration default account".
+ */
+export const storedIntegrationAccountSchema = storedGithubAccountSchema;
+
+/**
+ * Per-project issue-tracker account pins keyed by integrationId (e.g. `linear`).
+ * Tolerant on read (no `.refine`): a stray/unknown key must never make the whole
+ * settings row unreadable, which would silently fall back to inferring another
+ * account. GitHub exclusion is a WRITE concern enforced by
+ * {@link sanitizeIssueTrackerAccountsForWrite}, not a read-time throw.
+ */
+export const storedIssueTrackerAccountsSchema = z.record(
+  z.string().trim().min(1),
+  storedIntegrationAccountSchema
+);
+
+/**
+ * The `github` key must never be persisted here — GitHub resolves through
+ * `githubAccount`, and two identity sources for the same provider diverge.
+ * Applied at every write boundary that sets `issueTrackerAccounts`.
+ */
+export function sanitizeIssueTrackerAccountsForWrite(
+  record: Record<string, z.infer<typeof storedIntegrationAccountSchema>>
+): Record<string, z.infer<typeof storedIntegrationAccountSchema>> {
+  if (!Object.prototype.hasOwnProperty.call(record, 'github')) return record;
+  const { github: _github, ...rest } = record;
+  return rest;
+}
+
 export const storedBaseProjectSettingsSchema = z.object({
   /** Renamed from the legacy `worktreeDirectory` key. */
   worktreeRoot: z.string().trim().optional(),
@@ -61,6 +94,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   githubAccount: storedGithubAccountSchema.optional(),
+  issueTrackerAccounts: storedIssueTrackerAccountsSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
   /** Lazy-migration marker; not a user setting. */

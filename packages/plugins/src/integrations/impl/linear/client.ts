@@ -33,10 +33,17 @@ export async function verifyLinearCredentials(
     const organization = await viewer.organization;
     const displayName = viewer.displayName || viewer.name || organization.name;
     return ok({
+      account: { id: organization.id, login: organization.urlKey },
       displayName,
-      displayDetail:
-        organization.name && organization.name !== displayName ? organization.name : undefined,
-      credentials: credentials.data,
+      // Surface the workspace name as the detail line; it disambiguates two
+      // accounts whose viewer display names collide.
+      displayDetail: organization.name,
+      credentials: {
+        ...credentials.data,
+        organizationId: organization.id,
+        organizationUrlKey: organization.urlKey,
+        organizationName: organization.name,
+      },
     });
   } catch (error) {
     return err(toLinearIntegrationError(error, 'Failed to validate Linear token.'));
