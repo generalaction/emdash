@@ -11,19 +11,10 @@ import {
   writeJsonConfig,
   xdgConfigRoot,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
-import { MUSE_COMPLETION_PATH, museStartCommand, readMuseCompletionAsset } from './completion';
-
-const MAX_TRACKED_SESSIONS = 1_000;
 
 export const MUSE_SETTINGS_PATH = 'settings.json';
 export const MUSE_HOOKS_PATH = 'emdash-hooks.json';
-export const MUSE_HOOK_ENV_VARS = [
-  'EMDASH_HOOK_PORT',
-  'EMDASH_HOOK_NONCE',
-  'EMDASH_PTY_ID',
-  'XDG_DATA_HOME',
-  'XDG_CONFIG_HOME',
-];
+export const MUSE_HOOK_ENV_VARS = ['EMDASH_HOOK_PORT', 'EMDASH_HOOK_NONCE', 'EMDASH_PTY_ID'];
 
 async function readSettings(fs: PluginFs) {
   const settings = await readJsonConfig(fs, MUSE_SETTINGS_PATH);
@@ -46,8 +37,7 @@ async function readSettings(fs: PluginFs) {
     hooksPath.split('/').some((part) => part === '..' || part === '.') ||
     hooksPath.startsWith('~') ||
     hooksPath.includes('$') ||
-    hooksPath === MUSE_SETTINGS_PATH ||
-    hooksPath === MUSE_COMPLETION_PATH
+    hooksPath === MUSE_SETTINGS_PATH
   ) {
     throw new Error(
       'Muse managed_hooks_path must name a hook file inside the Muse config directory; existing settings were left unchanged'
@@ -59,22 +49,19 @@ async function readSettings(fs: PluginFs) {
 function hookConfig(hooksPath: string) {
   return buildNestedJsonHookConfig(hooksPath, [
     { hookKey: 'SessionStart', command: makeStdinHookCommand('session-start') },
-    { hookKey: 'UserPromptSubmit', command: museStartCommand() },
+    { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
     { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
   ]);
 }
 
 export function buildMuseHookConfig() {
-  // Fence late completion from a previous turn after a new prompt has arrived.
-  const activeTurns = new Map<string, string>();
   async function getHooksInstalled(fs: PluginFs): Promise<boolean> {
     const { settings, envVars, hooksPath } = await readSettings(fs);
     return (
       settings.schema_version === 1 &&
       settings.managed_hooks_path === hooksPath &&
       MUSE_HOOK_ENV_VARS.every((name) => envVars.includes(name)) &&
-      (await hookConfig(hooksPath).getHooksInstalled(fs)) &&
-      (await fs.read(MUSE_COMPLETION_PATH)) === (await readMuseCompletionAsset())
+      (await hookConfig(hooksPath).getHooksInstalled(fs))
     );
   }
 
@@ -88,7 +75,6 @@ export function buildMuseHookConfig() {
       const { settings, envVars, hooksPath } = await readSettings(fs);
       // Validate the existing hook document before changing files.
       await hookConfig(hooksPath).readHooks(fs);
-      await fs.write(MUSE_COMPLETION_PATH, await readMuseCompletionAsset());
       await hookConfig(hooksPath).writeHooks(fs, []);
       // Muse strips these variables from ordinary user hooks. Only managed
       // hooks receive the explicit allowlist from user settings.
@@ -98,33 +84,16 @@ export function buildMuseHookConfig() {
         managed_hooks_path: hooksPath,
         managed_hooks_env_vars: [...new Set([...envVars, ...MUSE_HOOK_ENV_VARS])],
       });
-      return [MUSE_COMPLETION_PATH, hooksPath, MUSE_SETTINGS_PATH];
+      return [hooksPath, MUSE_SETTINGS_PATH];
     },
     async deleteHooks(fs: PluginFs) {
       const { settings, hooksPath } = await readSettings(fs);
       if (settings.managed_hooks_path === undefined) return;
       // Retain shared settings and allowlists: other managed hooks may use them.
       await hookConfig(hooksPath).deleteHooks(fs);
-      await fs.delete(MUSE_COMPLETION_PATH);
     },
     parseHookEvent(eventType: string, body: Record<string, unknown>) {
       const sessionId = extractProviderSessionId(body);
-      const turnId = typeof body.turn_id === 'string' ? body.turn_id : undefined;
-      if (eventType === 'start' && sessionId && turnId) {
-        activeTurns.delete(sessionId);
-        activeTurns.set(sessionId, turnId);
-        if (activeTurns.size > MAX_TRACKED_SESSIONS) {
-          const oldestSession = activeTurns.keys().next().value;
-          if (oldestSession !== undefined) activeTurns.delete(oldestSession);
-        }
-      }
-      if (sessionId && (eventType === 'stop' || eventType === 'error')) {
-        const activeTurn = activeTurns.get(sessionId);
-        // Native Stop can omit turn_id; tracked turns require a matching completion event.
-        if (activeTurn !== undefined && activeTurn !== turnId) {
-          return { kind: 'ignore' } as const;
-        }
-      }
       const event = defaultHookEventParser(eventType, body);
       if (event.kind !== 'status') return event;
       return sessionId ? { ...event, providerSessionId: sessionId } : event;

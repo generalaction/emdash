@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'tsdown';
 import type { UserConfig } from 'tsdown';
 import { adapterAssets } from './src/agents/adapter-manifest.ts';
@@ -27,9 +26,7 @@ const mainConfig = {
 
 const adapterConfigs: UserConfig[] = adapterAssets.map((asset) => ({
   entry: {
-    [`adapters/${asset.name}`]: asset.source
-      ? fileURLToPath(new URL(asset.source, import.meta.url))
-      : require.resolve(asset.specifier),
+    [`adapters/${asset.name}`]: require.resolve(asset.specifier),
   },
   format: [asset.format],
   dts: false,

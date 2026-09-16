@@ -1,14 +1,8 @@
 import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import { describe, expect, it, vi } from 'vitest';
-import { MUSE_COMPLETION_PATH } from './completion';
-import type * as CompletionModule from './completion';
+import { makeStdinHookCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { describe, expect, it } from 'vitest';
 import { buildMuseHookConfig, MUSE_HOOK_ENV_VARS, MUSE_HOOKS_PATH } from './hooks';
 import { provider } from './index';
-
-vi.mock('./completion', async (importOriginal) => ({
-  ...(await importOriginal<typeof CompletionModule>()),
-  readMuseCompletionAsset: async () => '// compiled observer fixture\n',
-}));
 
 function createFs(initial: Record<string, unknown> = {}) {
   const files = new Map(
@@ -57,11 +51,11 @@ describe('Muse hooks', () => {
   it('installs managed hooks and the routing allowlist idempotently', async () => {
     const { fs, files, read } = createFs();
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
-    await hooks.writeHooks(fs);
+    expect(await hooks.writeHooks(fs)).toEqual([MUSE_HOOKS_PATH, 'settings.json']);
     expect(read('settings.json')).toEqual({
       schema_version: 1,
       managed_hooks_path: MUSE_HOOKS_PATH,
-      managed_hooks_env_vars: MUSE_HOOK_ENV_VARS,
+      managed_hooks_env_vars: ['EMDASH_HOOK_PORT', 'EMDASH_HOOK_NONCE', 'EMDASH_PTY_ID'],
     });
     expect(Object.keys(read(MUSE_HOOKS_PATH).hooks)).toEqual([
       'SessionStart',
@@ -69,7 +63,10 @@ describe('Muse hooks', () => {
       'Stop',
     ]);
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
-    expect(files.get(MUSE_COMPLETION_PATH)).toBe('// compiled observer fixture\n');
+    expect(read(MUSE_HOOKS_PATH).hooks.UserPromptSubmit).toEqual([
+      { hooks: [{ type: 'command', command: makeStdinHookCommand('start') }] },
+    ]);
+    expect([...files.keys()].sort()).toEqual([MUSE_HOOKS_PATH, 'settings.json']);
     const first = new Map(files);
     await hooks.writeHooks(fs);
     expect(files).toEqual(first);
@@ -96,7 +93,6 @@ describe('Muse hooks', () => {
     });
     expect(read('team-hooks.json').hooks.Stop).toHaveLength(2);
     await hooks.deleteHooks(fs);
-    expect(await fs.exists(MUSE_COMPLETION_PATH)).toBe(false);
     expect(read('team-hooks.json')).toMatchObject({ custom: true, hooks: { Stop: [userHook] } });
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
   });
@@ -115,10 +111,6 @@ describe('Muse hooks', () => {
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
     await hooks.writeHooks(fs);
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
-    files.set(MUSE_COMPLETION_PATH, '// stale helper');
-    expect(await hooks.getHooksInstalled(fs)).toBe(false);
-    await hooks.writeHooks(fs);
-    expect(await hooks.getHooksInstalled(fs)).toBe(true);
   });
 
   it.each([
@@ -128,7 +120,6 @@ describe('Muse hooks', () => {
     { managed_hooks_path: '../hooks.json' },
     { managed_hooks_path: 'C:\\hooks.json' },
     { managed_hooks_path: 'settings.json' },
-    { managed_hooks_path: MUSE_COMPLETION_PATH },
   ])('leaves incompatible settings untouched: %j', async (settings) => {
     const { fs, files } = createFs({ 'settings.json': settings });
     const before = new Map(files);
@@ -144,37 +135,30 @@ describe('Muse hooks', () => {
     expect(files).toEqual(before);
   });
 
-  it('ignores late completion from an older turn after another prompt starts', () => {
+  it('accepts native Stop without a turn id after successive tagged prompts', () => {
     const hooks = buildMuseHookConfig();
-    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'old' });
-    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'new' });
-    expect(hooks.parseHookEvent('stop', { session_id: 'session', turn_id: 'old' })).toEqual({
-      kind: 'ignore',
-    });
-    expect(hooks.parseHookEvent('error', { session_id: 'session', turn_id: 'old' })).toEqual({
-      kind: 'ignore',
-    });
-    expect(hooks.parseHookEvent('stop', { session_id: 'session', turn_id: 'new' })).toMatchObject({
-      kind: 'status',
-      type: 'stop',
-    });
-  });
-
-  it.each(['stop', 'error'])('ignores untagged %s for a tracked turn', (eventType) => {
-    const hooks = buildMuseHookConfig();
-    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'old' });
-    hooks.parseHookEvent('start', { session_id: 'session', turn_id: 'new' });
-
-    expect(hooks.parseHookEvent(eventType, { session_id: 'session' })).toEqual({
-      kind: 'ignore',
-    });
-    expect(hooks.parseHookEvent(eventType, { session_id: 'other-session' })).toMatchObject({
-      kind: 'status',
-      type: eventType,
-    });
-    expect(
-      hooks.parseHookEvent(eventType, { session_id: 'session', turn_id: 'new' })
-    ).toMatchObject({ kind: 'status', type: eventType });
+    for (const turnId of ['first', 'second']) {
+      expect(
+        hooks.parseHookEvent('start', {
+          session_id: 'session',
+          turn_id: turnId,
+          hook_event_name: 'UserPromptSubmit',
+        })
+      ).toMatchObject({ kind: 'status', type: 'start', providerSessionId: 'session' });
+      expect(
+        hooks.parseHookEvent('stop', {
+          session_id: 'session',
+          hook_event_name: 'Stop',
+          stop_hook_active: false,
+          last_assistant_message: 'finished',
+        })
+      ).toMatchObject({
+        kind: 'status',
+        type: 'stop',
+        providerSessionId: 'session',
+        lastAssistantMessage: 'finished',
+      });
+    }
   });
 
   it('maps verified Muse payloads to session, working, and completion events', () => {

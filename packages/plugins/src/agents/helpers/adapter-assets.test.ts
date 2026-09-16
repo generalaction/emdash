@@ -21,17 +21,6 @@ describe('adapter asset helpers', () => {
     expect(adapterAssetFileName({ ...asset, format: 'cjs' })).toBe('example-acp.cjs');
   });
 
-  it('requires a compiled asset for local TypeScript helpers', () => {
-    const helper = defineAdapterAsset({
-      name: 'missing-helper',
-      source: './helper.ts',
-      format: 'esm',
-    });
-    expect(() =>
-      resolveAdapterAssetFromUrl(helper, pathToFileURL('/missing/chunk.mjs').href)
-    ).toThrow('Missing built helper missing-helper.mjs');
-  });
-
   it('resolves adapters next to the consuming bundle', async () => {
     const root = await mkdtemp(join(tmpdir(), 'emdash-adapter-assets-'));
     try {
