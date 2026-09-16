@@ -1,4 +1,5 @@
-import { execFile } from 'node:child_process';
+import { Buffer } from 'node:buffer';
+import { exec } from 'node:child_process';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -63,6 +64,24 @@ describe('Antigravity hooks', () => {
     expect(await hooks.getHooksInstalled(fs)).toBe(false);
     await hooks.writeHooks(fs);
     expect(await hooks.getHooksInstalled(fs)).toBe(true);
+  });
+
+  it('installs Windows commands without a POSIX wrapper', async () => {
+    const { fs, read } = createFs();
+    await buildAntigravityHookConfig({ platform: 'win32' }).writeHooks(fs);
+    for (const [event, expected] of [
+      ['PreInvocation', '{}'],
+      ['Stop', '{"decision":"stop"}'],
+    ]) {
+      const command = read(hooksPath).emdash[event][0].command;
+      expect(command).toMatch(/^cmd\.exe .* -EncodedCommand [A-Za-z0-9+/]+=*$/);
+      expect(command).not.toContain('/dev/null');
+      expect(command).not.toContain('printf');
+      const script = Buffer.from(command.split(' -EncodedCommand ')[1], 'base64').toString(
+        'utf16le'
+      );
+      expect(script).toContain(`finally { [Console]::Out.WriteLine('${expected}') }`);
+    }
   });
 
   it('preserves user definitions and handlers on installation and removal', async () => {
@@ -149,34 +168,36 @@ describe('Antigravity hooks', () => {
     });
   });
 
-  it.skipIf(process.platform === 'win32')(
-    'forwards authenticated stdin while returning a neutral hook decision',
-    async () => {
-      const { fs, read } = createFs();
-      await hooks.writeHooks(fs);
-      const requests: { type: string | string[] | undefined; body: string }[] = [];
-      const server = createServer((req, res) => {
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-        req.on('end', () => {
-          expect(req.headers['x-emdash-token']).toBe('test-token');
-          expect(req.headers['x-emdash-pty-id']).toBe('test-pty');
-          requests.push({ type: req.headers['x-emdash-event-type'], body });
-          res.end('{"decision":"continue"}');
-        });
+  it('forwards authenticated stdin while returning a neutral hook decision', async () => {
+    const { fs, read } = createFs();
+    await hooks.writeHooks(fs);
+    const requests: { type: string | string[] | undefined; body: string }[] = [];
+    let responseStatus = 200;
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
       });
-      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-      const address = server.address();
-      if (!address || typeof address === 'string') throw new Error('Missing test server address');
-      try {
-        for (const [event, expected] of [
-          ['PreInvocation', {}],
-          ['Stop', { decision: 'stop' }],
-        ] as const) {
-          const command = read(hooksPath).emdash[event][0].command;
-          const child = execFile('sh', ['-c', command], {
+      req.on('end', () => {
+        expect(req.headers['x-emdash-token']).toBe('test-token');
+        expect(req.headers['x-emdash-pty-id']).toBe('test-pty');
+        requests.push({ type: req.headers['x-emdash-event-type'], body });
+        res.statusCode = responseStatus;
+        res.end('{"decision":"continue"}');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing test server address');
+    try {
+      for (const [event, expected] of [
+        ['PreInvocation', {}],
+        ['Stop', { decision: 'stop' }],
+      ] as const) {
+        const command = read(hooksPath).emdash[event][0].command;
+        for (const status of [200, 503]) {
+          responseStatus = status;
+          const output = promisify(exec)(command, {
             env: {
               ...process.env,
               EMDASH_HOOK_PORT: String(address.port),
@@ -184,30 +205,20 @@ describe('Antigravity hooks', () => {
               EMDASH_PTY_ID: 'test-pty',
             },
           });
-          const output = new Promise<string>((resolve, reject) => {
-            let stdout = '';
-            child.stdout!.on('data', (chunk) => {
-              stdout += chunk;
-            });
-            child.on('error', reject);
-            child.on('close', (code) =>
-              code === 0 ? resolve(stdout) : reject(new Error(`Exit ${code}`))
-            );
-          });
-          child.stdin!.end('{"conversationId":"session","fullyIdle":true}');
-          expect(JSON.parse(await output)).toEqual(expected);
-          const outside = await promisify(execFile)('sh', ['-c', command], {
-            env: { ...process.env, EMDASH_HOOK_PORT: '' },
-          });
-          expect(JSON.parse(outside.stdout)).toEqual(expected);
+          output.child.stdin!.end('{"conversationId":"session","fullyIdle":true}');
+          expect(JSON.parse((await output).stdout)).toEqual(expected);
         }
-        expect(requests.map((request) => request.type)).toEqual(['start', 'stop']);
-        expect(
-          requests.every((request) => JSON.parse(request.body).conversationId === 'session')
-        ).toBe(true);
-      } finally {
-        await new Promise<void>((resolve) => server.close(() => resolve()));
+        const outside = await promisify(exec)(command, {
+          env: { ...process.env, EMDASH_HOOK_PORT: '' },
+        });
+        expect(JSON.parse(outside.stdout)).toEqual(expected);
       }
+      expect(requests.map((request) => request.type)).toEqual(['start', 'start', 'stop', 'stop']);
+      expect(
+        requests.every((request) => JSON.parse(request.body).conversationId === 'session')
+      ).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
-  );
+  }, 15_000);
 });

@@ -4,6 +4,7 @@ import {
   EMDASH_MARKER,
   filterUserHooks,
   homeConfigRoot,
+  type HookCommandOptions,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
@@ -15,16 +16,18 @@ const MANIFEST = { name: 'emdash', description: 'Emdash lifecycle hooks for Anti
 
 // Antigravity consumes stdout as hook decisions. Never expose the transport's
 // HTTP response as a decision, and never ask the agent to continue executing.
-const HOOKS = {
-  PreInvocation: {
-    type: 'command',
-    command: `( ${makeStdinHookCommand('start')} ) >/dev/null; printf '%s\\n' '{}'`,
-  },
-  Stop: {
-    type: 'command',
-    command: `( ${makeStdinHookCommand('stop')} ) >/dev/null; printf '%s\\n' '{"decision":"stop"}'`,
-  },
-};
+function buildHooks(opts: HookCommandOptions) {
+  return {
+    PreInvocation: {
+      type: 'command',
+      command: makeStdinHookCommand('start', { ...opts, stdoutJson: {} }),
+    },
+    Stop: {
+      type: 'command',
+      command: makeStdinHookCommand('stop', { ...opts, stdoutJson: { decision: 'stop' } }),
+    },
+  };
+}
 
 async function readConfig(fs: PluginFs) {
   const manifest = await readJsonConfig(fs, MANIFEST_PATH);
@@ -37,7 +40,7 @@ async function readConfig(fs: PluginFs) {
     throw new Error('Invalid Antigravity emdash hook definition');
   }
   const hooks = definition as Record<string, unknown>;
-  for (const key of Object.keys(HOOKS)) {
+  for (const key of ['PreInvocation', 'Stop']) {
     if (hooks[key] !== undefined && !Array.isArray(hooks[key])) {
       throw new Error(`Invalid Antigravity ${key} hooks; expected an array`);
     }
@@ -45,13 +48,14 @@ async function readConfig(fs: PluginFs) {
   return { manifest, config, hooks };
 }
 
-export function buildAntigravityHookConfig() {
+export function buildAntigravityHookConfig(opts: HookCommandOptions = {}) {
+  const managedHooks = buildHooks(opts);
   async function getHooksInstalled(fs: PluginFs): Promise<boolean> {
     const { manifest, hooks } = await readConfig(fs);
     return (
       manifest.name === MANIFEST.name &&
       hooks.enabled !== false &&
-      Object.entries(HOOKS).every(([key, handler]) =>
+      Object.entries(managedHooks).every(([key, handler]) =>
         (hooks[key] as unknown[] | undefined)?.some(
           (entry) => JSON.stringify(entry) === JSON.stringify(handler)
         )
@@ -69,7 +73,7 @@ export function buildAntigravityHookConfig() {
     },
     async writeHooks(fs: PluginFs) {
       const { manifest, config, hooks } = await readConfig(fs);
-      for (const [key, handler] of Object.entries(HOOKS)) {
+      for (const [key, handler] of Object.entries(managedHooks)) {
         hooks[key] = [...filterUserHooks((hooks[key] as unknown[] | undefined) ?? []), handler];
       }
       await writeJsonConfig(fs, MANIFEST_PATH, { ...MANIFEST, ...manifest });
@@ -81,7 +85,7 @@ export function buildAntigravityHookConfig() {
     },
     async deleteHooks(fs: PluginFs) {
       const { config, hooks } = await readConfig(fs);
-      for (const key of Object.keys(HOOKS)) {
+      for (const key of Object.keys(managedHooks)) {
         if (Array.isArray(hooks[key])) hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, HOOKS_PATH, { ...config, emdash: hooks });
