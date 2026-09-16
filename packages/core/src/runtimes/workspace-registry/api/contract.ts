@@ -166,7 +166,9 @@ export const workspaceRegistryContract = defineContract({
    * every in-flight lifecycle run, awaits its cancelled settlement, runs teardown
    * time-boxed and non-fatal, then kills the workspace's remaining sessions. A failed
    * or hanging teardown becomes a notice, never a verb error.
-   * Idempotent on inactive workspaces: teardown runs at most once per activation.
+   * Runs even without an in-memory activation. A succeeded/failed teardown lifecycle
+   * step consumes the attempt until reactivation, including across host restarts;
+   * cancelled or absent steps remain eligible. Unreachable hosts are never queued.
    */
   deactivateWorkspace: fallible({
     input: deactivateWorkspaceInputSchema,

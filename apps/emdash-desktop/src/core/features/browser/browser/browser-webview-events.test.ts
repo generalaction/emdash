@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
@@ -60,10 +60,27 @@ function asWebview(fake: FakeBrowserWebview): BrowserWebviewElement {
 }
 
 describe('bindBrowserWebviewEvents', () => {
+  const disposers: (() => void)[] = [];
+
+  function bindTrackedWebviewEvents(browserId: string, webview: BrowserWebviewElement) {
+    const dispose = bindBrowserWebviewEvents(browserId, webview);
+    disposers.push(dispose);
+    return dispose;
+  }
+
   beforeEach(() => {
-    vi.useRealTimers();
+    vi.useFakeTimers();
     browserDiagnosticsStore.clear();
     browserSessionStore.clear();
+  });
+
+  afterEach(() => {
+    try {
+      for (const dispose of disposers.splice(0)) dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('updates browser session state from webview events', () => {
@@ -78,7 +95,7 @@ describe('bindBrowserWebviewEvents', () => {
     webview.titleText = 'Example';
     webview.back = true;
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     browserSessionStore.updateSession(session.browserId, { zoomFactor: 1.25 });
 
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
@@ -163,7 +180,7 @@ describe('bindBrowserWebviewEvents', () => {
     browserSessionStore.updateSession(session.browserId, { zoomFactor: 1.5 });
     const webview = new FakeBrowserWebview();
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('dom-ready');
     webview.emit('did-navigate', { url: 'https://example.com/' });
     webview.emit('did-stop-loading');
@@ -171,7 +188,7 @@ describe('bindBrowserWebviewEvents', () => {
     expect(webview.zoomFactors).toEqual([1.5, 1.5, 1.5]);
   });
 
-  it('removes listeners when disposed', () => {
+  it('removes listeners and pending history updates when disposed', async () => {
     const session = browserSessionStore.createSession({
       browserId: 'browser-1',
       projectId: 'project-1',
@@ -179,13 +196,23 @@ describe('bindBrowserWebviewEvents', () => {
       taskId: 'task-1',
     });
     const webview = new FakeBrowserWebview();
-    const dispose = bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    const dispose = bindTrackedWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.emit('did-navigate', { url: 'https://example.com/docs' });
+    expect(vi.getTimerCount()).toBe(3);
 
     dispose();
+    expect(vi.getTimerCount()).toBe(0);
+    webview.back = true;
     webview.emit('dom-ready');
     webview.emit('did-start-loading');
+    await vi.advanceTimersByTimeAsync(200);
 
-    expect(browserSessionStore.getSession(session.browserId)?.isLoading).toBe(false);
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      isLoading: false,
+      canGoBack: false,
+      currentUrl: 'https://example.com/docs',
+    });
   });
 
   it('does not read webview state before dom-ready', () => {
@@ -200,7 +227,7 @@ describe('bindBrowserWebviewEvents', () => {
       throw new Error('not ready');
     };
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('did-stop-loading');
     webview.emit('did-navigate', { url: 'https://example.com/' });
 
@@ -219,7 +246,7 @@ describe('bindBrowserWebviewEvents', () => {
     });
     const webview = new FakeBrowserWebview();
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('console-message', {
       level: 2,
       message: '%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold;',
@@ -231,7 +258,6 @@ describe('bindBrowserWebviewEvents', () => {
   });
 
   it('refreshes history state after navigation commits', async () => {
-    vi.useFakeTimers();
     const session = browserSessionStore.createSession({
       browserId: 'browser-1',
       projectId: 'project-1',
@@ -241,7 +267,7 @@ describe('bindBrowserWebviewEvents', () => {
     const webview = new FakeBrowserWebview();
     webview.url = 'https://example.com/';
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('dom-ready');
     webview.emit('did-navigate', { url: 'https://example.com/docs' });
     expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(false);
@@ -257,7 +283,6 @@ describe('bindBrowserWebviewEvents', () => {
   });
 
   it('refreshes history state when Electron updates navigation entries after load events', async () => {
-    vi.useFakeTimers();
     const session = browserSessionStore.createSession({
       browserId: 'browser-1',
       projectId: 'project-1',
@@ -267,7 +292,7 @@ describe('bindBrowserWebviewEvents', () => {
     const webview = new FakeBrowserWebview();
     webview.url = 'https://example.com/';
 
-    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    bindTrackedWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('dom-ready');
     webview.emit('did-navigate', { url: 'https://example.com/docs' });
     webview.url = 'https://example.com/docs';

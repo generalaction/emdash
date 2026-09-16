@@ -739,7 +739,6 @@ export class TaskManagerStore {
   async archiveTask(taskId: string): Promise<void> {
     const currentTask = this.tasks.get(taskId);
     if (!currentTask || !isRegistered(currentTask)) return;
-    if (isProvisioned(currentTask) && !this.host.requireLive().success) return;
     const archivedAt = new Date().toISOString();
     const result = await this._runTaskListMutation(
       (member) => member.mutations.archive,
