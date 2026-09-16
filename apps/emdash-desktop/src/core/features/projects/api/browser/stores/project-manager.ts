@@ -189,6 +189,7 @@ export class ProjectManagerStore {
           return;
         }
         if (!result.success) {
+          log.error('Failed to hydrate Project context', { projectId, error: result.error });
           runInAction(() => {
             if (this._isCurrentProjectContextHydration(projectId, identity, store)) {
               store.context = {
