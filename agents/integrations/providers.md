@@ -103,15 +103,8 @@ you select an OrcaRouter model from the OpenCode model picker.
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
-- Antigravity CLI installs an Emdash plugin manifest and named hook definition under
-  `plugins/emdash/` in the shared `~/.gemini/config` customization root. CLI 1.2.4
-  discovers hooks here; placing them in the CLI state directory `~/.gemini/antigravity-cli`
-  does not activate them. `PreInvocation` reports working status and
-  `conversationId` identifies the provider session. `Stop` reports completion or an error only
-  when `fullyIdle` is true; intermediate model invocations and background work do not complete
-  the task. Hook commands return neutral JSON decisions after forwarding the native payload.
-  See the [Antigravity hook contract](https://antigravity.google/docs/hooks) and
-  [CLI plugin layout](https://antigravity.google/docs/cli/plugins/).
+- Antigravity CLI installs lifecycle hooks in `~/.gemini/config/plugins/emdash/` to report
+  working and completion status while preserving existing user hooks.
 - Muse Code installs managed hooks through `managed_hooks_path` in `settings.json`.
   `SessionStart`, `UserPromptSubmit`, and `Stop` report session, working, and completion events.
   `managed_hooks_env_vars` forwards the Emdash hook routing variables.
