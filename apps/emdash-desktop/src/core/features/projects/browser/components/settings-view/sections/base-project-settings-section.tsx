@@ -187,11 +187,14 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
     : null;
   const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
   const linearAccounts = useIntegrationAccounts(LINEAR_INTEGRATION_ID).data ?? [];
-  const showLinearPicker = linearAccounts.length > 0;
+  const linearPin = gitIdentityForm.issueTrackerAccounts?.[LINEAR_INTEGRATION_ID];
+  // Keep the field when a pin exists even with no accounts left, so a `none` or
+  // dangling selection stays inspectable and resettable after the last
+  // workspace is removed.
+  const showLinearPicker = linearAccounts.length > 0 || linearPin !== undefined;
   const accountsGridClass = showLinearPicker
     ? 'grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2 md:items-start'
     : undefined;
-  const linearPin = gitIdentityForm.issueTrackerAccounts?.[LINEAR_INTEGRATION_ID];
   const linearResolution = resolveIntegrationAccount(linearPin, linearAccounts);
   const linearSelectValue =
     linearPin === undefined

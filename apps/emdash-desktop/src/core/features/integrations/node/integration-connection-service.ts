@@ -94,50 +94,56 @@ export class IntegrationConnectionService {
     };
   }
 
-  async disconnect(integrationId: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      await this.credentials.delete(integrationId);
-      this.telemetry.capture('integration_disconnected', { provider: integrationId });
-      return { success: true };
-    } catch (error) {
-      this.logger.error('Failed to disconnect integration', { integrationId, error });
-      return { success: false, error: 'Unable to remove credentials from secure storage.' };
-    }
+  disconnect(integrationId: string): Promise<{ success: boolean; error?: string }> {
+    return this.withProviderLock(integrationId, async () => {
+      try {
+        await this.credentials.delete(integrationId);
+        this.telemetry.capture('integration_disconnected', { provider: integrationId });
+        return { success: true };
+      } catch (error) {
+        this.logger.error('Failed to disconnect integration', { integrationId, error });
+        return { success: false, error: 'Unable to remove credentials from secure storage.' };
+      }
+    });
   }
 
   async listAccounts(integrationId: string): Promise<IntegrationAccountSummary[]> {
     return this.credentials.listAccounts(integrationId);
   }
 
-  async setDefaultAccount(
+  setDefaultAccount(
     integrationId: string,
     accountId: string
   ): Promise<IntegrationSetDefaultAccountResponse> {
-    const updated = await this.credentials.setDefaultAccount(integrationId, accountId);
-    if (!updated) return { success: false, error: 'Account not found.' };
-    const accounts = await this.credentials.listAccounts(integrationId);
-    const account = accounts.find((candidate) => candidate.accountId === accountId);
-    if (!account) return { success: false, error: 'Account not found.' };
-    return { success: true, account };
+    return this.withProviderLock(integrationId, async () => {
+      const updated = await this.credentials.setDefaultAccount(integrationId, accountId);
+      if (!updated) return { success: false, error: 'Account not found.' };
+      const accounts = await this.credentials.listAccounts(integrationId);
+      const account = accounts.find((candidate) => candidate.accountId === accountId);
+      if (!account) return { success: false, error: 'Account not found.' };
+      return { success: true, account };
+    });
   }
 
-  async removeAccount(
+  removeAccount(
     integrationId: string,
     accountId: string
   ): Promise<IntegrationRemoveAccountResponse> {
-    if (!accountId) return { success: false, error: 'An account id is required.' };
-    try {
-      await this.credentials.delete(integrationId, accountId);
-      this.telemetry.capture('integration_disconnected', { provider: integrationId });
-      return { success: true, accounts: await this.credentials.listAccounts(integrationId) };
-    } catch (error) {
-      this.logger.error('Failed to remove integration account', {
-        integrationId,
-        accountId,
-        error,
-      });
-      return { success: false, error: 'Unable to remove credentials from secure storage.' };
-    }
+    if (!accountId) return Promise.resolve({ success: false, error: 'An account id is required.' });
+    return this.withProviderLock(integrationId, async () => {
+      try {
+        await this.credentials.delete(integrationId, accountId);
+        this.telemetry.capture('integration_disconnected', { provider: integrationId });
+        return { success: true, accounts: await this.credentials.listAccounts(integrationId) };
+      } catch (error) {
+        this.logger.error('Failed to remove integration account', {
+          integrationId,
+          accountId,
+          error,
+        });
+        return { success: false, error: 'Unable to remove credentials from secure storage.' };
+      }
+    });
   }
 
   checkConnection(

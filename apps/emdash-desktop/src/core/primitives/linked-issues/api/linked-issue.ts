@@ -73,9 +73,14 @@ export function linkedIssueMentionName(
 }
 
 /**
- * True when `refreshed` came from a different workspace than `stored` — used to
- * reject a cross-workspace fetch of the same issue identifier (WS9), so
- * re-pointing a project never pulls another workspace's issue into an agent.
+ * True when `refreshed` cannot be confirmed to be the same workspace/issue as
+ * `stored` — used to reject a cross-workspace fetch of the same identifier (WS9),
+ * so re-pointing a project never pulls another workspace's issue into an agent.
+ *
+ * Fails closed: when the refresh carries durable identity but the stored issue
+ * has none (a legacy link predating identity stamping), we cannot verify the
+ * source, so we reject rather than accept another workspace's issue. Such a
+ * legacy link stays stale until it is re-linked, which stamps it.
  */
 export function isDifferentSource(
   stored: Pick<LinkedIssue, 'issueId' | 'sourceAccountId'>,
@@ -88,5 +93,10 @@ export function isDifferentSource(
   ) {
     return true;
   }
-  return Boolean(stored.issueId && refreshed.issueId && stored.issueId !== refreshed.issueId);
+  if (stored.issueId && refreshed.issueId && stored.issueId !== refreshed.issueId) {
+    return true;
+  }
+  const storedHasIdentity = Boolean(stored.sourceAccountId || stored.issueId);
+  const refreshedHasIdentity = Boolean(refreshed.sourceAccountId || refreshed.issueId);
+  return refreshedHasIdentity && !storedHasIdentity;
 }

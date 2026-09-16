@@ -86,6 +86,21 @@ describe('refreshLinkedIssueContext', () => {
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
   });
 
+  it('keeps a legacy issue (no durable identity) when the refresh carries identity', async () => {
+    // A link made before identity stamping has no sourceAccountId/issueId, so an
+    // identity-bearing refresh cannot be confirmed to be the same workspace and
+    // must not overwrite it (fails closed until the issue is re-linked).
+    const legacyIssue = makeIssue();
+    const identityBearing = makeIssue({
+      sourceAccountId: 'linear:beta',
+      issueId: 'uuid-beta-1201',
+      context: 'Some workspace issue',
+    });
+    mocks.getIssueContext.mockResolvedValue({ success: true, data: identityBearing });
+
+    await expect(refreshLinkedIssueContext(legacyIssue, 'project-1')).resolves.toBe(legacyIssue);
+  });
+
   it('accepts a refresh from the same source workspace', async () => {
     const issue = makeIssue({ sourceAccountId: 'linear:acme', issueId: 'uuid-acme-1201' });
     const refreshedIssue = makeIssue({
