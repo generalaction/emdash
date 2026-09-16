@@ -72,10 +72,12 @@ async function attach(answerOnHost: boolean) {
     TMUX_TMPDIR: directory,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
+    SHELL: '/bin/bash',
     PS1: 'PROBE> ',
   };
   const command = async (args: string[]) =>
     (await exec('tmux', args, { env, cwd: directory })).stdout.trim();
+  // Pass argv directly: a bash shell-command wrapper discards the inherited PS1.
   await command([
     '-f',
     '/dev/null',
@@ -83,7 +85,9 @@ async function attach(answerOnHost: boolean) {
     '-d',
     '-s',
     'probe',
-    '/bin/bash --noprofile --norc',
+    '/bin/bash',
+    '--noprofile',
+    '--norc',
   ]);
   const terminal = new Terminal({ cols: 100, rows: 24 });
   const sink = createXtermLogSink(terminal);
