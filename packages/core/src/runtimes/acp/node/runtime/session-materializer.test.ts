@@ -8,10 +8,10 @@ import type { ConfigOverrides, SessionRecord } from './conversation-types';
 import { SessionMaterializer, type SessionMaterializerCallbacks } from './session-materializer';
 
 describe('SessionMaterializer', () => {
-  it('returns restoration errors without replacing the saved session or leaking a load route', async () => {
+  it('preserves the existing session after a failed load and cleans up its provisional route', async () => {
     const h = makeAcpHarness();
     h.agent.loadSession.mockRejectedValueOnce(new Error('session file is gone'));
-    const setup = materializerHarness(h);
+    const setup = materializerHarness(h, { effort: 'high', collaborationMode: 'plan' });
     const result = await setup.materializer.materialize(
       setup.entry,
       setup.entry.descriptor,
@@ -19,9 +19,10 @@ describe('SessionMaterializer', () => {
       setup.scope,
       setup.controller.signal
     );
-    expect(result.success).toBe(false);
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid_state' } });
     expect(h.agent.newSession).not.toHaveBeenCalled();
     expect(setup.entry.descriptor.sessionId).toBe('retained-session');
+    expect(setup.entry.configOverrides).toEqual({ effort: 'high', collaborationMode: 'plan' });
     expect(setup.discarded).toHaveLength(1);
     expect(setup.loading).toEqual([]);
     await setup.scope.dispose();

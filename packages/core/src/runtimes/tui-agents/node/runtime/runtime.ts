@@ -557,6 +557,7 @@ export class TuiAgentsRuntime {
         },
         {
           output: session.output,
+          tmux: Boolean(config.input.tmux),
           onProcess: () => {
             // Reset only after spawn succeeds, before new output is observed.
             // Reattaching a surviving process never enters spawnInto.

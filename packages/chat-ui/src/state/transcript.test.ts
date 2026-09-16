@@ -55,6 +55,25 @@ describe('findItemById', () => {
 });
 
 describe('history', () => {
+  it('retires a live snapshot when the response already includes that committed turn', () => {
+    const tx = createTranscript();
+    tx.activeTurn.set(turn('current', 1, msg('current-message')), 'generating');
+    tx.history.replace([turn('current', 1, msg('current-message', 0, 'Final content'))]);
+    expect(tx.state.activeTurnSnapshot).toBeNull();
+    expect(tx.state.committedTurns).toHaveLength(1);
+    expect(tx.findItemById('current-message')).toMatchObject({ text: 'Final content' });
+  });
+
+  it('replaces committed history without clearing an independently received live turn', () => {
+    const tx = createTranscript();
+    tx.activeTurn.set(turn('current', 2, msg('current-message')), 'generating');
+    tx.history.replace([turn('previous', 1, msg('previous-message'))]);
+    expect(tx.state.activeTurnSnapshot?.id).toBe('current');
+    expect(tx.state.turnStatus).toBe('generating');
+    expect(tx.findItemById('current-message')?.id).toBe('current-message');
+    expect(tx.findItemById('previous-message')?.id).toBe('previous-message');
+  });
+
   it('seed replaces committed turns and clears active turn', () => {
     const tx = createTranscript();
     drive(tx, { type: 'message_chunk', id: 'x', role: 'assistant', text: 'live' });
@@ -138,5 +157,141 @@ describe('reset', () => {
     expect(tx.state.activeTurnSnapshot).toBeNull();
     expect(tx.state.turnStatus).toBe('done');
     expect(tx.findItemById('a')).toBeUndefined();
+  });
+});
+
+const position = (
+  historyRevision: number,
+  lastCommittedTurnSeq: number | null,
+  generation = 'one'
+) => ({ generation, historyRevision, lastCommittedTurnSeq });
+const page = (
+  turns: TranscriptTurn[],
+  historyRevision = 1,
+  generation = 'one',
+  fromSeq: number | null = null,
+  beforeSeq: number | null = null
+) => ({
+  turns,
+  nextCursor: fromSeq,
+  position: position(historyRevision, turns.at(-1)?.seq ?? null, generation),
+  coverage: { fromSeq, beforeSeq },
+});
+
+describe('versioned transcript reconciliation', () => {
+  it('retains outgoing content without inventing an outcome or completing running tools', () => {
+    const tx = createTranscript();
+    const first: TranscriptTurn = {
+      ...turn('one', 0, msg('user')),
+      items: [
+        {
+          kind: 'execute-tool-call',
+          id: 'tool',
+          seq: 0,
+          toolCallId: 'tool',
+          title: 'Command',
+          status: 'running',
+        },
+      ],
+    };
+    tx.observe({ ...position(0, null), activeTurn: first });
+    tx.observe({ ...position(1, 0), activeTurn: turn('two', 1, msg('next')) });
+    expect(tx.state.committedTurns).toEqual([]);
+    expect(tx.state.displayTurns).toEqual([first]);
+    expect(tx.state.displayTurns[0].outcome).toBeUndefined();
+    expect(tx.findItemById('tool')).toMatchObject({ status: 'running' });
+    tx.applyPage(page([{ ...first, outcome: { kind: 'cancelled' } }]));
+    expect(tx.state.displayTurns).toHaveLength(1);
+    expect(tx.state.displayTurns[0].outcome).toEqual({ kind: 'cancelled' });
+    expect(tx.state.activeTurnSnapshot?.id).toBe('two');
+  });
+
+  it('does not drop an outgoing turn when an older initial page finally arrives', () => {
+    const tx = createTranscript();
+    tx.observe({ ...position(0, null), activeTurn: turn('one', 0, msg('first')) });
+    tx.observe({ ...position(1, 0), activeTurn: turn('two', 1, msg('second')) });
+    tx.applyPage(page([], 0));
+    expect(tx.state.displayTurns.map((turn) => turn.id)).toEqual(['one']);
+    expect(tx.needsHistory).toBe(true);
+  });
+
+  it('detects an entirely unobserved completed turn from the history revision', () => {
+    const tx = createTranscript();
+    tx.observe({ ...position(0, null), activeTurn: null });
+    tx.applyPage(page([], 0));
+    expect(tx.observe({ ...position(1, 0), activeTurn: null })).toBe(true);
+    expect(tx.needsHistory).toBe(true);
+    tx.applyPage(page([turn('one', 0, msg('first'))]));
+    expect(tx.needsHistory).toBe(false);
+  });
+
+  it('merges pagination and latest refreshes without losing either end', () => {
+    const tx = createTranscript();
+    tx.applyPage(page([turn('recent', 5, msg('recent'))], 1, 'one', 5));
+    tx.applyPage(page([turn('old', 0, msg('old'))], 1, 'one', null, 5));
+    tx.applyPage(
+      page(
+        [turn('recent', 5, msg('recent', 0, 'amended')), turn('new', 6, msg('new'))],
+        2,
+        'one',
+        5
+      )
+    );
+    expect(tx.state.committedTurns.map((turn) => turn.id)).toEqual(['old', 'recent', 'new']);
+    expect(tx.findItemById('recent')).toMatchObject({ text: 'amended' });
+  });
+
+  it('rejects an older page after an amendment, including deleted rows', () => {
+    const tx = createTranscript();
+    tx.applyPage(page([turn('one', 0, msg('first'))]));
+    tx.applyPage(page([], 2));
+    expect(tx.applyPage(page([turn('one', 0, msg('first'))]))).toBe(false);
+    expect(tx.state.committedTurns).toEqual([]);
+  });
+
+  it('ignores unavailable history and legacy responses after adopting a version', () => {
+    const tx = createTranscript();
+    tx.applyPage(page([turn('one', 0, msg('first'))]));
+    expect(tx.applyPage({ turns: [], nextCursor: null, unavailable: true })).toBe(false);
+    expect(tx.applyPage({ turns: [], nextCursor: null })).toBe(false);
+    expect(tx.state.committedTurns).toHaveLength(1);
+  });
+
+  it('replaces generations atomically even when replay recreates identical ids', () => {
+    const tx = createTranscript();
+    const old = turn('same', 0, msg('same', 0, 'old'));
+    tx.observe({ ...position(1, 0), activeTurn: turn('old-live', 1, msg('old-live')) });
+    tx.applyPage(page([old]));
+    tx.observe({ ...position(0, null, 'two'), activeTurn: turn('same', 0, msg('same', 0, 'new')) });
+    expect(tx.state.committedTurns).toEqual([old]);
+    expect(tx.state.activeTurnSnapshot?.id).toBe('old-live');
+    tx.applyPage(page([], 0, 'two'));
+    expect(tx.state.displayTurns).toEqual([]);
+    expect(tx.state.activeTurnSnapshot?.items[0]).toMatchObject({ text: 'new' });
+    expect(tx.applyPage(page([old], 999))).toBe(false);
+    expect(tx.observe({ ...position(999, 0), activeTurn: old })).toBe(false);
+    expect(tx.state.activeTurnSnapshot?.items[0]).toMatchObject({ text: 'new' });
+  });
+
+  it('does not merge generations when the transcript resets before the first history page', () => {
+    const tx = createTranscript();
+    const old = turn('old-live', 5, msg('old'));
+    const current = turn('new-live', 0, msg('new'));
+    tx.observe({ ...position(0, null), activeTurn: old });
+    tx.observe({ ...position(0, null, 'two'), activeTurn: current });
+    expect(tx.state.activeTurnSnapshot?.id).toBe('old-live');
+    tx.applyPage(page([], 0, 'two'));
+    expect(tx.state.displayTurns).toEqual([]);
+    expect(tx.state.activeTurnSnapshot?.id).toBe('new-live');
+  });
+
+  it('ignores stale live snapshots after history has committed their turn', () => {
+    const tx = createTranscript();
+    const active = turn('one', 0, msg('one'));
+    tx.observe({ ...position(0, null), activeTurn: active });
+    tx.applyPage(page([active], 1));
+    tx.observe({ ...position(0, null), activeTurn: active });
+    expect(tx.state.activeTurnSnapshot).toBeNull();
+    expect(tx.state.displayTurns).toHaveLength(1);
   });
 });

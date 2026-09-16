@@ -117,7 +117,13 @@ export class SessionCell {
   }
 
   get sessionState(): SessionState {
-    return { ...this.machine.sessionState(), historyRevision: this.transcript.historyRevision };
+    const state = this.machine.sessionState();
+    return {
+      ...state,
+      historyRevision: this.transcript.historyRevision,
+      // Partial replay is never an authoritative transcript position.
+      ...(state.lifecycle === 'replaying' ? {} : { transcript: this.transcript.snapshot }),
+    };
   }
 
   get config(): SessionConfigState {

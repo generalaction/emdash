@@ -16,6 +16,7 @@ import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
+  getMacOptionArrowSequence,
   shouldCopySelectionFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
@@ -429,6 +430,15 @@ export function usePty(
         if (shouldHandleInterruptFromTerminal(event)) {
           onInterruptPressRef.current?.();
           return true;
+        }
+
+        const optionArrowSequence = getMacOptionArrowSequence(event, IS_MAC_PLATFORM);
+        if (optionArrowSequence) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          sendInput(optionArrowSequence);
+          return false;
         }
 
         if (

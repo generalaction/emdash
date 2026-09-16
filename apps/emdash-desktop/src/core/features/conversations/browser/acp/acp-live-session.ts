@@ -1,4 +1,5 @@
 import {
+  initialSessionConfigState,
   planStateSchema,
   sessionUsageSchema,
   sessionConfigStateSchema,
@@ -16,9 +17,9 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
-import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
-import { WireError } from '@emdash/wire/rpc';
-import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
+import { ReplicaLog, ReplicaState, createLineLogStore } from '@emdash/wire/live';
+import { WireError, type LiveClientHandle } from '@emdash/wire/rpc';
+import { observe, whenReady, type Readable } from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import { z } from 'zod';
 import {
@@ -26,7 +27,6 @@ import {
   type ConversationsClient,
 } from '@core/features/conversations/api/browser/client';
 import type { ProjectAttachmentError } from '@core/features/projects/api/attachments';
-import { conversationsContract } from '../../api';
 
 export interface LiveValueSource<T> {
   getSnapshot(): T;
@@ -114,33 +114,63 @@ export class AcpLiveSession {
     private readonly client: ConversationsClient['acp']
   ) {
     const key = { conversationId };
-    const sessionRemote = remote(conversationsContract.acp.session, client.session, {
-      scope: this.scope,
-      lingerMs: 15_000,
-    });
-    const member = sessionRemote(key);
-    this.refreshStates = async () => {
-      await Promise.all(Object.values(member.states).map((state) => state.refresh()));
-    };
-    this.sessionState = remoteValueState(member.states.state, sessionStateSchema, this.scope);
-    this.config = remoteValueState(member.states.config, sessionConfigStateSchema, this.scope);
-    this.usage = remoteValueState(member.states.usage, sessionUsageSchema.nullable(), this.scope);
-    this.plan = remoteValueState(member.states.plan, planStateSchema.nullable(), this.scope);
-    this.activeTurn = remoteValueState(
-      member.states.activeTurn,
+    // Subscribe to individual states: remote(model) waits for *every* state acquisition
+    // before exposing any of them. A slow optional source must not block the transcript.
+    const state = replicaValueState(
+      client.session.state(key, 'state'),
+      sessionStateSchema,
+      this.scope
+    );
+    const config = replicaValueState(
+      client.session.state(key, 'config'),
+      sessionConfigStateSchema,
+      this.scope,
+      initialSessionConfigState
+    );
+    const usage = replicaValueState(
+      client.session.state(key, 'usage'),
+      sessionUsageSchema.nullable(),
+      this.scope,
+      null
+    );
+    const plan = replicaValueState(
+      client.session.state(key, 'plan'),
+      planStateSchema.nullable(),
+      this.scope,
+      null
+    );
+    const activeTurn = replicaValueState(
+      client.session.state(key, 'activeTurn'),
       transcriptTurnSchema.nullable(),
-      this.scope
+      this.scope,
+      null
     );
-    this.terminals = remoteValueState(
-      member.states.terminals,
+    const terminals = replicaValueState(
+      client.session.state(key, 'terminals'),
       z.array(terminalStateSchema),
-      this.scope
+      this.scope,
+      []
     );
-    this.mcpServers = remoteValueState(
-      member.states.mcpServers,
+    const mcpServers = replicaValueState(
+      client.session.state(key, 'mcpServers'),
       z.array(sessionMcpServerSchema),
-      this.scope
+      this.scope,
+      []
     );
+    this.sessionState = state;
+    this.config = config;
+    this.usage = usage;
+    this.plan = plan;
+    this.activeTurn = activeTurn;
+    this.terminals = terminals;
+    this.mcpServers = mcpServers;
+    this.refreshStates = async () => {
+      for (const ancillary of [config, usage, plan, terminals, mcpServers]) {
+        void ancillary.refresh().catch(() => {});
+      }
+      await state.refresh();
+      if (!this.sessionState.current().transcript) await activeTurn.refresh();
+    };
   }
 
   static async create(conversationId: string): Promise<AcpLiveSession> {
@@ -155,15 +185,9 @@ export class AcpLiveSession {
     const session = new AcpLiveSession(conversationId, client);
     try {
       await withTimeout(
-        Promise.all([
-          session.sessionState.ready,
-          session.config.ready,
-          session.usage.ready,
-          session.plan.ready,
-          session.activeTurn.ready,
-          session.terminals.ready,
-          session.mcpServers.ready,
-        ]),
+        session.sessionState.ready.then(async () => {
+          if (!session.sessionState.current().transcript) await session.activeTurn.ready;
+        }),
         'Timed out connecting ACP live models'
       );
       runInAction(() => session.usableState.set(true));
@@ -289,6 +313,62 @@ export class AcpLiveSession {
     }
     this.terminalLogs.clear();
   }
+}
+
+function replicaValueState<T>(
+  handle: LiveClientHandle<T>,
+  schema: z.ZodType<T>,
+  parentScope: Scope,
+  initial?: T
+): RemoteValueState<T> & { refresh(): Promise<void> } {
+  const scope = parentScope.child('acp-state-replica');
+  const changes = createEmitter<T>();
+  const value = observable.box<T | undefined>(initial, { deep: false });
+  let incarnation = 0;
+  const createReplica = () => {
+    const current = ++incarnation;
+    const next = new ReplicaState<T | undefined>(handle, {
+      schema: schema.optional(),
+      onChange(next) {
+        if (scope.signal.aborted || current !== incarnation || next === undefined) return;
+        runInAction(() => value.set(next));
+        changes.emit(next);
+      },
+    });
+    // Failed acquisition may never have produced a subscription to detach.
+    scope.add(() => next.dispose().catch(() => {}));
+    void next.ready.catch(() => {});
+    return next;
+  };
+  let replica = createReplica();
+  let refreshing: Promise<void> | undefined;
+  return {
+    get ready() {
+      return replica.ready;
+    },
+    current: () => value.get() as T,
+    onChange: (cb) => changes.subscribe(cb),
+    dispose: () => scope.dispose(),
+    refresh() {
+      refreshing ??= (async () => {
+        try {
+          await replica.ready;
+        } catch {
+          scope.signal.throwIfAborted();
+          await replica.dispose().catch(() => {});
+          // Retry failed initial acquisition on revalidation. Its rejected ready promise
+          // cannot recover even if the connection now reaches a healthy host.
+          replica = createReplica();
+          await replica.ready;
+        }
+        scope.signal.throwIfAborted();
+        await replica.refresh();
+      })().finally(() => {
+        refreshing = undefined;
+      });
+      return refreshing;
+    },
+  };
 }
 
 export function remoteValueState<T>(

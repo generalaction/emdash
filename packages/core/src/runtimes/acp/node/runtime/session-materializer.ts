@@ -31,6 +31,11 @@ export type MaterializedSession = {
   initialQueueConsumed: true;
 };
 
+type UnsupportedSelection = {
+  key: SessionRecord['clearedConfiguration'][number];
+  value: string;
+};
+
 export interface SessionMaterializerCallbacks {
   isCurrent(entry: ConversationHandle, epoch: number): boolean;
   onRecordCreated(record: SessionRecord, scope: Scope): void;
@@ -89,14 +94,15 @@ export class SessionMaterializer {
     const processOwner = routeOwnerId(connection.key, connection.generation);
     let record: SessionRecord | null = null;
     let resumeOutcome: SessionRecord['resumeOutcome'] = null;
+    let unsupportedSelections: UnsupportedSelection[] = [];
 
     try {
-      if (input.sessionId) {
-        if (!connection.supportsLoadSession || !connection.agent.loadSession) {
-          return acpErr.invalidState(
-            'This provider cannot restore the saved conversation. Its saved session has been preserved.'
-          );
-        }
+      if (input.sessionId && (!connection.supportsLoadSession || !connection.agent.loadSession)) {
+        return acpErr.invalidState(
+          'This provider cannot restore the existing conversation. Its saved session has been preserved.'
+        );
+      }
+      if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
         let releaseHandshake: () => void;
         try {
           releaseHandshake = await this.acquireHandshake(processOwner, signal);
@@ -130,7 +136,11 @@ export class SessionMaterializer {
             modes: response.modes,
             configOptions: response.configOptions,
           });
-          await this.applyDesiredConfiguration(record, entry, response.configOptions !== undefined);
+          unsupportedSelections = await this.applyDesiredConfiguration(
+            record,
+            entry,
+            response.configOptions !== undefined
+          );
           const queueResult = this.queueInitialPrompts(record, input);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
@@ -188,12 +198,19 @@ export class SessionMaterializer {
           modes: response.modes,
           configOptions: response.configOptions,
         });
-        await this.applyDesiredConfiguration(record, entry, response.configOptions !== undefined);
+        unsupportedSelections = await this.applyDesiredConfiguration(
+          record,
+          entry,
+          response.configOptions !== undefined
+        );
         const queueResult = this.queueInitialPrompts(record, input);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
       }
 
+      if (!this.callbacks.isCurrent(entry, epoch) || record.disposed) {
+        return acpErr.conversationNotFound(entry.conversationId);
+      }
       this.callbacks.registerRoute(
         routeOwnerId(connection.key, connection.generation),
         record.cell.acpSessionId,
@@ -201,6 +218,16 @@ export class SessionMaterializer {
       );
       record.mcpServers = mcpServerSummary;
       record.resumeOutcome = resumeOutcome;
+      for (const { key, value } of unsupportedSelections) {
+        if (key === 'modeId') {
+          if (entry.descriptor.modeId !== value) continue;
+          entry.clearMode();
+        } else {
+          if (entry.configOverrides[key] !== value) continue;
+          entry.clearConfig(key);
+        }
+        record.clearedConfiguration.push(key);
+      }
       return { success: true, data: { record, initialQueueConsumed: true } };
     } catch (error) {
       if (isAuthRequiredError(error)) return acpErr.authRequired(toSerializedError(error));
@@ -314,8 +341,8 @@ export class SessionMaterializer {
     record: SessionRecord,
     entry: ConversationHandle,
     hasAuthoritativeCatalog: boolean
-  ): Promise<Array<'model' | 'effort' | 'collaborationMode'>> {
-    const cleared: Array<'model' | 'effort' | 'collaborationMode'> = [];
+  ): Promise<UnsupportedSelection[]> {
+    const unsupported: UnsupportedSelection[] = [];
     for (const dimension of ['model', 'effort', 'collaborationMode'] as const) {
       const value = entry.configOverrides[dimension];
       if (!value) continue;
@@ -329,8 +356,7 @@ export class SessionMaterializer {
         (!catalog && hasAuthoritativeCatalog) ||
         (catalog && !catalog.available.some((option) => option.id === value))
       ) {
-        entry.clearConfig(dimension);
-        cleared.push(dimension);
+        unsupported.push({ key: dimension, value });
         continue;
       }
       const result = await record.cell.setConfigOption(dimension, value);
@@ -343,23 +369,23 @@ export class SessionMaterializer {
         });
       }
     }
-    return cleared;
+    return unsupported;
   }
 
   private async applyDesiredConfiguration(
     record: SessionRecord,
     entry: ConversationHandle,
     hasAuthoritativeCatalog: boolean
-  ): Promise<void> {
+  ): Promise<UnsupportedSelection[]> {
     let revision: number;
+    let unsupported: UnsupportedSelection[];
     do {
       revision = entry.desiredRevision;
-      const cleared = await this.applyConfigOverrides(record, entry, hasAuthoritativeCatalog);
-      const clearedMode = await this.applyInitialMode(record, entry);
-      for (const key of [...cleared, ...(clearedMode ? [clearedMode] : [])]) {
-        if (!record.clearedConfiguration.includes(key)) record.clearedConfiguration.push(key);
-      }
+      unsupported = await this.applyConfigOverrides(record, entry, hasAuthoritativeCatalog);
+      const unsupportedMode = await this.applyInitialMode(record, entry);
+      if (unsupportedMode) unsupported.push({ key: 'modeId', value: unsupportedMode });
     } while (entry.desiredRevision !== revision);
+    return unsupported;
   }
 
   private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
@@ -385,7 +411,7 @@ export class SessionMaterializer {
   private async applyInitialMode(
     record: SessionRecord,
     entry: ConversationHandle
-  ): Promise<'modeId' | null> {
+  ): Promise<string | null> {
     const modeId = entry.descriptor.modeId;
     if (!modeId) return null;
     const modeOptions = record.cell.config.modeOptions;
@@ -396,8 +422,7 @@ export class SessionMaterializer {
         providerId: entry.descriptor.providerId,
         modeId,
       });
-      entry.clearMode();
-      return 'modeId';
+      return modeId;
     }
     if (modeOptions.selected === modeId) return null;
     const result = await record.cell.setMode(modeId);

@@ -108,6 +108,7 @@ describe('ACP API contract schemas', () => {
           message: expect.stringContaining('saved session has been preserved'),
         },
       });
+      expect(h.agent.newSession).not.toHaveBeenCalled();
       h.agent.loadSession.mockClear();
       h.agent.newSession.mockClear();
       await expect(

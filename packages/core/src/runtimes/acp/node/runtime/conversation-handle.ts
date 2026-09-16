@@ -39,13 +39,13 @@ export interface ConversationHandleDeps {
   saveIntent(): void;
   materialize(scope: Scope): Promise<Result<SessionRecord, ActivationStartError>>;
   interruptRecord(record: SessionRecord): void | Promise<void>;
-  isConnectionCurrent?(record: SessionRecord): boolean;
-  clock?: Clock;
   onActivated(record: SessionRecord): void;
   activationDrainTimeoutMs: number;
   onLeaseDrainTimeout(event: { leaseCount: number; timeoutMs: number }): void;
   onActivationObserverError(error: unknown): void;
   now(): number;
+  clock?: Clock;
+  isConnectionCurrent?(record: SessionRecord): boolean;
 }
 
 export class ConversationHandle {
@@ -85,10 +85,7 @@ export class ConversationHandle {
     this.activation = createLifecycleCell({
       label: `acp-conversation:${this.conversationId}`,
       start: (_input, scope) => this.deps.materialize(scope),
-      interrupt: async (record) => {
-        this.startProviderClose(record);
-        await this.waitForProviderClose();
-      },
+      interrupt: (record) => this.interrupt(record),
       stop: async () => ok(),
       drainTimeoutMs: deps.activationDrainTimeoutMs,
       onLeaseDrainTimeout: (event) => deps.onLeaseDrainTimeout(event),
@@ -187,6 +184,11 @@ export class ConversationHandle {
     return this.activation.stop();
   }
 
+  async interrupt(record: SessionRecord): Promise<void> {
+    this.startProviderClose(record);
+    await this.waitForProviderClose();
+  }
+
   async waitForProviderClose(): Promise<Result<void, ActivationStartError>> {
     const closing = this.providerClose;
     if (!closing) return ok();
@@ -213,18 +215,15 @@ export class ConversationHandle {
     if (this.providerClose?.record === record && !this.providerClose.failed) return;
     const closing = { record, task: Promise.resolve(), failed: false };
     this.providerClose = closing;
-    closing.task = Promise.resolve()
-      .then(() => this.deps.interruptRecord(record))
-      .then(
-        () => {
-          if (this.providerClose === closing) this.providerClose = null;
-        },
-        (error: unknown) => {
-          closing.failed = true;
-          throw error;
-        }
-      );
-    // The close may outlive a bounded stop and have no current waiter.
+    closing.task = Promise.resolve(this.deps.interruptRecord(record)).then(
+      () => {
+        if (this.providerClose === closing) this.providerClose = null;
+      },
+      (error: unknown) => {
+        closing.failed = true;
+        throw error;
+      }
+    );
     void closing.task.catch(() => {});
   }
 
@@ -530,7 +529,7 @@ export class ConversationHandle {
       usage: record.cell.usage ?? this.retainedValue.lastKnownUsage,
       plan: record.cell.transcript.plan,
       agents: record.cell.transcript.agents,
-      activeTurn: record.cell.transcript.activeTurn,
+      activeTurn: state.lifecycle === 'replaying' ? null : record.cell.transcript.activeTurn,
       terminals: this.deps.terminals.listByConversation(this.conversationId),
       mcpServers: this.withMcpStartupFailures(
         record,

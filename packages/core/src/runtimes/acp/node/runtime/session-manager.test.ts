@@ -523,6 +523,44 @@ describe('AcpRuntime session manager', () => {
     expect(h.agent.prompt).toHaveBeenCalledTimes(1);
   });
 
+  it('retains the original session id and effort overrides after failed restoration', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents, lifecycle: { connectionIdleTtlMs: 0 } });
+    h.agent.loadSession.mockRejectedValueOnce(new Error('old session missing'));
+    const rt = new AcpRuntime(h.deps);
+    const input = {
+      ...makeStartInput({ conversationId: 'conv-retained-config' }),
+      sessionId: 'old',
+    };
+    await rt.launchSession(input);
+    await rt.setOption(input.conversationId, 'effort', 'high');
+    await vi.waitFor(() =>
+      expect(intents.snapshot()[0]?.payload).toMatchObject({
+        sessionId: 'old',
+        configured: { effort: 'high' },
+      })
+    );
+    await rt.stopSession(input.conversationId);
+    h.agent.loadSession.mockClear();
+    h.agent.setSessionConfigOption.mockClear();
+    h.agent.loadSession.mockResolvedValueOnce({
+      configOptions: [effortConfigOption('low')],
+    });
+
+    await rt.launchSession(input);
+
+    expect(h.agent.loadSession).toHaveBeenCalledWith({
+      cwd: '/tmp/workspace',
+      sessionId: 'old',
+      mcpServers: [],
+    });
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'old',
+      configId: 'reasoning_effort',
+      value: 'high',
+    });
+  });
+
   it('retains restored session ids and effort overrides across rematerialization', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents, lifecycle: { connectionIdleTtlMs: 0 } });
@@ -1273,6 +1311,32 @@ describe('AcpRuntime session manager', () => {
     );
   });
 
+  it('adapts provider terminal commands at the connection boundary', async () => {
+    const agent = new FakeAcpAgent();
+    const h = makeAcpHarness({
+      acpBehavior: {
+        buildSpawn: () => ({ command: '/fake/agent', args: [] }),
+        connect: agent.behavior.connect,
+        terminalCommand: ({ command }) => ({ kind: 'shell-line', commandLine: command }),
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    try {
+      await rt.launchSession(makeStartInput());
+      await agent.capturedClient!.createTerminal!({
+        sessionId: 'session-1',
+        command: 'ls && ls src',
+      });
+      expect(h.fakeHost.spawnTerminalFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: { kind: 'shell-line', commandLine: 'ls && ls src' },
+        })
+      );
+    } finally {
+      await rt.dispose();
+    }
+  });
+
   it('suspends sessions when the process closes', async () => {
     const { h, rt } = await launchHarness('conv-close');
     const live = rt.sessionLiveModels('conv-close');
@@ -1545,8 +1609,13 @@ describe('AcpRuntime conversation lifecycle reports', () => {
       sessionId: 'session-old',
     });
 
-    expect(reports.providerIds).toEqual([
-      { conversationId: 'conv-rebind', providerSessionId: 'session-rebound' },
+    expect(reports.providerIds).toEqual([]);
+    expect(reports.started).toEqual([
+      {
+        conversationId: 'conv-rebind',
+        providerSessionId: 'session-rebound',
+        resumeOutcome: 'loaded',
+      },
     ]);
   });
 
@@ -1651,6 +1720,20 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     } finally {
       await rt.dispose();
     }
+  });
+
+  it('reuses the provider connection when retrying a failed restoration', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    h.agent.loadSession.mockRejectedValueOnce(new Error('session is closing'));
+    const input = { ...makeStartInput({ conversationId: 'conv-lease' }), sessionId: 'session-old' };
+    expect((await rt.launchSession(input)).success).toBe(false);
+    expect((await rt.launchSession(input)).success).toBe(true);
+    expect(h.agent.newSession).not.toHaveBeenCalled();
+    expect(h.children).toHaveLength(1);
+    expect(h.lastChild.kill).not.toHaveBeenCalled();
+    expect(rt.sessionLiveModels('conv-lease')).not.toBeNull();
+    await rt.dispose();
   });
 });
 

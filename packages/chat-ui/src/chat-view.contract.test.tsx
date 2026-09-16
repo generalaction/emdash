@@ -145,6 +145,82 @@ describe('createChatView', () => {
     state.dispose();
     document.body.removeChild(host);
   });
+
+  it.each([0, 8])(
+    'keeps a short outgoing turn pinned while history is delayed with %i previous turns',
+    async (historySize) => {
+      const ctx = createChatContext({ theme: DEFAULT_THEME });
+      const state = createChatState(ctx);
+      const previous = generateMockTranscript(historySize, 12);
+      const active: TranscriptTurn = {
+        id: 'outgoing-turn',
+        seq: 100,
+        initiator: 'user',
+        items: [
+          { kind: 'message', id: 'outgoing-user', seq: 0, role: 'user', text: 'Say hello' },
+          { kind: 'message', id: 'outgoing-reply', seq: 1, role: 'assistant', text: 'Hello!' },
+        ],
+      };
+      const position = {
+        generation: 'pinned-handoff',
+        historyRevision: 0,
+        lastCommittedTurnSeq: previous.at(-1)?.seq ?? null,
+      };
+      state.transcript.applyPage({
+        turns: previous,
+        nextCursor: null,
+        position,
+        coverage: { fromSeq: null, beforeSeq: null },
+      });
+      state.transcript.observe({ ...position, activeTurn: active });
+
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+      document.body.appendChild(host);
+      const view = createChatView({ context: ctx, state, parent: host, pinUserMessages: true });
+
+      try {
+        await nextPaint();
+        view.scrollToBottom();
+        const userCard = await waitFor(() =>
+          host.querySelector<HTMLElement>('[data-chat-canvas] [data-user-card="outgoing-user"]')
+        );
+        expect(userCard).not.toBeNull();
+        await nextPaint();
+        const scroll = host.querySelector<HTMLElement>('[data-chat-scroll]')!;
+        const pinnedTop = userCard!.getBoundingClientRect().top;
+        const pinnedScroll = scroll.scrollTop;
+        expect(pinnedTop - scroll.getBoundingClientRect().top).toBeLessThan(100);
+
+        const committedPosition = { ...position, historyRevision: 1, lastCommittedTurnSeq: 100 };
+        state.transcript.observe({ ...committedPosition, activeTurn: null });
+        await nextPaint();
+        await nextPaint();
+
+        expect(state.transcript.state.committedTurns).toHaveLength(historySize);
+        expect(Math.abs(scroll.scrollTop - pinnedScroll)).toBeLessThan(1);
+        const retainedCard = host.querySelector<HTMLElement>(
+          '[data-chat-canvas] [data-user-card="outgoing-user"]'
+        );
+        expect(retainedCard).not.toBeNull();
+        expect(Math.abs(retainedCard!.getBoundingClientRect().top - pinnedTop)).toBeLessThan(1);
+
+        state.transcript.applyPage({
+          turns: [...previous, { ...active, outcome: { kind: 'done', reason: 'end_turn' } }],
+          nextCursor: null,
+          position: committedPosition,
+          coverage: { fromSeq: null, beforeSeq: null },
+        });
+        await nextPaint();
+        expect(Math.abs(scroll.scrollTop - pinnedScroll)).toBeLessThan(1);
+      } finally {
+        view.dispose();
+        ctx.dispose();
+        state.dispose();
+        host.remove();
+      }
+    }
+  );
 });
 
 describe('plan preview fade', () => {

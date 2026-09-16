@@ -382,6 +382,7 @@ export class TerminalsRuntime {
       },
       {
         output: log,
+        tmux: Boolean(tmux) && process.platform !== 'win32',
         onData: (chunk) => {
           this.lifecycle.recordOutput(sessionKey);
           this.previewSourceFor(sessionKey, key).emitData(chunk);

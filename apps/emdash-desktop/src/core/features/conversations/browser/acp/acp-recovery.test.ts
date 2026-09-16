@@ -99,6 +99,33 @@ describe('ACP attachment recovery over replaceable Wire', () => {
     }
   });
 
+  it('recovers optional metadata after its initial acquisition fails without blocking chat', async () => {
+    const transport = replaceableTransport();
+    const connection = connect(transport, { maxHeldCalls: 0 });
+    getClient.mockResolvedValue(client(contract, connection));
+    const first = peer('old', Promise.resolve(), async () => {
+      throw new Error('MCP metadata unavailable');
+    });
+    const replacement = peer('new');
+    transport.install(first.transport);
+    const session = await AcpLiveSession.create('conversation');
+    try {
+      expect(session.usable).toBe(true);
+      expect(session.mcpServers.current()).toEqual([]);
+      transport.detach();
+      transport.install(replacement.transport);
+      await session.revalidate();
+      expect(session.usable).toBe(true);
+      await vi.waitFor(() => expect(session.mcpServers.current()).toEqual([{ name: 'new' }]));
+    } finally {
+      session.dispose();
+      transport.close();
+      connection.dispose();
+      await first.dispose();
+      await replacement.dispose();
+    }
+  });
+
   it('retains the logical session while reattaching and refreshing daemon-owned state', async () => {
     const transport = replaceableTransport();
     const connection = connect(transport, { maxHeldCalls: 0 });
@@ -132,7 +159,11 @@ describe('ACP attachment recovery over replaceable Wire', () => {
   });
 });
 
-function peer(model: string, attachGate: Promise<void> = Promise.resolve()) {
+function peer(
+  model: string,
+  attachGate: Promise<void> = Promise.resolve(),
+  loadMetadata: () => Promise<void> = async () => {}
+) {
   const session = expose(contract.acp.session, {
     state: cell({
       lifecycle: 'ready' as const,
@@ -158,7 +189,10 @@ function peer(model: string, attachGate: Promise<void> = Promise.resolve()) {
     agents: cell([]),
     activeTurn: cell(null),
     terminals: cell([]),
-    mcpServers: cell([]),
+    mcpServers: async () => {
+      await loadMetadata();
+      return cell([{ name: model }]);
+    },
   });
   const controller = createController(contract, {
     acp: {

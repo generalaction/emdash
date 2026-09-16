@@ -19,6 +19,7 @@ import { Tooltip } from '@/react/primitives/tooltip';
 import { ComboboxPopover } from '../combobox-popover';
 import { McpIcon } from '../mcp-icon/mcp-icon';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
+import type { PromptEditorModel } from '../prompt-editor/prompt-editor-model';
 import type {
   CommandItem,
   ContextMentionProvider,
@@ -270,6 +271,8 @@ export interface ChatComposerProps {
    * the host access to `insertMention` (and focus/clear/getText).
    */
   editorApiRef?: React.Ref<PromptEditorRef>;
+  /** Conversation-owned editing model. Mutually exclusive with value. The owner clears on submit. */
+  model?: PromptEditorModel;
 
   /**
    * Called when the user clicks an image attachment thumbnail in the preview
@@ -688,6 +691,7 @@ export function ChatComposer({
   onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
+  model,
   mentionProvider,
   renderMentionIcon,
   queryMentions,
@@ -947,36 +951,37 @@ export function ChatComposer({
         )}
 
         {/* Editor area */}
-        <div className={styles.editorArea}>
-          <PromptEditor
-            ref={(handle) => {
-              editorRef.current = handle;
-              if (editorApiRef) {
-                if (typeof editorApiRef === 'function') {
-                  editorApiRef(handle);
-                } else {
-                  (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
-                }
+        <PromptEditor
+          model={model}
+          viewportClassName={styles.editorArea}
+          ref={(handle) => {
+            editorRef.current = handle;
+            if (handle) setEditorText(handle.getText());
+            if (editorApiRef) {
+              if (typeof editorApiRef === 'function') {
+                editorApiRef(handle);
+              } else {
+                (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
               }
-            }}
-            value={value}
-            placeholder={resolvedPlaceholder}
-            disabled={disabled}
-            onChange={(text) => {
-              setEditorText(text);
-              onInputChange?.(text);
-            }}
-            onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
-            onMentionInsert={onMentionInsert}
-            mentionProvider={mentionProvider}
-            renderMentionIcon={renderMentionIcon}
-            queryMentions={queryMentions}
-            queryCommands={queryCommands}
-            onCommand={onCommand}
-            popupClassName={composerThemeScope}
-          />
-        </div>
-
+            }
+          }}
+          value={value}
+          placeholder={resolvedPlaceholder}
+          disabled={disabled}
+          onChange={(text) => {
+            setEditorText(text);
+            onInputChange?.(text);
+          }}
+          onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
+          clearOnSubmit={model ? false : undefined}
+          onMentionInsert={onMentionInsert}
+          mentionProvider={mentionProvider}
+          renderMentionIcon={renderMentionIcon}
+          queryMentions={queryMentions}
+          queryCommands={queryCommands}
+          onCommand={onCommand}
+          popupClassName={composerThemeScope}
+        />
         {/* Toolbar */}
         <div className={styles.toolbar}>
           {/* Left: agent + model selector */}
