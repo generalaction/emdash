@@ -185,7 +185,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, EditorViewProps>(
       },
       [model, providedModel]
     );
-    
+
     useLayoutEffect(() => {
       model.commitView(props, {
         mentions: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
