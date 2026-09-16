@@ -93,7 +93,7 @@
   "scripts": {
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
-    "test": "vitest run",
+    "test": "pnpm exec nx test @emdash/ui",
     "build:theme": "pnpm --filter @emdash/theme run build:theme",
     "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
     "storybook": "node ../../tooling/scripts/ensure-packages-built.mjs && storybook dev -p 6006 -c .storybook",
@@ -170,5 +170,16 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "nx": {
+    "targets": {
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec vitest run",
+          "cwd": "packages/ui"
+        }
+      }
+    }
+  }
 }

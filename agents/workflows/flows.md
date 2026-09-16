@@ -88,13 +88,21 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
 | --- | --- | --- |
 | Full merge gate | `pnpm run check` | root |
 | Individual gates | `pnpm run format` / `lint` / `typecheck` / `test` | root |
+| One package's tests | `pnpm test` | that app or package directory |
+| One package's tests from root | `pnpm --filter @emdash/plugins test` | root |
 | CI-style scoping | `pnpm run affected` | root |
-| One app Vitest project | `pnpm exec vitest run --project <name>` | `apps/emdash-desktop/` |
+| One app Vitest project | `pnpm test -- --project <name>` | `apps/emdash-desktop/` |
+| Plugin tests in watch mode | `pnpm run test:watch` | `packages/plugins/` |
 | chat-ui perf / bench | `pnpm run test:perf` / `pnpm run test:bench` | `packages/chat-ui/` |
 | Remote WSS integration test | `pnpm run test:workspace-server-remote` | `apps/emdash-desktop/` |
 
 - `pnpm run check` runs the four gate commands in order and is exactly
   equivalent to running them by hand.
+- Root, package-local, and filtered test commands use the same Nx targets and
+  prepare required builds automatically. Selecting a package does not run its
+  dependencies' tests. Arguments after `test --`, such as a test-file path or
+  `--project`, go to Vitest rather than Nx. Use pnpm's `--filter` before `test`
+  to select packages.
 - App Vitest projects: `node`, `main-db`, `fixtures`, `migrations`, `scripts`,
   `browser`. The browser project needs Playwright browsers — run the doctor.
 - CI (`code-consistency-check.yml`) gates `format:check`, `typecheck`, `lint`,
