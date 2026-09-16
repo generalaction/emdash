@@ -1,3 +1,4 @@
+import { deferred } from '@emdash/shared/testing';
 import { createController } from '@emdash/wire/rpc';
 import { cell, expose, family, type Cell } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
@@ -71,7 +72,9 @@ describe('ScriptRunsObserver', () => {
     );
     observer = new ScriptRunsObserver({
       client: wire.client,
-      onRun: (observedRun) => seen.push(observedRun),
+      onRun: (observedRun) => {
+        seen.push(observedRun);
+      },
     });
   });
 
@@ -116,6 +119,35 @@ describe('ScriptRunsObserver', () => {
       status: 'cancelled',
       message: 'Interrupted by a scripts runtime restart',
     });
+  });
+
+  it('settlement joins the observation write and a late running update cannot undo it', async () => {
+    observer.dispose();
+    const persisted = deferred<void>();
+    observer = new ScriptRunsObserver({
+      client: wire.client,
+      onRun: async (observedRun) => {
+        seen.push(observedRun);
+        await persisted.promise;
+      },
+    });
+    observer.sync(new Set(['/ws/a']));
+    const settled = run({ runId: 'r1', status: 'succeeded', finishedAt: 2 });
+    states({ workspacePath: '/ws/a' }).update(() => ({ setup: settled }));
+    await eventually(() => expect(seen).toHaveLength(1));
+    let returned = false;
+    const settlement = observer.settle('/ws/a', settled).then(() => {
+      returned = true;
+    });
+    await Promise.resolve();
+    expect(returned).toBe(false);
+    persisted.resolve();
+    await settlement;
+    expect(seen).toHaveLength(1);
+    states({ workspacePath: '/ws/a' }).update(() => ({ setup: run({ runId: 'r1' }) }));
+    await observer.refresh('/ws/a');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.status).toBe('succeeded');
   });
 
   it('a settled run vanishing from the model is not a cancellation', async () => {

@@ -243,6 +243,7 @@ export class WorkspaceRegistryRuntime {
       ? new ScriptRunsObserver({
           client: options.scripts,
           onRun: (run) => this.onScriptRun(run),
+          logger: this.logger,
         })
       : null;
     this.activationManager = new WorkspaceActivationManager({
@@ -267,12 +268,27 @@ export class WorkspaceRegistryRuntime {
           ...overlay,
           notices: overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
         })),
-      resetScriptSteps: (id, scripts) =>
-        void this.enqueue(async () => {
+      resetScriptSteps: async (id, scripts) => {
+        const current = this.store.get(id);
+        if (!current) return;
+        const runs = await this.scriptRuns?.refresh(current.path);
+        const previousScriptRuns =
+          runs &&
+          Object.fromEntries(
+            Object.values(runs)
+              .filter((run) => run.script === 'teardown' || run.status !== 'running')
+              .map((run) => [run.script, run.runId])
+          );
+        await this.enqueue(async () => {
           const record = this.store.get(id);
           if (!record) return;
           // No scripts and no section: nothing to reset — avoid minting an empty one.
-          if (!record.lifecycle && scripts.length === 0) return;
+          if (
+            !record.lifecycle &&
+            scripts.length === 0 &&
+            !Object.keys(previousScriptRuns ?? {}).length
+          )
+            return;
           const now = this.clock.now();
           const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
           // Overwrite, not append: drop past activations' script steps, seed this one's.
@@ -290,14 +306,13 @@ export class WorkspaceRegistryRuntime {
           ]);
           const updated: DurableWorkspaceRecord = {
             ...record,
-            lifecycle: { ...lifecycle, steps },
+            lifecycle: { ...lifecycle, steps, previousScriptRuns },
             updatedAt: now,
           };
           this.store.update(updated);
           this.publish(updated);
-        }).catch((error) => {
-          this.logger.warn?.(`resetting script steps for '${id}' failed`, { error });
-        }),
+        });
+      },
       recordScriptStep: (id, script, state) =>
         void this.updateLifecycleStep(id, script, state).catch((error) => {
           this.logger.warn?.(`recording ${script} step for '${id}' failed`, { error });
@@ -319,6 +334,9 @@ export class WorkspaceRegistryRuntime {
           ? createScriptsPlaneRunner({
               client: options.scripts,
               factsFor: (workspacePath) => this.scriptFactsFor(workspacePath),
+              onSettled: async (workspacePath, run) => {
+                await this.scriptRuns?.settle(workspacePath, run);
+              },
               logger: this.logger,
             })
           : unavailableScriptRunner()),
@@ -880,8 +898,8 @@ export class WorkspaceRegistryRuntime {
 
   /**
    * Sole owner of session-plane shutdown: cancels lifecycle runs first, runs teardown
-   * when an activation exists, then kills every remaining session under the workspace
-   * path (including never-activated workspaces). Idempotent: teardown runs at most once.
+   * unless its lifecycle step already settled, then kills every remaining session
+   * under the workspace path. A restart does not erase a settled teardown attempt.
    */
   deactivateWorkspace(
     input: DeactivateWorkspaceInput
@@ -902,7 +920,12 @@ export class WorkspaceRegistryRuntime {
   ): Promise<WorkspaceDeactivationResult> {
     // Stop and await script-plane runs first. Killing their terminal sessions first
     // can make an intentional Stop look like a failed process exit.
-    const deactivation = await this.activationManager.deactivate(record.id);
+    const teardown = getLifecycleStep(this.store.get(record.id)?.lifecycle ?? null, 'teardown');
+    const settled = teardown?.status === 'succeeded' || teardown?.status === 'failed';
+    const deactivation = await this.activationManager.deactivate(record.id, {
+      workspacePath: record.path,
+      runTeardown: !settled && (await isDirectory(record.path)),
+    });
     try {
       await this.killSessions(record.path);
     } catch (error) {
@@ -1348,9 +1371,10 @@ export class WorkspaceRegistryRuntime {
    * settle the step as failed with the timeout message; failure messages fold in the
    * run's output tail.
    */
-  private onScriptRun(run: ObservedScriptRun): void {
+  private async onScriptRun(run: ObservedScriptRun): Promise<void> {
     const record = this.store.getByPath(run.workspacePath);
     if (!record) return;
+    if (record.lifecycle?.previousScriptRuns?.[run.script] === run.runId) return;
     const params = { provenance: run.provenance };
     const state =
       run.status === 'running'
@@ -1367,11 +1391,7 @@ export class WorkspaceRegistryRuntime {
                 ),
                 params,
               };
-    void this.updateLifecycleStep(record.id, run.script, state).catch((error) => {
-      this.logger.warn?.(`recording observed ${run.script} run for '${record.id}' failed`, {
-        error,
-      });
-    });
+    await this.updateLifecycleStep(record.id, run.script, state);
   }
 
   /** Record facts for the script env builder — same derivations for every initiator. */
