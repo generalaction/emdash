@@ -836,14 +836,17 @@ describe('AcpChatStore prompt submission', () => {
     try {
       expect(store.historyKnown).toBe(false);
       expect(store.isEmpty).toBe(false);
-      expect(store.loadError?.message).toContain('history is unavailable');
+      expect(store.loadError).toEqual({
+        kind: 'history_unavailable',
+        message: 'Conversation history is unavailable. Retry loading this conversation.',
+      });
       expect(historySeed).not.toHaveBeenCalled();
     } finally {
       store.dispose();
     }
   });
 
-  it('keeps rendered history and exposes an explicit retry after a restoration error', async () => {
+  it('keeps history after a restoration error and clears the error when a later refresh succeeds', async () => {
     const live = fakeLiveSession(idleState(), historyPage('original'));
     const store = await bootstrapWithSession(live.session);
     try {
@@ -858,14 +861,41 @@ describe('AcpChatStore prompt submission', () => {
       await vi.waitFor(() => expect(store.loadError?.message).toContain('Could not restore'));
       expect(transcriptTestState.committedTurns[0]?.id).toBe('original');
       expect(historySeed).toHaveBeenCalledOnce();
+
+      live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('recovered') });
+      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      await vi.waitFor(() => expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered'));
+      expect(store.loadError).toBeNull();
     } finally {
       store.dispose();
     }
   });
 
-  it.each(['retry', 'host-recovery'] as const)(
-    'reloads failed bootstrap history through %s even with a retained session',
-    async (trigger) => {
+  it('recovers unknown initial history through a later successful history refresh', async () => {
+    const live = fakeLiveSession(suspendedState(), unavailableHistory());
+    const store = await bootstrapWithSession(live.session);
+    try {
+      expect(store.historyKnown).toBe(false);
+      expect(store.loadError).not.toBeNull();
+
+      live.loadHistory.mockResolvedValueOnce({ success: true, data: historyPage('recovered') });
+      live.sessionState.set({ ...idleState(), historyRevision: 1 });
+      await vi.waitFor(() => expect(transcriptTestState.committedTurns[0]?.id).toBe('recovered'));
+      expect(store.historyKnown).toBe(true);
+      expect(store.loadError).toBeNull();
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it.each([
+    ['retry', 'transport'],
+    ['host-recovery', 'transport'],
+    ['retry', 'unavailable'],
+    ['host-recovery', 'unavailable'],
+  ] as const)(
+    'reloads failed bootstrap history through %s after a %s failure with a retained session',
+    async (trigger, failure) => {
       const hostState = observable.box<ProjectHostAccessState>({
         kind: 'ready',
         hostGeneration: 1,
@@ -873,7 +903,11 @@ describe('AcpChatStore prompt submission', () => {
       const failed = fakeLiveSession(idleState(), historyPage('initial'), {
         revalidate: vi.fn(async () => {}),
       });
-      failed.loadHistory.mockRejectedValueOnce(new Error('History unavailable'));
+      if (failure === 'unavailable') {
+        failed.loadHistory.mockResolvedValueOnce({ success: true, data: unavailableHistory() });
+      } else {
+        failed.loadHistory.mockRejectedValueOnce(new Error('History unavailable'));
+      }
       const recovered = fakeLiveSession(idleState(), historyPage('recovered'));
       const create = vi
         .spyOn(AcpLiveSession, 'create')
@@ -889,7 +923,9 @@ describe('AcpChatStore prompt submission', () => {
         store.bootstrap();
         await vi.waitFor(() => expect(store.historyLoading).toBe(false));
         expect(store.session).toBe(failed.session);
-        expect(store.loadError?.message).toBe('History unavailable');
+        expect(store.loadError?.kind).toBe(
+          failure === 'unavailable' ? 'history_unavailable' : 'generic'
+        );
         expect(historySeed).not.toHaveBeenCalled();
 
         if (trigger === 'retry') store.retry();
