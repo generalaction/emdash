@@ -43,5 +43,4 @@ export async function archiveTask(
   if (teardownResult && !teardownResult.success) {
     log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
   }
-
 }
