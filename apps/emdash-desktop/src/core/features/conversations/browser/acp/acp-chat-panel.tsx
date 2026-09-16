@@ -191,8 +191,8 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 // ── Composer for a single store ────────────────────────────────────────────────
 //
-// Keyed by conversationId in the parent so that drafts, focus, and editor state
-// reset when switching conversations — the same isolation the old remount gave.
+// Keyed by conversationId to isolate view-local UI. The store owns the editor
+// model so the document, selection, viewport and undo history survive remounts.
 
 const ComposerForStore = observer(function ComposerForStore({
   store,
@@ -212,7 +212,7 @@ const ComposerForStore = observer(function ComposerForStore({
   // Autofocus when the slot becomes available.
   useEffect(() => {
     editorApiRef.current?.focus();
-  }, []);
+  }, [composerSlot]);
 
   const buildHiddenIssueContext = useCallback(
     (value: string) =>
@@ -241,7 +241,6 @@ const ComposerForStore = observer(function ComposerForStore({
       if (!value.trim() && promptAttachments.length === 0) return;
       const hiddenContext = buildHiddenIssueContext(value);
       store.submitPrompt(value, promptAttachments, hiddenContext);
-      editorApiRef.current?.clear();
     },
     [store, buildHiddenIssueContext]
   );
@@ -573,11 +572,10 @@ const ComposerForStore = observer(function ComposerForStore({
       )}
       <div>
         <ChatComposer
+          model={store.composerModel}
           isWorking={a.isWorking}
           canSubmit={a.canSubmit}
-          value={store.draftText}
           onSubmit={handleSubmit}
-          onInputChange={(text) => store.setDraftText(text)}
           onSubmitWhileWorking={store.liveActionsEnabled ? handleSubmit : undefined}
           onStop={a.canCancel ? handleStop : undefined}
           permissionRequest={permissionRequest}
@@ -644,8 +642,8 @@ const ComposerForStore = observer(function ComposerForStore({
 // triggers ChatTranscript's setModel effect — the Solid view swaps ChatState
 // in-place without dispose/recreate, preserving per-conversation scroll.
 //
-// The composer subtree is keyed by conversationId so draft text, focus, and
-// editor state reset on each switch (equivalent to the old remount behavior).
+// The composer subtree is keyed by conversationId; each store retains its own
+// editor model while only the active conversation has a mounted editor view.
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();

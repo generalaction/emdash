@@ -184,6 +184,10 @@ _Avoid_: Unqualified "plugins" where the home matters
 
 ### Desktop concepts
 
+**Prompt editor model**:
+The desktop-owned live draft for a Conversation, including its rich document, selection, undo history, and retained composer viewport.
+_Avoid_: Session (a Host process), treating serialized draft text as a second editable authority
+
 **Project**:
 The desktop-side grouping that organizes tasks around a repository. An app concept only.
 _Avoid_: Using "project" to mean the git repository on disk

@@ -12,6 +12,7 @@ import type {
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import '@emdash/ui/style.css';
+import type { PromptEditorModel } from '@emdash/ui/react/components';
 import {
   client,
   connect,
@@ -21,9 +22,10 @@ import {
   memoryTransportPair,
 } from '@emdash/wire/rpc';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { observable, runInAction } from 'mobx';
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { beforeAll, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
@@ -35,7 +37,13 @@ const fixture = vi.hoisted(() => ({
   context: undefined as unknown,
   store: undefined as unknown,
   restored: false,
+  pane: undefined as { readonly resolvedTabs: unknown[] } | undefined,
 }));
+beforeAll(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+});
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: async () => fixture.client,
 }));
@@ -75,7 +83,7 @@ vi.mock('@core/primitives/mementos/browser', () => ({
 }));
 vi.mock('@core/primitives/workbench-shell/browser/tabs/pane-context', () => ({
   usePaneContext: () => ({
-    pane: {
+    pane: fixture.pane ?? {
       resolvedTabs: [{ isActive: true, kind: 'acp-chat', resource: { store: fixture.store } }],
     },
   }),
@@ -120,6 +128,111 @@ vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
 vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () => ({
   createTranscriptFileCommands: () => ({}),
 }));
+
+it('restores caret, viewport and undo/redo across conversation and non-chat tab switches', async () => {
+  await page.viewport(1100, 800);
+  fixture.restored = false;
+  installChatUiRuntime(chatUi);
+  const context = chatUi.createChatContext();
+  fixture.context = context;
+  const a = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  const b = new AcpChatStore('second-conversation', 'project-1', 'task-1');
+  runInAction(() => {
+    b.historyKnown = true;
+  });
+  a.setDraftText(
+    Array.from({ length: 60 }, (_, i) => `Line ${i}: a long draft to preserve`).join('\n')
+  );
+  b.setDraftText('Independent draft B');
+  const active = observable.box<AcpChatStore | null>(a, { deep: false });
+  fixture.pane = {
+    get resolvedTabs() {
+      const store = active.get();
+      return store ? [{ isActive: true, kind: 'acp-chat', resource: { store } }] : [];
+    },
+  };
+  const parent = document.createElement('div');
+  parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+  parent.className = 'emlight';
+  const css = document.createElement('style');
+  css.textContent =
+    '.relative {position:relative}.absolute {position:absolute}.h-full {height:100%}.overflow-hidden {overflow:hidden}.inset-0 {inset:0}';
+  document.head.append(css);
+  document.body.append(parent);
+  const root = createRoot(parent);
+  type Editor = ReturnType<PromptEditorModel['attach']>['editor'];
+  const input = () =>
+    parent.querySelector<HTMLElement & { editor: Editor }>('[data-testid="prompt-editor"]')!;
+  const viewport = () => {
+    let element = input().parentElement!;
+    while (getComputedStyle(element).overflowY !== 'auto') element = element.parentElement!;
+    return element;
+  };
+  async function switchTo(store: AcpChatStore | null) {
+    await act(async () => runInAction(() => active.set(store)));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    await vi.waitFor(() => expect(input()).not.toBeNull());
+    const editor = input().editor;
+    await act(async () => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.view.focus();
+    });
+    await act(async () => userEvent.keyboard(' final edit'));
+    const text = a.draftText;
+    const selection = editor.state.selection.toJSON();
+    viewport().scrollTop = viewport().scrollHeight;
+    const bottom = viewport().scrollTop;
+    expect(bottom).toBeGreaterThan(500);
+
+    await switchTo(b);
+    expect(input().textContent).toBe('Independent draft B');
+    expect(editor.isDestroyed).toBe(true);
+    expect(editor.options.element).toBeNull();
+    await act(async () => userEvent.keyboard('B edit'));
+    const draftB = b.draftText;
+    await switchTo(a);
+    expect(input().editor === editor).toBe(true);
+    expect(document.activeElement === input()).toBe(true);
+    expect(editor.state.selection.toJSON()).toEqual(selection);
+    expect(viewport().scrollTop).toBe(bottom);
+
+    // Exercise the actual keyboard shortcut, not a history command invoked by the test.
+    const modifier = /Mac/.test(navigator.platform) ? 'Meta' : 'Control';
+    await act(async () => userEvent.keyboard(`{${modifier}>}z{/${modifier}}`));
+    expect(a.draftText).not.toBe(text);
+    expect(b.draftText).toBe(draftB);
+    await switchTo(b);
+    await switchTo(a);
+    await act(async () => userEvent.keyboard(`{${modifier}>}{Shift>}z{/Shift}{/${modifier}}`));
+    expect(a.draftText).toBe(text);
+
+    // A backward range and an intentionally scrolled-away caret are both view state.
+    await act(async () => editor.commands.setTextSelection({ from: 120, to: 20 }));
+    const range = editor.state.selection.toJSON();
+    viewport().scrollTop = 300;
+    await switchTo(null);
+    expect(input()).toBeNull();
+    await switchTo(a);
+    expect(editor.state.selection.toJSON()).toEqual(range);
+    expect(viewport().scrollTop).toBe(300);
+    expect(document.activeElement === input()).toBe(true);
+  } finally {
+    await act(async () => root.unmount());
+    const releaseA = vi.spyOn(a.composerModel, 'dispose');
+    const releaseB = vi.spyOn(b.composerModel, 'dispose');
+    a.dispose();
+    b.dispose();
+    expect(releaseA).toHaveBeenCalledOnce();
+    expect(releaseB).toHaveBeenCalledOnce();
+    fixture.pane = undefined;
+    context.dispose();
+    parent.remove();
+    css.remove();
+  }
+});
 
 it.each([
   { restored: false, populated: false },

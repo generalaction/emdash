@@ -10,13 +10,14 @@ import type {
 } from '@emdash/core/runtimes/acp/api/client';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock } from '@emdash/shared/scheduling';
-import type {
-  CommandItem,
-  ComposerCollaborationModeOption,
-  ComposerEffortOption,
-  ComposerModelOption,
-  ComposerPermissionModeOption,
-  ComposerQueuedPrompt,
+import {
+  PromptEditorModel,
+  type CommandItem,
+  type ComposerCollaborationModeOption,
+  type ComposerEffortOption,
+  type ComposerModelOption,
+  type ComposerPermissionModeOption,
+  type ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
@@ -100,13 +101,17 @@ export type AcpLoadError =
 export class AcpChatStore {
   readonly chatContext: ChatContext;
   readonly chatState: ChatState;
+  readonly composerModel = new PromptEditorModel();
 
   session: AcpLiveSession | null = null;
   historyLoading = true;
   historyKnown: boolean;
   loadError: AcpLoadError | null = null;
   messageCount = 0;
-  draftText = '';
+  private readonly _draftText = observable.box('');
+  get draftText(): string {
+    return this._draftText.get();
+  }
   draftAttachments: AcpPromptAttachment[] = [];
   unconfirmedPromptIds: string[] = [];
 
@@ -116,6 +121,7 @@ export class AcpChatStore {
   private readonly _scope: Scope;
   private readonly _draftSpace: SubjectSpace<'conversation'>;
   private readonly _draftHandle: MementoHandle<AcpDraftState>;
+  private readonly _disposeComposerSubscription: () => void;
   private readonly _disposeHostReaction: () => void;
   private _acpClientPromise: Promise<ConversationsClient['acp']> | null = null;
   private _submissionSequence = 0;
@@ -152,7 +158,7 @@ export class AcpChatStore {
       historyKnown: observable,
       loadError: observable,
       messageCount: observable,
-      draftText: observable,
+      draftText: computed,
       draftAttachments: observable.shallow,
       unconfirmedPromptIds: observable.shallow,
       model: computed,
@@ -186,6 +192,9 @@ export class AcpChatStore {
       removeDraftAttachment: action,
       exportTranscript: action,
       retry: action,
+    });
+    this._disposeComposerSubscription = this.composerModel.subscribe(() => {
+      runInAction(() => this._draftText.set(this.composerModel.getText()));
     });
     const initialHost = this.hostAccess?.state;
     this._attachedHostGeneration =
@@ -234,7 +243,7 @@ export class AcpChatStore {
         runInAction(() => {
           if (this._disposed || this.draftText !== '' || this.draftAttachments.length > 0) return;
           const stored = this._draftHandle.value;
-          this.draftText = stored.text;
+          this.composerModel.setText(stored.text);
           this.draftAttachments = stored.attachments.map((attachment) => ({
             ref: { type: 'attachment', ...attachment },
           }));
@@ -461,7 +470,7 @@ export class AcpChatStore {
     const submissionSequence = ++this._submissionSequence;
     const promptId = crypto.randomUUID();
     let optimisticId: string | undefined;
-    this.draftText = '';
+    this.composerModel.clear();
     this.draftAttachments = [];
     if (!this.affordances.isWorking) {
       optimisticId = promptId;
@@ -485,15 +494,14 @@ export class AcpChatStore {
           this._syncMessageCount();
         }
         if (this.draftText !== '' || this.draftAttachments.length > 0) return;
-        this.draftText = text;
+        this.composerModel.setText(text);
         this.draftAttachments = attachments;
       });
     });
   }
 
   setDraftText(text: string): void {
-    if (text === this.draftText) return;
-    this.draftText = text;
+    this.composerModel.setText(text);
   }
 
   addDraftAttachments(attachments: AcpPromptAttachment[]): void {
@@ -639,6 +647,8 @@ export class AcpChatStore {
     this._unsubs.splice(0).forEach((unsub) => unsub());
     this.session?.dispose();
     this.chatState.dispose();
+    this._disposeComposerSubscription();
+    this.composerModel.dispose();
     void this._scope
       .dispose()
       .then(() => this._draftSpace.release())
