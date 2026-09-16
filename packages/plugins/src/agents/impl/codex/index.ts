@@ -100,8 +100,22 @@ export const plugin = definePlugin(
       id: 'codex',
       package: '@openai/codex',
       extraOptions: {
-        macos: [homebrewOption({ formula: 'codex', cask: true })],
-        linux: [homebrewOption({ formula: 'codex', cask: true })],
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+            elevation: 'never',
+          },
+          homebrewOption({ formula: 'codex', cask: true }),
+        ],
         windows: [
           {
             method: 'powershell',
