@@ -8,6 +8,7 @@ import type {
 import type { ProjectSettingsDomainPatch } from '@core/features/projects/api/project-settings-page';
 import {
   resolveTmux as resolveEffectiveTmux,
+  sanitizeIssueTrackerAccountsForWrite,
   type PlacementContext,
   type RepoFacts,
   type StoredBaseProjectSettings,
@@ -338,6 +339,9 @@ export abstract class DbProjectSettingsProvider
       ...(stored.baseRemote !== undefined ? { baseRemote: stored.baseRemote } : {}),
       ...(stored.pushRemote !== undefined ? { pushRemote: stored.pushRemote } : {}),
       ...(stored.githubAccount !== undefined ? { githubAccount: stored.githubAccount } : {}),
+      ...(stored.issueTrackerAccounts !== undefined
+        ? { issueTrackerAccounts: stored.issueTrackerAccounts }
+        : {}),
       ...(stored.agentGitCredentials !== undefined
         ? { agentGitCredentials: stored.agentGitCredentials }
         : {}),
@@ -363,6 +367,7 @@ export abstract class DbProjectSettingsProvider
           'baseRemote',
           'pushRemote',
           'githubAccount',
+          'issueTrackerAccounts',
           'agentGitCredentials',
         ] as const) {
           if (!Object.hasOwn(git, field)) continue;
@@ -372,6 +377,11 @@ export abstract class DbProjectSettingsProvider
           } else {
             next[field] = value as never;
           }
+        }
+        if (next.issueTrackerAccounts) {
+          next.issueTrackerAccounts = sanitizeIssueTrackerAccountsForWrite(
+            next.issueTrackerAccounts
+          );
         }
       }
 

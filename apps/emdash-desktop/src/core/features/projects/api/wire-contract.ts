@@ -184,6 +184,14 @@ export const projectsWireContract = defineContract({
     input: z.object({ accountId: z.string() }),
     output: z.number(),
   }),
+  previewIntegrationAccountRemoval: procedure({
+    input: z.object({ integrationId: z.string(), accountId: z.string() }),
+    output: z.object({
+      isDefault: z.boolean(),
+      pinnedCount: z.number(),
+      defaultFollowerCount: z.number(),
+    }),
+  }),
   updateProjectConnection: procedure({
     input: z.object({ projectId: z.string(), connectionId: z.string() }),
     output: z.void(),

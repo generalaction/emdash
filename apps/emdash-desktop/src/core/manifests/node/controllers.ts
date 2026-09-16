@@ -31,6 +31,7 @@ import { createEditorWireController } from '@core/features/editor/node/wire-cont
 import { createFilesWireController } from '@core/features/files/node/wire-controller';
 import type { GitCredentialsService } from '@core/features/github/api/node/services/git-credentials-service';
 import { createGithubWireController } from '@core/features/github/node/wire-controller';
+import { getIntegrationCredentialStore } from '@core/features/integrations/node/integration-credential-store-instance';
 import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
 import type { IssueProviderRegistry } from '@core/features/issues/node/registry';
 import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
@@ -353,6 +354,8 @@ export const desktopNodeControllers = {
           projectSettings,
           runtimes,
           mintCloneCredentials: gitCredentials.mintCloneCredentials,
+          getIntegrationDefaultAccountId: (integrationId) =>
+            getIntegrationCredentialStore().getDefaultAccountId(integrationId),
         }),
         scope
       ),

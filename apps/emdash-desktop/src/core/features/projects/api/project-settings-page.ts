@@ -12,6 +12,7 @@ import type {
   Resolved,
   StoredDefaultBranch,
   StoredGithubAccount,
+  StoredIntegrationAccount,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -62,7 +63,12 @@ export type ProjectEnvironmentDomainSnapshot = {
 export type ProjectGitIdentityDomainSnapshot = {
   stored: Pick<
     StoredProjectGitSettings,
-    'defaultBranch' | 'baseRemote' | 'pushRemote' | 'githubAccount' | 'agentGitCredentials'
+    | 'defaultBranch'
+    | 'baseRemote'
+    | 'pushRemote'
+    | 'githubAccount'
+    | 'issueTrackerAccounts'
+    | 'agentGitCredentials'
   >;
 };
 
@@ -105,6 +111,7 @@ export type ProjectGitIdentityStoredPatch = {
   baseRemote?: string | null;
   pushRemote?: string | null;
   githubAccount?: StoredGithubAccount | null;
+  issueTrackerAccounts?: Record<string, StoredIntegrationAccount> | null;
   agentGitCredentials?: AgentGitCredentialsSetting | null;
 };
 

@@ -9,6 +9,7 @@ import {
   defaultBranchSettingSchema,
   storedDefaultBranchSchema,
   storedGithubAccountSchema,
+  storedIssueTrackerAccountsSchema,
   type StoredBaseProjectSettings,
 } from '@core/primitives/project-settings/api';
 
@@ -28,6 +29,7 @@ export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend(
   defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
   worktreeRoot: z.string().trim().optional(),
   githubAccount: storedGithubAccountSchema.optional(),
+  issueTrackerAccounts: storedIssueTrackerAccountsSchema.optional(),
   tmuxDefaultMigrated: z.literal(true).optional(),
 });
 

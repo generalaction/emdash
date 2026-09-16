@@ -18,6 +18,7 @@ import { renameProject } from './operations/renameProject';
 import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
+import { previewIntegrationAccountImpact } from './settings/preview-integration-account-impact';
 
 export type ProjectOperationDependencies = CreateProjectDependencies & {
   placement: WorkspacePlacementResolver;
@@ -25,6 +26,7 @@ export type ProjectOperationDependencies = CreateProjectDependencies & {
   projectSettings: ProjectSettingsService;
   projects: Pick<ProjectAttachmentManager, 'invalidate' | 'recover' | 'track'>;
   mintCloneCredentials: GitCredentialsService['mintCloneCredentials'];
+  getIntegrationDefaultAccountId: (integrationId: string) => Promise<string | null>;
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {
@@ -57,6 +59,12 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       projectSettings.migrateProjectConfig(projectId, request),
     countProjectsUsingGithubAccount: (accountId: string) =>
       countProjectsUsingGithubAccount(db, accountId),
+    previewIntegrationAccountRemoval: (integrationId: string, accountId: string) =>
+      previewIntegrationAccountImpact(
+        db,
+        { getDefaultAccountId: dependencies.getIntegrationDefaultAccountId },
+        { integrationId, accountId }
+      ),
     updateProjectConnection: (projectId: string, connectionId: string) =>
       updateProjectConnection(db, dependencies.runtimes, projects, projectId, connectionId),
     renameProject: (projectId: string, name: string) => renameProject(db, projectId, name),

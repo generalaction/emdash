@@ -5,6 +5,7 @@ import type {
   ProjectSettingsDomainPatch,
 } from '@core/features/projects/api/project-settings-page';
 import {
+  sanitizeIssueTrackerAccountsForWrite,
   storedBaseProjectSettingsSchema,
   type StoredBaseProjectSettings,
 } from '@core/primitives/project-settings/api';
@@ -52,12 +53,18 @@ export class DesktopProjectSettingsAuthority implements DurableProjectSettingsAu
           'baseRemote',
           'pushRemote',
           'githubAccount',
+          'issueTrackerAccounts',
           'agentGitCredentials',
         ] as const) {
           if (!Object.hasOwn(git, field)) continue;
           const value = git[field];
           if (value === null || value === undefined) delete next[field];
           else next[field] = value as never;
+        }
+        if (next.issueTrackerAccounts) {
+          next.issueTrackerAccounts = sanitizeIssueTrackerAccountsForWrite(
+            next.issueTrackerAccounts
+          );
         }
       }
       const tmux = patch.placement?.stored.tmux;
