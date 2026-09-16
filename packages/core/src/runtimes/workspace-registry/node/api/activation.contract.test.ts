@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { ManualClock } from '@emdash/shared/testing';
+import { deferred, ManualClock } from '@emdash/shared/testing';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -22,6 +22,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import type { ObservedScriptRun, ScriptRunsObserver } from '../scripts-plane';
 import { createWorkspaceRegistryController } from './controller';
 
 const execFileAsync = promisify(execFile);
@@ -447,6 +448,94 @@ describe('workspace registry activation lifecycle', () => {
       'attempt\nattempt\n'
     );
   });
+
+  it.each([0, 9])(
+    'rejects a retained teardown result queued behind activation reset (exit %s)',
+    async (exitCode) => {
+      const workspacePath = await makeWorkspace('reset-race', {
+        teardown: `echo attempt >> teardown-log; until [ -f finish ]; do sleep 0.05; done; exit ${exitCode}`,
+      });
+      await wire.client.runScript({
+        workspaceId: 'ws-reset-race',
+        script: 'teardown',
+        provenance: 'manual',
+      });
+      await eventually(async () => {
+        expect(await fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).toBe(
+          'attempt\n'
+        );
+      });
+
+      // Control the mutation lane, not the write implementation: refresh drains the
+      // old observations, then reset queues behind a blocked mutation. A real script
+      // completion can now pass the old record's guard and queue its write after reset.
+      const scheduling = runtime as unknown as {
+        enqueue<T>(operation: () => T | Promise<T>): Promise<T>;
+        scriptRuns: ScriptRunsObserver;
+        onScriptRun(run: ObservedScriptRun): Promise<void>;
+      };
+      const unblock = deferred();
+      const resetQueued = deferred();
+      const settlementQueued = deferred();
+      const enqueue = scheduling.enqueue.bind(scheduling);
+      const refresh = scheduling.scriptRuns.refresh.bind(scheduling.scriptRuns);
+      const onScriptRun = scheduling.onScriptRun.bind(scheduling);
+      let awaitingReset = false;
+      let retainedRunId: string | undefined;
+      let lateWrite = Promise.resolve();
+      scheduling.enqueue = (operation) => {
+        const write = enqueue(operation);
+        if (awaitingReset) {
+          awaitingReset = false;
+          resetQueued.resolve();
+        }
+        return write;
+      };
+      scheduling.scriptRuns.refresh = async (workspacePath) => {
+        const runs = await refresh(workspacePath);
+        scheduling.scriptRuns.refresh = refresh;
+        void enqueue(() => unblock.promise);
+        awaitingReset = true;
+        return runs;
+      };
+      scheduling.onScriptRun = (run) => {
+        const write = onScriptRun(run);
+        if (run.script === 'teardown' && run.status === (exitCode === 0 ? 'succeeded' : 'failed')) {
+          retainedRunId = run.runId;
+          lateWrite = write;
+          settlementQueued.resolve();
+        }
+        return write;
+      };
+
+      const activation = wire.client.activateWorkspace({ workspaceId: 'ws-reset-race' });
+      try {
+        await eventually(async () => expect(resetQueued.settled).toBe(true), 5_000);
+        await fs.writeFile(path.join(workspacePath, 'finish'), '');
+        await eventually(async () => expect(settlementQueued.settled).toBe(true), 5_000);
+      } finally {
+        unblock.resolve();
+        await activation;
+        await lateWrite;
+        scheduling.enqueue = enqueue;
+        scheduling.scriptRuns.refresh = refresh;
+        scheduling.onScriptRun = onScriptRun;
+      }
+
+      expect((await activation).success).toBe(true);
+      const activated = (await listRecords())['ws-reset-race'];
+      expect(retainedRunId).toBeDefined();
+      expect(activated?.lifecycle?.previousScriptRuns?.teardown).toBe(retainedRunId);
+      expect(
+        (await wire.client.deactivateWorkspace({ workspaceId: 'ws-reset-race' })).success
+      ).toBe(true);
+      expect(await fs.readFile(path.join(workspacePath, 'teardown-log'), 'utf8')).toBe(
+        'attempt\nattempt\n'
+      );
+      expect(activated?.lifecycle?.steps.some((step) => step.id === 'teardown')).toBe(false);
+    },
+    15_000
+  );
 
   it('a script transport failure does not consume the teardown attempt or block session cleanup', async () => {
     const workspacePath = await makeWorkspace('unreachable', {

@@ -1335,7 +1335,8 @@ export class WorkspaceRegistryRuntime {
       status: WorkspaceLifecycleStep['status'];
       message?: string;
       params?: WorkspaceLifecycleStep['params'];
-    }
+    },
+    observedRun?: Pick<ObservedScriptRun, 'script' | 'runId'>
   ): Promise<void> {
     return this.enqueue(async () => {
       const record = this.store.get(id);
@@ -1343,6 +1344,8 @@ export class WorkspaceRegistryRuntime {
       // Script runs can land on records with no creation history (adopted worktrees,
       // manual runs before any activation): mint the section rather than drop the run.
       const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
+      if (observedRun && lifecycle.previousScriptRuns?.[observedRun.script] === observedRun.runId)
+        return;
       const now = this.clock.now();
       const previous = getLifecycleStep(lifecycle, stepId);
       const terminal = state.status !== 'pending' && state.status !== 'running';
@@ -1374,7 +1377,6 @@ export class WorkspaceRegistryRuntime {
   private async onScriptRun(run: ObservedScriptRun): Promise<void> {
     const record = this.store.getByPath(run.workspacePath);
     if (!record) return;
-    if (record.lifecycle?.previousScriptRuns?.[run.script] === run.runId) return;
     const params = { provenance: run.provenance };
     const state =
       run.status === 'running'
@@ -1391,7 +1393,7 @@ export class WorkspaceRegistryRuntime {
                 ),
                 params,
               };
-    await this.updateLifecycleStep(record.id, run.script, state);
+    await this.updateLifecycleStep(record.id, run.script, state, run);
   }
 
   /** Record facts for the script env builder — same derivations for every initiator. */
