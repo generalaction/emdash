@@ -64,24 +64,24 @@ describe('archiveTask', () => {
     expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
   });
 
-  it('force-removes retained lifecycle ownership when teardown fails and archive continues', async () => {
-    mocks.selectLimit.mockResolvedValueOnce([
-      {
-        id: 'task-1',
-        workspaceId: 'workspace-1',
-        status: 'done',
-      },
-    ]);
-    mocks.teardownTask.mockResolvedValue({
-      success: false,
-      error: { message: 'teardown failed' },
-    });
+  it.each(['error', 'timeout'])(
+    'leaves lifecycle ownership with the manager after %s',
+    async (type) => {
+      mocks.selectLimit.mockResolvedValueOnce([
+        {
+          id: 'task-1',
+          workspaceId: 'workspace-1',
+          status: 'done',
+        },
+      ]);
+      mocks.teardownTask.mockResolvedValue({
+        success: false,
+        error: { type, message: 'teardown failed' },
+      });
 
-    await archiveTask(db, taskSessions, 'project-1', 'task-1', { capture: mocks.capture });
+      await archiveTask(db, taskSessions, 'project-1', 'task-1', { capture: mocks.capture });
 
-    expect(mocks.forceRemoveTask).toHaveBeenCalledWith(
-      'task-1',
-      'archiveTask continued after teardown failure'
-    );
-  });
+      expect(mocks.forceRemoveTask).not.toHaveBeenCalled();
+    }
+  );
 });

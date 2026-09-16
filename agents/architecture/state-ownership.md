@@ -75,6 +75,13 @@ for the next explicit deactivation or deletion. `archivedAt` and `lastActivatedA
 not cleanup receipts. A teardown failure during deletion still stops that worktree
 removal attempt; a subsequent removal proceeds past the settled script attempt.
 
+Desktop activation and cleanup are serialized per Workspace, including participant
+acquisition and task registration. Archive's timeout bounds the caller's wait, not the
+cleanup lifetime: already-running cleanup retains ownership until it actually settles,
+and a later activation waits behind it. Waiting operations can be cancelled; cleanup
+whose deadline expires before it starts is skipped. This coordination is in memory,
+not a durable retry queue.
+
 See ADR 0005 (`docs/adr/0005-host-workspace-registry-plain-rpc-verbs.md`) and ADR 0006
 (`docs/adr/0006-tombstone-and-reconcile-deletion.md`) for the full model, and the
 glossary in `CONTEXT.md` for the vocabulary.

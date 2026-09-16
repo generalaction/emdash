@@ -8,7 +8,7 @@ import { tasks } from '@core/services/app-db/node/schema';
 
 export async function archiveTask(
   db: AppDb,
-  taskSessionManager: Pick<TaskSessionManager, 'forceRemoveTask' | 'teardownTask'>,
+  taskSessionManager: Pick<TaskSessionManager, 'teardownTask'>,
   projectId: string,
   taskId: string,
   telemetry: Pick<TelemetryService, 'capture'>
@@ -44,10 +44,4 @@ export async function archiveTask(
     log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
   }
 
-  if (!teardownResult || !teardownResult.success) {
-    await taskSessionManager.forceRemoveTask(
-      taskId,
-      'archiveTask continued after teardown failure'
-    );
-  }
 }
