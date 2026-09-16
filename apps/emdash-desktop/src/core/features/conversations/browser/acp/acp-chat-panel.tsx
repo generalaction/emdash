@@ -814,7 +814,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const unavailableWithoutTranscript =
     store.loadError?.kind === 'unavailable' && store.messageCount === 0;
-  const showComposer = store.historyKnown || store.messageCount > 0;
+  const showComposer =
+    store.loadError?.kind !== 'auth_required' && (store.historyKnown || store.messageCount > 0);
   const showBlockingOverlay =
     !showComposer &&
     (store.historyLoading ||
@@ -838,8 +839,8 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         style={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* Unknown restored history owns the content area until it can be laid out. Fresh chats
-          render their centered composer immediately, independently of provider activation. */}
+      {/* Authentication errors own the content area so sign-in remains accessible even after
+          attachment. Otherwise, show the composer as soon as history is known. */}
       {overlaySlot &&
         showBlockingOverlay &&
         createPortal(
