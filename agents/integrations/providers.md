@@ -51,6 +51,7 @@ The global roots used by the built-in integrations are:
 | Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
 | Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
+| Antigravity CLI | `~/.gemini/config` |
 
 Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
 `agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
@@ -101,6 +102,15 @@ you select an OrcaRouter model from the OpenCode model picker.
   unless they also support ACP.
 - `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `$QWEN_HOME/settings.json` (falling back to `~/.qwen/settings.json`). Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
+- Antigravity CLI installs an Emdash plugin manifest and named hook definition under
+  `plugins/emdash/` in the shared `~/.gemini/config` customization root. CLI 1.2.4
+  discovers hooks here; placing them in the CLI state directory `~/.gemini/antigravity-cli`
+  does not activate them. `PreInvocation` reports working status and
+  `conversationId` identifies the provider session. `Stop` reports completion or an error only
+  when `fullyIdle` is true; intermediate model invocations and background work do not complete
+  the task. Hook commands return neutral JSON decisions after forwarding the native payload.
+  See the [Antigravity hook contract](https://antigravity.google/docs/hooks) and
+  [CLI plugin layout](https://antigravity.google/docs/cli/plugins/).
 - Prime Agent uses its native ACP stdio mode (`prime-agent --mode acp`). Its TUI extension reports
   session file paths, turn starts, and turn completion for resume and notification support. Emdash
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP
