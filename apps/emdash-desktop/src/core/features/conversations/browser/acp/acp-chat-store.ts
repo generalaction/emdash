@@ -671,6 +671,9 @@ export class AcpChatStore {
 
       const history = await attachedSession.loadHistory(undefined, 100);
       if (!history.success) throw new AcpStartError(history.error);
+      if (history.data.unavailable && !this.historyKnown && this.messageCount === 0) {
+        throw new Error('Conversation history is unavailable. Retry loading this conversation.');
+      }
       if (history.data.clearedConfiguration?.length) {
         await this._rememberPreference(
           Object.fromEntries(history.data.clearedConfiguration.map((key) => [key, null])) as {
@@ -1033,11 +1036,18 @@ export class AcpChatStore {
       });
       return true;
     } catch (error) {
+      if (this._disposed || this.session !== session || this._historyEpoch !== epoch) return true;
       log.warn('Failed to refresh ACP history', {
         conversationId: this.conversationId,
         error,
       });
-      return error instanceof AcpStartError && error.errorType === 'auth_required';
+      if (error instanceof AcpStartError) {
+        runInAction(() => {
+          this.loadError = toLoadError(error);
+        });
+        return true;
+      }
+      return false;
     }
   }
 

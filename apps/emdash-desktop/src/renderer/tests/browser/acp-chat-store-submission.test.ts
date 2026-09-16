@@ -830,6 +830,39 @@ describe('AcpChatStore prompt submission', () => {
     store.dispose();
   });
 
+  it('keeps unavailable initial history unknown instead of presenting an empty conversation', async () => {
+    const live = fakeLiveSession(suspendedState(), unavailableHistory());
+    const store = await bootstrapWithSession(live.session);
+    try {
+      expect(store.historyKnown).toBe(false);
+      expect(store.isEmpty).toBe(false);
+      expect(store.loadError?.message).toContain('history is unavailable');
+      expect(historySeed).not.toHaveBeenCalled();
+    } finally {
+      store.dispose();
+    }
+  });
+
+  it('keeps rendered history and exposes an explicit retry after a restoration error', async () => {
+    const live = fakeLiveSession(idleState(), historyPage('original'));
+    const store = await bootstrapWithSession(live.session);
+    try {
+      live.loadHistory.mockResolvedValueOnce({
+        success: false,
+        error: {
+          type: 'invalid_state',
+          message: 'Could not restore this conversation.',
+        },
+      });
+      connectSessionOptions?.onTurnCommitted?.();
+      await vi.waitFor(() => expect(store.loadError?.message).toContain('Could not restore'));
+      expect(transcriptTestState.committedTurns[0]?.id).toBe('original');
+      expect(historySeed).toHaveBeenCalledOnce();
+    } finally {
+      store.dispose();
+    }
+  });
+
   it.each(['retry', 'host-recovery'] as const)(
     'reloads failed bootstrap history through %s even with a retained session',
     async (trigger) => {
@@ -1012,7 +1045,10 @@ function fakeLiveSession(
   overrides: Record<string, unknown> = {}
 ) {
   const sessionState = new FakeRemote(state);
-  const loadHistory = vi.fn(async () => ({ success: true as const, data: initialHistory }));
+  const loadHistory = vi.fn<AcpLiveSession['loadHistory']>(async () => ({
+    success: true,
+    data: initialHistory,
+  }));
   const session = {
     sessionState,
     config: new FakeRemote({ availableCommands: [] }),

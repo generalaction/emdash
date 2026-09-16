@@ -207,9 +207,10 @@ Mode, model, and effort changes update desired state and persist without waking 
 materializing; the latest revision is applied after load and before the first queued prompt. Other
 reads, exports, callbacks, cancellation, permission resolution, and queued-prompt edits never wake
 one. Restoring a saved provider session never falls back to `newSession`: a failed or unsupported
-load preserves the saved pointer and returns a retryable error. If a provider cannot replay history,
-`loadHistory` returns a successful page marked `unavailable: true`; callers retain their existing
-transcript instead of replacing it with an empty one.
+load preserves the saved pointer and returns a retryable error. An unavailable history page is not
+proof of an empty conversation; callers retain existing transcripts, and first loads with unknown
+history expose an error instead of the new-chat state. Provider restoration errors require explicit
+retry, while transient transport failures retain the existing bounded-backoff refresh behavior.
 
 Materialization is server-side and coalesced by the handle's lifecycle cell. A prompt submitted
 while materializing joins that activation and dispatches once after the latest desired configuration
