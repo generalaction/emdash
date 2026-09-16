@@ -19,6 +19,7 @@ const GLOBAL_HOOK_PROVIDERS = [
   'kiro',
   'mimocode',
   'mistral',
+  'muse',
   'oh-my-pi',
   'opencode',
   'pi',

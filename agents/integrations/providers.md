@@ -52,6 +52,7 @@ The global roots used by the built-in integrations are:
 | Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
 | Prime Agent | `$PRIME_AGENT_CODING_AGENT_DIR` with `~/.prime/agent` fallback |
 | Antigravity CLI | `~/.gemini/config` |
+| Muse Code | `$XDG_CONFIG_HOME/muse`, falling back to `~/.config/muse` on macOS and Linux |
 
 Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
 `agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
@@ -111,6 +112,10 @@ you select an OrcaRouter model from the OpenCode model picker.
   the task. Hook commands return neutral JSON decisions after forwarding the native payload.
   See the [Antigravity hook contract](https://antigravity.google/docs/hooks) and
   [CLI plugin layout](https://antigravity.google/docs/cli/plugins/).
+- Muse Code installs managed hooks through `managed_hooks_path` in `settings.json`.
+  `SessionStart`, `UserPromptSubmit`, and `Stop` report session, working, and completion events.
+  `managed_hooks_env_vars` forwards the Emdash hook routing variables.
+  Existing hooks are preserved; paths outside the config root are rejected.
 - Prime Agent uses its native ACP stdio mode (`prime-agent --mode acp`). Its TUI extension reports
   session file paths, turn starts, and turn completion for resume and notification support. Emdash
   synchronizes standard stdio and HTTP MCP definitions in `~/.prime/agent/settings.json`. ACP

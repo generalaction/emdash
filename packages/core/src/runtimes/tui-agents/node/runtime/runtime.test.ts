@@ -415,6 +415,28 @@ describe('TuiAgentsRuntime', () => {
     }
   });
 
+  it.each([false, true])('answers terminal probes on the host only with tmux=%s', async (tmux) => {
+    const { runtime, spawner } = createRuntime();
+    const replies = '\x1b[?1;2c\x1b[>0;276;0c\x1bP>|XTerm(380)\x1b\\';
+    try {
+      await runtime.startSession(
+        startInput({ tmux: tmux ? { identity: 'project:task:conversation-1' } : undefined })
+      );
+      spawner.processes[0]!.emitData('\x1b[c\x1b[>c');
+      runtime.sendInput('conversation-1', replies.repeat(4));
+      runtime.sendInput('conversation-1', 'hello\r');
+      runtime.sendInput('conversation-1', '\x1b[6;10R');
+      expect(spawner.processes[0]!.writes).toEqual([
+        ...(tmux ? ['\x1b[?1;2c', '\x1b[>0;276;0c'] : []),
+        replies.repeat(4),
+        'hello\r',
+        '\x1b[6;10R',
+      ]);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('wraps command execution with shellSetup and tmux', async () => {
     const { runtime, spawner } = createRuntime();
 
@@ -480,6 +502,8 @@ describe('TuiAgentsRuntime', () => {
     expect(
       windowsInvocation.kind === 'windows-command-line' ? windowsInvocation.rawArguments : ''
     ).not.toContain('tmux');
+    runtime.sendInput('conversation-1', '\x1b[?1;2c');
+    expect(spawner.processes[0]!.writes).toEqual(['\x1b[?1;2c']);
     await runtime.reconcile();
     await runtime.dispose();
     expect(exec.exec).not.toHaveBeenCalled();

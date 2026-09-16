@@ -3,6 +3,7 @@ import {
   registerPluginBehavior,
 } from '@emdash/core/services/agent-plugins/api/plugins';
 import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { buildMuseHookConfig } from './hooks';
 import { icon } from './icon';
 
 const installCommand = 'curl -fsSL https://dev.meta.ai/install.sh | bash';
@@ -57,11 +58,17 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'stateless',
     },
+    hooks: {
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['session', 'start', 'stop'],
+    },
   },
   { icon }
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  hooks: buildMuseHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
