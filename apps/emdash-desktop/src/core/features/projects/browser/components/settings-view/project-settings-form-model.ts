@@ -5,6 +5,7 @@ import type {
   ShareableProjectSettingsWriteField,
   StoredDefaultBranch,
   StoredGithubAccount,
+  StoredIntegrationAccount,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type {
@@ -45,6 +46,8 @@ export type GitIdentityFormState = {
   baseRemote: string;
   pushRemote: string;
   githubAccount: StoredGithubAccount | undefined;
+  /** Per-project issue-tracker workspace pins keyed by integrationId. */
+  issueTrackerAccounts: Record<string, StoredIntegrationAccount> | undefined;
   agentGitCredentials: AgentGitCredentialsSetting;
 };
 
@@ -128,6 +131,7 @@ export function gitIdentityToForm(
     baseRemote: domain.stored.baseRemote ?? '',
     pushRemote: domain.stored.pushRemote ?? '',
     githubAccount: domain.stored.githubAccount,
+    issueTrackerAccounts: domain.stored.issueTrackerAccounts,
     agentGitCredentials: domain.stored.agentGitCredentials ?? DEFAULT_AGENT_GIT_CREDENTIALS,
   };
 }
@@ -238,6 +242,9 @@ export function gitIdentityToPatch(
   if (isTouched(touchedFields, 'gitIdentity.githubAccount')) {
     stored.githubAccount = form.githubAccount ?? null;
   }
+  if (isTouched(touchedFields, 'gitIdentity.issueTrackerAccounts')) {
+    stored.issueTrackerAccounts = form.issueTrackerAccounts ?? null;
+  }
   if (isTouched(touchedFields, 'gitIdentity.agentGitCredentials')) {
     stored.agentGitCredentials =
       form.agentGitCredentials === DEFAULT_AGENT_GIT_CREDENTIALS ? null : form.agentGitCredentials;
@@ -307,6 +314,9 @@ export function formToStoredGitSettings(
       : {}),
     ...(gitIdentity.githubAccount !== undefined
       ? { githubAccount: gitIdentity.githubAccount }
+      : {}),
+    ...(gitIdentity.issueTrackerAccounts !== undefined
+      ? { issueTrackerAccounts: gitIdentity.issueTrackerAccounts }
       : {}),
     ...(worktreeRoot !== undefined ? { worktreeRoot } : {}),
   };

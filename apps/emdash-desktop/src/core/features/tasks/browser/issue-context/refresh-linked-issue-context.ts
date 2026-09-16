@@ -1,5 +1,5 @@
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
-import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { isDifferentSource, type LinkedIssue } from '@core/primitives/linked-issues/api';
 
 export async function refreshLinkedIssueContext(
   issue: LinkedIssue,
@@ -17,5 +17,11 @@ export async function refreshLinkedIssueContext(
     .catch(() => undefined);
   if (!result?.success) return issue;
 
-  return result.data;
+  const refreshed = result.data;
+  // Never overwrite the linked issue with a result from a different workspace:
+  // the project may now resolve to another Linear workspace with the same
+  // identifier, which must not reach the task/agent.
+  if (isDifferentSource(issue, refreshed)) return issue;
+
+  return refreshed;
 }

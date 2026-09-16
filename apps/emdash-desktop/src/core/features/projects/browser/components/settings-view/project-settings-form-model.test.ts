@@ -47,6 +47,7 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       baseRemote: '',
       pushRemote: '',
       githubAccount: undefined,
+      issueTrackerAccounts: undefined,
       agentGitCredentials: 'effective-account',
       ...overrides.gitIdentity,
     },

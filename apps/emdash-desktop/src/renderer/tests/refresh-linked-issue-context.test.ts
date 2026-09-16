@@ -71,4 +71,30 @@ describe('refreshLinkedIssueContext', () => {
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
   });
+
+  it('keeps the original and discards a result from a different workspace (WS9 leak guard)', async () => {
+    // Linked from workspace A; the project now resolves to workspace B, whose
+    // same-identifier issue must never overwrite the A-linked issue.
+    const issue = makeIssue({ sourceAccountId: 'linear:acme', issueId: 'uuid-acme-1201' });
+    const wrongWorkspace = makeIssue({
+      sourceAccountId: 'linear:beta',
+      issueId: 'uuid-beta-1201',
+      context: 'Beta workspace issue',
+    });
+    mocks.getIssueContext.mockResolvedValue({ success: true, data: wrongWorkspace });
+
+    await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
+  });
+
+  it('accepts a refresh from the same source workspace', async () => {
+    const issue = makeIssue({ sourceAccountId: 'linear:acme', issueId: 'uuid-acme-1201' });
+    const refreshedIssue = makeIssue({
+      sourceAccountId: 'linear:acme',
+      issueId: 'uuid-acme-1201',
+      context: 'Fresh Acme context',
+    });
+    mocks.getIssueContext.mockResolvedValue({ success: true, data: refreshedIssue });
+
+    await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
+  });
 });

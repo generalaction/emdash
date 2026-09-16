@@ -46,7 +46,11 @@ import { openModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
-import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
+import {
+  isDifferentSource,
+  linkedIssueMentionName,
+  type LinkedIssue,
+} from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
@@ -230,9 +234,20 @@ const ComposerForStore = observer(function ComposerForStore({
           });
           return null;
         }
-        return result.data;
+        const fetched = result.data;
+        const linked = getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue;
+        if (
+          linked &&
+          linked.provider === fetched.provider &&
+          linked.identifier === fetched.identifier &&
+          isDifferentSource(linked, fetched)
+        ) {
+          log.warn('Dropped cross-workspace issue mention context', { token: target.token });
+          return null;
+        }
+        return fetched;
       }),
-    [store.projectId]
+    [store.projectId, store.taskId]
   );
 
   const handleSubmit = useCallback(

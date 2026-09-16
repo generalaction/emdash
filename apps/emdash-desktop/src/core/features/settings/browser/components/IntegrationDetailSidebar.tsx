@@ -5,6 +5,7 @@ import { ISSUE_FEATURE_LABELS } from '@core/features/integrations/api/browser/in
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { GitHubAccountRows } from './GitHubAccountsSection';
+import { IntegrationAccountsSection } from './IntegrationAccountsSection';
 import type { IntegrationItem } from './IntegrationsCard';
 
 export function IntegrationDetailSidebar({
@@ -16,7 +17,8 @@ export function IntegrationDetailSidebar({
   githubAccounts: GitHubAccountSummary[];
   onClose: () => void;
 }) {
-  const accountLabel = integration.id === 'github' ? 'Accounts' : 'Account';
+  const isMultiAccount = integration.id === 'github' || integration.supportsMultipleAccounts;
+  const accountLabel = isMultiAccount ? 'Accounts' : 'Account';
 
   return (
     <div className="relative flex h-full flex-col">
@@ -70,6 +72,11 @@ export function IntegrationDetailSidebar({
                     }
                   />
                 </div>
+              ) : integration.supportsMultipleAccounts ? (
+                <IntegrationAccountsSection
+                  integrationId={integration.id}
+                  integrationName={integration.name}
+                />
               ) : integration.isConfigured ? (
                 <SingleIntegrationAccount integration={integration} />
               ) : (

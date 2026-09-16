@@ -16,6 +16,7 @@ export type IntegrationItem = {
   description: string;
   icon: PluginIconAsset;
   features: string[];
+  supportsMultipleAccounts: boolean;
   isConfigured: boolean;
   isConfigurationKnown: boolean;
   isMutating: boolean;
@@ -84,6 +85,7 @@ const IntegrationsCard: React.FC = () => {
           description: integration.description,
           icon: integration.icon,
           features: integration.features,
+          supportsMultipleAccounts: integration.supportsMultipleAccounts,
           isConfigured,
           isConfigurationKnown,
           isMutating: false,
@@ -100,6 +102,7 @@ const IntegrationsCard: React.FC = () => {
         description: integration.description,
         icon: integration.icon,
         features: integration.features,
+        supportsMultipleAccounts: integration.supportsMultipleAccounts,
         isConfigured,
         isConfigurationKnown,
         isMutating: isIntegrationMutating(provider),

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { IntegrationListItem } from '@core/features/integrations/api';
 import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
+import { integrationAccountsQueryKey } from '@core/features/integrations/api/browser/useIntegrationAccounts';
 import type { IntegrationFormInput } from '@core/features/integrations/browser/types';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
@@ -113,9 +114,12 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
       } finally {
         setIntegrationMutating(integrationId, false);
         invalidateStatuses();
+        void queryClient.invalidateQueries({
+          queryKey: integrationAccountsQueryKey(integrationId),
+        });
       }
     },
-    [invalidateStatuses, setIntegrationMutating]
+    [invalidateStatuses, setIntegrationMutating, queryClient]
   );
 
   const connectIntegration = useCallback(

@@ -2,6 +2,7 @@ import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
 import { deriveWorktreePoolPath } from '@emdash/core/runtimes/workspace-registry/api';
 import {
   Alert,
+  Badge,
   Button,
   Field,
   Input,
@@ -12,6 +13,7 @@ import {
 import { Folder, Github } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState, type ReactNode } from 'react';
+import { useIntegrationAccounts } from '@core/features/integrations/api/browser/useIntegrationAccounts';
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   resolveRendererEffectiveSettings,
@@ -39,13 +41,19 @@ import { ProjectBranchSelector } from '@core/features/source-control/contributio
 import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import type { IntegrationAccountSummary } from '@core/primitives/integrations/api';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import type {
   AgentGitCredentialsSetting,
   Provenance,
   Resolved,
+  StoredIntegrationAccount,
 } from '@core/primitives/project-settings/api';
-import { formatDefaultBranch, resolveTmux } from '@core/primitives/project-settings/api';
+import {
+  formatDefaultBranch,
+  resolveIntegrationAccount,
+  resolveTmux,
+} from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectPlacementDomainSnapshot } from '../../../../api/project-settings-page';
@@ -59,6 +67,25 @@ import {
 
 /** File-local Select option encodings; never stored or exported. */
 const EXPLICIT_NO_ACCOUNT_OPTION = '__explicit_no_github_account__';
+const LINEAR_NO_ACCOUNT_OPTION = '__explicit_no_linear_account__';
+const LINEAR_INTEGRATION_ID = 'linear';
+
+function linearWorkspaceLabel(account: IntegrationAccountSummary): string {
+  return account.workspaceLabel || account.displayName || account.accountId;
+}
+
+function LinearWorkspaceOption({ account }: { account: IntegrationAccountSummary }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate">{linearWorkspaceLabel(account)}</span>
+      {account.isDefault ? (
+        <Badge variant="soft" className="h-4.5 shrink-0 px-1.5 text-[10px] leading-none">
+          Default
+        </Badge>
+      ) : null}
+    </span>
+  );
+}
 
 const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label: string }[] = [
   { value: 'effective-account', label: 'Effective account' },
@@ -159,6 +186,25 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
       )
     : null;
   const accounts = sortGitHubAccountsByDefault(inputs?.accounts ?? []);
+  const linearAccounts = useIntegrationAccounts(LINEAR_INTEGRATION_ID).data ?? [];
+  const showLinearPicker = linearAccounts.length > 0;
+  const accountsGridClass = showLinearPicker
+    ? 'grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2 md:items-start'
+    : undefined;
+  const linearPin = gitIdentityForm.issueTrackerAccounts?.[LINEAR_INTEGRATION_ID];
+  const linearResolution = resolveIntegrationAccount(linearPin, linearAccounts);
+  const linearSelectValue =
+    linearPin === undefined
+      ? ''
+      : linearPin.kind === 'none'
+        ? LINEAR_NO_ACCOUNT_OPTION
+        : linearPin.accountId;
+  const setLinearPin = (next: StoredIntegrationAccount | undefined) => {
+    const map = { ...(gitIdentityForm.issueTrackerAccounts ?? {}) };
+    if (next === undefined) delete map[LINEAR_INTEGRATION_ID];
+    else map[LINEAR_INTEGRATION_ID] = next;
+    updateGitIdentity('issueTrackerAccounts', Object.keys(map).length > 0 ? map : undefined);
+  };
   const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
@@ -217,85 +263,131 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
 
   return (
     <>
-      <ProvenanceField
-        label="GitHub account"
-        description="Used for pull requests and issues in this project."
-        resolved={effective?.githubAccount ?? null}
-        isExplicit={gitIdentityForm.githubAccount !== undefined}
-        onReset={() => updateGitIdentity('githubAccount', undefined)}
-      >
-        {accountUnresolvable ? (
-          <Alert.Root status="destructive">
-            <Alert.Title>Account no longer available</Alert.Title>
-            <Alert.Description>
-              The GitHub account set for this project is no longer connected or does not match this
-              repository's host. GitHub features stay paused until you pick an account or reset to
-              inferred.
-            </Alert.Description>
-          </Alert.Root>
-        ) : null}
-        <Select.Root
-          value={accountSelectValue}
-          onValueChange={(value) => {
-            if (!value) return;
-            if (value === GITHUB_CONNECT_ACCOUNT_OPTION) {
-              void openGithubConnectModal({});
-              return;
-            }
-            if (value === GITHUB_INFERRED_NONE_OPTION) {
-              updateGitIdentity('githubAccount', undefined);
-              return;
-            }
-            updateGitIdentity(
-              'githubAccount',
-              value === EXPLICIT_NO_ACCOUNT_OPTION
-                ? { kind: 'none' }
-                : { kind: 'account', accountId: value }
-            );
-          }}
+      <div className={accountsGridClass}>
+        <ProvenanceField
+          label="GitHub account"
+          description="Used for pull requests and issues in this project."
+          resolved={effective?.githubAccount ?? null}
+          isExplicit={gitIdentityForm.githubAccount !== undefined}
+          onReset={() => updateGitIdentity('githubAccount', undefined)}
         >
-          <Select.Trigger className="w-full min-w-0">
-            {effective?.githubAccount.value ? (
-              <GitHubAccountSelectLabel account={effective.githubAccount.value} />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                {accountUnresolvable ? (
-                  <span className="flex min-w-0 items-center gap-2 truncate">
-                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
-                    <span className="shrink-0 text-sm text-foreground-muted">
-                      No longer connected
+          {accountUnresolvable ? (
+            <Alert.Root status="destructive">
+              <Alert.Title>Account no longer available</Alert.Title>
+              <Alert.Description>
+                The GitHub account set for this project is no longer connected or does not match
+                this repository's host. GitHub features stay paused until you pick an account or
+                reset to inferred.
+              </Alert.Description>
+            </Alert.Root>
+          ) : null}
+          <Select.Root
+            value={accountSelectValue}
+            onValueChange={(value) => {
+              if (!value) return;
+              if (value === GITHUB_CONNECT_ACCOUNT_OPTION) {
+                void openGithubConnectModal({});
+                return;
+              }
+              if (value === GITHUB_INFERRED_NONE_OPTION) {
+                updateGitIdentity('githubAccount', undefined);
+                return;
+              }
+              updateGitIdentity(
+                'githubAccount',
+                value === EXPLICIT_NO_ACCOUNT_OPTION
+                  ? { kind: 'none' }
+                  : { kind: 'account', accountId: value }
+              );
+            }}
+          >
+            <Select.Trigger className="w-full min-w-0">
+              {effective?.githubAccount.value ? (
+                <GitHubAccountSelectLabel account={effective.githubAccount.value} />
+              ) : (
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                  {accountUnresolvable ? (
+                    <span className="flex min-w-0 items-center gap-2 truncate">
+                      <span className="min-w-0 truncate">Unavailable GitHub account</span>
+                      <span className="shrink-0 text-sm text-foreground-muted">
+                        No longer connected
+                      </span>
                     </span>
-                  </span>
+                  ) : (
+                    <span className="min-w-0 truncate">
+                      {gitIdentityForm.githubAccount === undefined
+                        ? 'Infer GitHub account'
+                        : 'No GitHub account'}
+                    </span>
+                  )}
+                </div>
+              )}
+            </Select.Trigger>
+            <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+              {zeroAccounts ? (
+                <GitHubZeroAccountSelectItems />
+              ) : (
+                <>
+                  <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                      <span className="relative -top-px shrink-0">No GitHub account</span>
+                    </div>
+                  </Select.Item>
+                  {accounts.map((account) => (
+                    <GitHubAccountSelectItem key={account.accountId} account={account} />
+                  ))}
+                </>
+              )}
+            </Select.Content>
+          </Select.Root>
+        </ProvenanceField>
+
+        {showLinearPicker ? (
+          <ProvenanceField
+            label="Linear workspace"
+            description="Which Linear workspace this project pulls issues from."
+            resolved={linearResolution}
+            isExplicit={linearPin !== undefined}
+            onReset={() => setLinearPin(undefined)}
+          >
+            <Select.Root
+              value={linearSelectValue}
+              onValueChange={(value) => {
+                if (!value) return;
+                setLinearPin(
+                  value === LINEAR_NO_ACCOUNT_OPTION
+                    ? { kind: 'none' }
+                    : { kind: 'account', accountId: value }
+                );
+              }}
+            >
+              <Select.Trigger className="w-full min-w-0">
+                {linearResolution.value ? (
+                  <LinearWorkspaceOption account={linearResolution.value} />
                 ) : (
                   <span className="min-w-0 truncate">
-                    {gitIdentityForm.githubAccount === undefined
-                      ? 'Infer GitHub account'
-                      : 'No GitHub account'}
+                    {linearResolution.provenance.kind === 'unresolvable'
+                      ? 'Workspace no longer connected'
+                      : 'No Linear account'}
                   </span>
                 )}
-              </div>
-            )}
-          </Select.Trigger>
-          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-            {zeroAccounts ? (
-              <GitHubZeroAccountSelectItems />
-            ) : (
-              <>
-                <Select.Item value={EXPLICIT_NO_ACCOUNT_OPTION} className="py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                    <span className="relative -top-px shrink-0">No GitHub account</span>
-                  </div>
+              </Select.Trigger>
+              <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+                <Select.Item value={LINEAR_NO_ACCOUNT_OPTION} className="py-2">
+                  No Linear account
                 </Select.Item>
-                {accounts.map((account) => (
-                  <GitHubAccountSelectItem key={account.accountId} account={account} />
+                {linearAccounts.map((account) => (
+                  <Select.Item key={account.accountId} value={account.accountId}>
+                    <LinearWorkspaceOption account={account} />
+                  </Select.Item>
                 ))}
-              </>
-            )}
-          </Select.Content>
-        </Select.Root>
-      </ProvenanceField>
+              </Select.Content>
+            </Select.Root>
+          </ProvenanceField>
+        ) : null}
+      </div>
 
       <Separator />
 
