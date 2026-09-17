@@ -18,6 +18,8 @@ const v1Schema = z.object({
   displayName: z.string().optional(),
   /** User-assigned connection name; retained when verified display metadata changes. */
   label: z.string().optional(),
+  /** Registry-assigned, stable name for accounts without provider or user display metadata. */
+  fallbackDisplayName: z.string().optional(),
   /** Secondary display detail, e.g. the account email or organization. */
   displayDetail: z.string().optional(),
   /** Provider login/username, e.g. "octocat". */

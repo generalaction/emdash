@@ -7,6 +7,7 @@ import type {
   ProviderAccountSecretStore,
   ProviderAccountUpsert,
 } from '../api/provider-account-store';
+import { ensureProviderAccountDisplayNames } from './account-display-names';
 
 /** Shared persistence for registry writes and imports with an atomic completion record. */
 export async function writeProviderAccount(
@@ -34,11 +35,21 @@ export async function writeProviderAccount(
     const current = tx.select().from(providerAccounts).where(where).get();
     let account: ProviderAccountRow;
     if (current) {
+      // Generated names belong to the saved connection, not the latest verifier response.
+      const nextMeta =
+        meta === undefined
+          ? current.meta
+          : {
+              ...meta,
+              ...(current.meta?.fallbackDisplayName
+                ? { fallbackDisplayName: current.meta.fallbackDisplayName }
+                : {}),
+            };
       tx.update(providerAccounts)
-        .set({ updatedAt: now, ...(meta !== undefined ? { meta } : {}) })
+        .set({ updatedAt: now, meta: nextMeta })
         .where(eq(providerAccounts.id, current.id))
         .run();
-      account = { ...current, updatedAt: now, meta: meta !== undefined ? meta : current.meta };
+      account = { ...current, updatedAt: now, meta: nextMeta };
     } else {
       const hasDefault = tx
         .select({ id: providerAccounts.id })
@@ -62,6 +73,10 @@ export async function writeProviderAccount(
       };
       tx.insert(providerAccounts).values(account).run();
     }
+    account =
+      ensureProviderAccountDisplayNames(tx, input.providerId).find(
+        (row) => row.id === account.id
+      ) ?? account;
     onPersist?.(tx);
     return { account, status: current ? 'updated' : 'created' };
   });

@@ -41,7 +41,9 @@ export function toProviderAccountSummary(account: {
     displayName:
       meta?.label?.trim() ||
       meta?.displayName?.trim() ||
-      (meta?.login?.trim() ? `@${meta.login.trim()}` : 'Unnamed account'),
+      (meta?.login?.trim() ? `@${meta.login.trim()}` : undefined) ||
+      meta?.fallbackDisplayName?.trim() ||
+      'Unnamed account',
     ...(meta?.displayDetail || meta?.host
       ? { displayDetail: meta.displayDetail ?? meta.host }
       : {}),

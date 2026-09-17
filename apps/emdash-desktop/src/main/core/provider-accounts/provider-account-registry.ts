@@ -8,6 +8,7 @@ import type {
   ProviderAccountUpsert,
   ProviderAccountUpsertResult,
 } from '@core/services/provider-accounts/api/provider-account-store';
+import { ensureProviderAccountDisplayNames } from '@core/services/provider-accounts/node/account-display-names';
 import { writeProviderAccount } from '@core/services/provider-accounts/node/write-provider-account';
 import { getAppDb } from '@main/db/instance';
 import { normalizeLegacyAccountMeta } from './migrations/legacy-account-meta';
@@ -48,11 +49,7 @@ export class ProviderAccountRegistry implements ProviderAccountStore {
   }
 
   async listAccounts(providerId: string): Promise<ProviderAccount[]> {
-    const rows = await this.db
-      .select()
-      .from(providerAccounts)
-      .where(eq(providerAccounts.providerId, providerId))
-      .orderBy(asc(providerAccounts.createdAt), asc(sql`rowid`));
+    const rows = this.db.transaction((tx) => ensureProviderAccountDisplayNames(tx, providerId));
     return rows.map(toProviderAccount);
   }
 
@@ -61,6 +58,7 @@ export class ProviderAccountRegistry implements ProviderAccountStore {
    * account. A missing or dangling default self-heals to the oldest account.
    */
   async getAccount(providerId: string, accountId?: string): Promise<ProviderAccount | null> {
+    this.db.transaction((tx) => ensureProviderAccountDisplayNames(tx, providerId));
     if (accountId) {
       const row = await this.findRow(providerId, accountId);
       return row ? toProviderAccount(row) : null;
@@ -77,6 +75,7 @@ export class ProviderAccountRegistry implements ProviderAccountStore {
   /** Make an existing account the provider default. Returns null for unknown accounts. */
   async setDefaultAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
     const row = this.db.transaction((tx) => {
+      ensureProviderAccountDisplayNames(tx, providerId);
       const target = tx
         .select()
         .from(providerAccounts)
@@ -120,6 +119,7 @@ export class ProviderAccountRegistry implements ProviderAccountStore {
    */
   async removeAccount(providerId: string, accountId: string): Promise<ProviderAccount | null> {
     const removed = this.db.transaction((tx) => {
+      ensureProviderAccountDisplayNames(tx, providerId);
       const target = tx
         .select()
         .from(providerAccounts)

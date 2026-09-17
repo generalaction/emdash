@@ -21,7 +21,7 @@ export type ProviderAccountUpsert = {
   accountId: string;
   /** Omit to leave the stored secret unchanged during metadata-only updates. */
   secret?: string;
-  /** Replaces metadata when present; omitted metadata preserves the current value. */
+  /** Replaces supplied metadata while retaining the registry's fallback name; omit to preserve all metadata. */
   meta?: Omit<ProviderAccountMeta, 'version'>;
   /** Legacy secret key override for new rows. Existing credential references never change. */
   credentialRef?: string;

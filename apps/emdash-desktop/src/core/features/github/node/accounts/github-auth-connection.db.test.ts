@@ -89,7 +89,7 @@ describe('github account helpers', () => {
       {
         providerId: 'github',
         accountId: 'ghe.example.com:42',
-        displayName: 'ghe.example.com:42',
+        displayName: 'Account 1',
         displayDetail: 'ghe.example.com',
         host: 'ghe.example.com',
         login: '',
@@ -98,6 +98,7 @@ describe('github account helpers', () => {
         isDefault: true,
       },
     ]);
+    expect(inventory[0]?.displayName).not.toBe('ghe.example.com:42');
     const github = inventory.filter(isGitHubAccountSummary);
     expect(github[0]).toBe(inventory[0]);
     expect(providerAccountContextKey(undefined, github)).toBe(

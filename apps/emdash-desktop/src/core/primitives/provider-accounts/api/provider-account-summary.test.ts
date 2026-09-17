@@ -6,6 +6,22 @@ import {
 } from './provider-account-summary';
 
 describe('toProviderAccountSummary', () => {
+  it.each([
+    [{}, 'Account 2'],
+    [{ login: 'jona' }, '@jona'],
+    [{ displayName: 'Jona', login: 'jona' }, 'Jona'],
+    [{ label: 'Work', displayName: 'Jona', login: 'jona' }, 'Work'],
+  ] as const)('prefers real display metadata over a generated name: %j', (meta, name) => {
+    expect(
+      toProviderAccountSummary({
+        providerId: 'forgejo',
+        accountId: 'codeberg.org:985170',
+        isDefault: true,
+        meta: { version: '1', fallbackDisplayName: 'Account 2', ...meta },
+      }).displayName
+    ).toBe(name);
+  });
+
   it.each([null, { version: '1' as const }, { version: '1' as const, displayName: '  ' }])(
     'keeps internal identifiers out of labels when display metadata is missing',
     (meta) => {
