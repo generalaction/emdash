@@ -36,8 +36,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   handleReload = () => {
+    // A crash recovery reload must not double as a factory reset. Persist any pending UI state
+    // (project order, navigation, layouts) before replacing the renderer.
     void Promise.resolve()
-      .then(async () => await getMementoClient().deleteAll())
+      .then(async () => await getMementoClient().flush())
       .catch(() => {})
       .finally(() => {
         try {

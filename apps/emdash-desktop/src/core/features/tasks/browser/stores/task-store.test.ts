@@ -22,6 +22,10 @@ vi.mock('@core/manifests/browser/task-scoped-stores', () => ({
   ],
 }));
 
+vi.mock('@emdash/ui/react/primitives', () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
+}));
+
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'task-1',
@@ -108,6 +112,21 @@ describe('TaskStore provision state', () => {
     expect(getTaskPrAssociationStore(store)).toBe(association);
     expect(association.pullRequests).toHaveLength(1);
     expect(contributionMocks.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('recreates operational task stores after an archived task is restored', async () => {
+    const task = makeTask({ archivedAt: '2026-01-02T00:00:00.000Z' });
+    const store = createUnprovisionedTask(task);
+
+    store.transitionToDryUnprovisioned(task);
+    store.restoreOperationalStores();
+
+    await expect(store.ready()).resolves.toBeUndefined();
+    expect(contributionMocks.create).toHaveBeenCalledTimes(2);
+    expect(contributionMocks.dispose).toHaveBeenCalledOnce();
+
+    store.dispose();
+    expect(contributionMocks.dispose).toHaveBeenCalledTimes(2);
   });
 
   it('keeps task contributions stable when the authoritative workspace identity changes', () => {
