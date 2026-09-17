@@ -2,7 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyPlaneCredentials } from './client';
 import { icon } from './icon';
-import { PLANE_CLOUD_API_BASE_URL } from './types';
+import { PLANE_CLOUD_API_BASE_URL, planeCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -48,6 +48,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: planeCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyPlaneCredentials(credentials);
       if (!result.success)

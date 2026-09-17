@@ -2,6 +2,7 @@ import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/h
 import type { RuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+import type { StoredIntegrationAccounts } from '@core/primitives/project-settings/api/project-settings';
 
 export function projectHostRef(project: Project): HostRef {
   return project.type === 'ssh' ? hostRef('remote', project.connectionId) : LOCAL_HOST_REF;
@@ -54,6 +55,7 @@ export type CreateLocalProjectParams = {
   path: string;
   name: string;
   initGitRepository?: boolean;
+  initialIntegrationAccounts?: StoredIntegrationAccounts;
 };
 
 export type CreateSshProjectParams = {
@@ -63,11 +65,13 @@ export type CreateSshProjectParams = {
   path: string;
   connectionId: string;
   initGitRepository?: boolean;
+  initialIntegrationAccounts?: StoredIntegrationAccounts;
 };
 
 export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectParams;
 
 export type CreateProjectError =
+  | { type: 'registration-failed'; path: string; message: string }
   | { type: 'invalid-directory'; path: string; message: string }
   | { type: 'not-repository'; path: string }
   | { type: 'inspect-failed'; path: string; message: string }

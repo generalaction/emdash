@@ -10,7 +10,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
@@ -55,7 +55,8 @@ function AttachmentThumbnail({
 export function FeedbackModal({ blurb }: FeedbackModalArgs) {
   const controller = useModalController('feedbackModal');
   const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
-  const { user: githubUser } = useGithubContext();
+  const { data: githubAccounts } = useAccounts('github');
+  const githubLogin = githubAccounts?.find((account) => account.isDefault)?.login;
   const appVersion = getUpdateStore().currentVersion;
   const { data: platformDisplayName } = useQuery({
     queryKey: ['app', 'platformDisplayName'],
@@ -90,7 +91,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
     handleSubmit,
     canSubmit,
   } = useFeedbackSubmit({
-    githubUser,
+    githubLogin,
     appVersion,
     platformDisplayName,
     onSuccess: () => {

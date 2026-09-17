@@ -6,6 +6,8 @@ import type { AgentGitCredentialsSetting, Resolved } from '@core/primitives/proj
 import { createGitCredentialsService } from './git-credentials-service';
 
 const account: GitHubAccountSummary = {
+  providerId: 'github',
+  displayName: '@octocat',
   accountId: 'account-1',
   host: 'GitHub.com',
   login: 'octocat',
@@ -28,8 +30,11 @@ function makeService(
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   const service = createGitCredentialsService({
     getAgentGitCredentialsSetting: async () => options.setting ?? 'effective-account',
-    resolveProjectGitHubAccount: async () =>
-      options.resolution ?? { value: account, provenance: { kind: 'set' } },
+    resolveProjectIntegrationAccount: async () => ({
+      ...(options.resolution ?? { value: account, provenance: { kind: 'set' as const } }),
+      accounts: options.accounts ?? [account],
+      contextKey: '',
+    }),
     listAccounts: async () => options.accounts ?? [account],
     channels: { mintSession, revokeSession },
     logger: logger as unknown as Logger,
@@ -108,14 +113,59 @@ describe('mintOperationCredentials', () => {
 });
 
 describe('mintCloneCredentials', () => {
-  it('leases a host-scoped channel for an https URL with a matching account', async () => {
+  it('retains an explicit non-default account instead of choosing the host default', async () => {
+    const selected = { ...account, accountId: 'selected-work', isDefault: false };
+    const { service, mintSession } = makeService({ accounts: [account, selected] });
+    await service.mintCloneCredentials({
+      repositoryUrl: 'https://github.com/org/private-repo.git',
+      host: LOCAL_HOST_REF,
+      account: { providerId: 'github', accountId: selected.accountId },
+    });
+    expect(mintSession).toHaveBeenCalledExactlyOnceWith({
+      kind: 'account',
+      accountId: 'selected-work',
+      host: 'github.com',
+    });
+  });
+
+  it.each([
+    { providerId: 'github', accountId: 'missing' },
+    { providerId: 'gitlab', accountId: 'account-1' },
+  ])('does not fall back from an unavailable explicit clone account %j', async (selected) => {
+    const { service, mintSession } = makeService();
+    await expect(
+      service.mintCloneCredentials({
+        repositoryUrl: 'https://github.com/org/private-repo.git',
+        host: LOCAL_HOST_REF,
+        account: selected,
+      })
+    ).rejects.toThrow();
+    expect(mintSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects an explicit account on another host before cloning', async () => {
+    const { service, mintSession } = makeService();
+    await expect(
+      service.mintCloneCredentials({
+        repositoryUrl: 'https://enterprise.example/org/repo.git',
+        host: LOCAL_HOST_REF,
+        account: { providerId: 'github', accountId: account.accountId },
+      })
+    ).rejects.toThrow('does not match');
+    expect(mintSession).not.toHaveBeenCalled();
+  });
+  it('leases an account-scoped channel for an https URL with a matching account', async () => {
     const { service, mintSession, revokeSession } = makeService();
     const lease = await service.mintCloneCredentials({
       repositoryUrl: 'https://github.com/org/repo.git',
       host: LOCAL_HOST_REF,
     });
     expect(lease?.credentials).toEqual({ port: 45678, nonce: 'nonce-1', host: 'github.com' });
-    expect(mintSession).toHaveBeenCalledWith({ kind: 'host', host: 'github.com' });
+    expect(mintSession).toHaveBeenCalledWith({
+      kind: 'account',
+      accountId: 'account-1',
+      host: 'github.com',
+    });
     lease?.release();
     expect(revokeSession).toHaveBeenCalledWith('nonce-1');
   });

@@ -22,6 +22,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`
   - provider, MCP, and external service guidance
+  - [`integration-plugins.md`](integrations/integration-plugins.md) — integration auth and credential contracts, stable account identity, and issue-plugin boundaries
 - `risky-areas/`
   - places where incorrect changes are expensive
 - `conventions/`

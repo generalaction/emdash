@@ -2,6 +2,7 @@ import type { VerifyResult } from '../../capabilities/auth';
 import { defineIntegrationPlugin, registerIntegrationPluginBehavior } from '../../plugin';
 import { verifyMondayCredentials } from './client';
 import { icon } from './icon';
+import { mondayCredentialsSchema } from './types';
 
 const plugin = defineIntegrationPlugin(
   {
@@ -34,6 +35,7 @@ const plugin = defineIntegrationPlugin(
 
 export const provider = registerIntegrationPluginBehavior(plugin, {
   auth: {
+    credentialsSchema: mondayCredentialsSchema,
     async verify(_host, credentials): Promise<VerifyResult> {
       const result = await verifyMondayCredentials(credentials);
       if (!result.success) return { connected: false, error: result.error.message };

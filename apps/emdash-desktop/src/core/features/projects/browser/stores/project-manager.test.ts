@@ -1126,7 +1126,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
 
-  it('persists the selected GitHub account after creating the project', async () => {
+  it('carries the selected account into clone authentication and atomic project registration', async () => {
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -1145,16 +1145,13 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
-      projectId: 'optimistic-project',
-      patch: {
-        gitIdentity: {
-          stored: {
-            githubAccount: { kind: 'account', accountId: 'github.com:42' },
-          },
-        },
-      },
-    });
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account: { providerId: 'github', accountId: 'github.com:42' },
+        initialIntegrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
+      })
+    );
+    expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(store.projects.get('optimistic-project')?.context?.kind).toBe('available')
     );
@@ -1253,7 +1250,7 @@ describe('ProjectManagerStore project creation', () => {
     }
   });
 
-  it('persists the default GitHub account after initializing a picked folder', async () => {
+  it('includes initial account preferences when registering a newly initialized folder', async () => {
     mocks.createProject.mockResolvedValueOnce(
       okProject(localProject({ id: 'optimistic-project' }))
     );
@@ -1273,16 +1270,12 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
-      projectId: 'optimistic-project',
-      patch: {
-        gitIdentity: {
-          stored: {
-            githubAccount: { kind: 'account', accountId: 'github.com:42' },
-          },
-        },
-      },
-    });
+    expect(mocks.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialIntegrationAccounts: { github: { kind: 'account', accountId: 'github.com:42' } },
+      })
+    );
+    expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
   it('does not persist a GitHub account for picked repositories that were already git repos', async () => {

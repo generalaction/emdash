@@ -93,6 +93,34 @@ describe('project creation without a git repository', () => {
     expect(row?.baseRef).toBeNull();
   });
 
+  it('reports a failed registration transaction instead of publishing project success', async () => {
+    ensureRepository.mockResolvedValue(
+      ok({ rootPath: hostPathFromNative('/workspace/repo'), baseRef: 'main' })
+    );
+    mocks.registerRepositoryWorkspace.mockImplementationOnce(() => {
+      throw new Error('Settings write failed');
+    });
+    const initialIntegrationAccounts = {
+      github: { kind: 'account' as const, accountId: 'selected-work' },
+    };
+    const result = await createProject(dependencies, {
+      type: 'local',
+      id: 'project-1',
+      name: 'Project',
+      path: '/workspace/repo',
+      initialIntegrationAccounts,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'registration-failed', path: '/workspace/repo' },
+    });
+    expect(mocks.registerRepositoryWorkspace).toHaveBeenCalledWith(
+      dependencies.db,
+      expect.objectContaining({ initialIntegrationAccounts })
+    );
+    expect(rows).toEqual([]);
+  });
+
   it('initializes git for an existing project and persists the resolved base ref', async () => {
     rows.push({
       id: 'project-plain',

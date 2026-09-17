@@ -13,7 +13,8 @@ import { PrSelector } from './pr-selector';
 const mocks = vi.hoisted(() => ({
   listPullRequests: vi.fn(),
   refreshRepository: vi.fn(),
-  accountState: vi.fn(),
+  useProjectAccount: vi.fn(),
+  useAccounts: vi.fn(),
   syncState: vi.fn(),
 }));
 
@@ -28,11 +29,18 @@ vi.mock('@core/services/pull-requests/api/client', () => ({
   }),
 }));
 
-vi.mock('@core/features/github/contributions/browser/account-state', async () => {
+vi.mock('@core/features/integrations/api/browser/use-project-account', () => ({
+  useProjectAccount: mocks.useProjectAccount,
+}));
+
+vi.mock('@core/features/integrations/api/browser/use-provider-accounts', () => ({
+  useAccounts: mocks.useAccounts,
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/account-state', async () => {
   const React = await import('react');
   return {
-    useBlockingGitHubAccountState: () => mocks.accountState(),
-    GitHubAccountStateEmpty: ({ state }: { state: { kind: string; message?: string } }) =>
+    ProviderAccountStateEmpty: ({ state }: { state: { kind: string; message?: string } }) =>
       React.createElement(
         'div',
         { 'data-testid': `account-state-${state.kind}` },
@@ -212,7 +220,8 @@ describe('PrSelector', () => {
     vi.useFakeTimers();
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
     mocks.refreshRepository.mockResolvedValue({ success: true });
-    mocks.accountState.mockReturnValue(null);
+    mocks.useProjectAccount.mockReturnValue(null);
+    mocks.useAccounts.mockReturnValue({ data: [] });
     mocks.syncState.mockReturnValue({ phase: 'idle', kind: null, revision: 0 } satisfies SyncState);
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
@@ -437,11 +446,39 @@ describe('PrSelector', () => {
     });
   }
 
+  it.each([
+    { name: 'settings are loading', resolution: null, accounts: [] },
+    {
+      name: 'accounts are loading',
+      resolution: { value: null, provenance: { kind: 'set' } },
+      accounts: undefined,
+    },
+    {
+      name: 'an account is selected',
+      resolution: { value: { accountId: 'selected' }, provenance: { kind: 'set' } },
+      accounts: [{ accountId: 'selected' }],
+    },
+    {
+      name: 'inference is silent with connected accounts',
+      resolution: {
+        value: null,
+        provenance: { kind: 'inferred', from: 'no host-matching account' },
+      },
+      accounts: [{ accountId: 'other-host' }],
+    },
+  ])('keeps the normal selector when $name', async ({ resolution, accounts }) => {
+    mocks.useProjectAccount.mockReturnValue(resolution);
+    mocks.useAccounts.mockReturnValue({ data: accounts });
+
+    await renderSelector();
+
+    expect(container.querySelector('[data-testid^="account-state-"]')).toBeNull();
+    expect(mocks.listPullRequests).toHaveBeenCalled();
+    expect(mocks.useAccounts).toHaveBeenCalledWith('github');
+  });
+
   it('renders a quiet disabled state and does not sync when GitHub is explicitly off', async () => {
-    mocks.accountState.mockReturnValue({
-      kind: 'disabled',
-      message: 'GitHub is disabled for this project.',
-    });
+    mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'set' } });
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
 
     await renderSelector();
@@ -454,10 +491,7 @@ describe('PrSelector', () => {
   });
 
   it('fails closed without syncing when the pinned account is unresolvable', async () => {
-    mocks.accountState.mockReturnValue({
-      kind: 'unresolvable',
-      message: 'The selected GitHub account is no longer connected.',
-    });
+    mocks.useProjectAccount.mockReturnValue({ value: null, provenance: { kind: 'unresolvable' } });
 
     await renderSelector();
 
@@ -468,9 +502,9 @@ describe('PrSelector', () => {
   });
 
   it('renders the connect state when no GitHub accounts are connected', async () => {
-    mocks.accountState.mockReturnValue({
-      kind: 'connect',
-      message: 'Connect a GitHub account to get started.',
+    mocks.useProjectAccount.mockReturnValue({
+      value: null,
+      provenance: { kind: 'inferred', from: 'no host-matching account' },
     });
 
     await renderSelector();

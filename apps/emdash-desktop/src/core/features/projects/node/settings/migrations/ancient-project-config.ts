@@ -1,5 +1,5 @@
 import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
-import type { Result } from '@emdash/shared';
+import { isDeepEqual, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
@@ -111,19 +111,8 @@ export async function migrateAncientProjectConfig({
     legacyBaseProjectSettingsSchema,
     'base project settings'
   );
-  const currentShareable = readJson(
-    row.shareableProjectSettingsJson,
-    emdashConfigSchema,
-    'shareable project settings'
-  );
-  const { remote, ...currentSettings } = current;
   const legacy = await readAncientProjectConfig(configFiles, configPath);
-  const next: Omit<LegacyBaseProjectSettings, 'remote'> = {
-    ...currentSettings,
-    ...(currentSettings.baseRemote === undefined && remote !== undefined
-      ? { baseRemote: remote }
-      : {}),
-  };
+  const next: Omit<LegacyBaseProjectSettings, 'remote'> = {};
   let nextShareable: ShareableProjectSettings | undefined;
 
   if (legacy && !baseAlreadyMigrated) {
@@ -137,7 +126,7 @@ export async function migrateAncientProjectConfig({
     if (legacy.defaultBranch !== undefined) {
       next.defaultBranch = normalizeLegacyDefaultBranch(
         legacy.defaultBranch,
-        legacy.baseRemote ?? legacy.remote ?? next.baseRemote,
+        legacy.baseRemote ?? legacy.remote ?? current.baseRemote,
         defaultBranchFallback
       );
     }
@@ -147,27 +136,42 @@ export async function migrateAncientProjectConfig({
   if (legacy && !shareableAlreadyMigrated) {
     if ((await git?.isFileCleanlyTracked(configPath)) === false) {
       const legacyShareable = emdashConfigSchema.parse(legacy);
-      nextShareable = mergeShareableProjectSettings(currentShareable, legacyShareable);
+      nextShareable = legacyShareable;
     }
   }
 
-  const update: Partial<StoredProjectSettings> = {
-    ...(nextShareable
-      ? {
-          shareableProjectSettingsJson: serializeShareableProjectSettings(nextShareable, {
-            previousRaw: row.shareableProjectSettingsJson,
-            markLegacyShareableConfigMigrated: true,
-          }),
+  await storage.mutate(projectId, (latest) => {
+    const update: Partial<StoredProjectSettings> = {};
+    if (nextShareable && !hasLegacyShareableConfigMigrated(latest.shareableProjectSettingsJson)) {
+      const currentShareable = readJson(
+        latest.shareableProjectSettingsJson,
+        emdashConfigSchema,
+        'shareable project settings'
+      );
+      update.shareableProjectSettingsJson = serializeShareableProjectSettings(
+        mergeShareableProjectSettings(currentShareable, nextShareable),
+        {
+          previousRaw: latest.shareableProjectSettingsJson,
+          markLegacyShareableConfigMigrated: true,
         }
-      : {}),
-  };
-
-  if (!baseAlreadyMigrated) {
-    update.baseProjectSettingsJson = JSON.stringify(compactUndefined(next));
-    update.legacyConfigMigratedAt = new Date().toISOString();
-  }
-
-  if (Object.keys(update).length > 0) {
-    await storage.update(projectId, update);
-  }
+      );
+    }
+    if (!latest.legacyConfigMigratedAt) {
+      const latestBase = readJson(
+        latest.baseProjectSettingsJson,
+        legacyBaseProjectSettingsSchema,
+        'base project settings'
+      );
+      const { remote, ...merged } = latestBase;
+      if (merged.baseRemote === undefined && remote !== undefined) merged.baseRemote = remote;
+      // Only import fields unchanged since the Host lookup began. All other current
+      // settings (including account choices) come from the transaction's row.
+      for (const key of Object.keys(next) as (keyof typeof next)[]) {
+        if (isDeepEqual(latestBase[key], current[key])) Object.assign(merged, { [key]: next[key] });
+      }
+      update.baseProjectSettingsJson = JSON.stringify(compactUndefined(merged));
+      update.legacyConfigMigratedAt = new Date().toISOString();
+    }
+    return update;
+  });
 }

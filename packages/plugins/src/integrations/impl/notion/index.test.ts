@@ -60,6 +60,7 @@ describe('notion integration verify', () => {
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'bot-1' },
       displayName: 'Emdash',
       credentials: { apiToken: 'ntn_valid' },
     });

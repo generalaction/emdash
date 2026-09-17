@@ -4,14 +4,14 @@ import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  githubAccountReportingState,
-  type GitHubAccountReportingState,
-} from '@core/features/github/api/account-reporting';
-import { GitHubAccountStateEmpty } from '@core/features/github/contributions/browser/account-state';
+  providerAccountReportingState,
+  type ProviderAccountReportingState,
+} from '@core/features/integrations/api/account-reporting';
 import {
   getIntegrationName,
   isIssueIntegration,
 } from '@core/features/integrations/api/browser/integration-display';
+import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
@@ -160,8 +160,12 @@ export const IssueSelector = observer(function IssueSelector({
   // §7 reporting matrix over the resolver provenance the Wire payload
   // carries (spec: github-git-settings §7). Silent rows never cross the
   // Wire, so any payload here renders a visible state.
-  const accountState: GitHubAccountReportingState | null = accountUnavailable
-    ? githubAccountReportingState(
+  const accountProviderName = issueProvider
+    ? getIntegrationName(integrationById, issueProvider)
+    : 'Integration';
+  const accountState: ProviderAccountReportingState | null = accountUnavailable
+    ? providerAccountReportingState(
+        accountProviderName,
         accountUnavailable.provenance,
         accountUnavailable.accountsConnected
       )
@@ -295,7 +299,12 @@ export const IssueSelector = observer(function IssueSelector({
             />
             <Combobox.Empty>
               {accountState && accountState.kind !== 'silent' ? (
-                <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+                <ProviderAccountStateEmpty
+                  state={accountState}
+                  projectId={projectId}
+                  providerId={issueProvider ?? ''}
+                  providerName={accountProviderName}
+                />
               ) : (
                 <span className={cn(error && 'text-foreground-error')}>
                   {error ?? 'No issues found'}
@@ -319,6 +328,14 @@ export const IssueSelector = observer(function IssueSelector({
             </Combobox.List>
           </Combobox.Content>
         </Combobox.Root>
+      ) : error ? (
+        <span role="alert" className="text-sm text-foreground-error">
+          {error}
+        </span>
+      ) : isProviderLoading ? (
+        <span role="status" className="flex items-center gap-2 text-sm text-foreground-muted">
+          <Loader2 className="size-3.5 animate-spin" /> Loading integration accounts…
+        </span>
       ) : (
         <ConnectIssueIntegrationPlaceholder />
       )}

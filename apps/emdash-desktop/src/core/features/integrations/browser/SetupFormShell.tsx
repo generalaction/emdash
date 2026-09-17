@@ -13,6 +13,8 @@ export type SetupFormProps = {
 type SetupFormShellProps = {
   providerId: string;
   getInput: () => IntegrationFormInput;
+  getConnectionOptions?: () => { accountId?: string; displayName?: string };
+  reconnect?: boolean;
   canSubmit: boolean;
   onSuccess: () => void;
   onClose: () => void;
@@ -22,6 +24,8 @@ type SetupFormShellProps = {
 export function SetupFormShell({
   providerId,
   getInput,
+  getConnectionOptions,
+  reconnect = false,
   canSubmit,
   onSuccess,
   onClose,
@@ -36,7 +40,7 @@ export function SetupFormShell({
     setError(null);
 
     try {
-      const result = await connectIntegration(providerId, getInput());
+      const result = await connectIntegration(providerId, getInput(), getConnectionOptions?.());
       if (!result.success) {
         setError(result.error);
         return;
@@ -69,7 +73,7 @@ export function SetupFormShell({
           disabled={!canSubmit || isMutating}
         >
           {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Connect
+          {reconnect ? 'Reconnect' : 'Connect'}
         </ConfirmButton>
       </Dialog.Footer>
     </>

@@ -7,15 +7,8 @@ import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 const FEEDBACK_MAX_FILES = 10;
 const FEEDBACK_MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
-interface GithubUser {
-  login?: string;
-  name?: string;
-  html_url?: string;
-  email?: string;
-}
-
 interface FeedbackSubmitOptions {
-  githubUser?: GithubUser | null;
+  githubLogin?: string | null;
   appVersion?: string | null;
   platformDisplayName?: string | null;
   onSuccess: () => void;
@@ -24,7 +17,7 @@ interface FeedbackSubmitOptions {
 interface BuildFeedbackContentOptions {
   feedback: string;
   contactEmail: string;
-  githubUser?: GithubUser | null;
+  githubLogin?: string | null;
   appVersion?: string | null;
   platformDisplayName?: string | null;
   includeDiagnosticLogs?: boolean;
@@ -33,7 +26,7 @@ interface BuildFeedbackContentOptions {
 export function buildFeedbackContent({
   feedback,
   contactEmail,
-  githubUser,
+  githubLogin,
   appVersion,
   platformDisplayName,
   includeDiagnosticLogs,
@@ -46,19 +39,8 @@ export function buildFeedbackContent({
     metadataLines.push(`Contact: ${trimmedContact}`);
   }
 
-  const githubLogin = githubUser?.login?.trim();
-  const githubName = githubUser?.name?.trim();
-  if (githubLogin || githubName) {
-    const parts: string[] = [];
-    if (githubName && githubLogin) {
-      parts.push(`${githubName} (@${githubLogin})`);
-    } else if (githubName) {
-      parts.push(githubName);
-    } else if (githubLogin) {
-      parts.push(`@${githubLogin}`);
-    }
-    metadataLines.push(`GitHub: ${parts.join(' ')}`);
-  }
+  const login = githubLogin?.trim();
+  if (login) metadataLines.push(`GitHub: @${login}`);
 
   const trimmedAppVersion = appVersion?.trim();
   if (trimmedAppVersion) {
@@ -78,7 +60,7 @@ export function buildFeedbackContent({
 }
 
 export function useFeedbackSubmit({
-  githubUser,
+  githubLogin,
   appVersion,
   platformDisplayName,
   onSuccess,
@@ -157,7 +139,7 @@ export function useFeedbackSubmit({
       const content = buildFeedbackContent({
         feedback: trimmedFeedback,
         contactEmail: trimmedContactEmail,
-        githubUser,
+        githubLogin,
         appVersion,
         platformDisplayName,
         includeDiagnosticLogs: Boolean(diagnosticLog),
@@ -192,7 +174,7 @@ export function useFeedbackSubmit({
         setSubmitting(false);
       }
     },
-    [appVersion, contactEmail, feedbackDetails, githubUser, onSuccess, platformDisplayName, toast]
+    [appVersion, contactEmail, feedbackDetails, githubLogin, onSuccess, platformDisplayName, toast]
   );
 
   return {
