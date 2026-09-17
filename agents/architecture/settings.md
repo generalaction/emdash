@@ -27,18 +27,56 @@ committed and shared.
 | `defaultBranch` | Desktop project-settings DB; live repository facts | valid stored branch > remote HEAD > well-known remote branch > well-known local branch > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` in `apps/emdash-desktop/src/core/primitives/project-settings/api/effective-settings.ts` | Task and terminal environment, task creation, automation deployment, source-control UI |
 | `baseRemote` | Desktop project-settings DB; live repository facts | valid stored remote > `origin` > sole remote > first remote alphabetically > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` | Git fetch, task creation, automation deployment, source-control UI |
 | `pushRemote` | Desktop project-settings DB; effective base remote | valid stored remote > effective base remote > unavailable | `resolveEffectiveSettings()` / `resolveEffectiveGitSettings()` | Push and pull-request flows, automation deployment, source-control UI |
-| `githubAccount` | Desktop project-settings DB; connected provider accounts; repository remote host | stored account/explicit none > matching default account > sole host-matching account > none; stale or host-mismatched pins fail closed | `resolveEffectiveSettings()` | GitHub issues and pull requests, Git credentials, GitHub account UI |
+| `integrationAccounts[providerId]` | Desktop project-settings DB integration-accounts domain; connected provider accounts | stored account/explicit none > provider default > none; dangling pins fail closed. Repository-scoped operations additionally constrain inference and pins by repository host: matching default > sole host-matching account > none | `resolveProjectAccount()` supplies project base-remote or explicit URL context to `resolveProviderAccount()` | Issue integrations, GitHub pull requests and Git credentials, account selection UI |
 | `agentGitCredentials` | Desktop project-settings DB | stored project choice > built-in `effective-account` | `getStoredGitSettings()` plus `DEFAULT_AGENT_GIT_CREDENTIALS` | `createGitCredentialsService()` for TUI, terminal, and source-control session credentials |
 | `watcherExclude` | Local desktop app settings for the local worker; host settings JSON for remote workspace servers | worker-specific stored value > shared built-in exclusion list. With “Sync local settings” enabled, the desktop value is copied to the remote host (last writer wins; this is synchronization, not a precedence layer). | Files, Git, and workspace-registry worker construction in `apps/emdash-desktop/src/main/gateway/desktop-workers.ts` and `apps/workspace-server/src/gateway/workspace-workers.ts` | Files runtime watchers, Git checkout and workspace-registry working-tree watchers (through the `workspaceContentWatchIgnore` profile in `fs-watch`), and file-search exclusion policy |
 
 ## Domain Boundaries
 
-- `ProjectSettingsProvider` exposes stored Git identity, stored placement, placement context, and
-  resolver-backed tmux. It does not expose a merged `get()` or `update()` API.
+- `ProjectSettingsProvider` exposes stored Git identity, stored integration account choices, stored placement, placement context, and
+  resolver-backed tmux. Its only current-settings write is `setWorktreeRoot()`, which validates the
+  directory on the owning Host. `DesktopProjectSettingsAuthority` owns patches to Git identity,
+  integration account choices, and tmux, including when the Host is offline.
+- Every desktop settings writer, including lazy migration write-back, lifecycle finalization and
+  worktree-root updates, uses `ProjectSettingsStorage.mutate()`. Host/repository lookups finish
+  before its synchronous transaction; patches are applied to the current row inside it.
 - Desktop DB JSON stores only explicit project overrides. `tmuxDefaultMigrated` is one-time lazy
   migration metadata, not a user setting.
 - Project settings pages are self-contained domain snapshots. Forms patch only touched fields;
   `null` removes an explicit value and restores inheritance.
+- Integration account choices are their own desktop-owned domain, independent of Git identity.
+  Account patches merge only touched provider keys; GitHub uses the same map and patch contract.
+  Legacy GitHub account fields are normalized through `readStoredProjectSettings()` and its shared
+  migration before reads, edits, and account-usage counts; current writes store only the map.
+- All provider account surfaces, including GitHub, observe the same browser inventory query.
+  Account availability and loading/error state come from that inventory; live connection checks
+  report health separately and never update saved accounts or credentials. GitHub and form-based
+  integrations share credential verification and stable-identity checks; token presence alone is
+  not a successful health check. Reconnecting validates
+  identity against account metadata even when the previous secret is missing or unreadable.
+  GitHub refines the shared summary with required identity fields; historical metadata is normalized
+  at the registry read seam. Account removal always names one account.
+- Cached issue requests carry the account context in their query key. The server compares it with
+  the authoritative resolution snapshot, then fetches credentials for that exact account ID.
+  Stale contexts trigger inventory/settings refresh; invalidation ordering is not an identity guarantee.
+- Single-account credential imports share `LegacyAccountImports` in
+  `services/provider-accounts/node/migrations/`. Provider migration adapters own legacy decoding
+  and any required identity lookup. A durable DB marker records completion independently of account
+  existence and source cleanup. Registry upserts and imports use the same account writer; imports
+  commit the account row and completion marker in one database transaction after secret I/O.
+  Cleanup failures retry without authorizing another import; migration reads/deletes propagate
+  storage errors. Historical GitHub completion timestamps remain
+  recognized at this migration seam.
+- Issue list/search execution shares one implementation for request limits, empty searches,
+  plugin results, and linked-account identity. Provider adapters prepare credentials and repository
+  context; GitHub retains repository recognition and host matching.
+- Project account rows use the same explicit-disable and inheritance/reset choices for every
+  integration, including when a pinned account is missing. GitHub authentication events carry flow
+  state only; project UI reads its effective account rather than a global current-user projection.
+- Linked issue refresh uses its saved source account despite a changed or dangling project account
+  choice. An explicit project disable still suppresses the integration. Legacy source URLs are
+  validated by stable resource identity: mutable title slugs are excluded, while provider host
+  and workspace/repository scope remain part of the check.
 - The workspace registry is the sole resolver for lifecycle, environment, and file-handling config.
   It passes the resolved `command`, `shellSetup`, and project environment to host-owned runtimes,
   which select their host's default shell immediately before spawning. Commands remain opaque;
