@@ -5,10 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useState } from 'react';
-import {
-  GitHubAccountStateEmpty,
-  useBlockingGitHubAccountState,
-} from '@core/features/github/contributions/browser/account-state';
+import { providerAccountReportingState } from '@core/features/integrations/api/account-reporting';
+import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
+import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -84,7 +84,7 @@ export const PrSelector = observer(function PrSelector({
   renderSelectedValue,
   renderPlaceholder,
 }: PrSelectorProps) {
-  const openGithubConnectModal = useOpenModal('githubConnectModal');
+  const openIntegrationSetup = useOpenModal('integrationSetupModal');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
@@ -94,8 +94,14 @@ export const PrSelector = observer(function PrSelector({
   // github-git-settings §7): an explicitly disabled project or an
   // unresolvable pin must not trigger syncs — fail closed instead of
   // proceeding as another identity.
-  const accountState = useBlockingGitHubAccountState(projectId);
-  const enabled = !!projectId && !!repositoryUrl && !accountState;
+  const account = useProjectAccount(projectId ?? '', 'github', { repository: { kind: 'project' } });
+  const { data: accounts } = useAccounts('github');
+  const accountState =
+    projectId && account?.value === null && accounts
+      ? providerAccountReportingState('GitHub', account.provenance, accounts.length > 0)
+      : null;
+  const enabled =
+    !!projectId && !!repositoryUrl && (!accountState || accountState.kind === 'silent');
   // Inventory owns provider reads. Subscribe only to its local cache revision/status.
   const sync = useRemoteModelState(
     pullRequestsContract.syncState,
@@ -149,7 +155,7 @@ export const PrSelector = observer(function PrSelector({
       type="button"
       variant="secondary"
       size="xs"
-      onClick={() => void openGithubConnectModal({})}
+      onClick={() => void openIntegrationSetup({ integration: 'github' })}
     >
       Connect GitHub
     </Button>
@@ -236,8 +242,14 @@ export const PrSelector = observer(function PrSelector({
             disabled={disabled}
           />
           <Combobox.Empty>
-            {accountState ? (
-              <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+            {accountState && accountState.kind !== 'silent' ? (
+              <ProviderAccountStateEmpty
+                state={accountState}
+                projectId={projectId}
+                providerId="github"
+                providerName="GitHub"
+                icon={<Github className="size-4 text-foreground-muted" />}
+              />
             ) : isGitHubAuthError ? (
               <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-2">

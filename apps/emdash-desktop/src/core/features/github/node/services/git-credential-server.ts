@@ -6,18 +6,14 @@ import {
   GIT_CREDENTIAL_HELPER_URL_PATH,
   type GitCredentialChannel,
 } from '@emdash/core/primitives/git-credentials/api';
-import type { Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type {
   GitCredentialChannelServer,
   GitCredentialSessionTarget,
 } from '@core/features/github/api/node/services/git-credentials-service';
-import type {
-  ProjectGitHubAccountResolver,
-  ProjectGitHubAccountResolution,
-} from '@core/features/github/api/node/services/project-github-account-resolver';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { resolveAccountForHost } from '@core/primitives/project-settings/api';
+import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
+import type { ProjectIntegrationAccountResolver } from '@core/features/integrations/api/node/project-integration-account-resolver';
+import { isGitHubAccountSummary, type GitHubAccountSummary } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 
 /**
@@ -25,17 +21,16 @@ import { normalizeRepositoryHost } from '@core/primitives/repository/api';
  * (spec: github-git-settings §4; secrets spec "first consumer" seam).
  *
  * Sessions carry only `{ port, nonce }` — the token stays desktop-side and is
- * re-resolved on every request through the blessed resolver, so revoking an
- * account or repointing a pin takes effect immediately and a broken pin fails
+ * read on every request. Project sessions follow the shared project resolver;
+ * clone sessions keep their selected account. Removal or a broken pin fails
  * closed. The token travels exclusively over this loopback response body to
  * the helper's stdout; it is never logged and never enters an environment.
  */
 
 export type GitCredentialServerDeps = {
-  resolveProjectGitHubAccount: ProjectGitHubAccountResolver;
+  resolveProjectIntegrationAccount: ProjectIntegrationAccountResolver;
   listAccounts(): Promise<GitHubAccountSummary[]>;
-  /** Token access with fail-closed pin checks (GitHubApiAuthService.getToken). */
-  getToken(host: string, context: { accountId?: string }): Promise<Result<string, unknown>>;
+  readCredentials: ReadGitHubCredentials;
   logger: Logger;
 };
 
@@ -155,10 +150,9 @@ export class GitCredentialServer implements GitCredentialChannelServer {
       return;
     }
 
-    // getToken re-runs the fail-closed pin checks (dangling account, host
-    // mismatch) so a stale session can never yield another identity.
-    const token = await this.deps.getToken(requestHost, { accountId: account.accountId });
-    if (!token.success) {
+    // Read only the selected account; removal or an endpoint mismatch fails closed.
+    const credentials = await this.deps.readCredentials(account.accountId, requestHost);
+    if (!credentials.success) {
       this.deps.logger.warn('GitCredentialServer: token resolution failed closed', {
         targetKind: target.kind,
         host: requestHost,
@@ -170,24 +164,33 @@ export class GitCredentialServer implements GitCredentialChannelServer {
     }
 
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end(serializeGitCredentialResponse({ username: account.login, password: token.data }));
+    res.end(
+      serializeGitCredentialResponse({
+        username: account.login,
+        password: credentials.data.accessToken,
+      })
+    );
   }
 
   private async resolveAccount(
     target: GitCredentialSessionTarget,
     requestHost: string
   ): Promise<GitHubAccountSummary | null> {
-    if (target.kind === 'host') {
+    if (target.kind === 'account') {
       if (normalizeRepositoryHost(target.host) !== requestHost) return null;
-      const inferred = resolveAccountForHost(requestHost, await this.deps.listAccounts());
-      return inferred.value;
+      const account = (await this.deps.listAccounts()).find(
+        (candidate) => candidate.accountId === target.accountId
+      );
+      return account && normalizeRepositoryHost(account.host) === requestHost ? account : null;
     }
 
-    const resolution: ProjectGitHubAccountResolution = await this.deps.resolveProjectGitHubAccount(
-      target.projectId
+    const resolution = await this.deps.resolveProjectIntegrationAccount(
+      target.projectId,
+      'github',
+      { kind: 'project' }
     );
     const account = resolution.value;
-    if (!account) return null;
+    if (!account || !isGitHubAccountSummary(account)) return null;
     // The helper config is scoped to the account's host; still verify, since
     // the session env could be replayed against other hosts.
     if (normalizeRepositoryHost(account.host) !== requestHost) return null;

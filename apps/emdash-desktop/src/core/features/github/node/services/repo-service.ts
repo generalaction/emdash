@@ -1,9 +1,11 @@
 import type { Octokit } from '@octokit/rest';
-import type {
-  GitHubApiAuthContext,
-  GitHubApiAuthService,
-} from '@core/features/github/api/node/services/github-api-auth-service';
+import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
+import { isGitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubOwner } from '@core/primitives/github/api';
+import { resolveProviderAccount } from '@core/primitives/project-settings/api';
+import { providerAccountHostMatching } from '@core/primitives/project-settings/api/resolve-provider-account';
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api';
+import { githubApiAccountNotFound, githubApiAuthRequired } from './github-api-auth-errors';
 import { GitHubApiAuthErrorException, getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -26,17 +28,23 @@ export interface GitHubRepo {
   forksCount: number;
 }
 
+export type GitHubRepositoryAccountContext = { accountId?: string };
+
 export interface GitHubRepositoryService {
-  listRepositories(authContext?: GitHubApiAuthContext): Promise<GitHubRepo[]>;
-  getOwners(authContext?: GitHubApiAuthContext): Promise<GitHubOwner[]>;
+  listRepositories(authContext?: GitHubRepositoryAccountContext): Promise<GitHubRepo[]>;
+  getOwners(authContext?: GitHubRepositoryAccountContext): Promise<GitHubOwner[]>;
   createRepository(params: {
     name: string;
     description?: string;
     owner: string;
     isPrivate: boolean;
-    authContext?: GitHubApiAuthContext;
+    authContext?: GitHubRepositoryAccountContext;
   }): Promise<{ url: string; cloneUrl: string; defaultBranch: string; nameWithOwner: string }>;
-  deleteRepository(owner: string, name: string, authContext?: GitHubApiAuthContext): Promise<void>;
+  deleteRepository(
+    owner: string,
+    name: string,
+    authContext?: GitHubRepositoryAccountContext
+  ): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,14 +73,11 @@ interface RestRepo {
 
 export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   constructor(
-    private readonly getOctokit: (
-      host: string,
-      authContext?: GitHubApiAuthContext
-    ) => Promise<Octokit>
+    private readonly getOctokit: (context: GitHubRepositoryAccountContext) => Promise<Octokit>
   ) {}
 
-  async listRepositories(authContext: GitHubApiAuthContext = {}): Promise<GitHubRepo[]> {
-    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
+  async listRepositories(authContext: GitHubRepositoryAccountContext = {}): Promise<GitHubRepo[]> {
+    const octokit = await this.getOctokit(authContext);
     const { data } = await octokit.rest.repos.listForAuthenticatedUser({
       per_page: 100,
       sort: 'updated',
@@ -81,8 +86,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     return data.map((item) => this.mapRepo(item as unknown as RestRepo));
   }
 
-  async getOwners(authContext: GitHubApiAuthContext = {}): Promise<GitHubOwner[]> {
-    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
+  async getOwners(authContext: GitHubRepositoryAccountContext = {}): Promise<GitHubOwner[]> {
+    const octokit = await this.getOctokit(authContext);
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const owners: GitHubOwner[] = [{ login: user.login, type: 'User', avatarUrl: user.avatar_url }];
 
@@ -101,12 +106,9 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     description?: string;
     owner: string;
     isPrivate: boolean;
-    authContext?: GitHubApiAuthContext;
+    authContext?: GitHubRepositoryAccountContext;
   }): Promise<{ url: string; cloneUrl: string; defaultBranch: string; nameWithOwner: string }> {
-    const octokit = await this.getOctokit(
-      this.hostForAuthContext(params.authContext ?? {}),
-      params.authContext
-    );
+    const octokit = await this.getOctokit(params.authContext ?? {});
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const isCurrentUser = params.owner === user.login;
 
@@ -132,16 +134,10 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   async deleteRepository(
     owner: string,
     name: string,
-    authContext: GitHubApiAuthContext = {}
+    authContext: GitHubRepositoryAccountContext = {}
   ): Promise<void> {
-    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
+    const octokit = await this.getOctokit(authContext);
     await octokit.rest.repos.delete({ owner, repo: name });
-  }
-
-  private hostForAuthContext(authContext: GitHubApiAuthContext): string {
-    const accountId = authContext.accountId?.trim();
-    if (!accountId) return 'github.com';
-    return accountId.split(':')[0] || 'github.com';
   }
 
   private mapRepo(item: RestRepo): GitHubRepo {
@@ -163,11 +159,26 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 }
 
-export function createGitHubRepositoryService(
-  authService: GitHubApiAuthService
-): GitHubRepositoryService {
-  return new GitHubRepositoryServiceImpl(async (host, authContext = {}) => {
-    const octokit = await getOctokit(authService, host, authContext);
+export function createGitHubRepositoryService(deps: {
+  listAccounts(): Promise<ProviderAccountSummary[]>;
+  readCredentials: ReadGitHubCredentials;
+}): GitHubRepositoryService {
+  return new GitHubRepositoryServiceImpl(async (context) => {
+    const accounts = (await deps.listAccounts()).filter(isGitHubAccountSummary);
+    const accountId = context.accountId?.trim();
+    const account = resolveProviderAccount(
+      accountId ? { kind: 'account', accountId } : undefined,
+      accounts,
+      accountId ? undefined : providerAccountHostMatching('github.com')
+    ).value;
+    if (!account) {
+      throw new GitHubApiAuthErrorException(
+        accountId
+          ? githubApiAccountNotFound('github.com', accountId)
+          : githubApiAuthRequired('github.com')
+      );
+    }
+    const octokit = await getOctokit(deps.readCredentials, account.accountId, account.host);
     if (!octokit.success) throw new GitHubApiAuthErrorException(octokit.error);
     return octokit.data;
   });

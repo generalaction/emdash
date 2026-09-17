@@ -1140,9 +1140,9 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
       projectId: 'optimistic-project',
       patch: {
-        gitIdentity: {
+        integrationAccounts: {
           stored: {
-            githubAccount: { kind: 'account', accountId: 'github.com:42' },
+            github: { kind: 'account', accountId: 'github.com:42' },
           },
         },
       },
@@ -1268,9 +1268,9 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).toHaveBeenCalledWith({
       projectId: 'optimistic-project',
       patch: {
-        gitIdentity: {
+        integrationAccounts: {
           stored: {
-            githubAccount: { kind: 'account', accountId: 'github.com:42' },
+            github: { kind: 'account', accountId: 'github.com:42' },
           },
         },
       },

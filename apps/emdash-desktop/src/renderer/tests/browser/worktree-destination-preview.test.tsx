@@ -22,7 +22,6 @@ function makeInputs(overrides: Partial<EffectiveSettingsInputs> = {}): Effective
       remotes: [{ name: 'origin', host: 'github.com', headBranch: 'main', branches: ['main'] }],
       localBranches: ['main'],
     },
-    accounts: [],
     placementContext: {
       hostWorktreeRoot: null,
       builtInWorktreeRoot: '/home/me/emdash/worktrees',

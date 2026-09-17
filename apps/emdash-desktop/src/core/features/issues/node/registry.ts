@@ -1,7 +1,6 @@
 import { issuesPluginRegistry } from '@emdash/plugins/issues';
-import { createGitHubPluginIssueProvider } from '@core/features/github/api/node/github-plugin-issue-provider';
-import type { GitHubIssueProviderDependencies } from '@core/features/github/api/node/github-plugin-issue-provider';
 import { createPluginIssueProvider } from '@core/features/integrations/api/node/plugin-issue-provider';
+import type { PluginIssueProviderDependencies } from '@core/features/integrations/api/node/plugin-issue-provider';
 import type { IssueProvider } from '@core/features/issues/api/node/issue-provider';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 
@@ -10,16 +9,13 @@ export type IssueProviderRegistry = {
   getAll(): IssueProvider[];
 };
 
-export function createIssueProviderRegistry(dependencies: {
-  github: GitHubIssueProviderDependencies;
-}): IssueProviderRegistry {
+export function createIssueProviderRegistry(
+  dependencies: PluginIssueProviderDependencies
+): IssueProviderRegistry {
   const providers = new Map<IssueProviderType, IssueProvider>();
 
   for (const plugin of issuesPluginRegistry.getAll()) {
-    const provider =
-      plugin.metadata.integrationId === 'github'
-        ? createGitHubPluginIssueProvider(plugin, dependencies.github)
-        : createPluginIssueProvider(plugin);
+    const provider = createPluginIssueProvider(plugin, dependencies);
     providers.set(provider.type, provider);
   }
 

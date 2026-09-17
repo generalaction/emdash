@@ -46,6 +46,7 @@ import { openModal } from '@core/manifests/browser/modal-api';
 import { projectAvailabilityUi } from '@core/manifests/browser/project-availability-ui';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
+import { resolveIssueMentionSource } from '@core/primitives/issues/api/issue-context';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
@@ -81,7 +82,7 @@ function commandMatchesQuery(command: CommandItem, query: string): boolean {
 }
 
 function toIssueMentionItem(issue: LinkedIssue): MentionItem {
-  const token = issueMentionToken(issue.provider, issue.identifier);
+  const token = issueMentionToken(issue.provider, issue.identifier, issue);
   return {
     id: token,
     label: token,
@@ -217,11 +218,21 @@ const ComposerForStore = observer(function ComposerForStore({
   const buildHiddenIssueContext = useCallback(
     (value: string) =>
       buildIssueMentionHiddenContext(value, async (target) => {
+        const source = resolveIssueMentionSource(
+          target,
+          getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
+        );
+        if (!source) return null;
         const result = await (
           await getIssuesClient()
         ).getIssueContext({
           provider: target.provider,
-          options: { identifier: target.identifier, projectId: store.projectId },
+          options: {
+            identifier: source.identifier,
+            accountId: source.accountId,
+            issueUrl: source.issueUrl,
+            projectId: store.projectId,
+          },
         });
         if (!result.success) {
           log.warn('Failed to resolve issue mention context', {
@@ -232,7 +243,7 @@ const ComposerForStore = observer(function ComposerForStore({
         }
         return result.data;
       }),
-    [store.projectId]
+    [store.projectId, store.taskId]
   );
 
   const handleSubmit = useCallback(
@@ -409,6 +420,7 @@ const ComposerForStore = observer(function ComposerForStore({
   const issueProviderContext = useObserver(() => {
     const project = projectData(getProjectStore(store.projectId));
     return {
+      projectId: store.projectId,
       projectPath: project?.path,
       repositoryUrl:
         getGitRepositoryStore(store.projectId)?.issueRepositoryUrl ??
@@ -793,11 +805,21 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         if (arg.kind === 'issue') {
           const target = parseIssueMentionToken(arg.id);
           if (!target) return;
+          const source = resolveIssueMentionSource(
+            target,
+            getRegisteredTaskData(store.projectId, store.taskId)?.linkedIssue
+          );
+          if (!source) return;
           void getIssuesClient()
             .then((client) =>
               client.getIssueContext({
                 provider: target.provider,
-                options: { identifier: target.identifier, projectId: store.projectId },
+                options: {
+                  identifier: source.identifier,
+                  accountId: source.accountId,
+                  issueUrl: source.issueUrl,
+                  projectId: store.projectId,
+                },
               })
             )
             .then((result) => {

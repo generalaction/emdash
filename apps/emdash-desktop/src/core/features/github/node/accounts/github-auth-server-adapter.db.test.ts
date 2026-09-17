@@ -1,7 +1,8 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProviderTokenPayload } from '@core/features/account/api/node/provider-token-registry';
-import { GITHUB_PROVIDER_ID, toGitHubAccount } from './github-accounts';
+import { toProviderAccountSummary } from '@core/primitives/provider-accounts/api';
+import { GITHUB_PROVIDER_ID } from './github-auth-connection';
 import { GitHubAuthServerAdapter } from './github-auth-server-adapter';
 
 describe('GitHubAuthServerAdapter', () => {
@@ -10,7 +11,7 @@ describe('GitHubAuthServerAdapter', () => {
 
   beforeEach(async () => {
     fixture = await openRegistryFixture('empty');
-    adapter = new GitHubAuthServerAdapter(fixture.registry);
+    adapter = new GitHubAuthServerAdapter(fixture.connections);
   });
 
   afterEach(() => {
@@ -31,7 +32,9 @@ describe('GitHubAuthServerAdapter', () => {
 
     const result = await adapter.storeOAuthToken(payload);
 
-    const accounts = (await fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).map(toGitHubAccount);
+    const accounts = (await fixture.registry.listAccounts(GITHUB_PROVIDER_ID)).map(
+      toProviderAccountSummary
+    );
     expect(result).toMatchObject({
       providerAccountStatus: 'created',
       providerAccount: payload.providerAccount,
@@ -43,7 +46,7 @@ describe('GitHubAuthServerAdapter', () => {
       credentialSource: 'emdash_oauth',
     });
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
-      'gho_monalisa'
+      JSON.stringify({ accessToken: 'gho_monalisa', apiBaseUrl: 'https://api.github.com' })
     );
   });
 
@@ -91,7 +94,7 @@ describe('GitHubAuthServerAdapter', () => {
       providerAccount: payload.providerAccount,
     });
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
-      'gho_refreshed'
+      JSON.stringify({ accessToken: 'gho_refreshed', apiBaseUrl: 'https://api.github.com' })
     );
   });
 });

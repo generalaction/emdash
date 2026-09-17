@@ -39,7 +39,7 @@ function preloadIssueMentionIcons(): void {
   if (didPreloadIssueMentionIcons) return;
   didPreloadIssueMentionIcons = true;
   void getIntegrationsClient()
-    .then((client) => client.list(undefined))
+    .then((client) => client.listProviders(undefined))
     .then(registerIssueMentionIcons)
     .catch(() => {
       // IntegrationsProvider also refreshes the registry after React mounts.

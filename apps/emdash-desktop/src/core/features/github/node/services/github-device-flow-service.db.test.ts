@@ -1,7 +1,7 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GitHubEvent, GitHubUser } from '@core/primitives/github/api';
-import { GITHUB_PROVIDER_ID } from '../accounts/github-accounts';
+import { GITHUB_PROVIDER_ID } from '../accounts/github-auth-connection';
 import { GitHubDeviceFlowService } from './github-device-flow-service';
 
 const user: GitHubUser = {
@@ -29,7 +29,7 @@ describe('GitHubDeviceFlowService', () => {
 
   it('registers a device-flow account in the registry', async () => {
     const service = new GitHubDeviceFlowService({
-      accountStore: fixture.registry,
+      connections: fixture.connections,
       identityClient: { getAuthenticatedUser },
       publishEvent: emit,
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),
@@ -45,14 +45,14 @@ describe('GitHubDeviceFlowService', () => {
       },
     });
     await expect(fixture.registry.resolveSecret(GITHUB_PROVIDER_ID, 'github.com:42')).resolves.toBe(
-      'gho_device'
+      JSON.stringify({ accessToken: 'gho_device', apiBaseUrl: 'https://api.github.com' })
     );
   });
 
   it('returns an error when the device-flow token cannot identify a user', async () => {
     getAuthenticatedUser = vi.fn(async () => null);
     const service = new GitHubDeviceFlowService({
-      accountStore: fixture.registry,
+      connections: fixture.connections,
       identityClient: { getAuthenticatedUser },
       publishEvent: emit,
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),

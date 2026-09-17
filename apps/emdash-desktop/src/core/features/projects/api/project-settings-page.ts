@@ -11,7 +11,8 @@ import type {
   ProjectSettingsWriteTargetOption,
   Resolved,
   StoredDefaultBranch,
-  StoredGithubAccount,
+  StoredIntegrationAccount,
+  StoredIntegrationAccounts,
   StoredProjectGitSettings,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
@@ -62,8 +63,12 @@ export type ProjectEnvironmentDomainSnapshot = {
 export type ProjectGitIdentityDomainSnapshot = {
   stored: Pick<
     StoredProjectGitSettings,
-    'defaultBranch' | 'baseRemote' | 'pushRemote' | 'githubAccount' | 'agentGitCredentials'
+    'defaultBranch' | 'baseRemote' | 'pushRemote' | 'agentGitCredentials'
   >;
+};
+
+export type ProjectIntegrationAccountsDomainSnapshot = {
+  stored: StoredIntegrationAccounts;
 };
 
 export type ProjectPlacementDomainSnapshot = {
@@ -83,11 +88,13 @@ export type ProjectSettingsDomains = {
   fileHandling: ProjectFileHandlingDomainSnapshot;
   environment: ProjectEnvironmentDomainSnapshot;
   gitIdentity: ProjectGitIdentityDomainSnapshot;
+  integrationAccounts: ProjectIntegrationAccountsDomainSnapshot;
   placement: ProjectPlacementDomainSnapshot;
 };
 
 export type ProjectDurableSettingsDomains = {
   gitIdentity: ProjectGitIdentityDomainSnapshot;
+  integrationAccounts: ProjectIntegrationAccountsDomainSnapshot;
   placement: Pick<ProjectPlacementDomainSnapshot, 'stored'>;
 };
 
@@ -104,9 +111,13 @@ export type ProjectGitIdentityStoredPatch = {
   defaultBranch?: StoredDefaultBranch | null;
   baseRemote?: string | null;
   pushRemote?: string | null;
-  githubAccount?: StoredGithubAccount | null;
   agentGitCredentials?: AgentGitCredentialsSetting | null;
 };
+
+/** Values set one provider's choice; null clears it; absent keys are untouched. */
+export type ProjectIntegrationAccountsPatch = Partial<
+  Record<string, StoredIntegrationAccount | null>
+>;
 
 export type ProjectPlacementStoredPatch = {
   worktreeRoot?: string | null;
@@ -125,6 +136,9 @@ export type ProjectSettingsDomainPatch = {
   };
   gitIdentity?: {
     stored: ProjectGitIdentityStoredPatch;
+  };
+  integrationAccounts?: {
+    stored: ProjectIntegrationAccountsPatch;
   };
   placement?: {
     stored: ProjectPlacementStoredPatch;

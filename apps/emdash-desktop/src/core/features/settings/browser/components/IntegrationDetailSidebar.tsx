@@ -1,22 +1,22 @@
-import { Button, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Button, MicroLabel } from '@emdash/ui/react/primitives';
+import { Loader2, Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ISSUE_FEATURE_LABELS } from '@core/features/integrations/api/browser/integration-display';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { GitHubAccountRows } from './GitHubAccountsSection';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
+import { IntegrationAccountRows } from './IntegrationAccountsSection';
 import type { IntegrationItem } from './IntegrationsCard';
 
 export function IntegrationDetailSidebar({
   integration,
-  githubAccounts,
   onClose,
 }: {
   integration: IntegrationItem;
-  githubAccounts: GitHubAccountSummary[];
   onClose: () => void;
 }) {
-  const accountLabel = integration.id === 'github' ? 'Accounts' : 'Account';
+  const { integrationAccounts, isLoadingAccounts, accountsError } = useIntegrationsContext();
+  const accounts = integrationAccounts[integration.id] ?? [];
+  const accountLabel = accounts.length > 1 ? 'Accounts' : 'Account';
 
   return (
     <div className="relative flex h-full flex-col">
@@ -57,24 +57,27 @@ export function IntegrationDetailSidebar({
           <div>
             <MicroLabel>{accountLabel}</MicroLabel>
             <div className="mt-3">
-              {integration.id === 'github' ? (
-                <div className="space-y-2">
-                  {githubAccounts.length > 0 && <GitHubAccountRows accounts={githubAccounts} />}
+              <div className="space-y-2">
+                {isLoadingAccounts ? (
+                  <p className="text-sm text-foreground-muted">Loading accounts…</p>
+                ) : null}
+                {accountsError ? (
+                  <p role="alert" className="text-sm text-foreground-error">
+                    Unable to load accounts. {accountsError.message}
+                  </p>
+                ) : null}
+                {accounts.length > 0 && (
+                  <IntegrationAccountRows integration={integration} accounts={accounts} />
+                )}
+                {!isLoadingAccounts && !accountsError ? (
                   <AddAccountCard
                     integration={integration}
-                    label="Add GitHub account"
-                    detail={
-                      githubAccounts.length === 0
-                        ? 'No GitHub accounts are connected.'
-                        : 'Connect a GitHub or GitHub Enterprise account.'
+                    label={
+                      accounts.length > 0 ? `Add another ${integration.name} account` : undefined
                     }
                   />
-                </div>
-              ) : integration.isConfigured ? (
-                <SingleIntegrationAccount integration={integration} />
-              ) : (
-                <AddAccountCard integration={integration} />
-              )}
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -88,39 +91,6 @@ function CapabilityBadge({ children }: { children: ReactNode }) {
     <span className="inline-flex h-5 items-center rounded bg-background-2 px-1.5 text-xs font-medium text-foreground-muted">
       {children}
     </span>
-  );
-}
-
-function SingleIntegrationAccount({ integration }: { integration: IntegrationItem }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/60 p-3">
-      <AccountIcon provider={integration.id} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">
-          {integration.displayName ?? `${integration.name} account`}
-        </p>
-        <p className="truncate text-xs text-foreground-muted">
-          {integration.displayDetail ?? 'Connected'}
-        </p>
-      </div>
-      {integration.onDisconnect && (
-        <Tooltip.Root>
-          <Tooltip.Trigger>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon
-              onClick={integration.onDisconnect}
-              aria-label={`Disconnect ${integration.name}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side="top">Disconnect</Tooltip.Content>
-        </Tooltip.Root>
-      )}
-    </div>
   );
 }
 
@@ -157,13 +127,5 @@ function AddAccountCard({
         </p>
       </div>
     </button>
-  );
-}
-
-function AccountIcon({ provider }: { provider: string }) {
-  return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-      <IntegrationIcon provider={provider} size={22} />
-    </div>
   );
 }

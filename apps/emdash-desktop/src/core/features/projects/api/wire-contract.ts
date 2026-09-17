@@ -180,8 +180,8 @@ export const projectsWireContract = defineContract({
     }),
     output: z.custom<Result<MigrateProjectConfigResult, ProjectSettingsError>>(),
   }),
-  countProjectsUsingGithubAccount: procedure({
-    input: z.object({ accountId: z.string() }),
+  countProjectsUsingProviderAccount: procedure({
+    input: z.object({ providerId: z.string(), accountId: z.string() }),
     output: z.number(),
   }),
   updateProjectConnection: procedure({

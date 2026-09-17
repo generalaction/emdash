@@ -1,11 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { Octokit } from '@octokit/rest';
-import type {
-  GitHubApiAuthContext,
-  GitHubApiAuthService,
-} from '@core/features/github/api/node/services/github-api-auth-service';
-import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
+import type { ReadGitHubCredentials } from '@core/features/github/api/node/services/github-credentials';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import { getCachedOctokit, setCachedOctokit } from './octokit-cache';
@@ -27,23 +23,24 @@ export class GitHubApiAuthErrorException extends Error {
 }
 
 export async function getOctokit(
-  authService: GitHubApiAuthService,
-  host: string,
-  context: GitHubApiAuthContext = {}
+  readCredentials: ReadGitHubCredentials,
+  accountId: string,
+  host: string
 ): Promise<Result<Octokit, GitHubApiAuthError>> {
   const normalizedHost = normalizeRepositoryHost(host);
-  const token = await authService.getToken(normalizedHost, context);
-  if (!token.success) return err(token.error);
+  const credentials = await readCredentials(accountId, normalizedHost);
+  if (!credentials.success) return err(credentials.error);
+  const { accessToken, apiBaseUrl } = credentials.data;
 
-  const cached = getCachedOctokit(normalizedHost, context);
-  if (cached?.token === token.data) return ok(cached.octokit);
+  const cached = getCachedOctokit(normalizedHost, accountId);
+  if (cached?.token === accessToken && cached.apiBaseUrl === apiBaseUrl) return ok(cached.octokit);
 
   const octokit = new Octokit({
-    auth: token.data,
-    baseUrl: githubApiBaseUrlForHost(normalizedHost),
+    auth: accessToken,
+    baseUrl: apiBaseUrl,
     log: octokitLog,
   });
 
-  setCachedOctokit(normalizedHost, context, { octokit, token: token.data });
+  setCachedOctokit(normalizedHost, accountId, { octokit, token: accessToken, apiBaseUrl });
   return ok(octokit);
 }

@@ -696,8 +696,8 @@ export class ProjectManagerStore {
     ).updateProjectSettings({
       projectId,
       patch: {
-        gitIdentity: {
-          stored: { githubAccount: { kind: 'account', accountId: githubAccountId } },
+        integrationAccounts: {
+          stored: { github: { kind: 'account', accountId: githubAccountId } },
         },
       },
     });

@@ -1,13 +1,13 @@
 import { CollectionToolbar, CollectionView, SortSelect } from '@emdash/ui/react/patterns';
 import { Button, ContextMenu, Input, Popover, ToggleGroup } from '@emdash/ui/react/primitives';
-import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, Github, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import {
-  GitHubAccountStateEmpty,
-  useBlockingGitHubAccountState,
-} from '@core/features/github/contributions/browser/account-state';
+import { providerAccountReportingState } from '@core/features/integrations/api/account-reporting';
+import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
+import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
+import { ProviderAccountStateEmpty } from '@core/features/integrations/contributions/browser/account-state';
 import type { UserItem } from '@core/features/projects/browser/components/pr-view/pr-filter-items';
 import {
   usePrViewState,
@@ -203,12 +203,23 @@ export const PullRequestView = observer(function PullRequestView() {
   // quiet disabled state, an unresolvable pin fails closed with a fix
   // affordance, and the zero-account case offers the connect flow. The
   // silent-default row renders the normal PR list.
-  const accountState = useBlockingGitHubAccountState(projectId);
+  const account = useProjectAccount(projectId ?? '', 'github', { repository: { kind: 'project' } });
+  const { data: accounts } = useAccounts('github');
+  const accountState =
+    projectId && account?.value === null && accounts
+      ? providerAccountReportingState('GitHub', account.provenance, accounts.length > 0)
+      : null;
 
-  if (accountState) {
+  if (accountState && accountState.kind !== 'silent') {
     return (
       <div className="flex h-full min-h-0 w-full flex-col justify-center">
-        <GitHubAccountStateEmpty state={accountState} projectId={projectId} />
+        <ProviderAccountStateEmpty
+          state={accountState}
+          projectId={projectId}
+          providerId="github"
+          providerName="GitHub"
+          icon={<Github className="size-4 text-foreground-muted" />}
+        />
       </div>
     );
   }
@@ -277,7 +288,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedAssigneeItem,
     selectedLabelItems,
     hasPills,
-  } = usePrViewState(repositoryUrl);
+  } = usePrViewState(projectId, repositoryUrl);
 
   const toolbar = (
     <PrToolbar

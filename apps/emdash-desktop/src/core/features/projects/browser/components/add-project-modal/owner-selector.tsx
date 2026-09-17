@@ -1,11 +1,8 @@
-import { Combobox, Select, TriggerButton } from '@emdash/ui/react/primitives';
+import { Combobox, TriggerButton } from '@emdash/ui/react/primitives';
 import { GithubIcon } from 'lucide-react';
 import { useState } from 'react';
-import {
-  GitHubAccountSelectListItem,
-  GitHubAccountSelectTrigger,
-} from '@core/features/projects/contributions/browser/github-account-select';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import type { ProviderAccountSummary } from '@core/primitives/provider-accounts/api/provider-account-summary';
+import { ProviderAccountSelect } from '@core/primitives/provider-accounts/browser/account-select';
 
 export interface OwnerOption {
   value: string;
@@ -23,8 +20,8 @@ export function OwnerSelector({
 }: {
   owners: OwnerOption[];
   owner: OwnerOption | null;
-  accounts: GitHubAccountSummary[];
-  selectedAccount: GitHubAccountSummary | null;
+  accounts: ProviderAccountSummary[];
+  selectedAccount: ProviderAccountSummary | null;
   onOwnerChange: (owner: OwnerOption) => void;
   onAccountChange: (accountId: string) => void;
 }) {
@@ -63,11 +60,15 @@ export function OwnerSelector({
       <Combobox.Content align="start" sideOffset={6} style={{ minWidth: '20rem' }}>
         <div className="flex items-center justify-between gap-3 px-2 py-1.5">
           <span className="text-xs text-foreground-muted">Choose</span>
-          <GitHubAccountSelect
-            accounts={accounts}
-            selectedAccount={selectedAccount}
-            onAccountChange={onAccountChange}
-          />
+          <div className="min-w-0" onKeyDown={(event) => event.stopPropagation()}>
+            <ProviderAccountSelect
+              providerName="GitHub"
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onAccountChange={onAccountChange}
+              fallbackIcon={<GithubIcon className="size-full text-foreground-muted" />}
+            />
+          </div>
         </div>
         <Combobox.Separator />
         <Combobox.Input showTrigger={false} placeholder="Search owners..." />
@@ -92,50 +93,5 @@ export function OwnerSelector({
         </Combobox.List>
       </Combobox.Content>
     </Combobox.Root>
-  );
-}
-
-function GitHubAccountSelect({
-  accounts,
-  selectedAccount,
-  onAccountChange,
-}: {
-  accounts: GitHubAccountSummary[];
-  selectedAccount: GitHubAccountSummary | null;
-  onAccountChange: (accountId: string) => void;
-}) {
-  return (
-    <div className="min-w-0" onKeyDown={(event) => event.stopPropagation()}>
-      <Select.Root
-        value={selectedAccount?.accountId}
-        onValueChange={(nextValue) => {
-          if (nextValue) onAccountChange(nextValue);
-        }}
-        disabled={accounts.length === 0}
-      >
-        <Select.Trigger appearance="input" size="sm" className="max-w-48 min-w-36">
-          {selectedAccount ? (
-            <GitHubAccountSelectTrigger account={selectedAccount} />
-          ) : (
-            <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <GithubIcon className="size-4 shrink-0 text-foreground-muted" />
-              <span className="min-w-0 truncate">No GitHub account</span>
-            </span>
-          )}
-        </Select.Trigger>
-        <Select.Content
-          align="end"
-          alignItemWithTrigger={false}
-          sideOffset={6}
-          className="min-w-56"
-        >
-          {accounts.map((account) => (
-            <Select.Item key={account.accountId} value={account.accountId}>
-              <GitHubAccountSelectListItem account={account} />
-            </Select.Item>
-          ))}
-        </Select.Content>
-      </Select.Root>
-    </div>
   );
 }

@@ -66,8 +66,8 @@ import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
 import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
 import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
-import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
-import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
+import { createGitHubCredentialReader } from '@core/features/github/api/node/services/github-credentials';
+import { getIntegrationAccountStore } from '@core/features/integrations/node/integration-account-store-instance';
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import { mementosWireContract, type MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
@@ -293,8 +293,13 @@ function startDesktopWorkersWithHost(
       // Identity is resolved per request through the seam bound during services
       // boot (spec: github-git-settings §8); until then requests fail closed.
       githubAuth: createPullRequestsGitHubAuthController(
-        new GitHubApiAuthService(providerAccountRegistry),
-        githubApiBaseUrlForHost,
+        createGitHubCredentialReader(
+          {
+            getAccount: (providerId, accountId) =>
+              getIntegrationAccountStore().getAccount(providerId, accountId),
+          },
+          providerAccountRegistry
+        ),
         resolvePullRequestSyncIdentity
       ),
     },

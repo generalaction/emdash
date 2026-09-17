@@ -1,6 +1,7 @@
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import type { EmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { GitHubAuthServerAdapter } from '@core/features/github/node/accounts/github-auth-server-adapter';
+import { getIntegrationConnectionService } from '@core/features/integrations/node/integration-connection-service';
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 import type { DesktopControllerContext } from '@core/manifests/node/controllers';
 import { appOperations } from '@main/core/app/controller';
@@ -8,7 +9,6 @@ import {
   createDependencyManagerResolver,
   ensureAgentDependenciesProbed,
 } from '@main/core/dependencies/dependency-managers';
-import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { withCompensation } from '@main/core/utils/compensation';
 import { legacyPortOperations } from '@main/db/legacy-port/controller';
@@ -36,7 +36,7 @@ export function wireAccountTelemetry(accountService: EmdashAccountService): void
 }
 
 export function registerProviderTokenHandlers(): void {
-  const githubAuthServerAdapter = new GitHubAuthServerAdapter(providerAccountRegistry);
+  const githubAuthServerAdapter = new GitHubAuthServerAdapter(getIntegrationConnectionService());
   providerTokenRegistry.register('github', (payload) =>
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
@@ -69,7 +69,7 @@ export function createDesktopWireOptions(
     devPerfOperations: createDevPerfOperations(runtimes),
     editorBuffer: database.editorBuffer,
     github: {
-      accountService: github.account,
+      cliAccountImporter: github.cliImport,
       deviceFlowService: github.deviceFlow,
       repositoryService: github.repositories,
     },
