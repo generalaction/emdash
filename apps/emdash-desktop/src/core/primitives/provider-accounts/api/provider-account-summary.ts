@@ -39,7 +39,9 @@ export function toProviderAccountSummary(account: {
     accountId: account.accountId,
     isDefault: account.isDefault,
     displayName:
-      meta?.label ?? meta?.displayName ?? (meta?.login ? `@${meta.login}` : account.accountId),
+      meta?.label?.trim() ||
+      meta?.displayName?.trim() ||
+      (meta?.login?.trim() ? `@${meta.login.trim()}` : 'Unnamed account'),
     ...(meta?.displayDetail || meta?.host
       ? { displayDetail: meta.displayDetail ?? meta.host }
       : {}),
