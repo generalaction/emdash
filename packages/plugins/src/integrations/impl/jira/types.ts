@@ -1,5 +1,6 @@
 import type { Version3Client, Version3Models } from 'jira.js';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
 export const jiraCredentialsSchema = z.object({
@@ -17,6 +18,7 @@ export type JiraClient = Version3Client;
 export type JiraIssue = Version3Models.Issue;
 
 export type JiraVerifiedConnection = {
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: JiraCredentials;

@@ -1,5 +1,6 @@
 import type { ApiClient as MondaySdkClient } from '@mondaydotcomorg/api';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
 export const mondayCredentialsSchema = z.object({
@@ -14,13 +15,14 @@ export type MondayViewerQuery = {
   me?: {
     id: string;
     name: string;
-    account?: { name: string } | null;
+    account?: { id?: string | null; name: string } | null;
   } | null;
 };
 
-export const MONDAY_VIEWER_QUERY = 'query { me { id name account { name } } }';
+export const MONDAY_VIEWER_QUERY = 'query { me { id name account { id name } } }';
 
 export type MondayVerifiedConnection = {
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: MondayCredentials;

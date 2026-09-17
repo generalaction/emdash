@@ -13,6 +13,7 @@ const mainConfig = {
     'agents/helpers/adapter-validation': 'src/agents/helpers/adapter-validation.ts',
     'agents/types': 'src/agents/types.ts',
     integrations: 'src/integrations/index.ts',
+    'integrations/github': 'src/integrations/impl/github/types.ts',
     issues: 'src/issues/index.ts',
   },
   format: ['esm'],

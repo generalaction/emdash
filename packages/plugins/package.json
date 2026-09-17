@@ -23,6 +23,11 @@
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"
     },
+    "./integrations/github": {
+      "development": "./src/integrations/impl/github/types.ts",
+      "types": "./dist/integrations/github.d.mts",
+      "default": "./dist/integrations/github.mjs"
+    },
     "./issues": {
       "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
