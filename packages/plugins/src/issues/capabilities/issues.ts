@@ -12,9 +12,11 @@ import type {
 /**
  * Host-supplied context an issues plugin needs before it can operate.
  * Repository-scoped services (GitHub, GitLab, Forgejo) need `repositoryUrl`;
- * account-scoped services (Linear, Jira, ...) need nothing.
+ * providers that read the checkout itself need `repositoryPath`, the
+ * project's absolute local repository path, and carry no credentials of
+ * their own; account-scoped services (Linear, Jira, ...) need nothing.
  */
-export const issueRequiredInputSchema = z.enum(['repositoryUrl']);
+export const issueRequiredInputSchema = z.enum(['repositoryUrl', 'repositoryPath']);
 
 export type IssueRequiredInput = z.infer<typeof issueRequiredInputSchema>;
 

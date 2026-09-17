@@ -27,6 +27,11 @@
       "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
+    },
+    "./issues/node": {
+      "development": "./src/issues/node.ts",
+      "types": "./dist/issues/node.d.mts",
+      "default": "./dist/issues/node.mjs"
     }
   },
   "scripts": {

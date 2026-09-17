@@ -84,7 +84,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(
 ): Promise<Result<T, IssueProjectUnavailableError>> {
   if (!opts.projectId) return ok(opts);
   const providedRepositoryUrl = opts.repositoryUrl?.trim();
-  if (providedRepositoryUrl) {
+  if (providedRepositoryUrl && opts.projectPath?.trim()) {
     return ok({ ...opts, repositoryUrl: providedRepositoryUrl });
   }
   const attached = dependencies.projects.requireAttached(opts.projectId);
@@ -100,6 +100,12 @@ async function withResolvedRemote<T extends IssueQueryOpts>(
     });
   }
   const project = attached.data;
+  // Providers that read the checkout (`requiresProjectPath`) get the repository
+  // path from the attached project when the caller did not supply one.
+  const projectPath = opts.projectPath?.trim() || project.repoPath;
+  if (providedRepositoryUrl) {
+    return ok({ ...opts, projectPath, repositoryUrl: providedRepositoryUrl });
+  }
 
   const remote = await project.gitRepository.getBaseRemote().catch(() => undefined);
   const selectedRemote = opts.remote?.trim() || remote;
@@ -113,7 +119,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(
       ).find((candidate) => candidate.name === selectedRemote)?.url
     : undefined;
 
-  return ok({ ...opts, remote: selectedRemote, repositoryUrl });
+  return ok({ ...opts, projectPath, remote: selectedRemote, repositoryUrl });
 }
 
 export async function checkConnection(

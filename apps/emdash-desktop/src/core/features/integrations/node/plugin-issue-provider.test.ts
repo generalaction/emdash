@@ -62,6 +62,7 @@ describe('createPluginIssueProvider', () => {
     const provider = createPluginIssueProvider(makePlugin({ requiredInputs: ['repositoryUrl'] }));
     expect(provider.capabilities).toEqual({
       requiresRepositoryUrl: true,
+      requiresProjectPath: false,
       supportsIssueContext: false,
     });
   });

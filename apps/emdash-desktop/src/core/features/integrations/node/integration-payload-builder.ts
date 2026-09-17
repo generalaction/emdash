@@ -10,6 +10,7 @@ function issueCapabilities(integrationId: string): IssueProviderCapabilities {
   const requiredInputs = plugin?.capabilities.issues.requiredInputs ?? [];
   return {
     requiresRepositoryUrl: requiredInputs.includes('repositoryUrl'),
+    requiresProjectPath: requiredInputs.includes('repositoryPath'),
     supportsIssueContext: !!plugin?.behavior.issues?.getIssue,
   };
 }

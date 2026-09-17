@@ -14,6 +14,7 @@ const mainConfig = {
     'agents/types': 'src/agents/types.ts',
     integrations: 'src/integrations/index.ts',
     issues: 'src/issues/index.ts',
+    'issues/node': 'src/issues/node.ts',
   },
   format: ['esm'],
   dts: true,

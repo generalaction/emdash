@@ -6,6 +6,7 @@ import { provider as github } from './impl/github';
 import { provider as gitlab } from './impl/gitlab';
 import { provider as jira } from './impl/jira';
 import { provider as linear } from './impl/linear';
+import { provider as markdown } from './impl/markdown';
 import { provider as monday } from './impl/monday';
 import { provider as notion } from './impl/notion';
 import { provider as plain } from './impl/plain';
@@ -28,6 +29,7 @@ for (const provider of [
   notion,
   featurebase,
   plain,
+  markdown,
 ]) {
   integrationPluginRegistry.register(provider);
 }
