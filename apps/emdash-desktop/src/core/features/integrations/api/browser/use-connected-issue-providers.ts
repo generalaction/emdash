@@ -27,14 +27,16 @@ export function useConnectedIssueProviders(
 
   const checkUsable = useMemo(
     () => (provider: IssueProviderType) => {
+      const choice = projectChoices?.[provider];
+      if (choice?.kind === 'none') return false;
+
       const integration = integrations.find((candidate) => candidate.id === provider);
       return (
         !!integration &&
         isProviderUsable(
           {
             connected:
-              (integrationAccounts[provider]?.length ?? 0) > 0 ||
-              projectChoices?.[provider] !== undefined,
+              (integrationAccounts[provider]?.length ?? 0) > 0 || choice?.kind === 'account',
             capabilities: integration.issueCapabilities,
           },
           context

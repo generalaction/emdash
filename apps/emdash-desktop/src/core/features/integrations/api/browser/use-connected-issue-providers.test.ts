@@ -18,6 +18,48 @@ afterEach(() => {
 });
 
 describe('project issue provider availability', () => {
+  it.each([true, false])(
+    'excludes an explicitly disabled provider even with saved accounts (configured=%s)',
+    async (configured) => {
+      mocks.context.mockReturnValue({
+        integrations: [
+          {
+            id: 'linear',
+            features: ['issues'],
+            issueCapabilities: { requiresRepositoryUrl: false },
+          },
+        ],
+        integrationAccounts: configured ? { linear: [{ accountId: 'a' }] } : {},
+        isLoadingAccounts: false,
+      });
+      mocks.settings.mockReturnValue({
+        durableDomains: {
+          integrationAccounts: { stored: { linear: { kind: 'none' } } },
+        },
+      });
+      const dom = new JSDOM('<html><body><div id="root"></div></body></html>');
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+      vi.stubGlobal('window', dom.window);
+      vi.stubGlobal('document', dom.window.document);
+      const container = dom.window.document.getElementById('root')!;
+      const root = createRoot(container);
+      let result: ReturnType<typeof useConnectedIssueProviders> | undefined;
+      function Probe() {
+        result = useConnectedIssueProviders({ projectId: 'project' });
+        return null;
+      }
+      try {
+        await act(async () => root.render(React.createElement(Probe)));
+        expect(result?.connectedProviders).toEqual([]);
+        expect(result?.isProviderUsable('linear')).toBe(false);
+        expect(result?.hasAnyIssueIntegration).toBe(false);
+      } finally {
+        await act(async () => root.unmount());
+        dom.window.close();
+      }
+    }
+  );
+
   it('exposes inventory failure when no provider list could be loaded', async () => {
     mocks.context.mockReturnValue({
       integrations: [],
