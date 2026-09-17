@@ -7,11 +7,14 @@ import { createProjectFromRemote } from './create-project-from-remote';
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   runRuntimeLiveJob: vi.fn(),
+  getProjectByPath: vi.fn(),
 }));
 
 vi.mock('./create-project', () => ({
   createProject: mocks.createProject,
 }));
+
+vi.mock('./getProjects', () => ({ getProjectByPath: mocks.getProjectByPath }));
 
 vi.mock('@core/services/runtime-clients/node/live-job', () => ({
   runRuntimeLiveJob: mocks.runRuntimeLiveJob,
@@ -33,6 +36,7 @@ describe('createProjectFromRemote', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getProjectByPath.mockResolvedValue(undefined);
     exists.mockResolvedValue(ok(false));
     stat.mockResolvedValue(ok({ type: 'directory' }));
     deleteMutation.mockResolvedValue(ok());
@@ -146,6 +150,37 @@ describe('createProjectFromRemote', () => {
     });
   });
 
+  it('passes the selected account to clone credentials and its preferences to registration', async () => {
+    const account = { providerId: 'github', accountId: 'selected-work' };
+    const initialIntegrationAccounts = {
+      github: { kind: 'account' as const, accountId: account.accountId },
+      linear: { kind: 'none' as const },
+    };
+    const result = await createProjectFromRemote(
+      dependencies,
+      {
+        projectId: 'project-1',
+        host: { type: 'local' },
+        mode: 'create',
+        repositoryUrl: 'https://github.com/acme/private.git',
+        targetPath: '/repo',
+        name: 'Private',
+        account,
+        initialIntegrationAccounts,
+      },
+      { signal: new AbortController().signal, progress: vi.fn() } as never,
+      vi.fn()
+    );
+    expect(result.success).toBe(true);
+    expect(dependencies.mintCloneCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ account })
+    );
+    expect(mocks.createProject).toHaveBeenCalledWith(
+      dependencies,
+      expect.objectContaining({ initialIntegrationAccounts })
+    );
+  });
+
   it('explains disabled credential prompts as missing Git authentication', async () => {
     const rawMessage =
       "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
@@ -254,5 +289,78 @@ describe('createProjectFromRemote', () => {
       success: false,
       error: { type: 'git_error', message },
     });
+  });
+
+  it.each(['new', 'preexisting', 'registered', 'lookup-failed', 'delete-failed'])(
+    'cleans only a newly created, unregistered checkout after registration fails (%s)',
+    async (scenario) => {
+      mocks.createProject.mockResolvedValueOnce(
+        err({
+          type: 'registration-failed',
+          path: '/repo',
+          message: 'Account settings could not be saved.',
+        })
+      );
+      if (scenario === 'preexisting') {
+        exists.mockResolvedValueOnce(ok({ exists: true }));
+        mocks.runRuntimeLiveJob.mockResolvedValueOnce(ok({ paths: [] }));
+      }
+      if (scenario === 'registered')
+        mocks.getProjectByPath.mockResolvedValueOnce({ id: 'other-project' });
+      if (scenario === 'lookup-failed')
+        mocks.getProjectByPath.mockRejectedValueOnce(new Error('DB unavailable'));
+      if (scenario === 'delete-failed')
+        deleteMutation.mockResolvedValueOnce(err({ type: 'permission-denied', path: '/repo' }));
+      const publish = vi.fn();
+      const result = await createProjectFromRemote(
+        dependencies,
+        {
+          projectId: 'project-1',
+          host: { type: 'local' },
+          mode: 'create',
+          repositoryUrl: 'https://github.com/acme/private.git',
+          targetPath: '/repo',
+          name: 'Private',
+          account: { providerId: 'github', accountId: 'selected-work' },
+          initialIntegrationAccounts: { github: { kind: 'account', accountId: 'selected-work' } },
+        },
+        { signal: new AbortController().signal, progress: vi.fn() } as never,
+        publish
+      );
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.type).toBe('registration-failed');
+      expect(publish.mock.calls.some(([, state]) => state.phase === 'ready')).toBe(false);
+      if (scenario === 'new' || scenario === 'delete-failed') {
+        expect(deleteMutation).toHaveBeenCalledExactlyOnceWith({
+          path: hostPathFromNative('/repo'),
+          recursive: true,
+        });
+      } else {
+        expect(deleteMutation).not.toHaveBeenCalled();
+      }
+      if (scenario !== 'new')
+        expect(result.error.message).toContain('cloned files remain at /repo');
+    }
+  );
+
+  it('does not delete a checkout when registration throws after a possible commit', async () => {
+    mocks.createProject.mockRejectedValueOnce(new Error('Project event delivery failed'));
+    await expect(
+      createProjectFromRemote(
+        dependencies,
+        {
+          projectId: 'project-1',
+          host: { type: 'local' },
+          mode: 'create',
+          repositoryUrl: 'https://github.com/acme/private.git',
+          targetPath: '/repo',
+          name: 'Private',
+        },
+        { signal: new AbortController().signal, progress: vi.fn() } as never,
+        vi.fn()
+      )
+    ).rejects.toThrow('Project event delivery failed');
+    expect(deleteMutation).not.toHaveBeenCalled();
   });
 });
