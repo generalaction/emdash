@@ -1,7 +1,11 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { DEFAULT_AGENT_GIT_CREDENTIALS } from '@core/primitives/project-settings/api';
+import {
+  DEFAULT_AGENT_GIT_CREDENTIALS,
+  DEFAULT_WORKSPACE_PRESET,
+} from '@core/primitives/project-settings/api';
 import type {
   AgentGitCredentialsSetting,
+  DefaultWorkspacePresetSetting,
   ShareableProjectSettingsWriteField,
   StoredDefaultBranch,
   StoredGithubAccount,
@@ -52,6 +56,8 @@ export type PlacementFormState = {
   /** Undefined means inherit from the host/app placement layers. */
   tmux: boolean | undefined;
   worktreeDirectory: string;
+  /** The built-in default is stored as absence; see `placementToPatch`. */
+  defaultWorkspacePreset: DefaultWorkspacePresetSetting;
 };
 
 export type FormState = {
@@ -136,6 +142,7 @@ export function placementToForm(domain: ProjectPlacementDomainSnapshot): Placeme
   return {
     tmux: domain.stored.tmux,
     worktreeDirectory: domain.stored.worktreeRoot ?? '',
+    defaultWorkspacePreset: domain.stored.defaultWorkspacePreset ?? DEFAULT_WORKSPACE_PRESET,
   };
 }
 
@@ -254,6 +261,10 @@ export function placementToPatch(
     stored.worktreeRoot = blankToUndefined(form.worktreeDirectory) ?? null;
   }
   if (isTouched(touchedFields, 'placement.tmux')) stored.tmux = form.tmux ?? null;
+  if (isTouched(touchedFields, 'placement.defaultWorkspacePreset')) {
+    stored.defaultWorkspacePreset =
+      form.defaultWorkspacePreset === DEFAULT_WORKSPACE_PRESET ? null : form.defaultWorkspacePreset;
+  }
   return Object.keys(stored).length > 0 ? { stored } : undefined;
 }
 

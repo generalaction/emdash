@@ -50,7 +50,12 @@ function makeForm(overrides: FormOverrides = {}): FormState {
       agentGitCredentials: 'effective-account',
       ...overrides.gitIdentity,
     },
-    placement: { tmux: undefined, worktreeDirectory: '', ...overrides.placement },
+    placement: {
+      tmux: undefined,
+      worktreeDirectory: '',
+      defaultWorkspacePreset: 'new-worktree',
+      ...overrides.placement,
+    },
   };
 }
 
@@ -197,6 +202,32 @@ describe('project settings form model', () => {
     expect(
       formToProjectSettingsDomainPatch(form, new Set<FormFieldPath>(['placement.tmux']))
     ).toEqual({ placement: { stored: { tmux: null } } });
+  });
+
+  it('stores the default workspace preset only when it differs from the built-in default', () => {
+    const input = domains();
+    input.placement.stored = { defaultWorkspacePreset: 'repo-root' };
+    const form = projectSettingsDomainsToForm(input, [origin]);
+    expect(form.placement.defaultWorkspacePreset).toBe('repo-root');
+
+    input.placement.stored = {};
+    expect(projectSettingsDomainsToForm(input, [origin]).placement.defaultWorkspacePreset).toBe(
+      'new-worktree'
+    );
+
+    const touched = new Set<FormFieldPath>(['placement.defaultWorkspacePreset']);
+    expect(
+      formToProjectSettingsDomainPatch(
+        makeForm({ placement: { defaultWorkspacePreset: 'repo-root' } }),
+        touched
+      )
+    ).toEqual({ placement: { stored: { defaultWorkspacePreset: 'repo-root' } } });
+    expect(
+      formToProjectSettingsDomainPatch(
+        makeForm({ placement: { defaultWorkspacePreset: 'new-worktree' } }),
+        touched
+      )
+    ).toEqual({ placement: { stored: { defaultWorkspacePreset: null } } });
   });
 
   it('renders inherited auto-run state from the resolved value', () => {

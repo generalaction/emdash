@@ -23,6 +23,18 @@ export type AgentGitCredentialsSetting = z.infer<typeof agentGitCredentialsSetti
 
 export const DEFAULT_AGENT_GIT_CREDENTIALS: AgentGitCredentialsSetting = 'effective-account';
 
+/**
+ * Per-project default workspace preset the create-task modal starts from.
+ * `new-worktree` creates an isolated worktree per task; `repo-root` works
+ * directly in the project directory. Absence means the built-in default,
+ * `new-worktree`. The modal still lets the user pick any preset per task.
+ */
+export const defaultWorkspacePresetSettingSchema = z.enum(['new-worktree', 'repo-root']);
+
+export type DefaultWorkspacePresetSetting = z.infer<typeof defaultWorkspacePresetSettingSchema>;
+
+export const DEFAULT_WORKSPACE_PRESET: DefaultWorkspacePresetSetting = 'new-worktree';
+
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
@@ -63,6 +75,7 @@ export const storedBaseProjectSettingsSchema = z.object({
   githubAccount: storedGithubAccountSchema.optional(),
   agentGitCredentials: agentGitCredentialsSettingSchema.optional(),
   tmux: z.boolean().optional(),
+  defaultWorkspacePreset: defaultWorkspacePresetSettingSchema.optional(),
   /** Lazy-migration marker; not a user setting. */
   tmuxDefaultMigrated: z.literal(true).optional(),
 });

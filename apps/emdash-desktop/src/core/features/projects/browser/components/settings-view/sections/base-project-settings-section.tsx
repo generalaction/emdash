@@ -42,12 +42,18 @@ import { getHostClient } from '@core/primitives/desktop-host/browser/host-client
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import type {
   AgentGitCredentialsSetting,
+  DefaultWorkspacePresetSetting,
   Provenance,
   Resolved,
 } from '@core/primitives/project-settings/api';
-import { formatDefaultBranch, resolveTmux } from '@core/primitives/project-settings/api';
+import {
+  DEFAULT_WORKSPACE_PRESET,
+  formatDefaultBranch,
+  resolveTmux,
+} from '@core/primitives/project-settings/api';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 import type { ProjectPlacementDomainSnapshot } from '../../../../api/project-settings-page';
 import {
   formToStoredGitSettings,
@@ -65,6 +71,13 @@ const AGENT_GIT_CREDENTIALS_OPTIONS: { value: AgentGitCredentialsSetting; label:
   { value: 'system', label: 'System' },
   { value: 'none', label: 'None' },
 ];
+
+/** The create-task presets a project may default to, labelled as the modal's picker shows them. */
+const DEFAULT_WORKSPACE_PRESET_OPTIONS: { value: DefaultWorkspacePresetSetting; label: string }[] =
+  (['new-worktree', 'repo-root'] as const).map((value) => ({
+    value,
+    label: WORKSPACE_PRESETS.find((preset) => preset.id === value)?.label ?? value,
+  }));
 
 type BaseProjectSettingsSectionProps = {
   projectId: string;
@@ -296,6 +309,43 @@ export const BaseProjectSettingsSection = observer(function BaseProjectSettingsS
           </Select.Content>
         </Select.Root>
       </ProvenanceField>
+
+      <Separator />
+
+      <Field.Root>
+        <div className="flex items-center gap-2">
+          <Field.Label>Default workspace for new tasks</Field.Label>
+          {placementForm.defaultWorkspacePreset !== DEFAULT_WORKSPACE_PRESET ? (
+            <ResetProvenanceButton
+              flavor="inherited"
+              onReset={() => updatePlacement('defaultWorkspacePreset', DEFAULT_WORKSPACE_PRESET)}
+            />
+          ) : null}
+        </div>
+        <Field.Description className="text-foreground-muted">
+          Where new tasks run unless you choose otherwise when creating one.
+        </Field.Description>
+        <Select.Root
+          value={placementForm.defaultWorkspacePreset}
+          onValueChange={(value) => {
+            if (!value) return;
+            updatePlacement('defaultWorkspacePreset', value as DefaultWorkspacePresetSetting);
+          }}
+        >
+          <Select.Trigger className="w-full min-w-0">
+            {DEFAULT_WORKSPACE_PRESET_OPTIONS.find(
+              (option) => option.value === placementForm.defaultWorkspacePreset
+            )?.label ?? placementForm.defaultWorkspacePreset}
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            {DEFAULT_WORKSPACE_PRESET_OPTIONS.map((option) => (
+              <Select.Item key={option.value} value={option.value}>
+                {option.label}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
 
       <Separator />
 

@@ -312,7 +312,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
         stored: { baseRemote: 'origin', agentGitCredentials: 'none' },
       },
       placement: {
-        stored: { worktreeRoot: '/tmp/worktrees', tmux: true },
+        stored: { worktreeRoot: '/tmp/worktrees', tmux: true, defaultWorkspacePreset: 'repo-root' },
       },
     });
 
@@ -330,7 +330,7 @@ describe('ProjectSettingsService personal lifecycle writes', () => {
       gitIdentity: {
         stored: { baseRemote: 'origin', agentGitCredentials: 'none' },
       },
-      placement: { stored: { tmux: true } },
+      placement: { stored: { tmux: true, defaultWorkspacePreset: 'repo-root' } },
     });
     expect(hostPatch).toHaveBeenCalledWith({
       placement: { stored: { worktreeRoot: '/tmp/worktrees' } },
