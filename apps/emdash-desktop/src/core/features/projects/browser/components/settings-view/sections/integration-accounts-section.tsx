@@ -159,11 +159,14 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
             );
           }}
         >
-          <Select.Trigger className={cn('max-w-96', unresolvable && 'text-foreground-warning')}>
+          <Select.Trigger
+            className={cn('min-w-0 shrink-0 text-left', unresolvable && 'text-foreground-warning')}
+            style={{ width: '18rem', maxWidth: '65%' }}
+          >
             {resolution?.value ? (
               <ProviderAccountLabel account={resolution.value} fallbackIcon={fallbackIcon} />
             ) : (
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 flex-1 truncate text-left">
                 {resolution === null
                   ? loadError
                     ? 'Unable to load accounts'
@@ -174,7 +177,7 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
               </span>
             )}
           </Select.Trigger>
-          <Select.Content align="end" alignItemWithTrigger={false} sideOffset={6}>
+          <Select.Content width="trigger" align="end" alignItemWithTrigger={false} sideOffset={6}>
             <>
               {accounts.map((account) => (
                 <Select.Item key={account.accountId} value={account.accountId} className="py-2">
