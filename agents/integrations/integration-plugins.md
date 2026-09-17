@@ -102,6 +102,10 @@ accounts are loading or unavailable.
 Account presentation uses `ProviderAccountLabel` and the concrete-account picker
 `ProviderAccountSelect` from the provider-accounts browser primitives. They consume
 `ProviderAccountSummary` display fields; callers supply the provider name and icon.
+The registry assigns a persistent fallback name such as `Account 1` when an account has
+no user label, provider display name, or login. It fills missing names on legacy reads
+and assigns new names in the account-write transaction. Reconnects retain those names;
+real display metadata takes precedence, and sorting or default changes never renumber them.
 `createRequiredProviderAccountSelectState` supplies default-first selection for forms
 that require an account. Project settings keep their explicit-disable, reset, and
 unavailable-pin policy in the shared project account resolver.
