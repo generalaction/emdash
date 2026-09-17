@@ -75,6 +75,8 @@ describe('project integration account rows', () => {
     );
     expect(host.textContent).toContain('Jira');
     expect(host.textContent).toContain('Alice');
+    expect(host.querySelector('[data-slot="badge"]')?.textContent).toBe('Inferred');
+    expect(host.textContent).not.toContain('Reset to inferred');
     expect(host.querySelector('[role="combobox"]')?.getAttribute('aria-disabled')).not.toBe('true');
     expect(host.querySelector('[role="combobox"]')).not.toBeNull();
     await act(async () => host.querySelector<HTMLButtonElement>('[role="combobox"]')!.click());
@@ -179,7 +181,8 @@ describe('project integration account rows', () => {
     const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
     const disable = options.find((option) => option.textContent?.includes('No GitHub account'));
     expect(disable).toBeDefined();
-    expect(options.some((option) => option.textContent?.includes('Reset to inferred'))).toBe(true);
+    expect(options.some((option) => option.textContent?.includes('Reset to inferred'))).toBe(false);
+    expect(host.textContent).toContain('Reset to inferred');
     await act(async () => disable!.click());
     expect(update).toHaveBeenLastCalledWith('github', { kind: 'none' });
 
@@ -200,11 +203,17 @@ describe('project integration account rows', () => {
     };
     await act(async () => render());
     expect(host.querySelector('[role="combobox"]')?.textContent).toContain('No GitHub account');
-    await act(async () => host.querySelector<HTMLButtonElement>('[role="combobox"]')!.click());
-    const reset = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
-      option.textContent?.includes('Reset to inferred')
+    expect(host.querySelector('[data-slot="badge"]')?.textContent).toBe('Set');
+    const reset = [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('Reset to inferred')
     );
+    expect(reset).toBeDefined();
     await act(async () => reset!.click());
     expect(update).toHaveBeenLastCalledWith('github', null);
+    form = {};
+    await act(async () => render());
+    expect(host.querySelector('[data-slot="badge"]')?.textContent).toBe('Inferred');
+    expect(host.querySelector('[role="combobox"]')?.textContent).toContain('@alice');
+    expect(host.textContent).not.toContain('Reset to inferred');
   });
 });

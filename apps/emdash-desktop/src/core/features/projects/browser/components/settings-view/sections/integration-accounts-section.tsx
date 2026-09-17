@@ -1,10 +1,14 @@
-import { Badge, Field, Select, Separator } from '@emdash/ui/react/primitives';
-import { Plus, RotateCcw } from 'lucide-react';
+import { Field, Select, Separator } from '@emdash/ui/react/primitives';
+import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import { useAccounts } from '@core/features/integrations/api/browser/use-provider-accounts';
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
+import {
+  ProvenanceBadge,
+  ResetProvenanceButton,
+} from '@core/features/projects/contributions/browser/settings-provenance';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   resolveProviderAccount,
@@ -23,7 +27,6 @@ import type { FormUpdate, IntegrationAccountsFormState } from '../project-settin
 /** File-local Select option encodings; never stored or exported. */
 const NO_ACCOUNT_OPTION = '__no_provider_account__';
 const CONNECT_OPTION = '__connect_provider_account__';
-const RESET_OPTION = '__reset_provider_account__';
 
 /** One account-selection row per integration, using the same host policy as issue execution. */
 export const IntegrationAccountsSection = observer(function IntegrationAccountsSection({
@@ -133,12 +136,11 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
   return (
     <div className="flex flex-col">
       <div className="flex min-h-9 items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-medium text-foreground">{name}</span>
-          {isExplicit && !unresolvable ? (
-            <Badge variant="soft" tone="info">
-              Set
-            </Badge>
+          {resolution ? <ProvenanceBadge provenance={resolution.provenance} /> : null}
+          {resolution && isExplicit ? (
+            <ResetProvenanceButton onReset={() => onOverrideChange(null)} />
           ) : null}
         </div>
         <Select.Root
@@ -148,10 +150,6 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
             if (!value) return;
             if (value === CONNECT_OPTION) {
               onConnect();
-              return;
-            }
-            if (value === RESET_OPTION) {
-              onOverrideChange(null);
               return;
             }
             onOverrideChange(
@@ -198,14 +196,6 @@ const ProviderAccountRow = observer(function ProviderAccountRow({
                   <span className="relative -top-px shrink-0">Connect another account…</span>
                 </div>
               </Select.Item>
-              {isExplicit ? (
-                <Select.Item value={RESET_OPTION} className="py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <RotateCcw className="text-muted-foreground h-4 w-4 shrink-0" />
-                    <span className="relative -top-px shrink-0">Reset to inferred</span>
-                  </div>
-                </Select.Item>
-              ) : null}
             </>
           </Select.Content>
         </Select.Root>
