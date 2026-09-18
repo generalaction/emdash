@@ -10,11 +10,13 @@ import {
   useTaskComposition,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import type { ChangesListViewMode } from '@core/primitives/app-settings/api';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { activeDiffEntry } from '../../../pane-selectors';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';
 import { ChangesListItem } from '../changes-list-item';
+import { NestedChangesTree } from '../nested-changes-tree';
 import { useCommitFiles } from './use-commit-files';
 import { type CommitRange, useCommits } from './use-commits';
 
@@ -46,9 +48,11 @@ function commitRangeIdentity(range: CommitRange | undefined): string {
 export const CommitRangeCommitsList = observer(function CommitRangeCommitsList({
   range,
   emptyState = DEFAULT_EMPTY_STATE,
+  viewMode = 'flat',
 }: {
   range: CommitRange | undefined;
   emptyState?: CommitListEmptyState;
+  viewMode?: ChangesListViewMode;
 }) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
@@ -118,6 +122,7 @@ export const CommitRangeCommitsList = observer(function CommitRangeCommitsList({
                 isFirst={virtualItem.index === 0}
                 isLast={virtualItem.index === commits.length - 1}
                 onToggleExpanded={() => toggleExpanded(commit.hash)}
+                viewMode={viewMode}
               />
             </div>
           );
@@ -144,12 +149,14 @@ function CommitItem({
   isFirst,
   isLast,
   onToggleExpanded,
+  viewMode,
 }: {
   commit: Commit;
   isExpanded: boolean;
   isFirst: boolean;
   isLast: boolean;
   onToggleExpanded: () => void;
+  viewMode: ChangesListViewMode;
 }) {
   const shortHash = commit.hash.slice(0, 7);
 
@@ -194,7 +201,7 @@ function CommitItem({
             </span>
           </span>
         </button>
-        {isExpanded && <CommitFilesList commit={commit} />}
+        {isExpanded && <CommitFilesList commit={commit} viewMode={viewMode} />}
       </div>
     </div>
   );
@@ -210,7 +217,13 @@ const commitRefForCommit = (commit: Commit): GitObjectRef => commitRef(commit.ha
 const refsMatch = (left: GitObjectRef | undefined, right: GitObjectRef): boolean =>
   left !== undefined && refsEqual(left, right);
 
-const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: Commit }) {
+const CommitFilesList = observer(function CommitFilesList({
+  commit,
+  viewMode,
+}: {
+  commit: Commit;
+  viewMode: ChangesListViewMode;
+}) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
@@ -281,19 +294,29 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
 
   return (
     <div className="pr-1 pb-1 pl-5">
-      <div className="flex flex-col gap-0.5">
-        {files.map((change) => (
-          <ChangesListItem
-            key={change.path}
-            change={change}
-            isActive={change.path === activePath}
-            className="h-7"
-            onClick={() => openPreview(change)}
-            onDoubleClick={() => openDiff(change)}
-            onMouseEnter={() => prefetchDiff(change.path)}
-          />
-        ))}
-      </div>
+      {viewMode === 'tree' ? (
+        <NestedChangesTree
+          changes={files}
+          activePath={activePath}
+          onSelectChange={openPreview}
+          onDoubleClickChange={openDiff}
+          onPrefetch={(change) => prefetchDiff(change.path)}
+        />
+      ) : (
+        <div className="flex flex-col gap-0.5">
+          {files.map((change) => (
+            <ChangesListItem
+              key={change.path}
+              change={change}
+              isActive={change.path === activePath}
+              className="h-7"
+              onClick={() => openPreview(change)}
+              onDoubleClick={() => openDiff(change)}
+              onMouseEnter={() => prefetchDiff(change.path)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 });

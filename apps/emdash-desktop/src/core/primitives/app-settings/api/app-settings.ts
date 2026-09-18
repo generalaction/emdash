@@ -68,6 +68,7 @@ export type ChangesViewMode = {
   unstaged: 'flat' | 'tree';
   staged: 'flat' | 'tree';
   pr: 'flat' | 'tree';
+  commits: 'flat' | 'tree';
 };
 
 export type BrowserSettings = {
