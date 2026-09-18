@@ -19,6 +19,11 @@ export class AcpChatTabResource implements TabResource {
   dispose(): void {
     // AcpChatResourceManager owns the store lifetime.
     // The manager disposes the store after grace when the last tab is closed.
+    // Acknowledge the existing notification on close, just like terminal tabs.
+    const conversation = conversationRegistry
+      .get(this.store.taskId)
+      ?.conversations.get(this.store.conversationId);
+    if (conversation && !conversation.seen) conversation.markSeen();
   }
 
   onActivate(): void {
