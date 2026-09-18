@@ -19,6 +19,7 @@ const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set([
   'amp',
+  'antigravity',
   'codex',
   'commandcode',
   'droid',
