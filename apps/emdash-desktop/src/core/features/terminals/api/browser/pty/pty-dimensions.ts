@@ -64,7 +64,7 @@ export function computeGridDimensions({
   const left = paddingPx + (padding?.left ?? 0);
   const availW = widthPx - scrollbarWidth - left - right;
   const availH = heightPx - top - bottom;
-  if (Number.isNaN(availW) || Number.isNaN(availH) || availH <= 0) return null;
+  if (Number.isNaN(availW) || Number.isNaN(availH) || availW <= 0 || availH <= 0) return null;
   return {
     cols: Math.max(MINIMUM_COLS, Math.floor(availW / cellWidth)),
     rows: Math.max(MINIMUM_ROWS, Math.floor(availH / cellHeight)),
