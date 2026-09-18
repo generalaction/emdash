@@ -73,7 +73,7 @@ async function injectTerminalImagePaths(args: {
 
   const platform = await (await getHostClient()).getPlatform();
   const payload = buildTerminalImageInjection(args.paths, platform);
-  args.sendInput(`${payload} `, { track: false });
+  args.sendInput(payload, { track: false });
   args.focus();
 }
 
