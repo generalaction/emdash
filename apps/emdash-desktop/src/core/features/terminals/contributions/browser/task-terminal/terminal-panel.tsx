@@ -2,13 +2,12 @@ import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api
 import { EmptyState } from '@emdash/ui/react/components';
 import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
 import {
   TerminalDrawerTabBar,
-  type TerminalDrawerMode,
   type TerminalShellMenuState,
 } from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
 import { resolveTerminalPanelActiveItem } from '@core/features/terminals/browser/task-terminal/terminal-panel-selection';
@@ -38,10 +37,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const liveActionsDisabled = terminalMgr.hostAccess?.liveAction.kind === 'disabled';
   const liveActionDisabledReason = projectAvailabilityUi.getLiveActionDisabledReason(projectId);
   const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
-  const [mode, setMode] = useState<TerminalDrawerMode>(() =>
-    taskView.terminalDrawerActiveItem?.kind === 'script' ? 'scripts' : 'terminals'
-  );
-  const previousActiveItemRef = useRef(taskView.terminalDrawerActiveItem);
   const shellAvailabilityQuery = useTerminalShellAvailability(remoteConnectionId, {
     enabled: shouldLoadShellAvailability && !liveActionsDisabled,
   });
@@ -82,19 +77,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     scriptIds: lifecycleScriptTabs.map((script) => script.data.id),
   });
 
-  const selectedTerminalId =
-    activeItem.kind === 'terminal' ? activeItem.id || undefined : terminalTabs[0]?.data.id;
-  const selectedScriptId =
-    activeItem.kind === 'script'
-      ? activeItem.id
-      : (lifecycleScriptsMgr?.activeTabId ?? lifecycleScriptTabs[0]?.data.id);
-  const activeTerminalId = mode === 'terminals' ? selectedTerminalId : undefined;
-  const activeScriptId = mode === 'scripts' ? selectedScriptId : undefined;
+  const activeTerminalId = activeItem.kind === 'terminal' ? activeItem.id : undefined;
+  const activeScriptId = activeItem.kind === 'script' ? activeItem.id : undefined;
 
   const activeSession =
-    mode === 'terminals'
-      ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
-      : (lifecycleScriptTabs.find((script) => script.data.id === activeScriptId)?.session ?? null);
+    activeItem.kind === 'terminal'
+      ? (terminalMgr.sessions.get(activeItem.id) ?? null)
+      : (lifecycleScriptTabs.find((script) => script.data.id === activeItem.id)?.session ?? null);
 
   const allSessionIds = [
     ...terminalTabs
@@ -103,36 +92,22 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     ...lifecycleScriptTabs.map((s) => s.session.sessionId),
   ];
 
-  useEffect(() => {
-    const previousActiveItem = previousActiveItemRef.current;
-    const currentActiveItem = taskView.terminalDrawerActiveItem;
-    const changed =
-      currentActiveItem &&
-      (currentActiveItem.kind !== previousActiveItem?.kind ||
-        currentActiveItem.id !== previousActiveItem.id);
-
-    if (changed) {
-      setMode(currentActiveItem.kind === 'script' ? 'scripts' : 'terminals');
-    }
-    previousActiveItemRef.current = currentActiveItem;
-  }, [taskView, taskView.terminalDrawerActiveItem?.id, taskView.terminalDrawerActiveItem?.kind]);
-
   const handleHoverTerminal = (id: string) => {
     if (liveActionsDisabled) return;
     const session = terminalMgr.sessions.get(id);
     if (session?.status === 'disconnected') void session.connect();
   };
 
-  const activeStore = mode === 'terminals' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
+  const activeStore =
+    activeItem.kind === 'script' && lifecycleScriptsMgr ? lifecycleScriptsMgr : terminalTabView;
   const {
     attachRef: attachPaneScope,
     instance: paneScopeInstance,
     isFocused,
-  } = usePaneScope(`terminal-drawer:${projectId}:${taskId}`, activeStore ?? terminalTabView);
+  } = usePaneScope(`terminal-drawer:${projectId}:${taskId}`, activeStore);
 
   const handleCreate = async (shell?: TerminalShellId) => {
     if (liveActionsDisabled) return;
-    setMode('terminals');
     await taskView.openNewTerminal(shell);
   };
 
@@ -148,7 +123,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const handleRunScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script || script.isRunning) return;
-    setMode('scripts');
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
     void script.run().catch(() => {});
@@ -160,24 +134,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     script.stop();
   };
 
-  const handleModeChange = (nextMode: TerminalDrawerMode) => {
-    setMode(nextMode);
-
-    if (nextMode === 'terminals') {
-      const terminalId = terminalTabView.activeTabId ?? terminalTabs[0]?.data.id;
-      if (!terminalId) return;
-      terminalTabView.setActiveTab(terminalId);
-      taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id: terminalId });
-      return;
-    }
-
-    const scriptId = lifecycleScriptsMgr?.activeTabId ?? lifecycleScriptTabs[0]?.data.id;
-    if (!scriptId) return;
-    lifecycleScriptsMgr?.setActiveTab(scriptId);
-    taskView.setTerminalDrawerActiveItem({ kind: 'script', id: scriptId });
-  };
-
-  const terminalEmptyState = (
+  const emptyState = (
     <EmptyState
       bare
       label="No terminals yet"
@@ -199,14 +156,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     />
   );
 
-  const scriptsEmptyState = (
-    <EmptyState
-      bare
-      label="No scripts configured"
-      description="Add setup, run, or teardown scripts to your project configuration."
-    />
-  );
-
   return (
     <ViewScopeInstanceProvider instance={paneScopeInstance}>
       <div
@@ -222,12 +171,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           isFocused={isFocused}
           projectId={projectId}
           liveActionsDisabled={liveActionsDisabled}
-          mode={mode}
-          onModeChange={handleModeChange}
           lifecycleScriptsMgr={lifecycleScriptsMgr}
           activeScriptId={activeScriptId}
           onSelectScript={(id) => {
-            setMode('scripts');
             lifecycleScriptsMgr?.setActiveTab(id);
             taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
           }}
@@ -239,7 +185,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onShellMenuOpen={handleShellMenuOpen}
           onRetryShellAvailability={() => void shellAvailabilityQuery.refetch()}
           onSelectTerminal={(id) => {
-            setMode('terminals');
             terminalTabView.setActiveTab(id);
             taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
           }}
@@ -253,7 +198,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           activeSession={activeSession}
           allSessionIds={allSessionIds}
           autoFocus={shouldAutoFocus}
-          emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
+          emptyState={emptyState}
           unavailableState={
             <EmptyState
               bare
@@ -261,7 +206,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
               description={liveActionDisabledReason ?? 'Live actions are unavailable.'}
             />
           }
-          disabledReason={mode === 'terminals' ? liveActionDisabledReason : null}
+          disabledReason={activeItem.kind === 'terminal' ? liveActionDisabledReason : null}
           remoteConnectionId={remoteConnectionId}
           workspaceId={workspaceId}
           terminalPaddingBottom={0}
