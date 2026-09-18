@@ -65,6 +65,12 @@ export type ConversationEvent =
     }
   | { type: 'created'; conversation: Conversation }
   | {
+      type: 'deleted';
+      conversationId: string;
+      taskId: string;
+      projectId: string;
+    }
+  | {
       type: 'agent-status-changed';
       conversationId: string;
       taskId: string;
