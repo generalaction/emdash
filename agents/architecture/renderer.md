@@ -42,12 +42,14 @@ for as long as the task row exists (`task-persistent-stores.ts`), while operatio
 disposed when the task session is torn down (`task-scoped-stores.ts`).
 
 Task attention indicators aggregate unseen events from saved Conversations, independently of open
-tabs. Closing either an ACP or terminal conversation tab acknowledges its existing notification;
-later background events can notify again. Conversation managers reconcile membership on successful
-list reloads and deletion events, preserving membership changes received during an in-flight reload.
-Stream gaps invalidate the list so a gap during a reload schedules another fetch.
-Failed reloads preserve the current stores. An empty pane can still have background attention, but
-a task with no Conversations has no agent status indicator.
+tabs. A successful user close of either an ACP or terminal conversation tab acknowledges its
+existing notification through the resource's `onClose` hook; later background events can notify
+again. Generic disposal (including snapshot restoration, preview replacement and teardown) only
+releases resources. Conversation managers reconcile membership on successful list reloads and
+deletion events, preserving membership changes received during an in-flight reload. Stream gaps
+invalidate the list so a gap during a reload schedules another fetch. Failed reloads preserve the
+current stores. An empty pane can still have background attention, but a task with no Conversations
+has no agent status indicator.
 
 The Tasks slice owns current-task workspace activation in its app-scoped
 `TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { createTabRegistry } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
+import { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { PaneStore } from '@core/primitives/workbench-shell/browser/tabs/pane-store';
 import { releaseAcpChatResourceManager } from './acp-chat-resource-manager';
 import { acpChatTabProvider } from './acp-chat-tab-provider';
@@ -80,7 +81,7 @@ describe('ACP tab notification acknowledgement', () => {
       first.setAwaitingInput('permission_prompt');
       expect(manager.taskStatus).toBe('awaiting-input');
 
-      pane.closeTab(firstTabId);
+      pane.requestCloseTab(firstTabId);
       pane.closeActiveTab();
 
       expect(pane.resolvedTabs).toHaveLength(0);
@@ -96,6 +97,57 @@ describe('ACP tab notification acknowledgement', () => {
       expect(manager.taskStatus).toBe('awaiting-input');
     } finally {
       pane.dispose();
+    }
+  });
+
+  it.each([
+    'restore',
+    'retarget',
+    'pane disposal',
+    'layout disposal',
+    'programmatic close',
+  ] as const)('preserves unseen notifications during %s', async (operation) => {
+    const records: Conversation[] = ['conversation-1', 'conversation-2'].map((id) => ({
+      id,
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'codex',
+      title: id,
+      type: 'acp',
+      lastInteractedAt: null,
+      isInitialConversation: false,
+      agentStatus: 'awaiting-input',
+      agentStatusSeen: false,
+    }));
+    const manager = conversationRegistry.acquire(
+      'task-1',
+      'project-1',
+      () => formatHostRef(LOCAL_HOST_REF),
+      records
+    );
+    const context = { viewId: 'task-1', projectId: 'project-1', taskId: 'task-1' };
+    const layout = new PaneLayoutStore(createTabRegistry([acpChatTabProvider]), context);
+    const pane = layout.focusedPane;
+    try {
+      pane.open('acp-chat', { conversationId: 'conversation-1' });
+      const first = manager.conversations.get('conversation-1');
+      const tabId = pane.activeTabId;
+      if (!first || !tabId) throw new Error('Missing conversation fixture');
+      expect(first.seen).toBe(false);
+
+      if (operation === 'restore') pane.restoreSnapshot(pane.snapshot);
+      else if (operation === 'retarget') {
+        pane.retargetEntry(tabId, { state: { conversationId: 'conversation-2' } });
+      } else if (operation === 'pane disposal') pane.dispose();
+      else if (operation === 'layout disposal') layout.dispose();
+      else pane.closeTab(tabId);
+
+      expect(first.seen).toBe(false);
+      expect(manager.taskStatus).toBe('awaiting-input');
+      await Promise.resolve();
+      expect(markConversationSeen).not.toHaveBeenCalled();
+    } finally {
+      layout.dispose();
     }
   });
 });

@@ -24,8 +24,14 @@ export interface TabEntry<S = unknown> {
  * Domain managers ref-count their internal state inside initialize/dispose.
  */
 export interface TabResource {
-  /** Called when the engine permanently removes the tab. Must be idempotent. */
+  /** Releases the resource on close, replacement, restoration or teardown. Must be idempotent. */
   dispose(): void;
+  /**
+   * Called after a successful user close removes the tab and disposes its resource.
+   * Use for acknowledging notifications on the durable domain record. Not called
+   * for programmatic closes, resource replacement, snapshot restore or teardown.
+   */
+  onClose?(): void;
   /**
    * Called when the tab becomes the active tab in a visible pane.
    * Use for telemetry scope, mark-seen, lazy bootstrap, etc.
@@ -174,7 +180,7 @@ export interface TabProvider<
 
   /**
    * Release the domain resource. Domain managers decrement ref counts here.
-   * Called when the engine permanently removes the tab from the view.
+   * Called on close, replacement, restoration or teardown.
    */
   dispose(entry: TabEntry<S>, resource: T, ctx: TabViewContext): void;
 
