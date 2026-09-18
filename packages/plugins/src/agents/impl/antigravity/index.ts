@@ -105,8 +105,13 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         autoApproveFlag: '--dangerously-skip-permissions',
         initialPromptFlag: '-i',
+        // --conversation resumes an existing native agy session by id; passing an
+        // unknown id makes agy warn and mint a fresh session, so only pass the
+        // hook-captured native id on resume and fall back to -c (most recent).
+        resumeFlag: '--conversation=',
         sessionIdFlag: '--conversation=',
-        sessionIdAlways: true,
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
         modelFlag: '--model',
       }),
   },
