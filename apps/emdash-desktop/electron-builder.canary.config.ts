@@ -72,6 +72,9 @@ const config: Configuration = {
     category: 'Development',
     executableName: APP_NAME_LOWER,
     icon: 'src/assets/images/emdash/emdash-canary.png',
+    desktop: {
+      StartupWMClass: PRODUCT_NAME,
+    },
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
