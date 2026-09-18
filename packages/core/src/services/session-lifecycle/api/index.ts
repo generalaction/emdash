@@ -64,7 +64,11 @@ export interface ReconcileOptions<TResume, TCtx> {
   /** Run-vetoing pre-scan; a veto (or throw) aborts the whole reconcile. */
   precheck?: () => Promise<{ ctx: TCtx } | { veto: true; error?: unknown }>;
   parse: (intent: SessionIntent, ctx: TCtx) => { input: TResume } | { suspend: string };
-  gate?: (input: TResume) => { ok: true } | { suspend: string };
+  /**
+   * Per-intent verdict: resume it, suspend it with a cause, or defer it
+   * (leave the intent untouched when liveness is currently unknowable).
+   */
+  gate?: (input: TResume) => { ok: true } | { suspend: string } | { defer: true };
   resume: (input: TResume) => Promise<Result<unknown, unknown>>;
 }
 

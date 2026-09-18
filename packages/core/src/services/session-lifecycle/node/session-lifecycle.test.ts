@@ -921,7 +921,7 @@ describe('createSessionLifecycle', () => {
     function reconcileHarness(options: {
       intents: SessionIntentStore;
       precheck?: () => Promise<{ ctx: void } | { veto: true; error?: unknown }>;
-      gate?: (input: ResumeInput) => { ok: true } | { suspend: string };
+      gate?: (input: ResumeInput) => { ok: true } | { suspend: string } | { defer: true };
       resume?: (input: ResumeInput) => Promise<Result<unknown, unknown>>;
     }) {
       const harness = makeHarness();
@@ -1025,6 +1025,21 @@ describe('createSessionLifecycle', () => {
         status: 'suspended',
         suspendedCause: 'process-lost',
       });
+    });
+
+    it('leaves deferred intents untouched without resuming', async () => {
+      const intents = createMemorySessionIntentStore();
+      await intents.saveActive({ conversationId: 'unknown', payload: {} });
+      const { lifecycle, resumed } = reconcileHarness({
+        intents,
+        gate: () => ({ defer: true as const }),
+      });
+
+      await lifecycle.reconcile();
+      await settle();
+
+      expect(resumed).toEqual([]);
+      expect(intents.snapshot()[0]).toMatchObject({ status: 'active' });
     });
 
     it("warns and suspends 'reconcile-failed' when resume fails", async () => {
