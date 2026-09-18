@@ -13,7 +13,13 @@ import {
 const channel = { port: 45678, nonce: 'channel-nonce-1234' };
 
 async function listenOnLoopback(server: Server): Promise<number> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('expected TCP address');
   return address.port;
@@ -45,6 +51,10 @@ function credentialEnv(env: Record<string, string>): NodeJS.ProcessEnv {
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: devNull,
     GIT_TERMINAL_PROMPT: '0',
+    // The helper's curl must reach the loopback proxy directly, whatever proxy
+    // the environment configures.
+    NO_PROXY: '127.0.0.1,localhost',
+    no_proxy: '127.0.0.1,localhost',
   };
 }
 
@@ -71,6 +81,9 @@ function spawnCapture(
     child.stderr.setEncoding('utf8').on('data', (chunk) => (stderr += chunk));
     child.on('error', reject);
     child.on('close', (status) => resolve({ status, stdout, stderr }));
+    // A child that exits before reading its input closes the pipe; that is
+    // not a failure of the case.
+    child.stdin.on('error', () => {});
     child.stdin.end(input);
   });
 }
@@ -81,7 +94,7 @@ function runGitCredentialAsync(action: string, env: Record<string, string>, inpu
   return spawnCapture('git', ['credential', action], env, input);
 }
 
-/** Runs the helper the way git does — `sh -c '<command> <action>'` — to observe its own exit status. */
+/** Invokes the helper through sh, as git does, and returns the helper's own exit status rather than git's. */
 function runHelperAsync(action: string, env: Record<string, string>, input: string) {
   return spawnCapture(
     'sh',
@@ -212,7 +225,7 @@ describe('applyGitCredentialsToEnv', () => {
       }
     });
 
-    it('passes a proxy answer through to git untouched (control)', async () => {
+    it('retrieves the credential the proxy answers with', async () => {
       const tokens: (string | string[] | undefined)[] = [];
       const proxy = createHttpServer((request, response) => {
         tokens.push(request.headers['x-emdash-token']);
@@ -236,16 +249,27 @@ describe('applyGitCredentialsToEnv', () => {
       }
     });
 
-    it('leaves store and erase proxy actions as no-ops (control)', () => {
-      const env = helperEnvForPort(1);
-      for (const action of ['approve', 'reject']) {
-        const result = runGitCredential(
-          action,
-          env,
-          'protocol=https\nhost=github.com\nusername=user\npassword=secret\n\n'
-        );
-        expect(result.status).toBe(0);
-        expect(result.stderr).not.toContain('emdash: credential proxy request failed');
+    it('answers only the get action; store and erase send nothing and print nothing', async () => {
+      const requests: string[] = [];
+      const proxy = createHttpServer((request, response) => {
+        requests.push(request.url ?? '');
+        response.writeHead(200).end();
+      });
+      const port = await listenOnLoopback(proxy);
+      try {
+        for (const action of ['store', 'erase']) {
+          const result = await runHelperAsync(
+            action,
+            helperEnvForPort(port),
+            'protocol=https\nhost=github.com\nusername=user\npassword=secret\n\n'
+          );
+          expect(result.status).toBe(0);
+          expect(result.stdout).toBe('');
+          expect(result.stderr).toBe('');
+        }
+        expect(requests).toEqual([]);
+      } finally {
+        await closeServer(proxy);
       }
     });
   });
