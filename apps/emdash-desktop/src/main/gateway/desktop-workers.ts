@@ -52,7 +52,11 @@ import {
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
 import { createUserShellEnvController } from '@emdash/core/services/shell-env/node';
-import { pluginRegistry } from '@emdash/plugins/agents';
+import {
+  CONFIGURED_AGENTS_ENV_VAR,
+  loadConfiguredAgentInstances,
+  pluginRegistry,
+} from '@emdash/plugins/agents';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { queuedClient, type ContractClient } from '@emdash/wire/rpc';
@@ -184,6 +188,21 @@ export async function startDesktopWorkers(
     logger: log,
   });
   try {
+    const configuredAgents = await loadConfiguredAgentInstances(
+      join(app.getPath('userData'), 'agents.json')
+    );
+    for (const warning of configuredAgents.warnings) {
+      log.warn('configured agent instance skipped', { warning });
+    }
+    // Every Wire worker (acp, tui-agents, agent-config, ...) spawns as its own
+    // child process with its own pluginRegistry, so registering these instances
+    // here only covers this (main) process. Republish them through process.env,
+    // which every worker spec below forwards, so each worker's entry file can
+    // register the same instances into its own registry (see
+    // apply-configured-agent-instances-from-env in the entry files).
+    if (configuredAgents.instances.length > 0) {
+      process.env[CONFIGURED_AGENTS_ENV_VAR] = JSON.stringify(configuredAgents.instances);
+    }
     const handle = startDesktopWorkersWithHost(deps, workerScope, host);
     return {
       ...handle,
