@@ -20,6 +20,10 @@ import type { CommandItem } from '../types';
 
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
+function slashCommandName(value: string | null | undefined): string {
+  return (value ?? '').replace(/^\/+/, '');
+}
+
 function plainTextInsertContent(text: string) {
   const lines = text.length > 0 ? text.split(/\r?\n/) : [''];
   return lines.map((line) => ({
@@ -46,7 +50,9 @@ export function buildSlashCommandExtension(
   }).configure({
     HTMLAttributes: { class: 'slash-command-chip' },
     renderText({ node }) {
-      return `/${(node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? ''}`;
+      return `/${slashCommandName(
+        (node.attrs.name as string | null) ?? (node.attrs.id as string | null)
+      )}`;
     },
     renderHTML({ node }) {
       return [
@@ -57,7 +63,9 @@ export function buildSlashCommandExtension(
           'data-name': node.attrs.name as string,
           class: 'slash-command-chip',
         },
-        `/${(node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? ''}`,
+        `/${slashCommandName(
+          (node.attrs.name as string | null) ?? (node.attrs.id as string | null)
+        )}`,
       ];
     },
     suggestion: {
@@ -86,7 +94,7 @@ export function buildSlashCommandExtension(
             .insertContentAt(range.from, [
               {
                 type: 'slashCommand',
-                attrs: { id: item.id, name: item.name ?? item.id },
+                attrs: { id: item.id, name: slashCommandName(item.name ?? item.id) },
               },
               { type: 'text', text: ' ' },
             ])

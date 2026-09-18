@@ -51,7 +51,8 @@ export function serializeNode(node: Node): string {
   }
 
   if (node.type.name === 'slashCommand') {
-    const name = (node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? '';
+    const name = ((node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? '')
+      .replace(/^\/+/, '');
     return `/${name}`;
   }
 
