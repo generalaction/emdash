@@ -1,21 +1,11 @@
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { PlacementContext } from './placement';
 import type { AgentGitCredentialsSetting } from './project-settings';
 import { normalizeWorktreeRootPath } from './worktree-root';
 
 /**
- * The blessed resolver (spec: github-git-settings §2).
- *
- * One pure function resolves every effective per-project git/GitHub setting
- * from stored user choices, live repository facts, and the connected GitHub
- * accounts. Preview (renderer) and execution (node) must both call this
- * function over the same facts; no other resolution code may exist.
- *
- * Degrade semantics: stale remote/branch settings fall back with
- * `broken-setting` (worktree creation is never blocked by a stale setting).
- * A dangling or host-mismatched account pin is `unresolvable` — fail closed,
- * never a different GitHub identity.
+ * Shared Git and placement resolution for renderer previews and node execution.
+ * Stale remote/branch settings fall back with broken-setting provenance.
+ * Integration account selection has its own provider-parameterized seam.
  */
 
 export type Provenance =
@@ -36,19 +26,11 @@ export type Resolved<T> = { value: T; provenance: Provenance };
  */
 export type StoredDefaultBranch = { remote: string | null; branch: string };
 
-/**
- * Stored GitHub account choice. `{ kind: 'none' }` is explicit suppression
- * ("don't call GitHub APIs on this project"); absence of the field means
- * infer. `accountId` is the `provider_accounts` row id.
- */
-export type StoredGithubAccount = { kind: 'account'; accountId: string } | { kind: 'none' };
-
 /** Stored per-project settings the resolver consumes. Absent field = infer. */
 export type StoredProjectGitSettings = {
   defaultBranch?: StoredDefaultBranch;
   baseRemote?: string;
   pushRemote?: string;
-  githubAccount?: StoredGithubAccount;
   agentGitCredentials?: AgentGitCredentialsSetting;
   /** Per-project worktree root override. */
   worktreeRoot?: string;
@@ -103,7 +85,6 @@ export type EffectiveSettings = {
   baseRemote: Resolved<string | null>;
   pushRemote: Resolved<string | null>;
   defaultBranch: Resolved<EffectiveDefaultBranch | null>;
-  githubAccount: Resolved<GitHubAccountSummary | null>;
   worktreeRoot: Resolved<string>;
 };
 
@@ -118,18 +99,11 @@ export const DEFAULT_BRANCH_CANDIDATES = ['main', 'master', 'develop', 'trunk'] 
 
 export function resolveEffectiveSettings(
   storedSettings: StoredSettings,
-  repoFacts: RepoFacts,
-  accounts: GitHubAccountSummary[]
+  repoFacts: RepoFacts
 ): EffectiveSettings {
   const git = resolveEffectiveGitSettings(storedSettings.project, repoFacts);
   return {
     ...git,
-    githubAccount: resolveGithubAccount(
-      storedSettings.project.githubAccount,
-      git.baseRemote.value,
-      repoFacts,
-      accounts
-    ),
     worktreeRoot: resolveWorktreeRoot({
       projectWorktreeRoot: storedSettings.project.worktreeRoot,
       hostWorktreeRoot: storedSettings.hostWorktreeRoot,
@@ -287,75 +261,6 @@ function resolveDefaultBranch(
     value: fallback.value,
     provenance: { kind: 'broken-setting', staleValue: formatDefaultBranch(storedDefaultBranch) },
   };
-}
-
-// ---------------------------------------------------------------------------
-// GitHub account: default account matching the base remote host → only
-// host-matching account → none. Pins fail closed.
-// ---------------------------------------------------------------------------
-
-function baseRemoteHost(effectiveBaseRemote: string | null, repoFacts: RepoFacts): string | null {
-  const remote = repoFacts.remotes.find((candidate) => candidate.name === effectiveBaseRemote);
-  if (!remote || remote.host === null) return null;
-  return normalizeRepositoryHost(remote.host);
-}
-
-function accountMatchesHost(account: GitHubAccountSummary, host: string): boolean {
-  return normalizeRepositoryHost(account.host) === host;
-}
-
-/**
- * The single "default account for host" definition (spec §2): the provider
- * default account if its host matches → the only account whose host matches →
- * none. Project flows reach this through `resolveEffectiveSettings` (keyed off
- * the effective base remote's host); host-only flows with no project settings
- * in play (e.g. an explicit repository URL and nothing else) call it directly.
- * No other default-account inference may exist.
- */
-export function resolveAccountForHost(
-  host: string,
-  accounts: GitHubAccountSummary[]
-): Resolved<GitHubAccountSummary | null> {
-  const normalizedHost = normalizeRepositoryHost(host);
-  const defaultAccount = accounts.find((account) => account.isDefault);
-  if (defaultAccount && accountMatchesHost(defaultAccount, normalizedHost)) {
-    return { value: defaultAccount, provenance: { kind: 'inferred', from: 'default account' } };
-  }
-  const matching = accounts.filter((account) => accountMatchesHost(account, normalizedHost));
-  if (matching.length === 1) {
-    return {
-      value: matching[0],
-      provenance: { kind: 'inferred', from: 'only host-matching account' },
-    };
-  }
-  return { value: null, provenance: { kind: 'inferred', from: 'no host-matching account' } };
-}
-
-function resolveGithubAccount(
-  storedGithubAccount: StoredGithubAccount | undefined,
-  effectiveBaseRemote: string | null,
-  repoFacts: RepoFacts,
-  accounts: GitHubAccountSummary[]
-): Resolved<GitHubAccountSummary | null> {
-  const host = baseRemoteHost(effectiveBaseRemote, repoFacts);
-
-  if (storedGithubAccount?.kind === 'none') {
-    return { value: null, provenance: { kind: 'set' } };
-  }
-
-  if (storedGithubAccount?.kind === 'account') {
-    const pinned = accounts.find((account) => account.accountId === storedGithubAccount.accountId);
-    // Fail closed: a dangling or host-mismatched pin never becomes another
-    // identity. An unknown repository host is not mismatch evidence.
-    if (!pinned) return { value: null, provenance: { kind: 'unresolvable' } };
-    if (host !== null && !accountMatchesHost(pinned, host)) {
-      return { value: null, provenance: { kind: 'unresolvable' } };
-    }
-    return { value: pinned, provenance: { kind: 'set' } };
-  }
-
-  if (host !== null) return resolveAccountForHost(host, accounts);
-  return { value: null, provenance: { kind: 'inferred', from: 'no host-matching account' } };
 }
 
 // ---------------------------------------------------------------------------

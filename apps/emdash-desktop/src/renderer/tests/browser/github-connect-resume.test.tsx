@@ -3,7 +3,7 @@ import { Dialog } from '@emdash/ui/react/primitives';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { GithubConnectModal } from '@core/features/settings/browser/components/github-connect-modal';
+import { IntegrationSetupModal } from '@core/features/integrations/browser/integration-setup-modal';
 import { ModalHostTestProvider, type ModalHostController } from '@core/primitives/modals/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
 
@@ -19,7 +19,7 @@ const accountHooks = vi.hoisted(() => ({
 
 const githubHooks = vi.hoisted(() => ({
   deviceFlowAuth: vi.fn(async () => ({ success: true })),
-  importCliAccounts: vi.fn(async () => ({ success: true, importedAccountIds: [] })),
+  importCliAccounts: vi.fn(async () => ({ success: true, importedAccountIds: [] as string[] })),
 }));
 
 vi.mock('@core/features/account/api/browser/useAccount', () => ({
@@ -28,11 +28,29 @@ vi.mock('@core/features/account/api/browser/useAccount', () => ({
   useAccountLinkProvider: () => ({ mutateAsync: accountHooks.linkProvider, isPending: false }),
 }));
 
-vi.mock('@core/features/github/api/browser/useGithubAccounts', () => ({
+vi.mock('@core/features/github/api/browser/use-github-auth', () => ({
   useGitHubDeviceFlowAuth: () => ({ mutateAsync: githubHooks.deviceFlowAuth, isPending: false }),
   useImportGitHubCliAccounts: () => ({
     mutateAsync: githubHooks.importCliAccounts,
     isPending: false,
+  }),
+}));
+
+vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => ({
+  useIntegrationsContext: () => ({
+    integrationById: {
+      github: {
+        id: 'github',
+        name: 'GitHub',
+        auth: {
+          methods: [
+            { kind: 'oauth', providerId: 'github' },
+            { kind: 'oauth-device', clientId: 'test', scopes: ['repo'] },
+            { kind: 'cli-import', cli: 'gh' },
+          ],
+        },
+      },
+    },
   }),
 }));
 
@@ -82,8 +100,8 @@ describe('GitHub connect-and-resume', () => {
       root.render(
         <Dialog.Root open>
           <Dialog.Content size="md">
-            <ModalHostTestProvider id="githubConnectModal" controller={controller}>
-              <GithubConnectModal />
+            <ModalHostTestProvider id="integrationSetupModal" controller={controller}>
+              <IntegrationSetupModal integration="github" />
             </ModalHostTestProvider>
           </Dialog.Content>
         </Dialog.Root>
@@ -104,8 +122,8 @@ describe('GitHub connect-and-resume', () => {
       interruptedSettled = true;
     });
 
-    void modalStore.open('githubConnectModal', {});
-    expect(modalStore.activeModalId).toBe('githubConnectModal');
+    void modalStore.open('integrationSetupModal', { integration: 'github' });
+    expect(modalStore.activeModalId).toBe('integrationSetupModal');
 
     modalStore.complete(undefined);
     await Promise.resolve();
@@ -121,6 +139,17 @@ describe('GitHub connect-and-resume', () => {
     await act(async () => methodButton('Continue').click());
 
     expect(accountHooks.signIn).toHaveBeenCalledWith('github');
+    expect(controller.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('completes the shared connect modal after importing CLI accounts', async () => {
+    githubHooks.importCliAccounts.mockResolvedValue({
+      success: true,
+      importedAccountIds: ['github.com:42'],
+    });
+    await renderConnectModal();
+    await act(async () => methodButton('Import from GitHub CLI').click());
+    expect(githubHooks.importCliAccounts).toHaveBeenCalled();
     expect(controller.complete).toHaveBeenCalledTimes(1);
   });
 

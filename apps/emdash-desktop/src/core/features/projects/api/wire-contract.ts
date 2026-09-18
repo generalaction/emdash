@@ -20,6 +20,7 @@ import type {
   MigrateProjectConfigRequest,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
+import { storedIntegrationAccountsSchema } from '@core/primitives/project-settings/api/project-settings';
 import {
   projectSchema,
   type CreateProjectParams,
@@ -31,6 +32,7 @@ import {
   type ProjectPathInspection,
   type ResolveRepositoryDestinationParams,
 } from '@core/primitives/projects/api';
+import { providerAccountRefSchema } from '@core/primitives/provider-accounts/api/provider-account-summary';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 import { projectAttachmentStateSchema, type ProjectRecoveryRequestError } from './attachments';
 import type {
@@ -84,6 +86,8 @@ export const createProjectFromRemoteInputSchema = z.object({
   projectId: z.string(),
   host: projectHostParamsSchema,
   mode: z.enum(['clone', 'create']),
+  account: providerAccountRefSchema.optional(),
+  initialIntegrationAccounts: storedIntegrationAccountsSchema.optional(),
   repositoryUrl: z.string().min(1),
   targetPath: z.string().min(1),
   name: z.string().min(1),
@@ -180,8 +184,8 @@ export const projectsWireContract = defineContract({
     }),
     output: z.custom<Result<MigrateProjectConfigResult, ProjectSettingsError>>(),
   }),
-  countProjectsUsingGithubAccount: procedure({
-    input: z.object({ accountId: z.string() }),
+  countProjectsUsingProviderAccount: procedure({
+    input: z.object({ providerId: z.string(), accountId: z.string() }),
     output: z.number(),
   }),
   updateProjectConnection: procedure({

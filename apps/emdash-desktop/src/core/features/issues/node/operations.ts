@@ -46,18 +46,6 @@ function failureStatus(provider: IssueProvider, error: unknown): ConnectionStatu
   };
 }
 
-async function checkProviderConfigured(provider: IssueProvider): Promise<boolean> {
-  if (!provider.isConfigured) {
-    return (await checkProviderConnection(provider)).connected;
-  }
-
-  try {
-    return await provider.isConfigured();
-  } catch {
-    return false;
-  }
-}
-
 async function checkProviderConnection(provider: IssueProvider): Promise<ConnectionStatus> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -145,19 +133,6 @@ export async function checkAllConnections(
   return Object.fromEntries(settled) as ConnectionStatusMap;
 }
 
-export async function checkConfiguredConnections(
-  dependencies: IssueOperationsDependencies
-): Promise<Record<IssueProviderType, boolean>> {
-  const settled = await Promise.all(
-    dependencies.providers.getAll().map(async (provider) => {
-      const configured = await checkProviderConfigured(provider);
-      return [provider.type, configured] as const;
-    })
-  );
-
-  return Object.fromEntries(settled) as Record<IssueProviderType, boolean>;
-}
-
 export async function listIssues(
   dependencies: IssueOperationsDependencies,
   provider: IssueProviderType,
@@ -168,7 +143,9 @@ export async function listIssues(
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  const resolved = await withResolvedRemote(dependencies, opts);
+  const resolved = issueProvider.capabilities.requiresRepositoryUrl
+    ? await withResolvedRemote(dependencies, opts)
+    : ok(opts);
   return resolved.success ? issueProvider.listIssues(resolved.data) : resolved;
 }
 
@@ -182,7 +159,9 @@ export async function searchIssues(
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  const resolved = await withResolvedRemote(dependencies, opts);
+  const resolved = issueProvider.capabilities.requiresRepositoryUrl
+    ? await withResolvedRemote(dependencies, opts)
+    : ok(opts);
   return resolved.success ? issueProvider.searchIssues(resolved.data) : resolved;
 }
 
@@ -200,6 +179,8 @@ export async function getIssueContext(
     return err({ type: 'generic', message: `${provider} does not support issue context.` });
   }
 
-  const resolved = await withResolvedRemote(dependencies, opts);
+  const resolved = issueProvider.capabilities.requiresRepositoryUrl
+    ? await withResolvedRemote(dependencies, opts)
+    : ok(opts);
   return resolved.success ? issueProvider.getIssueContext(resolved.data) : resolved;
 }

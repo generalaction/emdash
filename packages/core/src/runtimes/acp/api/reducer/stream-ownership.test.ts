@@ -202,6 +202,31 @@ describe('content ownership across asynchronous events', () => {
     );
   });
 
+  it('changes transcript generation when replay rebuilds ids, but not on reads or live chunks', () => {
+    const p = parser();
+    const initial = p.position;
+    p.pushEvent(tool('first'), 0);
+    expect(p.position).toEqual(initial);
+    p.endTurn(1);
+    const committed = p.position;
+    expect(committed).toMatchObject({
+      generation: initial.generation,
+      historyRevision: 1,
+      lastCommittedTurnSeq: 0,
+    });
+    p.endTurn(2);
+    expect(p.position).toEqual(committed);
+    p.beginReplay();
+    expect(p.position.generation).not.toBe(initial.generation);
+    expect(p.position.historyRevision).toBe(0);
+    p.pushEvent(tool('second'), 3);
+    p.endReplay(4);
+    expect(p.position.lastCommittedTurnSeq).toBe(0);
+    const replayed = p.position.generation;
+    p.reset();
+    expect(p.position.generation).not.toBe(replayed);
+  });
+
   it('bounds unmatched idle updates and resets ownership between replays', () => {
     const p = parser();
     for (let i = 0; i < 130; i++) p.pushEvent(update(`orphan-${i}`), i);
@@ -251,7 +276,7 @@ describe('content ownership across asynchronous events', () => {
       launchTurnId: p.history[0].id,
     });
     expect(p.history[0].items[0]).toMatchObject({ status: 'done' });
-    expect(p.historyRevision).toBe(1);
+    expect(p.historyRevision).toBe(2);
   });
 
   it('applies pending subagent state to both its row and registry', () => {

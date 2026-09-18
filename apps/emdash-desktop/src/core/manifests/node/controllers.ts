@@ -124,7 +124,7 @@ export type DesktopControllerContext = {
   readonly db: AppDb;
   readonly devPerfOperations: DevPerfOperations;
   readonly editorBuffer: EditorBufferService;
-  readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
+  readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger'>;
   readonly gitCredentials: GitCredentialsService;
   readonly hostAvailability: HostAvailabilityService;
   readonly hostIsReachable: HostReachabilityProbe;
@@ -406,8 +406,7 @@ export const desktopNodeControllers = {
     create: ({ previewServerAccess }) => createPreviewServersWireController(previewServerAccess),
   },
   github: {
-    create: ({ github, logger, telemetry }) =>
-      createGithubWireController({ ...github, logger, telemetry }),
+    create: ({ github, logger }) => createGithubWireController({ ...github, logger }),
   },
   integrations: {
     create: () => createIntegrationsWireController(),

@@ -1,11 +1,9 @@
+import type { IntegrationConnections } from '@core/features/integrations/api/node/integration-accounts';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
-import {
-  upsertGitHubAccount,
-  type GitHubAccount,
-  type GitHubAccountStore,
-} from './github-accounts';
+import { connectGitHubAccount } from './github-auth-connection';
 
 type GitHubIdentityClient = {
   getAuthenticatedUser(token: string, host?: string): Promise<GitHubUser | null>;
@@ -48,16 +46,16 @@ function cliEntries(status: GitHubCliAuthStatus): GitHubCliAuthStatusEntry[] {
 
 export class GitHubCliAccountImportService {
   constructor(
-    private readonly accountStore: Pick<GitHubAccountStore, 'upsertAccount'>,
+    private readonly connections: IntegrationConnections,
     private readonly exec: CommandRunner,
     private readonly identityClient: GitHubIdentityClient
   ) {}
 
-  async importAccounts(): Promise<GitHubAccount[]> {
+  async importAccounts(): Promise<GitHubAccountSummary[]> {
     const stdout = await this.readCliStatus();
     if (!stdout) return [];
 
-    const imported: GitHubAccount[] = [];
+    const imported: GitHubAccountSummary[] = [];
     for (const entry of cliEntries(parseCliStatus(stdout))) {
       if (entry.state !== 'success') continue;
       if (typeof entry.token !== 'string' || entry.token.trim().length === 0) continue;
@@ -68,7 +66,7 @@ export class GitHubCliAccountImportService {
       const user = await this.identityClient.getAuthenticatedUser(token, host);
       if (!user) continue;
 
-      const { account } = await upsertGitHubAccount(this.accountStore, {
+      const { account } = await connectGitHubAccount(this.connections, {
         accessToken: token,
         credentialSource: 'cli',
         providerAccount: {

@@ -1,6 +1,6 @@
 import { WireError } from '@emdash/wire/rpc';
 import { useEffect, useMemo, useState } from 'react';
-import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
+import { useProjectAccount } from '@core/features/integrations/api/browser/use-project-account';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import type { PullRequestFilters } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
@@ -10,10 +10,12 @@ export type StatusFilter = 'open' | 'not-open';
 
 export type LabelItem = { value: string; label: string; color?: string };
 
-export function usePrViewState(repositoryUrl: string) {
+export function usePrViewState(projectId: string, repositoryUrl: string) {
   const store = usePullRequestsStore();
   const listView = store.listView.store;
-  const { user } = useGithubContext();
+  const account = useProjectAccount(projectId, 'github', {
+    repository: { kind: 'project' },
+  })?.value;
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
@@ -33,10 +35,10 @@ export function usePrViewState(repositoryUrl: string) {
 
   const authorItems: UserItem[] = useMemo(
     () =>
-      usersWithLoginFirst(store.filterOptions.authors, user?.login).map((author) =>
+      usersWithLoginFirst(store.filterOptions.authors, account?.login).map((author) =>
         toUserItem(author)
       ),
-    [store.filterOptions.authors, user?.login]
+    [store.filterOptions.authors, account?.login]
   );
 
   const assigneeItems: UserItem[] = useMemo(

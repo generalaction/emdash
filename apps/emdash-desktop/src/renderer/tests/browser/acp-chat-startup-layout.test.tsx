@@ -4,11 +4,15 @@ import type {
   SessionConfigState,
   SessionMcpServer,
   SessionState,
+  SessionUsage,
+  PlanState,
+  TerminalState,
   TranscriptTurn,
 } from '@emdash/core/runtimes/acp/api/client';
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import '@emdash/ui/style.css';
+import type { PromptEditorModel } from '@emdash/ui/react/components';
 import {
   client,
   connect,
@@ -18,21 +22,36 @@ import {
   memoryTransportPair,
 } from '@emdash/wire/rpc';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
+import { observable, runInAction } from 'mobx';
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { beforeAll, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { conversationsContract } from '@core/features/conversations/api';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { AcpChatPanel } from '@core/features/conversations/browser/acp/acp-chat-panel';
 import { AcpChatStore } from '@core/features/conversations/browser/acp/acp-chat-store';
+import { openModal } from '@core/manifests/browser/modal-api';
+import type { AgentMetadata } from '@core/primitives/agents/api';
 
 const fixture = vi.hoisted(() => ({
   client: undefined as unknown,
   context: undefined as unknown,
   store: undefined as unknown,
   restored: false,
+  providerId: 'codex',
+  agents: [] as Array<
+    Pick<AgentMetadata, 'id' | 'name'> & {
+      capabilities: Pick<AgentMetadata['capabilities'], 'auth'>;
+    }
+  >,
+  pane: undefined as { readonly resolvedTabs: unknown[] } | undefined,
 }));
+beforeAll(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+});
 vi.mock('@core/features/conversations/api/browser/client', () => ({
   getConversationsClient: async () => fixture.client,
 }));
@@ -48,7 +67,7 @@ vi.mock('@core/features/conversations/api/browser/stores/conversation-registry',
           {
             seen: true,
             data: {
-              providerId: 'codex',
+              providerId: fixture.providerId,
               sessionId: fixture.restored ? 'existing-session' : undefined,
             },
           },
@@ -72,13 +91,13 @@ vi.mock('@core/primitives/mementos/browser', () => ({
 }));
 vi.mock('@core/primitives/workbench-shell/browser/tabs/pane-context', () => ({
   usePaneContext: () => ({
-    pane: {
+    pane: fixture.pane ?? {
       resolvedTabs: [{ isActive: true, kind: 'acp-chat', resource: { store: fixture.store } }],
     },
   }),
 }));
 vi.mock('@core/features/agents/api/browser/use-agents', () => ({
-  useAgents: () => ({ data: [] }),
+  useAgents: () => ({ data: fixture.agents }),
 }));
 vi.mock('@core/features/agents/api/browser/use-agent-metadata', () => ({
   useAgentMetadata: () => ({ data: [] }),
@@ -117,6 +136,237 @@ vi.mock('@core/manifests/browser/modal-api', () => ({ openModal: vi.fn() }));
 vi.mock('@core/features/conversations/browser/acp/transcript-file-commands', () => ({
   createTranscriptFileCommands: () => ({}),
 }));
+
+it.each([false, true])(
+  'restores the sign-in screen with retained history=%s',
+  async (populated) => {
+    await page.viewport(1100, 800);
+    fixture.restored = populated;
+    fixture.providerId = 'droid';
+    // Droid receives this fallback CLI login method from the host's metadata builder.
+    fixture.agents = [
+      {
+        id: 'droid',
+        name: 'Droid',
+        capabilities: {
+          auth: {
+            kind: 'supported',
+            methods: [
+              {
+                kind: 'cli-login',
+                id: 'cli-login',
+                name: 'Sign in with Droid',
+                args: [],
+                description: 'Open droid in a terminal and complete the provider sign-in flow.',
+              },
+            ],
+          },
+        },
+      },
+    ];
+    installChatUiRuntime(chatUi);
+    const context = chatUi.createChatContext();
+    fixture.context = context;
+    const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+    fixture.store = store;
+    store.setDraftText('Keep this draft');
+    if (populated) {
+      store.chatState.transcript.history.seed([
+        {
+          id: 'previous-turn',
+          seq: 0,
+          initiator: 'user',
+          items: [{ kind: 'message', id: 'previous-message', seq: 0, role: 'user', text: 'Hello' }],
+        },
+      ]);
+      runInAction(() => {
+        store.messageCount = 1;
+      });
+    }
+    const retry = vi.spyOn(store, 'retry').mockImplementation(() => {
+      runInAction(() => {
+        store.loadError = null;
+      });
+    });
+    const parent = document.createElement('div');
+    parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+    parent.className = 'emlight';
+    const css = document.createElement('style');
+    css.textContent =
+      '.relative {position:relative}.absolute {position:absolute}.h-full {height:100%}.overflow-hidden {overflow:hidden}.inset-0 {inset:0}.pointer-events-auto {pointer-events:auto}';
+    document.head.append(css);
+    document.body.append(parent);
+    const root = createRoot(parent);
+    try {
+      await act(async () => root.render(<AcpChatPanel />));
+      await vi.waitFor(() =>
+        expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull()
+      );
+      await act(async () => {
+        runInAction(() => {
+          store.loadError = {
+            kind: 'auth_required',
+            message: 'Authentication required: Click the Login button to authenticate.',
+          };
+        });
+      });
+      await expect.element(page.getByText('Droid needs you to sign in.')).toBeVisible();
+      await expect
+        .element(page.getByText('Open droid in a terminal and complete the provider sign-in flow.'))
+        .toBeVisible();
+      expect(parent.querySelector('[contenteditable="true"]')).toBeNull();
+      expect(store.draftText).toBe('Keep this draft');
+
+      vi.mocked(openModal).mockResolvedValueOnce({
+        success: false,
+        error: { type: 'modal_dismissed', reason: 'explicit' },
+      });
+      await act(async () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
+      expect(openModal).toHaveBeenLastCalledWith('agentSignInModal', {
+        providerId: 'droid',
+        methodId: 'cli-login',
+        providerName: 'Droid',
+        host: { type: 'local', id: 'local' },
+      });
+      expect(retry).not.toHaveBeenCalled();
+      const authError = store.loadError;
+      await act(async () => page.getByRole('button', { name: 'Retry', exact: true }).click());
+      expect(retry).toHaveBeenCalledOnce();
+      await act(async () =>
+        runInAction(() => {
+          store.loadError = authError;
+        })
+      );
+
+      vi.mocked(openModal).mockResolvedValueOnce({ success: true, data: undefined });
+      await act(async () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
+      await vi.waitFor(() => expect(retry).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() =>
+        expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull()
+      );
+      expect(store.draftText).toBe('Keep this draft');
+      if (populated) {
+        expect(store.chatState.transcript.state.displayTurns).toHaveLength(1);
+        expect(parent.textContent).toContain('Hello');
+      }
+    } finally {
+      await act(async () => root.unmount());
+      store.dispose();
+      context.dispose();
+      parent.remove();
+      css.remove();
+      fixture.providerId = 'codex';
+      fixture.restored = false;
+      fixture.agents = [];
+      vi.mocked(openModal).mockReset();
+    }
+  }
+);
+
+it('restores caret, viewport and undo/redo across conversation and non-chat tab switches', async () => {
+  await page.viewport(1100, 800);
+  fixture.restored = false;
+  installChatUiRuntime(chatUi);
+  const context = chatUi.createChatContext();
+  fixture.context = context;
+  const a = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+  const b = new AcpChatStore('second-conversation', 'project-1', 'task-1');
+  runInAction(() => {
+    b.historyKnown = true;
+  });
+  a.setDraftText(
+    Array.from({ length: 60 }, (_, i) => `Line ${i}: a long draft to preserve`).join('\n')
+  );
+  b.setDraftText('Independent draft B');
+  const active = observable.box<AcpChatStore | null>(a, { deep: false });
+  fixture.pane = {
+    get resolvedTabs() {
+      const store = active.get();
+      return store ? [{ isActive: true, kind: 'acp-chat', resource: { store } }] : [];
+    },
+  };
+  const parent = document.createElement('div');
+  parent.style.cssText = 'width:1000px;height:700px;position:relative;font-family:system-ui';
+  parent.className = 'emlight';
+  const css = document.createElement('style');
+  css.textContent =
+    '.relative {position:relative}.absolute {position:absolute}.h-full {height:100%}.overflow-hidden {overflow:hidden}.inset-0 {inset:0}';
+  document.head.append(css);
+  document.body.append(parent);
+  const root = createRoot(parent);
+  type Editor = ReturnType<PromptEditorModel['attach']>['editor'];
+  const input = () =>
+    parent.querySelector<HTMLElement & { editor: Editor }>('[data-testid="prompt-editor"]')!;
+  const viewport = () => {
+    let element = input().parentElement!;
+    while (getComputedStyle(element).overflowY !== 'auto') element = element.parentElement!;
+    return element;
+  };
+  async function switchTo(store: AcpChatStore | null) {
+    await act(async () => runInAction(() => active.set(store)));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+  try {
+    await act(async () => root.render(<AcpChatPanel />));
+    await vi.waitFor(() => expect(input()).not.toBeNull());
+    const editor = input().editor;
+    await act(async () => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.view.focus();
+    });
+    await act(async () => userEvent.keyboard(' final edit'));
+    const text = a.draftText;
+    const selection = editor.state.selection.toJSON();
+    viewport().scrollTop = viewport().scrollHeight;
+    const bottom = viewport().scrollTop;
+    expect(bottom).toBeGreaterThan(500);
+
+    await switchTo(b);
+    expect(input().textContent).toBe('Independent draft B');
+    expect(editor.isDestroyed).toBe(true);
+    expect(editor.options.element).toBeNull();
+    await act(async () => userEvent.keyboard('B edit'));
+    const draftB = b.draftText;
+    await switchTo(a);
+    expect(input().editor === editor).toBe(true);
+    expect(document.activeElement === input()).toBe(true);
+    expect(editor.state.selection.toJSON()).toEqual(selection);
+    expect(viewport().scrollTop).toBe(bottom);
+
+    // Exercise the actual keyboard shortcut, not a history command invoked by the test.
+    const modifier = /Mac/.test(navigator.platform) ? 'Meta' : 'Control';
+    await act(async () => userEvent.keyboard(`{${modifier}>}z{/${modifier}}`));
+    expect(a.draftText).not.toBe(text);
+    expect(b.draftText).toBe(draftB);
+    await switchTo(b);
+    await switchTo(a);
+    await act(async () => userEvent.keyboard(`{${modifier}>}{Shift>}z{/Shift}{/${modifier}}`));
+    expect(a.draftText).toBe(text);
+
+    // A backward range and an intentionally scrolled-away caret are both view state.
+    await act(async () => editor.commands.setTextSelection({ from: 120, to: 20 }));
+    const range = editor.state.selection.toJSON();
+    viewport().scrollTop = 300;
+    await switchTo(null);
+    expect(input()).toBeNull();
+    await switchTo(a);
+    expect(editor.state.selection.toJSON()).toEqual(range);
+    expect(viewport().scrollTop).toBe(300);
+    expect(document.activeElement === input()).toBe(true);
+  } finally {
+    await act(async () => root.unmount());
+    const releaseA = vi.spyOn(a.composerModel, 'dispose');
+    const releaseB = vi.spyOn(b.composerModel, 'dispose');
+    a.dispose();
+    b.dispose();
+    expect(releaseA).toHaveBeenCalledOnce();
+    expect(releaseB).toHaveBeenCalledOnce();
+    fixture.pane = undefined;
+    context.dispose();
+    parent.remove();
+    css.remove();
+  }
+});
 
 it.each([
   { restored: false, populated: false },
@@ -328,3 +578,153 @@ it.each([
     css.remove();
   }
 });
+
+it.each([
+  'history',
+  'config',
+  'usage',
+  'plan',
+  'terminals',
+  'mcpServers',
+  'activeTurn',
+  'mcp-acquisition',
+  'mcp-failure',
+] as const)(
+  'shows the initial live turn while %s is still loading, without requiring another chunk',
+  async (delayed) => {
+    fixture.restored = true;
+    installChatUiRuntime(chatUi);
+    const context = chatUi.createChatContext();
+    fixture.context = context;
+    const current: TranscriptTurn = {
+      id: 'current',
+      seq: 0,
+      initiator: 'user',
+      items: [
+        { kind: 'message', id: 'current-user', seq: 0, role: 'user', text: 'My current request' },
+        {
+          kind: 'message',
+          id: 'current-answer',
+          seq: 1,
+          role: 'assistant',
+          text: 'Work currently in progress',
+        },
+      ],
+    };
+    const position = {
+      generation: 'current-generation',
+      historyRevision: 0,
+      lastCommittedTurnSeq: null,
+    };
+    const state = cell<SessionState>({
+      lifecycle: 'working',
+      activeTurnId: 'control-turn',
+      pendingPermissions: [],
+      lastStopReason: null,
+      lastTurnErrored: false,
+      queuedPrompts: [],
+      agentTurnActive: false,
+      backgroundAgentCount: 0,
+      isGenerating: true,
+      canSubmit: true,
+      canCancel: true,
+      transcript: { ...position, activeTurn: current },
+    });
+    const configValue: SessionConfigState = {
+      modelOptions: null,
+      efforts: null,
+      modeOptions: null,
+      availableCommands: [],
+    };
+    const states = {
+      config: cell<SessionConfigState | undefined>(configValue),
+      usage: cell<SessionUsage | null | undefined>(null),
+      plan: cell<PlanState | null | undefined>(null),
+      terminals: cell<TerminalState[] | undefined>([]),
+      mcpServers: cell<SessionMcpServer[] | undefined>([]),
+      activeTurn: cell<TranscriptTurn | null | undefined>(current),
+    };
+    if (delayed !== 'history' && delayed !== 'mcp-acquisition' && delayed !== 'mcp-failure')
+      states[delayed].set(undefined);
+    const contract = defineContract({
+      acp: defineContract({
+        attach: conversationsContract.acp.attach,
+        session: conversationsContract.acp.session,
+        loadHistory: conversationsContract.acp.loadHistory,
+      }),
+    });
+    const gate = deferred<void>();
+    const session = expose(contract.acp.session, {
+      ...states,
+      state,
+      agents: cell([]),
+      mcpServers:
+        delayed === 'mcp-acquisition' || delayed === 'mcp-failure'
+          ? async () => {
+              await gate.promise;
+              if (delayed === 'mcp-failure') throw new Error('MCP metadata unavailable');
+              return states.mcpServers;
+            }
+          : states.mcpServers,
+    });
+    const loadHistory = vi.fn(async () => {
+      if (delayed === 'history') await gate.promise;
+      return ok({
+        turns: [],
+        nextCursor: null,
+        position,
+        coverage: { fromSeq: null, beforeSeq: null },
+      });
+    });
+    const hub = createWireSessionHub(
+      createController(
+        contract,
+        {
+          acp: { attach: async () => ok(undefined), session, loadHistory },
+        },
+        { validate: 'full' }
+      )
+    );
+    const pair = memoryTransportPair();
+    hub.open('live-readiness', pair.right);
+    const connection = connect(pair.left);
+    fixture.client = client(contract, connection);
+    const store = new AcpChatStore('startup-diagnostic', 'project-1', 'task-1');
+    fixture.store = store;
+    const parent = document.createElement('div');
+    parent.style.cssText = 'width:1000px;height:700px;position:relative';
+    document.body.append(parent);
+    const root = createRoot(parent);
+    try {
+      await act(async () => root.render(<AcpChatPanel />));
+      store.bootstrap();
+      await vi.waitFor(() => expect(store.messageCount).toBe(2));
+      await vi.waitFor(() => expect(parent.textContent).toContain('Work currently in progress'));
+      await vi.waitFor(() => expect(parent.textContent).not.toContain('Loading chat...'));
+      expect(store.session?.usable).toBe(true);
+      expect(parent.querySelector('[contenteditable="true"]')).not.toBeNull();
+      if (delayed === 'history') expect(store.historyLoading).toBe(true);
+
+      gate.resolve();
+      states.config.set(configValue);
+      states.usage.set(null);
+      states.plan.set(null);
+      states.terminals.set([]);
+      states.mcpServers.set([]);
+      states.activeTurn.set(current);
+      flushStateTurn();
+      await vi.waitFor(() => expect(store.historyLoading).toBe(false));
+      expect(store.loadError).toBeNull();
+      expect(store.messageCount).toBe(2);
+    } finally {
+      gate.resolve();
+      await act(async () => root.unmount());
+      store.dispose();
+      connection.dispose();
+      await hub.dispose();
+      await session.dispose();
+      context.dispose();
+      parent.remove();
+    }
+  }
+);

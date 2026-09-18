@@ -3,6 +3,7 @@ import {
   registerPluginBehavior,
 } from '@emdash/core/services/agent-plugins/api/plugins';
 import { buildStandardCommand } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { buildAntigravityHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -16,6 +17,11 @@ export const plugin = definePlugin(
   {
     autoApprove: {
       kind: 'supported',
+    },
+    hooks: {
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['session', 'start', 'stop'],
     },
     models: {
       kind: 'selectable',
@@ -93,6 +99,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  hooks: buildAntigravityHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

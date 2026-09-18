@@ -4,7 +4,7 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
-import { projects } from '@core/services/app-db/node/schema';
+import { projects, projectSettings } from '@core/services/app-db/node/schema';
 import { registerRepositoryWorkspace } from './register-repository-workspace';
 
 function hostRecord(id: string, path: string): WorkspaceRecord {
@@ -74,6 +74,49 @@ describe('registerRepositoryWorkspace', () => {
       location: 'remote',
       sshConnectionId: 'ssh-1',
     });
+  });
+
+  it('commits initial account preferences for all providers with the project', () => {
+    const initialIntegrationAccounts = {
+      github: { kind: 'account' as const, accountId: 'selected-work' },
+      linear: { kind: 'account' as const, accountId: 'workspace' },
+      jira: { kind: 'none' as const },
+    };
+    const result = registerRepositoryWorkspace(fixture.db, {
+      project: { id: 'project-accounts', name: 'Accounts', baseRef: 'main' },
+      host: LOCAL_HOST_REF,
+      record: hostRecord('accounts-repo', '/accounts'),
+      initialIntegrationAccounts,
+    });
+    expect(result.success).toBe(true);
+    const stored = fixture.db
+      .select()
+      .from(projectSettings)
+      .where(eq(projectSettings.projectId, 'project-accounts'))
+      .get();
+    expect(JSON.parse(stored!.baseProjectSettingsJson)).toEqual({
+      integrationAccounts: initialIntegrationAccounts,
+    });
+  });
+
+  it('rolls back registration when initial account persistence fails and permits retry', () => {
+    fixture.sqlite.exec(`CREATE TRIGGER reject_initial_accounts BEFORE INSERT ON project_settings
+      BEGIN SELECT RAISE(ABORT, 'account settings unavailable'); END;`);
+    const input = {
+      project: { id: 'project-accounts', name: 'Accounts', baseRef: 'main' },
+      host: LOCAL_HOST_REF,
+      record: hostRecord('accounts-repo', '/accounts'),
+      initialIntegrationAccounts: {
+        github: { kind: 'account' as const, accountId: 'selected-work' },
+      },
+    };
+    expect(() => registerRepositoryWorkspace(fixture.db, input)).toThrow();
+    expect(fixture.db.select().from(projects).all()).toEqual([]);
+    expect(fixture.db.select().from(projectSettings).all()).toEqual([]);
+    expect(createWorkspaceRegistry(fixture.db).getLive('accounts-repo')).toBeUndefined();
+
+    fixture.sqlite.exec('DROP TRIGGER reject_initial_accounts');
+    expect(registerRepositoryWorkspace(fixture.db, input).success).toBe(true);
   });
 
   it('refuses a competing desktop id at the canonical Host path without inserting a Project', () => {

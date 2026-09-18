@@ -69,6 +69,7 @@ describe('trello integration verify', () => {
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'member-1', login: 'jan' },
       displayName: 'Jan',
       displayDetail: '@jan',
       credentials: { apiKey: 'key', apiToken: 'valid-token' },
@@ -98,6 +99,7 @@ describe('trello integration verify', () => {
 
     expect(result).toEqual({
       connected: true,
+      account: { id: 'member-1', login: 'jan' },
       displayName: 'Jan',
       displayDetail: '@jan',
       credentials: { apiKey: 'key', apiToken: 'valid-token' },

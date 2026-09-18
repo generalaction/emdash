@@ -1,10 +1,10 @@
 /**
  * Public types for the PromptEditor component.
- * Keep this file dependency-free (no TipTap imports) so consumers can type-check
- * without pulling the whole editor bundle.
+ * Keep imports type-only so consuming these types does not load the editor bundle.
  */
 
 import type { ReactNode } from 'react';
+import type { PromptEditorModel } from './prompt-editor-model';
 
 // ── Mention items (@ trigger) ─────────────────────────────────────────────────
 
@@ -113,9 +113,12 @@ export interface PromptEditorRef {
 export type PromptSubmitShortcut = 'enter' | 'mod-enter' | 'none';
 
 export interface PromptEditorProps {
+  /** Owner-managed editing model, retained across view unmounts. Mutually exclusive with value. */
+  model?: PromptEditorModel;
   /**
    * Optional controlled serialized plain-text value.
-   * Omit this prop to keep the editor internally managed.
+   * Compatibility interface for callers without a model. Model-backed callers
+   * change the document through model commands, not a controlled-value echo.
    */
   value?: string;
   /** Controlled placeholder text when the editor is empty. */

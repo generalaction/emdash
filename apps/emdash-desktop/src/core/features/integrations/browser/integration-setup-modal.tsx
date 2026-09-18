@@ -1,10 +1,12 @@
 import { Button, Dialog, Input } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import type { IntegrationProviderDescriptor } from '@core/features/integrations/api/contract';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import {
-  useIntegrationsContext,
-  type IntegrationMetadata,
-} from '@core/features/integrations/contributions/browser/integrations-provider';
+  getIntegrationAuthUi,
+  supportsIntegrationReconnect,
+} from '@core/manifests/browser/integration-auth-contributions';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { SetupFormShell } from './SetupFormShell';
@@ -12,24 +14,45 @@ import type { SetupIntegrationType } from './types';
 
 type IntegrationSetupModalArgs = {
   integration: SetupIntegrationType;
+  accountId?: string;
+  displayName?: string;
 };
 
 type Props = IntegrationSetupModalArgs;
 
-export function IntegrationSetupModal({ integration }: Props) {
+export function IntegrationSetupModal({ integration, accountId, displayName }: Props) {
   const { complete, dismiss } = useModalController('integrationSetupModal');
   const { integrationById } = useIntegrationsContext();
   const metadata = integrationById[integration];
+  const authUi = metadata ? getIntegrationAuthUi(metadata) : undefined;
+  const AuthUi = authUi?.component;
+  const reconnectSupported = !accountId || (metadata && supportsIntegrationReconnect(metadata));
 
   return (
     <>
       <Dialog.Header className="flex-col items-start gap-1" showCloseButton={false}>
-        <Dialog.Title>{metadata ? `Connect ${metadata.name}` : 'Connect integration'}</Dialog.Title>
+        <Dialog.Title>
+          {metadata
+            ? `${accountId ? 'Reconnect' : 'Connect'} ${metadata.name}`
+            : 'Connect integration'}
+        </Dialog.Title>
       </Dialog.Header>
-      {metadata ? (
+      {metadata && !reconnectSupported ? (
+        <Dialog.Body>This connection method cannot reconnect a selected account.</Dialog.Body>
+      ) : metadata && AuthUi && (!accountId || authUi?.supportsReconnect) ? (
+        <AuthUi
+          metadata={metadata}
+          accountId={accountId}
+          displayName={displayName}
+          onSuccess={complete}
+          onClose={dismiss}
+        />
+      ) : metadata ? (
         <IntegrationSetupForm
           integration={integration}
           metadata={metadata}
+          accountId={accountId}
+          displayName={displayName}
           onSuccess={complete}
           onClose={dismiss}
         />
@@ -44,29 +67,38 @@ export const integrationSetupModal = defineModal<void>()({
   size: 'md',
 });
 
-function formMethod(metadata: IntegrationMetadata | undefined) {
+function formMethod(metadata: IntegrationProviderDescriptor | undefined) {
   return metadata?.auth.methods.find((method) => method.kind === 'form');
 }
 
 function IntegrationSetupForm({
   integration,
   metadata,
+  accountId,
+  displayName,
   onSuccess,
   onClose,
 }: {
   integration: SetupIntegrationType;
-  metadata: IntegrationMetadata;
+  metadata: IntegrationProviderDescriptor;
+  accountId?: string;
+  displayName?: string;
   onSuccess: () => void;
   onClose: () => void;
 }) {
   const method = formMethod(metadata);
+  const [accountName, setAccountName] = useState(displayName ?? '');
+  const needsAccountName = metadata.auth.accountLabelRequired === true;
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries((method?.fields ?? []).map((field) => [field.id, field.defaultValue ?? '']))
   );
 
   const canSubmit = useMemo(
-    () => !!method && method.fields.every((field) => !field.required || values[field.id]?.trim()),
-    [method, values]
+    () =>
+      !!method &&
+      (!needsAccountName || !!accountName.trim()) &&
+      method.fields.every((field) => !field.required || values[field.id]?.trim()),
+    [method, values, needsAccountName, accountName]
   );
 
   if (!method) return null;
@@ -81,11 +113,31 @@ function IntegrationSetupForm({
       getInput={() =>
         Object.fromEntries(method.fields.map((field) => [field.id, values[field.id]?.trim() ?? '']))
       }
+      getConnectionOptions={() => ({
+        accountId,
+        ...(needsAccountName ? { displayName: accountName.trim() } : {}),
+      })}
+      reconnect={accountId !== undefined}
       canSubmit={canSubmit}
       onSuccess={onSuccess}
       onClose={onClose}
     >
       <div className="grid gap-3">
+        {needsAccountName ? (
+          <div className="grid gap-1.5">
+            <Input
+              id="integration-account-name"
+              aria-label="Account name"
+              placeholder="Account name *"
+              value={accountName}
+              onChange={(event) => setAccountName(event.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-foreground-muted">
+              A name to distinguish this account, such as your team or workspace.
+            </p>
+          </div>
+        ) : null}
         {method.fields.map((field, index) => (
           <div key={field.id} className="grid gap-1.5">
             <Input
@@ -96,7 +148,7 @@ function IntegrationSetupForm({
               onChange={(event) => updateField(field.id, event.target.value)}
               className="h-9 w-full"
               autoComplete="off"
-              autoFocus={index === 0}
+              autoFocus={!needsAccountName && index === 0}
             />
           </div>
         ))}

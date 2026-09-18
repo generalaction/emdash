@@ -5,10 +5,10 @@ import {
 } from '@emdash/core/primitives/emdash-config/api';
 import z from 'zod';
 import {
-  baseProjectSettingsSchema,
+  storedBaseProjectSettingsSchema,
   defaultBranchSettingSchema,
   storedDefaultBranchSchema,
-  storedGithubAccountSchema,
+  storedIntegrationAccountSchema,
   type StoredBaseProjectSettings,
 } from '@core/primitives/project-settings/api';
 
@@ -23,12 +23,14 @@ export type LegacyLifecycleSettings = {
  * Migration-only reader for historical base-settings JSON. Current production
  * writers use StoredBaseProjectSettings and must never emit these retired keys.
  */
-export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
+export const legacyBaseProjectSettingsSchema = storedBaseProjectSettingsSchema.extend({
+  worktreeDirectory: z.string().trim().optional(),
+  githubAccountId: z.string().trim().min(1).nullable().optional(),
+  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
+  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
   remote: z.string().optional(),
   defaultBranch: z.union([defaultBranchSettingSchema, storedDefaultBranchSchema]).optional(),
-  worktreeRoot: z.string().trim().optional(),
-  githubAccount: storedGithubAccountSchema.optional(),
-  tmuxDefaultMigrated: z.literal(true).optional(),
+  githubAccount: storedIntegrationAccountSchema.optional(),
 });
 
 export type LegacyBaseProjectSettings = z.infer<typeof legacyBaseProjectSettingsSchema>;

@@ -1,6 +1,7 @@
 import type { Action, Board, Card, CheckItem, Checklist, Member } from 'trello.js';
 import type { createTrelloClient as createTrelloSdkClient } from 'trello.js';
 import z from 'zod';
+import type { VerifiedAccountIdentity } from '../../capabilities/auth';
 import { credentialString } from '../../helpers/credentials';
 
 export const trelloCredentialsSchema = z.object({
@@ -34,6 +35,7 @@ export type TrelloCardWithContext = TrelloCard & {
 };
 
 export type TrelloVerifiedConnection = {
+  account?: VerifiedAccountIdentity;
   displayName?: string;
   displayDetail?: string;
   credentials: TrelloCredentials;

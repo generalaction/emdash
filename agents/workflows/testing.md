@@ -13,6 +13,26 @@ pnpm run typecheck
 pnpm run test
 ```
 
+## Test Commands
+
+`pnpm test` at the repository root runs every package's default test suite.
+Inside an app or package directory it runs only that package's suite. From the
+root, `pnpm --filter @emdash/plugins test` runs only the selected package's suite.
+All three routes use Nx to prepare required builds automatically; dependency
+builds do not cause dependency tests to run. Nx is installed by `pnpm install`.
+
+Pass test-file paths or Vitest options after `test --`, for example
+`pnpm --filter @emdash/emdash-desktop test -- --project scripts`. The separator
+prevents Nx from consuming flags that both tools recognize, such as `--project`.
+Direct `pnpm exec vitest` is an advanced debugging escape hatch that bypasses
+prerequisite preparation.
+
+Existing suite boundaries remain unchanged: fixture generation, performance
+measurements, benchmarks, and the opt-in remote integration flow remain explicit
+commands. Specialized test commands also prepare prerequisite builds. Watch and
+other specialized test targets do not cache their results, while their builds
+can use the Nx cache.
+
 ## Test Layout
 
 - main-process tests: colocated in `src/main/core/**/*.test.ts`
@@ -22,11 +42,12 @@ pnpm run test
 ## Current Setup
 
 - Vitest config is in `vitest.config.ts` (separate from the build config in `electron.vite.config.ts`).
-- Five test projects:
+- Six test projects:
   - `node` — `src/**/*.test.ts` excluding `_*` dirs, browser tests, migration tests, `*.db.test.ts`, and `src/main/db/legacy-port/**/*.test.ts`
   - `main-db` — `src/main/core/**/*.db.test.ts` and `src/main/db/legacy-port/**/*.test.ts` against real SQLite
   - `fixtures` — fixture generator, run via `pnpm run db:fixtures`
   - `migrations` — `src/main/db/tests/migrations/**`, run via `pnpm run test:migrations`
+  - `scripts` — release, support, and developer-command tests under `scripts/`
   - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via Playwright
 - `pnpm run test` runs every project except `fixtures` (`node`, `main-db`,
   `migrations`, `scripts`, and `browser`). Setting `EMDASH_TEST_SKIP_BROWSER=1`
