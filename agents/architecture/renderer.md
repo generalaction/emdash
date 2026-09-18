@@ -41,6 +41,13 @@ Task children have two explicit lifetimes: lightweight persistent stores survive
 for as long as the task row exists (`task-persistent-stores.ts`), while operational task stores are
 disposed when the task session is torn down (`task-scoped-stores.ts`).
 
+Task attention indicators aggregate unseen events from saved Conversations, independently of open
+tabs. Closing either an ACP or terminal conversation tab acknowledges its existing notification;
+later background events can notify again. Conversation managers reconcile membership on successful
+list reloads and deletion events, preserving membership changes received during an in-flight reload.
+Failed reloads preserve the current stores. An empty pane can still have background attention, but
+a task with no Conversations has no agent status indicator.
+
 The Tasks slice owns current-task workspace activation in its app-scoped
 `TaskActivationCoordinator`. It derives activation from navigation, Project context hydration,
 Task state, and Host generation readiness. Views and navigation handlers only express which Task
