@@ -45,6 +45,7 @@ Task attention indicators aggregate unseen events from saved Conversations, inde
 tabs. Closing either an ACP or terminal conversation tab acknowledges its existing notification;
 later background events can notify again. Conversation managers reconcile membership on successful
 list reloads and deletion events, preserving membership changes received during an in-flight reload.
+Stream gaps invalidate the list so a gap during a reload schedules another fetch.
 Failed reloads preserve the current stores. An empty pane can still have background attention, but
 a task with no Conversations has no agent status indicator.
 

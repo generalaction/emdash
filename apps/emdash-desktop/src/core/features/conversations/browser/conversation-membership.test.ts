@@ -123,6 +123,29 @@ describe('conversation membership and task attention', () => {
     expect(manager.taskStatus).toBeNull();
   });
 
+  it.each(['creation', 'deletion'] as const)(
+    'refetches a missed %s when a gap arrives during an existing reload',
+    async (change) => {
+      const manager = await createManager();
+      const stale = deferred<Conversation[]>();
+      const fresh = change === 'creation' ? [conversation(), conversation('conversation-2')] : [];
+      client.getConversationsForTask.mockReturnValueOnce(stale.promise).mockResolvedValue(fresh);
+      const loading = manager.list.load();
+      await vi.waitFor(() => expect(client.getConversationsForTask).toHaveBeenCalledTimes(2));
+
+      // Every subscription can report the same gap; they should queue one fresh fetch.
+      for (const [, observer] of client.events.subscribe.mock.calls) observer.onGap();
+      stale.resolve([conversation()]);
+      await loading;
+
+      await vi.waitFor(() => {
+        expect(client.getConversationsForTask).toHaveBeenCalledTimes(3);
+        expect([...manager.conversations.keys()]).toEqual(fresh.map((record) => record.id));
+        expect(manager.taskStatus).toBe(change === 'creation' ? 'awaiting-input' : null);
+      });
+    }
+  );
+
   it('removes conversations when deletion arrives from another surface', async () => {
     const manager = await createManager();
     emit({ ...deleted(), projectId: 'other-project' });

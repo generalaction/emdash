@@ -177,7 +177,7 @@ export class ConversationManagerStore implements Disposable {
           if (!disposed) onEvent(event);
         },
         onGap: () => {
-          if (!disposed) void this.list.load();
+          if (!disposed) this.list.invalidate();
         },
       });
       if (disposed) nextUnsubscribe();
