@@ -1,4 +1,4 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React from 'react';
@@ -6,6 +6,7 @@ import { McpCard } from '@core/features/mcp/browser/components/McpCard';
 import { McpDrawer, type McpDrawerMode } from '@core/features/mcp/browser/components/McpDrawer';
 import type { UseMcpsResult } from '@core/features/mcp/browser/components/useMcps';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { isManagedCatalogEntry } from '@core/primitives/mcp/api';
 
 type McpServersListProps = {
   mcp: UseMcpsResult;
@@ -50,6 +51,9 @@ export const McpServersList: React.FC<McpServersListProps> = ({
   const filteredCatalog = mcp.catalog.filter(
     (entry) =>
       !installedNames.has(entry.key) &&
+      // Emdash's own MCP server listens on this machine's loopback interface, so
+      // it is only offered for the local host.
+      (isLocalHostRef(host) || !isManagedCatalogEntry(entry)) &&
       (!search ||
         entry.name.toLowerCase().includes(lowerSearch) ||
         entry.description.toLowerCase().includes(lowerSearch))
