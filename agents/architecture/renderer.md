@@ -83,6 +83,11 @@ Navigation lives in `src/core/primitives/navigation/`; commands and the palette 
 (`src/core/features/terminals/`). Monaco, file rendering, file-tree projection, and
 renderer-facing file runtime access are owned by `src/core/features/editor/browser/`.
 
+The renderer error boundary offers a state-preserving Reload app action, collapsible error details,
+and a Reset UI state and reload fallback under "Still having trouble?". Reset discards pending
+memento writes before clearing saved presentation state (including unsent drafts), and only reloads
+once deletion succeeds. A failed reset stays visible above the disclosures so it can be retried.
+
 ## Tests
 
 - Renderer unit tests: `src/renderer/tests/`
