@@ -96,4 +96,32 @@ describe('OpenCode plugin hooks', () => {
     expect(hookTypes(fetchMock)).toEqual(['session', 'start', 'session', 'stop']);
     cleanup();
   });
+
+  it('does not report interrupted v2 executions as completed', async () => {
+    vi.stubEnv('EMDASH_HOOK_PORT', '9876');
+    vi.stubEnv('EMDASH_HOOK_NONCE', 'nonce');
+    vi.stubEnv('EMDASH_PTY_ID', 'pty-3');
+    const fetchMock = vi.fn().mockResolvedValue(new Response());
+    vi.stubGlobal('fetch', fetchMock);
+    const plugin = await loadPlugin();
+    const cleanup = plugin.default.setup({
+      event: {
+        async *subscribe() {
+          yield {
+            type: 'session.execution.interrupted',
+            data: { sessionID: 'ses_interrupted', reason: 'user' },
+          };
+        },
+      },
+    });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    expect(hookTypes(fetchMock)).toEqual(['session', 'notification']);
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+      title: 'OpenCode',
+      message: 'OpenCode execution was interrupted.',
+    });
+    cleanup();
+  });
 });

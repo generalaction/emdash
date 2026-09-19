@@ -83,8 +83,18 @@ function toEmdashPayload(event) {
     return { type: 'start', body: { title: 'OpenCode' } };
   }
 
-  if (event.type === 'session.execution.succeeded' || event.type === 'session.execution.interrupted') {
+  if (event.type === 'session.execution.succeeded') {
     return { type: 'stop', body: { title: 'OpenCode' } };
+  }
+
+  if (event.type === 'session.execution.interrupted') {
+    return {
+      type: 'notification',
+      body: {
+        title: 'OpenCode',
+        message: 'OpenCode execution was interrupted.',
+      },
+    };
   }
 
   if (event.type === 'session.idle') {
