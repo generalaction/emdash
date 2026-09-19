@@ -343,12 +343,7 @@ export class SearchService {
       .join(' ');
 
     try {
-      this.deps.sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('task', ?, ?, NULL, ?, ?)`
-        )
-        .run(task.id, task.projectId, task.name, keywords);
+      this.upsertIndexRow('task', task.id, task.projectId, null, task.name, keywords);
     } catch (e) {
       log.warn('SearchService: upsertTask failed', { taskId: task.id, error: String(e) });
     }
@@ -356,12 +351,7 @@ export class SearchService {
 
   private upsertProject(project: Project): void {
     try {
-      this.deps.sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('project', ?, NULL, NULL, ?, ?)`
-        )
-        .run(project.id, project.name, project.path);
+      this.upsertIndexRow('project', project.id, null, null, project.name, project.path);
     } catch (e) {
       log.warn('SearchService: upsertProject failed', {
         projectId: project.id,
@@ -381,19 +371,12 @@ export class SearchService {
   }
 
   private upsertConversation(conversation: Conversation): void {
-    try {
-      this.deps.sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('conversation', ?, ?, ?, ?, '')`
-        )
-        .run(conversation.id, conversation.projectId, conversation.taskId, conversation.title);
-    } catch (e) {
-      log.warn('SearchService: upsertConversation failed', {
-        conversationId: conversation.id,
-        error: String(e),
-      });
-    }
+    this.upsertConversationById(
+      conversation.id,
+      conversation.projectId,
+      conversation.taskId,
+      conversation.title
+    );
   }
 
   private upsertConversationById(
@@ -403,18 +386,36 @@ export class SearchService {
     title: string
   ): void {
     try {
-      this.deps.sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('conversation', ?, ?, ?, ?, '')`
-        )
-        .run(conversationId, projectId, taskId, title);
+      this.upsertIndexRow('conversation', conversationId, projectId, taskId, title, '');
     } catch (e) {
       log.warn('SearchService: upsertConversationById failed', {
         conversationId,
         error: String(e),
       });
     }
+  }
+
+  private upsertIndexRow(
+    itemType: 'task' | 'project' | 'conversation',
+    itemId: string,
+    projectId: string | null,
+    taskId: string | null,
+    title: string,
+    keywords: string
+  ): void {
+    // FTS5 has no uniqueness constraint on entity identity. Replace all prior rows
+    // atomically so a failed insert cannot remove the last searchable version.
+    this.deps.sqlite.transaction(() => {
+      this.deps.sqlite
+        .prepare(`DELETE FROM search_index WHERE item_type = ? AND item_id = ?`)
+        .run(itemType, itemId);
+      this.deps.sqlite
+        .prepare(
+          `INSERT INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(itemType, itemId, projectId, taskId, title, keywords);
+    })();
   }
 
   private removeByType(itemType: string, itemId: string): void {
@@ -458,7 +459,7 @@ export class SearchService {
       const allConversations = this.deps.db.select().from(conversations).all();
 
       const upsertStmt = this.deps.sqlite.prepare(
-        `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
+        `INSERT INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
          VALUES (?, ?, ?, ?, ?, ?)`
       );
 
