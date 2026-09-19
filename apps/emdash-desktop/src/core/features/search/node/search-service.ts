@@ -87,7 +87,7 @@ export class SearchService {
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
     projectEvents.on('project:renamed', (projectId, name) => this.renameProject(projectId, name));
-    projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
+    projectEvents.on('project:deleted', (projectId) => this.removeProject(projectId));
 
     conversationEvents.on('conversation:created', (conversation) =>
       this.upsertConversation(conversation)
@@ -416,6 +416,20 @@ export class SearchService {
         )
         .run(itemType, itemId, projectId, taskId, title, keywords);
     })();
+  }
+
+  private removeProject(projectId: string): void {
+    try {
+      // Project deletion cascades without emitting individual task or conversation events.
+      this.deps.sqlite
+        .prepare(
+          `DELETE FROM search_index
+           WHERE (item_type = 'project' AND item_id = ?) OR project_id = ?`
+        )
+        .run(projectId, projectId);
+    } catch (e) {
+      log.warn('SearchService: removeProject failed', { projectId, error: String(e) });
+    }
   }
 
   private removeByType(itemType: string, itemId: string): void {
