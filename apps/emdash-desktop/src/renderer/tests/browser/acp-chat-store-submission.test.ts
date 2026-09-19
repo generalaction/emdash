@@ -412,6 +412,7 @@ describe('AcpChatStore prompt submission', () => {
       createChatView: vi.fn() as never,
       connectSession: connectSession as never,
       pinTopMode: vi.fn(() => ({ kind: 'pin-top', itemId: 'optimistic' })) as never,
+      DEFAULT_CONFIG: {} as never,
     });
   });
 
