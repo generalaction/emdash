@@ -16,6 +16,7 @@ describe('pull requests GitHub auth controller', () => {
       controller.call('resolveAuth', { repositoryUrl: 'https://ghe.example.com/acme/repo' })
     ).resolves.toEqual(
       ok({
+        provider: 'github',
         token: 'enterprise-token',
         host: 'ghe.example.com',
         apiBaseUrl: 'https://ghe.example.com/github/api/v3',
