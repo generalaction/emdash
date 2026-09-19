@@ -3,6 +3,7 @@ import {
   createChatContext,
   createChatState,
   createChatView,
+  DEFAULT_CONFIG,
   pinTopMode,
 } from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
@@ -90,6 +91,7 @@ async function bootstrap() {
     createChatContext,
     createChatState,
     createChatView,
+    DEFAULT_CONFIG,
     pinTopMode,
   });
   wireExternalLinkRequests();
