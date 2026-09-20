@@ -195,14 +195,14 @@ describe('TerminalsRuntime', () => {
     });
     await waitFor(() => spawner.processes.length === 1);
 
-    spawner.processes[0]!.emitData('ready at http://localhost:5173/app\n');
+    spawner.processes[0]!.emitData('ready at http://[::1]:5173/app\n');
 
     await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
     expect(await devServers(runtime)).toEqual({
       [`${workspaceKey(workspace)}:terminal-1:http::5173`]: {
         key: { workspace, id: 'terminal-1' },
         protocol: 'http:',
-        host: 'localhost',
+        host: '::1',
         port: 5173,
         urlPath: '/app',
         detectedAt: 1000,
