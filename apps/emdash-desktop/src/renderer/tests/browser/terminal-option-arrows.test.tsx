@@ -1,8 +1,8 @@
-import { act, useRef } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrontendPty } from '@core/features/terminals/api/browser/pty/pty';
-import type { usePty as usePtyType } from '@core/features/terminals/browser/pty/use-pty';
+import type { PtyPane as PtyPaneType } from '@core/features/terminals/contributions/browser/pty/pty-pane';
 import type * as hostClientModule from '@core/primitives/desktop-host/browser/host-client';
 
 vi.mock('@core/services/settings/api/client', () => ({
@@ -13,15 +13,31 @@ vi.mock('@core/primitives/desktop-host/browser/host-client', async (importOrigin
   getHostClient: async () => ({ events: { subscribe: async () => () => {} } }),
 }));
 
-let usePty: typeof usePtyType;
+let PtyPane: typeof PtyPaneType;
 
-function Harness({ pty, readOnly = false }: { pty: FrontendPty; readOnly?: boolean }) {
-  const container = useRef<HTMLDivElement>(null);
-  usePty({ pty, sessionId: pty.sessionId, readOnly }, container);
-  return <div ref={container} style={{ width: 800, height: 400 }} />;
+function Harness({
+  pty,
+  readOnly = false,
+  inputContext,
+}: {
+  pty: FrontendPty;
+  readOnly?: boolean;
+  inputContext?: 'shell' | 'agent';
+}) {
+  return (
+    <div style={{ width: 800, height: 400 }}>
+      <PtyPane
+        pty={pty}
+        sessionId={pty.sessionId}
+        workspaceId="option-arrows-workspace"
+        readOnly={readOnly}
+        inputContext={inputContext}
+      />
+    </div>
+  );
 }
 
-describe('macOS Option arrows through usePty and real xterm', () => {
+describe('macOS Option arrows through PtyPane and real xterm', () => {
   let root: Root;
   let host: HTMLDivElement;
   let pty: FrontendPty;
@@ -30,7 +46,7 @@ describe('macOS Option arrows through usePty and real xterm', () => {
   beforeAll(async () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
-    ({ usePty } = await import('@core/features/terminals/browser/pty/use-pty'));
+    ({ PtyPane } = await import('@core/features/terminals/contributions/browser/pty/pty-pane'));
   });
 
   afterAll(() => {
@@ -62,6 +78,10 @@ describe('macOS Option arrows through usePty and real xterm', () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    // Let xterm finish layout queued by reparenting before disposing its renderer.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
     pty.dispose();
     host.remove();
     document.querySelector('[data-terminal-host="true"]')?.remove();
@@ -101,6 +121,36 @@ describe('macOS Option arrows through usePty and real xterm', () => {
     }
   );
 
+  it.each([false, true])(
+    'forwards all agent Option arrows exactly once with Option-as-Meta=%s',
+    async (macOptionIsMeta) => {
+      await act(async () => root.render(<Harness pty={pty} inputContext="agent" />));
+      pty.terminal.options.macOptionIsMeta = macOptionIsMeta;
+      press('ArrowLeft');
+      press('ArrowRight');
+      press('ArrowUp');
+      press('ArrowDown');
+      expect(input).toEqual(['\x1b[1;3D', '\x1b[1;3C', '\x1b[1;3A', '\x1b[1;3B']);
+    }
+  );
+
+  it('updates navigation when the same PTY changes input context', async () => {
+    press('ArrowUp');
+    await act(async () => root.render(<Harness pty={pty} inputContext="agent" />));
+    press('ArrowUp');
+    await act(async () => root.render(<Harness pty={pty} inputContext="shell" />));
+    press('ArrowUp');
+    expect(input).toEqual(['\x01', '\x1b[1;3A', '\x01']);
+  });
+
+  it('forwards repeated agent keydowns without also sending on keyup', async () => {
+    await act(async () => root.render(<Harness pty={pty} inputContext="agent" />));
+    press('ArrowUp');
+    press('ArrowUp', { altKey: true, repeat: true });
+    press('ArrowUp', { altKey: true, repeat: true });
+    expect(input).toEqual(['\x1b[1;3A', '\x1b[1;3A', '\x1b[1;3A']);
+  });
+
   it('retains plain arrows and other modified arrow sequences', () => {
     press('ArrowLeft', {});
     press('ArrowUp', {});
@@ -109,11 +159,16 @@ describe('macOS Option arrows through usePty and real xterm', () => {
     expect(input).toEqual(['\x1b[D', '\x1b[A', '\x1b[1;4D', '\x1b[1;7C']);
   });
 
-  it('does not send mapped input from a read-only terminal', async () => {
-    await act(async () => root.render(<Harness pty={pty} readOnly />));
-    for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) press(key);
-    expect(input).toEqual([]);
-  });
+  it.each(['shell', 'agent'] as const)(
+    'does not send input from a read-only %s',
+    async (inputContext) => {
+      await act(async () =>
+        root.render(<Harness pty={pty} inputContext={inputContext} readOnly />)
+      );
+      for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) press(key);
+      expect(input).toEqual([]);
+    }
+  );
 
   it('allows repeated keydowns without also sending on keyup', () => {
     press('ArrowLeft');
@@ -122,15 +177,19 @@ describe('macOS Option arrows through usePty and real xterm', () => {
     expect(input).toEqual(['\x1bb', '\x1bb', '\x1bb']);
   });
 
-  it('does not send mapped input while another modal owns focus', () => {
-    const dialog = document.createElement('div');
-    dialog.setAttribute('role', 'dialog');
-    document.body.appendChild(dialog);
-    try {
-      for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) press(key);
-      expect(input).toEqual([]);
-    } finally {
-      dialog.remove();
+  it.each(['shell', 'agent'] as const)(
+    'does not send %s input while another modal owns focus',
+    async (inputContext) => {
+      await act(async () => root.render(<Harness pty={pty} inputContext={inputContext} />));
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      document.body.appendChild(dialog);
+      try {
+        for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) press(key);
+        expect(input).toEqual([]);
+      } finally {
+        dialog.remove();
+      }
     }
-  });
+  );
 });

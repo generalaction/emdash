@@ -169,6 +169,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                       onFind={openSearch}
                       className="h-full w-full"
                       onInterruptPress={onInterruptPress}
+                      inputContext="agent"
                       mapShiftEnterToCtrlJ
                       readOnly={Boolean(disabledReason)}
                       remoteConnectionId={remoteConnectionId}

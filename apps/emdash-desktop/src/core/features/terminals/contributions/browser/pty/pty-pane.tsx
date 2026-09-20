@@ -17,6 +17,7 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import {
   type PasteFromClipboardHandler,
+  type UsePtyOptions,
   usePty,
 } from '@core/features/terminals/browser/pty/use-pty';
 import {
@@ -44,6 +45,7 @@ type Props = {
   pty: FrontendPty;
   className?: string;
   contentFilter?: string;
+  inputContext?: UsePtyOptions['inputContext'];
   mapShiftEnterToCtrlJ?: boolean;
   readOnly?: boolean;
   /** Remote terminals are served by workspace-server runtimes and are not supported here yet. */
@@ -134,6 +136,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       pty,
       className,
       contentFilter,
+      inputContext,
       mapShiftEnterToCtrlJ,
       readOnly = false,
       remoteConnectionId,
@@ -195,6 +198,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         sessionId,
         pty,
         theme,
+        inputContext,
         mapShiftEnterToCtrlJ,
         readOnly,
         onActivity,
