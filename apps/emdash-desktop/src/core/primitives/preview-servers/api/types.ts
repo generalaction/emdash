@@ -18,7 +18,7 @@ export type PreviewServerStatus =
   | { kind: 'failed'; message: string };
 
 export type PreviewServerProtocol = 'http:' | 'https:';
-export type DirectPreviewServerHost = 'localhost' | '127.0.0.1';
+export type DirectPreviewServerHost = 'localhost' | '127.0.0.1' | '::1';
 
 export type PreviewServerBase = {
   id: string;
@@ -45,9 +45,14 @@ export type ForwardedPreviewServer = PreviewServerBase & {
 
 export type PreviewServer = DirectPreviewServer | ForwardedPreviewServer;
 
+export function formatDirectPreviewServerHost(host: DirectPreviewServerHost): string {
+  return host === '::1' ? '[::1]' : host;
+}
+
 export function previewServerUrl(server: PreviewServer): string | null {
   if (server.kind === 'direct') {
-    return `${server.protocol}//${server.host}:${server.port}${server.urlPath}`;
+    const host = formatDirectPreviewServerHost(server.host);
+    return `${server.protocol}//${host}:${server.port}${server.urlPath}`;
   }
 
   if (server.localPort === undefined) return null;
