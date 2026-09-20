@@ -6,6 +6,7 @@ describe('@emdash/core/runtimes/files/api public exports', () => {
     const exported = files as Record<string, unknown>;
 
     expect(exported.filesContract).toBeTypeOf('object');
+    expect(exported.MAX_TEMPORARY_UPLOAD_BYTES).toBeTypeOf('number');
     expect(exported.fileTreeModelSchema).toBeTypeOf('object');
     expect(exported.fileContentModelSchema).toBeTypeOf('object');
     expect(exported.isExpandableFileEntry).toBeTypeOf('function');

@@ -42,6 +42,7 @@ import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primit
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
 import type { AppSettingsService } from '@core/services/settings/node';
+import { prepareTerminalAttachments } from './prepare-attachments';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
@@ -90,6 +91,7 @@ export function createTerminalsWireController(
     rename: (input) => renameTerminal(options, input),
     hydrate: (input) => hydrateTerminal(options, input),
     getShellAvailability: (input) => getShellAvailability(options, input),
+    prepareAttachments: (input, meta) => prepareTerminalAttachments(options, input, meta),
     output: async (key) =>
       resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
         client.terminals.output.handle(toTerminalKey(identity, key.terminalId)).asLiveSource()

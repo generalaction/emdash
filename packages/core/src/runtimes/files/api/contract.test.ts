@@ -11,6 +11,9 @@ describe('filesContract', () => {
     expect(filesContract.fs.stat.kind).toBe('procedure');
     expect(filesContract.fs.readBytes.kind).toBe('downloadFile');
     expect(filesContract.fs.readBytes.id).toBe('fs.readBytes');
+    expect(filesContract.fs.uploadTemporary.kind).toBe('uploadFile');
+    expect(filesContract.fs.uploadTemporary.id).toBe('fs.uploadTemporary');
+    expect(filesContract.fs.uploadTemporary.maxSize).toBe(50 * 1024 * 1024);
     expect(filesContract.fs.enumerate.kind).toBe('liveJob');
     expect(filesContract.fs.enumerate.id).toBe('fs.enumerate');
     expect(filesContract.tree.model.kind).toBe('liveModel');

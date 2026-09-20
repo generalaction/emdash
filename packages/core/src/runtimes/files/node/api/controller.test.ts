@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -14,7 +23,7 @@ import {
   type LiveUpdate,
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createPathProfile } from '#primitives/path/api';
+import { createPathProfile, formatAbsolute } from '#primitives/path/api';
 import { filesContract } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -358,6 +367,7 @@ describe('createFilesController', () => {
     await writeFile(path.join(root, 'stream.txt'), 'stream\r\n');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeStreamClient(runtime);
+    let temporaryPath: string | undefined;
 
     try {
       const metadata = await connection.api.fs.stat({
@@ -401,7 +411,22 @@ describe('createFilesController', () => {
       await expect(readFile(path.join(root, 'uploaded.txt'), 'utf8')).resolves.toBe(
         'uploaded through Wire\n'
       );
+
+      const temporary = await connection.api.fs.uploadTemporary(undefined, {
+        name: '../../terminal-image.png',
+        mimeType: 'image/png',
+        size: uploadBytes.byteLength,
+        source: chunks(uploadBytes),
+      });
+      expect(temporary.success).toBe(true);
+      if (temporary.success) {
+        temporaryPath = formatAbsolute(temporary.data.path, {
+          separator: path.sep as '/' | '\\',
+        });
+        await expect(readFile(temporaryPath, 'utf8')).resolves.toBe('uploaded through Wire\n');
+      }
     } finally {
+      if (temporaryPath) await unlink(temporaryPath).catch(() => undefined);
       connection.dispose();
       await runtime.dispose();
     }

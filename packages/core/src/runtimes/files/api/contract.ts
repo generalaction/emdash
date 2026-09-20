@@ -37,6 +37,7 @@ import {
 } from './schemas';
 
 export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_TEMPORARY_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 /**
  * The stateless filesystem plane (spec §3.4): reads and writes keyed by a bare
@@ -75,6 +76,12 @@ export const filesContract = defineContract({
       input: uploadFileInputSchema,
       maxSize: MAX_FILE_UPLOAD_BYTES,
       result: uploadFileResultSchema,
+      error: fsErrorSchema,
+    }),
+    uploadTemporary: uploadFile({
+      input: z.void(),
+      maxSize: MAX_TEMPORARY_UPLOAD_BYTES,
+      result: z.object({ path: hostAbsolutePathSchema }),
       error: fsErrorSchema,
     }),
     enumerate: liveJob({

@@ -17,6 +17,7 @@ export function createFilesProcedures(
       readText: (input) => runtime.fs.readText(input),
       readBytes: (input) => runtime.fs.readBytes(input),
       upload: (input, file) => runtime.fs.upload(input, file),
+      uploadTemporary: (_input, file, meta) => runtime.fs.uploadTemporary(file, meta.signal),
       enumerate: {
         run: (input, context) => runtime.fs.enumerate(input, context),
       },

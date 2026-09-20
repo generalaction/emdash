@@ -1,6 +1,7 @@
 export {
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
+  MAX_TEMPORARY_UPLOAD_BYTES,
   type FilesContract,
 } from '#runtimes/files/api/contract';
 export { fsErrorSchema, type FsError } from '#runtimes/files/api/errors';

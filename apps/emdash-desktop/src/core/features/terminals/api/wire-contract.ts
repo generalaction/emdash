@@ -3,6 +3,7 @@ import {
   terminalShellAvailabilityListSchema,
   terminalShellIdSchema,
 } from '@emdash/core/primitives/terminal-shell/api';
+import { fsErrorSchema } from '@emdash/core/runtimes/files/api';
 import { terminalErrorSchema, terminalSizeSchema } from '@emdash/core/runtimes/terminals/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import { defineContract, fallible, liveLog } from '@emdash/wire/rpc';
@@ -69,6 +70,19 @@ export const terminalShellAvailabilityInputSchema = z.object({
   host: hostRefSchema,
 });
 
+export const MAX_TERMINAL_ATTACHMENT_FILES = 20;
+
+export const terminalPrepareAttachmentsInputSchema = z.object({
+  workspaceId: z.string(),
+  expectedHost: hostRefSchema,
+  localPaths: z.array(z.string()).min(1).max(MAX_TERMINAL_ATTACHMENT_FILES),
+});
+
+export const terminalPrepareAttachmentsResultSchema = z.object({
+  paths: z.array(z.string()),
+  pathStyle: z.enum(['posix', 'win32']),
+});
+
 /** Failures the desktop slice itself produces while resolving terminal context. */
 export const terminalSliceContextErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('missing-terminal'), message: z.string() }),
@@ -120,6 +134,11 @@ export const terminalsContract = defineContract({
     data: terminalShellAvailabilityListSchema,
     error: terminalSliceErrorSchema,
   }),
+  prepareAttachments: fallible({
+    input: terminalPrepareAttachmentsInputSchema,
+    data: terminalPrepareAttachmentsResultSchema,
+    error: z.union([terminalSliceErrorSchema, fsErrorSchema]),
+  }),
   output: liveLog({
     key: terminalRuntimeKeySchema,
   }),
@@ -144,4 +163,8 @@ export type TerminalsContract = typeof terminalsContract;
 export type TerminalCreateResult = z.infer<typeof terminalCreateResultSchema>;
 export type TerminalHydrateResult = z.infer<typeof terminalHydrateResultSchema>;
 export type TerminalRuntimeKey = z.infer<typeof terminalRuntimeKeySchema>;
+export type TerminalPrepareAttachmentsInput = z.infer<typeof terminalPrepareAttachmentsInputSchema>;
+export type TerminalPrepareAttachmentsResult = z.infer<
+  typeof terminalPrepareAttachmentsResultSchema
+>;
 export type TerminalSliceError = z.infer<typeof terminalSliceErrorSchema>;

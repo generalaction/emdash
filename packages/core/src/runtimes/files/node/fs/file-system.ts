@@ -46,6 +46,7 @@ import {
   moveBetweenRoots,
   type RootLocation,
 } from './mutation-ops';
+import { TemporaryUploadStore } from './temporary-upload';
 import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
@@ -56,6 +57,8 @@ const STREAM_CHUNK_SIZE = 64 * 1024;
  * resolves (ack-time republish); the fs watcher covers external changes only.
  */
 export class FileSystemRuntime {
+  private readonly temporaryUploads = new TemporaryUploadStore();
+
   constructor(private readonly allocations: FilesAllocationGraph) {}
 
   stat(input: AbsolutePathKey): Promise<Result<FileStat, FsError>> {
@@ -258,6 +261,13 @@ export class FileSystemRuntime {
       );
       return ok({ bytesWritten: written.data.bytesWritten });
     });
+  }
+
+  uploadTemporary(
+    file: WireFile,
+    signal?: AbortSignal
+  ): Promise<Result<{ path: HostAbsolutePath }, FsError>> {
+    return this.temporaryUploads.upload(file, signal);
   }
 
   enumerate(
