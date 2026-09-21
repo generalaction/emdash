@@ -35,6 +35,7 @@ import {
   type AcpConnectionSource,
 } from '#runtimes/acp/node/connection/source';
 import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
+import { AgentHookInstaller } from '#services/agent-plugins/node';
 import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type AcpWakeFailure } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';
@@ -54,12 +55,17 @@ export class AcpRuntime {
     this.terminals = new AgentTerminalManager(deps.host, this.terminalLiveRegistry.hooks);
     const fs = new FsPort(deps.host);
     const terminalPort = new TerminalPort(this.terminals);
+    const hookInstaller = new AgentHookInstaller({
+      agentHost: deps.agentHost,
+      logger: deps.logger,
+    });
     this.connections = createAcpConnectionSource({
       host: deps.host,
       agentHost: deps.agentHost,
       logger: deps.logger,
       clock: deps.clock,
       idleTtlMs: deps.lifecycle?.connectionIdleTtlMs ?? 120_000,
+      hookInstaller,
       buildClient: (_agent, context) => {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
         return buildAgentClient(context, manager.router, { fs, terminals: terminalPort });

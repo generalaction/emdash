@@ -4,6 +4,7 @@ import {
 } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
+  envConfigRoot,
   homebrewOption,
   passthroughMcpAdapter,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
@@ -169,6 +170,10 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   hooks: buildClaudeHookConfig(),
-  mcp: passthroughMcpAdapter('.claude.json'),
+  // `.claude.json` lives directly under home by default, but Claude Code
+  // relocates it (and everything else) under CLAUDE_CONFIG_DIR when that's
+  // set, so a configured instance with its own CLAUDE_CONFIG_DIR reads and
+  // writes its own MCP servers instead of the shared default account's.
+  mcp: passthroughMcpAdapter('.claude.json', undefined, envConfigRoot('CLAUDE_CONFIG_DIR', '')),
   trust: buildClaudeTrustBehavior(),
 });
