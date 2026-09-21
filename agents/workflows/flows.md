@@ -138,6 +138,15 @@ running (doctor reports it). See
 
 - Local packaging without signing identities still produces installable
   artifacts; mac builds are unsigned/un-notarized and Gatekeeper will warn.
+- Linux packaging keeps `extraMetadata.desktopName` aligned with the installed
+  `.desktop` filename via `linux.syncDesktopName`. The desktop IDs are `Emdash`
+  (stable) and `emdash-canary` (canary); preserve them across upgrades for dock pins.
+  Electron 40 uses this metadata for Wayland's `app_id`, but uses the product name
+  for X11's `WM_CLASS`, so `linux.desktop.entry.StartupWMClass` remains the product
+  name. Release version overrides must merge `extraMetadata`, not replace it.
+  The release script tests check both channels' generated desktop entries and
+  package metadata. Before shipping changes here, verify dock grouping and icons
+  in GNOME with native Wayland and XWayland, including stable and canary together.
 - `rebuild` force-rebuilds better-sqlite3 for the installed Electron version
   (auto-detected). node-pty is never rebuilt — its N-API prebuild serves both
   runtimes. Offline fallback: append `--build-from-source`.

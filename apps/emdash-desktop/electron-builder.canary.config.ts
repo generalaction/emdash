@@ -3,6 +3,7 @@ import {
   APP_ID,
   APP_NAME_LOWER,
   ARTIFACT_PREFIX,
+  LINUX_DESKTOP_ID,
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
@@ -12,6 +13,7 @@ const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
   executableName: PRODUCT_NAME,
+  extraMetadata: { desktopName: `${LINUX_DESKTOP_ID}.desktop` },
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
@@ -72,6 +74,10 @@ const config: Configuration = {
     category: 'Development',
     executableName: APP_NAME_LOWER,
     icon: 'src/assets/images/emdash/emdash-canary.png',
+    syncDesktopName: true,
+    desktop: {
+      entry: { StartupWMClass: PRODUCT_NAME },
+    },
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
