@@ -5,6 +5,7 @@ import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
 import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { refreshLinkedIssueContext } from '@core/features/tasks/browser/issue-context/refresh-linked-issue-context';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { PullRequest } from '@core/services/pull-requests/api';
 import { getIssueTaskName } from './issue-task-name';
@@ -24,10 +25,11 @@ export function useCreateTaskState(
   initialLinkedType: LinkedType = null,
   initialWorkspaceId?: string
 ) {
-  const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
+  const { autoGenerateName, createBranchAndWorktree, preserveNameCapitalization } =
+    useTaskSettings();
 
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
-  const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
+  const [selectedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
@@ -38,6 +40,18 @@ export function useCreateTaskState(
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
   }
+
+  // Picker rows are summaries. Resolve the selected issue's full context before
+  // task creation, retaining its captured account instead of the current default.
+  const { data: issueDetail, isFetching: isFetchingIssueDetail } = useQuery({
+    queryKey: ['createTaskIssueContext', projectId, selectedIssue],
+    queryFn: () =>
+      selectedIssue ? refreshLinkedIssueContext(selectedIssue, projectId) : Promise.resolve(null),
+    enabled: linkedType === 'issue' && selectedIssue !== null,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
+  const linkedIssue = issueDetail ?? selectedIssue;
 
   // Stable random key for the "plain task" name generation — one per modal session.
   const randomKey = useMemo(() => crypto.randomUUID(), []);
@@ -53,7 +67,9 @@ export function useCreateTaskState(
   });
 
   // Issue-derived name (Linear can derive directly from branchName; others need AI)
-  const directIssueTaskName = getIssueTaskName(linkedIssue);
+  const directIssueTaskName = getIssueTaskName(linkedIssue, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
   const shouldGenerateFromIssue =
     autoGenerateName &&
     linkedType === 'issue' &&
@@ -97,7 +113,7 @@ export function useCreateTaskState(
 
   const isPending = (() => {
     if (linkedType === 'issue' && linkedIssue !== null)
-      return shouldGenerateFromIssue && isIssuePending;
+      return isFetchingIssueDetail || (shouldGenerateFromIssue && isIssuePending);
     if (linkedType === 'pr' && linkedPR !== null) return shouldGenerateFromPR && isPRPending;
     return autoGenerateName && isRandomPending;
   })();
@@ -117,7 +133,8 @@ export function useCreateTaskState(
     repositoryWorkspaceId,
     pr: linkedType === 'pr' ? linkedPR : null,
     taskName: taskName.effectiveTaskName,
-    linkedIssue: linkedType === 'issue' ? linkedIssue : null,
+    // Enrichment must not look like a new selection to branch-name overrides.
+    linkedIssue: linkedType === 'issue' ? selectedIssue : null,
     createBranchAndWorktreeDefault: createBranchAndWorktree,
     resetKey: projectId,
     initial: initialWorkspaceId

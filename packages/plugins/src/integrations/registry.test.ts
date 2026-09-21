@@ -5,6 +5,7 @@ import { integrationPluginRegistry } from './registry';
 
 const credentialsByProvider: Record<string, IntegrationCredentials> = {
   asana: { accessToken: 'test-token' },
+  clickup: { apiKey: 'test-key', workspaceId: '421', userId: '72' },
   featurebase: { apiKey: 'test-key' },
   forgejo: { instanceUrl: 'https://example.com/forgejo', apiToken: 'test-token' },
   github: { accessToken: 'test-token', apiBaseUrl: 'https://api.github.com' },

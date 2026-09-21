@@ -139,6 +139,7 @@ function FieldProbe({
   placeholder?: string;
 }) {
   const state = useInitialConversationState('project-1');
+  latestState = state;
   return React.createElement(InitialConversationField, {
     state,
     linkedIssue,
@@ -337,6 +338,48 @@ describe('InitialConversationField', () => {
         description: 'Fix flaky tests',
       })
     );
+  });
+
+  it('does not restore removed issue context when the same ticket finishes loading', async () => {
+    const linkedIssue: LinkedIssue = {
+      provider: 'clickup',
+      identifier: 'ENG-123',
+      title: 'Fix login',
+      url: 'https://app.clickup.com/t/9hz',
+      accountId: 'clickup:421:72',
+    };
+    await renderField({ linkedIssue, includeIssueContextByDefault: true });
+    expect(latestState?.issueContext).toContain('ENG-123');
+    await act(async () => latestState?.setIssueContext(null));
+    mocks.editorApi.prependMention.mockClear();
+
+    await renderField({
+      linkedIssue: { ...linkedIssue, context: '## Acceptance\n- Preserve return URL' },
+      includeIssueContextByDefault: true,
+    });
+    expect(latestState?.issueContext).toBeNull();
+    expect(mocks.editorApi.prependMention).not.toHaveBeenCalled();
+
+    await renderField({
+      linkedIssue: { ...linkedIssue, identifier: 'ENG-124', url: 'https://app.clickup.com/t/9hx' },
+      includeIssueContextByDefault: true,
+    });
+    expect(latestState?.issueContext).toContain('ENG-124');
+  });
+
+  it('enriches context that the user has kept included', async () => {
+    const linkedIssue: LinkedIssue = {
+      provider: 'clickup',
+      identifier: 'ENG-123',
+      title: 'Fix login',
+      url: 'https://app.clickup.com/t/9hz',
+    };
+    await renderField({ linkedIssue, includeIssueContextByDefault: true });
+    await renderField({
+      linkedIssue: { ...linkedIssue, context: '## Acceptance\n- Preserve return URL' },
+      includeIssueContextByDefault: true,
+    });
+    expect(latestState?.issueContext).toContain('## Acceptance\n- Preserve return URL');
   });
 
   it('renders provider icons for every issue mention', async () => {

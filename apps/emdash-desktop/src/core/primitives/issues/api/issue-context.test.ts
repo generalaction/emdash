@@ -23,6 +23,22 @@ describe('issue mention source identity', () => {
     });
     expect(extractIssueMentionTargets(`@[ENG-1](${token})`)).toHaveLength(1);
   });
+  it('resolves ClickUp mentions back to their captured account and task URL', () => {
+    const source = {
+      accountId: 'clickup:421:72',
+      url: 'https://app.clickup.com/t/86abc123',
+    };
+    const token = issueMentionToken('clickup', 'HGAI-2316', source);
+    expect(extractIssueMentionTargets(`@[HGAI-2316](${token})`)).toEqual([
+      {
+        token,
+        provider: 'clickup',
+        identifier: 'HGAI-2316',
+        accountId: source.accountId,
+        issueUrl: source.url,
+      },
+    ]);
+  });
   it('keeps issues with equal shorthand but different accounts distinct', () => {
     const a = issueMentionToken('linear', 'ENG-1', {
       accountId: 'a',

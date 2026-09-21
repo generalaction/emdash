@@ -1,4 +1,5 @@
 import { provider as asana } from './impl/asana';
+import { provider as clickup } from './impl/clickup';
 import { provider as featurebase } from './impl/featurebase';
 import { provider as forgejo } from './impl/forgejo';
 import { provider as github } from './impl/github';
@@ -30,6 +31,7 @@ export const issuesPluginRegistry = {
 for (const provider of [
   github,
   linear,
+  clickup,
   jira,
   gitlab,
   plane,

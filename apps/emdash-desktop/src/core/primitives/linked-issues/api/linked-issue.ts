@@ -8,6 +8,7 @@ import z from 'zod';
 export const issueProviderIdSchema = z.enum([
   'github',
   'linear',
+  'clickup',
   'jira',
   'gitlab',
   'plane',
