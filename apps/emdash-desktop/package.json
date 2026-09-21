@@ -62,6 +62,7 @@
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/auth-oauth-device": "^8.0.3",
     "@octokit/rest": "^22.0.1",
     "@parcel/watcher": "^2.5.6",

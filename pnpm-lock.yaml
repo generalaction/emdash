@@ -59,6 +59,9 @@ importers:
       '@llamaduck/forgejo-ts':
         specifier: ^14.0.3
         version: 14.0.5
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@octokit/auth-oauth-device':
         specifier: ^8.0.3
         version: 8.0.3
