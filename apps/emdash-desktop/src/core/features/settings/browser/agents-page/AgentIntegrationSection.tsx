@@ -95,8 +95,8 @@ export function AgentTrustSection({ agent }: { agent: AgentPayload }) {
           className="h-6 gap-1 px-2 text-xs"
           onClick={() => navigate(settingsViewDef({ tab: 'general' }))}
         >
-          <ExternalLink className="size-3" aria-hidden="true" />
           Manage in Settings
+          <ExternalLink className="size-3" aria-hidden="true" />
         </Button>
       </div>
       <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
