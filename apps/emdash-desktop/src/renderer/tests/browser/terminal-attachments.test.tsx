@@ -218,7 +218,7 @@ describe('terminal attachments through PtyPane and real xterm', () => {
   it.each([
     ['image paste', dispatchImagePaste],
     ['file drop', dispatchFileDrop],
-  ] as const)('waits for %s upload before inserting its host path', async (_name, dispatch) => {
+  ] as const)('sends %s in one bracketed paste after upload', async (_name, dispatch) => {
     const pending = deferred<typeof uploaded>();
     upload.mockReturnValue(pending.promise);
     dispatch(terminalContainer());
@@ -227,7 +227,9 @@ describe('terminal attachments through PtyPane and real xterm', () => {
     expect(input).toEqual([]);
     pending.resolve(uploaded);
     await flushAsyncWork();
-    expect(input).toEqual(['\x1b[200~/remote/attachments/image.png\x1b[201~ ']);
+    // Assert the actual PTY writes: no extra byte may follow the paste-end marker,
+    // even if the pane changes how it sends the correctly formatted payload.
+    expect(input).toEqual(['\x1b[200~/remote/attachments/image.png \x1b[201~']);
   });
 
   it.each(['unmount', 'replace', 'read-only'] as const)(

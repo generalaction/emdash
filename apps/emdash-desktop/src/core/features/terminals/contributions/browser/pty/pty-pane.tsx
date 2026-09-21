@@ -90,7 +90,7 @@ async function prepareAndInject(
       return false;
     }
     const payload = buildTerminalImageInjection(prepared.paths, prepared.platform);
-    target.sendInput(`${payload} `, { track: false });
+    target.sendInput(payload, { track: false });
     target.focus();
     return true;
   } finally {
