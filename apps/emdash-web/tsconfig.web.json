@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["react", "react-dom", "vite/client"],
+    "paths": {
+      "@core/*": ["../emdash-desktop/src/core/*"],
+      "@renderer/*": ["../emdash-desktop/src/renderer/*"],
+      "@root/*": ["../emdash-desktop/*"],
+      "@web/*": ["./web/*"]
+    }
+  },
+  "include": [
+    "web/**/*.ts",
+    "web/**/*.tsx",
+    "../emdash-desktop/src/types/**/*",
+    "../emdash-desktop/src/renderer/globals.d.ts"
+  ]
+}
