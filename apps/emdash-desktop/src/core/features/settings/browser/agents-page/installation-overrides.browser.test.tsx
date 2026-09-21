@@ -76,9 +76,20 @@ describe('installation override settings', () => {
     host.remove();
   });
 
-  async function render() {
+  async function render({
+    installDocs,
+    compact,
+  }: { installDocs?: string | null; compact?: boolean } = {}) {
     await act(async () =>
-      root.render(<InstallSection agentId="claude" agentPayload={undefined} installOptions={[]} />)
+      root.render(
+        <InstallSection
+          agentId="claude"
+          agentPayload={undefined}
+          installOptions={[]}
+          installDocs={installDocs}
+          compact={compact}
+        />
+      )
     );
   }
 
@@ -150,5 +161,19 @@ describe('installation override settings', () => {
     await expect.element(page.getByText('disk full')).toBeVisible();
     expect(vm.resolve).toHaveBeenCalledWith({ kind: 'cli', command: 'sandbox-claude' });
     expect(vm.setUsed).toHaveBeenCalledWith({ kind: 'cli', command: 'sandbox-claude' });
+  });
+
+  it('shows the installation guide when a documentation URL is available', async () => {
+    await render({ installDocs: 'https://example.com/install' });
+
+    const link = page.getByRole('link', { name: 'Installation guide' });
+    await expect.element(link).toHaveAttribute('href', 'https://example.com/install');
+    await expect.element(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('does not show an installation guide without a documentation URL', async () => {
+    await render();
+
+    expect(host.querySelector('a')).toBeNull();
   });
 });

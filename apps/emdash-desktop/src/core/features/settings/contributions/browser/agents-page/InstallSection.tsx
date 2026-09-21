@@ -1,4 +1,5 @@
-import { toast } from '@emdash/ui/react/primitives';
+import { Field, Label, toast } from '@emdash/ui/react/primitives';
+import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -75,16 +76,46 @@ export const InstallSection = observer(function InstallSection({
   hideOverrideOptions,
   compact,
 }: InstallSectionProps) {
-  return (
+  const installationGuide = installDocs ? (
+    <a
+      href={installDocs}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex shrink-0 items-center gap-1 text-xs text-foreground-muted hover:text-foreground"
+    >
+      Installation guide
+      <ExternalLink className="size-3" aria-hidden="true" />
+    </a>
+  ) : null;
+
+  const installation = (
     <LocalInstallSection
       agentId={agentId}
       connectionId={connectionId}
       agentPayload={agentPayload}
       installOptions={installOptions}
-      installDocs={installDocs}
       hideOverrideOptions={hideOverrideOptions}
       compact={compact}
     />
+  );
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {installation}
+        {installationGuide}
+      </div>
+    );
+  }
+
+  return (
+    <Field.Root>
+      <div className="flex items-center justify-between gap-2">
+        <Label>Installation</Label>
+        {installationGuide}
+      </div>
+      {installation}
+    </Field.Root>
   );
 });
 
@@ -93,7 +124,6 @@ const LocalInstallSection = observer(function LocalInstallSection({
   connectionId,
   agentPayload,
   installOptions,
-  installDocs: _installDocs,
   hideOverrideOptions: _hideOverrideOptions,
   compact = false,
 }: InstallSectionProps) {
