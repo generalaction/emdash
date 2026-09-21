@@ -5,6 +5,7 @@ import {
 } from '@emdash/core/primitives/runtime-resolution/api';
 import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
+import { attachmentErrorSchema } from '@emdash/core/services/attachments/api';
 import { conversationAttachmentsContract } from '@emdash/core/services/attachments/api';
 import type { Result } from '@emdash/shared';
 import {
@@ -29,6 +30,10 @@ import type {
   CreateConversationParams,
   HostConversationRow,
 } from '@core/primitives/conversations/api';
+import {
+  localTerminalFilesSchema,
+  preparedTerminalFileSchema,
+} from '@core/services/attachments/api/terminal-files';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({
@@ -160,6 +165,11 @@ export const conversationsDomain = 'conversations' as const;
 
 export const conversationsContract = defineContract({
   attachments: defineContract({
+    prepareLocalFiles: fallible({
+      input: z.object({ conversationId: z.string(), sources: localTerminalFilesSchema }),
+      data: z.array(preparedTerminalFileSchema),
+      error: projectAttachmentErrorUnion(attachmentErrorSchema),
+    }),
     upload: uploadFile({
       input: conversationAttachmentsContract.attachments.upload.input,
       maxSize: conversationAttachmentsContract.attachments.upload.maxSize,

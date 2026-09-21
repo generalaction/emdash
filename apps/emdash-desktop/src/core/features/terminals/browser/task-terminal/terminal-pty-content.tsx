@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { type PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
+import { createWorkspaceTerminalAttachments } from '@core/features/terminals/api/browser/terminal-attachments';
 import { PaneSizingContextProvider } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
 import { PtyPane } from '@core/features/terminals/contributions/browser/pty/pty-pane';
 import { TerminalSearchOverlay } from '@core/features/terminals/contributions/browser/pty/terminal-search-overlay';
@@ -22,7 +23,6 @@ export interface TerminalPtyContentProps {
   mapShiftEnterToCtrlJ?: boolean;
   emptyState: ReactNode;
   unavailableState?: ReactNode;
-  remoteConnectionId?: string;
   workspaceId: string;
   /** Defaults to the standard uniform xterm inset. */
   terminalPaddingBottom?: number;
@@ -40,12 +40,12 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   mapShiftEnterToCtrlJ,
   emptyState,
   unavailableState,
-  remoteConnectionId,
   workspaceId,
   terminalPaddingBottom = TERMINAL_PADDING_PX,
   disabledReason,
   className,
 }: TerminalPtyContentProps) {
+  const attachments = useMemo(() => createWorkspaceTerminalAttachments(workspaceId), [workspaceId]);
   const activeSessionId = activeSession?.sessionId ?? null;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,8 +160,8 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                       onInterruptPress={onInterruptPress}
                       mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
                       readOnly={Boolean(disabledReason)}
-                      remoteConnectionId={remoteConnectionId}
                       workspaceId={workspaceId}
+                      attachments={attachments}
                     />
                   </div>
                   {disabledReason && (

@@ -28,6 +28,10 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
+import {
+  prepareTerminalFiles,
+  type TerminalFileSources,
+} from '@core/services/attachments/node/prepare-terminal-files';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -70,6 +74,7 @@ type ConversationRuntimeHooks = Readonly<{
 
 export type CreateConversationsWireControllerOptions = Readonly<{
   db: AppDb;
+  terminalFileSources: TerminalFileSources;
   runtimes: ConversationsRuntimeBroker;
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
@@ -140,6 +145,20 @@ export function createConversationsWireController(
 
   return createController(conversationsContract, {
     attachments: {
+      prepareLocalFiles: ({ conversationId, sources }, meta) =>
+        run(conversationId, (client, target) =>
+          prepareTerminalFiles({
+            host: target.host,
+            sources,
+            localFiles: options.terminalFileSources,
+            upload: (file) =>
+              client.conversations.attachments.upload({ conversationId }, file, callOptions(meta)),
+            remove: (attachmentId) =>
+              client.conversations.attachments.delete({ conversationId, attachmentId }),
+            signal: meta.signal,
+            logger: options.logger,
+          })
+        ),
       upload: ({ conversationId }, file, meta) =>
         run(conversationId, (client) =>
           client.conversations.attachments.upload({ conversationId }, file, callOptions(meta))

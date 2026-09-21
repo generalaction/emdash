@@ -88,6 +88,7 @@ it.each(['claude', 'codex'] as const)(
         workspaceIdentity,
       });
       const controller = createConversationsWireController({
+        terminalFileSources: { prepare: vi.fn() },
         db: fixture.db,
         logger: { warn: vi.fn() } as never,
         runtimes,

@@ -94,6 +94,7 @@ describe('createConversationsWireController', () => {
       })),
     };
     const controller = createConversationsWireController({
+      terminalFileSources: { prepare: vi.fn() },
       db: db as never,
       logger: { warn: vi.fn() } as never,
       runtimes: { client: async () => ok({ acp: { attach } }) } as never,
@@ -490,6 +491,7 @@ function setupController(options: {
     ...options.hooks,
   };
   return createConversationsWireController({
+    terminalFileSources: { prepare: vi.fn() },
     db: {} as never,
     logger: { warn: vi.fn() } as never,
     runtimes: {

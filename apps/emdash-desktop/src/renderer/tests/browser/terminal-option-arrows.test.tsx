@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrontendPty } from '@core/features/terminals/api/browser/pty/pty';
+import { createWorkspaceTerminalAttachments } from '@core/features/terminals/api/browser/terminal-attachments';
 import type { PtyPane as PtyPaneType } from '@core/features/terminals/contributions/browser/pty/pty-pane';
 import type * as hostClientModule from '@core/primitives/desktop-host/browser/host-client';
 
@@ -27,6 +28,7 @@ function Harness({
   return (
     <div style={{ width: 800, height: 400 }}>
       <PtyPane
+        attachments={createWorkspaceTerminalAttachments('workspace-1')}
         pty={pty}
         sessionId={pty.sessionId}
         workspaceId="option-arrows-workspace"

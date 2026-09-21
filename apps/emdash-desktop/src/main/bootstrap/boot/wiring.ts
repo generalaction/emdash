@@ -5,6 +5,7 @@ import { getIntegrationConnectionService } from '@core/features/integrations/nod
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 import type { DesktopControllerContext } from '@core/manifests/node/controllers';
 import { appOperations } from '@main/core/app/controller';
+import { terminalFileSources } from '@main/core/app/persist-terminal-attachment';
 import {
   createDependencyManagerResolver,
   ensureAgentDependenciesProbed,
@@ -56,6 +57,7 @@ export function createDesktopWireOptions(
   const github = services.github;
   const getDependencyManager = createDependencyManagerResolver(runtimes.clients.hostDependencies);
   return {
+    terminalFileSources,
     accountService: services.account,
     agentDependencies: {
       ensureAgentDependenciesProbed,
