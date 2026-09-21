@@ -22,6 +22,8 @@ import type { PathProfile } from '#primitives/path/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- the registry sequences lifecycle scripts through the scripts runtime (activation-scripts-via-terminals spec); the contract has no services-level home yet
 import type { ScriptWorkspaceFacts } from '#runtimes/scripts/api';
+import type { AttachmentStore } from '#services/attachments/node/attachment-store';
+import { OwnedAttachments } from '#services/attachments/node/owned-attachments';
 import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
@@ -110,6 +112,7 @@ import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './upd
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
+  attachments: AttachmentStore;
   /** Owning-host filesystem identity semantics. Defaults from this worker's platform. */
   pathProfile?: PathProfile;
   env?: EnvSource;
@@ -158,6 +161,7 @@ export type WorkspaceRegistryRuntimeOptions = {
  * overlay — the overlay dies with the daemon, by design.
  */
 export class WorkspaceRegistryRuntime {
+  readonly attachments: OwnedAttachments;
   private readonly store: WorkspaceRecordStore;
   private readonly clock: Clock;
   private readonly logger: Logger;
@@ -229,6 +233,12 @@ export class WorkspaceRegistryRuntime {
     this.gitContext = options.gitContext ?? createRegistryGitContext({ env });
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle, options.pathProfile);
+    this.attachments = new OwnedAttachments({
+      kind: 'workspace',
+      store: options.attachments,
+      exists: (id) => Boolean(this.store.get(id)),
+      logger: options.logger ?? noopLogger,
+    });
     for (const collision of this.store.pathCollisions()) {
       this.logger.warn?.('Workspace registry contains ambiguous path spellings', {
         key: collision.key,
@@ -487,7 +497,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   /**
-   * Deactivate-if-active + unregister. Never touches disk; idempotent on absent ids.
+   * Deactivate-if-active + unregister. Preserves workspace files; cleans owned attachments. Idempotent on absent ids.
    * A failing teardown is a removal-stage failure: recorded durably on the record
    * before the error returns, so the delete stays visible and retryable (ADR 0006).
    */
@@ -498,7 +508,7 @@ export class WorkspaceRegistryRuntime {
         const teardownFailure = await this.deactivateForRemoval(record);
         if (teardownFailure) return err(teardownFailure);
       }
-      return await this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+      return await this.removeWorkspace(input);
     });
   }
 
@@ -537,9 +547,7 @@ export class WorkspaceRegistryRuntime {
           );
         }
         // Artifact already gone and no repository left to prune: just unregister.
-        return await this.enqueue(() =>
-          Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
-        );
+        return await this.removeWorkspace({ workspaceId: input.workspaceId });
       });
     }
 
@@ -564,9 +572,7 @@ export class WorkspaceRegistryRuntime {
           })
         );
       }
-      return await this.enqueue(() =>
-        Promise.resolve(this.deleteWorkspaceLocked({ workspaceId: input.workspaceId }))
-      );
+      return await this.removeWorkspace({ workspaceId: input.workspaceId });
     });
   }
 
@@ -1478,7 +1484,16 @@ export class WorkspaceRegistryRuntime {
     if (record) this.publish(record);
   }
 
-  private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {
+  private async removeWorkspace(
+    input: DeleteWorkspaceInput
+  ): Promise<Result<void, DeleteWorkspaceError>> {
+    await this.attachments.deleteOwner(input.workspaceId, () =>
+      this.enqueue(() => this.deleteWorkspaceLocked(input))
+    );
+    return ok(undefined);
+  }
+
+  private deleteWorkspaceLocked(input: DeleteWorkspaceInput): void {
     const existing = this.store.get(input.workspaceId);
     const projectRoot = existing ? this.projectRootFor(existing) : null;
     const deleted = this.store.delete(input.workspaceId);
@@ -1499,7 +1514,6 @@ export class WorkspaceRegistryRuntime {
     } else {
       this.logger.debug?.(`delete of absent workspace '${input.workspaceId}' — idempotent no-op`);
     }
-    return ok(undefined);
   }
 
   // -------------------------------------------------------------------------
@@ -1549,11 +1563,13 @@ export class WorkspaceRegistryRuntime {
 
   /** The vanished landing, re-validated like {@link applyObservation}. */
   private applyVanished(id: string, now: number): Promise<void> {
-    return this.enqueue(() => {
-      const current = this.store.get(id);
-      if (!current) return;
-      this.recordVanished(current, now);
-    });
+    return this.attachments.deleteOwner(id, () =>
+      this.enqueue(() => {
+        const current = this.store.get(id);
+        if (!current) return false;
+        return this.recordVanished(current, now);
+      })
+    );
   }
 
   /** Adoption landing; false when the id or path got claimed while the scan observed. */
@@ -1572,14 +1588,15 @@ export class WorkspaceRegistryRuntime {
   }
 
   /** Adopted records follow the disk; registered records survive as 'missing'. Mutation-lane only. */
-  private recordVanished(record: DurableWorkspaceRecord, now: number): void {
+  private recordVanished(record: DurableWorkspaceRecord, now: number): boolean {
     this.scanner.evict(record.id);
     this.configs.delete(record.id);
     if (record.origin === 'adopted') {
       this.deleteWorkspaceLocked({ workspaceId: record.id });
-      return;
+      return true;
     }
     this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);
+    return false;
   }
 
   /**

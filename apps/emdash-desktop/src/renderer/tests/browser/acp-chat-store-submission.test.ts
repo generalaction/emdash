@@ -47,7 +47,13 @@ vi.mock('@core/features/conversations/api/browser/chat/shared-chat-context', () 
 }));
 
 vi.mock('@core/features/conversations/api/browser/client', () => ({
-  getConversationsClient: async () => ({ acp: conversationClientTestState }),
+  getConversationsClient: async () => ({
+    attachments: {
+      upload: conversationClientTestState.uploadAttachment,
+      download: conversationClientTestState.downloadAttachment,
+      delete: conversationClientTestState.deleteAttachment,
+    },
+  }),
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({
@@ -723,7 +729,7 @@ describe('AcpChatStore prompt submission', () => {
     };
     conversationClientTestState.downloadAttachment.mockResolvedValue({
       success: false as const,
-      error: { type: 'attachment_not_found' as const },
+      error: { type: 'attachment-not-found' as const, message: 'Attachment was not found' },
     });
 
     const store = createStore(idleState(), vi.fn());

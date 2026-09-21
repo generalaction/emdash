@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 import { permissionDecisionSchema } from '#runtimes/acp/api/models/permissions';
 import { promptInputSchema, queuedPromptSchema } from '#runtimes/acp/api/models/prompt';
 import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
@@ -56,21 +55,6 @@ export const resolvePermissionCommandSchema = permissionDecisionSchema.extend({
 });
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
-
-export const uploadAttachmentCommandSchema = z.object({
-  /** Attachments belong to their conversation (spec §3.6); a conversation exists at upload time. */
-  conversationId: z.string(),
-});
-export const uploadAttachmentResponseSchema = attachmentRefSchema;
-export const attachmentKeySchema = z.object({
-  conversationId: z.string(),
-  attachmentId: z.string(),
-});
-export const downloadAttachmentCommandSchema = attachmentKeySchema;
-export const deleteAttachmentCommandSchema = attachmentKeySchema;
-export const purgeConversationDataCommandSchema = z.object({
-  conversationId: z.string(),
-});
 
 export const historyPageInputSchema = z.object({
   conversationId: z.string(),

@@ -258,17 +258,38 @@ provider puts it in error data rather than the generic error message.
 Desktop-local ACP and workspace-server ACP both register logical workers through
 `WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
 process entry calls `runWireComponentWorker(createAcpComponent(...))`, which constructs
-`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`, and
-`LocalAttachmentStore`. Host executable resolution comes from the injected
-`HostDependencies` resolver contract; ACP does not construct a dependency manager or keep a
-runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
-terminal management, attachment storage, and session cells stay inside the ACP runtime. Each host
+`AcpRuntime`, a machine-scoped `AgentPluginHost`, and `ChildAcpProcessHost`.
+Attachment operations come from the injected conversations runtime. Host executable resolution comes
+from the injected `HostDependencies` resolver contract; ACP does not construct a dependency manager or
+keep a runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
+terminal management, and session cells stay inside the ACP runtime. Each host
 owns a worker manifest that maps the ACP worker id to the emitted child-process entry path for that
 host's build.
 
-Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Runtime
-attachment cleanup must therefore use explicit attachment deletion or whole-conversation deletion;
-absence from transcript history does not prove that stored bytes are orphaned.
+The conversations runtime owns attachment storage for ACP and TUI; the workspace registry owns
+shell uploads. Both use the shared attachment store under the host's attachment root (currently
+named `acp-attachments`). Each owner kind has one store instance in its sole writer worker.
+Conversation and workspace workers share that root but own disjoint namespaces.
+
+An attachment is a directory at `<conversations|workspaces>/<owner-id>/<attachment-id>/` containing
+`metadata.json` and `content` with a sanitized extension. The store writes metadata and streams bytes
+into a private directory under `.staging/<owner-kind>/`, closes the files, then publishes the whole
+directory with one rename on the same filesystem. There is no separate authoritative index to commit.
+Reads validate the attachment id and metadata, derive the content path, and stream bytes from disk.
+
+At worker startup, the store removes abandoned staging only within that worker's owner-kind namespace.
+All operations await the same initialization promise, so cleanup cannot race new uploads or run again
+while they are active. A process exit before publication leaves reclaimable staging; an exit after
+publication leaves complete, addressable metadata and bytes. This guarantees atomic visibility across
+worker exits, not power-loss durability. A crash after publication but before the response may leave
+an unused committed attachment, retained until explicit deletion or owner deletion.
+
+Desktop draft mementos may reference attachment bytes that do not appear in a transcript. Published
+attachments therefore have no age-based or transcript-based expiry. Owner deletion performs best-effort
+cleanup, serialized against publication; workspace deactivation retains attachments. The earlier
+development layout with an owner-wide index is not read or migrated; its published bytes are left
+untouched until owner deletion. Existing development attachments must be uploaded again to retrieve
+them through the attachment APIs after upgrading.
 
 Desktop composes the ACP client and renderer exposure in
 `apps/emdash-desktop/src/main/gateway/desktop-workers.ts`. The raw stable worker client is consumed

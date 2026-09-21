@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
+import { attachmentMetadataSchema } from '#services/attachments/api';
 
 export const transcriptMessageSchema = z.object({
   kind: z.literal('message'),
@@ -12,6 +12,6 @@ export const transcriptMessageSchema = z.object({
   promptId: z.string().optional(),
   text: z.string(),
   /** Attachment metadata only; bytes are served separately by the runtime. */
-  attachments: z.array(attachmentRefSchema).optional(),
+  attachments: z.array(attachmentMetadataSchema).optional(),
 });
 export type TranscriptMessage = z.infer<typeof transcriptMessageSchema>;

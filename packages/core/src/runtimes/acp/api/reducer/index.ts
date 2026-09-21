@@ -22,7 +22,6 @@ export type {
   UnknownToolCall,
   WebFetchToolCall,
 } from '../models/turns';
-export type { AttachmentRef } from '../models/attachments';
 export type { AgentState } from '../models/agents';
 export type {
   PlanEntry,

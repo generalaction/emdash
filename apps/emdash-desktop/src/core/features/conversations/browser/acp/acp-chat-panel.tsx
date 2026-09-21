@@ -1,4 +1,4 @@
-import type { AttachmentRef } from '@emdash/core/runtimes/acp/api/client';
+import type { AttachmentRef } from '@emdash/core/services/attachments/api';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
   CommandItem,

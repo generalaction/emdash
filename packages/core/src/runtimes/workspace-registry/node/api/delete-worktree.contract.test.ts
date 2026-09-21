@@ -21,6 +21,7 @@ import {
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createWorkspaceRegistryController } from './controller';
 
 const TEST_USER_ENV = Object.fromEntries(
@@ -77,6 +78,7 @@ describe('workspace registry deleteWorktree', () => {
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
     runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
       handle,
       clock,
       killSessions: async (workspacePath) => {
@@ -235,7 +237,12 @@ describe('workspace registry deleteWorktree', () => {
       userEnv: async () => TEST_USER_ENV,
     });
     scriptsWire = createTestWire(scriptsContract, createScriptsController(scriptsRuntime));
-    runtime = new WorkspaceRegistryRuntime({ handle, clock, scripts: scriptsWire.client });
+    runtime = new WorkspaceRegistryRuntime({
+      attachments: new LocalAttachmentStore(path.join(root, 'attachments')),
+      handle,
+      clock,
+      scripts: scriptsWire.client,
+    });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   }
 

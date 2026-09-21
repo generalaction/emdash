@@ -12,6 +12,7 @@ import {
   type ConversationsDb,
 } from '#runtimes/conversations/node/persistence/store';
 import { ConversationsRuntime } from '#runtimes/conversations/node/runtime';
+import { LocalAttachmentStore } from '#services/attachments/node/local-attachment-store';
 import { createConversationsController } from './controller';
 
 // Contract-seam tests for the host conversation index (spec §3–4), against real SQLite
@@ -46,7 +47,11 @@ describe('conversations contract', () => {
   beforeEach(async () => {
     handle = await conversationsStore.openTemp();
     clock = new ManualClock(10_000);
-    runtime = new ConversationsRuntime({ handle, clock });
+    runtime = new ConversationsRuntime({
+      handle,
+      clock,
+      attachments: new LocalAttachmentStore(path.join(path.dirname(handle.path), 'attachments')),
+    });
     wire = createTestWire(conversationsContract, createConversationsController(runtime));
   });
 
@@ -245,7 +250,11 @@ describe('conversations lifecycle reports', () => {
   beforeEach(async () => {
     handle = await conversationsStore.openTemp();
     clock = new ManualClock(10_000);
-    runtime = new ConversationsRuntime({ handle, clock });
+    runtime = new ConversationsRuntime({
+      handle,
+      clock,
+      attachments: new LocalAttachmentStore(path.join(path.dirname(handle.path), 'attachments')),
+    });
     wire = createTestWire(conversationsContract, createConversationsController(runtime));
     await wire.client.create(baseCreate);
   });
@@ -366,14 +375,22 @@ describe('conversations durability', () => {
       const clock = new ManualClock(10_000);
 
       const firstHandle = conversationsStore.open(dbFile);
-      const firstRuntime = new ConversationsRuntime({ handle: firstHandle, clock });
+      const firstRuntime = new ConversationsRuntime({
+        handle: firstHandle,
+        clock,
+        attachments: new LocalAttachmentStore(path.join(dir, 'attachments')),
+      });
       const created = firstRuntime.create(baseCreate);
       expect(created.success).toBe(true);
       firstRuntime.dispose();
       firstHandle.close();
 
       const secondHandle = conversationsStore.open(dbFile);
-      const secondRuntime = new ConversationsRuntime({ handle: secondHandle, clock });
+      const secondRuntime = new ConversationsRuntime({
+        handle: secondHandle,
+        clock,
+        attachments: new LocalAttachmentStore(path.join(dir, 'attachments')),
+      });
       const wire = createTestWire(
         conversationsContract,
         createConversationsController(secondRuntime)
