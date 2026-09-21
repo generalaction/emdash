@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -63,14 +63,14 @@ describe('LocalAttachmentStore', () => {
     });
     const stored = await snapshot(store, owner(CONV), ref.id);
 
-    expect(ref.targetPath).toBe(join(conversationDir(root), 'objects', `${ref.id}.png`));
+    expect(ref.targetPath).toBe(join(conversationDir(root), ref.id, 'content.png'));
     expect(stored).toEqual({
       ref,
       data: new Uint8Array([1, 2, 3]),
     });
-    await expect(
-      readFile(join(conversationDir(root), 'objects', `${ref.id}.png`))
-    ).resolves.toEqual(Buffer.from([1, 2, 3]));
+    await expect(readFile(join(conversationDir(root), ref.id, 'content.png'))).resolves.toEqual(
+      Buffer.from([1, 2, 3])
+    );
   });
 
   it('copies uploaded bytes into the conversation directory', async () => {
@@ -106,7 +106,7 @@ describe('LocalAttachmentStore', () => {
     await expect(snapshot(store, owner(CONV), ref.id)).resolves.not.toBeNull();
   });
 
-  it('persists the index across store instances', async () => {
+  it('reads published metadata and bytes across store instances', async () => {
     const root = await makeRoot();
     const storeDir = join(root, 'store');
 
@@ -125,7 +125,7 @@ describe('LocalAttachmentStore', () => {
     });
   });
 
-  it('deletes copied bytes for copy records', async () => {
+  it('deletes an attachment and its metadata', async () => {
     const root = await makeRoot();
     const store = new LocalAttachmentStore(join(root, 'store'));
     const ref = await put(store, {
@@ -138,6 +138,7 @@ describe('LocalAttachmentStore', () => {
     await store.delete(owner(CONV), ref.id);
 
     await expect(access(ref.targetPath!)).rejects.toThrow();
+    await expect(access(join(conversationDir(root), ref.id))).rejects.toThrow();
     await expect(snapshot(store, owner(CONV), ref.id)).resolves.toBeNull();
   });
 
@@ -178,6 +179,69 @@ describe('LocalAttachmentStore', () => {
     await expect(Promise.resolve().then(() => store.deleteOwner(owner('a/b')))).rejects.toThrow(
       /Invalid/
     );
+  });
+
+  it('never resolves attachment ids as arbitrary paths', async () => {
+    const root = await makeRoot();
+    const store = new LocalAttachmentStore(join(root, 'store'));
+    const ref = await put(store, {
+      conversationId: 'other',
+      data: new Uint8Array([5]),
+      name: 'image.png',
+      mimeType: 'image/png',
+    });
+    for (const id of ['..', '../other', `../other/${ref.id}`, ref.targetPath, '..\\other', '']) {
+      expect(await store.get(owner(CONV), id)).toBeNull();
+      await store.delete(owner(CONV), id);
+    }
+    expect((await snapshot(store, owner('other'), ref.id))?.data).toEqual(new Uint8Array([5]));
+  });
+
+  it('derives content paths from safe names instead of trusting paths in metadata', async () => {
+    const root = await makeRoot();
+    const store = new LocalAttachmentStore(join(root, 'store'));
+    const ref = await put(store, {
+      conversationId: CONV,
+      data: new Uint8Array([1]),
+      name: '../../image.png',
+      mimeType: 'image/png',
+    });
+    const outside = join(root, 'outside.png');
+    await writeFile(outside, 'outside');
+    const metadataPath = join(conversationDir(root), ref.id, 'metadata.json');
+    await writeFile(
+      metadataPath,
+      JSON.stringify({ ...ref, targetPath: outside, source: { storedPath: outside } })
+    );
+    expect((await snapshot(store, owner(CONV), ref.id))?.data).toEqual(new Uint8Array([1]));
+    await store.delete(owner(CONV), ref.id);
+    expect(await readFile(outside, 'utf8')).toBe('outside');
+  });
+
+  it('rejects metadata for a different attachment and content symlinks', async () => {
+    const root = await makeRoot();
+    const store = new LocalAttachmentStore(join(root, 'store'));
+    const ref = await put(store, {
+      conversationId: CONV,
+      data: new Uint8Array([1]),
+      name: 'image.png',
+      mimeType: 'image/png',
+    });
+    const metadataPath = join(conversationDir(root), ref.id, 'metadata.json');
+    const metadata = await readFile(metadataPath, 'utf8');
+    await writeFile(
+      metadataPath,
+      JSON.stringify({ ...ref, id: '00000000-0000-4000-8000-000000000000' })
+    );
+    await expect(store.get(owner(CONV), ref.id)).rejects.toThrow('does not match');
+    await writeFile(metadataPath, metadata);
+    const outside = join(root, 'outside.png');
+    await writeFile(outside, 'outside');
+    await rm(ref.targetPath);
+    await symlink(outside, ref.targetPath);
+    await expect(store.get(owner(CONV), ref.id)).rejects.toThrow();
+    await store.delete(owner(CONV), ref.id);
+    expect(await readFile(outside, 'utf8')).toBe('outside');
   });
 });
 

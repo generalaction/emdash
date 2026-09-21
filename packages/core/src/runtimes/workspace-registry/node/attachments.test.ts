@@ -78,7 +78,7 @@ describe('workspace-owned shell attachments', () => {
     const { client, workspacePath } = await setup();
     const result = await client.attachments.upload(owner, upload());
     if (!result.success) throw new Error(result.error.message);
-    expect(result.data.targetPath).toContain('/workspaces/workspace-1/objects/');
+    expect(result.data.targetPath).toContain(`/workspaces/workspace-1/${result.data.id}/`);
     await client.deactivateWorkspace(owner);
     expect(await readFile(result.data.targetPath)).toEqual(Buffer.from([1, 2, 3]));
     const downloaded = await client.attachments.download({
@@ -117,7 +117,7 @@ describe('workspace-owned shell attachments', () => {
       error: { type: 'owner-not-found' },
     });
     await expect(access(join(root, 'attachments/workspaces/workspace-1'))).rejects.toThrow();
-    expect(await readdir(join(root, 'attachments/.staging'))).toEqual([]);
+    expect(await readdir(join(root, 'attachments/.staging/workspace'))).toEqual([]);
   });
 
   it('keeps workspace deletion successful when attachment cleanup fails', async () => {

@@ -1,4 +1,14 @@
-import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, utimes } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deferred } from '@emdash/shared/testing';
@@ -76,6 +86,10 @@ describe('streamed owner storage', () => {
     await staged.dispose();
     expect(await readFile(ref.targetPath)).toEqual(Buffer.from([1, 2, 3]));
     expect((await stat(ref.targetPath)).mode & 0o777).toBe(0o600);
+    const directory = join(root, 'conversations/same-id', ref.id);
+    expect((await stat(directory)).mode & 0o777).toBe(0o700);
+    expect((await stat(join(directory, 'metadata.json'))).mode & 0o777).toBe(0o600);
+    expect(await readdir(directory)).toEqual(['content.png', 'metadata.json']);
     const other = await store.stage(workspace, wireFile(bytes()));
     const workspaceRef = await other.publish();
     await other.dispose();
@@ -96,6 +110,63 @@ describe('streamed owner storage', () => {
     await expect(access(ref.targetPath)).resolves.toBeUndefined();
   });
 
+  it('recovers only its worker namespace and never repeats cleanup during active uploads', async () => {
+    const { root, store: conversations } = await setup();
+    const workspaces = new LocalAttachmentStore(root);
+    const liveShellUpload = await workspaces.stage(workspace, wireFile(bytes()));
+    const old = await conversations.stage(conversation, wireFile(bytes()));
+    const oldRef = await old.publish();
+    await old.dispose();
+    await utimes(oldRef.targetPath, new Date(0), new Date(0));
+    await conversations.stage(conversation, wireFile(bytes())); // Simulate an abandoned upload.
+
+    const restarted = new LocalAttachmentStore(root);
+    await restarted.initialize('conversation');
+    expect(await readdir(join(root, '.staging/conversation'))).toEqual([]);
+    expect(await readdir(join(root, '.staging/workspace'))).toHaveLength(1);
+    expect((await snapshot(restarted, conversation, oldRef.id))?.data).toEqual(
+      new Uint8Array([1, 2, 3])
+    );
+
+    const live = await restarted.stage(conversation, wireFile(bytes()));
+    await restarted.initialize('conversation');
+    const next = await restarted.stage(conversation, wireFile(bytes()));
+    expect(await readdir(join(root, '.staging/conversation'))).toHaveLength(2);
+    await live.publish();
+    await next.publish();
+    await live.dispose();
+    await next.dispose();
+    const shellRef = await liveShellUpload.publish();
+    await liveShellUpload.dispose();
+    expect((await snapshot(workspaces, workspace, shellRef.id))?.data).toEqual(
+      new Uint8Array([1, 2, 3])
+    );
+  });
+
+  it('does not publish disposed staging or publish an attachment twice', async () => {
+    const { store } = await setup();
+    const discarded = await store.stage(workspace, wireFile(bytes()));
+    await discarded.dispose();
+    await expect(discarded.publish()).rejects.toThrow('already consumed');
+    const staged = await store.stage(workspace, wireFile(bytes()));
+    const ref = await staged.publish();
+    await expect(staged.publish()).rejects.toThrow('already consumed');
+    await staged.dispose();
+    await staged.dispose();
+    expect((await snapshot(store, workspace, ref.id))?.data).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('keeps an aborted staged attachment unpublished', async () => {
+    const { store, root } = await setup();
+    const abort = new AbortController();
+    const staged = await store.stage(workspace, wireFile(bytes()), abort.signal);
+    abort.abort();
+    await expect(staged.publish()).rejects.toThrow();
+    await staged.dispose();
+    expect(await readdir(join(root, '.staging/workspace'))).toEqual([]);
+    await expect(access(join(root, 'workspaces/same-id'))).rejects.toThrow();
+  });
+
   it.each(['oversized', 'truncated', 'stream-failure'] as const)(
     'cleans staged bytes on %s',
     async (failure) => {
@@ -110,7 +181,7 @@ describe('streamed owner storage', () => {
       );
       await expect(store.stage(workspace, file)).rejects.toThrow();
       expect(file.cancel).toHaveBeenCalledOnce();
-      expect(await readdir(join(root, '.staging'))).toEqual([]);
+      expect(await readdir(join(root, '.staging/workspace'))).toEqual([]);
       await expect(access(join(root, 'workspaces'))).rejects.toThrow();
     }
   );
@@ -132,20 +203,22 @@ describe('streamed owner storage', () => {
     await started.promise;
     abort.abort();
     await expect(pending).rejects.toThrow();
-    expect(await readdir(join(root, '.staging'))).toEqual([]);
+    expect(await readdir(join(root, '.staging/workspace'))).toEqual([]);
   });
 
-  it('rolls back the object after index publication fails and allows a subsequent upload', async () => {
+  it('cleans failed publication without removing an existing destination', async () => {
     const { store, root } = await setup();
     const ownerDir = join(root, 'workspaces/same-id');
     const first = await store.stage(workspace, wireFile(bytes()));
-    // Load an empty index before replacing its destination with an unwritable directory.
-    await snapshot(store, workspace, 'absent');
-    await mkdir(join(ownerDir, 'index.json'), { recursive: true });
+    const [stagedName] = await readdir(join(root, '.staging/workspace'));
+    const id = stagedName.slice(stagedName.lastIndexOf('.') + 1);
+    const destination = join(ownerDir, id);
+    await mkdir(destination, { recursive: true });
+    await writeFile(join(destination, 'existing'), 'keep');
     await expect(first.publish()).rejects.toThrow();
     await first.dispose();
-    expect(await readdir(join(ownerDir, 'objects'))).toEqual([]);
-    await rm(join(ownerDir, 'index.json'), { recursive: true });
+    expect(await readdir(join(root, '.staging/workspace'))).toEqual([]);
+    expect(await readFile(join(destination, 'existing'), 'utf8')).toBe('keep');
     const next = await store.stage(workspace, wireFile(bytes()));
     const ref = await next.publish();
     await next.dispose();
@@ -157,9 +230,11 @@ describe('streamed owner storage', () => {
     const { root, store } = await setup();
     const abandoned = await store.stage(conversation, wireFile(bytes()));
     const other = await store.stage(workspace, wireFile(bytes()));
-    expect(await readdir(join(root, '.staging'))).toHaveLength(2);
+    expect(await readdir(join(root, '.staging/conversation'))).toHaveLength(1);
+    expect(await readdir(join(root, '.staging/workspace'))).toHaveLength(1);
     await store.deleteOwner(conversation);
-    expect(await readdir(join(root, '.staging'))).toHaveLength(1);
+    expect(await readdir(join(root, '.staging/conversation'))).toEqual([]);
+    expect(await readdir(join(root, '.staging/workspace'))).toHaveLength(1);
     const ref = await other.publish();
     await other.dispose();
     await abandoned.dispose();

@@ -57,7 +57,7 @@ describe('conversation attachments', () => {
       const result = await client.attachments.upload({ conversationId: 'conv-1' }, uploadFile());
       if (!result.success) throw new Error(result.error.message);
       expect(result.data.targetPath).toContain(
-        `/conversations/conv-1/objects/${result.data.id}.png`
+        `/conversations/conv-1/${result.data.id}/content.png`
       );
       expect(await readFile(result.data.targetPath)).toEqual(Buffer.from([1, 2, 3]));
       const download = await client.attachments.download({
