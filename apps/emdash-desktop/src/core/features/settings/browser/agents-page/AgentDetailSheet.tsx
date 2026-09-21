@@ -72,6 +72,7 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
                 connectionId={connectionId}
                 agentPayload={agentPayload}
                 installOptions={agentPayload.installOptions}
+                installDocs={agentPayload.installDocs}
                 hideOverrideOptions={!isInstalled || isRemote}
               />
             </Field.Root>

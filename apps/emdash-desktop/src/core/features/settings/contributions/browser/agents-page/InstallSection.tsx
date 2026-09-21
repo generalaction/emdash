@@ -1,4 +1,5 @@
 import { toast } from '@emdash/ui/react/primitives';
+import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -93,7 +94,7 @@ const LocalInstallSection = observer(function LocalInstallSection({
   connectionId,
   agentPayload,
   installOptions,
-  installDocs: _installDocs,
+  installDocs,
   hideOverrideOptions: _hideOverrideOptions,
   compact = false,
 }: InstallSectionProps) {
@@ -217,6 +218,18 @@ const LocalInstallSection = observer(function LocalInstallSection({
           onChecking={setIsChecking}
           onSaved={() => setSourceDraft(null)}
         />
+      )}
+
+      {installDocs && (
+        <a
+          href={installDocs}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-foreground-muted hover:text-foreground"
+        >
+          Installation guide
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
       )}
     </div>
   );
