@@ -1,7 +1,10 @@
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createScope } from '@emdash/shared/concurrency';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { createWireWorkerHost, runWireComponentWorker } from '@emdash/wire/worker';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { conversationsComponent, conversationsComponentConfigSchema } from './component';
 
 // The conversations component is the sole writer of its own database (conv.sole-writer):
@@ -85,6 +88,32 @@ describe('conversationsComponent', () => {
     expect(replay).toEqual(created);
 
     await host.dispose();
+  });
+
+  it('reclaims conversation staging at startup without touching the workspace worker', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'conversation-component-attachments-'));
+    const abandoned = join(root, '.staging/conversation/abandoned');
+    const liveShellUpload = join(root, '.staging/workspace/live');
+    await mkdir(abandoned, { recursive: true });
+    await mkdir(liveShellUpload, { recursive: true });
+    await writeFile(join(abandoned, 'content'), 'partial');
+    await writeFile(join(liveShellUpload, 'content'), 'live');
+    const scope = createScope({ label: 'conversations-recovery-test' });
+    const component = conversationsComponent.create({
+      scope,
+      dependencies: {},
+      config: { attachmentsDir: root, databasePath: ':memory:' },
+    });
+    try {
+      // No attachment request: the component must start recovery during creation.
+      await vi.waitFor(async () => {
+        expect(await readdir(join(root, '.staging/conversation'))).toEqual([]);
+      });
+      expect(await readFile(join(liveShellUpload, 'content'), 'utf8')).toBe('live');
+    } finally {
+      await component.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

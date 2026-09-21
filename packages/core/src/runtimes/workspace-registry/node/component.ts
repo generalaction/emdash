@@ -48,7 +48,7 @@ export const workspaceRegistryComponent = defineWireComponent({
     userEnv: requireContract(userShellEnvContract),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
-  create: ({ config, dependencies, instance, logger, scope }) => {
+  create: ({ config, dependencies, fatal, instance, logger, scope }) => {
     const handle = workspaceRegistryStore.open(config.databasePath);
     scope.add(() => handle.close());
 
@@ -58,9 +58,12 @@ export const workspaceRegistryComponent = defineWireComponent({
       tuiAgents: dependencies.tuiAgents,
     };
     const killSessions = createSessionKiller(sessionClients, logger);
+    const attachments = new LocalAttachmentStore(config.attachmentsDir);
+    const attachmentInitialization = attachments.initialize('workspace').catch(fatal);
+    scope.add(() => attachmentInitialization);
     const runtime = new WorkspaceRegistryRuntime({
       handle,
-      attachments: new LocalAttachmentStore(config.attachmentsDir),
+      attachments,
       logger,
       killSessions,
       countSessions: createSessionCounter(sessionClients),

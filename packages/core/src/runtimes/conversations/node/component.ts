@@ -27,14 +27,17 @@ export const conversationsComponent = defineWireComponent({
   contract: conversationsContract,
   requirements: {},
   configSchema: conversationsComponentConfigSchema,
-  create: ({ config, instance, logger, scope }) => {
+  create: ({ config, fatal, instance, logger, scope }) => {
     const handle = conversationsStore.open(config.databasePath);
     scope.add(() => handle.close());
 
+    const attachments = new LocalAttachmentStore(config.attachmentsDir);
+    const attachmentInitialization = attachments.initialize('conversation').catch(fatal);
+    scope.add(() => attachmentInitialization);
     const runtime = new ConversationsRuntime({
       handle,
       logger,
-      attachments: new LocalAttachmentStore(config.attachmentsDir),
+      attachments,
     });
     scope.add(() => runtime.dispose());
 
